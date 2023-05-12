@@ -14,6 +14,7 @@ private data class ReversoLanguageDetectionRequest(
   val format: String = "text",
   val options: TranslationRequestOptions = TranslationRequestOptions()
 )
+
 private data class TranslationRequestOptions(
   val origin: String = "translation.web",
   val sentenceSplitter: Boolean = false,

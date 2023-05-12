@@ -15,7 +15,6 @@ import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.*
-import javax.swing.Timer
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.text.*
@@ -149,12 +148,12 @@ class InputPanel : JPanel() {
         highlighter.removeAllHighlights()
         spellCheckJob?.cancel()
         spellCheckJob = GlobalScope.launch {
-         /* val spellingResult = QTranslateViewModel.checkSpelling(text)
-          spellCheckHelper.text = text
-          spellCheckHelper.corrections.addAll(spellingResult.corrections)
-          for (word in spellingResult.corrections) {
-            highlighter.addHighlight(word.startIndex, word.endIndex, highlightPainter)
-          }*/
+          /* val spellingResult = QTranslateViewModel.checkSpelling(text)
+           spellCheckHelper.text = text
+           spellCheckHelper.corrections.addAll(spellingResult.corrections)
+           for (word in spellingResult.corrections) {
+             highlighter.addHighlight(word.startIndex, word.endIndex, highlightPainter)
+           }*/
         }
       }
     })
@@ -242,12 +241,20 @@ class InputPanel : JPanel() {
       layout = BoxLayout(this, BoxLayout.Y_AXIS)
       add(createButton("app-icons/star.svg", "Toggle favourite").apply { isVisible = false })
       add(createButton("app-icons/microphone.svg", "Listen to speech").apply { isVisible = false })
-      add(createButton("app-icons/copy-alt.svg", "Copy Text").apply { addActionListener { inputTextArea.text.copyToClipboard() } })
-      add(createButton("app-icons/headphones.svg", "Listen to text").apply { addActionListener(ActionManager.actions["listen_to_input"]) })
+      add(
+        createButton(
+          "app-icons/copy-alt.svg",
+          "Copy Text"
+        ).apply { addActionListener { inputTextArea.text.copyToClipboard() } })
+      add(
+        createButton(
+          "app-icons/headphones.svg",
+          "Listen to text"
+        ).apply { addActionListener(ActionManager.actions["listen_to_input"]) })
     }
   }
 
-  private fun createButton(iconPath: String, tooltip:String): JButton {
+  private fun createButton(iconPath: String, tooltip: String): JButton {
     return JButton().apply {
       toolTipText = tooltip
       icon = FlatSVGIcon(iconPath, 16, 16).apply {

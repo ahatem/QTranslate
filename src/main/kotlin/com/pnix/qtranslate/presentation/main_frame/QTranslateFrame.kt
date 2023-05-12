@@ -9,12 +9,18 @@ import com.pnix.qtranslate.presentation.actions.HotKeyManager
 import com.pnix.qtranslate.presentation.components.JXTrayIcon
 import com.pnix.qtranslate.presentation.snipping_screen.SnippingToolDialog
 import com.pnix.qtranslate.utils.setPadding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.swing.Swing
 import java.awt.*
 import java.awt.event.ItemEvent
 import java.awt.event.KeyEvent
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.awt.image.BufferedImage
+import java.util.*
 import javax.imageio.ImageIO
 import javax.swing.*
 import kotlin.system.exitProcess
@@ -39,40 +45,43 @@ class QTranslateFrame : JFrame("QTranslate") {
     pack()
     setLocationRelativeTo(null)
 
-    /*GlobalScope.launch(Dispatchers.Swing) {
-      QTranslateViewModel.uiState.collect { state ->
-        setInputEnabled(!state.isTranslating)
-        setOutputComponentsEnabled(!state.isTranslating)
-        setLanguageComboBoxesEnabled(!state.isTranslating)
-        setButtonsEnabled(!state.isTranslating)
-
-        if (outputPanel.fromLangComboBox.selectedItem != state.sourceLanguage) {
-          outputPanel.fromLangComboBox.selectedItem =
-            QTranslateViewModel.supportedLanguages.find { it.id == state.sourceLanguage.id }
-
-        }
-        if (outputPanel.toLangComboBox.selectedItem != state.targetLanguage) {
-          outputPanel.toLangComboBox.selectedItem =
-            QTranslateViewModel.supportedLanguages.find { it.id == state.targetLanguage.id }
-        }
-
-        *//*if (state.isTranslating && inputPanel.inputTextArea.text != state.inputText) {
-          inputPanel.inputTextArea.text = state.inputText
-        }*//*
-
-        if (inputPanel.inputTextArea.text != state.inputText) {
-          inputPanel.inputTextArea.text = state.inputText
-          val locale = Locale.forLanguageTag(state.sourceLanguage.alpha2)
-          inputPanel.inputTextArea.componentOrientation = ComponentOrientation.getOrientation(locale)
-        }
-
-        if (outputPanel.outputTextArea.text != state.outputText) {
-          outputPanel.outputTextArea.text = state.outputText
-          val locale = Locale.forLanguageTag(state.targetLanguage.alpha2)
-          outputPanel.outputTextArea.componentOrientation = ComponentOrientation.getOrientation(locale)
+    GlobalScope.launch(Dispatchers.Swing) {
+      launch {
+        QTranslateViewModel.isTranslating.collectLatest { disableInputs(it) }
+      }
+      launch {
+        QTranslateViewModel.translation.collectLatest {
+          if (outputPanel.outputTextArea.text != it) {
+            outputPanel.outputTextArea.text = it
+            val locale = Locale.forLanguageTag(QTranslateViewModel.outputLanguage.value.alpha2)
+            outputPanel.outputTextArea.componentOrientation = ComponentOrientation.getOrientation(locale)
+          }
         }
       }
-    }*/
+      launch {
+        QTranslateViewModel.input.collectLatest {
+          if (inputPanel.inputTextArea.text != it) {
+            inputPanel.inputTextArea.text = it
+            val locale = Locale.forLanguageTag(QTranslateViewModel.inputLanguage.value.alpha2)
+            inputPanel.inputTextArea.componentOrientation = ComponentOrientation.getOrientation(locale)
+          }
+        }
+      }
+      launch {
+        QTranslateViewModel.inputLanguage.collectLatest {
+          if (outputPanel.inputLangComboBox.selectedItem != it) {
+            outputPanel.inputLangComboBox.selectedItem = it
+          }
+        }
+      }
+      launch {
+        QTranslateViewModel.outputLanguage.collectLatest {
+          if (outputPanel.outputLangComboBox.selectedItem != it) {
+            outputPanel.outputLangComboBox.selectedItem = it
+          }
+        }
+      }
+    }
 
   }
 
@@ -82,6 +91,7 @@ class QTranslateFrame : JFrame("QTranslate") {
       ImageIO.read(javaClass.classLoader.getResourceAsStream("app-icons/app/${it}.png"))
     }
   }
+
   private fun initWindowListeners() {
     addWindowListener(object : WindowAdapter() {
       override fun windowOpened(e: WindowEvent?) {
@@ -134,6 +144,7 @@ class QTranslateFrame : JFrame("QTranslate") {
       JComponent.WHEN_IN_FOCUSED_WINDOW
     )
   }
+
   private fun initTrayMenu() {
     val settingsButton = createSettingsButton(createOptionsPopupMenu())
     JMenuBar().apply {
@@ -143,17 +154,17 @@ class QTranslateFrame : JFrame("QTranslate") {
   }
 
   private fun disableInputs(disable: Boolean) {
-    inputPanel.inputTextArea.isEditable = disable
+    inputPanel.inputTextArea.isEditable = !disable
 
-    outputPanel.clearButton.isEnabled = disable
-    outputPanel.menuButton.isEnabled = disable
-    outputPanel.outputTextArea.isEnabled = disable
+    outputPanel.clearButton.isEnabled = !disable
+    outputPanel.menuButton.isEnabled = !disable
+    outputPanel.outputTextArea.isEnabled = !disable
 
-    outputPanel.inputLangComboBox.isEnabled = disable
-    outputPanel.outputLangComboBox.isEnabled = disable
+    outputPanel.inputLangComboBox.isEnabled = !disable
+    outputPanel.outputLangComboBox.isEnabled = !disable
 
-    outputPanel.translateButton.isEnabled = disable
-    outputPanel.swapButton.isEnabled = disable
+    outputPanel.translateButton.isEnabled = !disable
+    outputPanel.swapButton.isEnabled = !disable
   }
 
   private fun createTrayPopupMenu(): JPopupMenu {

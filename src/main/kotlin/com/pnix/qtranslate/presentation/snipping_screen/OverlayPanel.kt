@@ -28,7 +28,8 @@ class OverlayPanel(frame: JFrame, dialog: JDialog) : JPanel() {
       margin = Insets(5, 5, 5, 5)
       addActionListener {
         dialog.dispose()
-//        QTranslateViewModel.updateInputText(recognizeText(getSelectedImage()))
+        // TODO: this should be suspend
+        QTranslateViewModel.setInputText(recognizeText(getSelectedImage()))
         frame.isVisible = true
         frame.state = JFrame.NORMAL
         ActionManager.actions["translate"]?.actionPerformed(it)
@@ -201,7 +202,7 @@ class OverlayPanel(frame: JFrame, dialog: JDialog) : JPanel() {
       listener.selection!!.width,
       listener.selection!!.height
     )
-    return upscaleImage(inputImage, 2.0)
+    return upscaleImage(inputImage)
   }
 
   override fun paint(g: Graphics?) {

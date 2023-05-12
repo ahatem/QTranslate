@@ -10,6 +10,8 @@ version = "1.0-SNAPSHOT"
 repositories {
   mavenCentral()
   maven { url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots") }
+  maven { url = uri("https://jitpack.io") }
+
 }
 
 dependencies {
@@ -25,7 +27,7 @@ dependencies {
 
   implementation("net.java.dev.jna:jna-platform:5.13.0")
   implementation("com.melloware:jintellitype:1.4.1")
-  implementation("javazoom:jlayer:1.0.1")
+  implementation("com.github.umjammer:jlayer:1.0.2")
 
   implementation("com.miglayout:miglayout-swing:11.1")
   implementation("com.formdev:flatlaf:3.1.1")

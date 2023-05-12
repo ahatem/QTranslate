@@ -17,7 +17,12 @@ data class Translation(
 
 data class SpellCheckResult(val correctedText: String, val corrections: List<SpellCheckCorrection>)
 data class SpellCheck(val correctedText: String, val corrections: List<SpellCheckCorrection> = emptyList())
-data class SpellCheckCorrection(val originalWord: String, val suggestions: List<String>, val startIndex: Int, val endIndex: Int)
+data class SpellCheckCorrection(
+  val originalWord: String,
+  val suggestions: List<String>,
+  val startIndex: Int,
+  val endIndex: Int
+)
 
 data class TextToSpeechResult(
   val content: ByteArray

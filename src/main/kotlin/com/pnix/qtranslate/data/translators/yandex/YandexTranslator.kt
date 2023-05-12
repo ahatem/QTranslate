@@ -1,11 +1,9 @@
 package com.pnix.qtranslate.data.translators.yandex
 
 import com.google.gson.GsonBuilder
-import com.pnix.qtranslate.data.translators.reverso.ReversoLanguageMapper
 import com.pnix.qtranslate.domain.abstraction.LanguageMapper
 import com.pnix.qtranslate.domain.abstraction.TranslatorService
 import com.pnix.qtranslate.domain.models.SpellCheck
-import com.pnix.qtranslate.domain.models.SpellCheckResult
 import com.pnix.qtranslate.domain.models.TextToSpeechResult
 import com.pnix.qtranslate.domain.models.Translation
 import kong.unirest.Unirest

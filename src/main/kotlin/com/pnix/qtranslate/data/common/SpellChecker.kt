@@ -5,9 +5,8 @@ import com.pnix.qtranslate.domain.models.SpellCheck
 import com.pnix.qtranslate.domain.models.SpellCheckCorrection
 import kong.unirest.Unirest
 import kotlinx.coroutines.future.await
-import java.util.Locale
 
-data class GrammarCheckerResponse(val matches: List<Match>, )
+data class GrammarCheckerResponse(val matches: List<Match>)
 data class Match(
   val message: String,
   val shortMessage: String,
@@ -21,11 +20,12 @@ data class Match(
   val ignoreForIncompleteSentence: Boolean,
   val contextForSureMatch: Long,
 )
-data class Replacement(val value: String, )
-data class Context(val text: String, val offset: Long, val length: Long, )
-data class Type(val typeName: String, )
-data class Rule(val id: String, val description: String, val issueType: String, val category: Category, )
-data class Category(val id: String, val name: String, )
+
+data class Replacement(val value: String)
+data class Context(val text: String, val offset: Long, val length: Long)
+data class Type(val typeName: String)
+data class Rule(val id: String, val description: String, val issueType: String, val category: Category)
+data class Category(val id: String, val name: String)
 
 object SpellChecker {
   suspend fun spellCheck(text: String, sourceLanguage: String = "en-US"): SpellCheck {

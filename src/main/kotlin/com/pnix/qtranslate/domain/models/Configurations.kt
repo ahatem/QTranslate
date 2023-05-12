@@ -15,5 +15,4 @@ object Configurations {
   { _, _, newValue -> prefs.putBoolean("instant_translation", newValue) }
 
 
-
 }

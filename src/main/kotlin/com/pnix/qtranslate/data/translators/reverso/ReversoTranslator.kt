@@ -9,8 +9,7 @@ import com.pnix.qtranslate.domain.abstraction.TranslatorService
 import com.pnix.qtranslate.domain.models.*
 import kong.unirest.Unirest
 import kotlinx.coroutines.future.await
-import java.net.URLEncoder
-import java.util.Base64
+import java.util.*
 
 private data class ReversoRequest(
   val format: String = "text",
@@ -147,7 +146,10 @@ class ReversoTranslator : TranslatorService() {
       ?: supportedLanguagesList.voices.first { "english" in it.language.lowercase() }
 
     runCatching {
-      val url = "https://voice.reverso.net/RestPronunciation.svc/v1/output=json/GetVoiceStream/voiceName=${voice.name}?voiceSpeed=${1}&inputText=${Base64.getEncoder().encodeToString(text.toByteArray())}"
+      val url =
+        "https://voice.reverso.net/RestPronunciation.svc/v1/output=json/GetVoiceStream/voiceName=${voice.name}?voiceSpeed=${1}&inputText=${
+          Base64.getEncoder().encodeToString(text.toByteArray())
+        }"
       val response = Unirest.get(url).headers(headers).asBytes().body
       return TextToSpeechResult(response)
     }

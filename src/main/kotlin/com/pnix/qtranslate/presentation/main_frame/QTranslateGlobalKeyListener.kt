@@ -2,11 +2,11 @@ package com.pnix.qtranslate.presentation.main_frame
 
 import com.melloware.jintellitype.HotkeyListener
 import com.melloware.jintellitype.JIntellitype
+import com.pnix.qtranslate.presentation.actions.ActionManager
 import com.pnix.qtranslate.presentation.quick_translate.QuickTranslateDialog
 import com.pnix.qtranslate.presentation.snipping_screen.SnippingToolDialog
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import kotlinx.coroutines.swing.Swing
 import java.awt.Robot
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
@@ -23,7 +23,7 @@ class QTranslateHotkeyListener(private val frame: JFrame) : HotkeyListener {
   private var lastCtrlPressTime = 0L
 
   init {
-    JIntellitype.getInstance().registerHotKey(0, JIntellitype.MOD_CONTROL, 0);
+    JIntellitype.getInstance().registerHotKey(0, JIntellitype.MOD_CONTROL, 0)
     JIntellitype.getInstance().registerHotKey(1, JIntellitype.MOD_CONTROL, 'Q'.code)
     JIntellitype.getInstance().registerHotKey(2, JIntellitype.MOD_CONTROL, 'E'.code)
     JIntellitype.getInstance().registerHotKey(3, JIntellitype.MOD_CONTROL, 'B'.code)
@@ -43,8 +43,8 @@ class QTranslateHotkeyListener(private val frame: JFrame) : HotkeyListener {
     if (currentTime - lastCtrlPressTime < 500) {
       GlobalScope.launch {
         useUserSelectedText {
-//          QTranslateViewModel.updateInputText(it)
-//          QTranslateViewModel.translate()
+          QTranslateViewModel.setInputText(it)
+          ActionManager.actions["translate"]?.actionPerformed(null)
           frame.isVisible = true
           frame.state = JFrame.NORMAL
         }
@@ -57,9 +57,13 @@ class QTranslateHotkeyListener(private val frame: JFrame) : HotkeyListener {
   private fun translateInPlace() {
     GlobalScope.launch {
       useUserSelectedText {
-//        QTranslateViewModel.updateInputText(it)
-//        QTranslateViewModel.translate()
-        QuickTranslateDialog(frame)
+        this.launch {
+          QTranslateViewModel.setInputText(it)
+          QTranslateViewModel.translateAndWait()
+          withContext(Dispatchers.Swing) {
+            QuickTranslateDialog(frame)
+          }
+        }
       }
     }
   }
@@ -67,8 +71,10 @@ class QTranslateHotkeyListener(private val frame: JFrame) : HotkeyListener {
   private fun listenToTextInPlace() {
     GlobalScope.launch {
       useUserSelectedText {
-//        QTranslateViewModel.updateInputText(it)
-//        QTranslateViewModel.listenToInput()
+        this.launch {
+          QTranslateViewModel.setInputText(it)
+          QTranslateViewModel.listenToInput()
+        }
       }
     }
   }
@@ -100,11 +106,11 @@ class QTranslateHotkeyListener(private val frame: JFrame) : HotkeyListener {
 
   private suspend fun simulateCopy() {
     val robot = Robot()
-    robot.keyPress(KeyEvent.VK_CONTROL);
+    robot.keyPress(KeyEvent.VK_CONTROL)
     delay(50)
     robot.keyPress(KeyEvent.VK_C)
     delay(150)
-    robot.keyRelease(KeyEvent.VK_C);
+    robot.keyRelease(KeyEvent.VK_C)
     delay(50)
     robot.keyRelease(KeyEvent.VK_CONTROL)
     delay(50)

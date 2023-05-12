@@ -127,7 +127,7 @@ class OutputPanel : JPanel(BorderLayout()) {
     icon = FlatSVGIcon("translator-icons/${name.lowercase()}.svg", (iconSize * 1.25).toInt(), (iconSize * 1.25).toInt())
     addActionListener {
       QTranslateViewModel.setSelectedTranslatorIndex(index)
-      QTranslateViewModel.translate()
+      ActionManager.actions["translate"]?.actionPerformed(it)
     }
     buttonGroup.add(this)
   }
