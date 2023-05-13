@@ -122,12 +122,12 @@ class InputPanel : JPanel() {
     document.addUndoableEditListener(undoManager)
     document.addDocumentListener(object : DocumentListener {
       private val translateTimer = Timer(1000) {
-//        if (Configurations.instantTranslation) QTranslateViewModel.translate()
+        if (Configurations.instantTranslation) GlobalScope.launch { QTranslateViewModel.translate() }
         requestFocus()
       }.apply { isRepeats = false; }
 
       private var spellCheckJob: Job? = null
-      private val spellCheckTimer = Timer(2000) {
+      private val spellCheckTimer = Timer(1500) {
         if (Configurations.spellChecking) checkSpelling()
         requestFocus()
       }.apply { isRepeats = false; }
@@ -147,14 +147,14 @@ class InputPanel : JPanel() {
       private fun checkSpelling() {
         highlighter.removeAllHighlights()
         spellCheckJob?.cancel()
-        spellCheckJob = GlobalScope.launch {
-          /* val spellingResult = QTranslateViewModel.checkSpelling(text)
+        /*spellCheckJob = GlobalScope.launch {
+          val spellingResult = QTranslateViewModel.checkSpelling(text)
            spellCheckHelper.text = text
            spellCheckHelper.corrections.addAll(spellingResult.corrections)
            for (word in spellingResult.corrections) {
              highlighter.addHighlight(word.startIndex, word.endIndex, highlightPainter)
-           }*/
-        }
+           }
+        }*/
       }
     })
 
@@ -181,9 +181,9 @@ class InputPanel : JPanel() {
           for (highlight in highlights) {
             if (offset >= highlight.startOffset && offset < highlight.endOffset) {
               val highlightedText = document.getText(highlight.startOffset, highlight.endOffset - highlight.startOffset)
-              val spellCheckCorrection = spellCheckHelper.corrections.find { it.originalWord == highlightedText }
+              val spellCheckCorrection = spellCheckHelper.corrections.find { it.originalWord == highlightedText } ?: continue
               spellingMenu = JMenu("Spelling")
-              spellCheckCorrection?.suggestions?.forEach { suggestion ->
+              spellCheckCorrection.suggestions.forEach { suggestion ->
                 spellingMenu.add(JMenuItem(suggestion).apply {
                   addActionListener {
                     document.remove(highlight.startOffset, highlight.endOffset - highlight.startOffset)
@@ -200,14 +200,34 @@ class InputPanel : JPanel() {
             menu.add(spellingMenu)
             menu.addSeparator()
           }
-          menu.add(JMenuItem("Undo"))
+          menu.add(JMenuItem("Undo").apply { addActionListener { undoManager.undo() } })
           menu.addSeparator()
-          menu.add(JMenuItem("Cut All"))
-          menu.add(JMenuItem("Copy All"))
-          menu.add(JMenuItem("Paste"))
+          if (selectedText == null) {
+            menu.add(JMenuItem("Cut All").apply { addActionListener { text.copyToClipboard(); text = "" } })
+            menu.add(JMenuItem("Copy All").apply { addActionListener { text.copyToClipboard() } })
+          } else {
+            menu.add(JMenuItem("Cut").apply { addActionListener { cut() } })
+            menu.add(JMenuItem("Copy").apply { addActionListener { copy() } })
+          }
+
+          menu.add(JMenuItem("Paste").apply { addActionListener { paste() } })
           menu.addSeparator()
-          menu.add(JMenuItem("Translate"))
-          menu.add(JMenuItem("Listen"))
+          menu.add(JMenuItem("Translate").apply {
+            addActionListener {
+              GlobalScope.launch {
+                if (selectedText == null) QTranslateViewModel.translate()
+                else QTranslateViewModel.translate(selectedText)
+              }
+            }
+          })
+          menu.add(JMenuItem("Listen").apply {
+            addActionListener {
+              GlobalScope.launch {
+                if (selectedText == null) QTranslateViewModel.listenToInput()
+                else QTranslateViewModel.listenToInput(selectedText)
+              }
+            }
+          })
           menu.show(ev.component, ev.x, ev.y)
         }
       }

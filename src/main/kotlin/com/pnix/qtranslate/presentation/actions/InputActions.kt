@@ -24,13 +24,13 @@ class SwapAction : ActionListener {
     QTranslateViewModel.setInputLanguage(targetLanguage)
     QTranslateViewModel.setOutputLanguage(sourceLanguage)
 
-    GlobalScope.launch { QTranslateViewModel.translateAndWait() }
+    GlobalScope.launch { QTranslateViewModel.translate() }
   }
 }
 
 class TranslateAction : ActionListener {
   override fun actionPerformed(e: ActionEvent?) {
-    GlobalScope.launch { QTranslateViewModel.translateAndWait() }
+    GlobalScope.launch { QTranslateViewModel.translate() }
   }
 }
 

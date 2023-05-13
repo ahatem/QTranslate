@@ -43,8 +43,8 @@ object QTranslateViewModel {
   private var player: AdvancedPlayer? = null
   private var job: Job? = null
 
-  suspend fun translateAndWait() {
-    val inputText = _input.value
+  suspend fun translate(text: String? = null) {
+    val inputText = text ?: _input.value
     if (inputText.isBlank()) return
     _isTranslating.value = true
     val inputLang = _inputLanguage.value.alpha3
@@ -55,8 +55,8 @@ object QTranslateViewModel {
     _isTranslating.value = false
   }
 
-  suspend fun listenToInput() {
-    val inputText = _input.value
+  suspend fun listenToInput(text: String? = null) {
+    val inputText = text ?: _input.value
     if (inputText.isBlank()) return
 
     val inputLang = _inputLanguage.value.alpha3

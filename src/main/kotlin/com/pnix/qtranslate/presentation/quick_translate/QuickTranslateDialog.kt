@@ -6,6 +6,12 @@ import com.pnix.qtranslate.presentation.actions.ActionManager
 import com.pnix.qtranslate.presentation.components.ComponentMover
 import com.pnix.qtranslate.presentation.components.ComponentResizer
 import com.pnix.qtranslate.presentation.main_frame.QTranslateViewModel
+import com.pnix.qtranslate.utils.copyToClipboard
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.swing.Swing
 import java.awt.*
 import java.awt.event.KeyEvent
 import java.util.*
@@ -24,7 +30,7 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
     font = Font(Font.SANS_SERIF, Font.PLAIN, fontSize.toInt())
     isEditable = false
     wrapStyleWord = true
-    lineWrap = true
+    lineWrap = false
     componentOrientation =
       ComponentOrientation.getOrientation(Locale.forLanguageTag(QTranslateViewModel.outputLanguage.value.alpha2))
 
@@ -75,12 +81,21 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
     contentPanel.add(scrollPane)
     contentPanel.add(createTranslatorsPanel(), BorderLayout.SOUTH)
 
-
     initMoveAndResize(topPanel)
 
     contentPane.add(contentPanel)
     resize()
     reposition()
+
+    GlobalScope.launch(Dispatchers.Swing) {
+      QTranslateViewModel.translation.collectLatest {
+        if (outputTextArea.text != it) {
+          outputTextArea.text = it
+          val locale = Locale.forLanguageTag(QTranslateViewModel.outputLanguage.value.alpha2)
+          outputTextArea.componentOrientation = ComponentOrientation.getOrientation(locale)
+        }
+      }
+    }
 
     isVisible = true
   }
@@ -99,11 +114,13 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
   }
 
   private fun resize() {
-    val maxWidth = (Toolkit.getDefaultToolkit().screenSize.width * (2 / 4.0)).toInt()
-    val maxHeight = (Toolkit.getDefaultToolkit().screenSize.height * (1 / 3.0)).toInt()
+    val maxWidth = (Toolkit.getDefaultToolkit().screenSize.width * (0.35)).toInt()
+    val maxHeight = (Toolkit.getDefaultToolkit().screenSize.height * (0.65)).toInt()
+
     val fontMetrics: FontMetrics = outputTextArea.getFontMetrics(outputTextArea.font)
     val width = fontMetrics.stringWidth(outputTextArea.text)
     if (width > maxWidth) {
+      outputTextArea.lineWrap = true
       val lineHeight = fontMetrics.height
       val numLines = ceil(width.toDouble() / maxWidth).toInt()
       val requiredHeight = (numLines * lineHeight).plus(4).coerceAtMost(maxHeight)
@@ -128,19 +145,55 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
   }
 
   private fun createTopPanel(): JPanel {
-    val closeButton = FlatButton().apply {
-      icon = FlatSVGIcon("app-icons/cross.svg", 10, 10).apply {
-        colorFilter = FlatSVGIcon.ColorFilter { _: Color? -> UIManager.getColor("Label.foreground") }
-      }
-      buttonType = FlatButton.ButtonType.toolBarButton
-      border = BorderFactory.createEmptyBorder(4, 4, 4, 4)
+    val closeButton = createTopPanelButton("app-icons/cross-circle.svg", 13).apply {
+      border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
       addActionListener { dispose() }
     }
 
-    return JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
+    val favouriteButton = createTopPanelButton("app-icons/star.svg", 13).apply {
+      border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
+      addActionListener { dispose() }
+    }
+    val dictionaryButton = createTopPanelButton("app-icons/notebook-alt.svg", 13).apply {
+      border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
+      addActionListener {  }
+    }
+    val listenButton = createTopPanelButton("app-icons/headphones.svg", 13).apply {
+      border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
+      addActionListener { GlobalScope.launch { QTranslateViewModel.listenToInput() } }
+    }
+    val copyButton = createTopPanelButton("app-icons/copy-alt.svg", 13).apply {
+      border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
+      addActionListener { QTranslateViewModel.input.value.copyToClipboard(); dispose() }
+    }
+    val replaceButton = createTopPanelButton("app-icons/replace.svg", 13).apply {
+      border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
+      addActionListener {  }
+    }
+
+
+    return JPanel().apply {
+//      layout = FlowLayout(FlowLayout.LEFT, 4, 0)
+      layout = BoxLayout(this, BoxLayout.X_AXIS)
       border = null
       add(closeButton)
+      add(Box.createHorizontalStrut(4))
       add(JLabel(getDialogTitle()))
+      add(Box.createHorizontalGlue())
+      add(favouriteButton)
+      add(dictionaryButton)
+      add(listenButton)
+      add(copyButton)
+      add(replaceButton)
+    }
+  }
+
+  private fun createTopPanelButton(iconPath: String, iconSize: Int): FlatButton {
+    return FlatButton().apply {
+      icon = FlatSVGIcon(iconPath, iconSize, iconSize).apply {
+        colorFilter = FlatSVGIcon.ColorFilter { _: Color? -> UIManager.getColor("Label.foreground") }
+      }
+      buttonType = FlatButton.ButtonType.toolBarButton
     }
   }
 
