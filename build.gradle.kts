@@ -34,6 +34,7 @@ dependencies {
   implementation("com.formdev:flatlaf-intellij-themes:3.1.1")
   implementation("com.formdev:flatlaf-extras:3.1.1")
   implementation("com.formdev:svgSalamander:1.1.4")
+
 }
 
 tasks.test {

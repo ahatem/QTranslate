@@ -7,6 +7,7 @@ import com.pnix.qtranslate.domain.models.Configurations
 import com.pnix.qtranslate.presentation.actions.ActionManager
 import com.pnix.qtranslate.presentation.actions.HotKeyManager
 import com.pnix.qtranslate.presentation.components.JXTrayIcon
+import com.pnix.qtranslate.presentation.loading.LoadingDialog
 import com.pnix.qtranslate.presentation.snipping_screen.SnippingToolDialog
 import com.pnix.qtranslate.utils.setPadding
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +30,7 @@ class QTranslateFrame : JFrame("QTranslate") {
 
   private val inputPanel = InputPanel()
   private val outputPanel = OutputPanel()
+  private val loadingDialog = LoadingDialog()
 
   init {
     defaultCloseOperation = DO_NOTHING_ON_CLOSE
@@ -46,6 +48,11 @@ class QTranslateFrame : JFrame("QTranslate") {
     setLocationRelativeTo(null)
 
     GlobalScope.launch(Dispatchers.Swing) {
+      launch {
+        QTranslateViewModel.isLoading.collectLatest {
+          loadingDialog.isVisible = it
+        }
+      }
       launch {
         QTranslateViewModel.isTranslating.collectLatest { disableInputs(it) }
       }

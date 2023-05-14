@@ -61,6 +61,7 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
     defaultCloseOperation = DISPOSE_ON_CLOSE
     isUndecorated = true
     isAlwaysOnTop = true
+    focusableWindowState = false
     minimumSize = Dimension(200, 65)
     rootPane.registerKeyboardAction(
       { dispose() },
@@ -96,6 +97,10 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
         }
       }
     }
+
+
+
+
 
     isVisible = true
   }

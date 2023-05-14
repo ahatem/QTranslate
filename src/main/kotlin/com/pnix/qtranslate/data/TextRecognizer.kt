@@ -45,7 +45,6 @@ fun recognizeText(image: BufferedImage): String {
     .body(requestBody)
     .asJson().body.`object`
 
-//  println(response.toString(2))
   val textAnnotations = response.getJSONArray("responses")
     .getJSONObject(0)
     .getJSONObject("fullTextAnnotation")

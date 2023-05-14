@@ -58,8 +58,10 @@ class QTranslateHotkeyListener(private val frame: JFrame) : HotkeyListener {
     GlobalScope.launch {
       useUserSelectedText {
         this.launch {
+          QTranslateViewModel.setLoading(true)
           QTranslateViewModel.setInputText(it)
           QTranslateViewModel.translate()
+          QTranslateViewModel.setLoading(false)
           withContext(Dispatchers.Swing) {
             QuickTranslateDialog(frame)
           }
@@ -72,8 +74,10 @@ class QTranslateHotkeyListener(private val frame: JFrame) : HotkeyListener {
     GlobalScope.launch {
       useUserSelectedText {
         this.launch {
+          QTranslateViewModel.setLoading(true)
           QTranslateViewModel.setInputText(it)
           QTranslateViewModel.listenToInput()
+          QTranslateViewModel.setLoading(false)
         }
       }
     }

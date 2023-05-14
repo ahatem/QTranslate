@@ -73,8 +73,6 @@ class GoogleTranslator : TranslatorService() {
     val newSourceLanguage =
       if (sourceLanguage == "auto") languageMapper.detectLanguage(text) else sourceLanguage
 
-    println(newSourceLanguage)
-
     val headers = mapOf(
       "User-Agent" to UserAgent.random(),
       "accept" to "*/*",

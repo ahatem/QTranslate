@@ -16,6 +16,9 @@ import java.io.ByteArrayInputStream
 
 object QTranslateViewModel {
 
+  private val _isLoading = MutableStateFlow(false)
+  val isLoading = _isLoading.asStateFlow()
+
   val translators = listOf(GoogleTranslator(), BingTranslator(), YandexTranslator(), ReversoTranslator())
   val supportedLanguages = Language.listAllLanguages().toTypedArray()
 
@@ -95,6 +98,10 @@ object QTranslateViewModel {
 
   fun setSelectedTranslatorIndex(index: Int) {
     _selectedTranslatorIndex.value = index
+  }
+
+  fun setLoading(loading: Boolean) {
+    _isLoading.value = loading
   }
 
   private fun playAudio(content: ByteArray) {

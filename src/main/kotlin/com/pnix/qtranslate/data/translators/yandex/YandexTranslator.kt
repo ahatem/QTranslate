@@ -4,6 +4,7 @@ import com.google.gson.GsonBuilder
 import com.pnix.qtranslate.domain.abstraction.LanguageMapper
 import com.pnix.qtranslate.domain.abstraction.TranslatorService
 import com.pnix.qtranslate.domain.models.SpellCheck
+import com.pnix.qtranslate.domain.models.SpellCheckCorrection
 import com.pnix.qtranslate.domain.models.TextToSpeechResult
 import com.pnix.qtranslate.domain.models.Translation
 import kong.unirest.Unirest
@@ -11,6 +12,17 @@ import kotlinx.coroutines.future.await
 import java.util.*
 
 data class YandexLanguageRequest(val code: Long, val lang: String, val text: List<String>)
+
+data class SpellCheckYandexResponse(
+  val code: Int,
+  val pos: Int,
+  val row: Int,
+  val col: Int,
+  val len: Int,
+  val word: String,
+  val s: List<String>
+)
+
 
 class YandexTranslator : TranslatorService() {
   override val serviceName: String get() = "Yandex"
@@ -48,11 +60,44 @@ class YandexTranslator : TranslatorService() {
   }
 
   override suspend fun doTextToSpeech(text: String, sourceLanguage: String): TextToSpeechResult {
-    TODO("Not yet implemented")
+    throw Exception("Text to speech is not supported by $serviceName")
   }
 
   override suspend fun doSpellCheck(text: String, sourceLanguage: String): SpellCheck {
-    TODO("Not yet implemented")
+    val url = "https://speller.yandex.net/services/spellservice.json/checkText"
+
+    val newSourceLanguage =
+      if (sourceLanguage == "auto") languageMapper.detectLanguage(text) else sourceLanguage
+
+    val params = mapOf("sid" to generateSid(), "srv" to "android")
+    val data = mapOf("text" to text, "lang" to newSourceLanguage, "options" to 8 + 4)
+
+    runCatching {
+      return Unirest.post(url).queryString(params).fields(data).asStringAsync().await().body.let {
+        val response = gson.fromJson(it, Array<SpellCheckYandexResponse>::class.java).toList()
+        val corrections = response.map { word ->
+          SpellCheckCorrection(
+            originalWord = word.word,
+            suggestions = word.s,
+            startIndex = word.pos,
+            endIndex = word.pos + word.len
+          )
+        }
+        val correctedText = buildString {
+          var lastEndIndex = 0
+          for (correction in corrections) {
+            append(text.substring(lastEndIndex, correction.startIndex))
+            if (correction.suggestions.isNotEmpty()) append(correction.suggestions[0])
+            else append(correction.originalWord)
+            lastEndIndex = correction.endIndex
+          }
+          append(text.substring(lastEndIndex))
+        }
+        SpellCheck(correctedText, corrections)
+      }
+    }
+
+    throw Exception("Something Wrong Happened!")
   }
 
 
