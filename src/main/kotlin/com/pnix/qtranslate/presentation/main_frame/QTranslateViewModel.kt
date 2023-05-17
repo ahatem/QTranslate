@@ -5,6 +5,7 @@ import com.pnix.qtranslate.data.translators.google.GoogleTranslator
 import com.pnix.qtranslate.data.translators.reverso.ReversoTranslator
 import com.pnix.qtranslate.data.translators.yandex.YandexTranslator
 import com.pnix.qtranslate.domain.models.Language
+import com.pnix.qtranslate.domain.models.SpellCheckResult
 import javazoom.jl.player.advanced.AdvancedPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +16,9 @@ import kotlinx.coroutines.launch
 import java.io.ByteArrayInputStream
 
 object QTranslateViewModel {
+
+  private val _configurationChanged = MutableStateFlow(false)
+  val configurationChanged = _configurationChanged.asStateFlow()
 
   private val _isLoading = MutableStateFlow(false)
   val isLoading = _isLoading.asStateFlow()
@@ -42,6 +46,8 @@ object QTranslateViewModel {
   private val _isListening = MutableStateFlow(false)
   val isListening = _isListening.asStateFlow()
 
+  private val _spells = MutableStateFlow(SpellCheckResult("", mutableListOf()))
+  val spells = _spells.asStateFlow()
 
   private var player: AdvancedPlayer? = null
   private var job: Job? = null
@@ -56,6 +62,15 @@ object QTranslateViewModel {
     val translatedText = translator.translate(inputText, outputLang, inputLang)
     _translation.value = translatedText.translatedText
     _isTranslating.value = false
+  }
+
+  suspend fun spellCheck() {
+    val inputText = _input.value
+    if (inputText.isBlank()) return
+    val inputLang = _inputLanguage.value.alpha3
+    val translator = translators[_selectedTranslatorIndex.value]
+    val spellCheck = translator.spellCheck(inputText, inputLang)
+    _spells.value = spellCheck
   }
 
   suspend fun listenToInput(text: String? = null) {
@@ -119,6 +134,11 @@ object QTranslateViewModel {
       }
     }
   }
+
+  fun triggerConfigurationChanged() {
+    _configurationChanged.value = !configurationChanged.value
+  }
+
 
 }
 

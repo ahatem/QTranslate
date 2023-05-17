@@ -27,6 +27,8 @@ class LoadingDialog : JDialog(null as Frame?, "", false) {
     progressBar.isIndeterminate = true
     progressBar.preferredSize = Dimension(50, 10)
     progressBar.border = BorderFactory.createEtchedBorder(EtchedBorder.RAISED)
+    progressBar.putClientProperty("JProgressBar.square", true)
+
     add(progressBar)
 
     addComponentListener(object : ComponentAdapter() {

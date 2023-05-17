@@ -1,6 +1,7 @@
 package com.pnix.qtranslate.presentation.main_frame
 
 import com.formdev.flatlaf.extras.FlatSVGIcon
+import com.pnix.qtranslate.domain.models.Configurations
 import com.pnix.qtranslate.domain.models.Language
 import com.pnix.qtranslate.presentation.actions.ActionManager
 import com.pnix.qtranslate.utils.copyToClipboard
@@ -16,7 +17,7 @@ import javax.swing.*
 class OutputPanel : JPanel(BorderLayout()) {
 
   private val iconSize = 16
-  private var fontSize = 16f
+  private var fontSize = Configurations.inputsFontSize.toFloat()
 
   val clearButton = createButton("app-icons/trash.svg", "Clear current translation").apply {
     addActionListener(ActionManager.actions["clear"])
@@ -39,7 +40,7 @@ class OutputPanel : JPanel(BorderLayout()) {
   val outputLangComboBox = createComboBox(QTranslateViewModel.outputLanguage.value)
 
   val outputTextArea = JTextArea().apply {
-    font = Font(Font.SANS_SERIF, Font.PLAIN, fontSize.toInt())
+    font = Font(Configurations.inputsFontName, Font.PLAIN, Configurations.inputsFontSize)
     lineWrap = true
     wrapStyleWord = true
     isEditable = false

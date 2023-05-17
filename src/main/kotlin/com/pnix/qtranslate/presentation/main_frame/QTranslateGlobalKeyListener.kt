@@ -62,9 +62,7 @@ class QTranslateHotkeyListener(private val frame: JFrame) : HotkeyListener {
           QTranslateViewModel.setInputText(it)
           QTranslateViewModel.translate()
           QTranslateViewModel.setLoading(false)
-          withContext(Dispatchers.Swing) {
-            QuickTranslateDialog(frame)
-          }
+          withContext(Dispatchers.Swing) { QuickTranslateDialog(frame).isVisible = true }
         }
       }
     }

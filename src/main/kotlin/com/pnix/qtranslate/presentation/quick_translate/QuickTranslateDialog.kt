@@ -2,6 +2,7 @@ package com.pnix.qtranslate.presentation.quick_translate
 
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.extras.components.FlatButton
+import com.pnix.qtranslate.domain.models.Configurations
 import com.pnix.qtranslate.presentation.actions.ActionManager
 import com.pnix.qtranslate.presentation.components.ComponentMover
 import com.pnix.qtranslate.presentation.components.ComponentResizer
@@ -13,21 +14,22 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.swing.Swing
 import java.awt.*
-import java.awt.event.KeyEvent
+import java.awt.event.*
 import java.util.*
 import javax.swing.*
+import javax.swing.Timer
 import javax.swing.border.EtchedBorder
 import kotlin.math.ceil
 import kotlin.math.min
 
 
 class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
-  private var fontSize = 16.0f
+  private var fontSize = Configurations.inputsFontSize.toFloat()
   private val padding = 4
 
   private val outputTextArea = JTextArea().apply {
     text = QTranslateViewModel.translation.value
-    font = Font(Font.SANS_SERIF, Font.PLAIN, fontSize.toInt())
+    font = Font(Configurations.inputsFontName, Font.PLAIN, Configurations.inputsFontSize)
     isEditable = false
     wrapStyleWord = true
     lineWrap = false
@@ -53,7 +55,7 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
     createToggleButton(it.serviceName, index)
   }
 
-  val scrollPane = JScrollPane(outputTextArea).apply {
+  private val scrollPane = JScrollPane(outputTextArea).apply {
     border = BorderFactory.createEmptyBorder(2, 0, 0, 0)
   }
 
@@ -63,12 +65,12 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
     isAlwaysOnTop = true
     focusableWindowState = false
     minimumSize = Dimension(200, 65)
+    rootPane.isOpaque = false
     rootPane.registerKeyboardAction(
       { dispose() },
       KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
       JComponent.WHEN_IN_FOCUSED_WINDOW
     )
-
 
     val topPanel = createTopPanel()
 
@@ -88,6 +90,37 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
     resize()
     reposition()
 
+    val autoHideTimer = Timer(Configurations.popupAutoHideDelay * 1000) { dispose() }.apply { this.isRepeats = false; start() }
+    val timer = Timer(100) { _ ->
+      val point = MouseInfo.getPointerInfo().location
+      SwingUtilities.convertPointFromScreen(point, this)
+      if (contentPane.contains(point)) {
+        opacity = 1f
+        autoHideTimer.restart()
+      } else {
+        opacity = (100f - Configurations.popupTransparency).div(100)
+      }
+    }
+
+    addWindowListener(object : WindowAdapter() {
+      override fun windowOpened(e: WindowEvent) = timer.start()
+      override fun windowClosing(e: WindowEvent) {
+        timer.stop()
+        Configurations.popupLastPosition = "${location.x},${location.y}"
+        Configurations.popupLastSize = "${size.width},${size.height}"
+      }
+    })
+
+    topPanel.addMouseListener(object :MouseAdapter() {
+      override fun mousePressed(e: MouseEvent?) {
+        if (Configurations.popupEnablePinWhenDragging) {
+          autoHideTimer.delay = Integer.MAX_VALUE
+          autoHideTimer.initialDelay = Integer.MAX_VALUE
+          autoHideTimer.restart()
+        }
+      }
+    })
+
     GlobalScope.launch(Dispatchers.Swing) {
       QTranslateViewModel.translation.collectLatest {
         if (outputTextArea.text != it) {
@@ -98,14 +131,15 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
       }
     }
 
-
-
-
-
-    isVisible = true
   }
 
   private fun reposition() {
+    if (!Configurations.popupEnableAutoPosition) {
+      val coordinates = Configurations.popupLastPosition.split(",").map { it.toInt() }
+      setLocation(coordinates[0], coordinates[1])
+      return
+    }
+
     val mousePosition = MouseInfo.getPointerInfo().location
     val screenWidth = Toolkit.getDefaultToolkit().screenSize.width
     val screenHeight = Toolkit.getDefaultToolkit().screenSize.height
@@ -119,6 +153,14 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
   }
 
   private fun resize() {
+    if (!Configurations.popupEnableAutoSize) {
+      outputTextArea.lineWrap = true
+      val size = Configurations.popupLastSize.split(",").map { it.toInt() }
+      preferredSize = Dimension(size[0], size[1])
+      pack()
+      return
+    }
+
     val maxWidth = (Toolkit.getDefaultToolkit().screenSize.width * (0.35)).toInt()
     val maxHeight = (Toolkit.getDefaultToolkit().screenSize.height * (0.65)).toInt()
 
@@ -128,7 +170,7 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
       outputTextArea.lineWrap = true
       val lineHeight = fontMetrics.height
       val numLines = ceil(width.toDouble() / maxWidth).toInt()
-      val requiredHeight = (numLines * lineHeight).plus(4).coerceAtMost(maxHeight)
+      val requiredHeight = (numLines * lineHeight).plus(lineHeight).coerceAtMost(maxHeight)
       val preferredSize = Dimension(maxWidth, requiredHeight)
       scrollPane.preferredSize = preferredSize
     }
@@ -152,7 +194,11 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
   private fun createTopPanel(): JPanel {
     val closeButton = createTopPanelButton("app-icons/cross-circle.svg", 13).apply {
       border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
-      addActionListener { dispose() }
+      addActionListener {
+        this@QuickTranslateDialog.isVisible = false
+        this@QuickTranslateDialog.dispatchEvent(WindowEvent(this@QuickTranslateDialog, WindowEvent.WINDOW_CLOSING))
+//        dispose()
+      }
     }
 
     val favouriteButton = createTopPanelButton("app-icons/star.svg", 13).apply {
@@ -161,7 +207,7 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
     }
     val dictionaryButton = createTopPanelButton("app-icons/notebook-alt.svg", 13).apply {
       border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
-      addActionListener {  }
+      addActionListener { }
     }
     val listenButton = createTopPanelButton("app-icons/headphones.svg", 13).apply {
       border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
@@ -173,7 +219,7 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, "", false) {
     }
     val replaceButton = createTopPanelButton("app-icons/replace.svg", 13).apply {
       border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
-      addActionListener {  }
+      addActionListener { }
     }
 
 

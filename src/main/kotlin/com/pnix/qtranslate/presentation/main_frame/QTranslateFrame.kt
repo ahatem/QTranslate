@@ -1,13 +1,17 @@
 package com.pnix.qtranslate.presentation.main_frame
 
+import com.formdev.flatlaf.FlatLaf
+import com.formdev.flatlaf.FlatPropertiesLaf
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.extras.components.FlatButton
 import com.melloware.jintellitype.JIntellitype
+import com.pnix.qtranslate.domain.models.Configuration
 import com.pnix.qtranslate.domain.models.Configurations
 import com.pnix.qtranslate.presentation.actions.ActionManager
 import com.pnix.qtranslate.presentation.actions.HotKeyManager
 import com.pnix.qtranslate.presentation.components.JXTrayIcon
 import com.pnix.qtranslate.presentation.loading.LoadingDialog
+import com.pnix.qtranslate.presentation.options.OptionsDialog
 import com.pnix.qtranslate.presentation.snipping_screen.SnippingToolDialog
 import com.pnix.qtranslate.utils.setPadding
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +53,11 @@ class QTranslateFrame : JFrame("QTranslate") {
 
     GlobalScope.launch(Dispatchers.Swing) {
       launch {
+        QTranslateViewModel.configurationChanged.collectLatest {
+          applyConfigurations()
+        }
+      }
+      launch {
         QTranslateViewModel.isLoading.collectLatest {
           loadingDialog.isVisible = it
         }
@@ -88,8 +97,32 @@ class QTranslateFrame : JFrame("QTranslate") {
           }
         }
       }
-    }
 
+      launch {
+        QTranslateViewModel.spells.collectLatest {
+          inputPanel.inputTextArea.highlighter.removeAllHighlights()
+          for (word in it.corrections) {
+            inputPanel.inputTextArea.highlighter.addHighlight(
+              word.startIndex,
+              word.endIndex,
+              InputPanel.misspelledHighlighter
+            )
+          }
+        }
+      }
+    }
+  }
+
+  private fun applyConfigurations() {
+
+    val newFont = Font(Configurations.inputsFontName, Font.PLAIN, Configurations.inputsFontSize)
+    inputPanel.inputTextArea.apply { font = newFont }
+    outputPanel.outputTextArea.apply { font = newFont }
+
+    FlatLaf.setup(Configurations.theme.lookAndFeel)
+    FlatLaf.setUseNativeWindowDecorations(Configurations.enableWindowStyle)
+    UIManager.put("TitlePane.unifiedBackground", Configurations.unifyTitleBar)
+    FlatLaf.updateUILater()
   }
 
 
@@ -122,7 +155,8 @@ class QTranslateFrame : JFrame("QTranslate") {
       val tray = SystemTray.getSystemTray()
       val trayIconImage = ImageIO.read(javaClass.classLoader.getResourceAsStream("app-icons/app/128.png"))
       val trayIcon = JXTrayIcon(
-        trayIconImage.getScaledInstance(tray.trayIconSize.width, tray.trayIconSize.height, Image.SCALE_SMOOTH).apply {},
+        trayIconImage.getScaledInstance(tray.trayIconSize.width, tray.trayIconSize.height, Image.SCALE_SMOOTH)
+          .apply {},
         "QTranslate"
       )
 
@@ -153,7 +187,7 @@ class QTranslateFrame : JFrame("QTranslate") {
   }
 
   private fun initTrayMenu() {
-    val settingsButton = createSettingsButton(createOptionsPopupMenu())
+    val settingsButton = createSettingsButton()
     JMenuBar().apply {
       add(Box.createGlue())
       add(settingsButton)
@@ -222,7 +256,7 @@ class QTranslateFrame : JFrame("QTranslate") {
       add(JMenuItem("History").apply {
         accelerator = KeyStroke.getKeyStroke(KeyEvent.VK_H, Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx)
       })
-      add(JMenuItem("Options"))
+      add(JMenuItem("Options").apply { addActionListener { OptionsDialog(this@QTranslateFrame) } })
       add(JMenuItem("Help").apply { accelerator = KeyStroke.getKeyStroke(KeyEvent.VK_F1, 0) })
       add(JMenuItem("About QTranslate"))
       add(JSeparator())
@@ -231,13 +265,14 @@ class QTranslateFrame : JFrame("QTranslate") {
     return popupMenu
   }
 
-  private fun createSettingsButton(popupMenu: JPopupMenu): FlatButton {
+  private fun createSettingsButton(): FlatButton {
     val settingsButton = FlatButton().apply {
       icon = FlatSVGIcon("app-icons/settings.svg", 18, 18).apply {
         colorFilter = FlatSVGIcon.ColorFilter { _: Color? -> UIManager.getColor("Label.foreground") }
       }
       buttonType = FlatButton.ButtonType.toolBarButton
       addActionListener {
+        val popupMenu = createOptionsPopupMenu()
         if (popupMenu.isVisible) {
           popupMenu.isVisible = false
         } else {
