@@ -1,4 +1,4 @@
-package com.pnix.qtranslate.translators.abstraction
+package com.pnix.qtranslate.services.translators.abstraction
 
 import com.pnix.qtranslate.models.Language
 

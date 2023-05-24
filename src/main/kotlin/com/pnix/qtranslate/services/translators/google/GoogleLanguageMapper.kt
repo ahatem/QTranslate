@@ -1,8 +1,8 @@
-package com.pnix.qtranslate.translators.google
+package com.pnix.qtranslate.services.translators.google
 
 import com.pnix.qtranslate.models.Language
-import com.pnix.qtranslate.translators.abstraction.LanguageMapper
-import com.pnix.qtranslate.translators.common.LanguageDetector
+import com.pnix.qtranslate.services.translators.abstraction.LanguageMapper
+import com.pnix.qtranslate.services.translators.common.LanguageDetector
 
 class GoogleLanguageMapper(override val serviceName: String) : LanguageMapper() {
 

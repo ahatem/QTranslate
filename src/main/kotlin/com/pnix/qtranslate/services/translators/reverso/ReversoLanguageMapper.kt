@@ -1,9 +1,9 @@
-package com.pnix.qtranslate.translators.reverso
+package com.pnix.qtranslate.services.translators.reverso
 
 import com.google.gson.Gson
 import com.pnix.qtranslate.common.UserAgent
 import com.pnix.qtranslate.models.Language
-import com.pnix.qtranslate.translators.abstraction.LanguageMapper
+import com.pnix.qtranslate.services.translators.abstraction.LanguageMapper
 import kong.unirest.Unirest
 import kotlinx.coroutines.future.await
 

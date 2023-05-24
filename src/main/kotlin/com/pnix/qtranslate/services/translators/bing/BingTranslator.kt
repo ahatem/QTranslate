@@ -1,4 +1,4 @@
-package com.pnix.qtranslate.translators.bing
+package com.pnix.qtranslate.services.translators.bing
 
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonParser
@@ -6,8 +6,8 @@ import com.google.gson.reflect.TypeToken
 import com.pnix.qtranslate.models.SpellCheck
 import com.pnix.qtranslate.models.TextToSpeechResult
 import com.pnix.qtranslate.models.Translation
-import com.pnix.qtranslate.translators.abstraction.LanguageMapper
-import com.pnix.qtranslate.translators.abstraction.TranslatorService
+import com.pnix.qtranslate.services.translators.abstraction.LanguageMapper
+import com.pnix.qtranslate.services.translators.abstraction.TranslatorService
 import kong.unirest.Unirest
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.runBlocking

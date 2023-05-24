@@ -1,4 +1,4 @@
-package com.pnix.qtranslate.text_extractor
+package com.pnix.qtranslate.services.text_extractor
 
 import java.awt.image.BufferedImage
 

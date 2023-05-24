@@ -1,4 +1,4 @@
-package com.pnix.qtranslate.translators.common
+package com.pnix.qtranslate.services.translators.common
 
 import kong.unirest.Unirest
 import kotlinx.coroutines.future.await

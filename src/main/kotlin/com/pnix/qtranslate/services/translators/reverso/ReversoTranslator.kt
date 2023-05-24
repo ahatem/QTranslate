@@ -1,12 +1,12 @@
-package com.pnix.qtranslate.translators.reverso
+package com.pnix.qtranslate.services.translators.reverso
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
 import com.pnix.qtranslate.common.UserAgent
 import com.pnix.qtranslate.models.*
-import com.pnix.qtranslate.translators.abstraction.LanguageMapper
-import com.pnix.qtranslate.translators.abstraction.TranslatorService
+import com.pnix.qtranslate.services.translators.abstraction.LanguageMapper
+import com.pnix.qtranslate.services.translators.abstraction.TranslatorService
 import kong.unirest.Unirest
 import kotlinx.coroutines.future.await
 import java.util.*
@@ -34,26 +34,26 @@ private data class ReversoTranslateResponse(
 )
 
 private data class TextCorrection(
-    val language: String,
-    val text: String,
-    val truncated: Boolean,
-    val corrections: List<Correction>,
-    val sentences: List<Sentence>,
-    val stats: Stats,
+  val language: String,
+  val text: String,
+  val truncated: Boolean,
+  val corrections: List<Correction>,
+  val sentences: List<Sentence>,
+  val stats: Stats,
 )
 
 private data class Correction(
-    val group: String,
-    val type: String,
-    val shortDescription: String,
-    val longDescription: String,
-    val startIndex: Long,
-    val endIndex: Long,
-    val mistakeText: String,
-    val correctionText: String?,
-    val correctionDefinition: String?,
-    val suggestions: List<Suggestion>,
-    val mistakeDefinition: String?,
+  val group: String,
+  val type: String,
+  val shortDescription: String,
+  val longDescription: String,
+  val startIndex: Long,
+  val endIndex: Long,
+  val mistakeText: String,
+  val correctionText: String?,
+  val correctionDefinition: String?,
+  val suggestions: List<Suggestion>,
+  val mistakeDefinition: String?,
 )
 
 private data class Suggestion(
@@ -76,7 +76,7 @@ private data class Stats(
 )
 
 private data class AvailableVoicesResponse(
-    @SerializedName("Voices")
+  @SerializedName("Voices")
   val voices: List<Voice>,
 )
 

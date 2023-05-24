@@ -1,4 +1,4 @@
-package com.pnix.qtranslate.translators.common
+package com.pnix.qtranslate.services.translators.common
 
 import com.google.gson.Gson
 import com.pnix.qtranslate.common.UserAgent

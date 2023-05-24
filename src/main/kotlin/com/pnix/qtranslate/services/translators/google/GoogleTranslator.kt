@@ -1,4 +1,4 @@
-package com.pnix.qtranslate.translators.google
+package com.pnix.qtranslate.services.translators.google
 
 import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
@@ -6,22 +6,22 @@ import com.pnix.qtranslate.common.UserAgent
 import com.pnix.qtranslate.models.SpellCheck
 import com.pnix.qtranslate.models.TextToSpeechResult
 import com.pnix.qtranslate.models.Translation
-import com.pnix.qtranslate.translators.abstraction.LanguageMapper
-import com.pnix.qtranslate.translators.abstraction.TranslatorService
-import com.pnix.qtranslate.translators.common.SpellChecker
+import com.pnix.qtranslate.services.translators.abstraction.LanguageMapper
+import com.pnix.qtranslate.services.translators.abstraction.TranslatorService
+import com.pnix.qtranslate.services.translators.common.SpellChecker
 import kong.unirest.Unirest
 import kotlinx.coroutines.future.await
 import java.util.*
 
 private data class GoogleTranslateResponse(
-    val sentences: List<Sentence>,
-    val dict: List<Dict>?,
-    val src: String,
-    @SerializedName("alternative_translations")
+  val sentences: List<Sentence>,
+  val dict: List<Dict>?,
+  val src: String,
+  @SerializedName("alternative_translations")
   val alternativeTranslations: List<AlternativeTranslation>?,
-    val confidence: Double,
-    val spell: Spell,
-    @SerializedName("ld_result")
+  val confidence: Double,
+  val spell: Spell,
+  @SerializedName("ld_result")
   val ldResult: LdResult,
 )
 
@@ -33,12 +33,12 @@ private data class Sentence(
 )
 
 private data class Dict(
-    val pos: String,
-    val terms: List<String>,
-    val entry: List<Entry>,
-    @SerializedName("base_form")
+  val pos: String,
+  val terms: List<String>,
+  val entry: List<Entry>,
+  @SerializedName("base_form")
   val baseForm: String,
-    @SerializedName("pos_enum")
+  @SerializedName("pos_enum")
   val posEnum: Long,
 )
 
@@ -50,15 +50,15 @@ private data class Entry(
 )
 
 private data class AlternativeTranslation(
-    @SerializedName("src_phrase")
+  @SerializedName("src_phrase")
   val srcPhrase: String,
-    val alternative: List<Alternative>,
-    val srcunicodeoffsets: List<Srcunicodeoffset>,
-    @SerializedName("raw_src_segment")
+  val alternative: List<Alternative>,
+  val srcunicodeoffsets: List<Srcunicodeoffset>,
+  @SerializedName("raw_src_segment")
   val rawSrcSegment: String,
-    @SerializedName("start_pos")
+  @SerializedName("start_pos")
   val startPos: Long,
-    @SerializedName("end_pos")
+  @SerializedName("end_pos")
   val endPos: Long,
 )
 

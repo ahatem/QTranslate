@@ -1,12 +1,12 @@
-package com.pnix.qtranslate.translators.yandex
+package com.pnix.qtranslate.services.translators.yandex
 
 import com.google.gson.GsonBuilder
 import com.pnix.qtranslate.models.SpellCheck
 import com.pnix.qtranslate.models.SpellCheckCorrection
 import com.pnix.qtranslate.models.TextToSpeechResult
 import com.pnix.qtranslate.models.Translation
-import com.pnix.qtranslate.translators.abstraction.LanguageMapper
-import com.pnix.qtranslate.translators.abstraction.TranslatorService
+import com.pnix.qtranslate.services.translators.abstraction.LanguageMapper
+import com.pnix.qtranslate.services.translators.abstraction.TranslatorService
 import kong.unirest.Unirest
 import kotlinx.coroutines.future.await
 import java.util.*

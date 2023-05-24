@@ -1,8 +1,8 @@
-package com.pnix.qtranslate.translators.bing
+package com.pnix.qtranslate.services.translators.bing
 
 import com.pnix.qtranslate.models.Language
-import com.pnix.qtranslate.translators.abstraction.LanguageMapper
-import com.pnix.qtranslate.translators.common.LanguageDetector
+import com.pnix.qtranslate.services.translators.abstraction.LanguageMapper
+import com.pnix.qtranslate.services.translators.common.LanguageDetector
 
 class BingLanguageMapper(override val serviceName: String) : LanguageMapper() {
 

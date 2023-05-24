@@ -2,14 +2,14 @@ package com.pnix.qtranslate.presentation.viewmodels
 
 import com.pnix.qtranslate.models.*
 import com.pnix.qtranslate.presentation.main_frame.QTranslateFrame
-import com.pnix.qtranslate.text_extractor.ApiNinjasTextExtractor
-import com.pnix.qtranslate.text_extractor.GoogleTextExtractor
-import com.pnix.qtranslate.text_extractor.OcrSpaceTextExtractor
-import com.pnix.qtranslate.translators.abstraction.UnsupportedLanguageException
-import com.pnix.qtranslate.translators.bing.BingTranslator
-import com.pnix.qtranslate.translators.google.GoogleTranslator
-import com.pnix.qtranslate.translators.reverso.ReversoTranslator
-import com.pnix.qtranslate.translators.yandex.YandexTranslator
+import com.pnix.qtranslate.services.text_extractor.ApiNinjasTextExtractor
+import com.pnix.qtranslate.services.text_extractor.GoogleTextExtractor
+import com.pnix.qtranslate.services.text_extractor.OcrSpaceTextExtractor
+import com.pnix.qtranslate.services.translators.abstraction.UnsupportedLanguageException
+import com.pnix.qtranslate.services.translators.bing.BingTranslator
+import com.pnix.qtranslate.services.translators.google.GoogleTranslator
+import com.pnix.qtranslate.services.translators.reverso.ReversoTranslator
+import com.pnix.qtranslate.services.translators.yandex.YandexTranslator
 import javazoom.jl.player.advanced.AdvancedPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
