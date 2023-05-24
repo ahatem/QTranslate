@@ -1,7 +1,6 @@
 package com.pnix.qtranslate.presentation.main_frame.menus
 
 import com.pnix.qtranslate.presentation.listeners.window.WindowKeyListeners
-import com.pnix.qtranslate.presentation.settings_dialog.SettingsDialog
 import com.pnix.qtranslate.presentation.snipping_screen_dialog.SnippingToolDialog
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
 import java.awt.Font

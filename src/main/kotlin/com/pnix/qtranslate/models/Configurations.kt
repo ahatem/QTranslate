@@ -8,6 +8,7 @@ import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatGitHubDarkIJTh
 import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatMaterialOceanicIJTheme
 import com.formdev.flatlaf.themes.FlatMacLightLaf
 import java.util.prefs.Preferences
+import javax.swing.JLabel
 import kotlin.properties.Delegates
 
 enum class Theme(val readableName: String, val lookAndFeel: FlatLaf) {
@@ -104,6 +105,8 @@ object Configurations {
   var lastOptionOpened: String by Delegates.observable(prefs.get("last_option_opened", "Basics"))
   { _, _, newValue -> prefs.put("last_option_opened", newValue) }
 
+  var layoutPreset: String by Delegates.observable(prefs.get("layout_preset", "preset_1"))
+  { _, _, newValue -> prefs.put("layout_preset", newValue) }
 
   // * Basics
   var startWithWindows by Delegates.observable(prefs.getBoolean("start_with_windows", false))
@@ -112,7 +115,7 @@ object Configurations {
   var interfaceLanguage: String by Delegates.observable(prefs.get("interface_language", "English"))
   { _, _, newValue -> prefs.put("interface_language", newValue) }
 
-  var inputsFontName: String by Delegates.observable(prefs.get("inputs_font_name", "Tahoma"))
+  var inputsFontName: String by Delegates.observable(prefs.get("inputs_font_name", JLabel().font.family))
   { _, _, newValue -> prefs.put("inputs_font_name", newValue) }
 
   var inputsFontSize by Delegates.observable(prefs.getInt("inputs_font_size", 16))

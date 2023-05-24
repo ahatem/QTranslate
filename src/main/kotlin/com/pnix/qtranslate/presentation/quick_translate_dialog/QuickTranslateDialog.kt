@@ -3,11 +3,11 @@ package com.pnix.qtranslate.presentation.quick_translate_dialog
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.extras.components.FlatButton
 import com.pnix.qtranslate.models.Configurations
-import com.pnix.qtranslate.presentation.listeners.window.WindowKeyListeners
 import com.pnix.qtranslate.presentation.listeners.common.ComponentMover
 import com.pnix.qtranslate.presentation.listeners.common.ComponentResizer
-import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
+import com.pnix.qtranslate.presentation.listeners.window.WindowKeyListeners
 import com.pnix.qtranslate.presentation.main_frame.panels.TranslatorsPanel
+import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
 import com.pnix.qtranslate.utils.copyToClipboard
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest

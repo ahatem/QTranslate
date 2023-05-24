@@ -2,7 +2,6 @@ package com.pnix.qtranslate.presentation.listeners.global
 
 import com.melloware.jintellitype.HotkeyListener
 import com.melloware.jintellitype.JIntellitype
-import com.pnix.qtranslate.presentation.listeners.window.WindowKeyListeners
 import com.pnix.qtranslate.presentation.quick_translate_dialog.QuickTranslateDialog
 import com.pnix.qtranslate.presentation.snipping_screen_dialog.SnippingToolDialog
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel

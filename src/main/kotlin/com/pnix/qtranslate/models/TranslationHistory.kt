@@ -1,6 +1,5 @@
 package com.pnix.qtranslate.models
 
-
 data class TranslationHistorySnapshot(
   val selectedTranslatorIndex: Int,
   val inputLanguage: String,

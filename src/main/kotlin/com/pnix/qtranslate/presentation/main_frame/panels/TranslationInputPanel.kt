@@ -1,6 +1,5 @@
 package com.pnix.qtranslate.presentation.main_frame.panels
 
-import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.pnix.qtranslate.models.Configurations
 import com.pnix.qtranslate.presentation.listeners.window.WindowKeyListeners
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel

@@ -2,6 +2,7 @@ package com.pnix.qtranslate.utils
 
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import kotlin.random.Random
 
 fun String.isRTL(): Boolean {
   for (element in this) {
@@ -19,6 +20,12 @@ fun String.copyToClipboard() {
 
   val selection = StringSelection(this)
   clipboard.setContents(selection, null)
+}
+
+fun generateRandomHex(length: Int): String {
+  val byteArray = ByteArray(length / 2)
+  Random.nextBytes(byteArray)
+  return byteArray.joinToString("") { byte -> "%02x".format(byte) }
 }
 
 

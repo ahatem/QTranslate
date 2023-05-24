@@ -10,12 +10,11 @@ import com.pnix.qtranslate.presentation.components.JXTrayIcon
 import com.pnix.qtranslate.presentation.listeners.global.QTranslateHotkeyListener
 import com.pnix.qtranslate.presentation.listeners.window.WindowKeyListeners
 import com.pnix.qtranslate.presentation.loading_dialog.LoadingDialog
+import com.pnix.qtranslate.presentation.main_frame.layouts.LayoutFactory
+import com.pnix.qtranslate.presentation.main_frame.layouts.MainPanel
 import com.pnix.qtranslate.presentation.main_frame.menus.OptionsPopupMenu
 import com.pnix.qtranslate.presentation.main_frame.menus.TrayPopupMenu
-import com.pnix.qtranslate.presentation.main_frame.panels.CenterPanel
-import com.pnix.qtranslate.presentation.main_frame.panels.HistoryNavigationPanel
 import com.pnix.qtranslate.presentation.main_frame.panels.TranslationInputPanel
-import com.pnix.qtranslate.presentation.main_frame.panels.TranslatorsPanel
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
 import com.pnix.qtranslate.utils.setPadding
 import kotlinx.coroutines.Dispatchers
@@ -37,27 +36,21 @@ import kotlin.system.exitProcess
 
 class QTranslateFrame : JFrame("QTranslate") {
   private val loadingDialog = LoadingDialog()
-
-  private val historyNavigationPanel = HistoryNavigationPanel().apply {
-    isVisible = Configurations.showHistoryPanel
-  }
-  private val centerPanel = CenterPanel()
-  private val translatorsPanel = TranslatorsPanel().apply {
-    isVisible = Configurations.showServicesPanel
-  }
+  private var mainPanel: MainPanel
 
   init {
     defaultCloseOperation = DO_NOTHING_ON_CLOSE
     minimumSize = Dimension(450, 260)
+    preferredSize = Dimension(680, 380)
     iconImages = getIcons()
     setPadding(4)
 
     initWindowListeners()
+    createTrayMenu()
     initMenuBar()
 
-    add(historyNavigationPanel, BorderLayout.NORTH)
-    add(centerPanel)
-    add(translatorsPanel, BorderLayout.SOUTH)
+    mainPanel = MainPanel(LayoutFactory.getById(Configurations.layoutPreset))
+    add(mainPanel)
 
     pack()
     isLocationByPlatform = true
@@ -81,8 +74,8 @@ class QTranslateFrame : JFrame("QTranslate") {
       }
       launch {
         QTranslateViewModel.selectedTranslatorIndex.collectLatest {
-          historyNavigationPanel.updateStatus()
-          val buttons = Collections.list(translatorsPanel.buttonGroup.elements).toList()
+          mainPanel.historyNavigationPanel.updateStatus()
+          val buttons = Collections.list(mainPanel.translatorsPanel.buttonGroup.elements).toList()
           buttons.withIndex().forEach { (index, button) ->
             if (index == it && !button.isSelected) button.isSelected = true
           }
@@ -90,65 +83,65 @@ class QTranslateFrame : JFrame("QTranslate") {
       }
       launch {
         QTranslateViewModel.translation.collectLatest {
-          historyNavigationPanel.buttonHistoryBackward.isEnabled = TranslationHistory.canUndo()
-          historyNavigationPanel.buttonHistoryForward.isEnabled = TranslationHistory.canRedo()
-          if (centerPanel.translationOutputPanel.outputTextArea.text != it) {
+          mainPanel.historyNavigationPanel.buttonHistoryBackward.isEnabled = TranslationHistory.canUndo()
+          mainPanel.historyNavigationPanel.buttonHistoryForward.isEnabled = TranslationHistory.canRedo()
+          if (mainPanel.translationOutputPanel.outputTextArea.text != it) {
             val locale = Locale.forLanguageTag(QTranslateViewModel.outputLanguage.value.alpha2)
-            centerPanel.translationOutputPanel.outputTextArea.componentOrientation =
+            mainPanel.translationOutputPanel.outputTextArea.componentOrientation =
               ComponentOrientation.getOrientation(locale)
-            centerPanel.translationOutputPanel.outputTextArea.text = it
-            centerPanel.translationOutputPanel.outputTextArea.caretPosition = 0
+            mainPanel.translationOutputPanel.outputTextArea.text = it
+            mainPanel.translationOutputPanel.outputTextArea.caretPosition = 0
           }
         }
       }
       launch {
         QTranslateViewModel.backwardTranslation.collectLatest {
-          if (centerPanel.translationBackwardPanel.backwardTranslationTextArea.text != it) {
+          if (mainPanel.translationBackwardPanel.backwardTranslationTextArea.text != it) {
             val locale = Locale.forLanguageTag(QTranslateViewModel.inputLanguage.value.alpha2)
-            centerPanel.translationBackwardPanel.backwardTranslationTextArea.componentOrientation =
+            mainPanel.translationBackwardPanel.backwardTranslationTextArea.componentOrientation =
               ComponentOrientation.getOrientation(locale)
-            centerPanel.translationBackwardPanel.backwardTranslationTextArea.text = it
-            centerPanel.translationBackwardPanel.backwardTranslationTextArea.caretPosition = 0
+            mainPanel.translationBackwardPanel.backwardTranslationTextArea.text = it
+            mainPanel.translationBackwardPanel.backwardTranslationTextArea.caretPosition = 0
           }
         }
       }
       launch {
         QTranslateViewModel.input.debounce(100L).collectLatest {
-          if (centerPanel.translationInputPanel.inputTextArea.text != it) {
+          if (mainPanel.translationInputPanel.inputTextArea.text != it) {
             val locale = Locale.forLanguageTag(QTranslateViewModel.inputLanguage.value.alpha2)
-            centerPanel.translationInputPanel.inputTextArea.componentOrientation =
+            mainPanel.translationInputPanel.inputTextArea.componentOrientation =
               ComponentOrientation.getOrientation(locale)
-            centerPanel.translationInputPanel.inputTextArea.text = it
+            mainPanel.translationInputPanel.inputTextArea.text = it
           }
         }
       }
       launch {
         QTranslateViewModel.inputLanguage.collectLatest {
-          historyNavigationPanel.updateStatus()
-          if (centerPanel.translationOutputPanel.inputLangComboBox.selectedItem != it) {
-            centerPanel.translationOutputPanel.inputLangComboBox.selectedItem = it
+          mainPanel.historyNavigationPanel.updateStatus()
+          if (mainPanel.translationOptionsPanel.inputLangComboBox.selectedItem != it) {
+            mainPanel.translationOptionsPanel.inputLangComboBox.selectedItem = it
           }
         }
       }
       launch {
         QTranslateViewModel.outputLanguage.collectLatest {
-          historyNavigationPanel.updateStatus()
-          if (centerPanel.translationOutputPanel.outputLangComboBox.selectedItem != it) {
-            centerPanel.translationOutputPanel.outputLangComboBox.selectedItem = it
+          mainPanel.historyNavigationPanel.updateStatus()
+          if (mainPanel.translationOptionsPanel.outputLangComboBox.selectedItem != it) {
+            mainPanel.translationOptionsPanel.outputLangComboBox.selectedItem = it
           }
         }
       }
 
       launch {
         QTranslateViewModel.spells.collectLatest {
-          centerPanel.translationInputPanel.inputTextArea.highlighter.removeAllHighlights()
+          mainPanel.translationInputPanel.inputTextArea.highlighter.removeAllHighlights()
           for (word in it.corrections) {
-            centerPanel.translationInputPanel.inputTextArea.highlighter.addHighlight(
+            mainPanel.translationInputPanel.inputTextArea.highlighter.addHighlight(
               word.startIndex,
               word.endIndex,
               TranslationInputPanel.misspelledHighlighter
             )
-            centerPanel.translationInputPanel.repaint()
+            mainPanel.translationInputPanel.repaint()
           }
         }
       }
@@ -156,21 +149,32 @@ class QTranslateFrame : JFrame("QTranslate") {
   }
 
   private fun applyConfigurations() {
-    centerPanel.showBackwardTranslation(Configurations.showBackwardTranslationPanel)
-    historyNavigationPanel.isVisible = Configurations.showHistoryPanel
-    centerPanel.translationOutputPanel.controlsPanel.isVisible = Configurations.showTranslationOptionsPanel
-    translatorsPanel.isVisible = Configurations.showServicesPanel
 
-    val newFont = Font(Configurations.inputsFontName, Font.PLAIN, Configurations.inputsFontSize)
-    centerPanel.translationInputPanel.inputTextArea.apply { font = newFont }
-    centerPanel.translationOutputPanel.outputTextArea.apply { font = newFont }
-    centerPanel.translationBackwardPanel.backwardTranslationTextArea.apply { font = newFont }
+//    remove(mainPanel)
+//    mainPanel = LayoutFactory.getById(Configurations.layoutPreset)
+//    add(mainPanel)
+
+    mainPanel.changeLayout(LayoutFactory.getById(Configurations.layoutPreset))
 
     FlatLaf.setup(Configurations.theme.lookAndFeel)
     FlatLaf.setUseNativeWindowDecorations(Configurations.enableWindowStyle)
     UIManager.put("TitlePane.unifiedBackground", Configurations.unifyTitleBar)
 
     FlatLaf.updateUILater()
+
+    val newFont = Font(Configurations.inputsFontName, Font.PLAIN, Configurations.inputsFontSize)
+    mainPanel.translationInputPanel.inputTextArea.apply { font = newFont }
+    mainPanel.translationOutputPanel.outputTextArea.apply { font = newFont }
+    mainPanel.translationBackwardPanel.backwardTranslationTextArea.apply { font = newFont }
+
+    mainPanel.showBackwardTranslation(Configurations.showBackwardTranslationPanel)
+    mainPanel.historyNavigationPanel.isVisible = Configurations.showHistoryPanel
+    mainPanel.translationOptionsPanel.isVisible = Configurations.showTranslationOptionsPanel
+    mainPanel.translatorsPanel.isVisible = Configurations.showServicesPanel
+
+    revalidate()
+    repaint()
+
   }
 
   private fun getIcons(): List<BufferedImage> {
@@ -182,7 +186,7 @@ class QTranslateFrame : JFrame("QTranslate") {
   private fun initWindowListeners() {
     addWindowListener(object : WindowAdapter() {
       override fun windowOpened(e: WindowEvent?) {
-        centerPanel.translationInputPanel.inputTextArea.requestFocus()
+        mainPanel.translationInputPanel.inputTextArea.requestFocus()
         JIntellitype.getInstance().addHotKeyListener(QTranslateHotkeyListener(this@QTranslateFrame))
       }
 
@@ -198,32 +202,13 @@ class QTranslateFrame : JFrame("QTranslate") {
         exitProcess(0)
       }
     })
-    addWindowStateListener(object : WindowAdapter() {
-      val tray = SystemTray.getSystemTray()
-      val trayIconImage = ImageIO.read(javaClass.classLoader.getResourceAsStream("app-icons/app/128.png"))
-      val trayIcon = JXTrayIcon(
-        trayIconImage.getScaledInstance(tray.trayIconSize.width, tray.trayIconSize.height, Image.SCALE_SMOOTH)
-          .apply {},
-        "QTranslate"
-      )
-
-      init {
-        trayIcon.jPopupMenu = TrayPopupMenu()
-        trayIcon.addActionListener {
-          isVisible = true
-          state = NORMAL
-        }
-        tray.add(trayIcon)
-      }
-    })
-
     addWindowFocusListener(object : WindowFocusListener {
       override fun windowGainedFocus(e: WindowEvent?) {
-        centerPanel.translationInputPanel.inputTextArea.isFocusable = true
+        mainPanel.translationInputPanel.inputTextArea.isFocusable = true
       }
 
       override fun windowLostFocus(e: WindowEvent?) {
-        centerPanel.translationInputPanel.inputTextArea.isFocusable = false
+        mainPanel.translationInputPanel.inputTextArea.isFocusable = false
       }
     })
 
@@ -240,6 +225,24 @@ class QTranslateFrame : JFrame("QTranslate") {
     )
   }
 
+  private fun createTrayMenu() {
+    val tray = SystemTray.getSystemTray()
+    val trayIconImage = ImageIO.read(javaClass.classLoader.getResourceAsStream("app-icons/app/128.png"))
+    val trayIcon = JXTrayIcon(
+      trayIconImage.getScaledInstance(tray.trayIconSize.width, tray.trayIconSize.height, Image.SCALE_SMOOTH)
+        .apply {},
+      "QTranslate"
+    )
+    trayIcon.jPopupMenu = TrayPopupMenu()
+    trayIcon.addActionListener {
+      isVisible = true
+      state = NORMAL
+    }
+    tray.add(trayIcon)
+
+    UIManager.addPropertyChangeListener { if ("lookAndFeel" == it.propertyName) trayIcon.jPopupMenu = TrayPopupMenu() }
+  }
+
   private fun initMenuBar() {
     val settingsButton = createSettingsButton()
     JMenuBar().apply {
@@ -249,17 +252,17 @@ class QTranslateFrame : JFrame("QTranslate") {
   }
 
   private fun disableInputs(disable: Boolean) {
-    centerPanel.translationInputPanel.inputTextArea.isEditable = !disable
+    mainPanel.translationInputPanel.inputTextArea.isEditable = !disable
 
-    centerPanel.translationOutputPanel.clearButton.isEnabled = !disable
-    centerPanel.translationOutputPanel.menuButton.isEnabled = !disable
-    centerPanel.translationOutputPanel.outputTextArea.isEnabled = !disable
+    mainPanel.translationOptionsPanel.clearButton.isEnabled = !disable
+    mainPanel.translationOptionsPanel.menuButton.isEnabled = !disable
+    mainPanel.translationOutputPanel.outputTextArea.isEnabled = !disable
 
-    centerPanel.translationOutputPanel.inputLangComboBox.isEnabled = !disable
-    centerPanel.translationOutputPanel.outputLangComboBox.isEnabled = !disable
+    mainPanel.translationOptionsPanel.inputLangComboBox.isEnabled = !disable
+    mainPanel.translationOptionsPanel.outputLangComboBox.isEnabled = !disable
 
-    centerPanel.translationOutputPanel.translateButton.isEnabled = !disable
-    centerPanel.translationOutputPanel.swapButton.isEnabled = !disable
+    mainPanel.translationOptionsPanel.translateButton.isEnabled = !disable
+    mainPanel.translationOptionsPanel.swapButton.isEnabled = !disable
   }
 
   private fun createSettingsButton(): FlatButton {

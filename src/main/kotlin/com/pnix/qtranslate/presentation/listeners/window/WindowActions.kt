@@ -135,6 +135,15 @@ class ToggleInstantTranslationAction : ActionListener {
   }
 }
 
+
+class ChangeLayoutPresetAction(private val presetId: String) : ActionListener {
+  override fun actionPerformed(e: ActionEvent?) {
+    Configurations.layoutPreset = presetId
+    QTranslateViewModel.triggerConfigurationChanged()
+  }
+}
+
+
 class ToggleBackwardTranslationPaneAction : ActionListener {
   override fun actionPerformed(e: ActionEvent?) {
     Configurations.showBackwardTranslationPanel = !Configurations.showBackwardTranslationPanel

@@ -29,8 +29,6 @@ class HistoryNavigationPanel : JPanel() {
   init {
     layout = BoxLayout(this, BoxLayout.X_AXIS)
 
-    updateStatus()
-
     add(buttonHistoryBackward)
     add(buttonHistoryForward)
     add(status)

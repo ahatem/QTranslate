@@ -118,6 +118,11 @@ sealed class WindowKeyListeners(val action: ActionListener, val hotkey: KeyStrok
     controlKeyWith(KeyEvent.VK_COMMA)
   )
 
+  data class ChangeLayoutPreset(val presetId: String) : WindowKeyListeners(
+    ChangeLayoutPresetAction(presetId),
+    null
+  )
+
   companion object {
     fun getAllValues(): List<WindowKeyListeners> {
       return listOf(

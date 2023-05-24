@@ -7,13 +7,10 @@ data class TranslationResult(
     val targetLanguage: Language,
     val translatedText: String,
 )
-
-/** first string for language of the translated text in second string => (detectLanguage, translatedText) */
 data class Translation(
   val detectedLanguage: String,
   val translatedText: String
 )
-
 
 data class SpellCheckResult(val correctedText: String, val corrections: List<SpellCheckCorrection>)
 data class SpellCheck(val correctedText: String, val corrections: List<SpellCheckCorrection> = emptyList())
