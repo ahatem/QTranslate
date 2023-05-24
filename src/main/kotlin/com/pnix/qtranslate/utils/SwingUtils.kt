@@ -1,12 +1,15 @@
 package com.pnix.qtranslate.utils
 
-import java.awt.BorderLayout
-import java.awt.GridBagConstraints
+import com.formdev.flatlaf.extras.FlatSVGIcon
+import com.formdev.flatlaf.ui.FlatBorder
+import java.awt.*
+import java.awt.event.InputEvent
+import java.beans.PropertyChangeListener
 import javax.swing.*
+import javax.swing.event.AncestorEvent
+import javax.swing.event.AncestorListener
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
-
-
 
 fun interface SimpleDocumentListener : DocumentListener {
   fun update(e: DocumentEvent?)
@@ -21,6 +24,15 @@ fun interface SimpleDocumentListener : DocumentListener {
 
   override fun changedUpdate(e: DocumentEvent?) {
     update(e)
+  }
+}
+
+fun createButtonWithIcon(iconPath: String, iconSize: Int, tooltip: String): JButton {
+  return JButton().apply {
+    toolTipText = tooltip
+    icon = FlatSVGIcon(iconPath, iconSize, iconSize).apply {
+      colorFilter = FlatSVGIcon.ColorFilter { _: Color? -> UIManager.getColor("Label.foreground") }
+    }
   }
 }
 
@@ -43,11 +55,31 @@ fun JDialog.setPadding(padding: Int) {
 fun JPanel.addSeparator(pos: GBHelper, text: String) {
   add(
     JLabel(text).apply {
+      font = font.deriveFont(Font.BOLD)
       isOpaque = true
       border = BorderFactory.createCompoundBorder(
-        BorderFactory.createTitledBorder(""),
+        FlatBorder(),
         BorderFactory.createEmptyBorder(3, 3, 3, 3)
       )
+      val listener = PropertyChangeListener { evt ->
+        if ("lookAndFeel" == evt.propertyName) {
+          border = BorderFactory.createCompoundBorder(
+            FlatBorder(),
+            BorderFactory.createEmptyBorder(3, 3, 3, 3)
+          )
+        }
+      }
+      addAncestorListener(object : AncestorListener {
+        override fun ancestorAdded(event: AncestorEvent) {
+          UIManager.addPropertyChangeListener(listener)
+        }
+
+        override fun ancestorRemoved(event: AncestorEvent) {
+          UIManager.removePropertyChangeListener(listener)
+        }
+
+        override fun ancestorMoved(event: AncestorEvent) = Unit
+      })
     },
     pos.nextRow().expandW(0.0).width(1).align(GridBagConstraints.WEST)
   )
@@ -56,4 +88,20 @@ fun JPanel.addSeparator(pos: GBHelper, text: String) {
     JSeparator(),
     pos.expandW().fill(GridBagConstraints.HORIZONTAL).width(3)
   )
+}
+
+fun singleKey(key: Int): KeyStroke {
+  return KeyStroke.getKeyStroke(key, 0)
+}
+
+fun controlKeyWith(key: Int): KeyStroke {
+  return KeyStroke.getKeyStroke(key, Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx)
+}
+
+fun altKeyWith(key: Int): KeyStroke {
+  return KeyStroke.getKeyStroke(key, InputEvent.ALT_DOWN_MASK)
+}
+
+fun shiftKeyWith(key: Int): KeyStroke {
+  return KeyStroke.getKeyStroke(key, InputEvent.SHIFT_DOWN_MASK)
 }

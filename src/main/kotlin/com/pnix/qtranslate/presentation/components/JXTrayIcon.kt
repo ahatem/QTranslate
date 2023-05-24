@@ -10,6 +10,7 @@ import javax.swing.JPopupMenu
 import javax.swing.event.PopupMenuEvent
 import javax.swing.event.PopupMenuListener
 
+
 class JXTrayIcon(image: Image?, tooltip: String? = "") : TrayIcon(image, tooltip) {
   var jPopupMenu: JPopupMenu? = null
     set(value) {
@@ -48,10 +49,11 @@ class JXTrayIcon(image: Image?, tooltip: String? = "") : TrayIcon(image, tooltip
     private var dialog: JDialog? = null
 
     init {
-      dialog = JDialog(null as Frame?)
+      dialog = JDialog(null as Frame?, false)
       dialog!!.isUndecorated = true
       dialog!!.isAlwaysOnTop = true
     }
+
 
     private val popupListener: PopupMenuListener = object : PopupMenuListener {
       override fun popupMenuWillBecomeVisible(e: PopupMenuEvent) {}

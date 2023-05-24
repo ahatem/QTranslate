@@ -61,7 +61,7 @@
   },
   {
     "name": "Cebuano",
-    "alpha2": "",
+    "alpha2": "ceb",
     "alpha3": "ceb"
   },
   {
@@ -116,7 +116,7 @@
   },
   {
     "name": "Filipino",
-    "alpha2": "",
+    "alpha2": "tl",
     "alpha3": "fil"
   },
   {
@@ -171,7 +171,7 @@
   },
   {
     "name": "Hawaiian",
-    "alpha2": "",
+    "alpha2": "haw",
     "alpha3": "haw"
   },
   {
@@ -186,7 +186,7 @@
   },
   {
     "name": "Hmong",
-    "alpha2": "",
+    "alpha2": "hmn",
     "alpha3": "hmn"
   },
   {
@@ -226,7 +226,7 @@
   },
   {
     "name": "Javanese",
-    "alpha2": "",
+    "alpha2": "jw",
     "alpha3": "jav"
   },
   {
@@ -256,7 +256,7 @@
   },
   {
     "name": "Kurdish (Kurmanji)",
-    "alpha2": "",
+    "alpha2": "ku",
     "alpha3": "kur"
   },
   {
@@ -441,7 +441,7 @@
   },
   {
     "name": "Sundanese",
-    "alpha2": "",
+    "alpha2": "su",
     "alpha3": "sun"
   },
   {
@@ -501,7 +501,7 @@
   },
   {
     "name": "Uyghur",
-    "alpha2": "",
+    "alpha2": "ug",
     "alpha3": "uig"
   },
   {
