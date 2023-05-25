@@ -20,7 +20,6 @@ class GoogleTextExtractor : TextExtractor {
       .header("referrerPolicy", "origin")
       .header("credentials", "include")
       .asString().body.let {
-        println(it)
         println("=".repeat(100))
         val key = Regex("BROWSER_GOOGLE_VISION_API_KEY ='(.*?)';").findAll(it).map { it.groupValues[1] }.toList()[0]
         println("GoogleKey: $key")

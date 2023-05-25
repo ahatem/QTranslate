@@ -28,7 +28,7 @@ class Layout3 : Layout() {
       JSplitPane(JSplitPane.VERTICAL_SPLIT, mainPanel.translationOutputPanel, mainPanel.translationBackwardPanel).apply { resizeWeight = 0.55 }
 
     mainPanel.split2 =
-      JSplitPane(JSplitPane.HORIZONTAL_SPLIT, mainPanel.translationInputPanel, mainPanel.split1).apply { resizeWeight = 0.55 }
+      JSplitPane(JSplitPane.HORIZONTAL_SPLIT, mainPanel.translationInputPanel, mainPanel.split1).apply { resizeWeight = 0.45 }
 
     mainPanel.add(topPanel, BorderLayout.NORTH)
     mainPanel.add(mainPanel.split2)

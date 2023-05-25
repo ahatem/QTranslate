@@ -32,12 +32,13 @@ private class LayoutsPresetsSubMenu: JMenu("Layouts presets") {
 private class OptionsExtendedSubMenu : JMenu("Extended") {
 
   init {
-    add(JMenuItem("Read phonetically"))
-    add(JMenuItem("Clear input on Drag & Drop"))
-    add(JMenuItem("Auto-cleanup of translation"))
-    add(JMenuItem("Save contents on exit "))
+    add(JMenuItem("Read phonetically").apply { isEnabled = false })
+    add(JMenuItem("Clear input on Drag & Drop").apply { isEnabled = false })
+    add(JMenuItem("Auto-cleanup of translation").apply { isEnabled = false })
+    add(JMenuItem("Save contents on exit ").apply { isEnabled = false })
     addSeparator()
     add(LayoutsPresetsSubMenu())
+    addSeparator()
     add(JCheckBoxMenuItem("Show history pane").apply {
       isSelected = Configurations.showHistoryPanel
       accelerator = WindowKeyListeners.ToogleHistoryPane.hotkey
@@ -54,10 +55,10 @@ private class OptionsExtendedSubMenu : JMenu("Extended") {
       addActionListener(WindowKeyListeners.ToggleServicesPane.action)
     })
     addSeparator()
-    add(JCheckBoxMenuItem("Minimize to system tray on minimize"))
-    add(JCheckBoxMenuItem("Minimize to system tray on close"))
+    add(JCheckBoxMenuItem("Minimize to system tray on minimize").apply { isEnabled = false })
+    add(JCheckBoxMenuItem("Minimize to system tray on close").apply { isEnabled = false })
     addSeparator()
-    add(OnStartupSubMenu())
+    add(OnStartupSubMenu().apply { isEnabled = false })
   }
 }
 
@@ -81,10 +82,12 @@ class OptionsPopupMenu : JPopupMenu() {
     add(OptionsExtendedSubMenu())
     add(JSeparator())
     add(JMenuItem("Dictionary").apply {
+      isEnabled = false
       accelerator = WindowKeyListeners.OpenDictionaryDialog.hotkey
       addActionListener(WindowKeyListeners.OpenDictionaryDialog.action)
     })
     add(JMenuItem("History").apply {
+      isEnabled = false
       accelerator = WindowKeyListeners.OpenHistoryDialog.hotkey
       addActionListener(WindowKeyListeners.OpenHistoryDialog.action)
     })
@@ -97,8 +100,14 @@ class OptionsPopupMenu : JPopupMenu() {
         accelerator = WindowKeyListeners.HowToUse.hotkey
         addActionListener(WindowKeyListeners.HowToUse.action)
       })
-      add(JMenuItem("About QTranslate"))
-      add(JMenuItem("Contact Us"))
+      add(JMenuItem("About QTranslate").apply {
+        accelerator = WindowKeyListeners.OpenAboutQTranslateDialog.hotkey
+        addActionListener(WindowKeyListeners.OpenAboutQTranslateDialog.action)
+      })
+      add(JMenuItem("Contact Us").apply {
+        accelerator = WindowKeyListeners.ContactUs.hotkey
+        addActionListener(WindowKeyListeners.ContactUs.action)
+      })
     })
     add(JSeparator())
     add(JMenuItem("Exit").apply { addActionListener { exitProcess(0) } })

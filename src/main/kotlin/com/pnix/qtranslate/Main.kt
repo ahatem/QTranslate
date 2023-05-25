@@ -7,14 +7,25 @@ import kong.unirest.Unirest
 import javax.swing.SwingUtilities
 import javax.swing.UIManager
 
-/*
-* organize folders and try to make more swing component to use again like TextArea for example with zoom (TTextArea.kt)
-* */
 
 /*
-* sending GET requests with different IPs
-* */
-fun test() {
+* http://web.archive.org/web/20230227130154/http://quest-app.appspot.com/home
+* organize folders and try to make more swing component to use again like TextArea for example with zoom (TTextArea.kt)
+* TODO
+* =========
+* 1 - Create History Dialog
+*/
+
+fun main() {
+  SwingUtilities.invokeLater {
+    FlatLaf.setup(Configurations.theme.lookAndFeel)
+    UIManager.put("TitlePane.showIcon", false)
+    UIManager.put("ScrollBar.showButtons", false)
+    QTranslateFrame().isVisible = true
+  }
+}
+
+fun `sending GET requests with different IPs`() {
   // from megabasterd proxy list
   val ipAddresses = arrayOf(
     "167.172.148.136:80",
@@ -38,11 +49,4 @@ fun test() {
       println(response)
     }
   }
-}
-
-fun main() {
-  FlatLaf.setup(Configurations.theme.lookAndFeel)
-  UIManager.put("TitlePane.showIcon", false)
-  UIManager.put("ScrollBar.showButtons", false)
-  SwingUtilities.invokeLater { QTranslateFrame().isVisible = true }
 }

@@ -1,5 +1,6 @@
 package com.pnix.qtranslate.presentation.main_frame.layouts
 
+import com.pnix.qtranslate.models.Configurations
 import java.awt.BorderLayout
 import javax.swing.BorderFactory
 import javax.swing.JPanel
@@ -32,6 +33,8 @@ class Layout1 : Layout() {
     mainPanel.add(mainPanel.historyNavigationPanel, BorderLayout.NORTH)
     mainPanel.add(mainPanel.split2)
     mainPanel.add(mainPanel.translatorsPanel, BorderLayout.SOUTH)
+
+    showBackwardTranslation(mainPanel, Configurations.showBackwardTranslationPanel)
   }
 
 

@@ -1,6 +1,8 @@
 package com.pnix.qtranslate.presentation.listeners.window
 
 import com.pnix.qtranslate.models.Configurations
+import com.pnix.qtranslate.presentation.about_dialog.AboutQTranslateDialog
+import com.pnix.qtranslate.presentation.listeners.global.QTranslateHotkeyListener
 import com.pnix.qtranslate.presentation.settings_dialog.SettingsDialog
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
 import kotlinx.coroutines.GlobalScope
@@ -74,7 +76,27 @@ class ResetLanguagePairToAutoDetectedAction : ActionListener {
 
 class HowToUseAction : ActionListener {
   override fun actionPerformed(e: ActionEvent?) {
-    println("ShowHelpAction")
+    QTranslateViewModel.setInputText("""
+      QTranslate Version  1.0.0
+
+      Global hotkeys (default values):
+        Double Ctrl => Show main window (with translation of selected text, if any)
+        Ctrl+Q => Translate selected text and show it in popup window
+        Ctrl+E => Listen to selected text
+
+      Main window hotkeys:
+        Ctrl+Enter => Translate text
+        Ctrl+N => Clear current translation
+        Ctrl+D => Show dictionary
+        Ctrl+H => Show translation history
+        Ctrl+K => Show virtual keyboard
+        Shift+Esc => Reset language pair to auto-detected
+        Ctrl+I => Swap translation direction
+        F1 => How to use?
+        F11 => Turn on/off full-screen mode
+        Alt+Left Arrow => Go to the previous translation
+        Alt+Right Arrow => Go to the next translation
+    """.trimIndent())
   }
 }
 
@@ -135,7 +157,6 @@ class ToggleInstantTranslationAction : ActionListener {
   }
 }
 
-
 class ChangeLayoutPresetAction(private val presetId: String) : ActionListener {
   override fun actionPerformed(e: ActionEvent?) {
     Configurations.layoutPreset = presetId
@@ -143,6 +164,26 @@ class ChangeLayoutPresetAction(private val presetId: String) : ActionListener {
   }
 }
 
+class OpenAboutQTranslateDialog : ActionListener {
+  override fun actionPerformed(e: ActionEvent?) {
+    AboutQTranslateDialog(QTranslateViewModel.mainFrame)
+  }
+}
+
+class ContactUsAction : ActionListener {
+  override fun actionPerformed(e: ActionEvent?) {
+    Configurations.lastOptionOpened = "Contact US"
+    SettingsDialog(QTranslateViewModel.mainFrame)
+  }
+}
+
+class ToggleGlobalHotkeysAction : ActionListener {
+  override fun actionPerformed(e: ActionEvent?) {
+    Configurations.enableGlobalHotkeys = !Configurations.enableGlobalHotkeys
+    if (Configurations.enableGlobalHotkeys) QTranslateHotkeyListener.registerGlobalListener()
+    else QTranslateHotkeyListener.unRegisterGlobalListener()
+  }
+}
 
 class ToggleBackwardTranslationPaneAction : ActionListener {
   override fun actionPerformed(e: ActionEvent?) {

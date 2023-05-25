@@ -34,6 +34,7 @@ import javax.imageio.ImageIO
 import javax.swing.*
 import kotlin.system.exitProcess
 
+
 class QTranslateFrame : JFrame("QTranslate") {
   private val loadingDialog = LoadingDialog()
   private var mainPanel: MainPanel
@@ -41,7 +42,7 @@ class QTranslateFrame : JFrame("QTranslate") {
   init {
     defaultCloseOperation = DO_NOTHING_ON_CLOSE
     minimumSize = Dimension(450, 260)
-    preferredSize = Dimension(680, 380)
+    preferredSize = Dimension(500, 380)
     iconImages = getIcons()
     setPadding(4)
 
@@ -149,17 +150,11 @@ class QTranslateFrame : JFrame("QTranslate") {
   }
 
   private fun applyConfigurations() {
-
-//    remove(mainPanel)
-//    mainPanel = LayoutFactory.getById(Configurations.layoutPreset)
-//    add(mainPanel)
-
     mainPanel.changeLayout(LayoutFactory.getById(Configurations.layoutPreset))
 
     FlatLaf.setup(Configurations.theme.lookAndFeel)
     FlatLaf.setUseNativeWindowDecorations(Configurations.enableWindowStyle)
     UIManager.put("TitlePane.unifiedBackground", Configurations.unifyTitleBar)
-
     FlatLaf.updateUILater()
 
     val newFont = Font(Configurations.inputsFontName, Font.PLAIN, Configurations.inputsFontSize)
@@ -174,7 +169,6 @@ class QTranslateFrame : JFrame("QTranslate") {
 
     revalidate()
     repaint()
-
   }
 
   private fun getIcons(): List<BufferedImage> {
@@ -187,7 +181,8 @@ class QTranslateFrame : JFrame("QTranslate") {
     addWindowListener(object : WindowAdapter() {
       override fun windowOpened(e: WindowEvent?) {
         mainPanel.translationInputPanel.inputTextArea.requestFocus()
-        JIntellitype.getInstance().addHotKeyListener(QTranslateHotkeyListener(this@QTranslateFrame))
+        if (Configurations.enableGlobalHotkeys) QTranslateHotkeyListener.registerGlobalListener()
+        else QTranslateHotkeyListener.unRegisterGlobalListener()
       }
 
       override fun windowClosing(e: WindowEvent?) {

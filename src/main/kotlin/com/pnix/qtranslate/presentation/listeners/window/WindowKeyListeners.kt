@@ -123,6 +123,22 @@ sealed class WindowKeyListeners(val action: ActionListener, val hotkey: KeyStrok
     null
   )
 
+  object ContactUs : WindowKeyListeners(
+    ContactUsAction(),
+    null
+  )
+
+  object OpenAboutQTranslateDialog : WindowKeyListeners(
+    OpenAboutQTranslateDialog(),
+    null
+  )
+
+
+  object ToggleGlobalHotkeys : WindowKeyListeners(
+    ToggleGlobalHotkeysAction(),
+    null
+  )
+
   companion object {
     fun getAllValues(): List<WindowKeyListeners> {
       return listOf(

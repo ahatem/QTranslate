@@ -1,5 +1,6 @@
 package com.pnix.qtranslate.presentation.main_frame.menus
 
+import com.pnix.qtranslate.models.Configurations
 import com.pnix.qtranslate.presentation.listeners.window.WindowKeyListeners
 import com.pnix.qtranslate.presentation.snipping_screen_dialog.SnippingToolDialog
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
@@ -17,6 +18,7 @@ class TrayPopupMenu : JPopupMenu() {
       }
     })
     add(JMenuItem("Dictionary").apply {
+      isEnabled = false
       addActionListener(WindowKeyListeners.OpenDictionaryDialog.action)
     })
     add(JMenuItem("Text recognition").apply {
@@ -30,14 +32,18 @@ class TrayPopupMenu : JPopupMenu() {
       }
     })
     add(JMenuItem("History").apply {
+      isEnabled = false
       addActionListener(WindowKeyListeners.OpenHistoryDialog.action)
     })
     add(JMenuItem("Settings").apply {
       addActionListener(WindowKeyListeners.OpenSettingsDialog.action)
     })
-    add(JMenuItem("About QTranslate"))
     addSeparator()
-    add(JCheckBoxMenuItem("Enable global hotkeys").apply { isSelected = true })
+    add(JCheckBoxMenuItem("Enable global hotkeys").apply {
+      isSelected = Configurations.enableGlobalHotkeys
+      accelerator = WindowKeyListeners.ToggleGlobalHotkeys.hotkey
+      addActionListener(WindowKeyListeners.ToggleGlobalHotkeys.action)
+    })
 //      add(JMenu("Mouse mode"))
     addSeparator()
     add(JMenuItem("Exit").apply { addActionListener { exitProcess(0) } })

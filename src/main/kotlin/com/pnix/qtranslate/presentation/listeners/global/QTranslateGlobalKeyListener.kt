@@ -17,8 +17,25 @@ import java.awt.event.WindowEvent
 import javax.swing.JFrame
 import javax.swing.SwingUtilities
 
-
 class QTranslateHotkeyListener(private val frame: JFrame) : HotkeyListener {
+
+  companion object {
+    private val INSTANCE = QTranslateHotkeyListener(QTranslateViewModel.mainFrame)
+    private var registered = false
+
+    fun registerGlobalListener() {
+      if (registered) return
+      JIntellitype.getInstance().addHotKeyListener(INSTANCE)
+      registered = true
+    }
+
+    fun unRegisterGlobalListener() {
+      if (!registered) return
+      JIntellitype.getInstance().removeHotKeyListener(INSTANCE)
+      registered = false
+    }
+
+  }
 
   private var originalContents: Transferable? = null
   private var usingClipboard = false

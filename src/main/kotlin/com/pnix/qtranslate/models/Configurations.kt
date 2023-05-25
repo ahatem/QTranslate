@@ -3,6 +3,7 @@ package com.pnix.qtranslate.models
 import com.formdev.flatlaf.FlatDarculaLaf
 import com.formdev.flatlaf.FlatIntelliJLaf
 import com.formdev.flatlaf.FlatLaf
+import com.formdev.flatlaf.IntelliJTheme
 import com.formdev.flatlaf.intellijthemes.*
 import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatGitHubDarkIJTheme
 import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatMaterialOceanicIJTheme
@@ -13,8 +14,31 @@ import kotlin.properties.Delegates
 
 enum class Theme(val readableName: String, val lookAndFeel: FlatLaf) {
   DEFAULT_LIGHT("Light - Default", FlatIntelliJLaf()),
-  DEFAULT_DARK ("Dark  - Default", FlatDarculaLaf()),
+  DEFAULT_DARK("Dark  - Default", FlatDarculaLaf()),
 
+  DARK_SHARPER(
+    "Dark  - Sharper", IntelliJTheme.createLaf(
+      Theme::class.java.classLoader.getResourceAsStream("themes/ReSharperDark.theme.json")
+    )
+  ),
+  DARK_X_DARK(
+    "Dark  - XDark", IntelliJTheme.createLaf(
+      Theme::
+      class.java.classLoader.getResourceAsStream("themes/XcodeDark.theme.json")
+    )
+  ),
+  DARK_MODERN_BLACK(
+    "Dark  - Modern Black", IntelliJTheme.createLaf(
+      Theme::
+      class.java.classLoader.getResourceAsStream("themes/vscode_dark_modern.theme.json")
+    )
+  ),
+  DARK_GENTLE(
+    "Dark  - Gentle", IntelliJTheme.createLaf(
+      Theme::class.java.classLoader.getResourceAsStream("themes/godot_theme.theme.json")
+    )
+  ),
+  DARK_ONE_DARK("Dark  - One Dark", FlatOneDarkIJTheme()),
   DARK_PURPLE("Dark  - Purple", FlatDarkPurpleIJTheme()),
   DARK_HIBERBEE("Dark  - Hiberbee", FlatHiberbeeDarkIJTheme()),
   DARK_MATERIAL_OCEANIC("Dark  - Oceanic", FlatMaterialOceanicIJTheme()),
@@ -23,9 +47,26 @@ enum class Theme(val readableName: String, val lookAndFeel: FlatLaf) {
   DARK_SOLARIZED("Dark  - Solarized", FlatSolarizedDarkIJTheme()),
 
 
+  LIGHT_SHARPER(
+    "Light - Sharper", IntelliJTheme.createLaf(
+      Theme::class.java.classLoader.getResourceAsStream("themes/ReSharperLight.theme.json")
+    )
+  ),
   LIGHT_MAC("Light - Mac", FlatMacLightLaf()),
   LIGHT_GRAY("Light - Gray", FlatGrayIJTheme()),
-  LIGHT_SOLARIZED("Light - Solarized", FlatSolarizedLightIJTheme());
+  LIGHT_VITESSE(
+    "Light - Vitesse", IntelliJTheme.createLaf(
+      Theme::
+      class.java.classLoader.getResourceAsStream("themes/vitesse.light.soft.theme.json")
+    )
+  ),
+  LIGHT_SOLARIZED("Light - Solarized", FlatSolarizedLightIJTheme()),
+  LIGHT_ESPRESSO(
+    "Light - Espresso", IntelliJTheme.createLaf(
+      Theme::
+      class.java.classLoader.getResourceAsStream("themes/espresso_light.theme.json")
+    )
+  );
 
   companion object {
     fun getThemeByReadableName(readableName: String) =
@@ -101,12 +142,15 @@ object Configurations {
   var showServicesPanel by Delegates.observable(prefs.getBoolean("show_services_panel", true))
   { _, _, newValue -> prefs.putBoolean("show_services_panel", newValue) }
 
-
   var lastOptionOpened: String by Delegates.observable(prefs.get("last_option_opened", "Basics"))
   { _, _, newValue -> prefs.put("last_option_opened", newValue) }
 
   var layoutPreset: String by Delegates.observable(prefs.get("layout_preset", "preset_1"))
   { _, _, newValue -> prefs.put("layout_preset", newValue) }
+
+  var enableGlobalHotkeys by Delegates.observable(prefs.getBoolean("enable_global_hotkeys", true))
+  { _, _, newValue -> prefs.putBoolean("enable_global_hotkeys", newValue) }
+
 
   // * Basics
   var startWithWindows by Delegates.observable(prefs.getBoolean("start_with_windows", false))
@@ -118,7 +162,7 @@ object Configurations {
   var inputsFontName: String by Delegates.observable(prefs.get("inputs_font_name", JLabel().font.family))
   { _, _, newValue -> prefs.put("inputs_font_name", newValue) }
 
-  var inputsFontSize by Delegates.observable(prefs.getInt("inputs_font_size", 16))
+  var inputsFontSize by Delegates.observable(prefs.getInt("inputs_font_size", 14))
   { _, _, newValue -> prefs.putInt("inputs_font_size", newValue) }
 
   var autoDetectFirstLanguage: String by Delegates.observable(prefs.get("auto_detect_first_language", "eng"))
