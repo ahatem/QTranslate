@@ -1,79 +1,46 @@
 package com.pnix.qtranslate.models
 
-import com.formdev.flatlaf.FlatDarculaLaf
-import com.formdev.flatlaf.FlatIntelliJLaf
 import com.formdev.flatlaf.FlatLaf
-import com.formdev.flatlaf.IntelliJTheme
 import com.formdev.flatlaf.intellijthemes.*
 import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatGitHubDarkIJTheme
 import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatMaterialOceanicIJTheme
 import com.formdev.flatlaf.themes.FlatMacLightLaf
+import com.pnix.qtranslate.utils.fileToLaf
+import com.pnix.qtranslate.utils.getDefaultFontFamily
 import java.util.prefs.Preferences
 import javax.swing.JLabel
 import kotlin.properties.Delegates
 
 enum class Theme(val readableName: String, val lookAndFeel: FlatLaf) {
-  DEFAULT_LIGHT("Light - Default", FlatIntelliJLaf()),
-  DEFAULT_DARK("Dark  - Default", FlatDarculaLaf()),
+  DARK_SHARPER("Dark  - Default", fileToLaf("ReSharperDark.theme.json")),
+  LIGHT_SHARPER("Light - Default", fileToLaf("ReSharperLight.theme.json")),
 
-  DARK_SHARPER(
-    "Dark  - Sharper", IntelliJTheme.createLaf(
-      Theme::class.java.classLoader.getResourceAsStream("themes/ReSharperDark.theme.json")
-    )
-  ),
-  DARK_X_DARK(
-    "Dark  - XDark", IntelliJTheme.createLaf(
-      Theme::
-      class.java.classLoader.getResourceAsStream("themes/XcodeDark.theme.json")
-    )
-  ),
-  DARK_MODERN_BLACK(
-    "Dark  - Modern Black", IntelliJTheme.createLaf(
-      Theme::
-      class.java.classLoader.getResourceAsStream("themes/vscode_dark_modern.theme.json")
-    )
-  ),
-  DARK_GENTLE(
-    "Dark  - Gentle", IntelliJTheme.createLaf(
-      Theme::class.java.classLoader.getResourceAsStream("themes/godot_theme.theme.json")
-    )
-  ),
+  DARK_X_DARK("Dark  - XDark", fileToLaf("XcodeDark.theme.json")),
+  DARK_MODERN_BLACK("Dark  - Modern Black", fileToLaf("vscode_dark_modern.theme.json")),
+  DARK_BLACK("Dark  - Black", fileToLaf("github-dark-default.theme.json")),
+  DARK_GENTLE("Dark  - Godot", fileToLaf("godot_theme.theme.json")),
   DARK_ONE_DARK("Dark  - One Dark", FlatOneDarkIJTheme()),
   DARK_PURPLE("Dark  - Purple", FlatDarkPurpleIJTheme()),
   DARK_HIBERBEE("Dark  - Hiberbee", FlatHiberbeeDarkIJTheme()),
-  DARK_MATERIAL_OCEANIC("Dark  - Oceanic", FlatMaterialOceanicIJTheme()),
-  DARK_GITHUB("Dark  - Pale-Red", FlatGitHubDarkIJTheme()),
+  DARK_MATERIAL_OCEANIC("Dark  - Oceanic Green", FlatMaterialOceanicIJTheme()),
   DARK_VUESION("Dark  - Vuesion", FlatVuesionIJTheme()),
   DARK_SOLARIZED("Dark  - Solarized", FlatSolarizedDarkIJTheme()),
 
-
-  LIGHT_SHARPER(
-    "Light - Sharper", IntelliJTheme.createLaf(
-      Theme::class.java.classLoader.getResourceAsStream("themes/ReSharperLight.theme.json")
-    )
-  ),
   LIGHT_MAC("Light - Mac", FlatMacLightLaf()),
   LIGHT_GRAY("Light - Gray", FlatGrayIJTheme()),
-  LIGHT_VITESSE(
-    "Light - Vitesse", IntelliJTheme.createLaf(
-      Theme::
-      class.java.classLoader.getResourceAsStream("themes/vitesse.light.soft.theme.json")
-    )
-  ),
-  LIGHT_SOLARIZED("Light - Solarized", FlatSolarizedLightIJTheme()),
-  LIGHT_ESPRESSO(
-    "Light - Espresso", IntelliJTheme.createLaf(
-      Theme::
-      class.java.classLoader.getResourceAsStream("themes/espresso_light.theme.json")
-    )
-  );
+  LIGHT_VITESSE("Light - Vitesse", fileToLaf("vitesse.light.soft.theme.json")),
+  LIGHT_ESPRESSO("Light - Espresso", fileToLaf("espresso_light.theme.json")),
+  LIGHT_SOLARIZED("Light - Solarized", FlatSolarizedLightIJTheme());
 
   companion object {
     fun getThemeByReadableName(readableName: String) =
-      values().find { it.readableName == readableName } ?: DEFAULT_LIGHT
+      values().find { it.readableName == readableName } ?: fallbackTheme(readableName)
 
     fun from(name: String) =
-      values().find { it.name == name } ?: DEFAULT_LIGHT
+      values().find { it.name == name } ?: fallbackTheme(name)
+
+    private fun fallbackTheme(name: String) =
+      if (name.contains("light", true)) LIGHT_SHARPER else DARK_SHARPER
   }
 }
 
@@ -159,7 +126,7 @@ object Configurations {
   var interfaceLanguage: String by Delegates.observable(prefs.get("interface_language", "English"))
   { _, _, newValue -> prefs.put("interface_language", newValue) }
 
-  var inputsFontName: String by Delegates.observable(prefs.get("inputs_font_name", JLabel().font.family))
+  var inputsFontName: String by Delegates.observable(prefs.get("inputs_font_name", getDefaultFontFamily()))
   { _, _, newValue -> prefs.put("inputs_font_name", newValue) }
 
   var inputsFontSize by Delegates.observable(prefs.getInt("inputs_font_size", 14))
@@ -182,10 +149,10 @@ object Configurations {
   var enableWindowStyle by Delegates.observable(prefs.getBoolean("enable_window_style", true))
   { _, _, newValue -> prefs.putBoolean("enable_window_style", newValue) }
 
-  var unifyTitleBar by Delegates.observable(prefs.getBoolean("unify_title_bar", true))
+  var unifyTitleBar by Delegates.observable(prefs.getBoolean("unify_title_bar", false))
   { _, _, newValue -> prefs.putBoolean("unify_title_bar", newValue) }
 
-  var theme by Delegates.observable(Theme.from(prefs.get("theme", Theme.LIGHT_SOLARIZED.name)))
+  var theme by Delegates.observable(Theme.from(prefs.get("theme", Theme.DARK_SHARPER.name)))
   { _, _, newValue -> prefs.put("theme", newValue.name) }
 
   var popupLastSize: String by Delegates.observable(prefs.get("popup_last_size", "250,120"))

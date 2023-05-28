@@ -2,6 +2,7 @@ package com.pnix.qtranslate.presentation.listeners.window
 
 import com.pnix.qtranslate.models.Configurations
 import com.pnix.qtranslate.presentation.about_dialog.AboutQTranslateDialog
+import com.pnix.qtranslate.presentation.history_dialog.HistoryDialog
 import com.pnix.qtranslate.presentation.listeners.global.QTranslateHotkeyListener
 import com.pnix.qtranslate.presentation.settings_dialog.SettingsDialog
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
@@ -43,12 +44,9 @@ class ClearAction : ActionListener {
 
 class SwapTranslationDirectionAction : ActionListener {
   override fun actionPerformed(e: ActionEvent?) {
-    val translation = QTranslateViewModel.translation.value
-
     val sourceLanguage = QTranslateViewModel.inputLanguage.value
     val targetLanguage = QTranslateViewModel.outputLanguage.value
 
-    QTranslateViewModel.setInputText(translation)
     QTranslateViewModel.setInputLanguage(targetLanguage)
     QTranslateViewModel.setOutputLanguage(sourceLanguage)
 
@@ -64,7 +62,7 @@ class OpenDictionaryDialogAction : ActionListener {
 
 class OpenHistoryDialogAction : ActionListener {
   override fun actionPerformed(e: ActionEvent?) {
-    println("ShowHistoryAction")
+    HistoryDialog(QTranslateViewModel.mainFrame)
   }
 }
 

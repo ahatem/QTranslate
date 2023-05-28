@@ -32,7 +32,6 @@ class TrayPopupMenu : JPopupMenu() {
       }
     })
     add(JMenuItem("History").apply {
-      isEnabled = false
       addActionListener(WindowKeyListeners.OpenHistoryDialog.action)
     })
     add(JMenuItem("Settings").apply {

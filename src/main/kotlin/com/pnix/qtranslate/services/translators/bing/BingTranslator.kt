@@ -40,10 +40,6 @@ class BingTranslator : TranslatorService() {
 
     runCatching {
       val request = post(url).fields(requestBody).asStringAsync().await()
-      println(request.body)
-      println(request.status)
-      println("=".repeat(50))
-
       val body = request.body
       if (!body.contains("statusCode")) {
         return request.body.let {

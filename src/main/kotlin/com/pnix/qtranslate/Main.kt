@@ -11,16 +11,23 @@ import javax.swing.UIManager
 /*
 * http://web.archive.org/web/20230227130154/http://quest-app.appspot.com/home
 * organize folders and try to make more swing component to use again like TextArea for example with zoom (TTextArea.kt)
+*   - Make horizontal scroll bar appears if width is less than 200 for ex .. or find a way to force wrap it
+*     NOTE: the problem is just appears in RTL Lang like arabic
 * TODO
 * =========
-* 1 - Create History Dialog
+* 1 - Implement Search in History Dialog
+* 2 - Services and languages in settings are not functional
+* 3 - Auto-detect not implemented
 */
 
 fun main() {
   SwingUtilities.invokeLater {
     FlatLaf.setup(Configurations.theme.lookAndFeel)
+    FlatLaf.setUseNativeWindowDecorations(Configurations.enableWindowStyle)
+    UIManager.put("TitlePane.unifiedBackground", Configurations.unifyTitleBar)
     UIManager.put("TitlePane.showIcon", false)
     UIManager.put("ScrollBar.showButtons", false)
+
     QTranslateFrame().isVisible = true
   }
 }

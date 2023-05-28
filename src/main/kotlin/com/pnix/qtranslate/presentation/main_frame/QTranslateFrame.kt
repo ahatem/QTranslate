@@ -75,6 +75,8 @@ class QTranslateFrame : JFrame("QTranslate") {
       }
       launch {
         QTranslateViewModel.selectedTranslatorIndex.collectLatest {
+          mainPanel.historyNavigationPanel.buttonHistoryBackward.isEnabled = TranslationHistory.canUndo()
+          mainPanel.historyNavigationPanel.buttonHistoryForward.isEnabled = TranslationHistory.canRedo()
           mainPanel.historyNavigationPanel.updateStatus()
           val buttons = Collections.list(mainPanel.translatorsPanel.buttonGroup.elements).toList()
           buttons.withIndex().forEach { (index, button) ->
@@ -149,6 +151,7 @@ class QTranslateFrame : JFrame("QTranslate") {
     }
   }
 
+  // NOTE: this is bad for performance i think :D
   private fun applyConfigurations() {
     mainPanel.changeLayout(LayoutFactory.getById(Configurations.layoutPreset))
 

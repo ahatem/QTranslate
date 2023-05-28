@@ -77,10 +77,10 @@ object QTranslateViewModel {
 
     runCatching {
       val translatedText = translator.translate(inputText, outputLang, inputLang)
-      _translation.value = translatedText.translatedText
+      _translation.value = translatedText.translatedText.trimIndent()
       if (Configurations.showBackwardTranslationPanel) {
         val backwardTranslatedText = translator.translate(translatedText.translatedText, inputLang, outputLang)
-        _backwardTranslation.value = backwardTranslatedText.translatedText
+        _backwardTranslation.value = backwardTranslatedText.translatedText.trimIndent()
       }
 
       TranslationHistory.saveSnapshot(
@@ -95,6 +95,7 @@ object QTranslateViewModel {
       )
 
     }.onFailure {
+      it.printStackTrace()
       _translation.value = when (it) {
         is UnsupportedLanguageException -> it.message!!.replace(outputLang, "'${_outputLanguage.value.name}'")
         else -> "Unknown error occurred"
@@ -179,9 +180,9 @@ object QTranslateViewModel {
       _inputLanguage.value = Language(it.inputLanguage)
       _outputLanguage.value = Language(it.outputLanguage)
 
-      _input.value = it.originalText
-      _translation.value = it.translatedText
-      _backwardTranslation.value = it.backwardTranslationText
+      _input.value = it.originalText.trimIndent()
+      _translation.value = it.translatedText.trimIndent()
+      _backwardTranslation.value = it.backwardTranslationText.trimIndent()
     }
   }
 
@@ -204,11 +205,11 @@ object QTranslateViewModel {
 
   /* Setters */
   fun setInputText(text: String) {
-    _input.value = text
+    _input.value = text.trimIndent()
   }
 
   fun setTranslationText(text: String) {
-    _translation.value = text
+    _translation.value = text.trimIndent()
   }
 
   fun setInputLanguage(language: Language) {

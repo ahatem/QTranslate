@@ -87,7 +87,6 @@ class OptionsPopupMenu : JPopupMenu() {
       addActionListener(WindowKeyListeners.OpenDictionaryDialog.action)
     })
     add(JMenuItem("History").apply {
-      isEnabled = false
       accelerator = WindowKeyListeners.OpenHistoryDialog.hotkey
       addActionListener(WindowKeyListeners.OpenHistoryDialog.action)
     })

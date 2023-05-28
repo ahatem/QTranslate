@@ -1,7 +1,11 @@
 package com.pnix.qtranslate.utils
 
+import com.formdev.flatlaf.FlatLaf
+import com.formdev.flatlaf.IntelliJTheme
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.ui.FlatBorder
+import com.formdev.flatlaf.util.SystemInfo
+import com.pnix.qtranslate.models.Theme
 import java.awt.*
 import java.awt.event.InputEvent
 import java.beans.PropertyChangeListener
@@ -10,6 +14,7 @@ import javax.swing.event.AncestorEvent
 import javax.swing.event.AncestorListener
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
+
 
 fun interface SimpleDocumentListener : DocumentListener {
   fun update(e: DocumentEvent?)
@@ -26,6 +31,9 @@ fun interface SimpleDocumentListener : DocumentListener {
     update(e)
   }
 }
+
+fun fileToLaf(themeFileName: String): FlatLaf =
+  IntelliJTheme.createLaf(Theme::class.java.classLoader.getResourceAsStream("themes/$themeFileName"))
 
 fun createButtonWithIcon(iconPath: String, iconSize: Int, tooltip: String): JButton {
   return JButton().apply {
@@ -104,4 +112,22 @@ fun altKeyWith(key: Int): KeyStroke {
 
 fun shiftKeyWith(key: Int): KeyStroke {
   return KeyStroke.getKeyStroke(key, InputEvent.SHIFT_DOWN_MASK)
+}
+
+fun getDefaultFontFamily(): String {
+  var defaultFontFamily = JLabel().font.family
+  if (SystemInfo.isWindows) {
+    val winFont = Toolkit.getDefaultToolkit().getDesktopProperty("win.messagebox.font") as Font?
+    if (winFont != null) {
+      if (SystemInfo.isWinPE) {
+        val winPEFont = Toolkit.getDefaultToolkit().getDesktopProperty("win.defaultGUI.font") as Font?
+        if (winPEFont != null) {
+          defaultFontFamily = winPEFont.family
+        }
+      } else {
+        defaultFontFamily = winFont.family
+      }
+    }
+  }
+  return defaultFontFamily
 }
