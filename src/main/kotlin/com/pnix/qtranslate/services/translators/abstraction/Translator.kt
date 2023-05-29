@@ -15,14 +15,19 @@ abstract class TranslatorService {
     val normalizedSourceLanguage = languageMapper.normalize(sourceLanguage)
     if (normalizedTargetLanguage == normalizedSourceLanguage) throw IllegalArgumentException("targetLanguage and sourceLanguage can not be equal")
 
-    val (detectLanguage, translatedText) = doTranslate(text, normalizedTargetLanguage, normalizedSourceLanguage)
+    val (detectLanguage, translatedText, additionalInfo) = doTranslate(
+      text,
+      normalizedTargetLanguage,
+      normalizedSourceLanguage
+    )
 
     return TranslationResult(
       serviceName,
       text,
       languageMapper.denormalize(detectLanguage),
       languageMapper.denormalize(targetLanguage),
-      translatedText
+      translatedText,
+      additionalInfo
     )
   }
 

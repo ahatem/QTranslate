@@ -3,6 +3,8 @@ package com.pnix.qtranslate.utils
 import com.formdev.flatlaf.FlatLaf
 import com.formdev.flatlaf.IntelliJTheme
 import com.formdev.flatlaf.extras.FlatSVGIcon
+import com.formdev.flatlaf.extras.FlatSVGIcon.ColorFilter
+import com.formdev.flatlaf.extras.components.FlatButton
 import com.formdev.flatlaf.ui.FlatBorder
 import com.formdev.flatlaf.util.SystemInfo
 import com.pnix.qtranslate.models.Theme
@@ -35,11 +37,13 @@ fun interface SimpleDocumentListener : DocumentListener {
 fun fileToLaf(themeFileName: String): FlatLaf =
   IntelliJTheme.createLaf(Theme::class.java.classLoader.getResourceAsStream("themes/$themeFileName"))
 
-fun createButtonWithIcon(iconPath: String, iconSize: Int, tooltip: String): JButton {
-  return JButton().apply {
+fun createButtonWithIcon(iconPath: String, iconSize: Int, tooltip: String = ""): FlatButton {
+  return FlatButton().apply {
     toolTipText = tooltip
     icon = FlatSVGIcon(iconPath, iconSize, iconSize).apply {
-      colorFilter = FlatSVGIcon.ColorFilter { _: Color? -> UIManager.getColor("Label.foreground") }
+      colorFilter = ColorFilter { _: Color? ->
+        if (FlatSVGIcon.isDarkLaf()) UIManager.getColor("MenuItem.foreground") else Color(0, 0, 0, 190)
+      }
     }
   }
 }

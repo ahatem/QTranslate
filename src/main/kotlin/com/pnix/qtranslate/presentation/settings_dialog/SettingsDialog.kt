@@ -28,7 +28,12 @@ class SettingsDialog(frame: JFrame) : JDialog(frame, "Settings", false) {
       )
     )
     list.setSelectedValue("%-35s".format(Configurations.lastOptionOpened), false)
-    list.border = BorderFactory.createTitledBorder("")
+    list.border = BorderFactory.createMatteBorder(1, 1, 1, 1, UIManager.getColor("Component.borderColor"))
+    UIManager.addPropertyChangeListener { evt ->
+      if ("lookAndFeel" == evt.propertyName) list.border =
+        BorderFactory.createMatteBorder(1, 1, 1, 1, UIManager.getColor("Component.borderColor"))
+    }
+
 
     val cardPanel = JPanel(CardLayout())
     cardPanel.border = BorderFactory.createEmptyBorder(0, 2, 0, 2)

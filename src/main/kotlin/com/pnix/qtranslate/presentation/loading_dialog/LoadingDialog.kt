@@ -25,12 +25,6 @@ class LoadingDialog : JDialog(null as Frame?, "", false) {
     progressBar.border = BorderFactory.createMatteBorder(2, 2, 2, 2, UIManager.getColor("Button.borderColor").darker())
     progressBar.putClientProperty("JProgressBar.square", true)
 
-    /*UIManager.addPropertyChangeListener { evt ->
-      if ("lookAndFeel" == evt.propertyName) {
-        progressBar.border = BorderFactory.createMatteBorder(2, 2, 2, 2, UIManager.getColor("Button.borderColor").darker())
-      }
-    }*/
-
     add(progressBar)
 
     addComponentListener(object : ComponentAdapter() {

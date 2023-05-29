@@ -133,7 +133,7 @@ class GoogleLanguageMapper(override val serviceName: String) : LanguageMapper() 
     )
 
   override suspend fun detectLanguage(text: String): String {
-    return  doNormalize(Language(LanguageDetector.detectLanguage(text)))
+    return doNormalize(Language(LanguageDetector.detectLanguage(text)))
   }
 
   override fun doNormalize(language: Language): String {

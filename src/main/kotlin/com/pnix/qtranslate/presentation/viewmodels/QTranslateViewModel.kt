@@ -76,11 +76,12 @@ object QTranslateViewModel {
     val translator = translators[_selectedTranslatorIndex.value]
 
     runCatching {
-      val translatedText = translator.translate(inputText, outputLang, inputLang)
-      _translation.value = translatedText.translatedText.trimIndent()
+      val translationResult = translator.translate(inputText, outputLang, inputLang)
+      _translation.value = "${translationResult.translatedText}\n\n${translationResult.additionalInfo}".trim()
       if (Configurations.showBackwardTranslationPanel) {
-        val backwardTranslatedText = translator.translate(translatedText.translatedText, inputLang, outputLang)
-        _backwardTranslation.value = backwardTranslatedText.translatedText.trimIndent()
+        val backwardTranslationResult = translator.translate(translationResult.translatedText, inputLang, outputLang)
+        _backwardTranslation.value =
+          "${backwardTranslationResult.translatedText}\n\n${backwardTranslationResult.additionalInfo}".trim()
       }
 
       TranslationHistory.saveSnapshot(
@@ -174,7 +175,7 @@ object QTranslateViewModel {
     updateState(TranslationHistory.redo())
   }
 
-  private fun updateState(translationHistorySnapshot: TranslationHistorySnapshot?) {
+  fun updateState(translationHistorySnapshot: TranslationHistorySnapshot?) {
     translationHistorySnapshot?.let {
       _selectedTranslatorIndex.value = it.selectedTranslatorIndex
       _inputLanguage.value = Language(it.inputLanguage)
@@ -186,22 +187,34 @@ object QTranslateViewModel {
     }
   }
 
+
   private fun playAudio(content: ByteArray) {
+    stopPlayback()
+    startPlayback(content)
+  }
+
+  private fun startPlayback(content: ByteArray) {
     _isListening.value = true
-    job?.cancel()
-    player?.close()
     job = CoroutineScope(Dispatchers.IO).launch {
       ByteArrayInputStream(content).use { stream ->
         player = AdvancedPlayer(stream)
         player?.play()
-        player?.close()
-        _isListening.value = false
-        player = null
-        job = null
+        stopPlayback()
+        finalizePlayback()
       }
     }
   }
 
+  private fun stopPlayback() {
+    job?.cancel()
+    player?.close()
+    _isListening.value = false
+  }
+
+  private fun finalizePlayback() {
+    player = null
+    job = null
+  }
 
   /* Setters */
   fun setInputText(text: String) {

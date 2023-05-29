@@ -8,20 +8,20 @@ import net.miginfocom.swing.MigLayout
 import java.awt.event.KeyEvent
 import javax.swing.*
 
-class TranslationOptionsPanel: JPanel() {
+class TranslationOptionsPanel : JPanel() {
 
   private val iconSize = 16
-  val clearButton = createButtonWithIcon("app-icons/trash.svg", iconSize,"Clear current translation").apply {
+  val clearButton = createButtonWithIcon("app-icons/trash.svg", iconSize, "Clear current translation").apply {
     addActionListener(WindowKeyListeners.ClearCurrentTranslation.action)
   }
-  val menuButton = createButtonWithIcon("app-icons/menu.svg", iconSize,"").apply {
+  val menuButton = createButtonWithIcon("app-icons/menu.svg", iconSize).apply {
     val menu = createTranslationOptionsMenu()
     addActionListener {
       if (menu.isVisible) menu.isVisible = false
       else menu.show(this, 0, this.height)
     }
   }
-  val swapButton = createButtonWithIcon("app-icons/swap.svg", iconSize,"Change translation direction").apply {
+  val swapButton = createButtonWithIcon("app-icons/swap.svg", iconSize, "Change translation direction").apply {
     addActionListener(WindowKeyListeners.SwapTranslationDirection.action)
   }
   val translateButton = JButton("Translate").apply {

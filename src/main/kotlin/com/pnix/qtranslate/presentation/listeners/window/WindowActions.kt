@@ -49,8 +49,6 @@ class SwapTranslationDirectionAction : ActionListener {
 
     QTranslateViewModel.setInputLanguage(targetLanguage)
     QTranslateViewModel.setOutputLanguage(sourceLanguage)
-
-    GlobalScope.launch { QTranslateViewModel.translate() }
   }
 }
 
@@ -74,7 +72,8 @@ class ResetLanguagePairToAutoDetectedAction : ActionListener {
 
 class HowToUseAction : ActionListener {
   override fun actionPerformed(e: ActionEvent?) {
-    QTranslateViewModel.setInputText("""
+    QTranslateViewModel.setInputText(
+      """
       QTranslate Version  1.0.0
 
       Global hotkeys (default values):
@@ -94,7 +93,8 @@ class HowToUseAction : ActionListener {
         F11 => Turn on/off full-screen mode
         Alt+Left Arrow => Go to the previous translation
         Alt+Right Arrow => Go to the next translation
-    """.trimIndent())
+    """.trimIndent()
+    )
   }
 }
 

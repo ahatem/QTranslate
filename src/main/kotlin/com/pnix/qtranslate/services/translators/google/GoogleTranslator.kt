@@ -124,16 +124,18 @@ class GoogleTranslator : TranslatorService() {
         .asStringAsync().await().body.let {
           val response = gson.fromJson(it, GoogleTranslateResponse::class.java)
           val translatedText = response.sentences.joinToString(separator = "") { s -> s.trans.orEmpty() }
-          var moreInfo = "\n\n"
+
+          var additionalInfo = ""
           for (dict in response.dict.orEmpty()) {
-            moreInfo += "${dict.pos.replaceFirstChar(Char::titlecase)}:"
+            additionalInfo += "${dict.pos.replaceFirstChar(Char::titlecase)}:"
             for ((index, term) in dict.terms.withIndex()) {
-              moreInfo += "\n\t$term (${dict.entry[index].reverseTranslation.joinToString()})"
+              additionalInfo += "\n  $term (${dict.entry[index].reverseTranslation.joinToString()})"
             }
-            moreInfo += "\n\n"
+            additionalInfo += "\n\n"
           }
+
           val detectedLanguage = response.src
-          Translation(detectedLanguage, "$translatedText $moreInfo".trim())
+          Translation(detectedLanguage, translatedText.trim(), additionalInfo)
         }
     }.onFailure {
       it.printStackTrace()

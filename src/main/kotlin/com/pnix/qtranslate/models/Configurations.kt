@@ -2,13 +2,11 @@ package com.pnix.qtranslate.models
 
 import com.formdev.flatlaf.FlatLaf
 import com.formdev.flatlaf.intellijthemes.*
-import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatGitHubDarkIJTheme
 import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatMaterialOceanicIJTheme
 import com.formdev.flatlaf.themes.FlatMacLightLaf
 import com.pnix.qtranslate.utils.fileToLaf
 import com.pnix.qtranslate.utils.getDefaultFontFamily
 import java.util.prefs.Preferences
-import javax.swing.JLabel
 import kotlin.properties.Delegates
 
 enum class Theme(val readableName: String, val lookAndFeel: FlatLaf) {

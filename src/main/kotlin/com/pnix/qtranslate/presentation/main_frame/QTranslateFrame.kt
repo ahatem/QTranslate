@@ -1,7 +1,6 @@
 package com.pnix.qtranslate.presentation.main_frame
 
 import com.formdev.flatlaf.FlatLaf
-import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.extras.components.FlatButton
 import com.melloware.jintellitype.JIntellitype
 import com.pnix.qtranslate.models.Configurations
@@ -14,8 +13,8 @@ import com.pnix.qtranslate.presentation.main_frame.layouts.LayoutFactory
 import com.pnix.qtranslate.presentation.main_frame.layouts.MainPanel
 import com.pnix.qtranslate.presentation.main_frame.menus.OptionsPopupMenu
 import com.pnix.qtranslate.presentation.main_frame.menus.TrayPopupMenu
-import com.pnix.qtranslate.presentation.main_frame.panels.TranslationInputPanel
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
+import com.pnix.qtranslate.utils.createButtonWithIcon
 import com.pnix.qtranslate.utils.setPadding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -33,7 +32,6 @@ import java.util.*
 import javax.imageio.ImageIO
 import javax.swing.*
 import kotlin.system.exitProcess
-
 
 class QTranslateFrame : JFrame("QTranslate") {
   private val loadingDialog = LoadingDialog()
@@ -137,13 +135,9 @@ class QTranslateFrame : JFrame("QTranslate") {
 
       launch {
         QTranslateViewModel.spells.collectLatest {
-          mainPanel.translationInputPanel.inputTextArea.highlighter.removeAllHighlights()
+          mainPanel.translationInputPanel.inputTextArea.removeUnderlineHighlights()
           for (word in it.corrections) {
-            mainPanel.translationInputPanel.inputTextArea.highlighter.addHighlight(
-              word.startIndex,
-              word.endIndex,
-              TranslationInputPanel.misspelledHighlighter
-            )
+            mainPanel.translationInputPanel.inputTextArea.addUnderlineHighlight(word.startIndex, word.endIndex)
             mainPanel.translationInputPanel.repaint()
           }
         }
@@ -255,19 +249,20 @@ class QTranslateFrame : JFrame("QTranslate") {
     mainPanel.translationOptionsPanel.clearButton.isEnabled = !disable
     mainPanel.translationOptionsPanel.menuButton.isEnabled = !disable
     mainPanel.translationOutputPanel.outputTextArea.isEnabled = !disable
+    mainPanel.translationBackwardPanel.backwardTranslationTextArea.isEnabled = !disable
 
     mainPanel.translationOptionsPanel.inputLangComboBox.isEnabled = !disable
     mainPanel.translationOptionsPanel.outputLangComboBox.isEnabled = !disable
 
     mainPanel.translationOptionsPanel.translateButton.isEnabled = !disable
     mainPanel.translationOptionsPanel.swapButton.isEnabled = !disable
+
+    SwingUtilities.invokeLater { mainPanel.translationInputPanel.inputTextArea.requestFocus() }
+
   }
 
   private fun createSettingsButton(): FlatButton {
-    val settingsButton = FlatButton().apply {
-      icon = FlatSVGIcon("app-icons/settings.svg", 18, 18).apply {
-        colorFilter = FlatSVGIcon.ColorFilter { _: Color? -> UIManager.getColor("Label.foreground") }
-      }
+    val settingsButton = createButtonWithIcon("app-icons/settings.svg", 18, "").apply {
       buttonType = FlatButton.ButtonType.toolBarButton
       addActionListener {
         val popupMenu = OptionsPopupMenu()

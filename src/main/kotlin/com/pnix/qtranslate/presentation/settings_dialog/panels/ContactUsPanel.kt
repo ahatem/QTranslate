@@ -85,32 +85,32 @@ class ContactUsPanel : JPanel() {
     val message = messageArea.text.trim()
 
     if (email.isEmpty()) {
-      emailField.putClientProperty("JComponent.outline", "error");
+      emailField.putClientProperty("JComponent.outline", "error")
       return "Please enter your email address"
     } else {
-      emailField.putClientProperty("JComponent.outline", "");
+      emailField.putClientProperty("JComponent.outline", "")
     }
 
     val emailRegex = Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")
     if (!email.matches(emailRegex)) {
-      emailField.putClientProperty("JComponent.outline", "");
+      emailField.putClientProperty("JComponent.outline", "")
       return "Please enter a valid email address"
     } else {
-      emailField.putClientProperty("JComponent.outline", "");
+      emailField.putClientProperty("JComponent.outline", "")
     }
 
     if (topic.isEmpty()) {
-      topicField.putClientProperty("JComponent.outline", "error");
+      topicField.putClientProperty("JComponent.outline", "error")
       return "Please provide a brief summary of your message"
     } else {
-      topicField.putClientProperty("JComponent.outline", "");
+      topicField.putClientProperty("JComponent.outline", "")
     }
 
     if (message.isEmpty()) {
-      messageArea.putClientProperty("JComponent.outline", "error");
+      messageArea.putClientProperty("JComponent.outline", "error")
       return "Please enter your message"
     } else {
-      messageArea.putClientProperty("JComponent.outline", "");
+      messageArea.putClientProperty("JComponent.outline", "")
     }
 
     return null

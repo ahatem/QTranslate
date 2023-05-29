@@ -6,7 +6,7 @@ import java.awt.BorderLayout
 import javax.swing.JPanel
 import javax.swing.JSplitPane
 
-class MainPanel(private var mainLayout: Layout): JPanel() {
+class MainPanel(private var mainLayout: Layout) : JPanel() {
 
   val historyNavigationPanel = HistoryNavigationPanel().apply {
     isVisible = Configurations.showHistoryPanel
@@ -41,7 +41,7 @@ class MainPanel(private var mainLayout: Layout): JPanel() {
 
   fun changeLayout(newLayout: Layout) {
     removeAll()
-    mainLayout = newLayout;
+    mainLayout = newLayout
     mainLayout.createLayout(this)
     revalidate()
     repaint()

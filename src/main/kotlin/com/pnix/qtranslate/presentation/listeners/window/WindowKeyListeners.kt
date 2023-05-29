@@ -157,8 +157,14 @@ sealed class WindowKeyListeners(val action: ActionListener, val hotkey: KeyStrok
         ToogleHistoryPane,
         ToggleTranslationOptionsPane,
         ToggleServicesPane,
-        OpenSettingsDialog
-      )
+        ToggleSpellChecking,
+        ToggleInstantTranslation,
+        ToggleBackwardTranslationPane,
+        OpenSettingsDialog,
+        ContactUs,
+        OpenAboutQTranslateDialog,
+        ToggleGlobalHotkeys
+      ).filter { it.hotkey != null }
     }
   }
 }

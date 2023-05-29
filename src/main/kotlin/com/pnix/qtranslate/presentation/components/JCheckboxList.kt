@@ -7,11 +7,10 @@ import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import java.util.*
 import javax.swing.*
 
 
-open class FixedColumnWidthList<T> : JList<T> {
+open class FixedColumnWidthList<T>(listData: Array<T>?) : JList<T>(listData) {
   var visibleColumnCount = -1
     set(visibleColumnCount) {
       if (this.visibleColumnCount == visibleColumnCount) {
@@ -22,23 +21,11 @@ open class FixedColumnWidthList<T> : JList<T> {
       repaint()
     }
 
-  constructor() {
+  init {
     configureDefaults()
   }
 
-  constructor(dataModel: ListModel<T>?) : super(dataModel) {
-    configureDefaults()
-  }
-
-  constructor(listData: Array<T>?) : super(listData) {
-    configureDefaults()
-  }
-
-  constructor(listData: Vector<T>?) : super(listData) {
-    configureDefaults()
-  }
-
-  protected fun configureDefaults() {
+  private fun configureDefaults() {
     layoutOrientation = HORIZONTAL_WRAP
     visibleRowCount = 1
   }
@@ -84,7 +71,7 @@ open class FixedColumnWidthList<T> : JList<T> {
         // average the available information and multiply it by
         // the remaining number of columns as a guess
         if (visibleColumnCount > model.size) {
-          val averageWidth = desirableWidth / model.size
+//          val averageWidth = desirableWidth / model.size
           desirableWidth += visibleColumnCount - model.size
         }
       }
@@ -95,9 +82,9 @@ open class FixedColumnWidthList<T> : JList<T> {
   }
 }
 
-class JCheckboxList<T> : FixedColumnWidthList<CheckListItem> {
-
-  constructor(listData: Array<out T>?) : super(listData?.map { CheckListItem(it as Any).apply { isSelected = true } }?.toTypedArray())
+class JCheckboxList<T>(listData: Array<out T>?) :
+  FixedColumnWidthList<CheckListItem>(listData?.map { CheckListItem(it as Any).apply { isSelected = true } }
+    ?.toTypedArray()) {
 
   init {
     cellRenderer = CheckBoxListRenderer()

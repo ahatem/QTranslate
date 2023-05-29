@@ -1,14 +1,14 @@
 package com.pnix.qtranslate.presentation.quick_translate_dialog
 
-import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.extras.components.FlatButton
 import com.pnix.qtranslate.models.Configurations
+import com.pnix.qtranslate.presentation.components.TTextPane
 import com.pnix.qtranslate.presentation.listeners.common.ComponentMover
 import com.pnix.qtranslate.presentation.listeners.common.ComponentResizer
-import com.pnix.qtranslate.presentation.listeners.window.WindowKeyListeners
 import com.pnix.qtranslate.presentation.main_frame.panels.TranslatorsPanel
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
 import com.pnix.qtranslate.utils.copyToClipboard
+import com.pnix.qtranslate.utils.createButtonWithIcon
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.swing.Swing
@@ -19,49 +19,22 @@ import javax.swing.*
 import javax.swing.Timer
 import kotlin.math.min
 
-
 class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS) {
-  private var fontSize = Configurations.inputsFontSize.toFloat()
-  private val padding = 4
-
   val quickTranslateDialogScope = CoroutineScope(SupervisorJob() + Dispatchers.Swing)
 
-  val contentPanel = JPanel(BorderLayout())
+  private val padding = 4
 
-  private val outputTextArea = object : JTextPane() {
-    override fun getScrollableTracksViewportWidth(): Boolean {
-      return true
-    }
-  }.apply {
+  private val contentPanel = JPanel(BorderLayout())
+
+  private val outputTextArea = TTextPane().apply {
     text = QTranslateViewModel.translation.value
-    font = Font(Configurations.inputsFontName, Font.PLAIN, Configurations.inputsFontSize)
     isEditable = false
     componentOrientation =
       ComponentOrientation.getOrientation(Locale.forLanguageTag(QTranslateViewModel.outputLanguage.value.alpha2))
     caretPosition = 0
-
-    addMouseWheelListener { e ->
-      if (e.isControlDown) {
-        if (e.wheelRotation < 0 && fontSize < 72f) {
-          fontSize += 1f
-        } else if (e.wheelRotation > 0 && fontSize > 8f) {
-          fontSize -= 1f
-        }
-        font = font.deriveFont(fontSize)
-      } else {
-        parent.dispatchEvent(e)
-      }
-    }
   }
 
-  private val buttonGroup = ButtonGroup()
-  private val translatorsButtons = QTranslateViewModel.translators.mapIndexed { index, it ->
-    createToggleButton(it.serviceName, index)
-  }
-
-  private val scrollPane = JScrollPane(outputTextArea).apply {
-    border = BorderFactory.createEmptyBorder(2, 0, 0, 0)
-  }
+  private val scrollPane = JScrollPane(outputTextArea).apply { border = BorderFactory.createEmptyBorder(2, 0, 0, 0) }
 
   init {
     defaultCloseOperation = DISPOSE_ON_CLOSE
@@ -211,32 +184,39 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS
   }
 
   private fun createTopPanel(): JPanel {
-    val closeButton = createTopPanelButton("app-icons/cross-circle.svg", 13).apply {
+    val closeButton = createButtonWithIcon("app-icons/cross-circle.svg", 13).apply {
       border = BorderFactory.createEmptyBorder(4, 2, 4, 2)
+      buttonType = FlatButton.ButtonType.toolBarButton
       addActionListener {
         this@QuickTranslateDialog.isVisible = false
         this@QuickTranslateDialog.dispatchEvent(WindowEvent(this@QuickTranslateDialog, WindowEvent.WINDOW_CLOSING))
       }
     }
 
-    val favouriteButton = createTopPanelButton("app-icons/star.svg", 13).apply {
+    val favouriteButton = createButtonWithIcon("app-icons/star.svg", 13).apply {
       border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
+      buttonType = FlatButton.ButtonType.toolBarButton
       addActionListener { dispose() }
     }
-    val dictionaryButton = createTopPanelButton("app-icons/notebook-alt.svg", 13).apply {
+    val dictionaryButton = createButtonWithIcon("app-icons/notebook-alt.svg", 13).apply {
       border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
+      buttonType = FlatButton.ButtonType.toolBarButton
       addActionListener { }
     }
-    val listenButton = createTopPanelButton("app-icons/headphones.svg", 13).apply {
+    val listenButton = createButtonWithIcon("app-icons/headphones.svg", 13).apply {
       border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
+      buttonType = FlatButton.ButtonType.toolBarButton
       addActionListener { quickTranslateDialogScope.launch { QTranslateViewModel.listenToInput() } }
     }
-    val copyButton = createTopPanelButton("app-icons/copy-alt.svg", 13).apply {
+    val copyButton = createButtonWithIcon("app-icons/copy-alt.svg", 13).apply {
       border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
+      buttonType = FlatButton.ButtonType.toolBarButton
       addActionListener { QTranslateViewModel.input.value.copyToClipboard(); dispose() }
+
     }
-    val replaceButton = createTopPanelButton("app-icons/replace.svg", 13).apply {
+    val replaceButton = createButtonWithIcon("app-icons/replace.svg", 13).apply {
       border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
+      buttonType = FlatButton.ButtonType.toolBarButton
       addActionListener { }
     }
 
@@ -254,24 +234,6 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS
       add(copyButton)
       add(replaceButton)
     }
-  }
-
-  private fun createTopPanelButton(iconPath: String, iconSize: Int): FlatButton {
-    return FlatButton().apply {
-      icon = FlatSVGIcon(iconPath, iconSize, iconSize).apply {
-        colorFilter = FlatSVGIcon.ColorFilter { _: Color? -> UIManager.getColor("Label.foreground") }
-      }
-      buttonType = FlatButton.ButtonType.toolBarButton
-    }
-  }
-
-  private fun createToggleButton(name: String, index: Int) = JToggleButton(name).apply {
-    icon = FlatSVGIcon("translator-icons/${name.lowercase()}.svg", (16 * 1.25).toInt(), (16 * 1.25).toInt())
-    addActionListener {
-      QTranslateViewModel.setSelectedTranslatorIndex(index)
-      WindowKeyListeners.Translate.action.actionPerformed(it)
-    }
-    buttonGroup.add(this)
   }
 
   private fun getDialogTitle(): String {

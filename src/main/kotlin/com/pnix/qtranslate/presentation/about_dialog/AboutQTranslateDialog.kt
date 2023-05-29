@@ -9,7 +9,7 @@ class AboutQTranslateDialog(parent: Frame) : JDialog(parent, "About QTranslate",
 
   init {
     layout = BorderLayout()
-    preferredSize = Dimension(395,210)
+    preferredSize = Dimension(395, 210)
     setPadding(4)
 
     val title = JLabel("QTranslate").apply {
@@ -20,11 +20,12 @@ class AboutQTranslateDialog(parent: Frame) : JDialog(parent, "About QTranslate",
       alignmentX = Component.CENTER_ALIGNMENT
     }
 
-    val descriptionText = "QTranslate is a Swing application that allows you to translate text from one language to another using various APIs such as Google, Bing, Yandex, etc."
+    val descriptionText =
+      "QTranslate is a Swing application that allows you to translate text from one language to another using various APIs such as Google, Bing, Yandex, etc."
     val description = JLabel("<HTML><div style=\"text-align: center;\">$descriptionText</div></HTML>").apply {
-        alignmentX = Component.CENTER_ALIGNMENT
-        font = font.deriveFont(font.size + 1f)
-      }
+      alignmentX = Component.CENTER_ALIGNMENT
+      font = font.deriveFont(font.size + 1f)
+    }
 
     val closeButton = JButton("Close").apply { addActionListener { dispose() } }
 

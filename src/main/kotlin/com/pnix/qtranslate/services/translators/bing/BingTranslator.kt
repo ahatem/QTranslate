@@ -11,6 +11,7 @@ import com.pnix.qtranslate.services.translators.abstraction.TranslatorService
 import kong.unirest.Unirest
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.runBlocking
+import kotlin.time.Duration.Companion.hours
 
 private data class BingAuth(val ig: String, val iid: String, val key: String, val token: String)
 
@@ -22,11 +23,18 @@ class BingTranslator : TranslatorService() {
   override val serviceName: String get() = "Bing"
   override val languageMapper: LanguageMapper get() = BingLanguageMapper(serviceName)
 
+  private var startTime = System.currentTimeMillis()
+
   private val gson = GsonBuilder().setPrettyPrinting().create()
-  private var auth = runBlocking { getKeyAndToken() }
+  private var auth: BingAuth = runBlocking { getKeyAndToken() }
+    get() {
+      if (!isOneHourElapsed()) return field
+      startTime = System.currentTimeMillis()
+      field = runBlocking { getKeyAndToken() }
+      return field
+    }
 
   override suspend fun doTranslate(text: String, targetLanguage: String, sourceLanguage: String): Translation {
-
     val url = "https://www.bing.com/ttranslatev3"
 
     val requestBody = mapOf(
@@ -37,24 +45,16 @@ class BingTranslator : TranslatorService() {
       "key" to auth.key,
       "isAuthv2" to true
     )
-
     runCatching {
       val request = post(url).fields(requestBody).asStringAsync().await()
-      val body = request.body
-      if (!body.contains("statusCode")) {
-        return request.body.let {
-          val response = gson.fromJson(it, Array<BingTranslateResponse>::class.java)[0]
-          val detectedLanguage = response.detectedLanguage.language
-          val translatedText = response.translations.joinToString { s -> s.text }
-          Translation(detectedLanguage, translatedText)
-        }
-      } else {
-        auth = getKeyAndToken()
-        return doTranslate(text, targetLanguage, sourceLanguage)
+      return request.body.let {
+        println(it)
+        val response = gson.fromJson(it, Array<BingTranslateResponse>::class.java)[0]
+        val detectedLanguage = response.detectedLanguage.language
+        val translatedText = response.translations.joinToString { s -> s.text }
+        Translation(detectedLanguage, translatedText)
       }
-    }.onFailure {
-      it.printStackTrace()
-    }
+    }.onFailure { it.printStackTrace() }
 
     throw Exception("Something Wrong Happened!")
   }
@@ -110,6 +110,7 @@ class BingTranslator : TranslatorService() {
   }
 
   private suspend fun getKeyAndToken(): BingAuth {
+    println("getting token")
     val response = Unirest.get("https://www.bing.com/translator").asStringAsync().await().body
     val parsedIG = Regex("""IG:"(.*?)"""").findAll(response).map { it.groupValues[1] }.toList()
     val parsedIID = Regex("""data-iid="(.*?)"""").findAll(response).map { it.groupValues[1] }.toList()
@@ -122,6 +123,11 @@ class BingTranslator : TranslatorService() {
     val key = normalizedHelperInfo[0]
     val token = normalizedHelperInfo[1]
     return BingAuth(ig, iid, key, token)
+  }
+
+  private fun isOneHourElapsed(): Boolean {
+    val currentTimeMillis = System.currentTimeMillis()
+    return (currentTimeMillis - startTime) >= 1.hours.inWholeMilliseconds
   }
 
 }

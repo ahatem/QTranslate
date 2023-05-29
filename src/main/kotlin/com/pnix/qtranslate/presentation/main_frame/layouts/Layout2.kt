@@ -26,10 +26,16 @@ class Layout2 : Layout() {
     }
 
     mainPanel.split1 =
-      JSplitPane(JSplitPane.VERTICAL_SPLIT, mainPanel.translationInputPanel, centerBottomPanel).apply { resizeWeight = 0.55 }
+      JSplitPane(JSplitPane.VERTICAL_SPLIT, mainPanel.translationInputPanel, centerBottomPanel).apply {
+        resizeWeight = 0.55
+      }
 
     mainPanel.split2 =
-      JSplitPane(JSplitPane.HORIZONTAL_SPLIT, mainPanel.split1, mainPanel.translationBackwardPanel).apply { resizeWeight = 0.55 }
+      JSplitPane(
+        JSplitPane.HORIZONTAL_SPLIT,
+        mainPanel.split1,
+        mainPanel.translationBackwardPanel
+      ).apply { resizeWeight = 0.55 }
 
     mainPanel.add(mainPanel.historyNavigationPanel, BorderLayout.NORTH)
     mainPanel.add(mainPanel.split2)

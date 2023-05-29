@@ -7,7 +7,7 @@ abstract class Layout {
     private var id = 0
   }
 
-  val presetId: String;
+  val presetId: String
   abstract val presetName: String
 
   init {

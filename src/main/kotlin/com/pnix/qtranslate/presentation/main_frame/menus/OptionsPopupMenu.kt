@@ -14,7 +14,7 @@ private class OnStartupSubMenu : JMenu("On startup") {
   }
 }
 
-private class LayoutsPresetsSubMenu: JMenu("Layouts presets") {
+private class LayoutsPresetsSubMenu : JMenu("Layouts presets") {
   init {
     LayoutFactory.availableLayouts.forEach {
       add(JCheckBoxMenuItem(it.presetName).apply {
