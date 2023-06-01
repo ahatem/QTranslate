@@ -22,6 +22,9 @@ class MainPanel(private var mainLayout: Layout) : JPanel() {
   val translationOutputPanel = TranslationOutputPanel()
   val translationBackwardPanel = TranslationBackwardPanel()
 
+  val statusPanel = StatusPanel().apply {
+    isVisible = Configurations.showStatusPanel
+  }
 
   var split1 =
     JSplitPane(JSplitPane.VERTICAL_SPLIT, translationInputPanel, JPanel(BorderLayout()).apply {
@@ -30,6 +33,7 @@ class MainPanel(private var mainLayout: Layout) : JPanel() {
     }).apply { resizeWeight = 0.55 }
   var split2 =
     JSplitPane(JSplitPane.VERTICAL_SPLIT, split1, translationBackwardPanel).apply { resizeWeight = 0.55 }
+
 
   init {
     mainLayout.createLayout(this)

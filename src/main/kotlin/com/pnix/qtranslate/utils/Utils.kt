@@ -1,5 +1,11 @@
 package com.pnix.qtranslate.utils
 
+import com.pnix.qtranslate.common.Localizer
+import com.pnix.qtranslate.services.translators.abstraction.TranslatorService
+import com.pnix.qtranslate.services.translators.bing.BingTranslator
+import com.pnix.qtranslate.services.translators.google.GoogleTranslator
+import com.pnix.qtranslate.services.translators.reverso.ReversoTranslator
+import com.pnix.qtranslate.services.translators.yandex.YandexTranslator
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import kotlin.random.Random
@@ -28,4 +34,10 @@ fun generateRandomHex(length: Int): String {
   return byteArray.joinToString("") { byte -> "%02x".format(byte) }
 }
 
+val TranslatorService.localizedName get() = Localizer.localize("service_${this.serviceName.lowercase()}_translate")
 
+val supportedTranslators by lazy {
+  listOf(
+    GoogleTranslator(), BingTranslator(), YandexTranslator(), ReversoTranslator(),
+  )
+}

@@ -1,6 +1,7 @@
 package com.pnix.qtranslate.presentation.settings_dialog.panels
 
 import com.pnix.qtranslate.models.Configuration
+import com.pnix.qtranslate.presentation.components.CheckListItem
 import com.pnix.qtranslate.presentation.components.JCheckboxList
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
 import java.awt.BorderLayout
@@ -14,7 +15,11 @@ class LanguagesPanel(configuration: Configuration) : JPanel() {
   init {
     layout = BorderLayout()
 
-    val languagesList = JCheckboxList(QTranslateViewModel.supportedLanguages)
+    val languages = QTranslateViewModel.supportedLanguages.map {
+      CheckListItem(it).apply { isSelected = true }
+    }.toTypedArray()
+    val languagesList = JCheckboxList(languages)
+    languagesList.minimumSelectedItems = languages.size
     languagesList.layoutOrientation = JList.VERTICAL_WRAP
     languagesList.visibleRowCount = -1
     languagesList.visibleColumnCount = 5

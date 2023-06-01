@@ -20,7 +20,7 @@ class TranslationBackwardPanel : JPanel() {
       listenButton.addActionListener(WindowKeyListeners.ListenToBackwardTranslation.action)
     }
 
-    add(buttonsPanel, BorderLayout.EAST)
+    add(buttonsPanel, BorderLayout.LINE_END)
     add(scrollPane, BorderLayout.CENTER)
   }
 }

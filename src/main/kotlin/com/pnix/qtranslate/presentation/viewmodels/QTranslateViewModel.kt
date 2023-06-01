@@ -1,15 +1,18 @@
 package com.pnix.qtranslate.presentation.viewmodels
 
+import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.models.*
 import com.pnix.qtranslate.presentation.main_frame.QTranslateFrame
 import com.pnix.qtranslate.services.text_extractor.ApiNinjasTextExtractor
 import com.pnix.qtranslate.services.text_extractor.GoogleTextExtractor
 import com.pnix.qtranslate.services.text_extractor.OcrSpaceTextExtractor
+import com.pnix.qtranslate.services.translators.abstraction.TextToSpeechNotSupportedException
 import com.pnix.qtranslate.services.translators.abstraction.UnsupportedLanguageException
 import com.pnix.qtranslate.services.translators.bing.BingTranslator
 import com.pnix.qtranslate.services.translators.google.GoogleTranslator
 import com.pnix.qtranslate.services.translators.reverso.ReversoTranslator
 import com.pnix.qtranslate.services.translators.yandex.YandexTranslator
+import com.pnix.qtranslate.utils.supportedTranslators
 import javazoom.jl.player.advanced.AdvancedPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +22,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
+
+private class UnknownErrorOccurredException(cause: Throwable) : Exception(
+  Localizer.localize("status_panel_error_text_unknown_error_occurred"), cause
+)
 
 object QTranslateViewModel {
 
@@ -31,7 +38,8 @@ object QTranslateViewModel {
   private val _isLoading = MutableStateFlow(false)
   val isLoading = _isLoading.asStateFlow()
 
-  val translators = listOf(GoogleTranslator(), BingTranslator(), YandexTranslator(), ReversoTranslator())
+  val translators get() = supportedTranslators.filter { !Configurations.excludedTranslators.contains(it.serviceName) }
+
   val supportedLanguages = Language.listAllLanguages().toTypedArray()
   val currentTranslator get() = translators[_selectedTranslatorIndex.value]
 
@@ -64,6 +72,9 @@ object QTranslateViewModel {
   private val _spells = MutableStateFlow(SpellCheckResult("", mutableListOf()))
   val spells = _spells.asStateFlow()
 
+  private val _error = MutableStateFlow(Exception(""))
+  val error = _error.asStateFlow()
+
   private var player: AdvancedPlayer? = null
   private var job: Job? = null
 
@@ -73,7 +84,7 @@ object QTranslateViewModel {
     _isTranslating.value = true
     val inputLang = _inputLanguage.value.alpha3
     val outputLang = _outputLanguage.value.alpha3
-    val translator = translators[_selectedTranslatorIndex.value]
+    val translator = currentTranslator
 
     runCatching {
       val translationResult = translator.translate(inputText, outputLang, inputLang)
@@ -96,10 +107,9 @@ object QTranslateViewModel {
       )
 
     }.onFailure {
-      it.printStackTrace()
-      _translation.value = when (it) {
-        is UnsupportedLanguageException -> it.message!!.replace(outputLang, "'${_outputLanguage.value.name}'")
-        else -> "Unknown error occurred"
+      _error.value = when (it) {
+        is UnsupportedLanguageException -> it
+        else -> UnknownErrorOccurredException(it)
       }
     }
 
@@ -123,7 +133,11 @@ object QTranslateViewModel {
       val textToSpeech = currentTranslator.textToSpeech(inputText, inputLang)
       playAudio(textToSpeech.content)
     }.onFailure {
-      _translation.value = it.message ?: "Unknown error occurred"
+      _error.value = when (it) {
+        is UnsupportedLanguageException -> it
+        is TextToSpeechNotSupportedException -> it
+        else -> UnknownErrorOccurredException(it)
+      }
     }
   }
 
@@ -136,7 +150,11 @@ object QTranslateViewModel {
       val textToSpeech = currentTranslator.textToSpeech(outputText, outputLang)
       playAudio(textToSpeech.content)
     }.onFailure {
-      _translation.value = it.message ?: "Unknown error occurred"
+      _error.value = when (it) {
+        is UnsupportedLanguageException -> it
+        is TextToSpeechNotSupportedException -> it
+        else -> UnknownErrorOccurredException(it)
+      }
     }
   }
 
@@ -149,7 +167,11 @@ object QTranslateViewModel {
       val textToSpeech = currentTranslator.textToSpeech(backwardTranslationText, outputLang)
       playAudio(textToSpeech.content)
     }.onFailure {
-      _translation.value = it.message ?: "Unknown error occurred"
+      _error.value = when (it) {
+        is UnsupportedLanguageException -> it
+        is TextToSpeechNotSupportedException -> it
+        else -> UnknownErrorOccurredException(it)
+      }
     }
   }
 
@@ -158,9 +180,13 @@ object QTranslateViewModel {
       runCatching {
         val text = imageTextExtractor.extractText(image)
         if (text.isNotEmpty()) return text
-      }.onFailure { println(it.message) }
+      }.onFailure {
+        _error.value = Exception(it)
+
+      }
     }
-    throw Exception("All methods failed to recognize text in the image.")
+    _error.value = Exception("failed to recognize text in the image.")
+    return "No Data returned"
   }
 
   fun triggerConfigurationChanged() {
@@ -244,7 +270,5 @@ object QTranslateViewModel {
   fun setMainFrame(frame: QTranslateFrame) {
     this.mainFrame = frame
   }
-
-
 }
 

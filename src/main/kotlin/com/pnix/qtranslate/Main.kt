@@ -1,19 +1,23 @@
 package com.pnix.qtranslate
 
 import com.formdev.flatlaf.FlatLaf
+import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.models.Configurations
 import com.pnix.qtranslate.presentation.main_frame.QTranslateFrame
 import kong.unirest.Unirest
+import java.awt.ComponentOrientation
 import javax.swing.SwingUtilities
 import javax.swing.UIManager
-
 
 /*
 * http://web.archive.org/web/20230227130154/http://quest-app.appspot.com/home
 * ===========================================================================
-* 2 - Services and languages in settings are not functional
-* 3 - Auto-detect not implemented
-* 4 - Audio can't be stopped ... so make it like a toggle
+* TODO:
+*   Create the website and publish it on google and Implement check for update (maybe based on site html :D)
+*   "Enable/Disable history" is useless till now + "Clear history on exit" is useless too :D
+*   languages in settings are not functional
+*   Auto-detect not implemented
+*   Audio can't be stopped ... so make it like a toggle
 */
 
 fun main() {
@@ -24,7 +28,11 @@ fun main() {
     UIManager.put("TitlePane.showIcon", false)
     UIManager.put("ScrollBar.showButtons", false)
 
-    QTranslateFrame().isVisible = true
+
+    QTranslateFrame().apply {
+      applyComponentOrientation(ComponentOrientation.getOrientation(Localizer.currentLocale))
+      isVisible = true
+    }
   }
 }
 

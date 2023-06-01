@@ -1,5 +1,6 @@
 package com.pnix.qtranslate.presentation.settings_dialog.panels
 
+import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.models.Configuration
 import com.pnix.qtranslate.models.Theme
 import com.pnix.qtranslate.utils.GBHelper
@@ -18,9 +19,9 @@ class AppearancePanel(configuration: Configuration) : JPanel() {
   init {
     layout = GridBagLayout()
 
-    addSeparator(pos, "General")
+    addSeparator(pos, Localizer.localize("appearance_panel_text_general"))
     add(
-      JCheckBox("Enable window styling", configuration.enableWindowStyle).apply {
+      JCheckBox(Localizer.localize("appearance_panel_checkbox_text_enable_window_styling"), configuration.enableWindowStyle).apply {
         addActionListener {
           configuration.enableWindowStyle = isSelected
         }
@@ -29,7 +30,7 @@ class AppearancePanel(configuration: Configuration) : JPanel() {
     )
 
     add(
-      JCheckBox("Unify window title bar", configuration.unifyTitleBar).apply {
+      JCheckBox(Localizer.localize("appearance_panel_checkbox_text_unify_window_title_bar"), configuration.unifyTitleBar).apply {
         isEnabled = configuration.enableWindowStyle
         addActionListener {
           configuration.unifyTitleBar = isSelected
@@ -39,7 +40,7 @@ class AppearancePanel(configuration: Configuration) : JPanel() {
     )
 
     add(
-      JLabel("Theme:"),
+      JLabel(Localizer.localize("appearance_panel_text_theme")),
       pos.nextRow()
     )
 
@@ -55,10 +56,10 @@ class AppearancePanel(configuration: Configuration) : JPanel() {
     )
 
 
-    addSeparator(pos, "Popup Window")
+    addSeparator(pos, Localizer.localize("appearance_panel_text_popup_window"))
 
     add(
-      JCheckBox("Enable auto size", configuration.popupEnableAutoSize).apply {
+      JCheckBox(Localizer.localize("appearance_panel_checkbox_text_enable_auto_size"), configuration.popupEnableAutoSize).apply {
         addActionListener {
           configuration.popupEnableAutoSize = isSelected
         }
@@ -67,7 +68,7 @@ class AppearancePanel(configuration: Configuration) : JPanel() {
     )
 
     add(
-      JCheckBox("Enable auto position", configuration.popupEnableAutoPosition).apply {
+      JCheckBox(Localizer.localize("appearance_panel_checkbox_text_enable_auto_position"), configuration.popupEnableAutoPosition).apply {
         addActionListener {
           configuration.popupEnableAutoPosition = isSelected
         }
@@ -76,7 +77,7 @@ class AppearancePanel(configuration: Configuration) : JPanel() {
     )
 
     add(
-      JCheckBox("Pin when dragging", configuration.popupEnablePinWhenDragging).apply {
+      JCheckBox(Localizer.localize("appearance_panel_checkbox_text_pin_when_dragging"), configuration.popupEnablePinWhenDragging).apply {
         addActionListener {
           configuration.popupEnablePinWhenDragging = isSelected
         }
@@ -85,7 +86,7 @@ class AppearancePanel(configuration: Configuration) : JPanel() {
     )
 
     add(
-      JLabel("Auto-hide delay:"),
+      JLabel(Localizer.localize("appearance_panel_checkbox_text_auto_hide_delay")),
       pos.nextRow()
     )
     add(
@@ -98,12 +99,12 @@ class AppearancePanel(configuration: Configuration) : JPanel() {
       pos.nextCol().expandW()
     )
     add(
-      JLabel("seconds"),
+      JLabel(Localizer.localize("appearance_panel_text_seconds")),
       pos.nextCol().padding(right = 2, left = 2)
     )
 
     add(
-      JLabel("Transparency (0-90):"),
+      JLabel(Localizer.localize("appearance_panel_text_transparency")),
       pos.nextRow()
     )
     add(

@@ -53,7 +53,10 @@ data class Configuration(
   var enableHistory: Boolean = Configurations.enableHistory,
   var clearHistoryOnExist: Boolean = Configurations.clearHistoryOnExist,
 
-  // *Appearance
+  // * Services
+  var excludedTranslators: MutableSet<String> = Configurations.excludedTranslators,
+
+  // * Appearance
   var enableWindowStyle: Boolean = Configurations.enableWindowStyle,
   var unifyTitleBar: Boolean = Configurations.unifyTitleBar,
   var theme: Theme = Configurations.theme,
@@ -75,6 +78,9 @@ object Configurations {
     autoDetectSecondLanguage = configuration.autoDetectSecondLanguage
     enableHistory = configuration.enableHistory
     clearHistoryOnExist = configuration.clearHistoryOnExist
+
+    // * Services
+    excludedTranslators = configuration.excludedTranslators
 
     // * Appearance
     enableWindowStyle = configuration.enableWindowStyle
@@ -107,10 +113,13 @@ object Configurations {
   var showServicesPanel by Delegates.observable(prefs.getBoolean("show_services_panel", true))
   { _, _, newValue -> prefs.putBoolean("show_services_panel", newValue) }
 
-  var lastOptionOpened: String by Delegates.observable(prefs.get("last_option_opened", "Basics"))
+  var showStatusPanel by Delegates.observable(prefs.getBoolean("show_status_panel", true))
+  { _, _, newValue -> prefs.putBoolean("show_status_panel", newValue) }
+
+  var lastOptionOpened: String by Delegates.observable(prefs.get("last_option_opened", "basics"))
   { _, _, newValue -> prefs.put("last_option_opened", newValue) }
 
-  var layoutPreset: String by Delegates.observable(prefs.get("layout_preset", "preset_1"))
+  var layoutPreset: String by Delegates.observable(prefs.get("layout_preset", "preset_2"))
   { _, _, newValue -> prefs.put("layout_preset", newValue) }
 
   var enableGlobalHotkeys by Delegates.observable(prefs.getBoolean("enable_global_hotkeys", true))
@@ -121,7 +130,7 @@ object Configurations {
   var startWithWindows by Delegates.observable(prefs.getBoolean("start_with_windows", false))
   { _, _, newValue -> prefs.putBoolean("start_with_windows", newValue) }
 
-  var interfaceLanguage: String by Delegates.observable(prefs.get("interface_language", "English"))
+  var interfaceLanguage: String by Delegates.observable(prefs.get("interface_language", "en"))
   { _, _, newValue -> prefs.put("interface_language", newValue) }
 
   var inputsFontName: String by Delegates.observable(prefs.get("inputs_font_name", getDefaultFontFamily()))
@@ -139,8 +148,13 @@ object Configurations {
   var enableHistory by Delegates.observable(prefs.getBoolean("enable_history", true))
   { _, _, newValue -> prefs.putBoolean("enable_history", newValue) }
 
-  var clearHistoryOnExist by Delegates.observable(prefs.getBoolean("clear_history_on_exit", false))
+  var clearHistoryOnExist by Delegates.observable(prefs.getBoolean("clear_history_on_exit", true))
   { _, _, newValue -> prefs.putBoolean("clear_history_on_exit", newValue) }
+
+
+  // * Services
+  var excludedTranslators by Delegates.observable(prefs.get("excluded_translators", "").split(",").toMutableSet())
+  { _, _, newValue -> prefs.put("excluded_translators", newValue.joinToString(",")) }
 
 
   // * Appearance
@@ -150,7 +164,7 @@ object Configurations {
   var unifyTitleBar by Delegates.observable(prefs.getBoolean("unify_title_bar", false))
   { _, _, newValue -> prefs.putBoolean("unify_title_bar", newValue) }
 
-  var theme by Delegates.observable(Theme.from(prefs.get("theme", Theme.DARK_SHARPER.name)))
+  var theme by Delegates.observable(Theme.from(prefs.get("theme", Theme.DARK_HIBERBEE.name)))
   { _, _, newValue -> prefs.put("theme", newValue.name) }
 
   var popupLastSize: String by Delegates.observable(prefs.get("popup_last_size", "250,120"))
@@ -171,7 +185,7 @@ object Configurations {
   var popupAutoHideDelay by Delegates.observable(prefs.getInt("popup_auto_hide_delay", 5))
   { _, _, newValue -> prefs.putInt("popup_auto_hide_delay", newValue) }
 
-  var popupTransparency by Delegates.observable(prefs.getInt("popup_transparency", 15))
+  var popupTransparency by Delegates.observable(prefs.getInt("popup_transparency", 0))
   { _, _, newValue -> prefs.putInt("popup_transparency", newValue) }
 
 }

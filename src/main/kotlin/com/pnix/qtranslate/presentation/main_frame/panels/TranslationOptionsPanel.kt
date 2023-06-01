@@ -1,5 +1,6 @@
 package com.pnix.qtranslate.presentation.main_frame.panels
 
+import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.models.Language
 import com.pnix.qtranslate.presentation.listeners.window.WindowKeyListeners
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
@@ -11,7 +12,7 @@ import javax.swing.*
 class TranslationOptionsPanel : JPanel() {
 
   private val iconSize = 16
-  val clearButton = createButtonWithIcon("app-icons/trash.svg", iconSize, "Clear current translation").apply {
+  val clearButton = createButtonWithIcon("app-icons/trash.svg", iconSize, Localizer.localize("main_panel_button_tooltip_clear_translation")).apply {
     addActionListener(WindowKeyListeners.ClearCurrentTranslation.action)
   }
   val menuButton = createButtonWithIcon("app-icons/menu.svg", iconSize).apply {
@@ -21,10 +22,10 @@ class TranslationOptionsPanel : JPanel() {
       else menu.show(this, 0, this.height)
     }
   }
-  val swapButton = createButtonWithIcon("app-icons/swap.svg", iconSize, "Change translation direction").apply {
+  val swapButton = createButtonWithIcon("app-icons/swap.svg", iconSize, Localizer.localize("main_panel_button_tooltip_change_translation_direction")).apply {
     addActionListener(WindowKeyListeners.SwapTranslationDirection.action)
   }
-  val translateButton = JButton("Translate").apply {
+  val translateButton = JButton(Localizer.localize("main_panel_button_text_translate")).apply {
     addActionListener(WindowKeyListeners.Translate.action)
   }
 

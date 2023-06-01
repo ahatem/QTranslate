@@ -21,7 +21,7 @@ class TranslationOutputPanel : JPanel(BorderLayout()) {
     }
 
     val overlayPanel = JPanel(BorderLayout()).apply {
-      add(buttonsPanel, BorderLayout.EAST)
+      add(buttonsPanel, BorderLayout.LINE_END)
       add(scrollPane, BorderLayout.CENTER)
     }
 

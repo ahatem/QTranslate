@@ -1,6 +1,7 @@
 package com.pnix.qtranslate.presentation.quick_translate_dialog
 
 import com.formdev.flatlaf.extras.components.FlatButton
+import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.models.Configurations
 import com.pnix.qtranslate.presentation.components.TTextPane
 import com.pnix.qtranslate.presentation.listeners.common.ComponentMover
@@ -123,6 +124,7 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS
       }
     }
 
+    applyComponentOrientation(frame.componentOrientation)
     isVisible = true
     focusableWindowState = true
   }
@@ -194,11 +196,12 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS
     }
 
     val favouriteButton = createButtonWithIcon("app-icons/star.svg", 13).apply {
+      isEnabled = false
       border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
       buttonType = FlatButton.ButtonType.toolBarButton
-      addActionListener { dispose() }
     }
     val dictionaryButton = createButtonWithIcon("app-icons/notebook-alt.svg", 13).apply {
+      isEnabled = false
       border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
       buttonType = FlatButton.ButtonType.toolBarButton
       addActionListener { }
@@ -215,6 +218,7 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS
 
     }
     val replaceButton = createButtonWithIcon("app-icons/replace.svg", 13).apply {
+      isEnabled = false
       border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
       buttonType = FlatButton.ButtonType.toolBarButton
       addActionListener { }
@@ -222,7 +226,7 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS
 
 
     return JPanel().apply {
-      layout = BoxLayout(this, BoxLayout.X_AXIS)
+      layout = BoxLayout(this, BoxLayout.LINE_AXIS)
       border = null
       add(closeButton)
       add(Box.createHorizontalStrut(4))
@@ -239,7 +243,7 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS
   private fun getDialogTitle(): String {
     val inputLanguageName = QTranslateViewModel.inputLanguage.value.name
     val outputLanguageName = QTranslateViewModel.outputLanguage.value.name
-    return "From $inputLanguageName to $outputLanguageName"
+    return Localizer.localize("quick_translate_panel_title").format(inputLanguageName, outputLanguageName)
   }
 
 }

@@ -1,5 +1,6 @@
 package com.pnix.qtranslate.presentation.main_frame.menus
 
+import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.models.Configurations
 import com.pnix.qtranslate.presentation.listeners.window.WindowKeyListeners
 import com.pnix.qtranslate.presentation.snipping_screen_dialog.SnippingToolDialog
@@ -17,11 +18,11 @@ class TrayPopupMenu : JPopupMenu() {
         QTranslateViewModel.mainFrame.state = JFrame.NORMAL
       }
     })
-    add(JMenuItem("Dictionary").apply {
+    add(JMenuItem(Localizer.localize("menu_item_dictionary_text")).apply {
       isEnabled = false
       addActionListener(WindowKeyListeners.OpenDictionaryDialog.action)
     })
-    add(JMenuItem("Text recognition").apply {
+    add(JMenuItem(Localizer.localize("menu_item_text_recognition_text")).apply {
       addActionListener {
         QTranslateViewModel.mainFrame.isVisible = false
         QTranslateViewModel.mainFrame.state = JFrame.ICONIFIED
@@ -31,20 +32,19 @@ class TrayPopupMenu : JPopupMenu() {
         }
       }
     })
-    add(JMenuItem("History").apply {
+    add(JMenuItem(Localizer.localize("menu_item_history_text")).apply {
       addActionListener(WindowKeyListeners.OpenHistoryDialog.action)
     })
-    add(JMenuItem("Settings").apply {
+    add(JMenuItem(Localizer.localize("menu_item_settings_text")).apply {
       addActionListener(WindowKeyListeners.OpenSettingsDialog.action)
     })
     addSeparator()
-    add(JCheckBoxMenuItem("Enable global hotkeys").apply {
+    add(JCheckBoxMenuItem(Localizer.localize("menu_item_enable_global_hotkeys_text")).apply {
       isSelected = Configurations.enableGlobalHotkeys
       accelerator = WindowKeyListeners.ToggleGlobalHotkeys.hotkey
       addActionListener(WindowKeyListeners.ToggleGlobalHotkeys.action)
     })
-//      add(JMenu("Mouse mode"))
     addSeparator()
-    add(JMenuItem("Exit").apply { addActionListener { exitProcess(0) } })
+    add(JMenuItem(Localizer.localize("menu_item_exit_text")).apply { addActionListener { exitProcess(0) } })
   }
 }

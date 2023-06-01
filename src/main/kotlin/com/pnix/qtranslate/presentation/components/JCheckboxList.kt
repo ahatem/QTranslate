@@ -82,9 +82,10 @@ open class FixedColumnWidthList<T>(listData: Array<T>?) : JList<T>(listData) {
   }
 }
 
-class JCheckboxList<T>(listData: Array<out T>?) :
-  FixedColumnWidthList<CheckListItem>(listData?.map { CheckListItem(it as Any).apply { isSelected = true } }
-    ?.toTypedArray()) {
+class JCheckboxList(listData: Array<CheckListItem>?) : FixedColumnWidthList<CheckListItem>(listData) {
+
+  var minimumSelectedItems: Int = 0
+  private var callback: (CheckListItem) -> Unit = {}
 
   init {
     cellRenderer = CheckBoxListRenderer()
@@ -92,6 +93,8 @@ class JCheckboxList<T>(listData: Array<out T>?) :
     addMouseListener(object : MouseAdapter() {
       override fun mouseClicked(event: MouseEvent) {
         selectItem(event.point)
+        val (index, item) = getItemAt(event.point)
+        if (index >= 0) callback.invoke(item!!)
       }
     })
 
@@ -105,11 +108,22 @@ class JCheckboxList<T>(listData: Array<out T>?) :
     })
   }
 
-  private fun selectItem(point: Point) {
+  private fun getItemAt(point: Point): Pair<Int, CheckListItem?> {
     val index: Int = locationToIndex(point)
+    if (index >= 0) return index to model.getElementAt(index) as CheckListItem
+    return -1 to null
+  }
+
+  private fun selectItem(point: Point) {
+    val (index, item) = getItemAt(point)
     if (index >= 0) {
-      val item = model.getElementAt(index) as CheckListItem
-      item.isSelected = !item.isSelected
+      item!!.isSelected = !item.isSelected
+
+      val selectedItems = allItems.count { (it as CheckListItem).isSelected }
+      if (selectedItems < minimumSelectedItems) {
+        item.isSelected = !item.isSelected
+      }
+
       repaint(getCellBounds(index, index))
     }
   }
@@ -129,6 +143,12 @@ class JCheckboxList<T>(listData: Array<out T>?) :
       item.isSelected = check
     }
     repaint()
+  }
+
+  val allItems get() = Array(model.size) { it }.map { model.getElementAt(it) }
+
+  fun addCheckChangeListener(callback: (CheckListItem) -> Unit) {
+    this.callback = callback
   }
 }
 

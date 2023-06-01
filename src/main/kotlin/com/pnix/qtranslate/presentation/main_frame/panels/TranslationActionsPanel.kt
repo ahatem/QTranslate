@@ -1,5 +1,6 @@
 package com.pnix.qtranslate.presentation.main_frame.panels
 
+import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.utils.createButtonWithIcon
 import javax.swing.BoxLayout
 import javax.swing.JPanel
@@ -17,8 +18,8 @@ class TranslationActionsPanel : JPanel() {
       isEnabled = false
     }
 
-  val copyButton = createButtonWithIcon("app-icons/copy-alt.svg", 16, "Copy translation")
-  val listenButton = createButtonWithIcon("app-icons/headphones.svg", 16, "Listen to translation")
+  val copyButton = createButtonWithIcon("app-icons/copy-alt.svg", 16, Localizer.localize("main_panel_button_tooltip_copy_translation"))
+  val listenButton = createButtonWithIcon("app-icons/headphones.svg", 16, Localizer.localize("main_panel_button_tooltip_listen_translation"))
 
   init {
     layout = BoxLayout(this, BoxLayout.Y_AXIS)

@@ -7,6 +7,7 @@ import com.pnix.qtranslate.models.SpellCheck
 import com.pnix.qtranslate.models.TextToSpeechResult
 import com.pnix.qtranslate.models.Translation
 import com.pnix.qtranslate.services.translators.abstraction.LanguageMapper
+import com.pnix.qtranslate.services.translators.abstraction.TextToSpeechNotSupportedException
 import com.pnix.qtranslate.services.translators.abstraction.TranslatorService
 import kong.unirest.Unirest
 import kotlinx.coroutines.future.await
@@ -26,6 +27,7 @@ class BingTranslator : TranslatorService() {
   private var startTime = System.currentTimeMillis()
 
   private val gson = GsonBuilder().setPrettyPrinting().create()
+
   private var auth: BingAuth = runBlocking { getKeyAndToken() }
     get() {
       if (!isOneHourElapsed()) return field
@@ -60,7 +62,7 @@ class BingTranslator : TranslatorService() {
   }
 
   override suspend fun doTextToSpeech(text: String, sourceLanguage: String): TextToSpeechResult {
-    throw Exception("Text to speech is not supported by $serviceName")
+    throw TextToSpeechNotSupportedException(serviceName)
   }
 
   override suspend fun doSpellCheck(text: String, sourceLanguage: String): SpellCheck {

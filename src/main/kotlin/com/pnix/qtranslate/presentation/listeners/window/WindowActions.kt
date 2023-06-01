@@ -137,6 +137,13 @@ class ToggleServicesPaneAction : ActionListener {
   }
 }
 
+class ToggleStatusPaneAction : ActionListener {
+  override fun actionPerformed(e: ActionEvent?) {
+    Configurations.showStatusPanel = !Configurations.showStatusPanel
+    QTranslateViewModel.triggerConfigurationChanged()
+  }
+}
+
 class OpenSettingsDialogAction : ActionListener {
   override fun actionPerformed(e: ActionEvent?) {
     SettingsDialog(QTranslateViewModel.mainFrame)
@@ -170,7 +177,7 @@ class OpenAboutQTranslateDialog : ActionListener {
 
 class ContactUsAction : ActionListener {
   override fun actionPerformed(e: ActionEvent?) {
-    Configurations.lastOptionOpened = "Contact US"
+    Configurations.lastOptionOpened = "contact_us"
     SettingsDialog(QTranslateViewModel.mainFrame)
   }
 }
@@ -187,5 +194,6 @@ class ToggleBackwardTranslationPaneAction : ActionListener {
   override fun actionPerformed(e: ActionEvent?) {
     Configurations.showBackwardTranslationPanel = !Configurations.showBackwardTranslationPanel
     QTranslateViewModel.triggerConfigurationChanged()
+    if (Configurations.showBackwardTranslationPanel) WindowKeyListeners.Translate.action.actionPerformed(e)
   }
 }

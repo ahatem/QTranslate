@@ -6,6 +6,7 @@ import com.pnix.qtranslate.models.SpellCheckCorrection
 import com.pnix.qtranslate.models.TextToSpeechResult
 import com.pnix.qtranslate.models.Translation
 import com.pnix.qtranslate.services.translators.abstraction.LanguageMapper
+import com.pnix.qtranslate.services.translators.abstraction.TextToSpeechNotSupportedException
 import com.pnix.qtranslate.services.translators.abstraction.TranslatorService
 import kong.unirest.Unirest
 import kotlinx.coroutines.future.await
@@ -60,7 +61,7 @@ class YandexTranslator : TranslatorService() {
   }
 
   override suspend fun doTextToSpeech(text: String, sourceLanguage: String): TextToSpeechResult {
-    throw Exception("Text to speech is not supported by $serviceName")
+    throw TextToSpeechNotSupportedException(serviceName)
   }
 
   override suspend fun doSpellCheck(text: String, sourceLanguage: String): SpellCheck {

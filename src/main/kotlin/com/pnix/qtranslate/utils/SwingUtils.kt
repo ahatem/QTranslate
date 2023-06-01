@@ -16,6 +16,7 @@ import javax.swing.event.AncestorEvent
 import javax.swing.event.AncestorListener
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
+import kotlin.math.cos
 
 
 fun interface SimpleDocumentListener : DocumentListener {
@@ -93,7 +94,7 @@ fun JPanel.addSeparator(pos: GBHelper, text: String) {
         override fun ancestorMoved(event: AncestorEvent) = Unit
       })
     },
-    pos.nextRow().expandW(0.0).width(1).align(GridBagConstraints.WEST)
+    pos.nextRow().expandW(0.0).width(1).align(GridBagConstraints.LINE_START)
   )
 
   add(
@@ -135,3 +136,27 @@ fun getDefaultFontFamily(): String {
   }
   return defaultFontFamily
 }
+
+fun shakeComponent(component: JComponent, delayTime: Long = 16) {
+  /*val point: Point = component.location
+  var xOffset = 0
+  val timer = Timer(delayTime.toInt(), null)
+  val numFrames = 10
+  var frameCount = 0
+  timer.addActionListener {
+    val t = frameCount.toDouble() / numFrames
+    val f = 2 * Math.PI * t - Math.PI / 2
+    val p = (1 - cos(f)) / 2
+    val dx = (if (xOffset == 0) 5 else -5) * p
+    component.setLocation(point.x + dx.toInt(), point.y)
+    component.repaint()
+    frameCount++
+    if (frameCount == numFrames * 2) {
+      timer.stop()
+      component.location = point
+      component.repaint()
+    }
+  }
+  timer.start()*/
+}
+

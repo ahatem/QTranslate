@@ -3,6 +3,7 @@ package com.pnix.qtranslate.presentation.main_frame
 import com.formdev.flatlaf.FlatLaf
 import com.formdev.flatlaf.extras.components.FlatButton
 import com.melloware.jintellitype.JIntellitype
+import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.models.Configurations
 import com.pnix.qtranslate.models.TranslationHistory
 import com.pnix.qtranslate.presentation.components.JXTrayIcon
@@ -18,6 +19,7 @@ import com.pnix.qtranslate.utils.createButtonWithIcon
 import com.pnix.qtranslate.utils.setPadding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
@@ -32,6 +34,7 @@ import java.util.*
 import javax.imageio.ImageIO
 import javax.swing.*
 import kotlin.system.exitProcess
+import kotlin.time.Duration.Companion.seconds
 
 class QTranslateFrame : JFrame("QTranslate") {
   private val loadingDialog = LoadingDialog()
@@ -57,6 +60,13 @@ class QTranslateFrame : JFrame("QTranslate") {
     QTranslateViewModel.setMainFrame(this@QTranslateFrame)
     GlobalScope.launch(Dispatchers.Swing) {
       launch {
+        QTranslateViewModel.error.collectLatest {
+          mainPanel.statusPanel.showError(it.message ?: "")
+          delay(10.seconds)
+          mainPanel.statusPanel.resetStatus()
+        }
+      }
+      launch {
         QTranslateViewModel.configurationChanged.collectLatest {
           applyConfigurations()
         }
@@ -76,10 +86,7 @@ class QTranslateFrame : JFrame("QTranslate") {
           mainPanel.historyNavigationPanel.buttonHistoryBackward.isEnabled = TranslationHistory.canUndo()
           mainPanel.historyNavigationPanel.buttonHistoryForward.isEnabled = TranslationHistory.canRedo()
           mainPanel.historyNavigationPanel.updateStatus()
-          val buttons = Collections.list(mainPanel.translatorsPanel.buttonGroup.elements).toList()
-          buttons.withIndex().forEach { (index, button) ->
-            if (index == it && !button.isSelected) button.isSelected = true
-          }
+//          mainPanel.translatorsPanel.selectIndex(it)
         }
       }
       launch {
@@ -147,7 +154,20 @@ class QTranslateFrame : JFrame("QTranslate") {
 
   // NOTE: this is bad for performance i think :D
   private fun applyConfigurations() {
-    mainPanel.changeLayout(LayoutFactory.getById(Configurations.layoutPreset))
+
+    if (Localizer.isLocaleChanged) {
+      Localizer.updateCurrentLocale()
+      remove(mainPanel)
+      applyComponentOrientation(ComponentOrientation.getOrientation(Localizer.currentLocale))
+      mainPanel = MainPanel(LayoutFactory.getById(Configurations.layoutPreset))
+      mainPanel.historyNavigationPanel.updateStatus()
+      mainPanel.statusPanel.resetStatus()
+      add(mainPanel)
+      applyComponentOrientation(ComponentOrientation.getOrientation(Localizer.currentLocale))
+    } else {
+      mainPanel.changeLayout(LayoutFactory.getById(Configurations.layoutPreset))
+    }
+
 
     FlatLaf.setup(Configurations.theme.lookAndFeel)
     FlatLaf.setUseNativeWindowDecorations(Configurations.enableWindowStyle)
@@ -163,6 +183,10 @@ class QTranslateFrame : JFrame("QTranslate") {
     mainPanel.historyNavigationPanel.isVisible = Configurations.showHistoryPanel
     mainPanel.translationOptionsPanel.isVisible = Configurations.showTranslationOptionsPanel
     mainPanel.translatorsPanel.isVisible = Configurations.showServicesPanel
+    mainPanel.statusPanel.isVisible = Configurations.showStatusPanel
+
+
+    mainPanel.translatorsPanel.updateTranslators()
 
     revalidate()
     repaint()

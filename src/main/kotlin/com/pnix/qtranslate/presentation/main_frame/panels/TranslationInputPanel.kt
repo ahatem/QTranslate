@@ -165,7 +165,7 @@ class TranslationInputPanel : JPanel() {
       listenButton.addActionListener(WindowKeyListeners.ListenToInput.action)
     }
 
-    add(buttonsPanel, BorderLayout.EAST)
+    add(buttonsPanel, BorderLayout.LINE_END)
     add(scrollPane)
   }
 }

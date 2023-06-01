@@ -3,7 +3,10 @@ package com.pnix.qtranslate.presentation.main_frame.panels
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.pnix.qtranslate.presentation.listeners.window.WindowKeyListeners
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
+import com.pnix.qtranslate.services.translators.abstraction.TranslatorService
+import com.pnix.qtranslate.utils.localizedName
 import java.awt.GridLayout
+import java.util.*
 import javax.swing.BorderFactory
 import javax.swing.ButtonGroup
 import javax.swing.JToggleButton
@@ -11,24 +14,43 @@ import javax.swing.JToolBar
 
 class TranslatorsPanel : JToolBar() {
 
-  val buttonGroup = ButtonGroup()
-  private val translatorsButtons =
-    QTranslateViewModel.translators.mapIndexed { index, it -> createToggleButton(it.serviceName, index) }
+  var buttonGroup = ButtonGroup()
+  private val translatorsButtons get() = QTranslateViewModel.translators.mapIndexed { index, it -> createToggleButton(it, index) }
 
   init {
     layout = GridLayout(1, 0, 0, 0)
     isFloatable = false
     isRollover = true
     border = BorderFactory.createEmptyBorder(4, 0, 0, 0)
-    translatorsButtons.forEach { add(it) }
+
+    updateTranslators()
   }
 
-  private fun createToggleButton(name: String, index: Int) = JToggleButton(name).apply {
-    icon = FlatSVGIcon("translator-icons/${name.lowercase()}.svg", (16 * 1.25).toInt(), (16 * 1.25).toInt())
-    addActionListener {
-      QTranslateViewModel.setSelectedTranslatorIndex(index)
-      WindowKeyListeners.Translate.action.actionPerformed(it)
+  private fun createToggleButton(translator: TranslatorService, index: Int) =
+    JToggleButton(translator.localizedName).apply {
+      icon = FlatSVGIcon(
+        "translator-icons/${translator.serviceName.lowercase()}.svg",
+        (16 * 1.25).toInt(),
+        (16 * 1.25).toInt()
+      )
+      addActionListener {
+        QTranslateViewModel.setSelectedTranslatorIndex(index)
+        WindowKeyListeners.Translate.action.actionPerformed(it)
+      }
+      buttonGroup.add(this)
     }
-    buttonGroup.add(this)
+
+  fun updateTranslators() {
+    removeAll()
+    buttonGroup = ButtonGroup()
+    translatorsButtons.forEach { add(it) }
+    selectIndex(0)
+  }
+
+  fun selectIndex(index: Int) {
+    val buttons = Collections.list(buttonGroup.elements).toList()
+    buttons.withIndex().forEach { (buttonIndex, button) ->
+      if (buttonIndex == index && !button.isSelected) button.isSelected = true
+    }
   }
 }

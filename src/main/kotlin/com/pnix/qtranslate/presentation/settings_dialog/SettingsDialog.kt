@@ -1,5 +1,6 @@
 package com.pnix.qtranslate.presentation.settings_dialog
 
+import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.models.Configuration
 import com.pnix.qtranslate.models.Configurations
 import com.pnix.qtranslate.presentation.settings_dialog.panels.*
@@ -7,27 +8,30 @@ import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
 import com.pnix.qtranslate.utils.setPadding
 import java.awt.BorderLayout
 import java.awt.CardLayout
+import java.awt.ComponentOrientation
 import javax.swing.*
 
 
-class SettingsDialog(frame: JFrame) : JDialog(frame, "Settings", false) {
+class SettingsDialog(val frame: JFrame) : JDialog(frame, Localizer.localize("settings_panel_title"), false) {
 
   private val configuration = Configuration()
+
+  private val listItems = mapOf(
+    formattedListItemText("settings_panel_list_item_basics") to "basics",
+    formattedListItemText("settings_panel_list_item_services") to "services",
+    formattedListItemText("settings_panel_list_item_languages") to "languages",
+    formattedListItemText("settings_panel_list_item_appearance") to "appearance",
+    formattedListItemText("settings_panel_list_item_contact_us") to "contact_us",
+  )
 
   init {
     setPadding(4)
 
 //    val list = JList(arrayOf("Basics", "Internet", "Services", "Languages", "Appearance", "Exceptions", "Advanced", "Updates"))
-    val list = JList(
-      arrayOf(
-        "%-35s".format("Basics"),
-        "%-35s".format("Services"),
-        "%-35s".format("Languages"),
-        "%-35s".format("Appearance"),
-        "%-35s".format("Contact US"),
-      )
+    val list = JList(listItems.keys.toTypedArray())
+    list.setSelectedValue(
+      formattedListItemText("settings_panel_list_item_${Configurations.lastOptionOpened}"), false
     )
-    list.setSelectedValue("%-35s".format(Configurations.lastOptionOpened), false)
     list.border = BorderFactory.createMatteBorder(1, 1, 1, 1, UIManager.getColor("Component.borderColor"))
     UIManager.addPropertyChangeListener { evt ->
       if ("lookAndFeel" == evt.propertyName) list.border =
@@ -38,28 +42,30 @@ class SettingsDialog(frame: JFrame) : JDialog(frame, "Settings", false) {
     val cardPanel = JPanel(CardLayout())
     cardPanel.border = BorderFactory.createEmptyBorder(0, 2, 0, 2)
 
-    cardPanel.add(BasicsPanel(configuration), "Basics")
-    cardPanel.add(ServicesPanel(configuration), "Services")
-    cardPanel.add(LanguagesPanel(configuration), "Languages")
-    cardPanel.add(AppearancePanel(configuration), "Appearance")
-    cardPanel.add(ContactUsPanel(), "Contact US")
+    cardPanel.add(BasicsPanel(configuration), "basics")
+    cardPanel.add(ServicesPanel(configuration), "services")
+    cardPanel.add(LanguagesPanel(configuration), "languages")
+    cardPanel.add(AppearancePanel(configuration), "appearance")
+    cardPanel.add(ContactUsPanel(), "contact_us")
 
 
     val cardLayout = cardPanel.layout as CardLayout
-    cardLayout.show(cardPanel, list.selectedValue.toString().trim())
+    cardLayout.show(cardPanel, Configurations.lastOptionOpened)
 
     list.addListSelectionListener {
-      cardLayout.show(cardPanel, list.selectedValue.toString().trim())
-      Configurations.lastOptionOpened = list.selectedValue.toString().trim()
+      Configurations.lastOptionOpened = listItems[list.selectedValue.toString()] ?: "basics"
+      cardLayout.show(cardPanel, Configurations.lastOptionOpened)
     }
 
-    add(list, BorderLayout.WEST)
-    add(cardPanel, BorderLayout.CENTER)
+    add(list, BorderLayout.LINE_START)
+    add(cardPanel)
     add(getBottomPanel(), BorderLayout.SOUTH)
 
     pack()
     minimumSize = preferredSize
     setLocationRelativeTo(frame)
+
+    applyComponentOrientation(frame.componentOrientation)
     isVisible = true
   }
 
@@ -70,14 +76,17 @@ class SettingsDialog(frame: JFrame) : JDialog(frame, "Settings", false) {
       repaint()
     }
 
-    val okButton = JButton("Ok").apply { addActionListener { apply(); dispose() } }
-    val cancelButton = JButton("Cancel").apply { addActionListener { dispose() } }
-    val applyButton = JButton("Apply").apply { addActionListener { apply() } }
+    val okButton =
+      JButton(Localizer.localize("settings_panel_button_text_ok")).apply { addActionListener { apply(); dispose() } }
+    val cancelButton =
+      JButton(Localizer.localize("settings_panel_button_text_cancel")).apply { addActionListener { dispose() } }
+    val applyButton =
+      JButton(Localizer.localize("settings_panel_button_text_apply")).apply { addActionListener { apply() } }
 
 
     val bottomPanel = JPanel()
     bottomPanel.border = BorderFactory.createEmptyBorder(4, 0, 0, 0)
-    bottomPanel.layout = BoxLayout(bottomPanel, BoxLayout.X_AXIS)
+    bottomPanel.layout = BoxLayout(bottomPanel, BoxLayout.LINE_AXIS)
     bottomPanel.add(Box.createHorizontalGlue())
     bottomPanel.add(okButton)
     bottomPanel.add(cancelButton)
@@ -85,13 +94,17 @@ class SettingsDialog(frame: JFrame) : JDialog(frame, "Settings", false) {
 
     val wrapper = JPanel()
     wrapper.border = BorderFactory.createEmptyBorder(4, 0, 0, 0)
-    wrapper.layout = BoxLayout(wrapper, BoxLayout.Y_AXIS)
+    wrapper.layout = BoxLayout(wrapper, BoxLayout.PAGE_AXIS)
     wrapper.add(JSeparator())
     wrapper.add(bottomPanel)
-
 
     return wrapper
   }
 
+
+  private fun formattedListItemText(key: String): String {
+    val dir = if (frame.componentOrientation == ComponentOrientation.RIGHT_TO_LEFT) "-" else "-"
+    return "%${dir}35s".format(Localizer.localize(key))
+  }
 
 }

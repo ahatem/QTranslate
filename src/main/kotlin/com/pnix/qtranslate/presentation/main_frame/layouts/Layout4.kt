@@ -7,8 +7,6 @@ import javax.swing.JSplitPane
 
 class Layout4 : Layout() {
 
-  override val presetName: String get() = "Preset 4"
-
   override fun showBackwardTranslation(mainPanel: MainPanel, show: Boolean) {
     mainPanel.translationBackwardPanel.isVisible = show
     mainPanel.split2.setDividerLocation(0.5)
@@ -37,8 +35,13 @@ class Layout4 : Layout() {
         mainPanel.translationBackwardPanel
       ).apply { resizeWeight = 0.55 }
 
+    val bottomPanel = JPanel(BorderLayout()).apply {
+      add(mainPanel.translatorsPanel, BorderLayout.NORTH)
+      add(mainPanel.statusPanel, BorderLayout.SOUTH)
+    }
+
     mainPanel.add(topPanel, BorderLayout.NORTH)
     mainPanel.add(mainPanel.split2)
-    mainPanel.add(mainPanel.translatorsPanel, BorderLayout.SOUTH)
+    mainPanel.add(bottomPanel, BorderLayout.SOUTH)
   }
 }

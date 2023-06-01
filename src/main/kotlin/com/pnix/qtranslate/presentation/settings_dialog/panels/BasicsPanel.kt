@@ -1,5 +1,6 @@
 package com.pnix.qtranslate.presentation.settings_dialog.panels
 
+import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.models.Configuration
 import com.pnix.qtranslate.models.Language
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
@@ -20,9 +21,10 @@ class BasicsPanel(configuration: Configuration) : JPanel() {
 
   init {
     layout = GridBagLayout()
-    addSeparator(pos, "General")
+    addSeparator(pos, Localizer.localize("basics_panel_text_general"))
     add(
-      JCheckBox("Start with windows", configuration.startWithWindows).apply {
+      JCheckBox(Localizer.localize("basics_panel_checkbox_text_start_with_windows"), configuration.startWithWindows).apply {
+        isEnabled = false
         addActionListener {
           configuration.startWithWindows = isSelected
         }
@@ -31,21 +33,21 @@ class BasicsPanel(configuration: Configuration) : JPanel() {
     )
 
     add(
-      JLabel("Interface language:"),
+      JLabel(Localizer.localize("basics_panel_text_interface_language")),
       pos.nextRow()
     )
     add(
-      JComboBox(arrayOf("English")).apply {
-        selectedItem = configuration.interfaceLanguage
+      JComboBox(Localizer.supportedLanguages).apply {
+        selectedItem = Language(configuration.interfaceLanguage)
         addActionListener {
-          configuration.interfaceLanguage = selectedItem as String
+          configuration.interfaceLanguage = (selectedItem as Language).alpha2
         }
       },
       pos.nextCol().expandW().width(2)
     )
 
     add(
-      JLabel("Font name:"),
+      JLabel(Localizer.localize("basics_panel_text_font_name")),
       pos.nextRow()
     )
     add(
@@ -59,7 +61,7 @@ class BasicsPanel(configuration: Configuration) : JPanel() {
     )
 
     add(
-      JLabel("Font size:"),
+      JLabel(Localizer.localize("basics_panel_text_font_size")),
       pos.nextRow()
     )
     add(
@@ -72,9 +74,9 @@ class BasicsPanel(configuration: Configuration) : JPanel() {
       pos.nextCol().expandW().width(2)
     )
 
-    addSeparator(pos, "Auto-detect languages")
+    addSeparator(pos, Localizer.localize("basics_panel_text_auto_detect_languages"))
     add(
-      JLabel("First language:"),
+      JLabel(Localizer.localize("basics_panel_text_first_language")),
       pos.nextRow()
     )
     add(
@@ -88,7 +90,7 @@ class BasicsPanel(configuration: Configuration) : JPanel() {
     )
 
     add(
-      JLabel("Second language:"),
+      JLabel(Localizer.localize("basics_panel_text_second_language")),
       pos.nextRow()
     )
     add(
@@ -101,9 +103,9 @@ class BasicsPanel(configuration: Configuration) : JPanel() {
       pos.nextCol().expandW().width(2)
     )
 
-    addSeparator(pos, "History")
+    addSeparator(pos, Localizer.localize("basics_panel_text_history"))
     add(
-      JCheckBox("Enable history", configuration.enableHistory).apply {
+      JCheckBox(Localizer.localize("basics_panel_checkbox_text_enable_history"), configuration.enableHistory).apply {
         addActionListener {
           configuration.enableHistory = isSelected
         }
@@ -112,7 +114,8 @@ class BasicsPanel(configuration: Configuration) : JPanel() {
     )
 
     add(
-      JCheckBox("Clear history on exit", configuration.clearHistoryOnExist).apply {
+      JCheckBox(Localizer.localize("basics_panel_checkbox_text_clear_history_on_exit"), configuration.clearHistoryOnExist).apply {
+        isEnabled = false
         addActionListener {
           configuration.clearHistoryOnExist = isSelected
         }

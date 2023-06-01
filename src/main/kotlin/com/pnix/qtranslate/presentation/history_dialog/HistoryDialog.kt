@@ -2,11 +2,13 @@ package com.pnix.qtranslate.presentation.history_dialog
 
 import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.icons.FlatSearchIcon
+import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.models.TranslationHistory
 import com.pnix.qtranslate.models.TranslationHistorySnapshot
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
 import com.pnix.qtranslate.utils.SimpleDocumentListener
 import com.pnix.qtranslate.utils.createButtonWithIcon
+import com.pnix.qtranslate.utils.localizedName
 import com.pnix.qtranslate.utils.setPadding
 import java.awt.BorderLayout
 import java.awt.Component
@@ -20,16 +22,16 @@ import javax.swing.tree.DefaultTreeCellRenderer
 import javax.swing.tree.DefaultTreeModel
 
 
-class HistoryDialog(frame: Frame) : JDialog(frame, "History", false) {
+class HistoryDialog(frame: Frame) : JDialog(frame, Localizer.localize("history_panel_title"), false) {
 
   data class TreeHistorySubNodeItem(val snapshot: TranslationHistorySnapshot) {
     companion object {
       val translators = QTranslateViewModel.translators
-      val longestLength = translators.maxBy { t -> t.serviceName.length }.serviceName.length
+      val longestLength = translators.maxBy { t -> t.localizedName.length }.localizedName.length
     }
 
     override fun toString(): String {
-      val translatorName = "%-${longestLength}s".format(translators[snapshot.selectedTranslatorIndex].serviceName)
+      val translatorName = "%-${longestLength}s".format(translators[snapshot.selectedTranslatorIndex].localizedName)
       return "${translatorName}: ${snapshot.translatedText}"
     }
   }
@@ -43,12 +45,11 @@ class HistoryDialog(frame: Frame) : JDialog(frame, "History", false) {
     setPadding(4)
 
     val searchField = JTextField().apply {
-      putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, "Search")
+      putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, Localizer.localize("history_panel_input_placeholder_search"))
       putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON, FlatSearchIcon())
       putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true)
       document.addDocumentListener(SimpleDocumentListener { loadHistory(text) })
     }
-
     historyTree.cellRenderer = object : DefaultTreeCellRenderer() {
       private val border = BorderFactory.createEmptyBorder(4, 4, 4, 4)
       override fun getTreeCellRendererComponent(
@@ -80,31 +81,36 @@ class HistoryDialog(frame: Frame) : JDialog(frame, "History", false) {
     loadHistory()
 
     val buttons = JPanel().apply {
-      layout = BoxLayout(this, BoxLayout.X_AXIS)
+      layout = BoxLayout(this, BoxLayout.LINE_AXIS)
 
-      add(JButton("Clear").apply {
+      add(JButton(Localizer.localize("history_panel_button_text_clear")).apply {
         addActionListener {
           TranslationHistory.clear()
           rootNode.removeAllChildren()
           (historyTree.model as DefaultTreeModel).reload()
         }
       })
-      add(JButton("Save As").apply { isEnabled = false })
+      add(JButton(Localizer.localize("history_panel_button_text_save_as")).apply { isEnabled = false })
       add(
         createButtonWithIcon("app-icons/star.svg", 13, "Toggle favourite (Not supported yet.)").apply {
           isEnabled = false
         }
       )
       add(Box.createHorizontalGlue())
-      add(JButton("Ok").apply { addActionListener { dispose() } })
+      add(JButton(Localizer.localize("history_panel_button_text_ok")).apply { addActionListener { dispose() } })
     }
 
     add(searchField, BorderLayout.NORTH)
-    add(JScrollPane(historyTree))
+    add(JScrollPane(historyTree).apply {
+      border = BorderFactory.createCompoundBorder(
+        BorderFactory.createEmptyBorder(2, 0, 2, 0), border
+      )
+    })
     add(buttons, BorderLayout.SOUTH)
 
     pack()
     setLocationRelativeTo(frame)
+    applyComponentOrientation(frame.componentOrientation)
     isVisible = true
   }
 

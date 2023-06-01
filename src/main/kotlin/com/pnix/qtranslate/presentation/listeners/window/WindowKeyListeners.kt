@@ -83,7 +83,7 @@ sealed class WindowKeyListeners(val action: ActionListener, val hotkey: KeyStrok
     altKeyWith(KeyEvent.VK_RIGHT)
   )
 
-  object ToogleHistoryPane : WindowKeyListeners(
+  object ToggleHistoryPane : WindowKeyListeners(
     ToggleHistoryPaneAction(),
     controlKeyWith(KeyEvent.VK_F1)
   )
@@ -96,6 +96,11 @@ sealed class WindowKeyListeners(val action: ActionListener, val hotkey: KeyStrok
   object ToggleServicesPane : WindowKeyListeners(
     ToggleServicesPaneAction(),
     controlKeyWith(KeyEvent.VK_F3)
+  )
+
+  object ToggleStatusPane : WindowKeyListeners(
+    ToggleStatusPaneAction(),
+    controlKeyWith(KeyEvent.VK_F4)
   )
 
   object ToggleSpellChecking : WindowKeyListeners(
@@ -154,9 +159,10 @@ sealed class WindowKeyListeners(val action: ActionListener, val hotkey: KeyStrok
         ToggleFullScreen,
         GoBackwardInHistory,
         GoForwardInHistory,
-        ToogleHistoryPane,
+        ToggleHistoryPane,
         ToggleTranslationOptionsPane,
         ToggleServicesPane,
+        ToggleHistoryPane,
         ToggleSpellChecking,
         ToggleInstantTranslation,
         ToggleBackwardTranslationPane,
