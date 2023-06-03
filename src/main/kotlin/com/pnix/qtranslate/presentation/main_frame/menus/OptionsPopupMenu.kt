@@ -104,6 +104,16 @@ class OptionsPopupMenu : JPopupMenu() {
         accelerator = WindowKeyListeners.ContactUs.hotkey
         addActionListener(WindowKeyListeners.ContactUs.action)
       })
+      add(JSeparator())
+      add(JCheckBoxMenuItem(Localizer.localize("menu_item_auto_check_for_updates_text")).apply {
+        isSelected = Configurations.autoCheckForUpdates
+        accelerator = WindowKeyListeners.ToggleAutoCheckForUpdates.hotkey
+        addActionListener(WindowKeyListeners.ToggleAutoCheckForUpdates.action)
+      })
+      add(JMenuItem(Localizer.localize("menu_item_check_for_new_updates_text")).apply {
+        accelerator = WindowKeyListeners.CheckForUpdate.hotkey
+        addActionListener(WindowKeyListeners.CheckForUpdate.action)
+      })
     })
     add(JSeparator())
     add(JMenuItem(Localizer.localize("menu_item_exit_text")).apply { addActionListener { exitProcess(0) } })

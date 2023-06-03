@@ -27,7 +27,6 @@ class SettingsDialog(val frame: JFrame) : JDialog(frame, Localizer.localize("set
   init {
     setPadding(4)
 
-//    val list = JList(arrayOf("Basics", "Internet", "Services", "Languages", "Appearance", "Exceptions", "Advanced", "Updates"))
     val list = JList(listItems.keys.toTypedArray())
     list.setSelectedValue(
       formattedListItemText("settings_panel_list_item_${Configurations.lastOptionOpened}"), false

@@ -123,6 +123,15 @@ class BasicsPanel(configuration: Configuration) : JPanel() {
       pos.nextRow().expandW()
     )
 
+    add(
+      JCheckBox(Localizer.localize("basics_panel_checkbox_text_expand_items"), configuration.expandHistoryItems).apply {
+        addActionListener {
+          configuration.expandHistoryItems = isSelected
+        }
+      },
+      pos.nextRow().expandW()
+    )
+
     add(JPanel(), pos.nextRow().expandH())
   }
 

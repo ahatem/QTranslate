@@ -19,7 +19,7 @@ class AboutQTranslateDialog(frame: Frame) : JDialog(frame, Localizer.localize("a
       font = font.deriveFont(Font.BOLD, 20f)
       alignmentX = Component.CENTER_ALIGNMENT
     }
-    val version = JLabel(Localizer.localize("about_panel_text_version").format(QTranslate.VERSION_TEXT)).apply {
+    val version = JLabel(Localizer.localize("about_panel_text_version").format(QTranslate.VERSION_NAME)).apply {
       alignmentX = Component.CENTER_ALIGNMENT
     }
 
@@ -44,9 +44,10 @@ class AboutQTranslateDialog(frame: Frame) : JDialog(frame, Localizer.localize("a
     add(centerPanel, BorderLayout.CENTER)
     add(bottomPanel, BorderLayout.SOUTH)
 
+    rootPane.defaultButton = closeButton
+
     pack()
     setLocationRelativeTo(frame)
-
     applyComponentOrientation(frame.componentOrientation)
     isVisible = true
   }

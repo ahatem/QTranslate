@@ -1,6 +1,6 @@
 package com.pnix.qtranslate.presentation.main_frame.panels
 
-import com.pnix.qtranslate.presentation.components.TTextPane
+import com.pnix.qtranslate.presentation.components.QtTextPane
 import com.pnix.qtranslate.presentation.listeners.window.WindowKeyListeners
 import com.pnix.qtranslate.utils.copyToClipboard
 import java.awt.BorderLayout
@@ -9,7 +9,7 @@ import javax.swing.JScrollPane
 
 class TranslationBackwardPanel : JPanel() {
 
-  val backwardTranslationTextArea = TTextPane().apply { isEditable = false }
+  val backwardTranslationTextArea = QtTextPane().apply { isEditable = false }
 
   init {
     layout = BorderLayout()

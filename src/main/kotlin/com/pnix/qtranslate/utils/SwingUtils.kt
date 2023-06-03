@@ -16,7 +16,6 @@ import javax.swing.event.AncestorEvent
 import javax.swing.event.AncestorListener
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
-import kotlin.math.cos
 
 
 fun interface SimpleDocumentListener : DocumentListener {
@@ -101,6 +100,16 @@ fun JPanel.addSeparator(pos: GBHelper, text: String) {
     JSeparator(),
     pos.expandW().fill(GridBagConstraints.HORIZONTAL).width(3)
   )
+}
+
+fun JTree.expandAllNodes() {
+  var j = rowCount
+  var i = 0
+  while (i < j) {
+    expandRow(i)
+    i += 1
+    j = rowCount
+  }
 }
 
 fun singleKey(key: Int): KeyStroke {

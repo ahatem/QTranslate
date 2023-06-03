@@ -1,10 +1,12 @@
 package com.pnix.qtranslate.presentation.listeners.window
 
+import com.pnix.qtranslate.common.Updater
 import com.pnix.qtranslate.models.Configurations
 import com.pnix.qtranslate.presentation.about_dialog.AboutQTranslateDialog
 import com.pnix.qtranslate.presentation.history_dialog.HistoryDialog
 import com.pnix.qtranslate.presentation.listeners.global.QTranslateHotkeyListener
 import com.pnix.qtranslate.presentation.settings_dialog.SettingsDialog
+import com.pnix.qtranslate.presentation.update_dialog.NewUpdateDialog
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -31,7 +33,7 @@ class ListenToTranslationAction : ActionListener {
 
 class ListenToBackwardTranslationAction : ActionListener {
   override fun actionPerformed(e: ActionEvent?) {
-    GlobalScope.launch { QTranslateViewModel.listenToBackwardTranslationAction() }
+    GlobalScope.launch { QTranslateViewModel.listenToBackwardTranslation() }
   }
 }
 
@@ -195,5 +197,23 @@ class ToggleBackwardTranslationPaneAction : ActionListener {
     Configurations.showBackwardTranslationPanel = !Configurations.showBackwardTranslationPanel
     QTranslateViewModel.triggerConfigurationChanged()
     if (Configurations.showBackwardTranslationPanel) WindowKeyListeners.Translate.action.actionPerformed(e)
+  }
+}
+
+class ToggleAutoCheckForUpdatesAction : ActionListener {
+  override fun actionPerformed(e: ActionEvent?) {
+    Configurations.autoCheckForUpdates = !Configurations.autoCheckForUpdates
+  }
+}
+
+class CheckForUpdateAction : ActionListener {
+  override fun actionPerformed(e: ActionEvent?) {
+    val latestVersionInfo = Updater.getLatestVersionInfo()
+    if(latestVersionInfo != null && latestVersionInfo.isNewerVersion()) {
+      Configurations.latestVersionNumber = latestVersionInfo.versionCode
+      if (Configurations.latestVersionNumber != Configurations.skippedVersionNumber) {
+        NewUpdateDialog(QTranslateViewModel.mainFrame, latestVersionInfo)
+      }
+    }
   }
 }

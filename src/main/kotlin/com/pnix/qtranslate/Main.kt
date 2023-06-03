@@ -1,7 +1,9 @@
 package com.pnix.qtranslate
 
 import com.formdev.flatlaf.FlatLaf
+import com.google.gson.Gson
 import com.pnix.qtranslate.common.Localizer
+import com.pnix.qtranslate.common.UserAgent
 import com.pnix.qtranslate.models.Configurations
 import com.pnix.qtranslate.presentation.main_frame.QTranslateFrame
 import kong.unirest.Unirest
@@ -10,14 +12,13 @@ import javax.swing.SwingUtilities
 import javax.swing.UIManager
 
 /*
-* http://web.archive.org/web/20230227130154/http://quest-app.appspot.com/home
-* ===========================================================================
+* IN-PROGRESS:
 * TODO:
-*   Create the website and publish it on google and Implement check for update (maybe based on site html :D)
-*   "Enable/Disable history" is useless till now + "Clear history on exit" is useless too :D
-*   languages in settings are not functional
 *   Auto-detect not implemented
-*   Audio can't be stopped ... so make it like a toggle
+*   Create LanguageComboBox to handle all logic for that
+*   Add Auto-Complete POPUP TO TTextArea
+*   Audio can't be stopped ... so make stop it (if same text OR the content of the clipboard not changed)
+*   Languages in settings are not functional
 */
 
 fun main() {
@@ -27,7 +28,6 @@ fun main() {
     UIManager.put("TitlePane.unifiedBackground", Configurations.unifyTitleBar)
     UIManager.put("TitlePane.showIcon", false)
     UIManager.put("ScrollBar.showButtons", false)
-
 
     QTranslateFrame().apply {
       applyComponentOrientation(ComponentOrientation.getOrientation(Localizer.currentLocale))
@@ -60,4 +60,25 @@ fun `sending GET requests with different IPs`() {
       println(response)
     }
   }
+}
+
+fun getAutoComplete(text: String) {
+  val response = Unirest.get("http://google.com/complete/search?client=chrome&q=$text")
+    .header("user-agent", UserAgent.random())
+    .asString()
+
+  val gson = Gson()
+  val data = gson.fromJson(response.body, Array<Any>::class.java)
+  val autoCompletionsString = data[1].toString()
+  val autoCompletions = autoCompletionsString
+    .substring( 1, autoCompletionsString.length - 1 )
+    .split(", ")
+    .filter { !it.matches(Regex("^https?://.*")) }
+    .take(10)
+
+  autoCompletions.forEach {
+    println(it)
+  }
+
+//  for result in json.loads(response.text)[1]:
 }

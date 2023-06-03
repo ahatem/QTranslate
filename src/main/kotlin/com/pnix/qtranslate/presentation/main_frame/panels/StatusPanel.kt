@@ -3,7 +3,6 @@ package com.pnix.qtranslate.presentation.main_frame.panels
 import com.formdev.flatlaf.extras.components.FlatButton
 import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.utils.createButtonWithIcon
-import com.pnix.qtranslate.utils.shakeComponent
 import javax.swing.*
 
 class StatusPanel : JPanel() {

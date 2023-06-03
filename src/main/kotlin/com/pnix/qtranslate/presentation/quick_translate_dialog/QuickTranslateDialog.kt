@@ -3,7 +3,7 @@ package com.pnix.qtranslate.presentation.quick_translate_dialog
 import com.formdev.flatlaf.extras.components.FlatButton
 import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.models.Configurations
-import com.pnix.qtranslate.presentation.components.TTextPane
+import com.pnix.qtranslate.presentation.components.QtTextPane
 import com.pnix.qtranslate.presentation.listeners.common.ComponentMover
 import com.pnix.qtranslate.presentation.listeners.common.ComponentResizer
 import com.pnix.qtranslate.presentation.main_frame.panels.TranslatorsPanel
@@ -27,12 +27,11 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS
 
   private val contentPanel = JPanel(BorderLayout())
 
-  private val outputTextArea = TTextPane().apply {
+  private val outputTextArea = QtTextPane().apply {
     text = QTranslateViewModel.translation.value
     isEditable = false
-    componentOrientation =
-      ComponentOrientation.getOrientation(Locale.forLanguageTag(QTranslateViewModel.outputLanguage.value.alpha2))
     caretPosition = 0
+    allowPopupMenu = false
   }
 
   private val scrollPane = JScrollPane(outputTextArea).apply { border = BorderFactory.createEmptyBorder(2, 0, 0, 0) }
@@ -125,6 +124,8 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS
     }
 
     applyComponentOrientation(frame.componentOrientation)
+    outputTextArea.componentOrientation = ComponentOrientation.getOrientation(Locale.forLanguageTag(QTranslateViewModel.outputLanguage.value.alpha2))
+
     isVisible = true
     focusableWindowState = true
   }

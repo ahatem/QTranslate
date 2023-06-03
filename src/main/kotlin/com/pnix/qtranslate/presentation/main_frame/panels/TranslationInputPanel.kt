@@ -1,7 +1,9 @@
 package com.pnix.qtranslate.presentation.main_frame.panels
 
+import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.models.Configurations
-import com.pnix.qtranslate.presentation.components.TTextPane
+import com.pnix.qtranslate.presentation.components.QtTextPane
+import com.pnix.qtranslate.presentation.components.QtTextPaneListeners
 import com.pnix.qtranslate.presentation.listeners.window.WindowKeyListeners
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
 import com.pnix.qtranslate.utils.SimpleDocumentListener
@@ -9,7 +11,6 @@ import com.pnix.qtranslate.utils.copyToClipboard
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.awt.*
-import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.*
 import javax.swing.text.*
@@ -67,18 +68,14 @@ class UnderlineHighlighter : DefaultHighlighter() {
 class TranslationInputPanel : JPanel() {
 
   private val translateTimer = Timer(1000) {
-    if (Configurations.instantTranslation) GlobalScope.launch {
-      QTranslateViewModel.translate()
-    }
+    if (Configurations.instantTranslation) GlobalScope.launch { QTranslateViewModel.translate() }
   }.apply { isRepeats = false; }
 
   private val spellCheckTimer = Timer(1500) {
-    if (Configurations.spellChecking) GlobalScope.launch {
-      QTranslateViewModel.spellCheck()
-    }
+    if (Configurations.spellChecking) GlobalScope.launch { QTranslateViewModel.spellCheck() }
   }.apply { isRepeats = false; }
 
-  val inputTextArea = TTextPane().apply inputTextArea@{
+  val inputTextArea = QtTextPane().apply inputTextArea@{
 
     document.addDocumentListener(SimpleDocumentListener {
       QTranslateViewModel.setInputText(text)
@@ -86,74 +83,37 @@ class TranslationInputPanel : JPanel() {
       spellCheckTimer.restart()
     })
 
-    addMouseListener(object : MouseAdapter() {
-      override fun mousePressed(ev: MouseEvent) = maybeShowPopup(ev)
-      override fun mouseReleased(ev: MouseEvent) = maybeShowPopup(ev)
-
-      private fun maybeShowPopup(ev: MouseEvent) {
-        if (ev.isPopupTrigger) {
-          var spellingMenu: JMenu? = null
-          val offset: Int = viewToModel2D(ev.point)
-          val highlights: Array<Highlighter.Highlight> = highlighter.highlights
-          for (highlight in highlights) {
-            if (offset >= highlight.startOffset && offset < highlight.endOffset) {
-              val highlightedText = document.getText(highlight.startOffset, highlight.endOffset - highlight.startOffset)
-              val spellCheckCorrection =
-                QTranslateViewModel.spells.value.corrections.find { it.originalWord == highlightedText } ?: continue
-              spellingMenu = JMenu("Spelling")
-              spellCheckCorrection.suggestions.forEach { suggestion ->
-                spellingMenu.add(JMenuItem(suggestion).apply {
-                  addActionListener {
-                    document.remove(highlight.startOffset, highlight.endOffset - highlight.startOffset)
-                    document.insertString(highlight.startOffset, suggestion, null)
-                  }
-                })
-              }
+    listener = object : QtTextPaneListeners {
+      override fun createMenuHeader(event: MouseEvent): JMenu? {
+        var spellingMenu: JMenu? = null
+        val offset: Int = viewToModel2D(event.point)
+        val highlights: Array<Highlighter.Highlight> = highlighter.highlights
+        for (highlight in highlights) {
+          if (offset >= highlight.startOffset && offset < highlight.endOffset) {
+            val highlightedText = document.getText(highlight.startOffset, highlight.endOffset - highlight.startOffset)
+            val spellCheckCorrection = QTranslateViewModel.spells.value.corrections.find { it.originalWord == highlightedText } ?: continue
+            spellingMenu = JMenu(Localizer.localize("menu_item_spelling"))
+            spellCheckCorrection.suggestions.forEach { suggestion ->
+              spellingMenu.add(JMenuItem(suggestion).apply {
+                addActionListener {
+                  document.remove(highlight.startOffset, highlight.endOffset - highlight.startOffset)
+                  document.insertString(highlight.startOffset, suggestion, null)
+                }
+              })
             }
           }
-
-          val menu = JPopupMenu()
-          spellingMenu?.let {
-            menu.add(spellingMenu)
-            menu.addSeparator()
-          }
-          menu.add(JMenuItem("Undo").apply { addActionListener { undoManager.undo() } })
-          menu.addSeparator()
-          if (selectedText == null) {
-            menu.add(JMenuItem("Cut All").apply {
-              addActionListener {
-                this@inputTextArea.text.copyToClipboard()
-                this@inputTextArea.text = ""
-              }
-            })
-            menu.add(JMenuItem("Copy All").apply { addActionListener { this@inputTextArea.text.copyToClipboard() } })
-          } else {
-            menu.add(JMenuItem("Cut").apply { addActionListener { cut() } })
-            menu.add(JMenuItem("Copy").apply { addActionListener { copy() } })
-          }
-
-          menu.add(JMenuItem("Paste").apply { addActionListener { paste() } })
-          menu.addSeparator()
-          menu.add(JMenuItem("Translate").apply {
-            addActionListener {
-              GlobalScope.launch {
-                if (selectedText == null) QTranslateViewModel.translate()
-                else QTranslateViewModel.translate(selectedText)
-              }
-            }
-          })
-          menu.add(JMenuItem("Listen").apply {
-            addActionListener {
-              GlobalScope.launch {
-                if (selectedText == null) QTranslateViewModel.listenToInput()
-                else QTranslateViewModel.listenToInput(selectedText)
-              }
-            }
-          })
-          menu.show(ev.component, ev.x, ev.y)
         }
+        return spellingMenu
       }
-    })
+
+      override fun onMenuItemTranslateClicked(selectedText: String) {
+        GlobalScope.launch { QTranslateViewModel.translate(selectedText) }
+      }
+      override fun onMenuItemListenClicked(selectedText: String) {
+        GlobalScope.launch { QTranslateViewModel.listenToInput(selectedText) }
+      }
+    }
+
   }
 
   init {

@@ -204,6 +204,8 @@ class QTranslateFrame : JFrame("QTranslate") {
         mainPanel.translationInputPanel.inputTextArea.requestFocus()
         if (Configurations.enableGlobalHotkeys) QTranslateHotkeyListener.registerGlobalListener()
         else QTranslateHotkeyListener.unRegisterGlobalListener()
+
+        if (Configurations.autoCheckForUpdates) WindowKeyListeners.CheckForUpdate.action.actionPerformed(null)
       }
 
       override fun windowClosing(e: WindowEvent?) {
@@ -299,5 +301,6 @@ class QTranslateFrame : JFrame("QTranslate") {
     }
     return settingsButton
   }
+
 
 }

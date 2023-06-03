@@ -128,6 +128,16 @@ sealed class WindowKeyListeners(val action: ActionListener, val hotkey: KeyStrok
     null
   )
 
+  object ToggleAutoCheckForUpdates : WindowKeyListeners(
+    ToggleAutoCheckForUpdatesAction(),
+    null
+  )
+
+  object CheckForUpdate : WindowKeyListeners(
+    CheckForUpdateAction(),
+    null
+  )
+
   object ContactUs : WindowKeyListeners(
     ContactUsAction(),
     null
@@ -169,7 +179,9 @@ sealed class WindowKeyListeners(val action: ActionListener, val hotkey: KeyStrok
         OpenSettingsDialog,
         ContactUs,
         OpenAboutQTranslateDialog,
-        ToggleGlobalHotkeys
+        ToggleGlobalHotkeys,
+        ToggleAutoCheckForUpdates,
+        CheckForUpdate
       ).filter { it.hotkey != null }
     }
   }

@@ -4,6 +4,7 @@ import com.formdev.flatlaf.FlatLaf
 import com.formdev.flatlaf.intellijthemes.*
 import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatMaterialOceanicIJTheme
 import com.formdev.flatlaf.themes.FlatMacLightLaf
+import com.pnix.qtranslate.common.QTranslate
 import com.pnix.qtranslate.utils.fileToLaf
 import com.pnix.qtranslate.utils.getDefaultFontFamily
 import java.util.prefs.Preferences
@@ -52,6 +53,7 @@ data class Configuration(
   var autoDetectSecondLanguage: String = Configurations.autoDetectSecondLanguage,
   var enableHistory: Boolean = Configurations.enableHistory,
   var clearHistoryOnExist: Boolean = Configurations.clearHistoryOnExist,
+  var expandHistoryItems: Boolean = Configurations.expandHistoryItems,
 
   // * Services
   var excludedTranslators: MutableSet<String> = Configurations.excludedTranslators,
@@ -78,6 +80,7 @@ object Configurations {
     autoDetectSecondLanguage = configuration.autoDetectSecondLanguage
     enableHistory = configuration.enableHistory
     clearHistoryOnExist = configuration.clearHistoryOnExist
+    expandHistoryItems = configuration.expandHistoryItems
 
     // * Services
     excludedTranslators = configuration.excludedTranslators
@@ -125,6 +128,15 @@ object Configurations {
   var enableGlobalHotkeys by Delegates.observable(prefs.getBoolean("enable_global_hotkeys", true))
   { _, _, newValue -> prefs.putBoolean("enable_global_hotkeys", newValue) }
 
+  var latestVersionNumber by Delegates.observable(prefs.getInt("latest_version_number", QTranslate.VERSION_NUMBER))
+  { _, _, newValue -> prefs.putInt("latest_version_number", newValue) }
+
+  var skippedVersionNumber by Delegates.observable(prefs.getInt("skipped_version_number", -1))
+  { _, _, newValue -> prefs.putInt("skipped_version_number", newValue) }
+
+  var autoCheckForUpdates by Delegates.observable(prefs.getBoolean("auto_check_for_updates", true))
+  { _, _, newValue -> prefs.putBoolean("auto_check_for_updates", newValue) }
+
 
   // * Basics
   var startWithWindows by Delegates.observable(prefs.getBoolean("start_with_windows", false))
@@ -151,6 +163,8 @@ object Configurations {
   var clearHistoryOnExist by Delegates.observable(prefs.getBoolean("clear_history_on_exit", true))
   { _, _, newValue -> prefs.putBoolean("clear_history_on_exit", newValue) }
 
+  var expandHistoryItems by Delegates.observable(prefs.getBoolean("expand_history_items", false))
+  { _, _, newValue -> prefs.putBoolean("expand_history_items", newValue) }
 
   // * Services
   var excludedTranslators by Delegates.observable(prefs.get("excluded_translators", "").split(",").toMutableSet())

@@ -3,13 +3,11 @@ package com.pnix.qtranslate.presentation.history_dialog
 import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.icons.FlatSearchIcon
 import com.pnix.qtranslate.common.Localizer
+import com.pnix.qtranslate.models.Configurations
 import com.pnix.qtranslate.models.TranslationHistory
 import com.pnix.qtranslate.models.TranslationHistorySnapshot
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
-import com.pnix.qtranslate.utils.SimpleDocumentListener
-import com.pnix.qtranslate.utils.createButtonWithIcon
-import com.pnix.qtranslate.utils.localizedName
-import com.pnix.qtranslate.utils.setPadding
+import com.pnix.qtranslate.utils.*
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
@@ -126,5 +124,6 @@ class HistoryDialog(frame: Frame) : JDialog(frame, Localizer.localize("history_p
       }
     }
     (historyTree.model as DefaultTreeModel).reload()
+    if (Configurations.expandHistoryItems) historyTree.expandAllNodes()
   }
 }

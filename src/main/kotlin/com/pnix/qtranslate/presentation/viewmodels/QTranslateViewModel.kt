@@ -8,10 +8,6 @@ import com.pnix.qtranslate.services.text_extractor.GoogleTextExtractor
 import com.pnix.qtranslate.services.text_extractor.OcrSpaceTextExtractor
 import com.pnix.qtranslate.services.translators.abstraction.TextToSpeechNotSupportedException
 import com.pnix.qtranslate.services.translators.abstraction.UnsupportedLanguageException
-import com.pnix.qtranslate.services.translators.bing.BingTranslator
-import com.pnix.qtranslate.services.translators.google.GoogleTranslator
-import com.pnix.qtranslate.services.translators.reverso.ReversoTranslator
-import com.pnix.qtranslate.services.translators.yandex.YandexTranslator
 import com.pnix.qtranslate.utils.supportedTranslators
 import javazoom.jl.player.advanced.AdvancedPlayer
 import kotlinx.coroutines.CoroutineScope
@@ -23,7 +19,7 @@ import kotlinx.coroutines.launch
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 
-private class UnknownErrorOccurredException(cause: Throwable) : Exception(
+class UnknownErrorOccurredException(cause: Throwable) : Exception(
   Localizer.localize("status_panel_error_text_unknown_error_occurred"), cause
 )
 
@@ -95,16 +91,18 @@ object QTranslateViewModel {
           "${backwardTranslationResult.translatedText}\n\n${backwardTranslationResult.additionalInfo}".trim()
       }
 
-      TranslationHistory.saveSnapshot(
-        TranslationHistorySnapshot(
-          _selectedTranslatorIndex.value,
-          inputLang,
-          outputLang,
-          inputText,
-          _translation.value,
-          _backwardTranslation.value
+      if (Configurations.enableHistory) {
+        TranslationHistory.saveSnapshot(
+          TranslationHistorySnapshot(
+            _selectedTranslatorIndex.value,
+            inputLang,
+            outputLang,
+            inputText,
+            _translation.value,
+            _backwardTranslation.value
+          )
         )
-      )
+      }
 
     }.onFailure {
       _error.value = when (it) {
@@ -141,8 +139,8 @@ object QTranslateViewModel {
     }
   }
 
-  suspend fun listenToTranslation() {
-    val outputText = _translation.value
+  suspend fun listenToTranslation(text: String? = null) {
+    val outputText = text ?: _translation.value
     if (outputText.isBlank()) return
 
     val outputLang = _outputLanguage.value.alpha3
@@ -158,8 +156,8 @@ object QTranslateViewModel {
     }
   }
 
-  suspend fun listenToBackwardTranslationAction() {
-    val backwardTranslationText = _backwardTranslation.value
+  suspend fun listenToBackwardTranslation(text: String? = null) {
+    val backwardTranslationText = text ?: _backwardTranslation.value
     if (backwardTranslationText.isBlank()) return
 
     val outputLang = _inputLanguage.value.alpha3
@@ -265,6 +263,10 @@ object QTranslateViewModel {
 
   fun setLoading(loading: Boolean) {
     _isLoading.value = loading
+  }
+
+  fun setError(exception: Exception) {
+    this._error.value = exception
   }
 
   fun setMainFrame(frame: QTranslateFrame) {
