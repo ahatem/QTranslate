@@ -1,11 +1,7 @@
 package com.pnix.qtranslate.presentation.listeners.window
 
-import com.pnix.qtranslate.utils.altKeyWith
-import com.pnix.qtranslate.utils.controlKeyWith
-import com.pnix.qtranslate.utils.shiftKeyWith
-import com.pnix.qtranslate.utils.singleKey
+import com.pnix.qtranslate.models.Hotkeys
 import java.awt.event.ActionListener
-import java.awt.event.KeyEvent
 import javax.swing.KeyStroke
 
 /*
@@ -20,17 +16,18 @@ sealed class WindowKeyListeners(val action: ActionListener, val hotkey: KeyStrok
 
   object Translate : WindowKeyListeners(
     TranslateAction(),
-    controlKeyWith(KeyEvent.VK_ENTER)
+    Hotkeys.getHotkey("translate")!!.toKeyStroke()
   )
 
   object ListenToInput : WindowKeyListeners(
     ListenToInputAction(),
-    controlKeyWith(KeyEvent.VK_L)
+    Hotkeys.getHotkey("listen_to_input")!!.toKeyStroke()
   )
 
   object ListenToTranslation : WindowKeyListeners(
     ListenToTranslationAction(),
-    controlKeyWith(KeyEvent.VK_O)
+    Hotkeys.getHotkey("listen_to_translation")!!.toKeyStroke()
+
   )
 
   object ListenToBackwardTranslation : WindowKeyListeners(
@@ -40,67 +37,67 @@ sealed class WindowKeyListeners(val action: ActionListener, val hotkey: KeyStrok
 
   object ClearCurrentTranslation : WindowKeyListeners(
     ClearAction(),
-    controlKeyWith(KeyEvent.VK_N)
+    Hotkeys.getHotkey("clear_current_translation")!!.toKeyStroke()
   )
 
   object SwapTranslationDirection : WindowKeyListeners(
     SwapTranslationDirectionAction(),
-    controlKeyWith(KeyEvent.VK_I)
+    Hotkeys.getHotkey("swap_translation_direction")!!.toKeyStroke()
   )
 
   object OpenDictionaryDialog : WindowKeyListeners(
     OpenDictionaryDialogAction(),
-    controlKeyWith(KeyEvent.VK_D)
+    Hotkeys.getHotkey("open_dictionary_dialog")!!.toKeyStroke()
   )
 
   object OpenHistoryDialog : WindowKeyListeners(
     OpenHistoryDialogAction(),
-    controlKeyWith(KeyEvent.VK_H)
+    Hotkeys.getHotkey("open_history_dialog")!!.toKeyStroke()
   )
 
   object ResetLanguagePairToAutoDetected : WindowKeyListeners(
     ResetLanguagePairToAutoDetectedAction(),
-    shiftKeyWith(KeyEvent.VK_ESCAPE)
+    Hotkeys.getHotkey("reset_language_pair_to_auto_detected")!!.toKeyStroke()
   )
 
   object HowToUse : WindowKeyListeners(
     HowToUseAction(),
-    singleKey(KeyEvent.VK_F1)
+    Hotkeys.getHotkey("how_to_use")!!.toKeyStroke()
   )
 
   object ToggleFullScreen : WindowKeyListeners(
     ToggleFullScreenAction(),
-    singleKey(KeyEvent.VK_F11)
+    Hotkeys.getHotkey("toggle_full_screen")!!.toKeyStroke()
   )
 
   object GoBackwardInHistory : WindowKeyListeners(
     GoBackwardInHistoryAction(),
-    altKeyWith(KeyEvent.VK_LEFT)
+    Hotkeys.getHotkey("go_backward_in_history")!!.toKeyStroke()
   )
 
   object GoForwardInHistory : WindowKeyListeners(
     GoForwardInHistoryAction(),
-    altKeyWith(KeyEvent.VK_RIGHT)
+    Hotkeys.getHotkey("go_forward_in_history")!!.toKeyStroke()
   )
 
   object ToggleHistoryPane : WindowKeyListeners(
     ToggleHistoryPaneAction(),
-    controlKeyWith(KeyEvent.VK_F1)
+    Hotkeys.getHotkey("toggle_history_pane")!!.toKeyStroke()
   )
 
   object ToggleTranslationOptionsPane : WindowKeyListeners(
     ToggleTranslationOptionsPaneAction(),
-    controlKeyWith(KeyEvent.VK_F2)
+    Hotkeys.getHotkey("toggle_translation_options_pane")!!.toKeyStroke()
   )
 
   object ToggleServicesPane : WindowKeyListeners(
     ToggleServicesPaneAction(),
-    controlKeyWith(KeyEvent.VK_F3)
+    Hotkeys.getHotkey("toggle_services_pane")!!.toKeyStroke()
   )
 
   object ToggleStatusPane : WindowKeyListeners(
     ToggleStatusPaneAction(),
-    controlKeyWith(KeyEvent.VK_F4)
+    Hotkeys.getHotkey("toggle_status_pane")!!.toKeyStroke()
   )
 
   object ToggleSpellChecking : WindowKeyListeners(
@@ -115,12 +112,12 @@ sealed class WindowKeyListeners(val action: ActionListener, val hotkey: KeyStrok
 
   object ToggleBackwardTranslationPane : WindowKeyListeners(
     ToggleBackwardTranslationPaneAction(),
-    controlKeyWith(KeyEvent.VK_B)
+    Hotkeys.getHotkey("toggle_backward_translation_pane")!!.toKeyStroke()
   )
 
   object OpenSettingsDialog : WindowKeyListeners(
     OpenSettingsDialogAction(),
-    controlKeyWith(KeyEvent.VK_COMMA)
+    Hotkeys.getHotkey("open_settings_dialog")!!.toKeyStroke()
   )
 
   data class ChangeLayoutPreset(val presetId: String) : WindowKeyListeners(
@@ -181,7 +178,7 @@ sealed class WindowKeyListeners(val action: ActionListener, val hotkey: KeyStrok
         OpenAboutQTranslateDialog,
         ToggleGlobalHotkeys,
         ToggleAutoCheckForUpdates,
-        CheckForUpdate
+        CheckForUpdate,
       ).filter { it.hotkey != null }
     }
   }

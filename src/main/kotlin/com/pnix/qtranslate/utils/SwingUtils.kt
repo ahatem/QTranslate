@@ -9,7 +9,9 @@ import com.formdev.flatlaf.ui.FlatBorder
 import com.formdev.flatlaf.util.SystemInfo
 import com.pnix.qtranslate.models.Theme
 import java.awt.*
+import java.awt.event.ActionEvent
 import java.awt.event.InputEvent
+import java.awt.event.KeyEvent
 import java.beans.PropertyChangeListener
 import javax.swing.*
 import javax.swing.event.AncestorEvent
@@ -144,6 +146,27 @@ fun getDefaultFontFamily(): String {
     }
   }
   return defaultFontFamily
+}
+
+
+fun KeyStroke.getReadableKeyStrokeText(): String {
+  val sb = StringBuilder()
+
+  if (modifiers and ActionEvent.CTRL_MASK != 0 && keyCode != KeyEvent.VK_CONTROL) {
+    sb.append("Ctrl + ")
+  }
+  if (modifiers and ActionEvent.SHIFT_MASK != 0 && keyCode != KeyEvent.VK_SHIFT) {
+    sb.append("Shift + ")
+  }
+  if (modifiers and ActionEvent.ALT_MASK != 0 && keyCode != KeyEvent.VK_ALT) {
+    sb.append("Alt + ")
+  }
+  if (modifiers and ActionEvent.META_MASK != 0 && keyCode != KeyEvent.VK_META) {
+    sb.append("Meta + ")
+  }
+
+  sb.append(KeyEvent.getKeyText(keyCode))
+  return sb.toString()
 }
 
 fun shakeComponent(component: JComponent, delayTime: Long = 16) {

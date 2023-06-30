@@ -129,7 +129,7 @@ class GoogleTranslator : TranslatorService() {
           for (dict in response.dict.orEmpty()) {
             additionalInfo += "${dict.pos.replaceFirstChar(Char::titlecase)}:"
             for ((index, term) in dict.terms.withIndex()) {
-              additionalInfo += "\n  $term (${dict.entry[index].reverseTranslation.joinToString()})"
+              runCatching { additionalInfo += "\n  $term (${dict.entry[index].reverseTranslation.joinToString()})" }
             }
             additionalInfo += "\n\n"
           }

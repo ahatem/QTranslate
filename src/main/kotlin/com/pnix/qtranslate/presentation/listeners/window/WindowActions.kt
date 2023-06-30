@@ -10,8 +10,10 @@ import com.pnix.qtranslate.presentation.update_dialog.NewUpdateDialog
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import java.awt.GraphicsEnvironment
 import java.awt.event.ActionEvent
 import java.awt.event.ActionListener
+
 
 class TranslateAction : ActionListener {
   override fun actionPerformed(e: ActionEvent?) {
@@ -101,8 +103,18 @@ class HowToUseAction : ActionListener {
 }
 
 class ToggleFullScreenAction : ActionListener {
+  private var isFullscreen = false
+
   override fun actionPerformed(e: ActionEvent?) {
-    println("ToggleFullScreenAction")
+    val device = GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices[0]
+    if (isFullscreen) {
+      isFullscreen = false
+      device.fullScreenWindow = null
+    } else {
+      isFullscreen = true
+      device.fullScreenWindow = QTranslateViewModel.mainFrame
+    }
+
   }
 }
 
@@ -215,5 +227,14 @@ class CheckForUpdateAction : ActionListener {
         NewUpdateDialog(QTranslateViewModel.mainFrame, latestVersionInfo)
       }
     }
+  }
+}
+
+class CycleServicesAction : ActionListener {
+  override fun actionPerformed(e: ActionEvent?) {
+    val translators = QTranslateViewModel.translators
+    val currentTranslatorIndex = QTranslateViewModel.selectedTranslatorIndex.value
+    val nextTranslatorIndex = (currentTranslatorIndex + 1) % translators.size
+    QTranslateViewModel.setSelectedTranslatorIndex(nextTranslatorIndex)
   }
 }

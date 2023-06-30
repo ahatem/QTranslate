@@ -75,9 +75,9 @@ class QtTextPane : JTextPane() {
 
   init {
     font = Font(Configurations.inputsFontName, Font.PLAIN, Configurations.inputsFontSize)
+    focusTraversalKeysEnabled = false
     highlighter = UnderlineHighlighter()
     document.addUndoableEditListener(undoManager)
-
     resetKeybindings()
     addUndoRedoKeys()
     addZoomListener()

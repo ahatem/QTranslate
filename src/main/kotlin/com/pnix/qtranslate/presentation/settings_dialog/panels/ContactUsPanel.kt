@@ -16,11 +16,11 @@ class ContactUsPanel : JPanel() {
   private val emailField: JTextField
   private val messageArea: JTextArea
 
-  private val pos = GBHelper().apply { insets = Insets(2, 2, 2, 2) }
+  private val pos = GBHelper().apply { insets = Insets(0, 2, 0, 2) }
 
   init {
     layout = GridBagLayout()
-
+    border = BorderFactory.createEmptyBorder(2, 0, 2, 0)
     // Add email label and field
     add(JLabel(Localizer.localize("contact_us_panel_text_email")), pos)
     emailField = JTextField(20).apply {
@@ -42,7 +42,10 @@ class ContactUsPanel : JPanel() {
     add(topicField, pos.nextCol().expandW())
 
     // Add message label and area
-    add(JLabel(Localizer.localize("contact_us_panel_text_message")), pos.nextRow().align(GridBagConstraints.FIRST_LINE_START))
+    add(
+      JLabel(Localizer.localize("contact_us_panel_text_message")),
+      pos.nextRow().align(GridBagConstraints.FIRST_LINE_START)
+    )
     messageArea = JTextArea(5, 20)
     val scrollPane = JScrollPane(messageArea)
     add(scrollPane, pos.nextCol().expandW().expandH())

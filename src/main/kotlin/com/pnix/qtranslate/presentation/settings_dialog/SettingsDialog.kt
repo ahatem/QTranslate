@@ -18,6 +18,7 @@ class SettingsDialog(val frame: JFrame) : JDialog(frame, Localizer.localize("set
 
   private val listItems = mapOf(
     formattedListItemText("settings_panel_list_item_basics") to "basics",
+    formattedListItemText("settings_panel_list_item_hotkeys") to "hotkeys",
     formattedListItemText("settings_panel_list_item_services") to "services",
     formattedListItemText("settings_panel_list_item_languages") to "languages",
     formattedListItemText("settings_panel_list_item_appearance") to "appearance",
@@ -42,6 +43,7 @@ class SettingsDialog(val frame: JFrame) : JDialog(frame, Localizer.localize("set
     cardPanel.border = BorderFactory.createEmptyBorder(0, 2, 0, 2)
 
     cardPanel.add(BasicsPanel(configuration), "basics")
+    cardPanel.add(HotkeysPanel(this), "hotkeys")
     cardPanel.add(ServicesPanel(configuration), "services")
     cardPanel.add(LanguagesPanel(configuration), "languages")
     cardPanel.add(AppearancePanel(configuration), "appearance")

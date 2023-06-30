@@ -2,6 +2,7 @@ package com.pnix.qtranslate.presentation.main_frame.panels
 
 import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.models.Language
+import com.pnix.qtranslate.presentation.components.QtLanguageComboBox
 import com.pnix.qtranslate.presentation.listeners.window.WindowKeyListeners
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
 import com.pnix.qtranslate.utils.createButtonWithIcon
@@ -58,13 +59,13 @@ class TranslationOptionsPanel : JPanel() {
     }
   }
 
-  private fun createComboBox(selectedLanguage: Language): JComboBox<Language> {
-    return JComboBox(QTranslateViewModel.supportedLanguages).apply {
-      selectedItem = selectedLanguage
+  private fun createComboBox(selectedLanguage: Language): QtLanguageComboBox {
+    return QtLanguageComboBox().apply {
+      this.selectedLanguage = selectedLanguage
       addItemListener { event ->
-        when (val comboBox = event.source as JComboBox<*>) {
-          inputLangComboBox -> QTranslateViewModel.setInputLanguage(comboBox.selectedItem as Language)
-          outputLangComboBox -> QTranslateViewModel.setOutputLanguage(comboBox.selectedItem as Language)
+        when (val comboBox = event.source as QtLanguageComboBox) {
+          inputLangComboBox -> QTranslateViewModel.setInputLanguage(comboBox.selectedLanguage)
+          outputLangComboBox -> QTranslateViewModel.setOutputLanguage(comboBox.selectedLanguage)
         }
       }
     }

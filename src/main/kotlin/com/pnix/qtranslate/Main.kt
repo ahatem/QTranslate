@@ -6,22 +6,33 @@ import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.common.UserAgent
 import com.pnix.qtranslate.models.Configurations
 import com.pnix.qtranslate.presentation.main_frame.QTranslateFrame
-import kong.unirest.Unirest
+import kong.unirest.*
+import org.eclipse.swt.SWT
+import org.eclipse.swt.browser.*
+import org.eclipse.swt.events.*
+import org.eclipse.swt.layout.*
+import org.eclipse.swt.widgets.*
 import java.awt.ComponentOrientation
-import javax.swing.SwingUtilities
-import javax.swing.UIManager
+import java.util.*
+import javax.swing.*
+
 
 /*
+* https://www.logicbig.com/tutorials/java-swing/text-suggestion-component.html
 * IN-PROGRESS:
 * TODO:
-*   Auto-detect not implemented
-*   Create LanguageComboBox to handle all logic for that
 *   Add Auto-Complete POPUP TO TTextArea
 *   Audio can't be stopped ... so make stop it (if same text OR the content of the clipboard not changed)
 *   Languages in settings are not functional
+*   Search Dictionaries Ctrl + right mouse click or ctrl+shift+q
+*   Add shortcuts/hotkeys settings page to allow user to change hotkeys
+*   Create Virtual Keyboard
 */
 
+
 fun main() {
+  System.setProperty("org.eclipse.swt.browser.DefaultType", "edge")
+  System.setProperty("sun.awt.xembedserver", "true")
   SwingUtilities.invokeLater {
     FlatLaf.setup(Configurations.theme.lookAndFeel)
     FlatLaf.setUseNativeWindowDecorations(Configurations.enableWindowStyle)
@@ -34,9 +45,156 @@ fun main() {
       isVisible = true
     }
   }
+
 }
 
-fun `sending GET requests with different IPs`() {
+// FOR USE LATER
+class AdvancedBrowser(location: String?) {
+  init {
+    val display = Display()
+    val shell = Shell(display)
+    shell.text = "Advanced Browser"
+    shell.layout = FormLayout()
+    val controls = Composite(shell, SWT.NONE)
+    var data = FormData()
+    data.top = FormAttachment(0, 0)
+    data.left = FormAttachment(0, 0)
+    data.right = FormAttachment(100, 0)
+    controls.layoutData = data
+    val status = Label(shell, SWT.NONE)
+    data = FormData()
+    data.left = FormAttachment(0, 0)
+    data.right = FormAttachment(100, 0)
+    data.bottom = FormAttachment(100, 0)
+    status.layoutData = data
+    val browser = Browser(shell, SWT.BORDER)
+    data = FormData()
+    data.top = FormAttachment(controls)
+    data.bottom = FormAttachment(status)
+    data.left = FormAttachment(0, 0)
+    data.right = FormAttachment(100, 0)
+    browser.layoutData = data
+    controls.layout = GridLayout(7, false)
+    var button = Button(controls, SWT.PUSH)
+    button.text = "Back"
+    button.addSelectionListener(object : SelectionAdapter() {
+      override fun widgetSelected(event: SelectionEvent) {
+        browser.back()
+      }
+    })
+    button = Button(controls, SWT.PUSH)
+    button.text = "Forward"
+    button.addSelectionListener(object : SelectionAdapter() {
+      override fun widgetSelected(event: SelectionEvent) {
+        browser.forward()
+      }
+    })
+    button = Button(controls, SWT.PUSH)
+    button.text = "Refresh"
+    button.addSelectionListener(object : SelectionAdapter() {
+      override fun widgetSelected(event: SelectionEvent) {
+        browser.refresh()
+      }
+    })
+    button = Button(controls, SWT.PUSH)
+    button.text = "Stop"
+    button.addSelectionListener(object : SelectionAdapter() {
+      override fun widgetSelected(event: SelectionEvent) {
+        browser.stop()
+      }
+    })
+    val url = Text(controls, SWT.BORDER)
+    url.layoutData = GridData(GridData.FILL_HORIZONTAL)
+    url.setFocus()
+    button = Button(controls, SWT.PUSH)
+    button.text = "Go"
+    button.addSelectionListener(object : SelectionAdapter() {
+      override fun widgetSelected(event: SelectionEvent) {
+        browser.setUrl(url.text)
+      }
+    })
+    val throbber = Label(controls, SWT.NONE)
+    throbber.text = AT_REST
+    shell.defaultButton = button
+    browser.addCloseWindowListener(AdvancedCloseWindowListener())
+    browser.addLocationListener(AdvancedLocationListener(url))
+    browser.addProgressListener(AdvancedProgressListener(throbber))
+    browser.addStatusTextListener(AdvancedStatusTextListener(status))
+
+    // Go to the initial URL
+    if (location != null) {
+      browser.setUrl(location)
+    }
+    shell.open()
+    while (!shell.isDisposed) {
+      if (!display.readAndDispatch()) {
+        display.sleep()
+      }
+    }
+    display.dispose()
+  }
+
+  internal inner class AdvancedCloseWindowListener : CloseWindowListener {
+    override fun close(event: WindowEvent) {
+      (event.widget as Browser).shell.close()
+    }
+  }
+
+  internal inner class AdvancedLocationListener(text: Text) : LocationListener {
+    private val location: Text
+
+    init {
+      location = text
+    }
+
+    override fun changing(event: LocationEvent) {
+      location.text = "Loading " + event.location + "..."
+    }
+
+    override fun changed(event: LocationEvent) {
+      location.text = event.location
+    }
+  }
+
+  internal inner class AdvancedProgressListener(label: Label) : ProgressListener {
+    private val progress: Label
+
+    init {
+      progress = label
+    }
+
+    override fun changed(event: ProgressEvent) {
+      if (event.total !== 0) {
+        val percent = (event.current / event.total)
+        progress.text = "$percent%"
+      } else {
+        progress.text = "?"
+      }
+    }
+
+    override fun completed(event: ProgressEvent?) {
+      progress.text = AT_REST
+    }
+  }
+
+  internal inner class AdvancedStatusTextListener(label: Label) : StatusTextListener {
+    private val status: Label
+
+    init {
+      status = label
+    }
+
+    override fun changed(event: StatusTextEvent) {
+      status.text = event.text
+    }
+  }
+
+  companion object {
+    private const val AT_REST = "Ready"
+  }
+}
+
+fun sendGetRequestsWithDifferentIps() {
   // from megabasterd proxy list
   val ipAddresses = arrayOf(
     "167.172.148.136:80",
@@ -71,7 +229,7 @@ fun getAutoComplete(text: String) {
   val data = gson.fromJson(response.body, Array<Any>::class.java)
   val autoCompletionsString = data[1].toString()
   val autoCompletions = autoCompletionsString
-    .substring( 1, autoCompletionsString.length - 1 )
+    .substring(1, autoCompletionsString.length - 1)
     .split(", ")
     .filter { !it.matches(Regex("^https?://.*")) }
     .take(10)
@@ -82,3 +240,4 @@ fun getAutoComplete(text: String) {
 
 //  for result in json.loads(response.text)[1]:
 }
+

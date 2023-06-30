@@ -31,8 +31,6 @@ object EmailSender {
         .asString()
 
       if (response.status == 200) {
-        println("Email sent successfully.")
-        println("API response: ${response.body}")
         return true
       } else {
         throw RuntimeException("Failed to send email: ${response.body}")

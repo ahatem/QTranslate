@@ -2,6 +2,8 @@ package com.pnix.qtranslate.presentation.listeners.global
 
 import com.melloware.jintellitype.HotkeyListener
 import com.melloware.jintellitype.JIntellitype
+import com.pnix.qtranslate.models.Hotkeys
+import com.pnix.qtranslate.presentation.listeners.window.CycleServicesAction
 import com.pnix.qtranslate.presentation.quick_translate_dialog.QuickTranslateDialog
 import com.pnix.qtranslate.presentation.snipping_screen_dialog.SnippingToolDialog
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
@@ -20,17 +22,27 @@ import javax.swing.SwingUtilities
 class QTranslateHotkeyListener(private val frame: JFrame) : HotkeyListener {
 
   companion object {
+    private val globalHotkeys = listOf(
+      "main_window",
+      "popup_window",
+      "listen_selected_text",
+      "text_recognition",
+      "cycle_services"
+    )
+
     private val INSTANCE = QTranslateHotkeyListener(QTranslateViewModel.mainFrame)
     private var registered = false
 
     fun registerGlobalListener() {
       if (registered) return
+      INSTANCE.init()
       JIntellitype.getInstance().addHotKeyListener(INSTANCE)
       registered = true
     }
 
     fun unRegisterGlobalListener() {
       if (!registered) return
+      INSTANCE.clear()
       JIntellitype.getInstance().removeHotKeyListener(INSTANCE)
       registered = false
     }
@@ -41,11 +53,17 @@ class QTranslateHotkeyListener(private val frame: JFrame) : HotkeyListener {
   private var usingClipboard = false
   private var lastCtrlPressTime = 0L
 
-  init {
-    JIntellitype.getInstance().registerHotKey(0, JIntellitype.MOD_CONTROL, 0)
-    JIntellitype.getInstance().registerHotKey(1, JIntellitype.MOD_CONTROL, 'Q'.code)
-    JIntellitype.getInstance().registerHotKey(2, JIntellitype.MOD_CONTROL, 'E'.code)
-    JIntellitype.getInstance().registerHotKey(3, JIntellitype.MOD_CONTROL, 'I'.code)
+  private fun init() {
+    globalHotkeys.forEachIndexed { index, hotkeyId ->
+      val hotkey = Hotkeys.getHotkey(hotkeyId)!!
+      runCatching { JIntellitype.getInstance().registerSwingHotKey(index, hotkey.modifiers, hotkey.keyCode) }
+    }
+  }
+
+  fun clear() {
+    globalHotkeys.forEachIndexed { index, _ ->
+      runCatching { JIntellitype.getInstance().unregisterHotKey(index) }
+    }
   }
 
   override fun onHotKey(identifier: Int) {
@@ -54,6 +72,7 @@ class QTranslateHotkeyListener(private val frame: JFrame) : HotkeyListener {
       1 -> translateInPlace()
       2 -> listenToTextInPlace()
       3 -> captureScreen()
+      4 -> cycleServices()
     }
   }
 
@@ -153,6 +172,12 @@ class QTranslateHotkeyListener(private val frame: JFrame) : HotkeyListener {
     delay(50)
     robot.keyRelease(KeyEvent.VK_CONTROL)
     delay(50)
+  }
+
+  private fun cycleServices() {
+    if (QTranslateViewModel.mainFrame.isVisible) {
+      CycleServicesAction().actionPerformed(null)
+    }
   }
 
 }

@@ -26,6 +26,7 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS
   private val padding = 4
 
   private val contentPanel = JPanel(BorderLayout())
+  private val dialogTitle = getDialogTitle()
 
   private val outputTextArea = QtTextPane().apply {
     text = QTranslateViewModel.translation.value
@@ -112,19 +113,31 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS
     })
 
     quickTranslateDialogScope.launch(Dispatchers.Swing) {
-      QTranslateViewModel.translation.collectLatest {
-        if (outputTextArea.text != it) {
-          outputTextArea.text = it
-          val locale = Locale.forLanguageTag(QTranslateViewModel.outputLanguage.value.alpha2)
-          outputTextArea.componentOrientation = ComponentOrientation.getOrientation(locale)
-          outputTextArea.caretPosition = 0
+      launch {
+        QTranslateViewModel.translation.collectLatest {
+          if (outputTextArea.text != it) {
+            outputTextArea.text = it
+            val locale = Locale.forLanguageTag(QTranslateViewModel.outputLanguage.value.alpha2)
+            outputTextArea.componentOrientation = ComponentOrientation.getOrientation(locale)
+            outputTextArea.caretPosition = 0
+            autoHideTimer.restart()
+          }
+        }
+      }
+
+      launch {
+        QTranslateViewModel.selectedTranslatorIndex.collectLatest {
+          dialogTitle.text = getDialogTitle().text
+          translatorsPanel.selectIndex(it)
+          QTranslateViewModel.translate()
           autoHideTimer.restart()
         }
       }
     }
 
     applyComponentOrientation(frame.componentOrientation)
-    outputTextArea.componentOrientation = ComponentOrientation.getOrientation(Locale.forLanguageTag(QTranslateViewModel.outputLanguage.value.alpha2))
+    outputTextArea.componentOrientation =
+      ComponentOrientation.getOrientation(Locale.forLanguageTag(QTranslateViewModel.outputLanguage.value.alpha2))
 
     isVisible = true
     focusableWindowState = true
@@ -231,7 +244,7 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS
       border = null
       add(closeButton)
       add(Box.createHorizontalStrut(4))
-      add(JLabel(getDialogTitle()))
+      add(dialogTitle)
       add(Box.createHorizontalGlue())
       add(favouriteButton)
       add(dictionaryButton)
@@ -241,10 +254,20 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS
     }
   }
 
-  private fun getDialogTitle(): String {
+  // TODO Extract to member variable and update it when translator index change
+  private fun getDialogTitle(): JLabel {
     val inputLanguageName = QTranslateViewModel.inputLanguage.value.name
     val outputLanguageName = QTranslateViewModel.outputLanguage.value.name
-    return Localizer.localize("quick_translate_panel_title").format(inputLanguageName, outputLanguageName)
+    val inputLangText = """<FONT style="font-weight: 600;">${inputLanguageName}</FONT>"""
+    val outputLangText = """<FONT style="font-weight: 600;">${outputLanguageName}</FONT>"""
+    val text = """
+      <HTML>
+        <BODY>
+          ${Localizer.localize("quick_translate_panel_title").format(inputLangText, outputLangText)}${"&nbsp;".repeat(6)}
+        </BODY>
+      </HTML>
+    """.trimIndent()
+    return JLabel(text)
   }
 
 }

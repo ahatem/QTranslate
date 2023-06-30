@@ -19,6 +19,10 @@ import kotlinx.coroutines.launch
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 
+fun Language.Companion.getAutoDetectLanguage(detectedLanguage: Language? = null): Language {
+  return Language(if (detectedLanguage != null && detectedLanguage.name != "auto") "Auto detect (%s)".format(detectedLanguage.name) else "Auto detect")
+}
+
 class UnknownErrorOccurredException(cause: Throwable) : Exception(
   Localizer.localize("status_panel_error_text_unknown_error_occurred"), cause
 )
@@ -50,10 +54,10 @@ object QTranslateViewModel {
   private val _backwardTranslation = MutableStateFlow("")
   val backwardTranslation = _backwardTranslation.asStateFlow()
 
-  private val _inputLanguage = MutableStateFlow(Language("eng"))
+  private val _inputLanguage = MutableStateFlow(if (Configurations.currentInputLanguage != "auto") Language(Configurations.currentInputLanguage) else Language.getAutoDetectLanguage())
   val inputLanguage = _inputLanguage.asStateFlow()
 
-  private val _outputLanguage = MutableStateFlow(Language("ara"))
+  private val _outputLanguage = MutableStateFlow(Language(Configurations.currentOutputLanguage))
   val outputLanguage = _outputLanguage.asStateFlow()
 
   private val _selectedTranslatorIndex = MutableStateFlow(0)
@@ -85,6 +89,11 @@ object QTranslateViewModel {
     runCatching {
       val translationResult = translator.translate(inputText, outputLang, inputLang)
       _translation.value = "${translationResult.translatedText}\n\n${translationResult.additionalInfo}".trim()
+
+      if (inputLang == "auto") {
+        setInputLanguage(Language.getAutoDetectLanguage(translationResult.sourceLanguage))
+      }
+
       if (Configurations.showBackwardTranslationPanel) {
         val backwardTranslationResult = translator.translate(translationResult.translatedText, inputLang, outputLang)
         _backwardTranslation.value =
@@ -250,10 +259,12 @@ object QTranslateViewModel {
   }
 
   fun setInputLanguage(language: Language) {
+    Configurations.currentInputLanguage = language.alpha3
     _inputLanguage.value = language
   }
 
   fun setOutputLanguage(language: Language) {
+    Configurations.currentOutputLanguage = language.alpha3
     _outputLanguage.value = language
   }
 

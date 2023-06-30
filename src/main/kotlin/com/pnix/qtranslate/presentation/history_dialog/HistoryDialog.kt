@@ -95,7 +95,11 @@ class HistoryDialog(frame: Frame) : JDialog(frame, Localizer.localize("history_p
         }
       )
       add(Box.createHorizontalGlue())
-      add(JButton(Localizer.localize("history_panel_button_text_ok")).apply { addActionListener { dispose() } })
+
+      add(JButton(Localizer.localize("history_panel_button_text_ok")).apply {
+        this@HistoryDialog.rootPane.defaultButton = this
+        addActionListener { dispose() }
+      })
     }
 
     add(searchField, BorderLayout.NORTH)

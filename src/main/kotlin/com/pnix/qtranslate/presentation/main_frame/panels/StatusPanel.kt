@@ -12,7 +12,6 @@ class StatusPanel : JPanel() {
   init {
     layout = BoxLayout(this, BoxLayout.Y_AXIS)
     border = BorderFactory.createEmptyBorder(2, 0, 0, 0)
-
     val wrapper = JPanel()
     wrapper.layout = BoxLayout(wrapper, BoxLayout.LINE_AXIS)
     wrapper.border = BorderFactory.createEmptyBorder(1, 2, 0, 2)
@@ -24,6 +23,10 @@ class StatusPanel : JPanel() {
     ).apply {
       isEnabled = true
       buttonType = FlatButton.ButtonType.toolBarButton
+      addActionListener {
+//        DictionaryDialog(QTranslateViewModel.mainFrame)
+//        VirtualKeyboardDialog(QTranslateViewModel.mainFrame)
+      }
     })
     add(JSeparator())
     add(wrapper)

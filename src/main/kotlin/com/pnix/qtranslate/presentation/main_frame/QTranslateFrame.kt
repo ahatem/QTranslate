@@ -36,11 +36,13 @@ import javax.swing.*
 import kotlin.system.exitProcess
 import kotlin.time.Duration.Companion.seconds
 
+
 class QTranslateFrame : JFrame("QTranslate") {
   private val loadingDialog = LoadingDialog()
   private var mainPanel: MainPanel
 
   init {
+    focusTraversalKeysEnabled = false
     defaultCloseOperation = DO_NOTHING_ON_CLOSE
     minimumSize = Dimension(450, 260)
     preferredSize = Dimension(500, 380)
@@ -86,7 +88,7 @@ class QTranslateFrame : JFrame("QTranslate") {
           mainPanel.historyNavigationPanel.buttonHistoryBackward.isEnabled = TranslationHistory.canUndo()
           mainPanel.historyNavigationPanel.buttonHistoryForward.isEnabled = TranslationHistory.canRedo()
           mainPanel.historyNavigationPanel.updateStatus()
-//          mainPanel.translatorsPanel.selectIndex(it)
+          mainPanel.translatorsPanel.selectIndex(it)
         }
       }
       launch {
@@ -126,16 +128,16 @@ class QTranslateFrame : JFrame("QTranslate") {
       launch {
         QTranslateViewModel.inputLanguage.collectLatest {
           mainPanel.historyNavigationPanel.updateStatus()
-          if (mainPanel.translationOptionsPanel.inputLangComboBox.selectedItem != it) {
-            mainPanel.translationOptionsPanel.inputLangComboBox.selectedItem = it
+          if (mainPanel.translationOptionsPanel.inputLangComboBox.selectedLanguage.name != it.name) {
+            mainPanel.translationOptionsPanel.inputLangComboBox.selectedLanguage = it
           }
         }
       }
       launch {
         QTranslateViewModel.outputLanguage.collectLatest {
           mainPanel.historyNavigationPanel.updateStatus()
-          if (mainPanel.translationOptionsPanel.outputLangComboBox.selectedItem != it) {
-            mainPanel.translationOptionsPanel.outputLangComboBox.selectedItem = it
+          if (mainPanel.translationOptionsPanel.outputLangComboBox.selectedLanguage.name != it.name) {
+            mainPanel.translationOptionsPanel.outputLangComboBox.selectedLanguage = it
           }
         }
       }
@@ -230,9 +232,8 @@ class QTranslateFrame : JFrame("QTranslate") {
       }
     })
 
-    WindowKeyListeners.getAllValues().forEach {
-      rootPane.registerKeyboardAction(it.action, it.hotkey, JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
-    }
+    registerHotkeys()
+
     rootPane.registerKeyboardAction(
       {
         this@QTranslateFrame.isVisible = false
@@ -302,5 +303,16 @@ class QTranslateFrame : JFrame("QTranslate") {
     return settingsButton
   }
 
+  fun unregisterHotkeys() {
+    WindowKeyListeners.getAllValues().forEach {
+      rootPane.unregisterKeyboardAction(it.hotkey)
+    }
+  }
+
+  fun registerHotkeys() {
+    WindowKeyListeners.getAllValues().forEach {
+      rootPane.registerKeyboardAction(it.action, it.hotkey, JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+    }
+  }
 
 }

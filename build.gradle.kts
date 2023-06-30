@@ -4,8 +4,8 @@ plugins {
   id("com.github.johnrengelman.shadow") version "7.1.2"
 }
 
-group = "org.pnix"
-version = "1.0.0"
+group = "com.pnix"
+version = "1.1.0"
 
 repositories {
   mavenCentral()
@@ -32,7 +32,7 @@ dependencies {
   implementation("com.formdev:flatlaf-extras:3.1.1")
   implementation("com.formdev:svgSalamander:1.1.4")
 
-
+  implementation("org.eclipse.platform:org.eclipse.swt.win32.win32.x86_64:3.123.0") { isTransitive = false }
 }
 
 tasks.test {

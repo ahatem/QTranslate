@@ -4,11 +4,221 @@ import com.formdev.flatlaf.FlatLaf
 import com.formdev.flatlaf.intellijthemes.*
 import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatMaterialOceanicIJTheme
 import com.formdev.flatlaf.themes.FlatMacLightLaf
+import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.common.QTranslate
-import com.pnix.qtranslate.utils.fileToLaf
-import com.pnix.qtranslate.utils.getDefaultFontFamily
+import com.pnix.qtranslate.utils.*
+import java.awt.event.InputEvent
+import java.awt.event.KeyEvent
 import java.util.prefs.Preferences
+import javax.swing.KeyStroke
 import kotlin.properties.Delegates
+
+// TODO: add Action callback (eg:- ActionListener interface) to allow something like Double Ctrl
+data class Hotkey(
+  val id: String,
+  val description: String,
+  val modifiers: Int,
+  val keyCode: Int,
+  val customizable: Boolean = true,
+  val hotkeyText: String? = null
+) {
+
+  constructor(id: String, description: String, keyStroke: KeyStroke) : this(
+    id,
+    description,
+    keyStroke.modifiers,
+    keyStroke.keyCode
+  )
+
+  fun toKeyStroke(): KeyStroke {
+    return KeyStroke.getKeyStroke(keyCode, modifiers)
+  }
+
+  fun toUserReadableFormat(): String {
+    return hotkeyText ?: toKeyStroke().getReadableKeyStrokeText()
+  }
+
+}
+
+object Hotkeys {
+  private val hotkeysPrefs = Preferences.userRoot().node("QTranslate")
+
+  private val defaultsGlobalHotkeys
+    get() = mapOf(
+      "main_window" to Hotkey(
+        "main_window",
+        Localizer.localize("hotkey_panel_table_action_show_main_window"),
+        InputEvent.CTRL_DOWN_MASK,
+        0,
+        false,
+        "Double Ctrl"
+      ),
+      "popup_window" to Hotkey(
+        "popup_window",
+        Localizer.localize("hotkey_panel_table_action_show_popup_window"),
+        controlKeyWith(KeyEvent.VK_Q)
+      ),
+      "listen_selected_text" to Hotkey(
+        "listen_selected_text",
+        Localizer.localize("hotkey_panel_table_action_listen_to_selected_text"),
+        controlKeyWith(KeyEvent.VK_E)
+      ),
+      "text_recognition" to Hotkey(
+        "text_recognition",
+        Localizer.localize("hotkey_panel_table_action_text_recognition"),
+        controlKeyWith(KeyEvent.VK_I)
+      ),
+      "cycle_services" to Hotkey(
+        "cycle_services",
+        Localizer.localize("hotkey_panel_table_action_cycle_services"),
+        controlKeyWith(KeyEvent.VK_TAB)
+      ),
+    )
+
+  private val defaultsWindowHotkeys
+    get() = mapOf(
+      "translate" to Hotkey(
+        "translate",
+        Localizer.localize("hotkey_panel_table_action_translate"),
+        controlKeyWith(KeyEvent.VK_ENTER)
+      ),
+      "listen_to_input" to Hotkey(
+        "listen_to_input",
+        Localizer.localize("hotkey_panel_table_action_listen_to_input"),
+        controlKeyWith(KeyEvent.VK_L)
+      ),
+      "listen_to_translation" to Hotkey(
+        "listen_to_translation",
+        Localizer.localize("hotkey_panel_table_action_listen_to_translation"),
+        controlKeyWith(KeyEvent.VK_O)
+      ),
+      "clear_current_translation" to Hotkey(
+        "clear_current_translation",
+        Localizer.localize("hotkey_panel_table_action_clear_current_translation"),
+        controlKeyWith(KeyEvent.VK_N)
+      ),
+      "swap_translation_direction" to Hotkey(
+        "swap_translation_direction",
+        Localizer.localize("hotkey_panel_table_action_swap_translation_direction"),
+        controlKeyWith(KeyEvent.VK_PERIOD)
+      ),
+      "open_dictionary_dialog" to Hotkey(
+        "open_dictionary_dialog",
+        Localizer.localize("hotkey_panel_table_action_open_dictionary_dialog"),
+        controlKeyWith(KeyEvent.VK_D)
+      ),
+      "open_history_dialog" to Hotkey(
+        "open_history_dialog",
+        Localizer.localize("hotkey_panel_table_action_open_history_dialog"),
+        controlKeyWith(KeyEvent.VK_H)
+      ),
+      "reset_language_pair_to_auto_detected" to Hotkey(
+        "reset_language_pair_to_auto_detected",
+        Localizer.localize("hotkey_panel_table_action_reset_language_pair_to_auto_detected"),
+        shiftKeyWith(KeyEvent.VK_ESCAPE)
+      ),
+      "how_to_use" to Hotkey(
+        "how_to_use",
+        Localizer.localize("hotkey_panel_table_action_how_to_use"),
+        singleKey(KeyEvent.VK_F1)
+      ),
+      "toggle_full_screen" to Hotkey(
+        "toggle_full_screen",
+        Localizer.localize("hotkey_panel_table_action_toggle_full_screen"),
+        singleKey(KeyEvent.VK_F11)
+      ),
+      "go_backward_in_history" to Hotkey(
+        "go_backward_in_history",
+        Localizer.localize("hotkey_panel_table_action_go_backward_in_history"),
+        altKeyWith(KeyEvent.VK_LEFT)
+      ),
+      "go_forward_in_history" to Hotkey(
+        "go_forward_in_history",
+        Localizer.localize("hotkey_panel_table_action_go_forward_in_history"),
+        altKeyWith(KeyEvent.VK_RIGHT)
+      ),
+      "toggle_history_pane" to Hotkey(
+        "toggle_history_pane",
+        Localizer.localize("hotkey_panel_table_action_toggle_history_pane"),
+        controlKeyWith(KeyEvent.VK_F1)
+      ),
+      "toggle_translation_options_pane" to Hotkey(
+        "toggle_translation_options_pane",
+        Localizer.localize("hotkey_panel_table_action_toggle_translation_options_pane"),
+        controlKeyWith(KeyEvent.VK_F2)
+      ),
+      "toggle_services_pane" to Hotkey(
+        "toggle_services_pane",
+        Localizer.localize("hotkey_panel_table_action_toggle_services_pane"),
+        controlKeyWith(KeyEvent.VK_F3)
+      ),
+      "toggle_status_pane" to Hotkey(
+        "toggle_status_pane",
+        Localizer.localize("hotkey_panel_table_action_toggle_status_pane"),
+        controlKeyWith(KeyEvent.VK_F4)
+      ),
+      "toggle_backward_translation_pane" to Hotkey(
+        "toggle_backward_translation_pane",
+        Localizer.localize("hotkey_panel_table_action_toggle_backward_translation_pane"),
+        controlKeyWith(KeyEvent.VK_B)
+      ),
+      "open_settings_dialog" to Hotkey(
+        "open_settings_dialog",
+        Localizer.localize("hotkey_panel_table_action_open_settings_dialog"),
+        controlKeyWith(KeyEvent.VK_COMMA)
+      )
+    )
+
+
+  private val defaultHotkeys
+    get() = mapOf(
+      *defaultsGlobalHotkeys.toList().toTypedArray(),
+      *defaultsWindowHotkeys.toList().toTypedArray()
+    )
+
+  var hotkeys = getHotkeysWithUserDefinedOnes()
+
+  private fun getHotkeysWithUserDefinedOnes(): MutableMap<String, Hotkey> {
+    return defaultHotkeys.toMutableMap().map {
+      val userDefinedHotkey = hotkeysPrefs.get("hotkey_${it.key}", "")
+      if (userDefinedHotkey.isNotEmpty()) {
+        val parts = userDefinedHotkey.split(";")
+        val modifiers = parts[0].toInt()
+        val keyCode = parts[1].toInt()
+        val newHotkey = it.value.copy(modifiers = modifiers, keyCode = keyCode)
+        it.key to newHotkey
+      } else {
+        it.toPair()
+      }
+    }.toMap().toMutableMap()
+  }
+
+  fun getHotkey(id: String) = hotkeys[id]
+
+  fun getHotkeyByDescription(hotkeyDescription: String): Hotkey {
+    return hotkeys.values.find { it.description == hotkeyDescription }!!
+  }
+
+  fun updateHotkey(hotkeyId: String, keyStroke: KeyStroke): Hotkey? {
+    if (isKeyStrokeInUse(keyStroke)) return null
+
+    val hotkey = getHotkey(hotkeyId)!!.copy(modifiers = keyStroke.modifiers, keyCode = keyStroke.keyCode)
+    hotkeys[hotkeyId] = hotkey
+    hotkeysPrefs.put("hotkey_${hotkeyId}", "${keyStroke.modifiers};${keyStroke.keyCode}")
+
+    return hotkey
+  }
+
+  fun reset() {
+    hotkeysPrefs.keys().filter { it.startsWith("hotkey_") }.forEach { hotkeysPrefs.remove(it) }
+    hotkeys = getHotkeysWithUserDefinedOnes()
+  }
+
+  fun isKeyStrokeInUse(keyStroke: KeyStroke): Boolean {
+    return hotkeys.values.any { it.modifiers == keyStroke.modifiers && it.keyCode == keyStroke.keyCode }
+  }
+
+}
 
 enum class Theme(val readableName: String, val lookAndFeel: FlatLaf) {
   DARK_SHARPER("Dark  - Default", fileToLaf("ReSharperDark.theme.json")),
@@ -16,7 +226,7 @@ enum class Theme(val readableName: String, val lookAndFeel: FlatLaf) {
 
   DARK_X_DARK("Dark  - XDark", fileToLaf("XcodeDark.theme.json")),
   DARK_MODERN_BLACK("Dark  - Modern Black", fileToLaf("vscode_dark_modern.theme.json")),
-  DARK_BLACK("Dark  - Black", fileToLaf("github-dark-default.theme.json")),
+  DARK_GITHUB("Dark  - GitHub", fileToLaf("github-dark-default.theme.json")),
   DARK_GENTLE("Dark  - Godot", fileToLaf("godot_theme.theme.json")),
   DARK_ONE_DARK("Dark  - One Dark", FlatOneDarkIJTheme()),
   DARK_PURPLE("Dark  - Purple", FlatDarkPurpleIJTheme()),
@@ -98,6 +308,12 @@ object Configurations {
 
   private val prefs = Preferences.userRoot().node("QTranslate")
 
+  var currentInputLanguage: String by Delegates.observable(prefs.get("current_input_language", "auto"))
+  { _, _, newValue -> prefs.put("current_input_language", newValue) }
+
+  var currentOutputLanguage: String by Delegates.observable(prefs.get("current_output_language", "eng"))
+  { _, _, newValue -> prefs.put("current_output_language", newValue) }
+
   var spellChecking by Delegates.observable(prefs.getBoolean("spell_checking", false))
   { _, _, newValue -> prefs.putBoolean("spell_checking", newValue) }
 
@@ -178,7 +394,7 @@ object Configurations {
   var unifyTitleBar by Delegates.observable(prefs.getBoolean("unify_title_bar", false))
   { _, _, newValue -> prefs.putBoolean("unify_title_bar", newValue) }
 
-  var theme by Delegates.observable(Theme.from(prefs.get("theme", Theme.DARK_HIBERBEE.name)))
+  var theme by Delegates.observable(Theme.from(prefs.get("theme", Theme.DARK_SHARPER.name)))
   { _, _, newValue -> prefs.put("theme", newValue.name) }
 
   var popupLastSize: String by Delegates.observable(prefs.get("popup_last_size", "250,120"))

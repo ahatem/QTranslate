@@ -26,11 +26,13 @@ private class LayoutsPresetsSubMenu : JMenu(Localizer.localize("menu_item_layout
 private class OptionsExtendedSubMenu : JMenu(Localizer.localize("menu_item_extended_text")) {
 
   init {
-    add(JMenuItem(Localizer.localize("menu_item_read_phonetically_text")).apply { isEnabled = false })
+
+    /*add(JMenuItem(Localizer.localize("menu_item_read_phonetically_text")).apply { isEnabled = false })
     add(JMenuItem(Localizer.localize("menu_item_clear_input_text")).apply { isEnabled = false })
     add(JMenuItem(Localizer.localize("menu_item_auto_cleanup_text")).apply { isEnabled = false })
     add(JMenuItem(Localizer.localize("menu_item_save_content_on_exit_text")).apply { isEnabled = false })
-    addSeparator()
+    addSeparator()*/
+
     add(LayoutsPresetsSubMenu())
     addSeparator()
     add(JCheckBoxMenuItem(Localizer.localize("menu_item_show_history_text")).apply {
@@ -53,9 +55,11 @@ private class OptionsExtendedSubMenu : JMenu(Localizer.localize("menu_item_exten
       accelerator = WindowKeyListeners.ToggleStatusPane.hotkey
       addActionListener(WindowKeyListeners.ToggleStatusPane.action)
     })
-    addSeparator()
+
+    /*addSeparator()
     add(JCheckBoxMenuItem(Localizer.localize("menu_item_minimize_on_minimize_text")).apply { isEnabled = false })
     add(JCheckBoxMenuItem(Localizer.localize("menu_item_minimize_on_close_text")).apply { isEnabled = false })
+    */
   }
 }
 

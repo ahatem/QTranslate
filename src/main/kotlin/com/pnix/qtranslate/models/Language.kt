@@ -30,7 +30,10 @@ data class Language(private val language: String) {
   val alpha3 = isoLanguage?.alpha3 ?: "auto"
   val id = isoLanguage?.alpha3 ?: "auto"
 
-  override fun toString() = name
+
+  override fun toString(): String {
+    return name
+  }
 
   override fun equals(other: Any?): Boolean {
     if (this === other) return true
@@ -38,8 +41,10 @@ data class Language(private val language: String) {
 
     other as Language
 
+    if (name != other.name) return false
     if (alpha2 != other.alpha2) return false
     if (alpha3 != other.alpha3) return false
+
     return id == other.id
   }
 
@@ -47,6 +52,7 @@ data class Language(private val language: String) {
     var result = alpha2.hashCode()
     result = 31 * result + alpha3.hashCode()
     result = 31 * result + id.hashCode()
+    result = 31 * result + name.hashCode()
     return result
   }
 
