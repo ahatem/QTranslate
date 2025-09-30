@@ -252,6 +252,7 @@ sealed class Theme(val id: String, val readableName: String) {
     object DarkModernBlack : Custom("DarkModernBlack", "Dark  - Modern Black", "vscode_dark_modern.theme.json")
     object DarkGithub : Custom("DarkGithub", "Dark  - GitHub", "github-dark-default.theme.json")
     object DarkGentle : Custom("DarkGentle", "Dark  - Godot", "godot_theme.theme.json")
+    object DarkKintsugi : Custom("DarkKintsugi", "Dark - Kintsugi", "kintsugi.theme.json")
     object LightVitesse : Custom("LightVitesse", "Light - Vitesse", "vitesse.light.soft.theme.json")
     object LightEspresso : Custom("LightEspresso", "Light - Espresso", "espresso_light.theme.json")
     object LightSalmon : Custom("LightSalmon", "Light - Salmon", "salmon.theme.json")
@@ -277,6 +278,7 @@ sealed class Theme(val id: String, val readableName: String) {
       Custom.DarkXDark,       // Extra dark variant
       Custom.DarkGithub,      // GitHub-inspired dark
       Custom.DarkGentle,      // Soft dark tones
+      Custom.DarkKintsugi,
 
       // Built-in Light Themes
       BuiltIn.LightMac,       // Mac-inspired light
