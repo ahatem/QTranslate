@@ -1,42 +1,64 @@
-.gradle
+# =============================================================================
+# Build Artifacts & Gradle Cache
+# =============================================================================
+# Compiled code and build outputs from Gradle.
 build/
-!gradle/wrapper/gradle-wrapper.jar
-!**/src/main/**/build/
-!**/src/test/**/build/
+.gradle/
 
-### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
+# =============================================================================
+# IDE-Specific Files (IntelliJ, VS Code, Eclipse)
+# =============================================================================
+# IntelliJ IDEA
+.idea/
 *.iws
 *.iml
 *.ipr
 out/
-!**/src/main/**/out/
-!**/src/test/**/out/
 
-### Eclipse ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-
-### VS Code ###
+# VS Code
 .vscode/
 
-### Mac OS ###
+# Eclipse
+.classpath
+.project
+.settings/
+
+# =============================================================================
+# Generated Files & Packages
+# =============================================================================
+# Executable JARs, EXEs, and distribution packages
+*.jar
+*.exe
+*.zip
+*.tar
+*.tar.gz
+
+# Generated documentation
+docs/
+javadoc/
+
+# =============================================================================
+# OS-Specific Files
+# =============================================================================
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# =============================================================================
+# Log Files
+# =============================================================================
+*.log
+logs/
+
+# =============================================================================
+# Local Configuration
+# =============================================================================
+# This Launch4j config contains absolute paths and should not be committed.
+# Consider creating a template file like `QTranslateToExe.xml.template` for others to use.
+QTranslateToExe.xml
