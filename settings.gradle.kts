@@ -1,3 +1,2 @@
-
-rootProject.name = "QTranslate"
-
+rootProject.name = "qtranslate-app"
+include("core")
