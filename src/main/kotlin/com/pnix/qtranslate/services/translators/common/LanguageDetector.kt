@@ -1,6 +1,6 @@
 package com.pnix.qtranslate.services.translators.common
 
-import kong.unirest.Unirest
+import kong.unirest.core.Unirest
 import kotlinx.coroutines.future.await
 
 object LanguageDetector {

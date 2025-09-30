@@ -46,7 +46,6 @@ class QTranslateHotkeyListener(private val frame: JFrame) : HotkeyListener {
       JIntellitype.getInstance().removeHotKeyListener(INSTANCE)
       registered = false
     }
-
   }
 
   private var originalContents: Transferable? = null

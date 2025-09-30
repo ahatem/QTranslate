@@ -1,7 +1,6 @@
 package com.pnix.qtranslate.models
 
 import com.google.gson.Gson
-import java.util.*
 
 private data class IsoLanguage(val name: String, val alpha2: String, val alpha3: String)
 

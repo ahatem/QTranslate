@@ -17,6 +17,7 @@ import com.pnix.qtranslate.presentation.main_frame.menus.TrayPopupMenu
 import com.pnix.qtranslate.presentation.viewmodels.QTranslateViewModel
 import com.pnix.qtranslate.utils.createButtonWithIcon
 import com.pnix.qtranslate.utils.setPadding
+import com.pnix.qtranslate.utils.setupTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
@@ -156,6 +157,7 @@ class QTranslateFrame : JFrame("QTranslate") {
 
   // NOTE: this is bad for performance i think :D
   private fun applyConfigurations() {
+    println("Iam called")
 
     if (Localizer.isLocaleChanged) {
       Localizer.updateCurrentLocale()
@@ -171,10 +173,9 @@ class QTranslateFrame : JFrame("QTranslate") {
     }
 
 
-    FlatLaf.setup(Configurations.theme.lookAndFeel)
+    Configurations.setupTheme()
     FlatLaf.setUseNativeWindowDecorations(Configurations.enableWindowStyle)
     UIManager.put("TitlePane.unifiedBackground", Configurations.unifyTitleBar)
-    FlatLaf.updateUILater()
 
     val newFont = Font(Configurations.inputsFontName, Font.PLAIN, Configurations.inputsFontSize)
     mainPanel.translationInputPanel.inputTextArea.apply { font = newFont }

@@ -5,11 +5,15 @@ import com.pnix.qtranslate.models.Language
 
 class UnsupportedLanguageException(languageCode: String, serviceName: String) :
   Exception(
-    Localizer.localize("status_panel_error_text_not_supported_language").format(Language(languageCode).name, serviceName)
+    Localizer.localize("status_panel_error_text_not_supported_language")
+      .format(Language(languageCode).name, serviceName)
   )
 
 class TextToSpeechNotSupportedException(serviceName: String) :
-  Exception(Localizer.localize("status_panel_error_text_text_to_speech_not_supported").format(serviceName))
+  Exception(
+    Localizer.localize("status_panel_error_text_text_to_speech_not_supported")
+      .format(serviceName)
+  )
 
 abstract class LanguageMapper {
   abstract val serviceName: String

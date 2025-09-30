@@ -10,7 +10,7 @@ import com.pnix.qtranslate.models.Definition
 *   * BabyLon Dictionary
 *   * Google
 *   * Reverso Dictionary
-*   * Oxford // https://developer.oxforddictionaries.com/
+*   * https://developer.oxforddictionaries.com/
 *   * https://dictionaryapi.dev/
 *   * https://www.twinword.com/api/word-dictionary.php
 *   * https://owlbot.info/#

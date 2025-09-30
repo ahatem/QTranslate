@@ -25,7 +25,11 @@ fun Language.Companion.getAutoDetectLanguage(detectedLanguage: Language? = null)
 
 class UnknownErrorOccurredException(cause: Throwable) : Exception(
   Localizer.localize("status_panel_error_text_unknown_error_occurred"), cause
-)
+) {
+  init {
+    cause.printStackTrace()
+  }
+}
 
 object QTranslateViewModel {
 

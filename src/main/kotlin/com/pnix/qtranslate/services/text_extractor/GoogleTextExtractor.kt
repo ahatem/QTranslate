@@ -2,7 +2,7 @@ package com.pnix.qtranslate.services.text_extractor
 
 import com.pnix.qtranslate.common.UserAgent
 import com.pnix.qtranslate.utils.generateRandomHex
-import kong.unirest.Unirest
+import kong.unirest.core.Unirest
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.util.*

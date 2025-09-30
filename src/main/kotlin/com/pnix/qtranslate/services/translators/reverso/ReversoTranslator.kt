@@ -7,7 +7,7 @@ import com.pnix.qtranslate.common.UserAgent
 import com.pnix.qtranslate.models.*
 import com.pnix.qtranslate.services.translators.abstraction.LanguageMapper
 import com.pnix.qtranslate.services.translators.abstraction.TranslatorService
-import kong.unirest.Unirest
+import kong.unirest.core.Unirest
 import kotlinx.coroutines.future.await
 import java.util.*
 
@@ -20,9 +20,9 @@ private data class ReversoRequest(
 )
 
 private data class Options(
-  val sentenceSplitter: Boolean = false,
+  val sentenceSplitter: Boolean = true,
   val origin: String = "translation.web",
-  val contextResults: Boolean = false,
+  val contextResults: Boolean = true,
   val languageDetection: Boolean = false
 )
 
@@ -105,8 +105,20 @@ class ReversoTranslator : TranslatorService() {
     val url = "https://api.reverso.net/translate/v1/translation"
 
     val headers = mapOf(
-      "user-agent" to UserAgent.random(),
-      "content-type" to "application/json"
+      "accept" to "application/json, text/plain, */*",
+      "accept-language" to "en-US,en;q=0.9",
+      "content-type" to "application/json",
+      "origin" to "https://www.reverso.net",
+      "priority" to "u=1, i",
+      "referer" to "https://www.reverso.net/",
+      "sec-ch-ua" to "\"Chromium\";v=\"134\", \"Not:A-Brand\";v=\"24\", \"Google Chrome\";v=\"134\"",
+      "sec-ch-ua-mobile" to "?0",
+      "sec-ch-ua-platform" to "\"Windows\"",
+      "sec-fetch-dest" to "empty",
+      "sec-fetch-mode" to "cors",
+      "sec-fetch-site" to "same-site",
+      "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+      "x-reverso-origin" to "translation.web"
     )
 
     val requestBody = ReversoRequest(
@@ -118,11 +130,14 @@ class ReversoTranslator : TranslatorService() {
     runCatching {
       return Unirest.post(url).headers(headers).body(gson.toJson(requestBody))
         .asStringAsync().await().body.let {
+          println("Reverso Response: $it")
           val response = gson.fromJson(it, ReversoTranslateResponse::class.java)
           val detectedLanguage = response.from
           val translatedText = response.translation[0]
           Translation(detectedLanguage, translatedText)
         }
+    }.onFailure {
+      it.printStackTrace()
     }
 
     throw Exception("Something Wrong Happened!")
@@ -208,6 +223,8 @@ class ReversoTranslator : TranslatorService() {
           }
           return SpellCheck(correctedText, corrections)
         }
+    }.onFailure {
+      it.printStackTrace()
     }
 
     throw Exception("Something Wrong Happened!")

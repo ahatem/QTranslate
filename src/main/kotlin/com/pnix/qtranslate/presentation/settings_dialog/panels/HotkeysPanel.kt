@@ -16,7 +16,6 @@ import java.awt.event.MouseEvent
 import javax.swing.*
 import javax.swing.table.TableCellRenderer
 
-// TODO: need translations
 class HotkeysPanel(owner: Dialog) : JPanel() {
 
   init {

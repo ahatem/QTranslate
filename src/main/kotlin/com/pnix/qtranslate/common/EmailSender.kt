@@ -1,6 +1,6 @@
 package com.pnix.qtranslate.common
 
-import kong.unirest.Unirest
+import kong.unirest.core.Unirest
 
 object EmailSender {
 
@@ -14,7 +14,6 @@ object EmailSender {
     val url = "https://api.mailgun.net/v3/$domain/messages"
 
     val email = Email(
-//      from = "Mailgun Sandbox <postmaster@$domain>",
       from = sender,
       to = recipient,
       subject = subject,

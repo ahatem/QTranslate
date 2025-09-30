@@ -45,7 +45,7 @@ class AppearancePanel(configuration: Configuration) : JPanel() {
     )
 
     add(
-      JComboBox(Theme.values().map { it.readableName }.toTypedArray()).apply {
+      JComboBox(Theme.entries.map { it.readableName }.toTypedArray()).apply {
         selectedItem = configuration.theme.readableName
         addActionListener {
           val theme = Theme.getThemeByReadableName(selectedItem as String)

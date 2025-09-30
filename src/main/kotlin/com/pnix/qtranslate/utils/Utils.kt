@@ -1,6 +1,10 @@
 package com.pnix.qtranslate.utils
 
+import com.formdev.flatlaf.FlatLaf
+import com.formdev.flatlaf.IntelliJTheme
 import com.pnix.qtranslate.common.Localizer
+import com.pnix.qtranslate.models.Configurations
+import com.pnix.qtranslate.models.Theme
 import com.pnix.qtranslate.services.translators.abstraction.TranslatorService
 import com.pnix.qtranslate.services.translators.bing.BingTranslator
 import com.pnix.qtranslate.services.translators.google.GoogleTranslator
@@ -8,6 +12,7 @@ import com.pnix.qtranslate.services.translators.reverso.ReversoTranslator
 import com.pnix.qtranslate.services.translators.yandex.YandexTranslator
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import javax.swing.UIManager
 import kotlin.random.Random
 
 fun String.isRTL(): Boolean {
@@ -40,4 +45,19 @@ val supportedTranslators by lazy {
   listOf(
     GoogleTranslator(), BingTranslator(), YandexTranslator(), ReversoTranslator(),
   )
+}
+
+fun Configurations.setupTheme() {
+  when (val theme = this.theme) {
+    is Theme.BuiltIn -> {
+      UIManager.setLookAndFeel(theme.lafClassName)
+    }
+
+    is Theme.Custom -> {
+      FlatLaf.setup(
+        IntelliJTheme.createLaf(Theme::class.java.classLoader.getResourceAsStream("themes/${theme.fileName}"))
+      )
+    }
+  }
+  FlatLaf.updateUI()
 }

@@ -1,7 +1,7 @@
 plugins {
-  kotlin("jvm") version "1.8.20"
+  kotlin("jvm") version "2.0.20"
   application
-  id("com.github.johnrengelman.shadow") version "7.1.2"
+  id("com.gradleup.shadow") version "8.3.0"
 }
 
 group = "com.pnix"
@@ -11,26 +11,33 @@ repositories {
   mavenCentral()
   maven { url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots") }
   maven { url = uri("https://jitpack.io") }
+  maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
 }
+
 
 dependencies {
   testImplementation(kotlin("test"))
 
-  implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.0-RC")
-  implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.7.0-RC")
+  implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+  implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")
 
-  implementation("com.google.code.gson:gson:2.10.1")
-  implementation("com.konghq:unirest-java:3.14.1")
-  implementation("org.jsoup:jsoup:1.16.1")
+  implementation("com.google.code.gson:gson:2.13.1")
 
-  implementation("com.melloware:jintellitype:1.4.1")
-  implementation("com.github.umjammer:jlayer:1.0.2")
+  implementation(platform("com.konghq:unirest-java-bom:4.4.5"))
+  implementation("com.konghq:unirest-java-core")
+  implementation("com.konghq:unirest-modules-gson")
+
+  implementation("org.jsoup:jsoup:1.20.1")
+
+  implementation("com.melloware:jintellitype:1.5.6")
+  implementation("com.github.umjammer:jlayer:1.0.3")
 
   implementation("com.miglayout:miglayout-swing:11.1")
-  implementation("com.formdev:flatlaf:3.1.1")
-  implementation("com.formdev:flatlaf-intellij-themes:3.1.1")
-  implementation("com.formdev:flatlaf-extras:3.1.1")
-  implementation("com.formdev:svgSalamander:1.1.4")
+  implementation("com.formdev:flatlaf:3.7-SNAPSHOT")
+  implementation("com.formdev:flatlaf-intellij-themes:3.7-SNAPSHOT")
+  implementation("com.formdev:flatlaf-extras:3.7-SNAPSHOT")
+  implementation("com.github.weisj:jsvg:2.0.0")
+
 
   implementation("org.eclipse.platform:org.eclipse.swt.win32.win32.x86_64:3.123.0") { isTransitive = false }
 }

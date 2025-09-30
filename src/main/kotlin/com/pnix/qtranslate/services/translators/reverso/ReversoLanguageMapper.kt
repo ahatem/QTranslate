@@ -4,7 +4,7 @@ import com.google.gson.Gson
 import com.pnix.qtranslate.common.UserAgent
 import com.pnix.qtranslate.models.Language
 import com.pnix.qtranslate.services.translators.abstraction.LanguageMapper
-import kong.unirest.Unirest
+import kong.unirest.core.Unirest
 import kotlinx.coroutines.future.await
 
 private data class ReversoLanguageDetectionRequest(

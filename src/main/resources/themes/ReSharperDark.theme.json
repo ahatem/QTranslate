@@ -3,11 +3,12 @@
   "name": "ReSharper Dark",
   "dark": true,
   "author": "JetBrains",
-  "editorScheme": "/colorSchemes/ReSharperDark.xml",
+  "parentTheme": "Darcula",
+  "editorScheme": "ReSharper Dark",
   "ui": {
     "*": {
       "//*": "#FF00FF",
-      "//background": "#FF0000",
+      "background": "$panelBackground",
       "//foreground": "#00FF00",
       "//borderColor": "#00FFFF",
       "selectionBackground": "$selectionBackground",
@@ -150,8 +151,10 @@
       "startBackground": "$buttonFace",
       "endBackground": "$buttonFace",
       "shadowWidth": 0,
+      "loadingForeground": "$mutedForeground",
       "default": {
         "foreground": "$selectionForeground",
+        "loadingForeground": "$mutedForeground",
         "startBorderColor": "$focusedBorder",
         "endBorderColor": "$focusedBorder",
         "focusedBorderColor": "$focusedBorder",
@@ -170,6 +173,11 @@
       "offBackground": "$buttonFace",
       "offForeground": "$mutedForeground",
       "disabledText": "$disabledForeground"
+    },
+    "DisclosureButton": {
+      "defaultBackground": "$toolwindowBackground",
+      "hoverOverlay": "$selectionBackgroundMuted",
+      "pressedOverlay": "$selectionBackground"
     },
     "List": {
       "background": "$toolwindowBackground",
@@ -423,8 +431,8 @@
     "ActionButton": {
       "hoverBackground": "$buttonFace",
       "hoverBorderColor": "$controlBorder",
-      "pressedBackground": "$controlBorder",
-      "pressedBorderColor": "$controlBorder",
+      "pressedBackground": "$pressedBackground",
+      "pressedBorderColor": "$pressedBorder",
       "focusedBorderColor": "$focusedBorder"
     },
     "Table": {
@@ -458,7 +466,9 @@
       "selectionBackground": "$regularForeground"
     },
     "Slider": {
+      "buttonBorderColor": "$mutedForeground",
       "background": "$panelBackground",
+      "trackColor": "$border",
       "tickColor": "$mutedForeground"
     },
     "Counter": {
@@ -561,8 +571,10 @@
     "Window.border": "0,0,0,0,58585833",
     "DebuggerPopup.borderColor": "$popupBorder",
     "Separator.separatorColor": "$separator",
+    "ToolBar.separatorColor": "$separator",
     "SidePanel.background": "$toolwindowBackground",
-    "OptionPane.background": "$panelBackground"
+    "OptionPane.background": "$panelBackground",
+    "RunWidget.iconColor": "$iconGrayRegular"
   },
   "colors": {
     "$titleBackground": "#383838",
@@ -576,6 +588,8 @@
     "$selectionToolwindowHeader": "#3E424D",
     "$border": "#2c2c2c",
     "$controlBorder": "#242424",
+    "$pressedBackground": "#323232",
+    "$pressedBorder": "#242424",
     "$separator": "#2c2c2c",
     "$listSeparator": "#232323",
     "$focusedBorder": "#182C57",
@@ -612,10 +626,40 @@
     "$speedSearchBackground": "#A39254",
     "$speedSearchMatchBackground": "#D4BC64",
     "$searchMatchForeground": "#D4BC64",
-    "$iconGrayRegular": "#A5A5AB",
-    "$iconGrayMuted": "#A5A5ABB2",
-    "$iconGrayDisabled": "#A5A5AB66",
+    "$iconGrayRegular": "#CDD0D7",
+    "$iconGrayMuted": "#CDD0D7B2",
+    "$iconGrayDisabled": "#CDD0D766",
     "$bookmarkBackground": "#D9B72B"
+  },
+  "iconColorsOnSelection": {
+    "#c75450": "#CF5753",
+    "#f0a732": "#F7AC34",
+    "#499c54": "#4CA358",
+    "#3592c4": "#389ACF",
+    "#afb1b3": "#BDC0C2",
+    "#9aa7b0": "#9AA7B0",
+    "#9aa7b0cc": "#89949C",
+    "#9aa7b099": "#6E7880",
+    "#f26522": "#F26522",
+    "#f26522b3": "#B5592D",
+    "#f2652299": "#9C4C27",
+    "#40b6e0": "#40B6E0",
+    "#40b6e0b3": "#3590B0",
+    "#40b6e099": "#2F819E",
+    "#62b543": "#62B543",
+    "#62b543b3": "#558A41",
+    "#62b54399": "#547D45",
+    "#f98b9e": "#F98B9E",
+    "#f98b9eb3": "#B5707C",
+    "#f98b9e99": "#9E6872",
+    "#f4af3d": "#F4AF3D",
+    "#f4af3db3": "#AB803A",
+    "#f4af3d99": "#9E7A3E",
+    "#b99bf8": "#B99BF8",
+    "#b99bf8b3": "#8C79B2",
+    "#b99bf899": "#7D6D9E",
+    "#6e6e6e": "#787878",
+    "#5e5e5e": "#666666"
   },
   "icons": {
     "/welcome/project/remove.svg": "/icons/remove.svg",

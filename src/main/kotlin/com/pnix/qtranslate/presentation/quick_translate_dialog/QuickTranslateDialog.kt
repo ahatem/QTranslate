@@ -254,7 +254,6 @@ class QuickTranslateDialog(frame: JFrame) : JDialog(frame, ModalityType.MODELESS
     }
   }
 
-  // TODO Extract to member variable and update it when translator index change
   private fun getDialogTitle(): JLabel {
     val inputLanguageName = QTranslateViewModel.inputLanguage.value.name
     val outputLanguageName = QTranslateViewModel.outputLanguage.value.name

@@ -9,7 +9,7 @@ import com.pnix.qtranslate.models.Translation
 import com.pnix.qtranslate.services.translators.abstraction.LanguageMapper
 import com.pnix.qtranslate.services.translators.abstraction.TextToSpeechNotSupportedException
 import com.pnix.qtranslate.services.translators.abstraction.TranslatorService
-import kong.unirest.Unirest
+import kong.unirest.core.Unirest
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.runBlocking
 import kotlin.time.Duration.Companion.hours
@@ -28,9 +28,9 @@ class BingTranslator : TranslatorService() {
 
   private val gson = GsonBuilder().setPrettyPrinting().create()
 
-  private var auth: BingAuth = runBlocking { getKeyAndToken() }
+  private var auth: BingAuth? = null
     get() {
-      if (!isOneHourElapsed()) return field
+      if (!isOneHourElapsed() && field != null) return field
       startTime = System.currentTimeMillis()
       field = runBlocking { getKeyAndToken() }
       return field
@@ -43,8 +43,8 @@ class BingTranslator : TranslatorService() {
       "text" to text,
       "fromLang" to sourceLanguage,
       "to" to targetLanguage,
-      "token" to auth.token,
-      "key" to auth.key,
+      "token" to auth!!.token,
+      "key" to auth!!.key,
       "isAuthv2" to true
     )
     runCatching {
@@ -71,8 +71,8 @@ class BingTranslator : TranslatorService() {
       val requestBody = mapOf(
         "text" to it,
         "fromLang" to sourceLanguage,
-        "token" to auth.token,
-        "key" to auth.key,
+        "token" to auth!!.token,
+        "key" to auth!!.key,
         "isAuthv2" to true
       )
       it to post(url).fields(requestBody).asStringAsync().await().body
@@ -100,8 +100,8 @@ class BingTranslator : TranslatorService() {
   private fun post(url: String) = Unirest.post(url).apply {
     val params = mapOf(
       "isVertical" to 1,
-      "IG" to auth.ig,
-      "IID" to auth.iid,
+      "IG" to auth!!.ig,
+      "IID" to auth!!.iid,
     )
     val headers = mapOf(
       "accept" to "*/*",

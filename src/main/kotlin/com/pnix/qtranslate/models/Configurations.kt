@@ -1,8 +1,8 @@
 package com.pnix.qtranslate.models
 
-import com.formdev.flatlaf.FlatLaf
 import com.formdev.flatlaf.intellijthemes.*
-import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatMaterialOceanicIJTheme
+import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatMTMaterialOceanicIJTheme
+import com.formdev.flatlaf.themes.FlatMacDarkLaf
 import com.formdev.flatlaf.themes.FlatMacLightLaf
 import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.common.QTranslate
@@ -220,36 +220,84 @@ object Hotkeys {
 
 }
 
-enum class Theme(val readableName: String, val lookAndFeel: FlatLaf) {
-  DARK_SHARPER("Dark  - Default", fileToLaf("ReSharperDark.theme.json")),
-  LIGHT_SHARPER("Light - Default", fileToLaf("ReSharperLight.theme.json")),
+sealed class Theme(val id: String, val readableName: String) {
 
-  DARK_X_DARK("Dark  - XDark", fileToLaf("XcodeDark.theme.json")),
-  DARK_MODERN_BLACK("Dark  - Modern Black", fileToLaf("vscode_dark_modern.theme.json")),
-  DARK_GITHUB("Dark  - GitHub", fileToLaf("github-dark-default.theme.json")),
-  DARK_GENTLE("Dark  - Godot", fileToLaf("godot_theme.theme.json")),
-  DARK_ONE_DARK("Dark  - One Dark", FlatOneDarkIJTheme()),
-  DARK_PURPLE("Dark  - Purple", FlatDarkPurpleIJTheme()),
-  DARK_HIBERBEE("Dark  - Hiberbee", FlatHiberbeeDarkIJTheme()),
-  DARK_MATERIAL_OCEANIC("Dark  - Oceanic Green", FlatMaterialOceanicIJTheme()),
-  DARK_VUESION("Dark  - Vuesion", FlatVuesionIJTheme()),
-  DARK_SOLARIZED("Dark  - Solarized", FlatSolarizedDarkIJTheme()),
+  sealed class BuiltIn(
+    id: String,
+    readableName: String,
+    val lafClassName: String
+  ) : Theme(id, readableName) {
+    object DarkOneDark : BuiltIn("DarkOneDark", "Dark  - One Dark", FlatOneDarkIJTheme::class.java.name)
+    object DarkPurple : BuiltIn("DarkPurple", "Dark  - Purple", FlatDarkPurpleIJTheme::class.java.name)
+    object DarkHiberbee : BuiltIn("DarkHiberbee", "Dark  - Hiberbee", FlatHiberbeeDarkIJTheme::class.java.name)
+    object DarkMaterialOceanic :
+      BuiltIn("DarkMaterialOceanic", "Dark  - Oceanic Green", FlatMTMaterialOceanicIJTheme::class.java.name)
 
-  LIGHT_MAC("Light - Mac", FlatMacLightLaf()),
-  LIGHT_GRAY("Light - Gray", FlatGrayIJTheme()),
-  LIGHT_VITESSE("Light - Vitesse", fileToLaf("vitesse.light.soft.theme.json")),
-  LIGHT_ESPRESSO("Light - Espresso", fileToLaf("espresso_light.theme.json")),
-  LIGHT_SOLARIZED("Light - Solarized", FlatSolarizedLightIJTheme());
+    object DarkVuesion : BuiltIn("DarkVuesion", "Dark  - Vuesion", FlatVuesionIJTheme::class.java.name)
+    object DarkSolarized : BuiltIn("DarkSolarized", "Dark  - Solarized", FlatSolarizedDarkIJTheme::class.java.name)
+    object DarkMac : BuiltIn("DarkMac", "Light - Mac", FlatMacDarkLaf::class.java.name)
+    object LightMac : BuiltIn("LightMac", "Light - Mac", FlatMacLightLaf::class.java.name)
+    object LightGray : BuiltIn("LightGray", "Light - Gray", FlatGrayIJTheme::class.java.name)
+    object LightSolarized : BuiltIn("LightSolarized", "Light - Solarized", FlatSolarizedLightIJTheme::class.java.name)
+  }
+
+  sealed class Custom(
+    id: String,
+    readableName: String,
+    val fileName: String
+  ) : Theme(id, readableName) {
+    object DarkSharper : Custom("DarkSharper", "Dark  - Default", "ReSharperDark.theme.json")
+    object LightSharper : Custom("LightSharper", "Light - Default", "ReSharperLight.theme.json")
+    object DarkXDark : Custom("DarkXDark", "Dark  - XDark", "XcodeDark.theme.json")
+    object DarkModernBlack : Custom("DarkModernBlack", "Dark  - Modern Black", "vscode_dark_modern.theme.json")
+    object DarkGithub : Custom("DarkGithub", "Dark  - GitHub", "github-dark-default.theme.json")
+    object DarkGentle : Custom("DarkGentle", "Dark  - Godot", "godot_theme.theme.json")
+    object LightVitesse : Custom("LightVitesse", "Light - Vitesse", "vitesse.light.soft.theme.json")
+    object LightEspresso : Custom("LightEspresso", "Light - Espresso", "espresso_light.theme.json")
+    object LightSalmon : Custom("LightSalmon", "Light - Salmon", "salmon.theme.json")
+  }
 
   companion object {
+    val entries: List<Theme> = listOf(
+      // Default Themes
+      Custom.DarkSharper,   // Primary dark theme
+      Custom.LightSharper,  // Primary light theme
+
+      // Built-in Dark Themes
+      BuiltIn.DarkOneDark,        // Deep dark style
+      BuiltIn.DarkMaterialOceanic, // Oceanic dark tones
+      BuiltIn.DarkPurple,         // Purple-accented dark
+      BuiltIn.DarkHiberbee,       // Cozy dark theme
+      BuiltIn.DarkVuesion,        // Modern dark look
+      BuiltIn.DarkSolarized,      // Classic dark solarized
+      BuiltIn.DarkMac,            // Mac-inspired dark
+
+      // Custom Dark Themes
+      Custom.DarkModernBlack, // Sleek black design
+      Custom.DarkXDark,       // Extra dark variant
+      Custom.DarkGithub,      // GitHub-inspired dark
+      Custom.DarkGentle,      // Soft dark tones
+
+      // Built-in Light Themes
+      BuiltIn.LightMac,       // Mac-inspired light
+      BuiltIn.LightGray,      // Neutral gray style
+      BuiltIn.LightSolarized, // Classic light solarized
+
+      // Custom Light Themes
+      Custom.LightVitesse,    // Bright and fast look
+      Custom.LightEspresso,   // Warm coffee tones
+      Custom.LightSalmon      // Soft salmon hue
+    )
+
+
     fun getThemeByReadableName(readableName: String) =
-      values().find { it.readableName == readableName } ?: fallbackTheme(readableName)
+      entries.find { it.readableName == readableName } ?: fallbackTheme(readableName)
 
     fun from(name: String) =
-      values().find { it.name == name } ?: fallbackTheme(name)
+      entries.find { it::class.simpleName == name } ?: fallbackTheme(name)
 
-    private fun fallbackTheme(name: String) =
-      if (name.contains("light", true)) LIGHT_SHARPER else DARK_SHARPER
+    private fun fallbackTheme(name: String): Theme =
+      if (name.contains("light", ignoreCase = true)) Custom.LightSharper else Custom.DarkSharper
   }
 }
 
@@ -394,8 +442,8 @@ object Configurations {
   var unifyTitleBar by Delegates.observable(prefs.getBoolean("unify_title_bar", false))
   { _, _, newValue -> prefs.putBoolean("unify_title_bar", newValue) }
 
-  var theme by Delegates.observable(Theme.from(prefs.get("theme", Theme.DARK_SHARPER.name)))
-  { _, _, newValue -> prefs.put("theme", newValue.name) }
+  var theme by Delegates.observable(Theme.from(prefs.get("theme", Theme.Custom.DarkSharper::class.simpleName)))
+  { _, _, newValue -> prefs.put("theme", newValue::class.simpleName) }
 
   var popupLastSize: String by Delegates.observable(prefs.get("popup_last_size", "250,120"))
   { _, _, newValue -> prefs.put("popup_last_size", newValue) }

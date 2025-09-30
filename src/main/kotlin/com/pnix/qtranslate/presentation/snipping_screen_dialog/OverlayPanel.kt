@@ -10,7 +10,7 @@ import javax.swing.*
 import kotlin.math.abs
 import kotlin.math.min
 
-
+// TODO: need refactor
 class OverlayPanel(frame: JFrame, dialog: JDialog) : JPanel() {
   private val screenshot: BufferedImage
   private lateinit var overlay: BufferedImage
@@ -27,7 +27,6 @@ class OverlayPanel(frame: JFrame, dialog: JDialog) : JPanel() {
       margin = Insets(5, 5, 5, 5)
       addActionListener {
         dialog.dispose()
-        // TODO: this should be suspend
         QTranslateViewModel.setInputText(QTranslateViewModel.extractText(getSelectedImage()))
         frame.isVisible = true
         frame.state = JFrame.NORMAL

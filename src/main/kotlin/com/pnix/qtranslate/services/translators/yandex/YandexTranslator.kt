@@ -8,7 +8,7 @@ import com.pnix.qtranslate.models.Translation
 import com.pnix.qtranslate.services.translators.abstraction.LanguageMapper
 import com.pnix.qtranslate.services.translators.abstraction.TextToSpeechNotSupportedException
 import com.pnix.qtranslate.services.translators.abstraction.TranslatorService
-import kong.unirest.Unirest
+import kong.unirest.core.Unirest
 import kotlinx.coroutines.future.await
 import java.util.*
 

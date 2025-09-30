@@ -4,7 +4,7 @@ import com.google.gson.Gson
 import com.pnix.qtranslate.common.UserAgent
 import com.pnix.qtranslate.models.SpellCheck
 import com.pnix.qtranslate.models.SpellCheckCorrection
-import kong.unirest.Unirest
+import kong.unirest.core.Unirest
 import kotlinx.coroutines.future.await
 
 private data class GrammarCheckerResponse(val matches: List<Match>)

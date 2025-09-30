@@ -6,35 +6,36 @@ import com.pnix.qtranslate.common.Localizer
 import com.pnix.qtranslate.common.UserAgent
 import com.pnix.qtranslate.models.Configurations
 import com.pnix.qtranslate.presentation.main_frame.QTranslateFrame
-import kong.unirest.*
+import com.pnix.qtranslate.utils.setupTheme
+import kong.unirest.core.Unirest
 import org.eclipse.swt.SWT
 import org.eclipse.swt.browser.*
-import org.eclipse.swt.events.*
+import org.eclipse.swt.events.SelectionAdapter
+import org.eclipse.swt.events.SelectionEvent
 import org.eclipse.swt.layout.*
 import org.eclipse.swt.widgets.*
 import java.awt.ComponentOrientation
-import java.util.*
-import javax.swing.*
+import javax.swing.SwingUtilities
+import javax.swing.UIManager
 
 
 /*
 * https://www.logicbig.com/tutorials/java-swing/text-suggestion-component.html
-* IN-PROGRESS:
 * TODO:
+*   Maybe: Change hotkeys to enum constants instead of strings!
 *   Add Auto-Complete POPUP TO TTextArea
 *   Audio can't be stopped ... so make stop it (if same text OR the content of the clipboard not changed)
 *   Languages in settings are not functional
 *   Search Dictionaries Ctrl + right mouse click or ctrl+shift+q
-*   Add shortcuts/hotkeys settings page to allow user to change hotkeys
 *   Create Virtual Keyboard
 */
-
 
 fun main() {
   System.setProperty("org.eclipse.swt.browser.DefaultType", "edge")
   System.setProperty("sun.awt.xembedserver", "true")
+
   SwingUtilities.invokeLater {
-    FlatLaf.setup(Configurations.theme.lookAndFeel)
+    Configurations.setupTheme()
     FlatLaf.setUseNativeWindowDecorations(Configurations.enableWindowStyle)
     UIManager.put("TitlePane.unifiedBackground", Configurations.unifyTitleBar)
     UIManager.put("TitlePane.showIcon", false)
@@ -48,7 +49,7 @@ fun main() {
 
 }
 
-// FOR USE LATER
+// FOR LATER USE
 class AdvancedBrowser(location: String?) {
   init {
     val display = Display()
@@ -110,7 +111,7 @@ class AdvancedBrowser(location: String?) {
     button.text = "Go"
     button.addSelectionListener(object : SelectionAdapter() {
       override fun widgetSelected(event: SelectionEvent) {
-        browser.setUrl(url.text)
+        browser.url = url.text
       }
     })
     val throbber = Label(controls, SWT.NONE)
@@ -123,7 +124,7 @@ class AdvancedBrowser(location: String?) {
 
     // Go to the initial URL
     if (location != null) {
-      browser.setUrl(location)
+      browser.url = location
     }
     shell.open()
     while (!shell.isDisposed) {
@@ -134,13 +135,13 @@ class AdvancedBrowser(location: String?) {
     display.dispose()
   }
 
-  internal inner class AdvancedCloseWindowListener : CloseWindowListener {
+  internal class AdvancedCloseWindowListener : CloseWindowListener {
     override fun close(event: WindowEvent) {
       (event.widget as Browser).shell.close()
     }
   }
 
-  internal inner class AdvancedLocationListener(text: Text) : LocationListener {
+  internal class AdvancedLocationListener(text: Text) : LocationListener {
     private val location: Text
 
     init {
@@ -156,7 +157,7 @@ class AdvancedBrowser(location: String?) {
     }
   }
 
-  internal inner class AdvancedProgressListener(label: Label) : ProgressListener {
+  internal class AdvancedProgressListener(label: Label) : ProgressListener {
     private val progress: Label
 
     init {
@@ -177,7 +178,7 @@ class AdvancedBrowser(location: String?) {
     }
   }
 
-  internal inner class AdvancedStatusTextListener(label: Label) : StatusTextListener {
+  internal class AdvancedStatusTextListener(label: Label) : StatusTextListener {
     private val status: Label
 
     init {
@@ -211,8 +212,9 @@ fun sendGetRequestsWithDifferentIps() {
     val ipAddress = parts[0]
     val port = parts[1].toInt()
     runCatching {
-      val response = Unirest.get("http://example.com/")
-        .proxy(ipAddress, port)
+      val unirest = Unirest.primaryInstance()
+      unirest.config().proxy(ipAddress, port)
+      val response = unirest.get("http://example.com/")
         .asString()
         .body
       println(response)
