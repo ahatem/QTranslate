@@ -6,7 +6,7 @@ import java.io.File
 
 class JsonDictionary(file: File) : Dictionary {
 
-  override fun searchWord(word: String): List<Definition> {
-    TODO("Not yet implemented")
-  }
+    override fun searchWord(word: String): List<Definition> {
+        TODO("Not yet implemented")
+    }
 }

@@ -10,33 +10,34 @@ import javax.swing.*
 
 class LoadingDialog : JDialog(null as Frame?, "", false) {
 
-  val timer = Timer(10) { _ ->
-    setLocation(MouseInfo.getPointerInfo().location.x, MouseInfo.getPointerInfo().location.y + 20)
-  }
+    val timer = Timer(10) { _ ->
+        setLocation(MouseInfo.getPointerInfo().location.x, MouseInfo.getPointerInfo().location.y + 20)
+    }
 
-  init {
-    isUndecorated = true
-    isAlwaysOnTop = true
-    focusableWindowState = false
+    init {
+        isUndecorated = true
+        isAlwaysOnTop = true
+        focusableWindowState = false
 
-    val progressBar = JProgressBar()
-    progressBar.isIndeterminate = true
-    progressBar.preferredSize = Dimension(45, 10)
-    progressBar.border = BorderFactory.createMatteBorder(2, 2, 2, 2, UIManager.getColor("Button.borderColor").darker())
-    progressBar.putClientProperty("JProgressBar.square", true)
+        val progressBar = JProgressBar()
+        progressBar.isIndeterminate = true
+        progressBar.preferredSize = Dimension(45, 10)
+        progressBar.border =
+            BorderFactory.createMatteBorder(2, 2, 2, 2, UIManager.getColor("Button.borderColor").darker())
+        progressBar.putClientProperty("JProgressBar.square", true)
 
-    add(progressBar)
+        add(progressBar)
 
-    addComponentListener(object : ComponentAdapter() {
-      override fun componentShown(e: ComponentEvent?) {
-        timer.start()
-      }
+        addComponentListener(object : ComponentAdapter() {
+            override fun componentShown(e: ComponentEvent?) {
+                timer.start()
+            }
 
-      override fun componentHidden(e: ComponentEvent?) {
-        timer.stop()
-      }
-    })
+            override fun componentHidden(e: ComponentEvent?) {
+                timer.stop()
+            }
+        })
 
-    pack()
-  }
+        pack()
+    }
 }

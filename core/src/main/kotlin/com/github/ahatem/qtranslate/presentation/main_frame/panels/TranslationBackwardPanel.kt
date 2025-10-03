@@ -9,18 +9,18 @@ import javax.swing.JScrollPane
 
 class TranslationBackwardPanel : JPanel() {
 
-  val backwardTranslationTextArea = QtTextPane().apply { isEditable = false }
+    val backwardTranslationTextArea = QtTextPane().apply { isEditable = false }
 
-  init {
-    layout = BorderLayout()
-    val scrollPane = JScrollPane(backwardTranslationTextArea)
+    init {
+        layout = BorderLayout()
+        val scrollPane = JScrollPane(backwardTranslationTextArea)
 
-    val buttonsPanel = TranslationActionsPanel().apply {
-      copyButton.addActionListener { backwardTranslationTextArea.text.copyToClipboard() }
-      listenButton.addActionListener(WindowKeyListeners.ListenToBackwardTranslation.action)
+        val buttonsPanel = TranslationActionsPanel().apply {
+            copyButton.addActionListener { backwardTranslationTextArea.text.copyToClipboard() }
+            listenButton.addActionListener(WindowKeyListeners.ListenToBackwardTranslation.action)
+        }
+
+        add(buttonsPanel, BorderLayout.LINE_END)
+        add(scrollPane, BorderLayout.CENTER)
     }
-
-    add(buttonsPanel, BorderLayout.LINE_END)
-    add(scrollPane, BorderLayout.CENTER)
-  }
 }

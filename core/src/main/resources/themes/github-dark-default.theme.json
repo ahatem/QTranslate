@@ -96,14 +96,13 @@
     "CoralH": "#872012",
     "CoralI": "#640d04",
     "CoralJ": "#460701",
-
     "defaultBorderColor": "#21262d",
     "defaultBackgroundColor": "#0d1117"
   },
   "ui": {
-    "*" : {
+    "*": {
       "foreground": "GrayB",
-      "background":  "defaultBackgroundColor",
+      "background": "defaultBackgroundColor",
       "borderColor": "defaultBorderColor",
       "hoverBackground": "GrayG",
       "selectionBackground": "GrayG",
@@ -120,14 +119,12 @@
       "separatorColor": "defaultBorderColor",
       "separatorForeground": "GrayD"
     },
-
     "ActionButton": {
       "hoverBackground": "GrayI",
       "hoverBorderColor": "defaultBackgroundColor",
       "pressedBackground": "GrayI",
       "pressedBorderColor": "defaultBackgroundColor"
     },
-
     "Banner": {
       "infoBackground": "",
       "infoBorderColor": "",

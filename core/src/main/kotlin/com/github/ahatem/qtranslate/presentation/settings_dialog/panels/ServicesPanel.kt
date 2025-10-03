@@ -16,57 +16,56 @@ import javax.swing.JPanel
 import javax.swing.JScrollPane
 
 
-
 class ServicesPanel(configuration: Configuration) : JPanel() {
 
-  data class TranslatorCheckboxItem(val translatorService: TranslatorService) {
-    override fun toString(): String {
-      return translatorService.localizedName
+    data class TranslatorCheckboxItem(val translatorService: TranslatorService) {
+        override fun toString(): String {
+            return translatorService.localizedName
+        }
     }
-  }
 
-  private val pos = GBHelper().apply { insets = Insets(2, 2, 2, 2) }
+    private val pos = GBHelper().apply { insets = Insets(2, 2, 2, 2) }
 
 
-  init {
-    layout = GridBagLayout()
-    addSeparator(pos, Localizer.localize("services_panel_text_translators"))
+    init {
+        layout = GridBagLayout()
+        addSeparator(pos, Localizer.localize("services_panel_text_translators"))
 
-    val translators = supportedTranslators.map {
-      CheckListItem(TranslatorCheckboxItem(it)).apply {
-        isSelected = !configuration.excludedTranslators.contains(it.serviceName)
-      }
-    }.toTypedArray()
-    val translatorsList = JCheckboxList(translators)
-    translatorsList.addCheckChangeListener {
-      val item = it.item as TranslatorCheckboxItem
-      if (translatorsList.selectedValue.isSelected) {
-        configuration.excludedTranslators.remove(item.translatorService.serviceName)
-      } else {
-        configuration.excludedTranslators.add(item.translatorService.serviceName)
-      }
+        val translators = supportedTranslators.map {
+            CheckListItem(TranslatorCheckboxItem(it)).apply {
+                isSelected = !configuration.excludedTranslators.contains(it.serviceName)
+            }
+        }.toTypedArray()
+        val translatorsList = JCheckboxList(translators)
+        translatorsList.addCheckChangeListener {
+            val item = it.item as TranslatorCheckboxItem
+            if (translatorsList.selectedValue.isSelected) {
+                configuration.excludedTranslators.remove(item.translatorService.serviceName)
+            } else {
+                configuration.excludedTranslators.add(item.translatorService.serviceName)
+            }
+        }
+        translatorsList.minimumSelectedItems = 1
+        translatorsList.layoutOrientation = JList.VERTICAL
+        add(
+            JScrollPane(translatorsList),
+            pos.nextRow().expandW().expandH()
+        )
+
+        addSeparator(pos, Localizer.localize("services_panel_text_dictionaries"))
+        val dictionaries = JCheckboxList(emptyArray<CheckListItem>())
+        dictionaries.layoutOrientation = JList.VERTICAL
+        add(
+            JScrollPane(dictionaries),
+            pos.nextRow().expandW().expandH()
+        )
+
+        /*val buttonsPanel = JPanel().apply {
+          layout = BoxLayout(this, BoxLayout.X_AXIS)
+          add(JButton("Add dictionary"))
+          add(JButton("Remove dictionary"))
+        }
+        add(buttonsPanel, pos.nextRow())*/
+
     }
-    translatorsList.minimumSelectedItems = 1
-    translatorsList.layoutOrientation = JList.VERTICAL
-    add(
-      JScrollPane(translatorsList),
-      pos.nextRow().expandW().expandH()
-    )
-
-    addSeparator(pos, Localizer.localize("services_panel_text_dictionaries"))
-    val dictionaries = JCheckboxList(emptyArray<CheckListItem>())
-    dictionaries.layoutOrientation = JList.VERTICAL
-    add(
-      JScrollPane(dictionaries),
-      pos.nextRow().expandW().expandH()
-    )
-
-    /*val buttonsPanel = JPanel().apply {
-      layout = BoxLayout(this, BoxLayout.X_AXIS)
-      add(JButton("Add dictionary"))
-      add(JButton("Remove dictionary"))
-    }
-    add(buttonsPanel, pos.nextRow())*/
-
-  }
 }

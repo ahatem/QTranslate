@@ -13,36 +13,37 @@ import javax.swing.JScrollPane
 
 class TranslationOutputPanel : JPanel(BorderLayout()) {
 
-  val outputTextArea = QtTextPane().apply {
-    isEditable = false
-    listener = object : QtTextPaneListeners {
-      override fun onMenuItemTranslateClicked(selectedText: String) {
-        GlobalScope.launch {
-          QTranslateViewModel.setInputText(selectedText)
-          QTranslateViewModel.translate()
+    val outputTextArea = QtTextPane().apply {
+        isEditable = false
+        listener = object : QtTextPaneListeners {
+            override fun onMenuItemTranslateClicked(selectedText: String) {
+                GlobalScope.launch {
+                    QTranslateViewModel.setInputText(selectedText)
+                    QTranslateViewModel.translate()
+                }
+            }
+
+            override fun onMenuItemListenClicked(selectedText: String) {
+                GlobalScope.launch { QTranslateViewModel.listenToTranslation(selectedText) }
+            }
         }
-      }
-      override fun onMenuItemListenClicked(selectedText: String) {
-        GlobalScope.launch { QTranslateViewModel.listenToTranslation(selectedText) }
-      }
-    }
-  }
-
-  init {
-    layout = BorderLayout()
-    val scrollPane = JScrollPane(outputTextArea)
-
-    val buttonsPanel = TranslationActionsPanel().apply {
-      copyButton.addActionListener { outputTextArea.text.copyToClipboard() }
-      listenButton.addActionListener(WindowKeyListeners.ListenToTranslation.action)
     }
 
-    val overlayPanel = JPanel(BorderLayout()).apply {
-      add(buttonsPanel, BorderLayout.LINE_END)
-      add(scrollPane, BorderLayout.CENTER)
-    }
+    init {
+        layout = BorderLayout()
+        val scrollPane = JScrollPane(outputTextArea)
 
-    add(overlayPanel, BorderLayout.CENTER)
-  }
+        val buttonsPanel = TranslationActionsPanel().apply {
+            copyButton.addActionListener { outputTextArea.text.copyToClipboard() }
+            listenButton.addActionListener(WindowKeyListeners.ListenToTranslation.action)
+        }
+
+        val overlayPanel = JPanel(BorderLayout()).apply {
+            add(buttonsPanel, BorderLayout.LINE_END)
+            add(scrollPane, BorderLayout.CENTER)
+        }
+
+        add(overlayPanel, BorderLayout.CENTER)
+    }
 
 }

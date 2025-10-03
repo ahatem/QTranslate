@@ -16,48 +16,48 @@ import javax.swing.UIManager
 import kotlin.random.Random
 
 fun String.isRTL(): Boolean {
-  for (element in this) {
-    val d = Character.getDirectionality(element)
-    if (d == Character.DIRECTIONALITY_RIGHT_TO_LEFT || d == Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC || d == Character.DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING || d == Character.DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE) {
-      return true
+    for (element in this) {
+        val d = Character.getDirectionality(element)
+        if (d == Character.DIRECTIONALITY_RIGHT_TO_LEFT || d == Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC || d == Character.DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING || d == Character.DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE) {
+            return true
+        }
     }
-  }
-  return false
+    return false
 }
 
 fun String.copyToClipboard() {
-  val toolkit = Toolkit.getDefaultToolkit()
-  val clipboard = toolkit.systemClipboard
+    val toolkit = Toolkit.getDefaultToolkit()
+    val clipboard = toolkit.systemClipboard
 
-  val selection = StringSelection(this)
-  clipboard.setContents(selection, null)
+    val selection = StringSelection(this)
+    clipboard.setContents(selection, null)
 }
 
 fun generateRandomHex(length: Int): String {
-  val byteArray = ByteArray(length / 2)
-  Random.nextBytes(byteArray)
-  return byteArray.joinToString("") { byte -> "%02x".format(byte) }
+    val byteArray = ByteArray(length / 2)
+    Random.nextBytes(byteArray)
+    return byteArray.joinToString("") { byte -> "%02x".format(byte) }
 }
 
 val TranslatorService.localizedName get() = Localizer.localize("service_${this.serviceName.lowercase()}_translate")
 
 val supportedTranslators by lazy {
-  listOf(
-    GoogleTranslator(), BingTranslator(), YandexTranslator(), ReversoTranslator(),
-  )
+    listOf(
+        GoogleTranslator(), BingTranslator(), YandexTranslator(), ReversoTranslator(),
+    )
 }
 
 fun Configurations.setupTheme() {
-  when (val theme = this.theme) {
-    is Theme.BuiltIn -> {
-      UIManager.setLookAndFeel(theme.lafClassName)
-    }
+    when (val theme = this.theme) {
+        is Theme.BuiltIn -> {
+            UIManager.setLookAndFeel(theme.lafClassName)
+        }
 
-    is Theme.Custom -> {
-      FlatLaf.setup(
-        IntelliJTheme.createLaf(Theme::class.java.classLoader.getResourceAsStream("themes/${theme.fileName}"))
-      )
+        is Theme.Custom -> {
+            FlatLaf.setup(
+                IntelliJTheme.createLaf(Theme::class.java.classLoader.getResourceAsStream("themes/${theme.fileName}"))
+            )
+        }
     }
-  }
-  FlatLaf.updateUI()
+    FlatLaf.updateUI()
 }

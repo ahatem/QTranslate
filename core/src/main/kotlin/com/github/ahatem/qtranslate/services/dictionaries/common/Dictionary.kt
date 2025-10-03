@@ -20,6 +20,6 @@ import com.github.ahatem.qtranslate.models.Definition
 *   * https://www.wordwebonline.com/search.pl?w=RVFV
 * */
 interface Dictionary {
-  fun searchWord(word: String): List<Definition>
+    fun searchWord(word: String): List<Definition>
 }
 

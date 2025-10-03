@@ -8,47 +8,47 @@ import javax.swing.JSplitPane
 
 class MainPanel(private var mainLayout: Layout) : JPanel() {
 
-  val historyNavigationPanel = HistoryNavigationPanel().apply {
-    isVisible = Configurations.showHistoryPanel
-  }
-  val translatorsPanel = TranslatorsPanel().apply {
-    isVisible = Configurations.showServicesPanel
-  }
+    val historyNavigationPanel = HistoryNavigationPanel().apply {
+        isVisible = Configurations.showHistoryPanel
+    }
+    val translatorsPanel = TranslatorsPanel().apply {
+        isVisible = Configurations.showServicesPanel
+    }
 
-  val translationOptionsPanel = TranslationOptionsPanel().apply {
-    isVisible = Configurations.showTranslationOptionsPanel
-  }
-  val translationInputPanel = TranslationInputPanel()
-  val translationOutputPanel = TranslationOutputPanel()
-  val translationBackwardPanel = TranslationBackwardPanel()
+    val translationOptionsPanel = TranslationOptionsPanel().apply {
+        isVisible = Configurations.showTranslationOptionsPanel
+    }
+    val translationInputPanel = TranslationInputPanel()
+    val translationOutputPanel = TranslationOutputPanel()
+    val translationBackwardPanel = TranslationBackwardPanel()
 
-  val statusPanel = StatusPanel().apply {
-    isVisible = Configurations.showStatusPanel
-  }
+    val statusPanel = StatusPanel().apply {
+        isVisible = Configurations.showStatusPanel
+    }
 
-  var split1 =
-    JSplitPane(JSplitPane.VERTICAL_SPLIT, translationInputPanel, JPanel(BorderLayout()).apply {
-      add(translationOptionsPanel, BorderLayout.NORTH)
-      add(translationOutputPanel)
-    }).apply { resizeWeight = 0.55 }
-  var split2 =
-    JSplitPane(JSplitPane.VERTICAL_SPLIT, split1, translationBackwardPanel).apply { resizeWeight = 0.55 }
+    var split1 =
+        JSplitPane(JSplitPane.VERTICAL_SPLIT, translationInputPanel, JPanel(BorderLayout()).apply {
+            add(translationOptionsPanel, BorderLayout.NORTH)
+            add(translationOutputPanel)
+        }).apply { resizeWeight = 0.55 }
+    var split2 =
+        JSplitPane(JSplitPane.VERTICAL_SPLIT, split1, translationBackwardPanel).apply { resizeWeight = 0.55 }
 
 
-  init {
-    mainLayout.createLayout(this)
-  }
+    init {
+        mainLayout.createLayout(this)
+    }
 
-  fun showBackwardTranslation(show: Boolean) {
-    mainLayout.showBackwardTranslation(this, show)
-  }
+    fun showBackwardTranslation(show: Boolean) {
+        mainLayout.showBackwardTranslation(this, show)
+    }
 
-  fun changeLayout(newLayout: Layout) {
-    removeAll()
-    mainLayout = newLayout
-    mainLayout.createLayout(this)
-    revalidate()
-    repaint()
-  }
+    fun changeLayout(newLayout: Layout) {
+        removeAll()
+        mainLayout = newLayout
+        mainLayout.createLayout(this)
+        revalidate()
+        repaint()
+    }
 
 }

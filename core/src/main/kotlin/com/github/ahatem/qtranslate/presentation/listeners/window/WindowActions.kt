@@ -16,68 +16,68 @@ import java.awt.event.ActionListener
 
 
 class TranslateAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    GlobalScope.launch { QTranslateViewModel.translate() }
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        GlobalScope.launch { QTranslateViewModel.translate() }
+    }
 }
 
 class ListenToInputAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    GlobalScope.launch { QTranslateViewModel.listenToInput() }
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        GlobalScope.launch { QTranslateViewModel.listenToInput() }
+    }
 }
 
 class ListenToTranslationAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    GlobalScope.launch { QTranslateViewModel.listenToTranslation() }
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        GlobalScope.launch { QTranslateViewModel.listenToTranslation() }
+    }
 }
 
 class ListenToBackwardTranslationAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    GlobalScope.launch { QTranslateViewModel.listenToBackwardTranslation() }
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        GlobalScope.launch { QTranslateViewModel.listenToBackwardTranslation() }
+    }
 }
 
 class ClearAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    QTranslateViewModel.setTranslationText("")
-    QTranslateViewModel.setInputText("")
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        QTranslateViewModel.setTranslationText("")
+        QTranslateViewModel.setInputText("")
+    }
 }
 
 class SwapTranslationDirectionAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    val sourceLanguage = QTranslateViewModel.inputLanguage.value
-    val targetLanguage = QTranslateViewModel.outputLanguage.value
+    override fun actionPerformed(e: ActionEvent?) {
+        val sourceLanguage = QTranslateViewModel.inputLanguage.value
+        val targetLanguage = QTranslateViewModel.outputLanguage.value
 
-    QTranslateViewModel.setInputLanguage(targetLanguage)
-    QTranslateViewModel.setOutputLanguage(sourceLanguage)
-  }
+        QTranslateViewModel.setInputLanguage(targetLanguage)
+        QTranslateViewModel.setOutputLanguage(sourceLanguage)
+    }
 }
 
 class OpenDictionaryDialogAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    println("ShowDictionaryAction")
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        println("ShowDictionaryAction")
+    }
 }
 
 class OpenHistoryDialogAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    HistoryDialog(QTranslateViewModel.mainFrame)
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        HistoryDialog(QTranslateViewModel.mainFrame)
+    }
 }
 
 class ResetLanguagePairToAutoDetectedAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    println("ResetLanguagePairToAutoDetectedAction")
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        println("ResetLanguagePairToAutoDetectedAction")
+    }
 }
 
 class HowToUseAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    QTranslateViewModel.setInputText(
-      """
+    override fun actionPerformed(e: ActionEvent?) {
+        QTranslateViewModel.setInputText(
+            """
       QTranslate Version  1.0.0
 
       Global hotkeys (default values):
@@ -98,143 +98,143 @@ class HowToUseAction : ActionListener {
         Alt+Left Arrow => Go to the previous translation
         Alt+Right Arrow => Go to the next translation
     """.trimIndent()
-    )
-  }
+        )
+    }
 }
 
 class ToggleFullScreenAction : ActionListener {
-  private var isFullscreen = false
+    private var isFullscreen = false
 
-  override fun actionPerformed(e: ActionEvent?) {
-    val device = GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices[0]
-    if (isFullscreen) {
-      isFullscreen = false
-      device.fullScreenWindow = null
-    } else {
-      isFullscreen = true
-      device.fullScreenWindow = QTranslateViewModel.mainFrame
+    override fun actionPerformed(e: ActionEvent?) {
+        val device = GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices[0]
+        if (isFullscreen) {
+            isFullscreen = false
+            device.fullScreenWindow = null
+        } else {
+            isFullscreen = true
+            device.fullScreenWindow = QTranslateViewModel.mainFrame
+        }
+
     }
-
-  }
 }
 
 class GoBackwardInHistoryAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    QTranslateViewModel.undoTranslation()
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        QTranslateViewModel.undoTranslation()
+    }
 }
 
 class GoForwardInHistoryAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    QTranslateViewModel.redoTranslation()
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        QTranslateViewModel.redoTranslation()
+    }
 }
 
 class ToggleHistoryPaneAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    Configurations.showHistoryPanel = !Configurations.showHistoryPanel
-    QTranslateViewModel.triggerConfigurationChanged()
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        Configurations.showHistoryPanel = !Configurations.showHistoryPanel
+        QTranslateViewModel.triggerConfigurationChanged()
+    }
 }
 
 class ToggleTranslationOptionsPaneAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    Configurations.showTranslationOptionsPanel = !Configurations.showTranslationOptionsPanel
-    QTranslateViewModel.triggerConfigurationChanged()
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        Configurations.showTranslationOptionsPanel = !Configurations.showTranslationOptionsPanel
+        QTranslateViewModel.triggerConfigurationChanged()
+    }
 }
 
 class ToggleServicesPaneAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    Configurations.showServicesPanel = !Configurations.showServicesPanel
-    QTranslateViewModel.triggerConfigurationChanged()
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        Configurations.showServicesPanel = !Configurations.showServicesPanel
+        QTranslateViewModel.triggerConfigurationChanged()
+    }
 }
 
 class ToggleStatusPaneAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    Configurations.showStatusPanel = !Configurations.showStatusPanel
-    QTranslateViewModel.triggerConfigurationChanged()
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        Configurations.showStatusPanel = !Configurations.showStatusPanel
+        QTranslateViewModel.triggerConfigurationChanged()
+    }
 }
 
 class OpenSettingsDialogAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    SettingsDialog(QTranslateViewModel.mainFrame)
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        SettingsDialog(QTranslateViewModel.mainFrame)
+    }
 }
 
 class ToggleSpellCheckingAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    Configurations.spellChecking = !Configurations.spellChecking
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        Configurations.spellChecking = !Configurations.spellChecking
+    }
 }
 
 class ToggleInstantTranslationAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    Configurations.instantTranslation = !Configurations.instantTranslation
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        Configurations.instantTranslation = !Configurations.instantTranslation
+    }
 }
 
 class ChangeLayoutPresetAction(private val presetId: String) : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    Configurations.layoutPreset = presetId
-    QTranslateViewModel.triggerConfigurationChanged()
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        Configurations.layoutPreset = presetId
+        QTranslateViewModel.triggerConfigurationChanged()
+    }
 }
 
 class OpenAboutQTranslateDialog : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    AboutQTranslateDialog(QTranslateViewModel.mainFrame)
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        AboutQTranslateDialog(QTranslateViewModel.mainFrame)
+    }
 }
 
 class ContactUsAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    Configurations.lastOptionOpened = "contact_us"
-    SettingsDialog(QTranslateViewModel.mainFrame)
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        Configurations.lastOptionOpened = "contact_us"
+        SettingsDialog(QTranslateViewModel.mainFrame)
+    }
 }
 
 class ToggleGlobalHotkeysAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    Configurations.enableGlobalHotkeys = !Configurations.enableGlobalHotkeys
-    if (Configurations.enableGlobalHotkeys) QTranslateHotkeyListener.registerGlobalListener()
-    else QTranslateHotkeyListener.unRegisterGlobalListener()
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        Configurations.enableGlobalHotkeys = !Configurations.enableGlobalHotkeys
+        if (Configurations.enableGlobalHotkeys) QTranslateHotkeyListener.registerGlobalListener()
+        else QTranslateHotkeyListener.unRegisterGlobalListener()
+    }
 }
 
 class ToggleBackwardTranslationPaneAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    Configurations.showBackwardTranslationPanel = !Configurations.showBackwardTranslationPanel
-    QTranslateViewModel.triggerConfigurationChanged()
-    if (Configurations.showBackwardTranslationPanel) WindowKeyListeners.Translate.action.actionPerformed(e)
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        Configurations.showBackwardTranslationPanel = !Configurations.showBackwardTranslationPanel
+        QTranslateViewModel.triggerConfigurationChanged()
+        if (Configurations.showBackwardTranslationPanel) WindowKeyListeners.Translate.action.actionPerformed(e)
+    }
 }
 
 class ToggleAutoCheckForUpdatesAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    Configurations.autoCheckForUpdates = !Configurations.autoCheckForUpdates
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        Configurations.autoCheckForUpdates = !Configurations.autoCheckForUpdates
+    }
 }
 
 class CheckForUpdateAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    val latestVersionInfo = Updater.getLatestVersionInfo()
-    if(latestVersionInfo != null && latestVersionInfo.isNewerVersion()) {
-      Configurations.latestVersionNumber = latestVersionInfo.versionCode
-      if (Configurations.latestVersionNumber != Configurations.skippedVersionNumber) {
-        NewUpdateDialog(QTranslateViewModel.mainFrame, latestVersionInfo)
-      }
+    override fun actionPerformed(e: ActionEvent?) {
+        val latestVersionInfo = Updater.getLatestVersionInfo()
+        if (latestVersionInfo != null && latestVersionInfo.isNewerVersion()) {
+            Configurations.latestVersionNumber = latestVersionInfo.versionCode
+            if (Configurations.latestVersionNumber != Configurations.skippedVersionNumber) {
+                NewUpdateDialog(QTranslateViewModel.mainFrame, latestVersionInfo)
+            }
+        }
     }
-  }
 }
 
 class CycleServicesAction : ActionListener {
-  override fun actionPerformed(e: ActionEvent?) {
-    val translators = QTranslateViewModel.translators
-    val currentTranslatorIndex = QTranslateViewModel.selectedTranslatorIndex.value
-    val nextTranslatorIndex = (currentTranslatorIndex + 1) % translators.size
-    QTranslateViewModel.setSelectedTranslatorIndex(nextTranslatorIndex)
-  }
+    override fun actionPerformed(e: ActionEvent?) {
+        val translators = QTranslateViewModel.translators
+        val currentTranslatorIndex = QTranslateViewModel.selectedTranslatorIndex.value
+        val nextTranslatorIndex = (currentTranslatorIndex + 1) % translators.size
+        QTranslateViewModel.setSelectedTranslatorIndex(nextTranslatorIndex)
+    }
 }
