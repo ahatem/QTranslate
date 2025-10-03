@@ -1,12 +1,16 @@
 # =============================================================================
-# Build Artifacts & Gradle Cache
+# Gradle Build Artifacts
 # =============================================================================
-# Compiled code and build outputs from Gradle.
 build/
 .gradle/
 
+# Kotlin/Java compiled files
+*.class
+*.kotlin_module
+bin/
+
 # =============================================================================
-# IDE-Specific Files (IntelliJ, VS Code, Eclipse)
+# IDE-Specific Files
 # =============================================================================
 # IntelliJ IDEA
 .idea/
@@ -26,8 +30,10 @@ out/
 # =============================================================================
 # Generated Files & Packages
 # =============================================================================
-# Executable JARs, EXEs, and distribution packages
+# Executables, archives, distribution packages
 *.jar
+*.war
+*.ear
 *.exe
 *.zip
 *.tar
@@ -50,15 +56,26 @@ Thumbs.db
 ehthumbs.db
 desktop.ini
 
+# Linux
+*~
+.nfs*
+
 # =============================================================================
-# Log Files
+# Logs
 # =============================================================================
 *.log
 logs/
 
 # =============================================================================
+# Temporary / Backup Files
+# =============================================================================
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# =============================================================================
 # Local Configuration
 # =============================================================================
-# This Launch4j config contains absolute paths and should not be committed.
-# Consider creating a template file like `QTranslateToExe.xml.template` for others to use.
-QTranslateToExe.xml
+# Add local IDE or tool config files that should not be committed
+local.properties
