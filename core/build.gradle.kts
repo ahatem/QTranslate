@@ -1,50 +1,46 @@
 plugins {
-    kotlin("jvm")
+    // Apply the shared build logic from a convention plugin.
+    // The shared code is located in `buildSrc/src/main/kotlin/kotlin-jvm.gradle.kts`.
+    id("buildsrc.convention.kotlin-jvm")
+
     application
-    id("com.gradleup.shadow")
 }
 
-group = "com.github.ahatem"
-version = "1.1.0"
+repositories {
+    mavenCentral()
+    maven("https://s01.oss.sonatype.org/content/repositories/snapshots")
+    maven("https://central.sonatype.com/repository/maven-snapshots/")
+    maven("https://jitpack.io")
+}
 
 dependencies {
     testImplementation(kotlin("test"))
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")
+    // KotlinX ecosystem
+    implementation(libs.bundles.kotlinxEcosystem)
 
-    implementation("com.google.code.gson:gson:2.13.1")
+    // JSON
+    implementation(libs.gson)
 
-    implementation(platform("com.konghq:unirest-java-bom:4.4.5"))
-    implementation("com.konghq:unirest-java-core")
-    implementation("com.konghq:unirest-modules-gson")
+    // Networking (Unirest with BOM)
+    implementation(platform(libs.unirest.bom))
+    implementation(libs.bundles.unirest)
 
-    implementation("org.jsoup:jsoup:1.20.1")
+    // Parsing
+    implementation(libs.jsoup)
 
-    implementation("com.melloware:jintellitype:1.5.6")
-    implementation("com.github.umjammer:jlayer:1.0.3")
+    // UI + Desktop
+    implementation(libs.jintellitype)
+    implementation(libs.jlayer)
+    implementation(libs.miglayout)
 
-    implementation("com.miglayout:miglayout-swing:11.1")
-    implementation("com.formdev:flatlaf:3.7-SNAPSHOT")
-    implementation("com.formdev:flatlaf-intellij-themes:3.7-SNAPSHOT")
-    implementation("com.formdev:flatlaf-extras:3.7-SNAPSHOT")
-    implementation("com.github.weisj:jsvg:2.0.0")
+    implementation(libs.bundles.flatlaf)
+    implementation(libs.jsvg)
 
-    implementation("org.eclipse.platform:org.eclipse.swt.win32.win32.x86_64:3.123.0") { isTransitive = false }
+    implementation(libs.swt) { isTransitive = false }
 }
 
-tasks.test {
-    useJUnitPlatform()
-}
-
-kotlin {
-    jvmToolchain(11)
-}
 
 application {
-    mainClass.set("com.github.ahatem.qtranslate.MainKt")
+    mainClass = "com.github.ahatem.qtranslate.MainKt"
 }
-
-
-
-
