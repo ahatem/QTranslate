@@ -1,0 +1,9 @@
+{
+  "id": "google-services",
+  "name": "Google Services",
+  "version": "1.0.0",
+  "author": "Ahmed Hatem",
+  "description": "Translation, TTS, Dictionary, OCR, and Spell Checking using Google APIs",
+  "entryPoint": "com.github.ahatem.qtranslate.plugins.google.GooglePlugin",
+  "minApiVersion": "1.0.0"
+}
