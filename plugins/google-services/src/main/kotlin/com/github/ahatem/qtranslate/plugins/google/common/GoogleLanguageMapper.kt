@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.plugins.bundled.google.common
+package com.github.ahatem.qtranslate.plugins.google.common
 
 
 import com.github.ahatem.qtranslate.api.LanguageCode

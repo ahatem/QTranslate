@@ -1,16 +1,17 @@
-package com.github.ahatem.qtranslate.plugins.bundled.google
+package com.github.ahatem.qtranslate.plugins.google
 
 import com.github.ahatem.qtranslate.api.*
-import com.github.ahatem.qtranslate.plugins.bundled.google.common.GoogleLanguageMapper
-import com.github.ahatem.qtranslate.plugins.bundled.google.common.VisionFeature
-import com.github.ahatem.qtranslate.plugins.bundled.google.common.VisionImage
-import com.github.ahatem.qtranslate.plugins.bundled.google.common.VisionImageContext
-import com.github.ahatem.qtranslate.plugins.bundled.google.common.VisionImageRequest
-import com.github.ahatem.qtranslate.plugins.bundled.google.common.VisionRequest
-import com.github.ahatem.qtranslate.plugins.bundled.google.common.VisionResponse
+import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
+import com.github.ahatem.qtranslate.plugins.google.common.VisionFeature
+import com.github.ahatem.qtranslate.plugins.google.common.VisionImage
+import com.github.ahatem.qtranslate.plugins.google.common.VisionImageContext
+import com.github.ahatem.qtranslate.plugins.google.common.VisionImageRequest
+import com.github.ahatem.qtranslate.plugins.google.common.VisionRequest
+import com.github.ahatem.qtranslate.plugins.google.common.VisionResponse
 import com.github.ahatem.qtranslate.plugins.common.*
 import com.github.michaelbull.result.*
 import com.github.michaelbull.result.coroutines.coroutineBinding
+import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.util.*
 import javax.imageio.ImageIO
@@ -95,7 +96,7 @@ class GoogleOCRService(
         }
     }
 
-    private fun encodeImageToBase64(image: java.awt.image.BufferedImage): Result<String, ServiceError> {
+    private fun encodeImageToBase64(image: BufferedImage): Result<String, ServiceError> {
         return try {
             val outputStream = ByteArrayOutputStream()
             ImageIO.write(image, "PNG", outputStream)

@@ -1,9 +1,9 @@
-package com.github.ahatem.qtranslate.plugins.bundled.google
+package com.github.ahatem.qtranslate.plugins.google
 
 import com.github.ahatem.qtranslate.api.*
-import com.github.ahatem.qtranslate.plugins.bundled.google.common.GoogleLanguageMapper
-import com.github.ahatem.qtranslate.plugins.bundled.google.common.OfficialTranslateResponse
-import com.github.ahatem.qtranslate.plugins.bundled.google.common.TranslateResponse
+import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
+import com.github.ahatem.qtranslate.plugins.google.common.OfficialTranslateResponse
+import com.github.ahatem.qtranslate.plugins.google.common.TranslateResponse
 import com.github.ahatem.qtranslate.plugins.common.*
 import com.github.michaelbull.result.*
 import com.github.michaelbull.result.coroutines.coroutineBinding

@@ -1,8 +1,8 @@
-package com.github.ahatem.qtranslate.plugins.bundled.google
+package com.github.ahatem.qtranslate.plugins.google
 
 
 import com.github.ahatem.qtranslate.api.*
-import com.github.ahatem.qtranslate.plugins.bundled.google.common.GoogleLanguageMapper
+import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.michaelbull.result.Result
