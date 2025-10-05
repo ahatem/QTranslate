@@ -1,97 +1,110 @@
 package com.github.ahatem.qtranslate.api
 
+import com.github.michaelbull.result.Result
+
+/**
+ * Represents a language tag, standardized using the IETF BCP 47 specification.
+ * Examples: "en-US" (English, US), "zh-Hans" (Simplified Chinese), "auto" (Auto-detect).
+ *
+ * @see <a href="https://en.wikipedia.org/wiki/IETF_language_tag">IETF Language Tag</a>
+ */
 @JvmInline
-value class LanguageCode(val code: String) {
+value class LanguageCode(val tag: String) {
     init {
-        require(code == "auto" || code.length == 3) {
-            "Language code must be ISO 639-3 (3 letters) or 'auto', got: $code"
+        require(tag == "auto" || tag.matches(Regex("^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{2,8})*\$"))) {
+            "Language tag must be 'auto' or a well-formed BCP-47 tag, but was '$tag'."
         }
     }
 
     companion object {
+        // @formatter:off
+        // --- Special & Auto-detection ---
         val AUTO = LanguageCode("auto")
-        val ENGLISH = LanguageCode("eng")
-        val ARABIC = LanguageCode("ara")
-        val CHINESE = LanguageCode("zho")
-        val SPANISH = LanguageCode("spa")
-        val FRENCH = LanguageCode("fra")
-        val GERMAN = LanguageCode("deu")
-        val JAPANESE = LanguageCode("jpn")
-        val KOREAN = LanguageCode("kor")
-        val RUSSIAN = LanguageCode("rus")
-        val PORTUGUESE = LanguageCode("por")
-        val ITALIAN = LanguageCode("ita")
-        val DUTCH = LanguageCode("nld")
-        val POLISH = LanguageCode("pol")
-        val TURKISH = LanguageCode("tur")
-        val SWEDISH = LanguageCode("swe")
-        val HINDI = LanguageCode("hin")
-    }
-}
 
-/**
- * Helper for common ISO 639-2 (2-letter) to ISO 639-3 conversions.
- * Plugins can use this if their service uses 2-letter codes.
- */
-object LanguageMapping {
-    private val alpha2ToAlpha3 = mapOf(
-        "auto" to "auto",
-        "en" to "eng",
-        "ar" to "ara",
-        "zh" to "zho",
-        "es" to "spa",
-        "fr" to "fra",
-        "de" to "deu",
-        "ja" to "jpn",
-        "ko" to "kor",
-        "ru" to "rus",
-        "pt" to "por",
-        "it" to "ita",
-        "nl" to "nld",
-        "pl" to "pol",
-        "tr" to "tur",
-        "sv" to "swe",
-        "hi" to "hin",
-        "he" to "heb",
-        "th" to "tha",
-        "vi" to "vie",
-        "id" to "ind",
-        "ms" to "msa",
-        "fa" to "fas",
-        "uk" to "ukr",
-        "ro" to "ron",
-        "cs" to "ces",
-        "el" to "ell",
-        "hu" to "hun",
-        "da" to "dan",
-        "fi" to "fin",
-        "no" to "nor",
-        "bg" to "bul",
-        "hr" to "hrv",
-        "sk" to "slk"
-    )
+        // --- Top 50 Most Spoken Languages (Global Coverage) ---
+        val ENGLISH             = LanguageCode("en")
+        val CHINESE_SIMPLIFIED  = LanguageCode("zh-Hans")
+        val CHINESE_TRADITIONAL = LanguageCode("zh-Hant")
+        val HINDI               = LanguageCode("hi")
+        val SPANISH             = LanguageCode("es")
+        val FRENCH              = LanguageCode("fr")
+        val ARABIC              = LanguageCode("ar")
+        val BENGALI             = LanguageCode("bn")
+        val RUSSIAN             = LanguageCode("ru")
+        val PORTUGUESE          = LanguageCode("pt")
+        val INDONESIAN          = LanguageCode("id")
+        val URDU                = LanguageCode("ur")
+        val GERMAN              = LanguageCode("de")
+        val JAPANESE            = LanguageCode("ja")
+        val SWAHILI             = LanguageCode("sw")
+        val MARATHI             = LanguageCode("mr")
+        val TELUGU              = LanguageCode("te")
+        val TURKISH             = LanguageCode("tr")
+        val TAMIL               = LanguageCode("ta")
+        val VIETNAMESE          = LanguageCode("vi")
+        val KOREAN              = LanguageCode("ko")
+        val ITALIAN             = LanguageCode("it")
+        val THAI                = LanguageCode("th")
+        val GUJARATI            = LanguageCode("gu")
+        val JAVANESE            = LanguageCode("jw")
+        val FARSI               = LanguageCode("fa")
+        val HAUSA               = LanguageCode("ha")
+        val BURMESE             = LanguageCode("my")
+        val POLISH              = LanguageCode("pl")
+        val UKRAINIAN           = LanguageCode("uk")
+        val YORUBA              = LanguageCode("yo")
 
-    private val alpha3ToAlpha2 = alpha2ToAlpha3.entries
-        .associate { (k, v) -> v to k }
-
-    /**
-     * Convert 2-letter code to ISO 639-3.
-     * Returns null if unknown.
-     */
-    fun toAlpha3(code: String): LanguageCode? {
-        return alpha2ToAlpha3[code.lowercase()]?.let { LanguageCode(it) }
-    }
-
-    /**
-     * Convert ISO 639-3 to 2-letter code.
-     * Returns null if unknown.
-     */
-    fun toAlpha2(lang: LanguageCode): String? {
-        return alpha3ToAlpha2[lang.code]
+        // --- Other Important Regional & Cultural Languages ---
+        val DUTCH               = LanguageCode("nl")
+        val GREEK               = LanguageCode("el")
+        val HEBREW              = LanguageCode("he")
+        val HUNGARIAN           = LanguageCode("hu")
+        val CZECH               = LanguageCode("cs")
+        val SWEDISH             = LanguageCode("sv")
+        val ROMANIAN            = LanguageCode("ro")
+        val DANISH              = LanguageCode("da")
+        val FINNISH             = LanguageCode("fi")
+        val BULGARIAN           = LanguageCode("bg")
+        val NORWEGIAN           = LanguageCode("no")
+        val SLOVAK              = LanguageCode("sk")
+        val SLOVENIAN           = LanguageCode("sl")
+        val CATALAN             = LanguageCode("ca")
+        val SERBIAN             = LanguageCode("sr")
+        val CROATIAN            = LanguageCode("hr")
+        val MALAY               = LanguageCode("ms")
+        val NEPALI              = LanguageCode("ne")
+        val SINHALA             = LanguageCode("si")
+        val KHMER               = LanguageCode("km")
+        val LAO                 = LanguageCode("lo")
+        val AMHARIC             = LanguageCode("am")
+        val SOMALI              = LanguageCode("so")
+        val ZULU                = LanguageCode("zu")
+        val AFRIKAANS           = LanguageCode("af")
+        val ALBANIAN            = LanguageCode("sq")
+        val ARMENIAN            = LanguageCode("hy")
+        val AZERBAIJANI         = LanguageCode("az")
+        val BASQUE              = LanguageCode("eu")
+        val BELARUSIAN          = LanguageCode("be")
+        val BOSNIAN             = LanguageCode("bs")
+        val ESTONIAN            = LanguageCode("et")
+        val GEORGIAN            = LanguageCode("ka")
+        val ICELANDIC           = LanguageCode("is")
+        val IRISH               = LanguageCode("ga")
+        val LATVIAN             = LanguageCode("lv")
+        val LITHUANIAN          = LanguageCode("lt")
+        val MACEDONIAN          = LanguageCode("mk")
+        val MALTESE             = LanguageCode("mt")
+        val MONGOLIAN           = LanguageCode("mn")
+        val WELSH               = LanguageCode("cy")
+        // @formatter:on
     }
 }
 
 interface LanguageSupport {
-    val supportedLanguages: Set<LanguageCode>
-    val supportsAutoDetect: Boolean
+    /**
+     * Returns the set of supported languages. The presence of LanguageCode.AUTO
+     * in the returned set indicates that auto-detection is supported.
+     * This is a suspend function to allow fetching the list from a remote API.
+     */
+    suspend fun getSupportedLanguages(): Result<Set<LanguageCode>, ServiceError>
 }

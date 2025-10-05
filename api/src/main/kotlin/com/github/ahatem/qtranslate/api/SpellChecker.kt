@@ -11,7 +11,7 @@ interface SpellChecker : Service, LanguageSupport {
 
 data class SpellCheckRequest(
     val text: String,
-    val language: LanguageCode
+    val language: LanguageCode = LanguageCode.AUTO
 )
 
 data class SpellCheckResponse(

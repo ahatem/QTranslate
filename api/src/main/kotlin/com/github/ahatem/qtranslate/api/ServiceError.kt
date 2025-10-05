@@ -66,4 +66,20 @@ sealed class ServiceError {
         override val message: String,
         override val cause: Throwable?
     ) : ServiceError()
+
+    /**
+     * Request timed out.
+     */
+    data class TimeoutError(
+        override val message: String,
+        override val cause: Throwable? = null
+    ) : ServiceError()
+
+    /**
+     * The service returned a response that could not be understood.
+     */
+    data class InvalidResponseError(
+        override val message: String,
+        override val cause: Throwable?
+    ) : ServiceError()
 }

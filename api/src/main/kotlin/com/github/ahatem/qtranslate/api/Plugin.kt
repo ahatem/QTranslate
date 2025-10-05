@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.api
 
+import com.github.michaelbull.result.Result
+
 /**
  * The main entry point for a QTranslate plugin.
  *
@@ -10,24 +12,22 @@ package com.github.ahatem.qtranslate.api
 interface Plugin {
     /**
      * Called once when the plugin is loaded at application startup.
-     * The plugin should use this to initialize its services.
+     * Use this to initialize resources, validate settings, or connect to APIs.
      *
-     * @param services Provides access to core application functionality like logging and notifications.
-     * @return A list of all services this plugin provides. Return an empty list if the plugin
-     *         is not configured correctly (e.g., missing API key) and cannot function.
+     * @param context Provides access to core application functionality like logging and notifications.
+     * @return Success if initialization succeeds, or a ServiceError if it fails.
      */
-    fun initialize(services: CoreServices): List<Service>
+    fun initialize(context: PluginContext): Result<List<Service>, ServiceError>
 
     /**
-     * Optional: Provide a settings class whose fields are annotated with @Setting.
-     * The core application will use this to automatically generate a settings UI for the user.
-     * If this returns null, the plugin is considered to have no user-configurable settings.
+     * Returns the plugin's settings configuration, if any.
+     * The core will generate a UI based on the provided fields.
      */
     fun getSettingsClass(): Class<*>? = null
 
     /**
-     * Called just before the application shuts down.
-     * Use this method to clean up any resources, close network connections, or save state.
+     * Called before the application shuts down.
+     * Use this to release resources (e.g., close network connections, save state).
      */
     fun shutdown() {}
 }
@@ -38,12 +38,12 @@ interface Plugin {
  */
 data class PluginManifest(
     val id: String,
-    val name: String,
-    val version: String,
     val author: String,
     val description: String,
     val entryPoint: String,
     val minApiVersion: String,
     val repositoryUrl: String? = null,
-    val homepage: String? = null
+    val homepage: String? = null,
+    val icon: String? = null
 )
+

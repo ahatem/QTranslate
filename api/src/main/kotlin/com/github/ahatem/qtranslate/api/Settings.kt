@@ -1,72 +1,84 @@
 package com.github.ahatem.qtranslate.api
 
 /**
- * Annotate fields in your settings class to have the core auto-generate UI.
+ * Annotate fields within a plain Kotlin class to have the core application
+ * automatically generate a settings UI. The core will instantiate this class
+ * and use reflection to read these annotations and build the panel.
  *
  * Example:
  * ```
  * class MyPluginSettings {
  *     @Setting(
  *         label = "API Key",
- *         description = "Your service API key",
+ *         description = "Your personal API key for the service.",
  *         type = SettingType.PASSWORD,
- *         required = true,
  *         order = 1
  *     )
  *     var apiKey: String = ""
+ *
+ *     @Setting(
+ *         label = "Enable Advanced Mode",
+ *         type = SettingType.BOOLEAN,
+ *         defaultValue = "true",
+ *         order = 2
+ *     )
+ *     var advancedMode: Boolean = true
  * }
  * ```
  */
-@Target(AnnotationTarget.FIELD)
+@Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.RUNTIME)
 annotation class Setting(
-    /** Display label */
+    /** The human-readable label displayed next to the UI component. */
     val label: String,
 
-    /** Help text shown to user */
+    /** Optional help text displayed as a tooltip to the user. */
     val description: String = "",
 
-    /** UI control type */
+    /** The type of UI component to generate for this setting. */
     val type: SettingType = SettingType.TEXT,
 
-    /** Display order (lower = first) */
+    /** The display order in the UI (lower numbers appear first). */
     val order: Int = 0,
 
-    /** Is this field required? */
-    val required: Boolean = false,
+    /** If true, the core may indicate that this field must be filled. */
+    val isRequired: Boolean = false,
 
-    /** For DROPDOWN type: comma-separated options */
+    /** For DROPDOWN type, provide a comma-separated list of options. */
     val options: String = "",
 
-    /** Validation regex pattern */
+    /** Optional regex pattern for validation of TEXT or PASSWORD fields. */
     val validation: String = "",
 
-    /** Default value (as string) */
+    /** The default value for this field, represented as a string. */
     val defaultValue: String = ""
 )
 
+/**
+ * Defines the type of UI control to be rendered for a @Setting.
+ */
 enum class SettingType {
-    /** Single-line text input */
+    /** A single-line text input field. */
     TEXT,
 
-    /** Password field (masked) */
+    /** A single-line text input field that masks its content. */
     PASSWORD,
 
-    /** Multi-line text area */
+    /** A multi-line text input area. */
     TEXTAREA,
 
-    /** Numeric input */
+    /** A numerical input, typically a spinner or formatted field. */
     NUMBER,
 
-    /** Checkbox */
+    /** A checkbox for true/false values. */
     BOOLEAN,
 
-    /** Dropdown selection */
+    /** A dropdown/combobox for selecting one of a predefined set of options. */
     DROPDOWN,
 
-    /** File path selector */
+    /** A component for selecting a file path. */
     FILE_PATH,
 
-    /** Directory path selector */
+    /** A component for selecting a directory path. */
     DIRECTORY_PATH
 }
