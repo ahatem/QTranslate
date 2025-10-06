@@ -35,4 +35,20 @@ interface Service {
      * the application's version.
      */
     val version: String
+
+    /**
+     * An optional path to an icon file within the plugin's resources.
+     * This provides a specific icon for this service (e.g., the Google Translate logo).
+     *
+     * If this is `null`, the core application will fall back to using the icon defined
+     * in the parent plugin's `plugin.json` manifest. If that is also null, the core
+     * will generate a placeholder icon.
+     *
+     * The path should be relative to the plugin's resource root (e.g., "assets/translate.svg").
+     * The recommended format is SVG.
+     *
+     * @return A String representing the resource path, or null.
+     */
+    val iconPath: String?
+        get() = null
 }

@@ -11,23 +11,43 @@ import com.github.michaelbull.result.Result
  */
 interface Plugin {
     /**
-     * Called once when the plugin is loaded at application startup.
-     * Use this to initialize resources, validate settings, or connect to APIs.
+     * Called once when the plugin is first loaded at application startup.
      *
-     * @param context Provides access to core application functionality like logging and notifications.
-     * @return Success if initialization succeeds, or a ServiceError if it fails.
+     * This method is the plugin's opportunity to initialize its internal resources,
+     * such as creating HTTP clients, reading configuration from its data directory,
+     * or validating secrets provided by the user.
+     *
+     * @param context Provides a sandboxed, secure context for the plugin to interact
+     *                with the core application.
+     * @return `Ok(Unit)` if initialization was successful. If initialization fails for any
+     *         reason (e.g., invalid API key, network error), it should return an `Err`
+     *         containing a descriptive `ServiceError`. A failed initialization will
+     *         prevent this plugin from being activated.
      */
-    fun initialize(context: PluginContext): Result<List<Service>, ServiceError>
+    fun initialize(context: PluginContext): Result<Unit, ServiceError>
 
     /**
-     * Returns the plugin's settings configuration, if any.
-     * The core will generate a UI based on the provided fields.
+     * Called by the core application *after* a successful `initialize()` call.
+     *
+     * This method should return a list of all functional `Service` instances
+     * that this plugin provides.
+     *
+     * @return A list of services (e.g., `Translator`, `OCR`). The list can be empty if the
+     *         plugin has no services to offer under the current configuration.
      */
-    fun getSettingsClass(): Class<*>? = null
+    fun getServices(): List<Service>
 
     /**
-     * Called before the application shuts down.
-     * Use this to release resources (e.g., close network connections, save state).
+     * Returns the Class of a simple data class whose properties are annotated with `@Setting`.
+     * The core application will use this to automatically generate a settings UI for the plugin.
+     *
+     * @return The `.java` class of your settings object, or `null` if the plugin has no settings.
+     */
+    fun getSettingsClass(): Class<*>?
+
+    /**
+     * Called just before the application shuts down. This is the plugin's final chance
+     * to clean up its resources, such as closing network connections or flushing data to disk.
      */
     fun shutdown() {}
 }
