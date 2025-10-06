@@ -1,11 +1,11 @@
 package com.github.ahatem.qtranslate.plugins.google
 
 import com.github.ahatem.qtranslate.api.*
-import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
-import com.github.ahatem.qtranslate.plugins.google.common.TranslateResponse
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
+import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
+import com.github.ahatem.qtranslate.plugins.google.common.TranslateResponse
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
 

@@ -1,16 +1,15 @@
 package com.github.ahatem.qtranslate.plugins.google
 
 import com.github.ahatem.qtranslate.api.*
-import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
-import com.github.ahatem.qtranslate.plugins.google.common.VisionFeature
-import com.github.ahatem.qtranslate.plugins.google.common.VisionImage
-import com.github.ahatem.qtranslate.plugins.google.common.VisionImageContext
-import com.github.ahatem.qtranslate.plugins.google.common.VisionImageRequest
-import com.github.ahatem.qtranslate.plugins.google.common.VisionRequest
-import com.github.ahatem.qtranslate.plugins.google.common.VisionResponse
-import com.github.ahatem.qtranslate.plugins.common.*
-import com.github.michaelbull.result.*
+import com.github.ahatem.qtranslate.plugins.common.ApiConfig
+import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
+import com.github.ahatem.qtranslate.plugins.common.createJsonParser
+import com.github.ahatem.qtranslate.plugins.google.common.*
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
+import com.github.michaelbull.result.toResultOr
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.util.*

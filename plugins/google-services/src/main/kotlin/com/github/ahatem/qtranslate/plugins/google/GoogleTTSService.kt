@@ -2,9 +2,9 @@ package com.github.ahatem.qtranslate.plugins.google
 
 
 import com.github.ahatem.qtranslate.api.*
-import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
+import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
 import com.github.michaelbull.result.getOr
@@ -21,6 +21,7 @@ class GoogleTTSService(
     override val id: String = "google-services-tts"
     override val name: String = "Google TTS"
     override val version: String = "1.0.0"
+    override val iconPath: String = "assets/google-translate-icon.svg"
 
     companion object {
         private const val TTS_ENDPOINT = "https://translate.googleapis.com/translate_tts"

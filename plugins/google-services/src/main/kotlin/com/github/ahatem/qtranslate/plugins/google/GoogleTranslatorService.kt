@@ -1,12 +1,15 @@
 package com.github.ahatem.qtranslate.plugins.google
 
 import com.github.ahatem.qtranslate.api.*
+import com.github.ahatem.qtranslate.plugins.common.ApiConfig
+import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
+import com.github.ahatem.qtranslate.plugins.common.createJsonParser
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.ahatem.qtranslate.plugins.google.common.OfficialTranslateResponse
 import com.github.ahatem.qtranslate.plugins.google.common.TranslateResponse
-import com.github.ahatem.qtranslate.plugins.common.*
-import com.github.michaelbull.result.*
+import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
+import com.github.michaelbull.result.toResultOr
 
 class GoogleTranslatorService(
     private val pluginContext: PluginContext,
@@ -19,6 +22,7 @@ class GoogleTranslatorService(
     override val id: String = "google-translator"
     override val name: String = "Google Translate"
     override val version: String = "1.0.0"
+    override val iconPath: String = "assets/google-translate-icon.svg"
 
     private val officialParser = createJsonParser<OfficialTranslateResponse>(pluginContext)
     private val translateParser = createJsonParser<TranslateResponse>(pluginContext)
