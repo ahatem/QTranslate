@@ -13,5 +13,7 @@ include("api")
 include("core")
 include("plugins:common")
 include("plugins:google-services")
+include("plugins:bing-services")
 
 rootProject.name = "qtranslate-app"
+

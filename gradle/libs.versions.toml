@@ -13,7 +13,7 @@ jsvg = "2.0.0"
 miglayout = "11.1"
 swt = "3.123.0"
 shadow = "8.1.1"
-
+diffUtils = "4.15"
 
 [libraries]
 # Kotlin ecosystem
@@ -45,6 +45,7 @@ swt = { module = "org.eclipse.platform:org.eclipse.swt.win32.win32.x86_64", vers
 
 # Parsing
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
+java-diff-utils = { module = "io.github.java-diff-utils:java-diff-utils", version.ref = "diffUtils" }
 
 [bundles]
 kotlinxEcosystem = ["kotlinxCoroutines", "kotlinxCoroutinesSwing", "kotlinxDatetime", "kotlinxSerialization"]

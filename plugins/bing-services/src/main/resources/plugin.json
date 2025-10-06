@@ -1,0 +1,9 @@
+{
+  "id": "bing-services",
+  "name": "Bing Services",
+  "version": "1.0.0",
+  "author": "Ahmed Hatem",
+  "description": "Translation, spell checking, and text-to-speech using Microsoft Bing Translator",
+  "minApiVersion": "1.0",
+  "icon": "assets/bing-icon.svg"
+}
