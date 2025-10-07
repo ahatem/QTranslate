@@ -1,5 +1,9 @@
-package com.github.ahatem.qtranslate.api
+package com.github.ahatem.qtranslate.api.spellchecker
 
+import com.github.ahatem.qtranslate.api.LanguageCode
+import com.github.ahatem.qtranslate.api.LanguageSupport
+import com.github.ahatem.qtranslate.api.Service
+import com.github.ahatem.qtranslate.api.ServiceError
 import com.github.michaelbull.result.Result
 
 /**
@@ -11,7 +15,7 @@ interface SpellChecker : Service, LanguageSupport {
 
 data class SpellCheckRequest(
     val text: String,
-    val language: LanguageCode = LanguageCode.AUTO
+    val language: LanguageCode = LanguageCode.Companion.AUTO
 )
 
 data class SpellCheckResponse(
