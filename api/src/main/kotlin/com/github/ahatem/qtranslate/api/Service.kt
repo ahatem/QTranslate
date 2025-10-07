@@ -51,4 +51,32 @@ interface Service {
      */
     val iconPath: String?
         get() = null
+
+
+    /**
+     * Checks if this service supports a specific capability interface.
+     * This default implementation uses reflection and is sufficient for most cases.
+     *
+     * @param capability The Class of the capability interface (e.g., VoiceSupport::class.java).
+     * @return `true` if the service implements the capability, `false` otherwise.
+     */
+    fun <T : Any> supports(capability: Class<T>): Boolean {
+        return capability.isAssignableFrom(this::class.java)
+    }
+
+    /**
+     * Returns an instance of the capability interface if supported.
+     * This allows the core to interact with extended features in a type-safe way
+     * without resorting to 'is' checks.
+     *
+     * @param capability The Class of the capability interface.
+     * @return The capability instance, or `null` if not supported.
+     */
+    fun <T : Any> getCapability(capability: Class<T>): T? {
+        return if (supports(capability)) {
+            capability.cast(this)
+        } else {
+            null
+        }
+    }
 }
