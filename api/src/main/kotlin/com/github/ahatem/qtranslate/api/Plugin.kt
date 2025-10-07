@@ -52,18 +52,4 @@ interface Plugin {
     fun shutdown() {}
 }
 
-/**
- * Represents the metadata for a plugin, loaded from `resources/plugin.json`.
- * This file must exist in every plugin's resources.
- */
-data class PluginManifest(
-    val id: String,
-    val author: String,
-    val description: String,
-    val entryPoint: String,
-    val minApiVersion: String,
-    val repositoryUrl: String? = null,
-    val homepage: String? = null,
-    val icon: String? = null
-)
 
