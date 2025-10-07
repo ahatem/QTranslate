@@ -1,6 +1,6 @@
 package com.github.ahatem.qtranslate.plugins.bing
 
-import com.github.ahatem.qtranslate.api.Logger
+import com.github.ahatem.qtranslate.api.NoSettings
 import com.github.ahatem.qtranslate.api.Plugin
 import com.github.ahatem.qtranslate.api.PluginContext
 import com.github.ahatem.qtranslate.api.Service
@@ -10,18 +10,22 @@ import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 
-class BingPlugin : Plugin {
-    // Core dependencies, initialized once and live for the application's lifetime.
+/**
+ * A plugin that provides translation, spell-checking, and TTS services
+ * using the Microsoft Bing APIs. This plugin does not have any user-configurable settings.
+ */
+class BingPlugin : Plugin<NoSettings> {
+    // Core dependencies, initialized once.
     private lateinit var pluginContext: PluginContext
     private lateinit var httpClient: KtorHttpClient
     private lateinit var authManager: BingAuthManager
 
-    // Stateless, shared helpers for services.
-    private val languageMapper = BingLanguageMapper
-    private val apiConfig = ApiConfig()
-
     // Holds service instances only when the plugin is active.
     private var activeServices: List<Service> = emptyList()
+
+    // Stateless, shared helpers.
+    private val languageMapper = BingLanguageMapper
+    private val apiConfig = ApiConfig()
 
     override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> {
         this.pluginContext = context
@@ -32,19 +36,21 @@ class BingPlugin : Plugin {
         return Ok(Unit)
     }
 
-    override suspend fun onEnable() {
+    override suspend fun onEnable(): Result<Unit, ServiceError> {
         pluginContext.logger.info("Enabling Bing services")
         activeServices = listOf(
             BingTranslatorService(pluginContext, httpClient, authManager, languageMapper, apiConfig),
             BingSpellCheckerService(pluginContext, httpClient, authManager, languageMapper, apiConfig),
             BingTTSService(pluginContext, httpClient, authManager, languageMapper, apiConfig)
         )
+        // Since enabling these services is a simple in-memory operation, we can
+        // safely return Ok. A more complex plugin might have I/O here that could fail.
+        return Ok(Unit)
     }
 
     override suspend fun onDisable() {
         pluginContext.logger.info("Disabling Bing services")
         activeServices = emptyList()
-        // The httpClient is intentionally kept alive in case the plugin is re-enabled.
     }
 
     override suspend fun shutdown() {
@@ -56,7 +62,8 @@ class BingPlugin : Plugin {
         return activeServices
     }
 
-    override fun getSettingsClass(): Class<*>? {
-        return null // This plugin has no configurable settings.
+    override fun getSettingsClass(): Class<NoSettings> {
+        // This plugin has no settings, so it returns the NoSettings marker class.
+        return NoSettings::class.java
     }
 }
