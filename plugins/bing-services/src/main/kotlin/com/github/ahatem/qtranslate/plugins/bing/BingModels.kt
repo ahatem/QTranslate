@@ -16,8 +16,8 @@ data class BingAuth(
 
 @Serializable
 data class BingTranslateResponse(
-    @SerialName("detectedLanguage") val detectedLanguage: BingDetectedLanguage,
-    @SerialName("translations") val translations: List<BingTranslation>
+    @SerialName("translations") val translations: List<BingTranslation>? = null,
+    @SerialName("detectedLanguage") val detectedLanguage: BingDetectedLanguage? = null
 )
 
 @Serializable

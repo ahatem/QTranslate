@@ -49,13 +49,15 @@ class BingTranslatorService(
             ).bind()
 
             val responses = parser.parse(responseString).bind()
-            val response = responses.firstOrNull()
-                .toResultOr { ServiceError.InvalidResponseError("Empty response from Bing", null) }
-                .bind()
+            val response = responses.firstOrNull {
+                it.detectedLanguage != null && it.translations != null
+            }.toResultOr {
+                ServiceError.InvalidResponseError("Empty or invalid response from Bing", null)
+            }.bind()
 
             TranslationResponse(
-                translatedText = response.translations.joinToString("") { it.text },
-                detectedLanguage = languageMapper.fromProviderCode(response.detectedLanguage.language)
+                translatedText = response.translations!!.joinToString("") { it.text },
+                detectedLanguage = languageMapper.fromProviderCode(response.detectedLanguage!!.language)
             )
         }
 
@@ -67,6 +69,7 @@ class BingTranslatorService(
             "token" to auth.token,
             "key" to auth.key,
             "isAuthv2" to "true",
+            "tryFetchingGenderDebiasedTranslations" to "true"
 //            "tone" // [Casual, Formal, Standard] Standard will replace tone with tryFetchingGenderDebiasedTranslations: true
         )
 
