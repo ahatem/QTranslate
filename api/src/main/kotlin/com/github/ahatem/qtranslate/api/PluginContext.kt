@@ -15,6 +15,15 @@ import java.io.File
 interface PluginContext {
 
     /**
+     * A pre-configured Logger instance for the plugin to use.
+     *
+     * The logger is automatically scoped to the plugin, so all messages
+     * will be tagged with the plugin's ID in the application logs.
+     * This property is guaranteed to be available throughout the plugin's lifecycle.
+     */
+    val logger: Logger
+
+    /**
      * Displays a non-intrusive notification to the user. This is the preferred way
      * to provide feedback for background operations or minor events.
      *
@@ -23,26 +32,6 @@ interface PluginContext {
      */
     fun notify(message: String, type: NotificationType = NotificationType.INFO)
 
-    /**
-     * Logs an error for debugging and reporting. The core application will handle
-     * routing this error to a log file and/or displaying it in a dedicated error console.
-     *
-     * Use this for unexpected exceptions during plugin operation. For user-facing errors
-     * that result from a service call (e.g., invalid API key), it is better to return a
-     * specific `ServiceError` from the service method.
-     *
-     * @param error The `Throwable` that occurred.
-     * @param context An optional string providing more information about the operation that failed.
-     */
-    fun logError(error: Throwable, context: String? = null)
-
-    /**
-     * Logs an informational message, typically for debugging purposes.
-     * These messages may be hidden in a production environment but visible in a debug mode.
-     *
-     * @param message The informational message to log.
-     */
-    fun logInfo(message: String)
 
     /**
      * Retrieves a secret (e.g., an API key) from the application's secure storage,
