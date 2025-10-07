@@ -16,7 +16,7 @@ interface OCR : Service, LanguageSupport {
 
 data class OCRRequest(
     val image: BufferedImage,
-    val language: LanguageCode = LanguageCode.Companion.AUTO // Hint for the service
+    val language: LanguageCode = LanguageCode.AUTO // Hint for the service
 )
 
 data class OCRResponse(
