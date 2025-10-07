@@ -12,7 +12,7 @@ jsoup = "1.20.1"
 jsvg = "2.0.0"
 miglayout = "11.1"
 swt = "3.123.0"
-shadow = "8.1.1"
+shadow = "9.2.2"
 diffUtils = "4.15"
 
 [libraries]
@@ -55,5 +55,5 @@ flatlaf = ["flatlaf", "flatlaf-intellij", "flatlaf-extras"]
 
 [plugins]
 kotlinPluginSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
-shadow = { id = "com.github.johnrengelman.shadow", version.ref = "shadow" }
+shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
 
