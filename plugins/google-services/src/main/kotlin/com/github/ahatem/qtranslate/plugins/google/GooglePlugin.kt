@@ -9,12 +9,19 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 
 class GooglePlugin : Plugin {
+    // Core dependencies, initialized once and live for the application's lifetime.
     private lateinit var pluginContext: PluginContext
     private lateinit var httpClient: KtorHttpClient
-    private lateinit var apiConfig: ApiConfig
     private lateinit var settings: GoogleSettings
 
-    override fun initialize(context: PluginContext): Result<Unit, ServiceError> {
+    // Stateless, shared helpers for services.
+    private val languageMapper = GoogleLanguageMapper
+    private val apiConfig = ApiConfig()
+
+    // Holds service instances only when the plugin is active.
+    private var activeServices: List<Service> = emptyList()
+
+    override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> {
         this.pluginContext = context
 
         settings = GoogleSettings().apply {
@@ -22,17 +29,16 @@ class GooglePlugin : Plugin {
             visionApiKey = context.getSecret("visionApiKey") ?: ""
         }
 
-        apiConfig = ApiConfig()
+        // The HTTP client is expensive to create, so it's initialized only once.
         httpClient = KtorHttpClient(pluginContext)
 
-        pluginContext.logInfo("Google Services Plugin initialized successfully")
-
+        pluginContext.logger.info("Google Plugin initialized")
         return Ok(Unit)
     }
 
-    override fun getServices(): List<Service> {
-        return buildList {
-            val languageMapper = GoogleLanguageMapper
+    override suspend fun onEnable() {
+        pluginContext.logger.info("Enabling Google services")
+        activeServices = buildList {
             add(GoogleTranslatorService(pluginContext, settings, httpClient, languageMapper, apiConfig))
             add(GoogleTTSService(pluginContext, httpClient, languageMapper, apiConfig))
             add(GoogleDictionaryService(pluginContext, httpClient, languageMapper, apiConfig))
@@ -41,13 +47,23 @@ class GooglePlugin : Plugin {
         }
     }
 
-    override fun getSettingsClass(): Class<*> {
-        return GoogleSettings::class.java
+    override suspend fun onDisable() {
+        pluginContext.logger.info("Disabling Google services")
+        activeServices = emptyList()
+        // The httpClient is intentionally kept alive in case the plugin is re-enabled.
     }
 
-    override fun shutdown() {
-        pluginContext.logInfo("Google Services Plugin shutting down")
+    override suspend fun shutdown() {
+        pluginContext.logger.info("Google Plugin shutting down")
         httpClient.close()
+    }
+
+    override fun getServices(): List<Service> {
+        return activeServices
+    }
+
+    override fun getSettingsClass(): Class<*> {
+        return GoogleSettings::class.java
     }
 }
 

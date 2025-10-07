@@ -29,7 +29,7 @@ suspend fun <T> PluginContext.logAndHandleError(
     try {
         Ok(block())
     } catch (e: Exception) {
-        logError(e, "$operation failed")
+        logger.error("$operation failed", e)
         Err(ServiceError.UnknownError("Failed to $operation: ${e.message}", e))
     }
 }

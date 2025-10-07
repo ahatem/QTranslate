@@ -197,8 +197,6 @@ class BingTTSService(
             </speak>
         """.trimIndent()
 
-        pluginContext.logInfo("Synthesizing smml: $ssml")
-
         val formData = mapOf(
             "ssml" to ssml,
             "token" to auth.token,

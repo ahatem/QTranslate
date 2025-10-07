@@ -50,7 +50,7 @@ class GoogleTTSService(
 
 
         val audioData = tryPrimaryEndpoint(chunks, langTag, speed).getOrElse {
-            pluginContext.logInfo("Primary TTS endpoint failed, trying fallback")
+            pluginContext.logger.info("Primary TTS endpoint failed, trying fallback")
             tryFallbackEndpoint(chunks, langTag, speed).bind()
         }
 

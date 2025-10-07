@@ -25,10 +25,10 @@ class JsonResponseParser<T>(
         return try {
             Ok(deserializer(jsonString))
         } catch (e: SerializationException) {
-            pluginContext.logError(e, "JSON parsing failed")
+            pluginContext.logger.error("JSON parsing failed", e)
             Err(ServiceError.InvalidResponseError("Failed to parse JSON: ${e.message}", e))
         } catch (e: Exception) {
-            pluginContext.logError(e, "Unexpected error during parsing")
+            pluginContext.logger.error("Unexpected error during parsing", e)
             Err(ServiceError.UnknownError("Unexpected parsing error: ${e.message}", e))
         }
     }

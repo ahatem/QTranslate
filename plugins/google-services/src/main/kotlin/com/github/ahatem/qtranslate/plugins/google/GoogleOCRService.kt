@@ -102,7 +102,7 @@ class GoogleOCRService(
             val imageBytes = outputStream.toByteArray()
             Ok(Base64.getEncoder().encodeToString(imageBytes))
         } catch (e: Exception) {
-            pluginContext.logError(e, "Failed to encode image")
+            pluginContext.logger.error("Failed to encode image", e)
             Err(ServiceError.InvalidInputError("Failed to encode image: ${e.message}", e))
         }
     }

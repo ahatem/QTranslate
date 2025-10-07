@@ -43,7 +43,7 @@ class BingAuthManager(
     }
 
     private suspend fun refreshAuth(): Result<BingAuth, ServiceError> = coroutineBinding {
-        pluginContext.logInfo("Fetching new Bing authentication token")
+        pluginContext.logger.info("Fetching new Bing authentication token")
 
         val html = httpClient.get(
             url = "https://www.bing.com/translator",
@@ -53,7 +53,7 @@ class BingAuthManager(
         val auth = parseAuthFromHtml(html).bind()
         authRef.set(AuthState(auth, System.currentTimeMillis()))
 
-        pluginContext.logInfo("Successfully obtained Bing authentication token")
+        pluginContext.logger.info("Successfully obtained Bing authentication token")
         auth
     }
 

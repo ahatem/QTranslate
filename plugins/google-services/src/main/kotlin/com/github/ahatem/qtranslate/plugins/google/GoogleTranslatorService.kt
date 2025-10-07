@@ -40,10 +40,10 @@ class GoogleTranslatorService(
 
     override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> {
         if (settings.translateApiKey.isNotBlank()) {
-            pluginContext.logInfo("Using official Google Translate API")
+            pluginContext.logger.info("Using official Google Translate API")
             val officialResult = translateWithOfficialAPI(request)
             if (officialResult.isOk) return officialResult
-            pluginContext.logInfo("Official API failed, falling back to unofficial endpoint")
+            pluginContext.logger.info("Official API failed, falling back to unofficial endpoint")
         }
         return translateWithUnofficialAPI(request)
     }
@@ -90,7 +90,7 @@ class GoogleTranslatorService(
         val primaryResult = tryPrimaryEndpoint(request.text, sourceTag, targetTag)
         if (primaryResult.isOk) return primaryResult
 
-        pluginContext.logInfo("Primary endpoint failed, trying fallback")
+        pluginContext.logger.info("Primary endpoint failed, trying fallback")
         return tryFallbackEndpoint(request.text, sourceTag, targetTag)
     }
 

@@ -75,10 +75,10 @@ class KtorHttpClient(
             }
             handleResponse(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            pluginContext.logError(e, "POST request timeout for $url")
+            pluginContext.logger.error("POST request timeout for $url", e)
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
         } catch (e: Exception) {
-            pluginContext.logError(e, "POST request failed for $url")
+            pluginContext.logger.error("POST request failed for $url", e)
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -101,10 +101,10 @@ class KtorHttpClient(
             }
             handleResponse(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            pluginContext.logError(e, "GET request timeout for $url")
+            pluginContext.logger.error("GET request timeout for $url", e)
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
         } catch (e: Exception) {
-            pluginContext.logError(e, "GET request failed for $url")
+            pluginContext.logger.error("GET request failed for $url", e)
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -185,10 +185,10 @@ class KtorHttpClient(
 
             handleResponse(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            pluginContext.logError(e, "POST form request timeout for $url")
+            pluginContext.logger.error("POST form request timeout for $url", e)
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
         } catch (e: Exception) {
-            pluginContext.logError(e, "POST form request failed for $url")
+            pluginContext.logger.error("POST form request failed for $url", e)
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -254,10 +254,10 @@ class KtorHttpClient(
 
             handleResponseBytes(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            pluginContext.logError(e, "POST form bytes request timeout for $url")
+            pluginContext.logger.error("POST form bytes request timeout for $url", e)
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
         } catch (e: Exception) {
-            pluginContext.logError(e, "POST form bytes request failed for $url")
+            pluginContext.logger.error("POST form bytes request failed for $url", e)
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -279,10 +279,10 @@ class KtorHttpClient(
             }
             handleResponseBytes(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            pluginContext.logError(e, "GET bytes request timeout for $url")
+            pluginContext.logger.error("GET bytes request timeout for $url", e)
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
         } catch (e: Exception) {
-            pluginContext.logError(e, "GET bytes request failed for $url")
+            pluginContext.logger.error("GET bytes request failed for $url", e)
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -306,14 +306,14 @@ class KtorHttpClient(
                 contentType(ContentType.Application.Json)
                 setBody(body, typeInfo)
             }
-            pluginContext.logInfo("POST typed request succeeded for ${response.request.url}")
-            pluginContext.logInfo("POST typed request succeeded for ${response.request.content}")
+            pluginContext.logger.info("POST typed request succeeded for ${response.request.url}")
+            pluginContext.logger.info("POST typed request succeeded for ${response.request.content}")
             handleResponse(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            pluginContext.logError(e, "POST typed request timeout for $url")
+            pluginContext.logger.error("POST typed request timeout for $url", e)
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
         } catch (e: Exception) {
-            pluginContext.logError(e, "POST typed request failed for $url")
+            pluginContext.logger.error("POST typed request failed for $url", e)
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
