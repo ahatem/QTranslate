@@ -1,6 +1,14 @@
 package com.github.ahatem.qtranslate.plugins.bing
 
 import com.github.ahatem.qtranslate.api.*
+import com.github.ahatem.qtranslate.api.tts.AudioFormat
+import com.github.ahatem.qtranslate.api.tts.Gender
+import com.github.ahatem.qtranslate.api.tts.TTSAudio
+import com.github.ahatem.qtranslate.api.tts.TTSRequest
+import com.github.ahatem.qtranslate.api.tts.TTSResponse
+import com.github.ahatem.qtranslate.api.tts.TextToSpeech
+import com.github.ahatem.qtranslate.api.tts.Voice
+import com.github.ahatem.qtranslate.api.tts.VoiceSupport
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.michaelbull.result.Ok

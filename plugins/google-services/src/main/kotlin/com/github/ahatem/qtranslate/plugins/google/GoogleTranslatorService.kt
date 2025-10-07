@@ -1,6 +1,9 @@
 package com.github.ahatem.qtranslate.plugins.google
 
 import com.github.ahatem.qtranslate.api.*
+import com.github.ahatem.qtranslate.api.translator.TranslationRequest
+import com.github.ahatem.qtranslate.api.translator.TranslationResponse
+import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser

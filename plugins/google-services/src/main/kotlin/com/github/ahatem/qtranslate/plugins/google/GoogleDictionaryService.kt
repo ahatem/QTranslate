@@ -1,6 +1,11 @@
 package com.github.ahatem.qtranslate.plugins.google
 
 import com.github.ahatem.qtranslate.api.*
+import com.github.ahatem.qtranslate.api.dictionary.Definition
+import com.github.ahatem.qtranslate.api.dictionary.Dictionary
+import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
+import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
+import com.github.ahatem.qtranslate.api.dictionary.DictionaryResponse
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
