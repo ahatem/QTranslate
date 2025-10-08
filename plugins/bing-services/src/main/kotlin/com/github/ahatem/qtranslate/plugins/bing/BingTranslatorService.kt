@@ -1,6 +1,8 @@
 package com.github.ahatem.qtranslate.plugins.bing
 
-import com.github.ahatem.qtranslate.api.*
+import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.plugin.PluginContext
+import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.translator.TranslationResponse
 import com.github.ahatem.qtranslate.api.translator.Translator

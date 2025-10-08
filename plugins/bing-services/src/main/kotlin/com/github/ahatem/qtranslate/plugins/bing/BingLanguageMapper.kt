@@ -1,7 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.bing
 
-import com.github.ahatem.qtranslate.api.LanguageCode
-import com.github.ahatem.qtranslate.api.ServiceError
+import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.plugins.common.LanguageMapper
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
