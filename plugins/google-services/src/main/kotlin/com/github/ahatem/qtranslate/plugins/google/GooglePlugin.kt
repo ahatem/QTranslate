@@ -1,7 +1,12 @@
 package com.github.ahatem.qtranslate.plugins.google
 
 
-import com.github.ahatem.qtranslate.api.*
+import com.github.ahatem.qtranslate.api.plugin.Plugin
+import com.github.ahatem.qtranslate.api.plugin.PluginContext
+import com.github.ahatem.qtranslate.api.plugin.Service
+import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.api.settings.Setting
+import com.github.ahatem.qtranslate.api.settings.SettingType
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
