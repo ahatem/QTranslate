@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.api
+package com.github.ahatem.qtranslate.api.plugin
 
 /**
  * A marker object used as the generic type for Plugins that do not have settings.

@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.api
+package com.github.ahatem.qtranslate.api.plugin
 
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -13,7 +13,7 @@ import com.github.michaelbull.result.Result
  * - Without settings: `class MyPlugin : Plugin<NoSettings>`
  *
  * This class must be registered via Java's ServiceLoader mechanism by creating a file in
- * `resources/META-INF/services/com.github.ahatem.qtranslate.api.Plugin` which contains the
+ * `resources/META-INF/services/com.github.ahatem.qtranslate.api.plugin.Plugin` which contains the
  * fully qualified name of the implementing class.
  *
  * ### Threading Model

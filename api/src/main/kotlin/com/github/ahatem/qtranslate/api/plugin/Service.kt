@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.api
+package com.github.ahatem.qtranslate.api.plugin
 
 /**
  * The base interface for a distinct, functional capability provided by a plugin.

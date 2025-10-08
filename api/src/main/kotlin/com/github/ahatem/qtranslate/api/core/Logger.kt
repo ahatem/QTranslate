@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.api
+package com.github.ahatem.qtranslate.api.core
 
 /**
  * A lightweight logging facade provided by the core application to plugins.
@@ -21,7 +21,7 @@ package com.github.ahatem.qtranslate.api
  *   written to persistent storage or external systems.
  * - Keep messages concise yet descriptive to aid debugging and monitoring.
  *
- * @see PluginContext
+ * @see com.github.ahatem.qtranslate.api.plugin.PluginContext
  */
 interface Logger {
     /**

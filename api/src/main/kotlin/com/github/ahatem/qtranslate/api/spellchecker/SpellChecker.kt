@@ -1,9 +1,9 @@
 package com.github.ahatem.qtranslate.api.spellchecker
 
-import com.github.ahatem.qtranslate.api.LanguageCode
-import com.github.ahatem.qtranslate.api.LanguageSupport
-import com.github.ahatem.qtranslate.api.Service
-import com.github.ahatem.qtranslate.api.ServiceError
+import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.language.LanguageSupport
+import com.github.ahatem.qtranslate.api.plugin.Service
+import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.michaelbull.result.Result
 
 /**
@@ -32,9 +32,3 @@ data class Correction(
     val message: String? = null
 )
 
-enum class CorrectionType {
-    SPELLING,
-    GRAMMAR,
-    STYLE,
-    PUNCTUATION
-}

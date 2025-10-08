@@ -1,5 +1,7 @@
-package com.github.ahatem.qtranslate.api
+package com.github.ahatem.qtranslate.api.plugin
 
+import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.api.language.LanguageCode
 import java.io.File
 
 /**
@@ -27,15 +29,19 @@ interface PluginContext {
      * Displays a non-intrusive notification to the user. This is the preferred way
      * to provide feedback for background operations or minor events.
      *
-     * @param message The text content of the notification.
+     * @param title The title of the notification.
+     * @param body The main text of the notification.
      * @param type The severity level, which may affect the notification's appearance (e.g., color or icon).
      */
-    fun notify(message: String, type: NotificationType = NotificationType.INFO)
+    fun notify(title: String, body: String, type: NotificationType = NotificationType.INFO)
 
 
     /**
-     * Retrieves a secret (e.g., an API key) from the application's secure storage,
+     * Retrieves a secret (e.g., an API key) from the application's storage,
      * scoped exclusively to this plugin. A plugin cannot access secrets belonging to another plugin.
+     *
+     * Values are stored with basic obfuscation to prevent accidental exposure,
+     * making this suitable for API keys, authentication tokens, and plugin configuration.
      *
      * @param key The unique key for the secret. It is strongly recommended that this key
      *            matches the property name in the plugin's `@Setting`-annotated settings class.
@@ -44,9 +50,11 @@ interface PluginContext {
     fun getSecret(key: String): String?
 
     /**
-     * Securely stores a secret for this plugin. The core application is responsible for
-     * using the appropriate platform-specific secure storage mechanism
-     * (e.g., Windows Credential Vault, macOS Keychain, Linux Secret Service).
+     * Stores a secret for this plugin. The core application provides basic obfuscation
+     * to prevent accidental exposure of sensitive data like API keys and authentication tokens.
+     *
+     * This method is called automatically for @Setting-annotated fields when users save settings,
+     * and can also be used by plugins for their own runtime data storage needs.
      *
      * @param key The unique key under which to store the secret.
      * @param value The secret value to store.
@@ -81,19 +89,3 @@ interface PluginContext {
     val currentOutputLanguage: LanguageCode
 }
 
-/**
- * Defines the severity level of a notification shown to the user.
- */
-enum class NotificationType {
-    /** General information. */
-    INFO,
-
-    /** A potential issue that does not prevent functionality. */
-    WARNING,
-
-    /** An error that has occurred. */
-    ERROR,
-
-    /** Confirmation of a successful operation. */
-    SUCCESS
-}

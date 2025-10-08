@@ -1,4 +1,6 @@
-package com.github.ahatem.qtranslate.api
+package com.github.ahatem.qtranslate.api.plugin
+
+import com.github.ahatem.qtranslate.api.language.LanguageCode
 
 
 /**
