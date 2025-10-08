@@ -1,6 +1,6 @@
 package com.github.ahatem.qtranslate.plugins.common
 
-import com.github.ahatem.qtranslate.api.ServiceError
+import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.michaelbull.result.Result
 
 /**
