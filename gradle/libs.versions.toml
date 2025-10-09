@@ -14,6 +14,7 @@ miglayout = "11.1"
 swt = "3.123.0"
 shadow = "9.2.2"
 diffUtils = "4.15"
+datastore = "1.1.7"
 
 [libraries]
 # Kotlin ecosystem
@@ -43,6 +44,9 @@ jsvg = { module = "com.github.weisj:jsvg", version.ref = "jsvg" }
 miglayout = { module = "com.miglayout:miglayout-swing", version.ref = "miglayout" }
 swt = { module = "org.eclipse.platform:org.eclipse.swt.win32.win32.x86_64", version.ref = "swt" }
 
+# Data store
+datastore-preferences = { module = "androidx.datastore:datastore-preferences-core", version.ref = "datastore" }
+
 # Parsing
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 java-diff-utils = { module = "io.github.java-diff-utils:java-diff-utils", version.ref = "diffUtils" }
@@ -52,6 +56,7 @@ kotlinxEcosystem = ["kotlinxCoroutines", "kotlinxCoroutinesSwing", "kotlinxDatet
 ktor = ["ktor-client-core", "ktor-client-cio", "ktor-client-content-negotiation", "ktor-serialization-kotlinx-json", "ktor-client-content-encoding"]
 result = ["result", "result-coroutines"]
 flatlaf = ["flatlaf", "flatlaf-intellij", "flatlaf-extras"]
+datastore = ["datastore-preferences"]
 
 [plugins]
 kotlinPluginSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
