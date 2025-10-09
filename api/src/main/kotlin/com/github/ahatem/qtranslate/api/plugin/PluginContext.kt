@@ -41,7 +41,7 @@ interface PluginContext {
      * scoped exclusively to this plugin. A plugin cannot access secrets belonging to another plugin.
      *
      * Values are stored with basic obfuscation to prevent accidental exposure,
-     * making this suitable for API keys, authentication tokens, and plugin configuration.
+     * making this suitable for API keys, authentication tokens, and sensitive plugin configuration.
      *
      * @param key The unique key for the secret. It is strongly recommended that this key
      *            matches the property name in the plugin's `@Setting`-annotated settings class.
@@ -53,8 +53,10 @@ interface PluginContext {
      * Stores a secret for this plugin. The core application provides basic obfuscation
      * to prevent accidental exposure of sensitive data like API keys and authentication tokens.
      *
-     * This method is called automatically for @Setting-annotated fields when users save settings,
-     * and can also be used by plugins for their own runtime data storage needs.
+     * **This method is NOT called automatically by the core.**
+     * Plugins are expected to call this method themselves inside [Plugin.onSettingsChanged]
+     * to persist sensitive fields (e.g., API keys). Non-sensitive settings may be stored
+     * elsewhere (e.g., in the plugin's data directory) or not at all.
      *
      * @param key The unique key under which to store the secret.
      * @param value The secret value to store.
