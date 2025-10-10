@@ -84,4 +84,12 @@ sealed class ServiceError {
         override val message: String,
         override val cause: Throwable?
     ) : ServiceError()
+
+    /**
+     * Validation failed for some input.
+     */
+    data class ValidationError(
+        override val message: String,
+        override val cause: Throwable? = null
+    ) : ServiceError()
 }

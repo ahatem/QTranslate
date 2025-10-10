@@ -37,31 +37,27 @@ interface PluginContext {
 
 
     /**
-     * Retrieves a secret (e.g., an API key) from the application's storage,
-     * scoped exclusively to this plugin. A plugin cannot access secrets belonging to another plugin.
+     * Stores a private key-value pair scoped exclusively to this plugin.
      *
-     * Values are stored with basic obfuscation to prevent accidental exposure,
-     * making this suitable for API keys, authentication tokens, and sensitive plugin configuration.
+     * This is the ideal place for a plugin to store **operational data** that isn't directly
+     * part of its user-facing settings form, such as authentication tokens, API usage counters,
+     * cache timestamps, or other internal state.
      *
-     * @param key The unique key for the secret. It is strongly recommended that this key
-     *            matches the property name in the plugin's `@Setting`-annotated settings class.
-     * @return The stored secret value as a `String`, or `null` if no value is found for the given key.
+     * **A plugin is responsible for its own data security.** The core provides simple persistence;
+     * if a value is highly sensitive, the plugin should encrypt it before calling this method.
+     *
+     * @param key A unique key for the data. Using a prefix (e.g., "cache_item_") is recommended.
+     * @param value The string value to store.
      */
-    fun getSecret(key: String): String?
+    fun storeValue(key: String, value: String)
 
     /**
-     * Stores a secret for this plugin. The core application provides basic obfuscation
-     * to prevent accidental exposure of sensitive data like API keys and authentication tokens.
+     * Retrieves a private value that was previously stored by this plugin.
      *
-     * **This method is NOT called automatically by the core.**
-     * Plugins are expected to call this method themselves inside [Plugin.onSettingsChanged]
-     * to persist sensitive fields (e.g., API keys). Non-sensitive settings may be stored
-     * elsewhere (e.g., in the plugin's data directory) or not at all.
-     *
-     * @param key The unique key under which to store the secret.
-     * @param value The secret value to store.
+     * @param key The unique key for the data.
+     * @return The stored string value, or `null` if no value is found for the given key.
      */
-    fun storeSecret(key: String, value: String)
+    fun getValue(key: String): String?
 
     /**
      * Returns a dedicated, private directory on the file system that this plugin
@@ -74,20 +70,5 @@ interface PluginContext {
      * @return A `File` object representing the root of the plugin's sandboxed data directory.
      */
     fun getPluginDataDirectory(): File
-
-    /**
-     * The user's currently selected source language in the main application UI.
-     * This is a read-only snapshot of the application's state at the time of access.
-     *
-     * Useful for services that can adapt their behavior, such as an OCR plugin
-     * using this as a hint for language detection.
-     */
-    val currentInputLanguage: LanguageCode
-
-    /**
-     * The user's currently selected target language in the main application UI.
-     * This is a read-only snapshot of the application's state at the time of access.
-     */
-    val currentOutputLanguage: LanguageCode
 }
 
