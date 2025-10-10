@@ -49,7 +49,7 @@ interface PluginContext {
      * @param key A unique key for the data. Using a prefix (e.g., "cache_item_") is recommended.
      * @param value The string value to store.
      */
-    fun storeValue(key: String, value: String)
+    suspend fun storeValue(key: String, value: String)
 
     /**
      * Retrieves a private value that was previously stored by this plugin.
@@ -57,7 +57,7 @@ interface PluginContext {
      * @param key The unique key for the data.
      * @return The stored string value, or `null` if no value is found for the given key.
      */
-    fun getValue(key: String): String?
+    suspend fun getValue(key: String): String?
 
     /**
      * Returns a dedicated, private directory on the file system that this plugin
