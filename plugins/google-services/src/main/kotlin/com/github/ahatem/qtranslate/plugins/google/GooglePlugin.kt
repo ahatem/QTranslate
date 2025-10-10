@@ -32,8 +32,8 @@ class GooglePlugin : Plugin<GoogleSettings> {
 
         // On first load, populate initial settings from secure storage.
         this.settings = GoogleSettings(
-            visionApiKey = context.getSecret("visionApiKey") ?: "",
-            translateApiKey = context.getSecret("translateApiKey") ?: ""
+            visionApiKey = context.getValue("visionApiKey") ?: "",
+            translateApiKey = context.getValue("translateApiKey") ?: ""
         )
         this.httpClient = KtorHttpClient(context)
 
@@ -50,20 +50,15 @@ class GooglePlugin : Plugin<GoogleSettings> {
     override suspend fun onSettingsChanged(settings: GoogleSettings): Result<Unit, ServiceError> {
         pluginContext.logger.info("Applying new Google settings...")
 
-        // 1. Validate the incoming settings.
+        // Validate the incoming settings.
         if (settings.visionApiKey.isBlank()) {
             return Err(ServiceError.InvalidInputError("Google Vision API Key cannot be empty."))
         }
-        // You could add more validation here (e.g., regex check the key format).
 
-        // 2. Persist the secrets securely.
-        pluginContext.storeSecret("visionApiKey", settings.visionApiKey)
-        pluginContext.storeSecret("translateApiKey", settings.translateApiKey)
-
-        // 3. Apply the new settings to the plugin's state.
+        // Apply the new settings to the plugin's state.
         this.settings = settings
 
-        // 4. React to the change by rebuilding the services with the new configuration.
+        // React to the change by rebuilding the services with the new configuration.
         buildServices()
 
         return Ok(Unit)
