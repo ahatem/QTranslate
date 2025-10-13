@@ -13,11 +13,12 @@ interface TextToSpeech : Service, LanguageSupport {
     suspend fun synthesize(request: TTSRequest): Result<TTSResponse, ServiceError>
 }
 
-
-
 data class TTSRequest(
     val text: String,
-    val voice: Voice? = null, // Null if voices are not supported
+    /** Used if voice is null; ignored if voice is provided. */
+    val language: LanguageCode? = null,
+    /** Must be null for non-VoiceSupport services. */
+    val voice: Voice? = null,
     val speed: Float = 1.0f
 )
 
