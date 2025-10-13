@@ -33,7 +33,7 @@ interface PluginContext {
      * @param body The main text of the notification.
      * @param type The severity level, which may affect the notification's appearance (e.g., color or icon).
      */
-    fun notify(title: String, body: String, type: NotificationType = NotificationType.INFO)
+    suspend fun notify(title: String, body: String, type: NotificationType = NotificationType.INFO)
 
 
     /**
