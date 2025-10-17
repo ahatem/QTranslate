@@ -1,7 +1,6 @@
 package com.github.ahatem.qtranslate.api.plugin
 
 import com.github.ahatem.qtranslate.api.core.Logger
-import com.github.ahatem.qtranslate.api.language.LanguageCode
 import java.io.File
 
 /**
