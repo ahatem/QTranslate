@@ -27,7 +27,7 @@ class GoogleTTSService(
     private val apiConfig: ApiConfig
 ) : TextToSpeech {
 
-    override val id: String = "google-services-tts"
+    override val id: String = "google-tts"
     override val name: String = "Google TTS"
     override val version: String = "1.0.0"
     override val iconPath: String = "assets/google-translate-icon.svg"
@@ -42,21 +42,11 @@ class GoogleTTSService(
     }
 
     override suspend fun synthesize(request: TTSRequest): Result<TTSResponse, ServiceError> = coroutineBinding {
-        val voice = request.voice
-            .toResultOr { ServiceError.InvalidInputError("Voice must be specified for TTS") }
-            .getOr(
-                Voice(
-                    id = "default",
-                    name = "Default",
-                    language = LanguageCode.ENGLISH,
-                    gender = Gender.FEMALE
-                )
-            )
+        val language = request.voice?.language ?: request.language ?: LanguageCode.AUTO
 
-        val langTag = languageMapper.toProviderCode(voice.language)
+        val langTag = languageMapper.toProviderCode(language)
         val speed = request.speed
         val chunks = partitionText(request.text)
-
 
         val audioData = tryPrimaryEndpoint(chunks, langTag, speed).getOrElse {
             pluginContext.logger.info("Primary TTS endpoint failed, trying fallback")

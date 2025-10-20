@@ -27,7 +27,7 @@ class GoogleSpellCheckerService(
     private val apiConfig: ApiConfig
 ) : SpellChecker {
 
-    override val id: String = "google-services-spell-checker"
+    override val id: String = "google-spell-checker"
     override val name: String = "Google Spell Checker"
     override val version: String = "1.0.0"
 

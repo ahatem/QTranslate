@@ -23,7 +23,7 @@ class GoogleDictionaryService(
     private val apiConfig: ApiConfig
 ) : Dictionary {
 
-    override val id: String = "google-services-dictionary"
+    override val id: String = "google-dictionary"
     override val name: String = "Google Dictionary"
     override val version: String = "1.0.0"
 
