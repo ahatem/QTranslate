@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.core.plugin
 
+
 import com.github.ahatem.qtranslate.api.plugin.Plugin
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.Service
@@ -7,11 +8,8 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.*
 import com.github.michaelbull.result.onFailure
-import com.github.michaelbull.result.onSuccess
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,8 +19,82 @@ import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import kotlin.Any
+import kotlin.Exception
+import kotlin.Float
+import kotlin.Int
+import kotlin.String
+import kotlin.Suppress
+import kotlin.Throwable
+import kotlin.Unit
+import kotlin.also
+import kotlin.let
 import kotlin.onFailure
+import kotlin.run
 import kotlin.runCatching
+import kotlin.synchronized
+
+// ============================================================================
+// Phase 2: Structured Error Types
+// ============================================================================
+
+/**
+ * Comprehensive error types for plugin operations
+ */
+sealed class PluginError(
+    open val pluginId: String,
+    open val message: String,
+    open val cause: Throwable?
+) {
+    data class LoadFailure(
+        override val pluginId: String,
+        override val message: String,
+        override val cause: Throwable?,
+        val jarPath: String
+    ) : PluginError(pluginId, message, cause)
+
+    data class InitializationFailure(
+        override val pluginId: String,
+        override val message: String,
+        override val cause: Throwable?
+    ) : PluginError(pluginId, message, cause)
+
+    data class EnableFailure(
+        override val pluginId: String,
+        override val message: String,
+        override val cause: Throwable?
+    ) : PluginError(pluginId, message, cause)
+
+    data class DisableFailure(
+        override val pluginId: String,
+        override val message: String,
+        override val cause: Throwable?
+    ) : PluginError(pluginId, message, cause)
+
+    data class DuplicateId(
+        override val pluginId: String,
+        val existingJar: String,
+        val duplicateJar: String
+    ) : PluginError(pluginId, "Duplicate plugin ID found", null)
+
+    data class InvalidManifest(
+        override val pluginId: String,
+        override val message: String,
+        val jarPath: String
+    ) : PluginError(pluginId, message, null)
+}
+
+/**
+ * Result of plugin loading operation with detailed tracking
+ */
+data class PluginLoadResult(
+    val successful: List<LoadedPluginResult>,
+    val failed: List<PluginError>,
+    val skipped: List<PluginError>
+) {
+    val totalAttempted: Int = successful.size + failed.size + skipped.size
+    val successRate: Float = if (totalAttempted > 0) successful.size.toFloat() / totalAttempted else 0f
+}
 
 data class PluginContainer(
     val plugin: Plugin<*>,
@@ -32,12 +104,16 @@ data class PluginContainer(
     val jarHash: String,
     val classLoader: ClassLoader,
     var status: PluginStatus = PluginStatus.DISABLED,
-    var services: List<Service> = emptyList()
+    var services: List<Service> = emptyList(),
+    var lastError: PluginError? = null // Track last error for debugging
 ) {
     val id: String get() = manifest.id
 }
 
-// TODO: refactor/extract PluginLifecycleManager and PluginInstaller
+// ============================================================================
+// Enhanced Plugin Manager
+// ============================================================================
+
 class PluginManager(
     private val appDataDirectory: File,
     private val settingsRepository: SettingsRepository,
@@ -59,6 +135,10 @@ class PluginManager(
     val plugins: StateFlow<List<PluginState>> = _plugins.asStateFlow()
     val activeServices: StateFlow<Map<String, Service>> = _activeServices.asStateFlow()
 
+    // ============================================================================
+    // Phase 3: Improved Plugin Loading with Comprehensive Error Tracking
+    // ============================================================================
+
     suspend fun loadAndProcessPlugins() {
         withContext(Dispatchers.IO) {
             logger.info("Starting plugin discovery from: ${pluginsDir.absolutePath}")
@@ -66,24 +146,141 @@ class PluginManager(
             val knownPlugins = pluginFingerprintRepository.loadFingerprints()
             val disabledPluginIds = settingsRepository.loadDisabledPluginIds()
             val loader = PluginLoader(loggerFactory.getLogger("PluginLoader"))
-            val discovered = filterUniquePlugins(loader.loadPluginsFromDirectory(pluginsDir))
+
+            // Phase 3: Enhanced discovery with validation
+            val rawPlugins = loader.loadPluginsFromDirectory(pluginsDir)
+            val loadResult = validateAndFilterPlugins(rawPlugins)
+
+            // Log comprehensive summary
+            logger.info(
+                "Plugin discovery complete: ${loadResult.successful.size} valid, " +
+                        "${loadResult.failed.size} failed, ${loadResult.skipped.size} skipped"
+            )
+
+            if (loadResult.failed.isNotEmpty()) {
+                logger.error("Failed to load ${loadResult.failed.size} plugin(s):")
+                loadResult.failed.forEach { error ->
+                    logger.error("  - ${error.pluginId}: ${error.message}", error.cause)
+                }
+            }
+
+            if (loadResult.skipped.isNotEmpty()) {
+                logger.warn("Skipped ${loadResult.skipped.size} plugin(s):")
+                loadResult.skipped.forEach { error ->
+                    logger.warn("  - ${error.pluginId}: ${error.message}")
+                }
+            }
+
+            // Phase 2: Robust parallel initialization with error tracking
+            val initErrors = mutableListOf<PluginError>()
 
             supervisorScope {
-                discovered.map { result ->
+                loadResult.successful.map { result ->
                     async {
-                        val savedHash = knownPlugins[result.manifest.id]
-                        if (savedHash != null && result.jarHash != savedHash) {
-                            handleReplacedPlugin(result)
-                        } else {
-                            initializePlugin(result, disabledPluginIds)
+                        runCatching {
+                            val savedHash = knownPlugins[result.manifest.id]
+                            if (savedHash != null && result.jarHash != savedHash) {
+                                handleReplacedPlugin(result)
+                            } else {
+                                initializePlugin(result, disabledPluginIds)
+                            }
+                        }.onFailure { error ->
+                            val pluginError = PluginError.InitializationFailure(
+                                pluginId = result.manifest.id,
+                                message = "Unexpected exception during initialization",
+                                cause = error
+                            )
+                            synchronized(initErrors) {
+                                initErrors.add(pluginError)
+                            }
+                            logger.error(
+                                "Failed to initialize plugin '${result.manifest.id}': ${error.message}",
+                                error
+                            )
                         }
                     }
-                }
-            }.awaitAll()
+                }.awaitAll()
+            }
+
+            // Report final statistics
+            val finalLoadedCount = loadedPlugins.size
+            val enabledCount = loadedPlugins.values.count { it.status == PluginStatus.ENABLED }
+            val failedCount = loadedPlugins.values.count { it.status == PluginStatus.FAILED }
+
+            logger.info(
+                "Plugin loading finished: $finalLoadedCount total " +
+                        "($enabledCount enabled, $failedCount failed, ${initErrors.size} init errors)"
+            )
         }
 
-        logger.info("Finished plugin discovery. Loaded ${loadedPlugins.size} plugins.")
         updateFlows()
+    }
+
+    /**
+     * Phase 3: Validates and filters plugins with detailed error tracking
+     */
+    private fun validateAndFilterPlugins(rawPlugins: List<LoadedPluginResult>): PluginLoadResult {
+        val seenIds = mutableMapOf<String, LoadedPluginResult>()
+        val successful = mutableListOf<LoadedPluginResult>()
+        val failed = mutableListOf<PluginError>()
+        val skipped = mutableListOf<PluginError>()
+
+        rawPlugins.forEach { result ->
+            val id = result.manifest.id
+            val jarName = result.jarFile.name
+
+            // Validate plugin ID
+            if (id.isBlank()) {
+                failed.add(
+                    PluginError.InvalidManifest(
+                        pluginId = jarName,
+                        message = "Plugin ID cannot be blank",
+                        jarPath = result.jarFile.absolutePath
+                    )
+                )
+                return@forEach
+            }
+
+            // Check for duplicates
+            val existing = seenIds[id]
+            if (existing != null) {
+                val duplicateError = PluginError.DuplicateId(
+                    pluginId = id,
+                    existingJar = existing.jarFile.name,
+                    duplicateJar = jarName
+                )
+
+                logger.error(
+                    "SECURITY ALERT: Duplicate plugin ID '$id' found in " +
+                            "'$jarName' and '${existing.jarFile.name}'. Both will be rejected."
+                )
+
+                // Remove previously added plugin
+                successful.removeAll { it.manifest.id == id }
+
+                // Add errors for both
+                skipped.add(duplicateError)
+                skipped.add(
+                    duplicateError.copy(
+                        duplicateJar = existing.jarFile.name,
+                        existingJar = jarName
+                    )
+                )
+
+                // Mark as seen but invalid
+                seenIds[id] = result
+            } else {
+                // Valid unique plugin
+                seenIds[id] = result
+                successful.add(result)
+            }
+        }
+
+        return PluginLoadResult(
+            successful = successful,
+            failed = failed,
+            skipped = skipped
+        )
     }
 
     private fun handleReplacedPlugin(result: LoadedPluginResult) {
@@ -108,6 +305,9 @@ class PluginManager(
         loadedPlugins[result.manifest.id] = container
     }
 
+    /**
+     * Phase 2: Enhanced initialization with comprehensive error handling
+     */
     private suspend fun initializePlugin(result: LoadedPluginResult, disabledPluginIds: Set<String>) {
         val (plugin, manifest, jarFile, jarHash, classLoader) = result
         val pluginLogger = loggerFactory.getLogger(manifest.id)
@@ -119,22 +319,48 @@ class PluginManager(
             logger = pluginLogger,
         )
 
+        val container = PluginContainer(
+            plugin = plugin,
+            manifest = manifest,
+            context = context,
+            jarFile = jarFile,
+            jarHash = jarHash,
+            classLoader = classLoader
+        )
+
         try {
-            plugin.initialize(context).onFailure { error ->
-                logger.error("Failed to initialize plugin '${manifest.id}': ${error.message}", error.cause)
-                loadedPlugins[manifest.id] = PluginContainer(
-                    plugin = plugin,
-                    manifest = manifest,
-                    context = context,
-                    jarFile = jarFile,
-                    jarHash = jarHash,
-                    classLoader = classLoader,
-                    status = PluginStatus.FAILED
+            // Initialize with timeout protection
+            val initResult = withTimeoutOrNull(30_000) {
+                plugin.initialize(context)
+            }
+
+            if (initResult == null) {
+                val error = PluginError.InitializationFailure(
+                    pluginId = manifest.id,
+                    message = "Plugin initialization timed out after 30 seconds",
+                    cause = null
                 )
+                container.status = PluginStatus.FAILED
+                container.lastError = error
+                loadedPlugins[manifest.id] = container
+                logger.error("Plugin '${manifest.id}' initialization timed out")
                 return
             }
 
-            val container = PluginContainer(plugin, manifest, context, jarFile, jarHash, classLoader)
+            initResult.onFailure { error ->
+                val pluginError = PluginError.InitializationFailure(
+                    pluginId = manifest.id,
+                    message = error.message ?: "Unknown initialization error",
+                    cause = error.cause
+                )
+                container.status = PluginStatus.FAILED
+                container.lastError = pluginError
+                loadedPlugins[manifest.id] = container
+                logger.error("Failed to initialize plugin '${manifest.id}': ${error.message}", error.cause)
+                return
+            }
+
+            // Success
             loadedPlugins[manifest.id] = container
             logger.info("Initialized plugin '${manifest.name}' (ID: ${manifest.id})")
 
@@ -142,18 +368,21 @@ class PluginManager(
                 enablePluginInternal(container)
             }
         } catch (e: Throwable) {
-            logger.error("Unexpected exception during initialization of plugin '${manifest.id}'.", e)
-            loadedPlugins[manifest.id] = PluginContainer(
-                plugin = plugin,
-                manifest = manifest,
-                context = context,
-                jarFile = jarFile,
-                jarHash = jarHash,
-                classLoader = classLoader,
-                status = PluginStatus.FAILED
+            val error = PluginError.InitializationFailure(
+                pluginId = manifest.id,
+                message = "Unexpected exception during initialization: ${e.message}",
+                cause = e
             )
+            container.status = PluginStatus.FAILED
+            container.lastError = error
+            loadedPlugins[manifest.id] = container
+            logger.error("Unexpected exception during initialization of plugin '${manifest.id}'.", e)
         }
     }
+
+    // ============================================================================
+    // Plugin Installation & Management
+    // ============================================================================
 
     suspend fun installPlugin(sourceJar: File): Result<Unit, String> = stateMutex.withLock {
         val loader = PluginLoader(loggerFactory.getLogger("PluginLoader"))
@@ -167,7 +396,6 @@ class PluginManager(
         try {
             val destinationJar = File(pluginsDir, sourceJar.name)
             Files.copy(sourceJar.toPath(), destinationJar.toPath(), StandardCopyOption.REPLACE_EXISTING)
-
 
             val result = loader.loadPluginFromFile(destinationJar)
             if (result != null) {
@@ -188,7 +416,7 @@ class PluginManager(
         if (container.status != PluginStatus.AWAITING_VERIFICATION) return@withLock
 
         logger.info("User confirmed UPDATE for plugin '$pluginId'. Keeping existing data.")
-        container.status = PluginStatus.DISABLED // Reset status to allow initialization
+        container.status = PluginStatus.DISABLED
         initializePlugin(
             LoadedPluginResult(
                 container.plugin,
@@ -208,7 +436,6 @@ class PluginManager(
 
         logger.warn("User confirmed CLEAN RE-INSTALL for plugin '$pluginId'. Wiping its data.")
         purgePluginSandbox(pluginId)
-
         resolveAsUpdate(pluginId)
     }
 
@@ -240,6 +467,10 @@ class PluginManager(
         logger.info("Saved known plugin registry.")
     }
 
+    // ============================================================================
+    // Enable/Disable with Enhanced Error Handling
+    // ============================================================================
+
     suspend fun enablePlugin(pluginId: String) = stateMutex.withLock {
         val container = loadedPlugins[pluginId] ?: return
         if (container.status == PluginStatus.ENABLED) return
@@ -269,29 +500,72 @@ class PluginManager(
             logger.warn("Cannot enable plugin '${container.id}' because it is in a FAILED state.")
             return
         }
+
         try {
-            container.plugin.onEnable().onSuccess {
+            val enableResult = withTimeoutOrNull(15_000) {
+                container.plugin.onEnable()
+            }
+
+            if (enableResult == null) {
+                val error = PluginError.EnableFailure(
+                    pluginId = container.id,
+                    message = "Plugin enable timed out after 15 seconds",
+                    cause = null
+                )
+                container.status = PluginStatus.FAILED
+                container.lastError = error
+                logger.error("Plugin '${container.id}' enable timed out")
+                return
+            }
+
+            enableResult.onSuccess {
                 container.services = container.plugin.getServices()
                 container.status = PluginStatus.ENABLED
+                container.lastError = null
                 logger.info("Plugin '${container.id}' enabled successfully with ${container.services.size} services.")
             }.onFailure { error ->
+                val pluginError = PluginError.EnableFailure(
+                    pluginId = container.id,
+                    message = error.message ?: "Unknown enable error",
+                    cause = error.cause
+                )
                 container.status = PluginStatus.FAILED
+                container.lastError = pluginError
                 logger.error("Plugin '${container.id}' failed to enable: ${error.message}", error.cause)
             }
         } catch (e: Throwable) {
+            val error = PluginError.EnableFailure(
+                pluginId = container.id,
+                message = "Unexpected exception while enabling: ${e.message}",
+                cause = e
+            )
             container.status = PluginStatus.FAILED
+            container.lastError = error
             logger.error("Unexpected exception while enabling plugin '${container.id}'.", e)
         }
     }
 
     private suspend fun disablePluginInternal(container: PluginContainer) {
         try {
-            container.plugin.onDisable()
+            withTimeoutOrNull(15_000) {
+                container.plugin.onDisable()
+            } ?: run {
+                logger.error("Plugin '${container.id}' disable timed out after 15 seconds")
+                // Force disable anyway
+            }
+
             container.services = emptyList()
             container.status = PluginStatus.DISABLED
+            container.lastError = null
             logger.info("Plugin '${container.id}' disabled successfully.")
         } catch (e: Throwable) {
+            val error = PluginError.DisableFailure(
+                pluginId = container.id,
+                message = "Unexpected exception while disabling: ${e.message}",
+                cause = e
+            )
             container.status = PluginStatus.FAILED
+            container.lastError = error
             logger.error("Unexpected exception while disabling plugin '${container.id}'.", e)
         }
     }
@@ -299,18 +573,12 @@ class PluginManager(
     suspend fun <S : Any> applySettings(pluginId: String, newSettings: S): Result<Unit, ServiceError> {
         val result = stateMutex.withLock {
             val container = loadedPlugins[pluginId] ?: return@withLock Err(
-                ServiceError.UnknownError(
-                    "Plugin '$pluginId' not found",
-                    null
-                )
+                ServiceError.UnknownError("Plugin '$pluginId' not found", null)
             )
 
             @Suppress("UNCHECKED_CAST")
             val typedPlugin = (container.plugin as? Plugin<S>) ?: return@withLock Err(
-                ServiceError.InvalidInputError(
-                    "Mismatched settings type for plugin '$pluginId'",
-                    null
-                )
+                ServiceError.InvalidInputError("Mismatched settings type for plugin '$pluginId'", null)
             )
 
             val applyResult = try {
@@ -335,8 +603,15 @@ class PluginManager(
 
         loadedPlugins.values.forEach { container ->
             try {
-                if (container.status == PluginStatus.ENABLED) container.plugin.onDisable()
-                container.plugin.shutdown()
+                if (container.status == PluginStatus.ENABLED) {
+                    withTimeoutOrNull(10_000) {
+                        container.plugin.onDisable()
+                    } ?: logger.error("Plugin '${container.id}' disable timed out during shutdown")
+                }
+
+                withTimeoutOrNull(10_000) {
+                    container.plugin.shutdown()
+                } ?: logger.error("Plugin '${container.id}' shutdown timed out")
             } catch (e: Throwable) {
                 logger.error("Unexpected exception while shutting down plugin '${container.id}'.", e)
             }
@@ -361,24 +636,6 @@ class PluginManager(
             .flatMap { it.services }
             .associateBy { it.id }
     }
-
-    private fun filterUniquePlugins(plugins: List<LoadedPluginResult>): List<LoadedPluginResult> {
-        val seenIds = mutableMapOf<String, String>()
-        val unique = mutableListOf<LoadedPluginResult>()
-        plugins.forEach { result ->
-            val id = result.manifest.id
-            val jarName = result.jarFile.name
-            if (seenIds.containsKey(id)) {
-                logger.error("SECURITY ALERT: Duplicate plugin ID '$id' found in '$jarName' and '${seenIds[id]}'. Both will be disabled.")
-                unique.removeAll { it.manifest.id == id }
-            } else {
-                seenIds[id] = jarName
-                unique.add(result)
-            }
-        }
-        return unique
-    }
-
 
     fun getPluginClassLoaderForService(serviceId: String): ClassLoader? {
         return loadedPlugins.values.find { container ->
@@ -411,5 +668,4 @@ class PluginManager(
             }
         }
     }
-
 }
