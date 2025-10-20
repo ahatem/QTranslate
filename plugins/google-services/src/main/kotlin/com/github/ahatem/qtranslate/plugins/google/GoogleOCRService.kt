@@ -11,14 +11,10 @@ import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
 import com.github.ahatem.qtranslate.plugins.google.common.*
 import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
 import com.github.michaelbull.result.toResultOr
-import java.awt.image.BufferedImage
-import java.io.ByteArrayOutputStream
 import java.util.*
-import javax.imageio.ImageIO
 
 class GoogleOCRService(
     private val pluginContext: PluginContext,
@@ -28,7 +24,7 @@ class GoogleOCRService(
     private val apiConfig: ApiConfig
 ) : OCR {
 
-    override val id: String = "google-services-ocr"
+    override val id: String = "google-ocr"
     override val name: String = "Google OCR"
     override val version: String = "1.0.0"
 
@@ -52,7 +48,7 @@ class GoogleOCRService(
         }
 
         return coroutineBinding {
-            val base64Image = encodeImageToBase64(request.image).bind()
+            val base64Image = Base64.getEncoder().encodeToString(request.image.bytes)
 
             val requestBody = VisionRequest(
                 requests = listOf(
@@ -100,15 +96,5 @@ class GoogleOCRService(
         }
     }
 
-    private fun encodeImageToBase64(image: BufferedImage): Result<String, ServiceError> {
-        return try {
-            val outputStream = ByteArrayOutputStream()
-            ImageIO.write(image, "PNG", outputStream)
-            val imageBytes = outputStream.toByteArray()
-            Ok(Base64.getEncoder().encodeToString(imageBytes))
-        } catch (e: Exception) {
-            pluginContext.logger.error("Failed to encode image", e)
-            Err(ServiceError.InvalidInputError("Failed to encode image: ${e.message}", e))
-        }
-    }
+
 }
