@@ -8,7 +8,8 @@ import com.github.ahatem.qtranslate.core.updater.Updater
 import com.github.michaelbull.result.onFailure
 import com.github.michaelbull.result.onSuccess
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.MissingFieldException
 import kotlinx.serialization.SerializationException
@@ -24,7 +25,9 @@ class CheckForUpdatesUseCase(
         onStatusUpdate: suspend (message: String, type: NotificationType) -> Unit,
         force: Boolean = false
     ) {
-        val currentSettings = settingsState.first()
+        val currentSettings = settingsState
+            .filter { it != Configuration.DEFAULT }
+            .firstOrNull() ?: settingsState.value
         if (!force && !currentSettings.autoCheckForUpdates) return
 
         updater.getLatestVersionInfo().onSuccess { versionInfo ->
