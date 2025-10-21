@@ -88,14 +88,7 @@ class MainStore(
                 settingsState.map { it.isSpellCheckingEnabled }.distinctUntilChanged()
             ) { text, isEnabled -> Pair(text, isEnabled) }
                 .debounce(750L)
-                .collect { (text, isEnabled) ->
-                    val corrections = if (isEnabled && text.isNotBlank()) {
-                        performSpellCheckUseCase(state.value, text, onStatusUpdate = ::updateStatusBar)
-                    } else {
-                        emptyList()
-                    }
-                    _state.update { it.copy(spellCheckCorrections = corrections) }
-                }
+                .collect { (text, isEnabled) -> handleSpellCheck(text, isEnabled) }
         }
     }
 
@@ -162,6 +155,8 @@ class MainStore(
                     _state.update { it.copy(isQuickTranslateDialogPinned = !_state.value.isQuickTranslateDialogPinned) }
                 }
 
+                MainIntent.PerformSpellCheck -> handleSpellCheck(state.value.inputText, true)
+
                 is MainIntent.Translate -> translateText(intent.text)
                 is MainIntent.ListenToText -> handleListen(intent.textSource, intent.text)
                 is MainIntent.OcrAndTranslateImage -> ocrAndTranslateUseCase(
@@ -169,6 +164,7 @@ class MainStore(
                     state.value,
                     ::updateStatusBar
                 )
+
             }
         }
     }
@@ -186,6 +182,16 @@ class MainStore(
                 }
             }
         }
+    }
+
+    private suspend fun handleSpellCheck(text: String, isEnabled: Boolean) {
+        val corrections = if (isEnabled && text.isNotBlank()) {
+            performSpellCheckUseCase(state.value, text, onStatusUpdate = ::updateStatusBar)
+        } else {
+            emptyList()
+        }
+
+        _state.update { it.copy(spellCheckCorrections = corrections) }
     }
 
     private fun applyCorrection(original: String, suggestion: String) {

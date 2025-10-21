@@ -19,7 +19,7 @@ sealed interface MainIntent : UiIntent {
     data class SelectTargetLanguage(val language: LanguageCode) : MainIntent
 
     /** Swap source and target languages */
-    object SwapLanguages : MainIntent
+    data object SwapLanguages : MainIntent
 
     /** Perform OCR and translate the image */
     data class OcrAndTranslateImage(val image: ImageData) : MainIntent
@@ -33,24 +33,27 @@ sealed interface MainIntent : UiIntent {
     /** Listen to text from a source, optionally overridden */
     data class ListenToText(val textSource: TextSource, val text: String? = null) : MainIntent
 
+    /* */
+    data object PerformSpellCheck : MainIntent
+
     /** Apply a spell-check correction */
     data class ApplyCorrection(val original: String, val suggestion: String) : MainIntent
 
     /** Navigate backward in history */
-    object UndoTranslation : MainIntent
+    data object UndoTranslation : MainIntent
 
     /** Navigate forward in history */
-    object RedoTranslation : MainIntent
+    data object RedoTranslation : MainIntent
 
     /** Check for updates */
-    object CheckForUpdates : MainIntent
+    data object CheckForUpdates : MainIntent
 
     /** Show Quick Translate dialog with selected text */
     data class ShowQuickTranslate(val selectedText: String) : MainIntent
 
     /** Hide Quick Translate dialog */
-    object HideQuickTranslate : MainIntent
+    data object HideQuickTranslate : MainIntent
 
     /** Toggle pin state of Quick Translate dialog */
-    object ToggleQuickTranslateDialogPin : MainIntent
+    data object ToggleQuickTranslateDialogPin : MainIntent
 }
