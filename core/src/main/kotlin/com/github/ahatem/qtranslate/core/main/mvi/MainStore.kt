@@ -1,8 +1,10 @@
 package com.github.ahatem.qtranslate.core.main.mvi
 
 
+import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.history.HistoryRepository
+import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
@@ -26,7 +28,6 @@ class MainStore(
     private val selectActiveServiceUseCase: SelectActiveServiceUseCase,
     private val translateTextUseCase: TranslateTextUseCase,
     private val swapLanguagesUseCase: SwapLanguagesUseCase,
-    private val historyNavigationUseCase: HistoryNavigationUseCase,
     private val ocrAndTranslateUseCase: OcrAndTranslateUseCase
 ) : Store<MainState, MainIntent, MainEvent> {
 
@@ -47,7 +48,7 @@ class MainStore(
     private fun loadInitialHistory() {
         scope.launch {
             val history = historyRepository.loadHistory()
-            _state.update { it.copy(history = history, historyIndex = history.lastIndex) }
+            _state.update { it.copy(history = history, historyIndex = history.size) }
         }
     }
 
@@ -58,7 +59,7 @@ class MainStore(
                     it.copy(
                         availableServices = services,
                         selectedServices = selected,
-                        availableLanguages = languages
+                        availableLanguages = languages.sortedBy { lang -> lang.getDisplayName() }
                     )
                 }
             }
@@ -107,8 +108,14 @@ class MainStore(
     override fun dispatch(intent: MainIntent) {
         scope.launch {
             when (intent) {
-                is MainIntent.UpdateInputText -> updateInputText(intent.text)
-                is MainIntent.SelectSourceLanguage -> _state.update { it.copy(sourceLanguage = intent.language) }
+                is MainIntent.UpdateInputText -> {
+                    _state.update { it.copy(inputText = intent.text, detectedSourceLanguage = null) }
+                }
+
+                is MainIntent.SelectSourceLanguage -> _state.update {
+                    it.copy(sourceLanguage = intent.language, detectedSourceLanguage = null)
+                }
+
                 is MainIntent.SelectTargetLanguage -> _state.update { it.copy(targetLanguage = intent.language) }
                 is MainIntent.SelectService -> selectService(intent.type, intent.serviceId)
                 is MainIntent.ApplyCorrection -> applyCorrection(intent.original, intent.suggestion)
@@ -166,10 +173,6 @@ class MainStore(
         }
     }
 
-    private fun updateInputText(text: String) {
-        _state.update { it.copy(inputText = text) }
-    }
-
     private fun selectService(type: ServiceType, serviceId: String?) {
         scope.launch {
             val newSelections = _state.value.selectedServices.toMutableMap()
@@ -178,7 +181,9 @@ class MainStore(
 
             if (type == ServiceType.TRANSLATOR) {
                 val languages = selectActiveServiceUseCase.getLanguagesFor(serviceId)
-                _state.update { it.copy(availableLanguages = languages) }
+                _state.update {
+                    it.copy(availableLanguages = languages.sortedBy { lang -> lang.getDisplayName() })
+                }
             }
         }
     }
@@ -198,16 +203,67 @@ class MainStore(
     }
 
     private fun handleUndo() {
-        val newState = historyNavigationUseCase.undo(_state.value)
-        if (newState != null) {
-            _state.value = newState
+        val currentState = _state.value
+        if (!currentState.canUndo) return
+
+        val newIndex = currentState.historyIndex - 1
+        val snapshot = currentState.history[newIndex]
+
+        _state.update {
+            val updatedServices = it.selectedServices.toMutableMap().apply {
+                this[ServiceType.TRANSLATOR] = snapshot.translatorId
+            }
+            it.copy(
+                inputText = snapshot.inputText,
+                translatedText = snapshot.translatedText,
+                sourceLanguage = LanguageCode(snapshot.sourceLanguage),
+                targetLanguage = LanguageCode(snapshot.targetLanguage),
+                selectedServices = updatedServices,
+                historyIndex = newIndex,
+                isLoading = false,
+                extraOutputText = "",
+                detectedSourceLanguage = null,
+                spellCheckCorrections = emptyList()
+            )
         }
     }
 
     private fun handleRedo() {
-        val newState = historyNavigationUseCase.redo(_state.value)
-        if (newState != null) {
-            _state.value = newState
+        val currentState = _state.value
+        if (!currentState.canRedo) return
+
+        val newIndex = currentState.historyIndex + 1
+
+        if (newIndex == currentState.history.size) {
+            _state.update {
+                it.copy(
+                    inputText = "",
+                    translatedText = "",
+                    extraOutputText = "",
+                    detectedSourceLanguage = null,
+                    spellCheckCorrections = emptyList(),
+                    historyIndex = newIndex
+                )
+            }
+        } else {
+            val snapshot = currentState.history[newIndex]
+            _state.update {
+                val updatedServices = it.selectedServices.toMutableMap().apply {
+                    this[ServiceType.TRANSLATOR] = snapshot.translatorId
+                }
+                it.copy(
+                    inputText = snapshot.inputText,
+                    translatedText = snapshot.translatedText,
+                    sourceLanguage = LanguageCode(snapshot.sourceLanguage),
+                    targetLanguage = LanguageCode(snapshot.targetLanguage),
+                    selectedServices = updatedServices,
+                    historyIndex = newIndex,
+                    isLoading = false,
+                    extraOutputText = "",
+                    detectedSourceLanguage = null,
+                    spellCheckCorrections = emptyList()
+                )
+            }
         }
     }
 

@@ -174,7 +174,6 @@ data class Configuration(
     // ───────────────────────────────
     val isPopupAutoSizeEnabled: Boolean,
     val isPopupAutoPositionEnabled: Boolean,
-    val popupAutoHideDelaySeconds: Int,
     val popupTransparencyPercentage: Int,
     val popupLastKnownSize: Size,
     val popupLastKnownPosition: Position
@@ -218,12 +217,12 @@ data class Configuration(
                 clearHistoryOnExit = false,
 
                 // UI - Main Window
-                uiFontConfig = FontConfig(name = "SansSerif", size = 18),
-                uiScale = 100,
-                themeId = "custom:resharper_dark",
-//                themeId = "external:kanagawa_dragon",
-                editorFontConfig = FontConfig(name = "SansSerif", size = 32),
-                editorFallbackFontConfig = FontConfig(name = "Dialog", size = 32),
+                uiScale = 200,
+//                themeId = "custom:kintsugi_dark",
+                themeId = "custom:github_dark_dimmed",
+                uiFontConfig = FontConfig(name = "IBM Plex Sans", size = 13),
+                editorFontConfig = FontConfig(name = "IBM Plex Sans", size = 15),
+                editorFallbackFontConfig = FontConfig(name = "IBM Plex Sans Arabic", size = 15),
                 useUnifiedTitleBar = true,
                 layoutPresetId = "classic",
                 toolbarVisibility = ToolbarVisibility.DEFAULT,
@@ -231,8 +230,7 @@ data class Configuration(
                 // UI - Quick Panel
                 isPopupAutoSizeEnabled = true,
                 isPopupAutoPositionEnabled = true,
-                popupAutoHideDelaySeconds = 5,
-                popupTransparencyPercentage = 0,
+                popupTransparencyPercentage = 5,
                 popupLastKnownSize = Size(width = 450, height = 250),
                 popupLastKnownPosition = Position(x = 0, y = 0)
             )

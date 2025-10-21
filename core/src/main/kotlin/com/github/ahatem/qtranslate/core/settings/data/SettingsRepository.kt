@@ -48,5 +48,15 @@ class SettingsRepository(
     suspend fun saveDisabledPluginIds(ids: Set<String>) {
         dataStore.edit { it[Keys.DISABLED_PLUGIN_IDS] = ids }
     }
+
+    suspend fun readConfigurationOnce(): Configuration = runCatching {
+        val prefs = dataStore.data.first()
+        prefs[Keys.CONFIG_JSON]
+            ?.let { json.decodeFromString<Configuration>(it) }
+            ?: Configuration.DEFAULT
+    }.getOrElse { error ->
+        logger.error("Failed to read settings, using default", error)
+        Configuration.DEFAULT
+    }
 }
 

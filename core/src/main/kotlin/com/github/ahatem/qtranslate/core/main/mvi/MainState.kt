@@ -13,22 +13,25 @@ data class MainState(
     val translatedText: String = "",
     val extraOutputText: String = "",
     val sourceLanguage: LanguageCode = LanguageCode.AUTO,
+    val detectedSourceLanguage: LanguageCode? = null,
     val targetLanguage: LanguageCode = LanguageCode.ARABIC,
 
     val availableServices: List<ServiceInfo> = emptyList(),
     val selectedServices: Map<ServiceType, String?> = emptyMap(),
 
     val history: List<HistorySnapshot> = emptyList(),
-    val historyIndex: Int = -1,
+    val historyIndex: Int = 0,
     val spellCheckCorrections: List<Correction> = emptyList(),
-    val availableLanguages: Set<LanguageCode> = emptySet(),
+    val availableLanguages: List<LanguageCode> = emptyList(),
 
     val isQuickTranslateDialogVisible: Boolean = false,
     val isQuickTranslateDialogPinned: Boolean = false
 
 ) : UiState {
+    val isAutoDetectingSourceLanguage: Boolean get() = sourceLanguage == LanguageCode.AUTO
+
     val canUndo: Boolean get() = historyIndex > 0
-    val canRedo: Boolean get() = historyIndex < history.lastIndex
+    val canRedo: Boolean get() = historyIndex < history.size
 
     fun getAvailableServicesFor(type: ServiceType): List<ServiceInfo> {
         return availableServices.filter { it.type == type }

@@ -28,10 +28,7 @@ class CheckForUpdatesUseCase(
         onStatusUpdate: suspend (message: String, type: NotificationType) -> Unit,
         force: Boolean = false
     ) {
-        // Wait for the first non-initial emission or fallback to DEFAULT
-        val currentSettings = withTimeoutOrNull(1000L) {
-            settingsState.drop(1).firstOrNull() ?: settingsState.first()
-        } ?: Configuration.DEFAULT
+        val currentSettings = settingsState.value
 
         if (!force && !currentSettings.autoCheckForUpdates) return
 

@@ -46,7 +46,7 @@ class SelectActiveServiceUseCase(
 
             val selectedTranslatorId = finalSelectedServices[ServiceType.TRANSLATOR]
             val translator = services[selectedTranslatorId] as? Translator
-            val languages = translator?.getSupportedLanguages()?.getOr(emptySet()) ?: emptySet()
+            val languages = translator?.getSupportedLanguages()?.getOr(emptySet())?.toList() ?: emptyList()
 
             ServiceSelectionState(
                 availableServices = allAvailableServices,
@@ -56,10 +56,10 @@ class SelectActiveServiceUseCase(
         }
     }
 
-    suspend fun getLanguagesFor(serviceId: String?): Set<LanguageCode> {
-        if (serviceId == null) return emptySet()
+    suspend fun getLanguagesFor(serviceId: String?): List<LanguageCode> {
+        if (serviceId == null) return emptyList()
         val translator = activeServices.value[serviceId] as? Translator
-        return translator?.getSupportedLanguages()?.getOr(emptySet()) ?: emptySet()
+        return translator?.getSupportedLanguages()?.getOr(emptySet())?.toList() ?: emptyList()
     }
 
     private fun mapServiceToServiceInfo(service: Service): ServiceInfo? {
