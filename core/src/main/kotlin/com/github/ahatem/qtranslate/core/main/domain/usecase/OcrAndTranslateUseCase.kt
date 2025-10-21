@@ -18,13 +18,13 @@ class OcrAndTranslateUseCase(
     suspend operator fun invoke(
         image: ImageData,
         currentState: MainState,
-        onStatusUpdate: suspend (message: String, type: NotificationType) -> Unit
+        onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit
     ) {
-        onStatusUpdate("Recognizing text from image...", NotificationType.INFO)
+        onStatusUpdate("Recognizing text from image...", NotificationType.INFO, false)
 
         val ocrService = activeServiceManager.getActiveService<OCR>(ServiceType.OCR, currentState)
         if (ocrService == null) {
-            onStatusUpdate("No OCR (Text Recognition) service is active.", NotificationType.ERROR)
+            onStatusUpdate("No OCR (Text Recognition) service is active.", NotificationType.ERROR, true)
             return
         }
 
@@ -33,16 +33,15 @@ class OcrAndTranslateUseCase(
             .onSuccess { response ->
                 val extractedText = response.text
                 if (extractedText.isNotBlank()) {
-                    onStatusUpdate("Text recognized. Translating...", NotificationType.INFO)
-
+                    onStatusUpdate("Text recognized. Translating...", NotificationType.INFO, false)
                     TODO("Implement translation")
 
                 } else {
-                    onStatusUpdate("No text was found in the captured image.", NotificationType.WARNING)
+                    onStatusUpdate("No text was found in the captured image.", NotificationType.WARNING, true)
                 }
             }
             .onFailure { error ->
-                onStatusUpdate("Text recognition failed: ${error.message}", NotificationType.ERROR)
+                onStatusUpdate("Text recognition failed: ${error.message}", NotificationType.ERROR, true)
             }
     }
 }

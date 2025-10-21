@@ -28,23 +28,23 @@ class HandleTextToSpeechUseCase(
         currentState: MainState,
         textSource: TextSource,
         textOverride: String?,
-        onStatusUpdate: suspend (message: String, type: NotificationType) -> Unit
+        onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit
     ) {
         val textToSynthesize = textOverride ?: getTextFromSource(currentState, textSource)
         val language = determineLanguage(currentState, textSource)
 
         if (textToSynthesize.isBlank()) {
-            onStatusUpdate("No text to listen to.", NotificationType.WARNING)
+            onStatusUpdate("No text to listen to.", NotificationType.WARNING, true)
             return
         }
         if (language == null) {
-            onStatusUpdate("Cannot determine the language for the selected text.", NotificationType.WARNING)
+            onStatusUpdate("Cannot determine the language for the selected text.", NotificationType.WARNING, true)
             return
         }
 
         val ttsService = activeServiceManager.getActiveService<TextToSpeech>(ServiceType.TTS, currentState)
         if (ttsService == null) {
-            onStatusUpdate("No Text-to-Speech service is active.", NotificationType.WARNING)
+            onStatusUpdate("No Text-to-Speech service is active.", NotificationType.WARNING, true)
             return
         }
 
@@ -52,12 +52,13 @@ class HandleTextToSpeechUseCase(
         if (language !in supportedLanguages) {
             onStatusUpdate(
                 "The active TTS service, ${ttsService.name}, does not support the selected language.",
-                NotificationType.WARNING
+                NotificationType.WARNING,
+                true
             )
             return
         }
 
-        onStatusUpdate("Synthesizing speech with ${ttsService.name}...", NotificationType.INFO)
+        onStatusUpdate("Synthesizing speech with ${ttsService.name}...", NotificationType.INFO, false)
 
         val request = TTSRequest(text = textToSynthesize, language = language)
         ttsService.synthesize(request)
@@ -67,13 +68,14 @@ class HandleTextToSpeechUseCase(
                     is TTSAudio.StreamUrl -> {
                         onStatusUpdate(
                             "Streaming audio playback from a URL is not yet implemented.",
-                            NotificationType.WARNING
+                            NotificationType.WARNING,
+                            true
                         )
                     }
                 }
             }
             .onFailure { error ->
-                onStatusUpdate("Text-to-Speech failed: ${error.message}", NotificationType.ERROR)
+                onStatusUpdate("Text-to-Speech failed: ${error.message}", NotificationType.ERROR, true)
             }
     }
 

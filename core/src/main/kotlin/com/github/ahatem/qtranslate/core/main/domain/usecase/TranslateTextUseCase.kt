@@ -14,11 +14,9 @@ import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.michaelbull.result.fold
 import com.github.michaelbull.result.onFailure
 import com.github.michaelbull.result.onSuccess
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.seconds
 
 class TranslateTextUseCase(
     private val scope: CoroutineScope,
@@ -31,7 +29,7 @@ class TranslateTextUseCase(
     suspend operator fun invoke(
         getState: () -> MainState,
         updateState: (MainState.() -> MainState) -> Unit,
-        onStatusUpdate: suspend (message: String, type: NotificationType) -> Unit,
+        onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit,
         textOverride: String? = null
     ) {
         translationJob?.cancel(CancellationException("New translation requested"))
@@ -41,13 +39,15 @@ class TranslateTextUseCase(
 
         val translator = activeServiceManager.getActiveService<Translator>(ServiceType.TRANSLATOR, getState())
         if (translator == null) {
-            onStatusUpdate("No translator service is active.", NotificationType.ERROR)
+            onStatusUpdate("No translator service is active.", NotificationType.ERROR, true)
             return
         }
 
         translationJob = scope.launch {
-            onStatusUpdate("Translating...", NotificationType.INFO)
+            onStatusUpdate("Translating...", NotificationType.INFO, false)
             updateState { copy(isLoading = true, translatedText = "", extraOutputText = "") }
+
+            delay(8.seconds) // TODO: REMOVE LATER JUST FOR TESTING
 
             val request = TranslationRequest(
                 text = textToTranslate,
@@ -58,34 +58,28 @@ class TranslateTextUseCase(
             translator.translate(request)
                 .onSuccess { response ->
                     val currentState = getState()
-                    onStatusUpdate("Translation successful!", NotificationType.SUCCESS)
+                    onStatusUpdate("Translation successful!", NotificationType.SUCCESS, true)
 
-                    // --- START: REFACTORED LOGIC ---
-
-                    // 1. Determine the newly detected language
                     val newDetectedLanguage = if (currentState.sourceLanguage == LanguageCode.AUTO) {
                         response.detectedLanguage
                     } else {
                         null
                     }
 
-                    // 2. Calculate the new history state (but don't apply it yet)
                     val (newHistory, newHistoryIndex) = calculateNewHistory(
                         currentState,
                         textToTranslate,
                         response.translatedText
                     )
 
-                    // 3. Perform backward translation to get the extra output text
                     val newExtraOutput = handleExtraOutput(
                         targetText = response.translatedText,
-                        sourceForBackward = newDetectedLanguage ?: currentState.sourceLanguage, // Use detected lang!
+                        sourceForBackward = newDetectedLanguage ?: currentState.sourceLanguage,
                         targetForBackward = currentState.targetLanguage,
                         translator = translator,
                         onStatusUpdate = onStatusUpdate
                     )
 
-                    // 4. Atomically update the state with ALL new information at once
                     updateState {
                         copy(
                             isLoading = false,
@@ -97,15 +91,13 @@ class TranslateTextUseCase(
                         )
                     }
 
-                    // 5. Save history as a side-effect after the state is updated
                     if (settingsState.value.isHistoryEnabled) {
                         historyRepository.saveHistory(getState().history)
                     }
-                    // --- END: REFACTORED LOGIC ---
                 }
                 .onFailure { error ->
                     updateState { copy(isLoading = false) }
-                    onStatusUpdate("Translation failed: ${error.message}", NotificationType.ERROR)
+                    onStatusUpdate("Translation failed: ${error.message}", NotificationType.ERROR, true)
                 }
         }
         translationJob?.join()
@@ -129,7 +121,7 @@ class TranslateTextUseCase(
         )
 
         val pastHistory = currentState.history.take(currentState.historyIndex)
-        val updatedHistory = (pastHistory + newSnapshot).takeLast(100) // Your history limit
+        val updatedHistory = (pastHistory + newSnapshot).takeLast(100)
 
         val newIndex = updatedHistory.size
 
@@ -141,7 +133,7 @@ class TranslateTextUseCase(
         sourceForBackward: LanguageCode,
         targetForBackward: LanguageCode,
         translator: Translator,
-        onStatusUpdate: suspend (message: String, type: NotificationType) -> Unit
+        onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit
     ): String {
         return when (settingsState.value.extraOutputType) {
             ExtraOutputType.BackwardTranslate -> performBackwardTranslation(
@@ -151,12 +143,15 @@ class TranslateTextUseCase(
                 translator = translator,
                 onStatusUpdate = onStatusUpdate
             )
+
             ExtraOutputType.None -> ""
             else -> {
                 onStatusUpdate(
                     "${settingsState.value.extraOutputType} is not yet implemented.",
-                    NotificationType.WARNING
+                    NotificationType.WARNING,
+                    true
                 )
+
                 ""
             }
         }
@@ -167,11 +162,11 @@ class TranslateTextUseCase(
         targetLanguage: LanguageCode,
         sourceLanguage: LanguageCode,
         translator: Translator,
-        onStatusUpdate: suspend (message: String, type: NotificationType) -> Unit
+        onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit
     ): String {
         if (targetLanguage == LanguageCode.AUTO) return "Cannot translate back to Auto-Detect."
 
-        onStatusUpdate("Performing backward translation...", NotificationType.INFO)
+        onStatusUpdate("Performing backward translation...", NotificationType.INFO, false)
         val request = TranslationRequest(targetText, sourceLanguage, targetLanguage)
         return translator.translate(request)
             .fold(

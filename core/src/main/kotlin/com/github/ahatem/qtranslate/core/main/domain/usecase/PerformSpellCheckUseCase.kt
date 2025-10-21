@@ -17,14 +17,14 @@ class PerformSpellCheckUseCase(
     suspend operator fun invoke(
         currentState: MainState,
         text: String,
-        onStatusUpdate: suspend (message: String, type: NotificationType) -> Unit
+        onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit
     ): List<Correction> {
         val spellChecker = activeServiceManager.getActiveService<SpellChecker>(ServiceType.SPELL_CHECKER, currentState)
             ?: return emptyList()
 
         return spellChecker.check(SpellCheckRequest(text))
             .onFailure { error ->
-                onStatusUpdate("Spell check failed: ${error.message}", NotificationType.ERROR)
+                onStatusUpdate("Spell check failed: ${error.message}", NotificationType.ERROR, true)
             }
             .map { it.corrections }
             .getOr(emptyList())

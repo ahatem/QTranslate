@@ -25,7 +25,7 @@ class CheckForUpdatesUseCase(
 
     @OptIn(ExperimentalSerializationApi::class)
     suspend operator fun invoke(
-        onStatusUpdate: suspend (message: String, type: NotificationType) -> Unit,
+        onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit,
         force: Boolean = false
     ) {
         val currentSettings = settingsState.value
@@ -43,18 +43,17 @@ class CheckForUpdatesUseCase(
             )
         }.onFailure { error ->
             val displayMessage = when (error) {
-                is java.net.UnknownHostException -> "Please check your internet connection and try again"
-                is java.net.SocketTimeoutException -> "Connection timed out. Please try again later"
-                is java.io.IOException -> "Network error occurred. Please check your connection"
-                is MissingFieldException -> "Required data is missing. Please try again"
-                is SerializationException -> "Invalid data received from server. Please try again"
+                is java.net.UnknownHostException -> "Update check failed. Please check your internet connection and try again"
+                is java.net.SocketTimeoutException -> "Update check failed. Connection timed out. Please try again later"
+                is java.io.IOException -> "Update check failed. Network error occurred. Please check your connection"
+                is MissingFieldException -> "Update check failed. Required data is missing. Please try again"
+                is SerializationException -> "Update check failed. Invalid data received from server. Please try again"
                 else -> when (error.cause) {
-                    is MissingFieldException -> "Required data is missing. Please try again"
-                    else -> "Unexpected error occurred. Please try again later"
+                    is MissingFieldException -> "Update check failed. Required data is missing. Please try again"
+                    else -> "Update check failed. Unexpected error occurred. Please try again later"
                 }
             }
-            onStatusUpdate(displayMessage, NotificationType.ERROR)
+            onStatusUpdate(displayMessage, NotificationType.ERROR, true)
         }
-
     }
 }

@@ -293,8 +293,8 @@ class MainStore(
     }
 
 
-    private suspend fun updateStatusBar(text: String, type: NotificationType) {
-        _eventChannel.send(MainEvent.UpdateStatusBar(text, type))
+    private suspend fun updateStatusBar(text: String, type: NotificationType, isTemporary: Boolean) {
+        _eventChannel.send(MainEvent.UpdateStatusBar(text, type, isTemporary))
     }
 
 }
