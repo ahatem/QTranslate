@@ -7,33 +7,15 @@ import kotlin.uuid.Uuid
 
 /**
  * Defines the type of extra output the user wants the application to generate.
- * The application core will look for a service that provides the requested capability.
  */
 @Serializable
 enum class ExtraOutputType {
-    /** No extra output is generated. */
     None,
-
-    /**
-     * Request a backward translation (translating the result back to the source language).
-     * This is handled by the core application logic using the selected `Translator`.
-     */
     BackwardTranslate,
-
-    /**
-     * Request a summary of the text.
-     * The core will find and use a service with the `SummarizationProvider` capability.
-     */
     Summarize,
-
-    /**
-     * Request a rewritten version of the text (e.g., for style or tone).
-     * The core will find and use a service with the `RewritingProvider` capability.
-     */
     Rewrite
 }
 
-/** Defines whether the extra output should be based on the input or the translated text. */
 @Serializable
 enum class ExtraOutputSource {
     Input,
@@ -47,13 +29,14 @@ enum class TextSource {
     ExtraOutput
 }
 
-
-/** Visibility flags for the various toolbars in the main window. */
+/**
+ * Visibility flags for the various toolbars in the main window.
+ */
 @Serializable
 data class ToolbarVisibility(
     val isHistoryBarVisible: Boolean = true,
     val isLanguageBarVisible: Boolean = true,
-    val isServicesPanelVisible: Boolean = true, // This is the service selector toolbar
+    val isServicesPanelVisible: Boolean = true,
     val isStatusBarVisible: Boolean = true
 ) {
     companion object {
@@ -61,7 +44,9 @@ data class ToolbarVisibility(
     }
 }
 
-/** Font configuration for text input and output. */
+/**
+ * Font configuration for text rendering.
+ */
 @Serializable
 data class FontConfig(
     val name: String,
@@ -72,7 +57,9 @@ data class FontConfig(
     }
 }
 
-/** Dimensions of a UI element. */
+/**
+ * Dimensions of a UI element.
+ */
 @Serializable
 data class Size(
     val width: Int,
@@ -83,7 +70,9 @@ data class Size(
     }
 }
 
-/** Screen position of a UI element. */
+/**
+ * Screen position of a UI element.
+ */
 @Serializable
 data class Position(
     val x: Int,
@@ -94,7 +83,9 @@ data class Position(
     }
 }
 
-
+/**
+ * A service preset defines which services are selected for each service type.
+ */
 @Serializable
 data class ServicePreset(
     val id: String,
@@ -119,26 +110,23 @@ data class ServicePreset(
     }
 }
 
-
+/**
+ * Application configuration.
+ *
+ * This is a pure data class with no business logic.
+ * All transformations are done via extension functions.
+ *
+ * Note: Font scaling is NOT done here - it's handled by UI-layer
+ * extensions to keep presentation logic out of the domain model.
+ */
 @Serializable
 data class Configuration(
-
-    // ───────────────────────────────
     // Presets & Services
-    // ───────────────────────────────
-    /** The list of all user-created service presets. */
     val servicePresets: List<ServicePreset>,
-
-    /** The ID of the currently active service preset. */
     val activeServicePresetId: String?,
-
-    /** A set of service IDs that the user has explicitly disabled globally. */
     val disabledServices: Set<String>,
 
-
-    // ───────────────────────────────
     // General Behavior
-    // ───────────────────────────────
     val launchOnSystemStartup: Boolean,
     val autoCheckForUpdates: Boolean,
     val isGlobalHotkeysEnabled: Boolean,
@@ -148,17 +136,11 @@ data class Configuration(
     val extraOutputType: ExtraOutputType,
     val extraOutputSource: ExtraOutputSource,
 
-
-    // ───────────────────────────────
     // History
-    // ───────────────────────────────
     val isHistoryEnabled: Boolean,
     val clearHistoryOnExit: Boolean,
 
-
-    // ───────────────────────────────
     // UI - Main Window
-    // ───────────────────────────────
     val uiFontConfig: FontConfig,
     val uiScale: Int,
     val themeId: String,
@@ -168,30 +150,19 @@ data class Configuration(
     val layoutPresetId: String,
     val toolbarVisibility: ToolbarVisibility,
 
-
-    // ───────────────────────────────
     // UI - Quick Panel (Popup Window)
-    // ───────────────────────────────
     val isPopupAutoSizeEnabled: Boolean,
     val isPopupAutoPositionEnabled: Boolean,
     val popupTransparencyPercentage: Int,
     val popupLastKnownSize: Size,
     val popupLastKnownPosition: Position
-
 ) {
-
+    /**
+     * Returns the currently active preset, or null if none is set.
+     */
     fun getActivePreset(): ServicePreset? {
         return servicePresets.find { it.id == activeServicePresetId }
     }
-
-    val uiFont: FontConfig
-        get() = uiFontConfig.copy(size = (uiFontConfig.size * (uiScale / 100f)).toInt())
-
-    val editorFont: FontConfig
-        get() = editorFontConfig.copy(size = (editorFontConfig.size * (uiScale / 100f)).toInt())
-
-    val editorFallbackFont: FontConfig
-        get() = editorFallbackFontConfig.copy(size = (editorFallbackFontConfig.size * (uiScale / 100f)).toInt())
 
     companion object {
         val DEFAULT: Configuration by lazy {
@@ -218,7 +189,6 @@ data class Configuration(
 
                 // UI - Main Window
                 uiScale = 200,
-//                themeId = "custom:kintsugi_dark",
                 themeId = "custom:github_dark_dimmed",
                 uiFontConfig = FontConfig(name = "IBM Plex Sans", size = 13),
                 editorFontConfig = FontConfig(name = "IBM Plex Sans", size = 15),
