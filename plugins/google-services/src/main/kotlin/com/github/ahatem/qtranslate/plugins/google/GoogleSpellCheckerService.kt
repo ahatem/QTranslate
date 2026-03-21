@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.plugins.google
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.api.spellchecker.CorrectionType
 import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckRequest
@@ -44,9 +45,10 @@ class GoogleSpellCheckerService(
         private const val TRANSLATE_PRIMARY = "https://translate.googleapis.com/translate_a/single"
     }
 
-    override suspend fun getSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> {
-        return languageMapper.getSupportedLanguages()
-    }
+    override val supportedLanguages: SupportedLanguages = SupportedLanguages.Dynamic
+
+    override suspend fun fetchSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> =
+        languageMapper.getSupportedLanguages()
 
     override suspend fun check(request: SpellCheckRequest): Result<SpellCheckResponse, ServiceError> = coroutineScope {
         if (request.text.isBlank()) {

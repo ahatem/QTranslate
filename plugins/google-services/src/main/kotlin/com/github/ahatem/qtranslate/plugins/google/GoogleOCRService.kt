@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.api.ocr.OCRRequest
 import com.github.ahatem.qtranslate.api.ocr.OCRResponse
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
@@ -34,9 +35,10 @@ class GoogleOCRService(
         private const val VISION_ENDPOINT = "https://vision.googleapis.com/v1/images:annotate"
     }
 
-    override suspend fun getSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> {
-        return languageMapper.getSupportedLanguages()
-    }
+    override val supportedLanguages: SupportedLanguages = SupportedLanguages.Dynamic
+
+    override suspend fun fetchSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> =
+        languageMapper.getSupportedLanguages()
 
     override suspend fun extractText(request: OCRRequest): Result<OCRResponse, ServiceError> {
         if (settings.visionApiKey.isBlank()) {

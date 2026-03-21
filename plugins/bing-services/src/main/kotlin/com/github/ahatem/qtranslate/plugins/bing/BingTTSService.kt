@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.plugins.bing
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.tts.AudioFormat
 import com.github.ahatem.qtranslate.api.tts.Gender
 import com.github.ahatem.qtranslate.api.tts.TTSAudio
@@ -39,6 +40,9 @@ class BingTTSService(
     override val name: String = "Bing TTS"
     override val version: String = "1.0.0"
     override val iconPath: String = "assets/bing-translate-icon.svg"
+
+    override val supportedLanguages: SupportedLanguages
+        get() = SupportedLanguages.Specific(languageMapper.ttsLanguageCodes.toSet())
 
     companion object {
         private const val TTS_URL = "https://www.bing.com/tfettts"
@@ -139,27 +143,43 @@ class BingTTSService(
         )
     }
 
-    override suspend fun getSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> =
-        Ok(languageMapper.ttsLanguageCodes.toSet())
-
     override suspend fun synthesize(request: TTSRequest): Result<TTSResponse, ServiceError> =
         coroutineScope {
-            when {
-                request.text.isBlank() -> Ok(TTSResponse(TTSAudio.Bytes(ByteArray(0), AudioFormat.MP3)))
-                else -> synthesizeWithChunking(request)
+            // TTSRequest is now a sealed interface — we handle both variants explicitly.
+            // ByLanguage: caller picked a language, we resolve the default voice for it.
+            // ByVoice: caller picked a specific voice from VoiceSupport.voices.
+            when (request) {
+                is TTSRequest.ByLanguage -> {
+                    if (request.text.isBlank()) {
+                        Ok(TTSResponse(TTSAudio.Bytes(ByteArray(0), AudioFormat.MP3)))
+                    } else {
+                        val defaultVoice = resolveDefaultVoice(request.language)
+                        synthesizeWithChunking(request.text, defaultVoice, request.speed)
+                    }
+                }
+                is TTSRequest.ByVoice -> {
+                    if (request.text.isBlank()) {
+                        Ok(TTSResponse(TTSAudio.Bytes(ByteArray(0), AudioFormat.MP3)))
+                    } else {
+                        synthesizeWithChunking(request.text, request.voice, request.speed)
+                    }
+                }
             }
         }
 
-    private suspend fun synthesizeWithChunking(request: TTSRequest): Result<TTSResponse, ServiceError> =
+    private suspend fun synthesizeWithChunking(
+        text: String,
+        voice: Voice,
+        speed: Float
+    ): Result<TTSResponse, ServiceError> =
         coroutineBinding {
             val auth = authManager.getAuth().bind()
-            val effectiveVoice = request.voice ?: createDefaultVoice()
-            val voiceInfo = selectVoiceInfo(effectiveVoice)
+            val voiceInfo = selectVoiceInfo(voice)
             val locale = voiceInfo.locale
-            val shortName = effectiveVoice.id.ifEmpty { voiceInfo.shortName }
+            val shortName = voice.id.ifEmpty { voiceInfo.shortName }
             val gender = voiceInfo.gender
-            val rate = String.format("%+.2f%%", (request.speed - 1f) * 100)
-            val chunks = partitionText(request.text)
+            val rate = String.format("%+.2f%%", (speed - 1f) * 100)
+            val chunks = partitionText(text)
 
             val audioChunks = chunks
                 .map { chunk ->
@@ -178,9 +198,17 @@ class BingTTSService(
                 .map { it.getOrElse { ByteArray(0) } }
 
             val audioData =
-                if (audioChunks.isEmpty()) ByteArray(0) else audioChunks.reduce { acc, bytes -> acc + bytes }
+                if (audioChunks.isEmpty()) ByteArray(0)
+                else audioChunks.reduce { acc, bytes -> acc + bytes }
+
             TTSResponse(audio = TTSAudio.Bytes(audioData, AudioFormat.MP3))
         }
+
+    private fun resolveDefaultVoice(language: LanguageCode): Voice {
+        val providerCode = languageMapper.toProviderCode(language)
+        val info = defaultVoiceMap[providerCode] ?: defaultVoiceMap["en"]!!
+        return voices.firstOrNull { it.id == info.shortName } ?: voices.first { it.language.tag == "en" }
+    }
 
     private fun selectVoiceInfo(voice: Voice): VoiceInfo {
         return voiceInfoByName[voice.id] ?: run {
@@ -197,8 +225,13 @@ class BingTTSService(
         rate: String,
         auth: BingAuth
     ): Result<ByteArray, ServiceError> = coroutineBinding {
-        val escapedText = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+        val escapedText = text
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
             .replace("'", "&apos;")
+
         val ssml = """
             <speak version='1.0' xml:lang='$locale'>
                 <voice xml:lang='$locale' xml:gender='$gender' name='$voiceName'>
@@ -213,7 +246,7 @@ class BingTTSService(
             "key" to auth.key
         )
 
-        val audioBytes = httpClient.postFormBytes(
+        httpClient.postFormBytes(
             url = TTS_URL,
             headers = apiConfig.createHeaders(),
             formData = formData,
@@ -224,11 +257,7 @@ class BingTTSService(
             ),
             cookies = mapOf("MUID" to auth.muid)
         ).bind()
-
-        audioBytes
     }
-
-    private fun createDefaultVoice(): Voice = voices.first { it.language.tag == "en" }
 
     private fun partitionText(text: String): List<String> =
         text.split(Regex("\\s+"))
@@ -238,11 +267,8 @@ class BingTTSService(
                 if (next.length > MAX_CHUNK_LENGTH) {
                     if (word.isNotEmpty()) acc.add(word)
                 } else {
-                    if (acc.isNotEmpty()) {
-                        acc[acc.lastIndex] = next
-                    } else {
-                        acc.add(next)
-                    }
+                    if (acc.isNotEmpty()) acc[acc.lastIndex] = next
+                    else acc.add(next)
                 }
                 acc
             }

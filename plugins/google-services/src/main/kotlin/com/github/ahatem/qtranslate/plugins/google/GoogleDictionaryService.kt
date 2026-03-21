@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.api.dictionary.DictionaryResponse
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
@@ -34,9 +35,10 @@ class GoogleDictionaryService(
         private val DICTIONARY_FEATURES = listOf("bd", "ex", "md")
     }
 
-    override suspend fun getSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> {
-        return languageMapper.getSupportedLanguages()
-    }
+    override val supportedLanguages: SupportedLanguages = SupportedLanguages.Dynamic
+
+    override suspend fun fetchSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> =
+        languageMapper.getSupportedLanguages()
 
     override suspend fun lookup(request: DictionaryRequest): Result<DictionaryResponse, ServiceError> =
         coroutineBinding {

@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.plugins.google
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.translator.TranslationResponse
 import com.github.ahatem.qtranslate.api.translator.Translator
@@ -32,6 +33,8 @@ class GoogleTranslatorService(
     private val officialParser = createJsonParser<OfficialTranslateResponse>(pluginContext)
     private val translateParser = createJsonParser<TranslateResponse>(pluginContext)
 
+    override val supportedLanguages: SupportedLanguages = SupportedLanguages.Dynamic
+
     companion object {
         private const val TRANSLATE_PRIMARY = "https://translate.googleapis.com/translate_a/single"
         private const val TRANSLATE_FALLBACK = "https://clients5.google.com/translate_a/t"
@@ -39,9 +42,8 @@ class GoogleTranslatorService(
         private val TRANSLATE_FEATURES = listOf("t", "bd", "at", "ex", "ld", "md", "rw", "rm", "ss", "qc")
     }
 
-    override suspend fun getSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> {
-        return languageMapper.getSupportedLanguages()
-    }
+    override suspend fun fetchSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> =
+        languageMapper.getSupportedLanguages()
 
     override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> {
         if (settings.translateApiKey.isNotBlank()) {

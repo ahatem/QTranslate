@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.plugins.bing
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.api.spellchecker.CorrectionType
 import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckRequest
@@ -33,15 +34,15 @@ class BingSpellCheckerService(
     override val name: String = "Bing Spell Checker"
     override val version: String = "1.0.0"
 
+    override val supportedLanguages: SupportedLanguages
+        get() = SupportedLanguages.Specific(languageMapper.spellCheckLanguageCodes.toSet())
+
     private val parser = createJsonParser<BingSpellCheckResponse>(pluginContext)
 
     companion object {
         private const val SPELLCHECK_URL = "https://www.bing.com/tspellcheckv3"
         private const val MAX_CHUNK_LENGTH = 1000
     }
-
-    override suspend fun getSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> =
-        Ok(languageMapper.spellCheckLanguageCodes.toSet())
 
     override suspend fun check(request: SpellCheckRequest): Result<SpellCheckResponse, ServiceError> =
         coroutineScope {
@@ -111,10 +112,8 @@ class BingSpellCheckerService(
 
     fun generateCorrections(original: String, corrected: String): List<Correction> {
         val corrections = mutableListOf<Correction>()
-
         val origWords = original.split(" ").toList()
         val corrWords = corrected.split(" ").toList()
-
         val patch = DiffUtils.diff(origWords, corrWords)
 
         for (delta in patch.deltas) {
@@ -123,7 +122,6 @@ class BingSpellCheckerService(
                     val origText = delta.source.lines.joinToString(" ")
                     val corrText = delta.target.lines.joinToString(" ")
                     val position = findPhrasePosition(original, origText)
-
                     if (position != -1) {
                         corrections.add(
                             Correction(
@@ -136,11 +134,9 @@ class BingSpellCheckerService(
                         )
                     }
                 }
-
                 DeltaType.DELETE -> {
                     val origText = delta.source.lines.joinToString(" ")
                     val position = findPhrasePosition(original, origText)
-
                     if (position != -1) {
                         corrections.add(
                             Correction(
@@ -153,9 +149,8 @@ class BingSpellCheckerService(
                         )
                     }
                 }
-
                 else -> {
-                    // INSERT delta type - we can ignore as we don't have original text to map to
+                    // INSERT delta — no original span to map to, nothing to record
                 }
             }
         }
@@ -163,7 +158,5 @@ class BingSpellCheckerService(
         return corrections
     }
 
-    private fun findPhrasePosition(text: String, phrase: String): Int {
-        return text.indexOf(phrase)
-    }
+    private fun findPhrasePosition(text: String, phrase: String): Int = text.indexOf(phrase)
 }
