@@ -81,15 +81,13 @@ copy_all = "@common.copy_all"
 paste = "@common.paste"
 translate = "@main_window_language_bar.translate_button"
 listen = "@common.listen"
+spell_check = "Spell Check"
 
 [main_window_main_menu]
 layout_presets = "Layout Presets"
-layout_preset_default = "Default"
 layout_preset_classic = "Classic"
-layout_preset_tabbed = "Compact"
-layout_preset_side_by_side = "Side by Side"
-layout_preset_triple_panel = "Triple Panel"
-layout_preset_vertical = "Vertical"
+layout_preset_side_by_side = "Side By Side"
+layout_preset_compact = "Compact"
 
 instant_translation = "Instant Translation"
 show_extra_output = "Show Extra Output"
