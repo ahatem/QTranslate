@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.core.plugin
+package com.github.ahatem.qtranslate.core.plugin.storage
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
@@ -11,6 +11,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 
+/**
+ * A persisted record of a plugin's identity and JAR integrity hash from the last successful run.
+ */
 @Serializable
 data class PluginFingerprint(
     val id: String,
@@ -18,8 +21,17 @@ data class PluginFingerprint(
 )
 
 /**
- * Persists plugin fingerprints from the last successful run.
- * Used to detect modified or replaced plugin JARs.
+ * Persists [PluginFingerprint]s across application runs.
+ *
+ * On startup, the [com.github.ahatem.qtranslate.core.plugin.PluginManager] compares
+ * each plugin JAR's current SHA-256 hash against the stored fingerprint. A mismatch
+ * means the JAR was replaced or modified outside the application — the plugin is
+ * paused in [com.github.ahatem.qtranslate.core.plugin.PluginStatus.AWAITING_VERIFICATION]
+ * until the user confirms the change.
+ *
+ * On shutdown, fingerprints are saved for all plugins that ended in a healthy state
+ * (i.e. not [com.github.ahatem.qtranslate.core.plugin.PluginStatus.FAILED] or
+ * [com.github.ahatem.qtranslate.core.plugin.PluginStatus.AWAITING_VERIFICATION]).
  */
 class PluginFingerprintRepository(
     appDataDirectory: File,
@@ -35,14 +47,11 @@ class PluginFingerprintRepository(
 
     suspend fun loadFingerprints(): Map<String, String> {
         val jsonString = dataStore.data.map { it[Keys.REGISTRY_JSON] }.first()
-        return if (jsonString != null) {
-            runCatching {
-                json.decodeFromString<List<PluginFingerprint>>(jsonString)
-                    .associate { it.id to it.jarHash }
-            }.getOrElse { emptyMap() }
-        } else {
-            emptyMap()
-        }
+            ?: return emptyMap()
+        return runCatching {
+            json.decodeFromString<List<PluginFingerprint>>(jsonString)
+                .associate { it.id to it.jarHash }
+        }.getOrElse { emptyMap() }
     }
 
     suspend fun storeFingerprints(fingerprints: List<PluginFingerprint>) {
