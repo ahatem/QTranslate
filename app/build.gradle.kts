@@ -11,6 +11,14 @@ application {
     mainClass.set("com.github.ahatem.qtranslate.app.MainKt")
 }
 
+repositories {
+    mavenCentral()
+    google()
+    maven("https://s01.oss.sonatype.org/content/repositories/snapshots")
+    maven("https://central.sonatype.com/repository/maven-snapshots/")
+    maven("https://jitpack.io")
+}
+
 dependencies {
     // Modules
     implementation(project(":api"))
