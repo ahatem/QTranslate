@@ -32,6 +32,7 @@ out/
 # =============================================================================
 # Executables, archives, distribution packages
 *.jar
+!gradle/wrapper/gradle-wrapper.jar
 *.war
 *.ear
 *.exe
