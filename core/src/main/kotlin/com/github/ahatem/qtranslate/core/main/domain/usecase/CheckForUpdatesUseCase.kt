@@ -1,59 +1,100 @@
 package com.github.ahatem.qtranslate.core.main.domain.usecase
 
+import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.ahatem.qtranslate.core.shared.notification.AppNotification
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
 import com.github.ahatem.qtranslate.core.updater.Updater
+import com.github.ahatem.qtranslate.core.updater.UpdaterError
+import com.github.ahatem.qtranslate.core.updater.data.UpdateCheckResult
 import com.github.michaelbull.result.onFailure
 import com.github.michaelbull.result.onSuccess
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.MissingFieldException
-import kotlinx.serialization.SerializationException
 
+/**
+ * Checks whether a newer version of the application is available.
+ *
+ * Respects the [Configuration.autoCheckForUpdates] setting unless [force] is `true`.
+ * On success, posts a notification and calls [onStatusUpdate] with the result.
+ * On failure, maps the typed [UpdaterError] to a user-friendly message.
+ *
+ * @property currentVersion The version string of the running application (e.g. `"1.2.0"`).
+ *   Passed to [Updater.checkForUpdate] for semantic version comparison.
+ */
 class CheckForUpdatesUseCase(
+    private val currentVersion: String,
     private val settingsState: StateFlow<Configuration>,
     private val updater: Updater,
-    private val notificationBus: NotificationBus
+    private val notificationBus: NotificationBus,
+    loggerFactory: LoggerFactory
 ) {
+    private val logger: Logger = loggerFactory.getLogger("CheckForUpdatesUseCase")
 
-    @OptIn(ExperimentalSerializationApi::class)
+    /**
+     * Performs the update check.
+     *
+     * @param onStatusUpdate Callback for displaying a status message in the UI.
+     * @param force If `true`, skips the [Configuration.autoCheckForUpdates] guard.
+     */
     suspend operator fun invoke(
         onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit,
         force: Boolean = false
     ) {
-        val currentSettings = settingsState.value
+        if (!force && !settingsState.value.autoCheckForUpdates) {
+            logger.debug("Auto-update check disabled — skipping")
+            return
+        }
 
-        if (!force && !currentSettings.autoCheckForUpdates) return
+        logger.info("Checking for updates (currentVersion=$currentVersion, force=$force)")
 
-        updater.getLatestVersionInfo().onSuccess { versionInfo ->
-            notificationBus.post(
-                AppNotification(
-                    title = "Update Available",
-                    body = "Version ${versionInfo.releaseName} is now available.",
-                    type = NotificationType.INFO,
-                    sourcePluginId = "QTranslateApp"
-                )
-            )
-        }.onFailure { error ->
-            val displayMessage = when (error) {
-                is java.net.UnknownHostException -> "Update check failed. Please check your internet connection and try again"
-                is java.net.SocketTimeoutException -> "Update check failed. Connection timed out. Please try again later"
-                is java.io.IOException -> "Update check failed. Network error occurred. Please check your connection"
-                is MissingFieldException -> "Update check failed. Required data is missing. Please try again"
-                is SerializationException -> "Update check failed. Invalid data received from server. Please try again"
-                else -> when (error.cause) {
-                    is MissingFieldException -> "Update check failed. Required data is missing. Please try again"
-                    else -> "Update check failed. Unexpected error occurred. Please try again later"
+        updater.checkForUpdate(currentVersion)
+            .onSuccess { result ->
+                when (result) {
+                    is UpdateCheckResult.UpdateAvailable -> {
+                        val info = result.info
+                        logger.info("Update available: ${info.versionTag}")
+
+                        notificationBus.post(
+                            AppNotification(
+                                title = "Update available",
+                                body = "Version ${info.releaseName} is now available for download.",
+                                type = NotificationType.INFO,
+                                sourcePluginId = null
+                            )
+                        )
+
+                        onStatusUpdate(
+                            "Update available: ${info.releaseName}",
+                            NotificationType.INFO,
+                            true
+                        )
+                    }
+
+                    is UpdateCheckResult.AlreadyUpToDate -> {
+                        logger.info("Already up to date (version: $currentVersion)")
+                        onStatusUpdate(
+                            "You are using the latest version ($currentVersion)",
+                            NotificationType.SUCCESS,
+                            true
+                        )
+                    }
                 }
             }
-            onStatusUpdate(displayMessage, NotificationType.ERROR, true)
-        }
+            .onFailure { error ->
+                logger.error("Update check failed: ${error.message}", error.cause)
+
+                val userMessage = when (error) {
+                    is UpdaterError.NetworkError ->
+                        "Update check failed. Please check your internet connection and try again."
+                    is UpdaterError.ParseError ->
+                        "Update check failed. The server returned unexpected data. Please try again later."
+                    is UpdaterError.UnknownError ->
+                        "Update check failed. An unexpected error occurred. Please try again later."
+                }
+
+                onStatusUpdate(userMessage, NotificationType.ERROR, true)
+            }
     }
 }
