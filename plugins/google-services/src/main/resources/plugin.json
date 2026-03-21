@@ -4,6 +4,6 @@
   "version": "1.0.0",
   "author": "Ahmed Hatem",
   "description": "Provides Translation, Text-to-Speech, and OCR using Google APIs.",
-  "minApiVersion": "1.0",
+  "minApiVersion": "1.0.0",
   "icon": "assets/google-icon.svg"
 }
