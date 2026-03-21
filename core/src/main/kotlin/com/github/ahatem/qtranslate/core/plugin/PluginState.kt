@@ -41,7 +41,10 @@ data class PluginState(
     val jarPath: String,
 
     /** The list of services currently being provided by this plugin. Will be empty if not enabled. */
-    val services: List<Service> = emptyList()
+    val services: List<Service> = emptyList(),
+
+    /** The last error encountered by this plugin, if any. */
+    val lastError: PluginError? = null
 ) {
     val id: String get() = manifest.id
 }

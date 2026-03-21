@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
+import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
 import com.github.michaelbull.result.*
@@ -35,7 +36,7 @@ import kotlin.runCatching
 import kotlin.synchronized
 
 // ============================================================================
-// Phase 2: Structured Error Types
+// Structured Error Types
 // ============================================================================
 
 /**
@@ -123,10 +124,10 @@ class PluginManager(
     private val notificationBus: NotificationBus
 ) {
     private val logger = loggerFactory.getLogger("PluginManager")
-    private val pluginsDir = File(appDataDirectory, "plugins").also { it.mkdirs() }
+    private val pluginsDir = File(appDataDirectory, AppConstants.PLUGIN_DIRECTORY).also { it.mkdirs() }
     private val stateMutex = Mutex()
 
-    private val settingsManager = PluginSettingsManager(pluginKeyValueStore, logger)
+    private val settingsManager = PluginSettingsManager(pluginKeyValueStore, loggerFactory)
 
     private val loadedPlugins = mutableMapOf<String, PluginContainer>()
     private val _plugins = MutableStateFlow<List<PluginState>>(emptyList())
@@ -136,7 +137,7 @@ class PluginManager(
     val activeServices: StateFlow<Map<String, Service>> = _activeServices.asStateFlow()
 
     // ============================================================================
-    // Phase 3: Improved Plugin Loading with Comprehensive Error Tracking
+    // Improved Plugin Loading with Comprehensive Error Tracking
     // ============================================================================
 
     suspend fun loadAndProcessPlugins() {
@@ -147,7 +148,7 @@ class PluginManager(
             val disabledPluginIds = settingsRepository.loadDisabledPluginIds()
             val loader = PluginLoader(loggerFactory.getLogger("PluginLoader"))
 
-            // Phase 3: Enhanced discovery with validation
+            // Enhanced discovery with validation
             val rawPlugins = loader.loadPluginsFromDirectory(pluginsDir)
             val loadResult = validateAndFilterPlugins(rawPlugins)
 
@@ -171,7 +172,7 @@ class PluginManager(
                 }
             }
 
-            // Phase 2: Robust parallel initialization with error tracking
+            // Robust parallel initialization with error tracking
             val initErrors = mutableListOf<PluginError>()
 
             supervisorScope {
@@ -217,7 +218,7 @@ class PluginManager(
     }
 
     /**
-     * Phase 3: Validates and filters plugins with detailed error tracking
+     * Validates and filters plugins with detailed error tracking
      */
     private fun validateAndFilterPlugins(rawPlugins: List<LoadedPluginResult>): PluginLoadResult {
         val seenIds = mutableMapOf<String, LoadedPluginResult>()
@@ -306,7 +307,7 @@ class PluginManager(
     }
 
     /**
-     * Phase 2: Enhanced initialization with comprehensive error handling
+     * Enhanced initialization with comprehensive error handling
      */
     private suspend fun initializePlugin(result: LoadedPluginResult, disabledPluginIds: Set<String>) {
         val (plugin, manifest, jarFile, jarHash, classLoader) = result
@@ -350,7 +351,7 @@ class PluginManager(
             initResult.onFailure { error ->
                 val pluginError = PluginError.InitializationFailure(
                     pluginId = manifest.id,
-                    message = error.message ?: "Unknown initialization error",
+                    message = error.message,
                     cause = error.cause
                 )
                 container.status = PluginStatus.FAILED
@@ -627,7 +628,8 @@ class PluginManager(
                 manifest = container.manifest,
                 status = container.status,
                 jarPath = container.jarFile.absolutePath,
-                services = container.services
+                services = container.services,
+                lastError = container.lastError
             )
         }
 

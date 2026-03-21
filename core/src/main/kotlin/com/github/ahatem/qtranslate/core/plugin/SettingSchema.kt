@@ -1,8 +1,5 @@
 package com.github.ahatem.qtranslate.core.plugin
 
-/**
- * Base sealed class for all setting types with common properties
- */
 sealed class SettingSchema {
     abstract val propertyName: String
     abstract val label: String
@@ -13,9 +10,8 @@ sealed class SettingSchema {
     abstract val defaultValue: String
 }
 
-/**
- * Text-based settings
- */
+// ---- Text-based settings ----
+
 data class TextSetting(
     override val propertyName: String,
     override val label: String,
@@ -26,7 +22,9 @@ data class TextSetting(
     override val defaultValue: String,
     val validation: String = "",
     val maxLength: Int? = null
-) : SettingSchema()
+) : SettingSchema() {
+    companion object
+}
 
 data class PasswordSetting(
     override val propertyName: String,
@@ -38,7 +36,9 @@ data class PasswordSetting(
     override val defaultValue: String,
     val validation: String = "",
     val maxLength: Int? = null
-) : SettingSchema()
+) : SettingSchema() {
+    companion object
+}
 
 data class TextAreaSetting(
     override val propertyName: String,
@@ -51,11 +51,12 @@ data class TextAreaSetting(
     val validation: String = "",
     val rows: Int = 3,
     val maxLength: Int? = null
-) : SettingSchema()
+) : SettingSchema() {
+    companion object
+}
 
-/**
- * Numeric settings
- */
+// ---- Numeric settings ----
+
 data class NumberSetting(
     override val propertyName: String,
     override val label: String,
@@ -67,7 +68,9 @@ data class NumberSetting(
     val minValue: Double? = null,
     val maxValue: Double? = null,
     val step: Double? = null
-) : SettingSchema()
+) : SettingSchema() {
+    companion object
+}
 
 data class IntegerSetting(
     override val propertyName: String,
@@ -80,24 +83,26 @@ data class IntegerSetting(
     val minValue: Int? = null,
     val maxValue: Int? = null,
     val step: Int? = 1
-) : SettingSchema()
+) : SettingSchema() {
+    companion object
+}
 
-/**
- * Boolean setting
- */
+// ---- Boolean setting ----
+
 data class BooleanSetting(
     override val propertyName: String,
     override val label: String,
     override val description: String,
     override val order: Int,
     override val isRequired: Boolean,
-    override val currentValue: String, // "true" or "false"
+    override val currentValue: String,
     override val defaultValue: String
-) : SettingSchema()
+) : SettingSchema() {
+    companion object
+}
 
-/**
- * Selection-based settings
- */
+// ---- Selection-based settings ----
+
 data class DropdownSetting(
     override val propertyName: String,
     override val label: String,
@@ -107,11 +112,12 @@ data class DropdownSetting(
     override val currentValue: String,
     override val defaultValue: String,
     val options: List<String>
-) : SettingSchema()
+) : SettingSchema() {
+    companion object
+}
 
-/**
- * Path-based settings
- */
+// ---- Path-based settings ----
+
 data class FilePathSetting(
     override val propertyName: String,
     override val label: String,
@@ -122,7 +128,9 @@ data class FilePathSetting(
     override val defaultValue: String,
     val fileExtensions: List<String> = emptyList(),
     val allowMultiple: Boolean = false
-) : SettingSchema()
+) : SettingSchema() {
+    companion object
+}
 
 data class DirectoryPathSetting(
     override val propertyName: String,
@@ -132,4 +140,6 @@ data class DirectoryPathSetting(
     override val isRequired: Boolean,
     override val currentValue: String,
     override val defaultValue: String
-) : SettingSchema()
+) : SettingSchema() {
+    companion object
+}

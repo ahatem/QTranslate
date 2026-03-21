@@ -1,11 +1,11 @@
 package com.github.ahatem.qtranslate.core.plugin
 
 import com.github.ahatem.qtranslate.api.core.Logger
-import com.github.ahatem.qtranslate.api.plugin.NoSettings
 import com.github.ahatem.qtranslate.api.plugin.Plugin
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.settings.Setting
 import com.github.ahatem.qtranslate.api.settings.SettingType
+import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -19,22 +19,25 @@ import kotlin.reflect.full.createInstance
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.memberProperties
 
-/**
- * A container passed to the UI layer for dynamically building a settings panel for a plugin
- */
+// -------------------- PluginSettingsModel --------------------
+
 data class PluginSettingsModel(
     val settingsClass: Class<*>,
     val schema: List<SettingSchema>
 ) {
-    fun getSetting(propertyName: String): SettingSchema? {
-        return schema.find { it.propertyName == propertyName }
-    }
+    val kotlinClass get() = settingsClass.kotlin
+
+    fun getSetting(propertyName: String): SettingSchema? =
+        schema.find { it.propertyName == propertyName }
 }
+
+// -------------------- PluginSettingsManager --------------------
 
 class PluginSettingsManager(
     private val pluginKeyValueStore: PluginKeyValueStore,
-    private val logger: Logger
+    loggerFactory: LoggerFactory
 ) {
+    private val logger = loggerFactory.getLogger("PluginSettingsManager")
     private val cache = mutableMapOf<String, PluginSettingsModel?>()
     private val cacheMutex = Mutex()
 
@@ -45,9 +48,11 @@ class PluginSettingsManager(
                     val settingsClass = plugin.getSettingsClass()
                     if (settingsClass == NoSettings::class.java) return@getOrPut null
 
-                    val settingsObject = settingsClass.kotlin.createInstance()
-                    val schema = buildSchema(settingsClass.kotlin, settingsObject, pluginId)
-                    PluginSettingsModel(settingsClass, schema.sortedBy { it.order })
+                    val instance = settingsClass.kotlin.createInstance()
+                    val schema = buildSchema(settingsClass.kotlin, instance, pluginId)
+                        .sortedBy { it.order }
+
+                    PluginSettingsModel(settingsClass, schema)
                 } catch (e: Exception) {
                     logger.error("Failed to build settings model for $pluginId: ${e.message}", e)
                     null
@@ -55,136 +60,73 @@ class PluginSettingsManager(
             }
         }
 
-    private suspend fun buildSchema(kClass: KClass<*>, settingsObject: Any, pluginId: String): List<SettingSchema> {
-        return kClass.memberProperties
+    private suspend fun buildSchema(kClass: KClass<*>, instance: Any, pluginId: String): List<SettingSchema> =
+        kClass.memberProperties
             .filter { it.findAnnotation<Setting>() != null }
             .filterIsInstance<KMutableProperty1<Any, Any>>()
             .mapNotNull { prop ->
                 val annotation = prop.findAnnotation<Setting>()!!
-                val savedValue = pluginKeyValueStore.getValue(pluginId, prop.name)
-                val valueToSet =
-                    savedValue ?: annotation.defaultValue.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                val rawValue = pluginKeyValueStore.getValue(pluginId, prop.name)
+                    ?: annotation.defaultValue.takeIf { it.isNotBlank() }
+                    ?: return@mapNotNull null
 
-                runCatching { setProperty(prop, settingsObject, valueToSet, annotation) }.onFailure {
-                    logger.error("Failed to set ${prop.name}: ${it.message}")
-                    return@mapNotNull null
+                try {
+                    setProperty(prop, instance, rawValue, annotation)
+                    createSchema(prop, annotation, rawValue)
+                } catch (e: Exception) {
+                    logger.error("Failed to set property ${prop.name}: ${e.message}")
+                    null
                 }
-
-                createSchema(prop, annotation, valueToSet)
             }
+
+    private fun setProperty(prop: KMutableProperty1<Any, Any>, instance: Any, rawValue: String, annotation: Setting) {
+        if (!validate(rawValue, annotation, prop.name)) return
+        convertValue(rawValue, prop.returnType)?.let { prop.set(instance, it) }
     }
 
-    private fun setProperty(prop: KMutableProperty1<Any, Any>, instance: Any, value: String, annotation: Setting) {
-        if (!validate(value, annotation, prop.name)) return
-        convertValue(value, prop.returnType)?.let { prop.set(instance, it) }
-    }
+    // -------------------- Refactored createSchema --------------------
 
-    private fun createSchema(prop: KProperty<*>, annotation: Setting, currentValue: String): SettingSchema {
+    private fun createSchema(prop: KProperty<*>, annotation: Setting, value: String): SettingSchema {
+        val baseArgs = SettingArgs(
+            propertyName = prop.name,
+            label = annotation.label,
+            description = annotation.description,
+            order = annotation.order,
+            required = annotation.isRequired,
+            currentValue = value,
+            defaultValue = annotation.defaultValue,
+            validation = annotation.validation,
+            options = annotation.options
+        )
+
         return when (annotation.type) {
-            SettingType.TEXT -> TextSetting(
-                prop.name,
-                annotation.label,
-                annotation.description,
-                annotation.order,
-                annotation.isRequired,
-                currentValue,
-                annotation.defaultValue,
-                annotation.validation
-            )
-
-            SettingType.PASSWORD -> PasswordSetting(
-                prop.name,
-                annotation.label,
-                annotation.description,
-                annotation.order,
-                annotation.isRequired,
-                currentValue,
-                annotation.defaultValue,
-                annotation.validation
-            )
-
-            SettingType.TEXTAREA -> TextAreaSetting(
-                prop.name,
-                annotation.label,
-                annotation.description,
-                annotation.order,
-                annotation.isRequired,
-                currentValue,
-                annotation.defaultValue,
-                annotation.validation
-            )
-
-            SettingType.NUMBER -> if (prop.returnType.classifier in setOf(
-                    Int::class,
-                    Long::class
-                )
-            ) IntegerSetting(
-                prop.name,
-                annotation.label,
-                annotation.description,
-                annotation.order,
-                annotation.isRequired,
-                currentValue,
-                annotation.defaultValue
-            ) else NumberSetting(
-                prop.name,
-                annotation.label,
-                annotation.description,
-                annotation.order,
-                annotation.isRequired,
-                currentValue,
-                annotation.defaultValue
-            )
-
-            SettingType.BOOLEAN -> BooleanSetting(
-                prop.name,
-                annotation.label,
-                annotation.description,
-                annotation.order,
-                annotation.isRequired,
-                currentValue,
-                annotation.defaultValue
-            )
-
-            SettingType.DROPDOWN -> DropdownSetting(
-                prop.name,
-                annotation.label,
-                annotation.description,
-                annotation.order,
-                annotation.isRequired,
-                currentValue,
-                annotation.defaultValue,
-                annotation.options.split(',').map { it.trim() }.filter { it.isNotBlank() })
-
-            SettingType.FILE_PATH -> FilePathSetting(
-                prop.name,
-                annotation.label,
-                annotation.description,
-                annotation.order,
-                annotation.isRequired,
-                currentValue,
-                annotation.defaultValue
-            )
-
-            SettingType.DIRECTORY_PATH -> DirectoryPathSetting(
-                prop.name,
-                annotation.label,
-                annotation.description,
-                annotation.order,
-                annotation.isRequired,
-                currentValue,
-                annotation.defaultValue
-            )
+            SettingType.TEXT -> TextSetting.from(baseArgs)
+            SettingType.PASSWORD -> PasswordSetting.from(baseArgs)
+            SettingType.TEXTAREA -> TextAreaSetting.from(baseArgs)
+            SettingType.NUMBER -> buildNumberSchema(prop, baseArgs)
+            SettingType.BOOLEAN -> BooleanSetting.from(baseArgs)
+            SettingType.DROPDOWN -> DropdownSetting.from(baseArgs)
+            SettingType.FILE_PATH -> FilePathSetting.from(baseArgs)
+            SettingType.DIRECTORY_PATH -> DirectoryPathSetting.from(baseArgs)
         }
     }
+
+    private fun buildNumberSchema(prop: KProperty<*>, args: SettingArgs): SettingSchema {
+        return if (prop.returnType.classifier in setOf(Int::class, Long::class))
+            IntegerSetting.from(args)
+        else
+            NumberSetting.from(args)
+    }
+
+    // -------------------- Validation and Conversion --------------------
 
     private fun validate(value: String, annotation: Setting, propName: String): Boolean {
         if (annotation.isRequired && value.isBlank()) return false
         if (annotation.validation.isNotBlank() && !Regex(annotation.validation).matches(value)) return false
-        if (annotation.type == SettingType.DROPDOWN && annotation.options.isNotBlank() && value !in annotation.options.split(
-                ','
-            ).map { it.trim() }
-        ) return false
+        if (annotation.type == SettingType.DROPDOWN && annotation.options.isNotBlank()) {
+            val options = annotation.options.split(',').map { it.trim() }
+            if (value !in options) return false
+        }
         return true
     }
 
@@ -197,23 +139,26 @@ class PluginSettingsManager(
             Float::class -> raw.toFloatOrNull()
             Long::class -> raw.toLongOrNull()
             Path::class -> Paths.get(raw)
-            else -> null
+            else -> null.also { logger.warn("Unsupported type for conversion: $type") }
         }
     }.getOr(null)
+
+    // -------------------- Apply Settings --------------------
 
     suspend fun applySettings(
         pluginId: String,
         plugin: Plugin<Any>,
         settingsMap: Map<String, String>
-    ): Result<Unit, ServiceError> =
-        runCatching {
-            val settingsClass = plugin.getSettingsClass().kotlin
-            val instance = settingsClass.createInstance()
-            val validated = applyMapToInstance(settingsClass, instance, settingsMap)
-            val result = plugin.onSettingsChanged(instance)
-            if (result.isOk) pluginKeyValueStore.storeValues(pluginId, validated)
-            result
-        }.getOrElse { e -> Err(ServiceError.UnknownError(e.message ?: "Unknown error", e)) }
+    ): Result<Unit, ServiceError> = runCatching {
+        val kClass = plugin.getSettingsClass().kotlin
+        val instance = kClass.createInstance()
+        val applied = applyMapToInstance(kClass, instance, settingsMap)
+        val result = plugin.onSettingsChanged(instance)
+        if (result.isOk) pluginKeyValueStore.storeValues(pluginId, applied)
+        result
+    }.getOrElse { e ->
+        Err(ServiceError.UnknownError(e.message ?: "Unknown error", e))
+    }
 
     private fun applyMapToInstance(kClass: KClass<*>, instance: Any, map: Map<String, String>): Map<String, String> {
         val applied = mutableMapOf<String, String>()
@@ -226,3 +171,64 @@ class PluginSettingsManager(
         return applied
     }
 }
+
+// -------------------- Internal Helper for createSchema --------------------
+
+private data class SettingArgs(
+    val propertyName: String,
+    val label: String,
+    val description: String,
+    val order: Int,
+    val required: Boolean,
+    val currentValue: String,
+    val defaultValue: String,
+    val validation: String,
+    val options: String
+)
+
+// Each Setting type has a static "from" builder for readability and reuse.
+private fun TextSetting.Companion.from(a: SettingArgs) = TextSetting(
+    a.propertyName, a.label, a.description, a.order, a.required,
+    a.currentValue, a.defaultValue, a.validation
+)
+
+private fun PasswordSetting.Companion.from(a: SettingArgs) = PasswordSetting(
+    a.propertyName, a.label, a.description, a.order, a.required,
+    a.currentValue, a.defaultValue, a.validation
+)
+
+private fun TextAreaSetting.Companion.from(a: SettingArgs) = TextAreaSetting(
+    a.propertyName, a.label, a.description, a.order, a.required,
+    a.currentValue, a.defaultValue, a.validation
+)
+
+private fun IntegerSetting.Companion.from(a: SettingArgs) = IntegerSetting(
+    a.propertyName, a.label, a.description, a.order, a.required,
+    a.currentValue, a.defaultValue
+)
+
+private fun NumberSetting.Companion.from(a: SettingArgs) = NumberSetting(
+    a.propertyName, a.label, a.description, a.order, a.required,
+    a.currentValue, a.defaultValue
+)
+
+private fun BooleanSetting.Companion.from(a: SettingArgs) = BooleanSetting(
+    a.propertyName, a.label, a.description, a.order, a.required,
+    a.currentValue, a.defaultValue
+)
+
+private fun DropdownSetting.Companion.from(a: SettingArgs) = DropdownSetting(
+    a.propertyName, a.label, a.description, a.order, a.required,
+    a.currentValue, a.defaultValue,
+    a.options.split(',').map { it.trim() }.filter { it.isNotBlank() }
+)
+
+private fun FilePathSetting.Companion.from(a: SettingArgs) = FilePathSetting(
+    a.propertyName, a.label, a.description, a.order, a.required,
+    a.currentValue, a.defaultValue
+)
+
+private fun DirectoryPathSetting.Companion.from(a: SettingArgs) = DirectoryPathSetting(
+    a.propertyName, a.label, a.description, a.order, a.required,
+    a.currentValue, a.defaultValue
+)
