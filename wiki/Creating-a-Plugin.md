@@ -4,6 +4,20 @@ QTranslate's plugin system lets you add any translation engine, OCR service, or 
 
 ---
 
+## Start here — read the real implementations first
+
+Before reading this guide, open the bundled plugin source code. It is the most honest documentation that exists — real working code that handles all the edge cases this guide might not mention.
+
+| Folder | What to read first | Why it's useful |
+|--------|-------------------|-----------------|
+| [`plugins/google-services/`](../plugins/google-services/src/main/kotlin/com/github/ahatem/qtranslate/plugins/google) | `GooglePlugin.kt` then `GoogleTranslatorService.kt` | Shows `PluginSettings.Configurable`, `@field:Setting` for API keys, `SupportedLanguages.Dynamic`, and `fetchSupportedLanguages()` |
+| [`plugins/bing-services/`](../plugins/bing-services/src/main/kotlin/com/github/ahatem/qtranslate/plugins/bing) | `BingPlugin.kt` then `BingTranslatorService.kt` | Shows `PluginSettings.None`, token-based auth, request chunking for long text, and a full language mapper |
+| [`plugins/common/`](../plugins/common/src/main/kotlin/com/github/ahatem/qtranslate/plugins/common) | `KtorHttpClient.kt`, `LanguageMapper.kt` | Reusable base classes you can copy directly into your own plugin |
+
+The `plugins/common` module is particularly useful — it contains the HTTP client wrapper, JSON parser, and language mapper base class that both bundled plugins use. You are welcome to use the same patterns.
+
+---
+
 ## What can a plugin provide?
 
 A single plugin JAR can provide any combination of these service types:
