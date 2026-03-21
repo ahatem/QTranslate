@@ -19,3 +19,5 @@ fun mapServiceToType(service: Service): ServiceType? {
         else -> null
     }
 }
+
+val Service.type get() = mapServiceToType(this)
