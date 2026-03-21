@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.settings
 
+import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsEvent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
@@ -43,7 +44,8 @@ class SettingsDialog(
     private val settingsStore: SettingsStore,
     private val pluginManager: PluginManager,
     private val iconManager: IconManager,
-    private val themeManager: ThemeManager
+    private val themeManager: ThemeManager,
+    private val localizationManager: LocalizationManager
 ) : JDialog(owner, "Settings", true) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -87,7 +89,7 @@ class SettingsDialog(
             showsRootHandles = false
             selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
             putClientProperty("FlatLaf.style",
-                "rowHeight: 34; selectionArc: 8; selectionInsets: 2,2,2,2")
+                "rowHeight: 34; selectionArc: 8; selectionInsets: 2,6,2,6")
 
             cellRenderer = object : DefaultTreeCellRenderer() {
                 init { leafIcon = null; closedIcon = null; openIcon = null }
@@ -197,7 +199,7 @@ class SettingsDialog(
 
     private fun createPanel(name: String): JPanel = when (name) {
         "General"            -> GeneralPanel(settingsStore)
-        "Appearance"         -> AppearancePanel(settingsStore, themeManager)
+        "Appearance"         -> AppearancePanel(settingsStore, themeManager, localizationManager, scope)
         "Services & Presets" -> ServicesPanel(settingsStore, pluginManager, scope)
         "Plugins"            -> PluginsPanel(iconManager, pluginManager, scope)
         "Keyboard & Hotkeys" -> KeyboardPanel(settingsStore)

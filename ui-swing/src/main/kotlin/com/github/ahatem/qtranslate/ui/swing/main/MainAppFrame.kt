@@ -101,7 +101,8 @@ class MainAppFrame(
             settingsStore = settingsStore,
             pluginManager = pluginManager,
             iconManager = iconManager,
-            themeManager = themeManager
+            themeManager = themeManager,
+            localizationManager = localizer
         )
     }
 
