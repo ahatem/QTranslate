@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.github.ahatem.qtranslate.core.plugin.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
+import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.util.type
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
@@ -173,7 +174,7 @@ class PluginsPanel(
 
             val servicePanel = JPanel(GridLayout(0, 1, 0, 2)).apply {/* isOpaque = false*/ }
             plugin.services.forEach { service ->
-                servicePanel.add(JLabel("  •  ${service.name}  (${service.type})").apply {
+                servicePanel.add(JLabel("  •  ${service.name}  (${service.type?.readableName()})").apply {
                     foreground = UIManager.getColor("Label.disabledForeground")
                 })
             }
@@ -390,13 +391,22 @@ class PluginsPanel(
                 val serviceId      = value.services.firstOrNull()?.id
 
                 icon = if (pluginIconPath != null && serviceId != null) {
-                    iconManager.getIcon(serviceId, pluginIconPath, 24, 24)
+                    iconManager.getIcon(serviceId, pluginIconPath, 16, 16)
                 } else {
                     // No icon declared in plugin.json — use generic placeholder
-                    iconManager.getIcon("icons/lucide/package.svg", 24, 24)
+                    iconManager.getIcon("icons/lucide/package.svg", 16, 16)
                 }
             }
             return this
         }
     }
 }
+
+fun ServiceType.readableName(): String =
+    when (this) {
+        ServiceType.TRANSLATOR -> "Translator"
+        ServiceType.TTS -> "Text-to-Speech"
+        ServiceType.OCR -> "Text Recognition (OCR)"
+        ServiceType.SPELL_CHECKER -> "Spell Checker"
+        ServiceType.DICTIONARY -> "Dictionary"
+    }
