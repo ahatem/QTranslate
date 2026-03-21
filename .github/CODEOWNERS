@@ -1,0 +1,17 @@
+# CODEOWNERS
+#
+# These users are automatically requested for review when a PR touches the
+# corresponding paths. Requires branch protection to be enabled.
+# Last matching pattern wins.
+
+# Default — everything
+*                          @ahatem
+
+# API module — changes here affect all plugin authors, extra scrutiny needed
+/api/                      @ahatem
+
+# CI and release workflows
+/.github/workflows/        @ahatem
+
+# Wiki
+/wiki/                     @ahatem
