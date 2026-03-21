@@ -3,57 +3,88 @@ package com.github.ahatem.qtranslate.core.main.mvi
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
 
-/** User actions for the main translation screen */
+/**
+ * All user actions that can be dispatched to [MainStore].
+ */
 sealed interface MainIntent : UiIntent {
 
-    /** Update the main input text */
+    // ---- Text input & languages ----
+
+    /** User typed or pasted text into the input field. */
     data class UpdateInputText(val text: String) : MainIntent
 
-    /** Change source language */
+    /** User selected a source language from the dropdown. */
     data class SelectSourceLanguage(val language: LanguageCode) : MainIntent
 
-    /** Change target language */
+    /** User selected a target language from the dropdown. */
     data class SelectTargetLanguage(val language: LanguageCode) : MainIntent
 
-    /** Swap source and target languages */
+    /** User clicked the swap button to exchange source and target languages. */
     data object SwapLanguages : MainIntent
 
-    /** Perform OCR and translate the image */
-    data class OcrAndTranslateImage(val image: ImageData) : MainIntent
+    // ---- Translation & processing ----
 
-    /** Select active service for a category */
-    data class SelectService(val type: ServiceType, val serviceId: String?) : MainIntent
-
-    /** Translate text, optionally overriding input */
+    /**
+     * User requested a translation.
+     * @property text Optional text override. If `null`, uses [MainState.inputText].
+     */
     data class Translate(val text: String? = null) : MainIntent
 
-    /** Listen to text from a source, optionally overridden */
-    data class ListenToText(val textSource: TextSource, val text: String? = null) : MainIntent
+    /** User requested OCR on an image followed by translation of the detected text. */
+    data class OcrAndTranslateImage(val image: ImageData) : MainIntent
 
-    /* */
+    /**
+     * User requested text-to-speech for a specific text panel.
+     * @property textSource Which panel to read aloud.
+     * @property text Optional text override. If `null`, uses the text from [textSource].
+     */
+    data class ListenToText(
+        val textSource: TextSource,
+        val text: String? = null
+    ) : MainIntent
+
+    /** User manually triggered a spell check (or it was triggered automatically). */
     data object PerformSpellCheck : MainIntent
 
-    /** Apply a spell-check correction */
-    data class ApplyCorrection(val original: String, val suggestion: String) : MainIntent
+    /**
+     * User clicked a spell-check suggestion to apply it.
+     * @property original   The misspelled word as it appears in [MainState.inputText].
+     * @property suggestion The correction to substitute in.
+     */
+    data class ApplyCorrection(
+        val original: String,
+        val suggestion: String
+    ) : MainIntent
 
-    /** Navigate backward in history */
+    // ---- History navigation ----
+
+    /** User clicked the back button to undo the last translation. */
     data object UndoTranslation : MainIntent
 
-    /** Navigate forward in history */
+    /**
+     * User clicked the forward button to redo a translation.
+     * Redoing past the last history entry clears the input — see [MainStore.handleRedo].
+     */
     data object RedoTranslation : MainIntent
 
-    /** Check for updates */
+    // ---- Application actions ----
+
+    /** User requested a check for application updates. */
     data object CheckForUpdates : MainIntent
 
-    /** Show Quick Translate dialog with selected text */
+    // ---- Quick translate popup ----
+
+    /**
+     * User triggered quick translate (e.g. via global hotkey with text selected).
+     * @property selectedText The text that was selected at the time of the hotkey press.
+     */
     data class ShowQuickTranslate(val selectedText: String) : MainIntent
 
-    /** Hide Quick Translate dialog */
+    /** User dismissed the quick translate popup. */
     data object HideQuickTranslate : MainIntent
 
-    /** Toggle pin state of Quick Translate dialog */
+    /** User toggled the pin state of the quick translate popup. */
     data object ToggleQuickTranslateDialogPin : MainIntent
 }
