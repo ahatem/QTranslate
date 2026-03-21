@@ -2,7 +2,11 @@ package com.github.ahatem.qtranslate.core.main.domain.model
 
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 
-// DTO for translation service metadata shown in UI.
+/**
+ * UI-facing metadata for a single loaded service.
+ * Produced by [com.github.ahatem.qtranslate.core.main.domain.usecase.SelectActiveServiceUseCase]
+ * and consumed by service selection dropdowns and the services panel.
+ */
 data class ServiceInfo(
     val id: String,
     val name: String,
