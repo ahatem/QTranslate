@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.core.main.mvi
 
-
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.history.HistoryRepository
@@ -8,7 +7,7 @@ import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.arch.Store
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
@@ -16,12 +15,30 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+/**
+ * MVI store for the main translation screen.
+ *
+ * ### Responsibilities
+ * - Owning [MainState] and exposing it as a [StateFlow]
+ * - Routing [MainIntent]s to the appropriate use cases
+ * - Emitting one-shot [MainEvent]s for the UI (e.g. status bar messages)
+ * - Setting up background observers for instant translation and spell checking
+ *
+ * ### Dispatch model
+ * Simple synchronous state mutations (text input, language selection, etc.) are
+ * applied directly via [MutableStateFlow.update] without launching a coroutine.
+ * Only intents that require suspend operations launch on [scope].
+ * This prevents out-of-order state updates from rapid synchronous dispatches.
+ *
+ * ### OCR flow
+ * [MainIntent.OcrAndTranslateImage] extracts text via [OcrAndTranslateUseCase],
+ * writes the result into [MainState.inputText], then triggers translation — the
+ * same path as if the user had typed the text manually.
+ */
 class MainStore(
     private val scope: CoroutineScope,
-    // Core Dependencies
     private val settingsState: StateFlow<Configuration>,
     private val historyRepository: HistoryRepository,
-    // Use Cases
     private val checkForUpdatesUseCase: CheckForUpdatesUseCase,
     private val handleTextToSpeechUseCase: HandleTextToSpeechUseCase,
     private val performSpellCheckUseCase: PerformSpellCheckUseCase,
@@ -39,11 +56,15 @@ class MainStore(
 
     init {
         loadInitialHistory()
-        observeSettingsAndServices()
+        observeAvailableServices()
         observeInstantTranslation()
         observeSpellChecking()
         checkForUpdates()
     }
+
+    // -------------------------------------------------------------------------
+    // Init observers
+    // -------------------------------------------------------------------------
 
     private fun loadInitialHistory() {
         scope.launch {
@@ -52,14 +73,16 @@ class MainStore(
         }
     }
 
-    private fun observeSettingsAndServices() {
+    private fun observeAvailableServices() {
         scope.launch {
-            selectActiveServiceUseCase.observe().collect { (services, selected, languages) ->
+            selectActiveServiceUseCase.observe().collect { selection ->
                 _state.update {
                     it.copy(
-                        availableServices = services,
-                        selectedServices = selected,
-                        availableLanguages = languages.sortedBy { lang -> lang.getDisplayName() }
+                        availableServices = selection.availableServices,
+                        availableLanguages = selection.availableLanguages.sortedWith(
+                            compareBy<LanguageCode> { lc -> lc.tag != "auto" }
+                                .thenBy { lc -> lc.getDisplayName() }
+                        )
                     )
                 }
             }
@@ -70,11 +93,11 @@ class MainStore(
     private fun observeInstantTranslation() {
         scope.launch {
             state.map { it.inputText }
-                .debounce(500L)
+                .debounce(AppConstants.INSTANT_TRANSLATION_DEBOUNCE_MS)
                 .distinctUntilChanged()
                 .collect { text ->
                     if (settingsState.value.isInstantTranslationEnabled && text.isNotBlank()) {
-                        dispatch(MainIntent.Translate())
+                        translateText()
                     }
                 }
         }
@@ -86,8 +109,8 @@ class MainStore(
             combine(
                 state.map { it.inputText }.distinctUntilChanged(),
                 settingsState.map { it.isSpellCheckingEnabled }.distinctUntilChanged()
-            ) { text, isEnabled -> Pair(text, isEnabled) }
-                .debounce(750L)
+            ) { text, isEnabled -> text to isEnabled }
+                .debounce(AppConstants.SPELL_CHECK_DEBOUNCE_MS)
                 .collect { (text, isEnabled) -> handleSpellCheck(text, isEnabled) }
         }
     }
@@ -98,185 +121,108 @@ class MainStore(
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Intent dispatch
+    // -------------------------------------------------------------------------
+
     override fun dispatch(intent: MainIntent) {
-        scope.launch {
-            when (intent) {
-                is MainIntent.UpdateInputText -> {
-                    _state.update { it.copy(inputText = intent.text, detectedSourceLanguage = null) }
-                }
+        when (intent) {
 
-                is MainIntent.SelectSourceLanguage -> _state.update {
-                    it.copy(sourceLanguage = intent.language, detectedSourceLanguage = null)
-                }
+            // ---- Synchronous state mutations — no coroutine needed ----
 
-                is MainIntent.SelectTargetLanguage -> _state.update { it.copy(targetLanguage = intent.language) }
-                is MainIntent.SelectService -> selectService(intent.type, intent.serviceId)
-                is MainIntent.ApplyCorrection -> applyCorrection(intent.original, intent.suggestion)
-                MainIntent.SwapLanguages -> swapLanguages()
-                MainIntent.UndoTranslation -> handleUndo()
-                MainIntent.RedoTranslation -> handleRedo()
-                MainIntent.CheckForUpdates -> checkForUpdates()
+            is MainIntent.UpdateInputText ->
+                _state.update { it.copy(inputText = intent.text, detectedSourceLanguage = null) }
 
-                is MainIntent.ShowQuickTranslate -> {
-                    if (intent.selectedText.isBlank()) {
-                        return@launch
-                    }
+            is MainIntent.SelectSourceLanguage ->
+                _state.update { it.copy(sourceLanguage = intent.language, detectedSourceLanguage = null) }
 
-                    val currentState = _state.value
-                    val isAlreadyPinnedAndVisible =
-                        currentState.isQuickTranslateDialogVisible && currentState.isQuickTranslateDialogPinned
+            is MainIntent.SelectTargetLanguage ->
+                _state.update { it.copy(targetLanguage = intent.language) }
 
-                    if (isAlreadyPinnedAndVisible) {
-                        _state.update {
-                            it.copy(
-                                inputText = intent.selectedText,
-                                isLoading = true
-                            )
-                        }
-                        translateText()
-                    } else {
-                        _state.update {
-                            it.copy(
-                                inputText = intent.selectedText,
-                                isQuickTranslateDialogPinned = false,
-                                isLoading = true
-                            )
-                        }
-                        translateText()
-                        _state.update { it.copy(isQuickTranslateDialogVisible = true) }
-                    }
-                }
+            is MainIntent.ApplyCorrection ->
+                _state.update { it.copy(inputText = it.inputText.replaceFirst(intent.original, intent.suggestion)) }
 
-                MainIntent.HideQuickTranslate -> {
-                    _state.update { it.copy(isQuickTranslateDialogVisible = false) }
-                }
+            MainIntent.HideQuickTranslate ->
+                _state.update { it.copy(isQuickTranslateDialogVisible = false) }
 
-                MainIntent.ToggleQuickTranslateDialogPin -> {
-                    _state.update { it.copy(isQuickTranslateDialogPinned = !_state.value.isQuickTranslateDialogPinned) }
-                }
+            MainIntent.ToggleQuickTranslateDialogPin ->
+                // Use `it` from the update lambda — not _state.value — to avoid
+                // a data race between the value read and the update being applied.
+                _state.update { it.copy(isQuickTranslateDialogPinned = !it.isQuickTranslateDialogPinned) }
 
-                MainIntent.PerformSpellCheck -> handleSpellCheck(state.value.inputText, true)
+            MainIntent.UndoTranslation -> handleUndo()
+            MainIntent.RedoTranslation -> handleRedo()
 
-                is MainIntent.Translate -> translateText(intent.text)
-                is MainIntent.ListenToText -> handleListen(intent.textSource, intent.text)
-                is MainIntent.OcrAndTranslateImage -> ocrAndTranslateUseCase(
-                    intent.image,
-                    state.value,
-                    ::updateStatusBar
-                )
+            // ---- Async operations — launched on scope ----
 
+            MainIntent.SwapLanguages -> scope.launch { swapLanguages() }
+            MainIntent.CheckForUpdates -> checkForUpdates()
+            MainIntent.PerformSpellCheck -> scope.launch {
+                handleSpellCheck(_state.value.inputText, isEnabled = true)
+            }
+
+            is MainIntent.Translate -> scope.launch { translateText(intent.text) }
+
+            is MainIntent.ListenToText -> scope.launch {
+                handleListen(intent.textSource, intent.text)
+            }
+
+            is MainIntent.OcrAndTranslateImage -> scope.launch {
+                handleOcrAndTranslate(intent)
+            }
+
+            is MainIntent.ShowQuickTranslate -> scope.launch {
+                handleShowQuickTranslate(intent)
             }
         }
     }
 
-    private fun selectService(type: ServiceType, serviceId: String?) {
-        scope.launch {
-            val newSelections = _state.value.selectedServices.toMutableMap()
-            newSelections[type] = serviceId
-            _state.update { it.copy(selectedServices = newSelections) }
+    // -------------------------------------------------------------------------
+    // Async handlers
+    // -------------------------------------------------------------------------
 
-            if (type == ServiceType.TRANSLATOR) {
-                val languages = selectActiveServiceUseCase.getLanguagesFor(serviceId)
-                _state.update {
-                    it.copy(availableLanguages = languages.sortedBy { lang -> lang.getDisplayName() })
-                }
-            }
-        }
-    }
-
-    private suspend fun handleSpellCheck(text: String, isEnabled: Boolean) {
-        val corrections = if (isEnabled && text.isNotBlank()) {
-            performSpellCheckUseCase(state.value, text, onStatusUpdate = ::updateStatusBar)
-        } else {
-            emptyList()
-        }
-
-        _state.update { it.copy(spellCheckCorrections = corrections) }
-    }
-
-    private fun applyCorrection(original: String, suggestion: String) {
-        _state.update {
-            it.copy(inputText = it.inputText.replaceFirst(original, suggestion))
-        }
-    }
-
-    private fun swapLanguages() {
-        swapLanguagesUseCase(
+    private suspend fun handleOcrAndTranslate(intent: MainIntent.OcrAndTranslateImage) {
+        val extractedText = ocrAndTranslateUseCase(
+            image = intent.image,
             currentState = _state.value,
-            onStateUpdate = { newState -> _state.value = newState },
-            onTranslateNeeded = { dispatch(MainIntent.Translate()) }
+            onStatusUpdate = ::updateStatusBar
         )
+
+        if (extractedText.isBlank()) return
+
+        // Write extracted text into input then translate — same path as manual typing.
+        _state.update { it.copy(inputText = extractedText) }
+        translateText()
     }
 
-    private fun handleUndo() {
-        val currentState = _state.value
-        if (!currentState.canUndo) return
+    private suspend fun handleShowQuickTranslate(intent: MainIntent.ShowQuickTranslate) {
+        if (intent.selectedText.isBlank()) return
 
-        val newIndex = currentState.historyIndex - 1
-        val snapshot = currentState.history[newIndex]
+        val current = _state.value
+        val isPinnedAndVisible = current.isQuickTranslateDialogVisible && current.isQuickTranslateDialogPinned
 
-        _state.update {
-            val updatedServices = it.selectedServices.toMutableMap().apply {
-                this[ServiceType.TRANSLATOR] = snapshot.translatorId
-            }
-            it.copy(
-                inputText = snapshot.inputText,
-                translatedText = snapshot.translatedText,
-                sourceLanguage = LanguageCode(snapshot.sourceLanguage),
-                targetLanguage = LanguageCode(snapshot.targetLanguage),
-                selectedServices = updatedServices,
-                historyIndex = newIndex,
-                isLoading = false,
-                extraOutputText = "",
-                detectedSourceLanguage = null,
-                spellCheckCorrections = emptyList()
-            )
-        }
-    }
-
-    private fun handleRedo() {
-        val currentState = _state.value
-        if (!currentState.canRedo) return
-
-        val newIndex = currentState.historyIndex + 1
-
-        if (newIndex == currentState.history.size) {
-            _state.update {
-                it.copy(
-                    inputText = "",
-                    translatedText = "",
-                    extraOutputText = "",
-                    detectedSourceLanguage = null,
-                    spellCheckCorrections = emptyList(),
-                    historyIndex = newIndex
-                )
-            }
+        if (isPinnedAndVisible) {
+            // Popup is already open and pinned — just update the text and retranslate.
+            _state.update { it.copy(inputText = intent.selectedText) }
         } else {
-            val snapshot = currentState.history[newIndex]
+            // Open a fresh popup — not pinned.
             _state.update {
-                val updatedServices = it.selectedServices.toMutableMap().apply {
-                    this[ServiceType.TRANSLATOR] = snapshot.translatorId
-                }
                 it.copy(
-                    inputText = snapshot.inputText,
-                    translatedText = snapshot.translatedText,
-                    sourceLanguage = LanguageCode(snapshot.sourceLanguage),
-                    targetLanguage = LanguageCode(snapshot.targetLanguage),
-                    selectedServices = updatedServices,
-                    historyIndex = newIndex,
-                    isLoading = false,
-                    extraOutputText = "",
-                    detectedSourceLanguage = null,
-                    spellCheckCorrections = emptyList()
+                    inputText = intent.selectedText,
+                    isQuickTranslateDialogPinned = false,
+                    isQuickTranslateDialogVisible = true
                 )
             }
         }
+
+        // Let TranslateTextUseCase own isLoading — it sets it at the start of the job.
+        translateText()
     }
 
     private suspend fun translateText(textOverride: String? = null) {
         translateTextUseCase(
-            getState = { _state.value },
-            updateState = { newState -> _state.update(newState) },
+            getState    = { _state.value },
+            updateState = { transform -> _state.update(transform) },
             onStatusUpdate = ::updateStatusBar,
             textOverride = textOverride
         )
@@ -284,12 +230,104 @@ class MainStore(
 
     private suspend fun handleListen(textSource: TextSource, textOverride: String?) {
         handleTextToSpeechUseCase(
-            currentState = _state.value,
-            textSource = textSource,
-            textOverride = textOverride,
+            currentState   = _state.value,
+            textSource     = textSource,
+            textOverride   = textOverride,
             onStatusUpdate = ::updateStatusBar
         )
     }
+
+    private suspend fun handleSpellCheck(text: String, isEnabled: Boolean) {
+        val corrections = if (isEnabled && text.isNotBlank()) {
+            performSpellCheckUseCase(
+                currentState   = _state.value,
+                text           = text,
+                onStatusUpdate = ::updateStatusBar
+            )
+        } else {
+            emptyList()
+        }
+        _state.update { it.copy(spellCheckCorrections = corrections) }
+    }
+
+    // -------------------------------------------------------------------------
+    // Synchronous handlers
+    // -------------------------------------------------------------------------
+
+    private fun swapLanguages() {
+        swapLanguagesUseCase(
+            currentState     = _state.value,
+            onStateUpdate    = { newState -> _state.value = newState },
+            onTranslateNeeded = { dispatch(MainIntent.Translate()) }
+        )
+    }
+
+    private fun handleUndo() {
+        val current = _state.value
+        if (!current.canUndo) return
+
+        val newIndex = current.historyIndex - 1
+        val snapshot = current.history[newIndex]
+
+        _state.update {
+            it.copy(
+                inputText              = snapshot.inputText,
+                translatedText         = snapshot.translatedText,
+                sourceLanguage         = LanguageCode(snapshot.sourceLanguage),
+                targetLanguage         = LanguageCode(snapshot.targetLanguage),
+                historyIndex           = newIndex,
+                isLoading              = false,
+                extraOutputText        = "",
+                detectedSourceLanguage = null,
+                spellCheckCorrections  = emptyList()
+            )
+        }
+    }
+
+    /**
+     * Moves forward in history. If [historyIndex] is already at the end of [MainState.history],
+     * moving "forward" clears the screen — the implicit state beyond the last snapshot is blank.
+     * This allows the user to return to an empty input after browsing history.
+     */
+    private fun handleRedo() {
+        val current = _state.value
+        if (!current.canRedo) return
+
+        val newIndex = current.historyIndex + 1
+
+        if (newIndex == current.history.size) {
+            // Past the last snapshot — restore blank state.
+            _state.update {
+                it.copy(
+                    inputText              = "",
+                    translatedText         = "",
+                    extraOutputText        = "",
+                    detectedSourceLanguage = null,
+                    spellCheckCorrections  = emptyList(),
+                    historyIndex           = newIndex
+                )
+            }
+        } else {
+            val snapshot = current.history[newIndex]
+            _state.update {
+                it.copy(
+                    inputText              = snapshot.inputText,
+                    translatedText         = snapshot.translatedText,
+                    sourceLanguage         = LanguageCode(snapshot.sourceLanguage),
+                    targetLanguage         = LanguageCode(snapshot.targetLanguage),
+                    historyIndex           = newIndex,
+                    isLoading              = false,
+                    extraOutputText        = "",
+                    detectedSourceLanguage = null,
+                    spellCheckCorrections  = emptyList()
+                )
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Lifecycle
+    // -------------------------------------------------------------------------
 
     suspend fun onShutdown() {
         if (settingsState.value.clearHistoryOnExit) {
@@ -298,9 +336,15 @@ class MainStore(
         handleTextToSpeechUseCase.shutdown()
     }
 
+    // -------------------------------------------------------------------------
+    // Internal helpers
+    // -------------------------------------------------------------------------
 
-    private suspend fun updateStatusBar(text: String, type: NotificationType, isTemporary: Boolean) {
+    private suspend fun updateStatusBar(
+        text: String,
+        type: NotificationType,
+        isTemporary: Boolean
+    ) {
         _eventChannel.send(MainEvent.UpdateStatusBar(text, type, isTemporary))
     }
-
 }
