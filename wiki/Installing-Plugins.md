@@ -79,4 +79,5 @@ Some plugins document additional JARs they need. Install those the same way — 
 
 ## Safety note
 
-QTranslate plugins run inside the JVM with full access to your system. Install only plugins from sources you trust. See [SECURITY.md](https://github.com/ahatem/qtranslate/blob/main/SECURITY.md) for more information.
+QTranslate loads third-party plugin JARs at runtime. Install only plugins from sources you trust. A malicious plugin has full access to the JVM and can read your API keys from the settings store.
+We review plugins before listing them in the README, but we cannot guarantee the safety of every third-party plugin.
