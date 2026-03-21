@@ -4,24 +4,26 @@ import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.shared.arch.UiEvent
 
 /**
- * Events emitted by SettingsStore to the UI layer.
+ * One-shot events emitted by [SettingsStore] to be consumed exactly once by the UI.
  *
- * Events represent one-time occurrences that the UI should react to,
- * such as showing messages or closing dialogs.
+ * Unlike [SettingsState] (which is persistent and always reflects current truth),
+ * events are fire-and-forget — the UI reacts to them and they are not replayed
+ * to new collectors.
  */
 sealed interface SettingsEvent : UiEvent {
 
     /**
-     * Request to close the settings dialog.
-     * Typically emitted after successful save or cancel.
+     * Instructs the UI to close the settings dialog.
+     * Emitted after [SettingsIntent.CancelChanges].
      */
     data object CloseSettingsDialog : SettingsEvent
 
     /**
-     * Request to show a message to the user.
+     * Instructs the UI to display a transient message to the user.
      *
-     * @property message The message text to display
-     * @property type The notification type (SUCCESS, ERROR, WARNING, INFO)
+     * @property message The text to display.
+     * @property type The severity level, which determines the visual style
+     *   (e.g. green for [NotificationType.SUCCESS], red for [NotificationType.ERROR]).
      */
     data class ShowMessage(
         val message: String,

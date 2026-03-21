@@ -3,125 +3,98 @@ package com.github.ahatem.qtranslate.core.settings.data
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 
 /**
- * Extension functions for working with Configuration immutably.
+ * Extension functions for working with [Configuration] immutably.
  *
- * These helpers make it easier to update nested configuration
- * without verbose copy operations.
+ * All functions follow the same contract: they return a new [Configuration] with
+ * the requested change applied, leaving the original unchanged. None of them
+ * throw — invalid operations (e.g. activating a non-existent preset) return `this`
+ * unchanged so callers don't need to guard against null results.
  */
 
 /**
- * Updates the active preset using the provided transform function.
- * If there's no active preset, returns the configuration unchanged.
+ * Returns a new configuration with the active preset transformed by [transform].
+ * If there is no active preset, returns the configuration unchanged.
  *
  * Example:
- * ```
- * config.withActivePreset { preset ->
- *     preset.copy(name = "New Name")
- * }
+ * ```kotlin
+ * config.withActivePreset { it.copy(name = "Renamed") }
  * ```
  */
 fun Configuration.withActivePreset(
     transform: (ServicePreset) -> ServicePreset
 ): Configuration {
-    val activeId = this.activeServicePresetId ?: return this
-
-    val updatedPresets = servicePresets.map { preset ->
-        if (preset.id == activeId) transform(preset) else preset
-    }
-
-    return copy(servicePresets = updatedPresets)
+    val activeId = activeServicePresetId ?: return this
+    return copy(
+        servicePresets = servicePresets.map { if (it.id == activeId) transform(it) else it }
+    )
 }
 
 /**
- * Updates a service selection in the active preset.
+ * Returns a new configuration with [serviceId] selected for [serviceType]
+ * in the active preset. If there is no active preset, returns the configuration unchanged.
  *
- * This is a convenience method that combines withActivePreset with
- * service selection update logic.
+ * Pass `null` for [serviceId] to clear the selection (fall back to first available).
  *
  * Example:
- * ```
+ * ```kotlin
  * config.withServiceSelection(ServiceType.TRANSLATOR, "google-translator")
  * ```
  */
 fun Configuration.withServiceSelection(
     serviceType: ServiceType,
     serviceId: String?
-): Configuration {
-    return withActivePreset { preset ->
-        preset.copy(
-            selectedServices = preset.selectedServices.toMutableMap().apply {
-                this[serviceType] = serviceId
-            }
-        )
-    }
-}
-
-/**
- * Returns a new configuration with the specified preset as active.
- * If the preset ID doesn't exist, returns the configuration unchanged.
- */
-fun Configuration.withActivePresetId(presetId: String): Configuration {
-    val presetExists = servicePresets.any { it.id == presetId }
-    return if (presetExists) {
-        copy(activeServicePresetId = presetId)
-    } else {
-        this
-    }
-}
-
-/**
- * Returns a new configuration with a preset added.
- * If a preset with the same ID already exists, replaces it.
- */
-fun Configuration.withPreset(preset: ServicePreset): Configuration {
-    val existingIndex = servicePresets.indexOfFirst { it.id == preset.id }
-
-    val updatedPresets = if (existingIndex >= 0) {
-        servicePresets.toMutableList().apply { set(existingIndex, preset) }
-    } else {
-        servicePresets + preset
-    }
-
-    return copy(servicePresets = updatedPresets)
-}
-
-/**
- * Returns a new configuration with the specified preset removed.
- * If this is the last preset, returns the configuration unchanged.
- * If the removed preset was active, activates the first remaining preset.
- */
-fun Configuration.withoutPreset(presetId: String): Configuration {
-    if (servicePresets.size <= 1) return this
-
-    val filtered = servicePresets.filter { it.id != presetId }
-    val newActiveId = if (activeServicePresetId == presetId) {
-        filtered.firstOrNull()?.id
-    } else {
-        activeServicePresetId
-    }
-
-    return copy(
-        servicePresets = filtered,
-        activeServicePresetId = newActiveId
+): Configuration = withActivePreset { preset ->
+    preset.copy(
+        selectedServices = preset.selectedServices + (serviceType to serviceId)
     )
 }
 
 /**
- * Returns a new configuration with a preset renamed.
+ * Returns a new configuration with [presetId] as the active preset.
+ * If [presetId] does not exist in [Configuration.servicePresets], returns the configuration unchanged.
  */
-fun Configuration.withPresetRenamed(presetId: String, newName: String): Configuration {
-    return withActivePreset { preset ->
-        if (preset.id == presetId) {
-            preset.copy(name = newName)
-        } else {
-            preset
-        }
-    }.let { config ->
-        // If active preset wasn't the one renamed, manually update it
-        config.copy(
-            servicePresets = config.servicePresets.map { preset ->
-                if (preset.id == presetId) preset.copy(name = newName) else preset
-            }
-        )
+fun Configuration.withActivePresetId(presetId: String): Configuration =
+    if (servicePresets.any { it.id == presetId }) copy(activeServicePresetId = presetId)
+    else this
+
+/**
+ * Returns a new configuration with [preset] added to the presets list.
+ * If a preset with the same ID already exists, it is replaced in-place.
+ */
+fun Configuration.withPreset(preset: ServicePreset): Configuration {
+    val existingIndex = servicePresets.indexOfFirst { it.id == preset.id }
+    val updated = if (existingIndex >= 0) {
+        servicePresets.toMutableList().also { it[existingIndex] = preset }
+    } else {
+        servicePresets + preset
     }
+    return copy(servicePresets = updated)
 }
+
+/**
+ * Returns a new configuration with the preset identified by [presetId] removed.
+ *
+ * Rules:
+ * - If [presetId] is the last preset, returns the configuration unchanged (cannot remove all presets).
+ * - If the removed preset was active, the first remaining preset becomes active.
+ */
+fun Configuration.withoutPreset(presetId: String): Configuration {
+    if (servicePresets.size <= 1) return this
+    val remaining = servicePresets.filter { it.id != presetId }
+    val newActiveId = if (activeServicePresetId == presetId) remaining.first().id
+    else activeServicePresetId
+    return copy(servicePresets = remaining, activeServicePresetId = newActiveId)
+}
+
+/**
+ * Returns a new configuration with the preset identified by [presetId] renamed to [newName].
+ * If [presetId] does not exist, returns the configuration unchanged.
+ *
+ * This correctly renames any preset — active or not — in a single pass.
+ */
+fun Configuration.withPresetRenamed(presetId: String, newName: String): Configuration =
+    copy(
+        servicePresets = servicePresets.map { preset ->
+            if (preset.id == presetId) preset.copy(name = newName) else preset
+        }
+    )

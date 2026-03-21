@@ -2,7 +2,8 @@ package com.github.ahatem.qtranslate.core.settings.mvi
 
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
-import com.github.ahatem.qtranslate.core.settings.data.*
+import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.arch.Store
 import com.github.ahatem.qtranslate.core.shared.events.AppEvent
 import com.github.ahatem.qtranslate.core.shared.events.AppEventBus
@@ -11,26 +12,30 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlin.uuid.ExperimentalUuidApi
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
- * Store managing application settings and configuration.
+ * MVI store managing application configuration and settings.
  *
- * This store implements the draft/working pattern:
- * - User edits create a "working" copy (draft)
- * - "Save" persists the working copy
- * - "Cancel" reverts to the original (last saved)
+ * ### Responsibilities
+ * - Maintaining the draft/working configuration pattern (see [SettingsState])
+ * - Persisting changes via [SettingsRepository]
+ * - Emitting domain events via [AppEventBus] on significant state changes
+ * - Delegating all preset CRUD operations to [PresetManager]
  *
- * The store also handles:
- * - Service preset management (create, delete, rename, switch)
- * - Auto-saving for quick actions (toggles, preset switches)
- * - Event emission for cross-store communication
+ * ### Threading
+ * [dispatch] is intentionally synchronous and non-suspending so the UI can call
+ * it freely from the event thread. Draft updates mutate [_state] directly via
+ * [MutableStateFlow.update] (which is thread-safe). Save operations launch on
+ * [scope] and are serialized by [saveMutex] to prevent concurrent saves.
  *
- * @property settingsRepository Persistence layer for configuration
- * @property eventBus Event bus for emitting domain events
- * @property logger Logger instance for this store
- * @property scope Coroutine scope for async operations
- * @property initialConfiguration Initial configuration loaded at startup
+ * @property settingsRepository Persistence layer for [Configuration].
+ * @property eventBus Application-wide event bus for cross-store communication.
+ * @property logger Logger scoped to this store.
+ * @property scope Coroutine scope for all async operations.
+ * @property initialConfiguration The configuration loaded at startup, used to
+ *   populate the initial [SettingsState].
  */
 class SettingsStore(
     private val settingsRepository: SettingsRepository,
@@ -46,139 +51,193 @@ class SettingsStore(
     private val _eventChannel = Channel<SettingsEvent>(Channel.BUFFERED)
     override val events: Flow<SettingsEvent> = _eventChannel.receiveAsFlow()
 
+    // Serializes save operations — prevents two concurrent save coroutines from
+    // both seeing isSaving=false and racing to write conflicting configurations.
+    private val saveMutex = Mutex()
+
+    private val presetManager = PresetManager(
+        applyUpdate = { newConfig -> applyWorkingUpdate(newConfig) },
+        eventBus = eventBus,
+        eventChannel = _eventChannel,
+        scope = scope,
+        logger = logger
+    )
+
     init {
         logger.info("SettingsStore initialized")
         observeRepositoryChanges()
     }
 
+    // -------------------------------------------------------------------------
+    // Repository observation
+    // -------------------------------------------------------------------------
+
     /**
-     * Observes configuration changes from the repository.
+     * Observes configuration changes from the repository and syncs the store state.
      *
-     * This handles external configuration updates (e.g., from file sync, other instances).
-     * The working configuration is only updated if the user hasn't made local changes.
+     * The working copy is only updated when the user has no unsaved changes ([isDirty] = false).
+     * This handles external updates (e.g. config file edited outside the app, or another
+     * coroutine updating the repository directly).
      */
     private fun observeRepositoryChanges() {
         scope.launch {
             settingsRepository.configuration
                 .distinctUntilChanged()
-                .collect { persistedConfig ->
-                    logger.debug("Repository configuration changed")
-
-                    _state.update { currentState ->
-                        val shouldUpdateWorking = !currentState.isDirty
-
-                        currentState.copy(
-                            originalConfiguration = persistedConfig,
-                            workingConfiguration = if (shouldUpdateWorking) {
-                                logger.debug("Updating working configuration from repository")
-                                persistedConfig
+                .collect { persisted ->
+                    _state.update { current ->
+                        current.copy(
+                            originalConfiguration = persisted,
+                            workingConfiguration = if (!current.isDirty) {
+                                logger.debug("Syncing working config from repository")
+                                persisted
                             } else {
-                                logger.debug("Preserving working configuration (user has unsaved changes)")
-                                currentState.workingConfiguration
+                                logger.debug("Preserving working config — user has unsaved changes")
+                                current.workingConfiguration
                             },
-                            isDirty = if (shouldUpdateWorking) {
-                                false
-                            } else {
-                                currentState.workingConfiguration != persistedConfig
-                            }
+                            isDirty = if (!current.isDirty) false
+                            else current.workingConfiguration != persisted
                         )
                     }
                 }
         }
     }
 
-    override fun dispatch(intent: SettingsIntent) {
-        logger.debug("Dispatching intent: ${intent::class.simpleName}")
+    // -------------------------------------------------------------------------
+    // Intent dispatch
+    // -------------------------------------------------------------------------
 
+    override fun dispatch(intent: SettingsIntent) {
+        logger.debug("Dispatching: ${intent::class.simpleName}")
         when (intent) {
-            is SettingsIntent.UpdateDraft -> handleUpdateDraft(intent.newConfiguration)
-            SettingsIntent.SaveChanges -> saveChanges()
-            SettingsIntent.CancelChanges -> cancelChanges()
-            SettingsIntent.ResetToDefaults -> resetToDefaults()
-            is SettingsIntent.ToggleSetting -> handleToggleSetting(intent.update)
-            is SettingsIntent.SetActivePreset -> handleSetActivePreset(intent.presetId)
-            is SettingsIntent.UpdateServiceInActivePreset -> handleUpdateServiceInActivePreset(intent)
-            is SettingsIntent.CreatePreset -> handleCreatePreset(intent.name)
-            is SettingsIntent.DeletePreset -> handleDeletePreset(intent.presetId)
-            is SettingsIntent.RenamePreset -> handleRenamePreset(intent.presetId, intent.newName)
+            // Draft mode
+            is SettingsIntent.UpdateDraft    -> handleUpdateDraft(intent.newConfiguration)
+            SettingsIntent.SaveChanges       -> launchSave()
+            SettingsIntent.CancelChanges     -> handleCancelChanges()
+            SettingsIntent.ResetToDefaults   -> handleResetToDefaults()
+
+            // Quick actions — update working copy then trigger save
+            is SettingsIntent.ToggleSetting  -> {
+                applyWorkingUpdate(intent.update(_state.value.workingConfiguration))
+                launchSave()
+            }
+
+            // Preset operations — delegated to PresetManager, auto-save after
+            is SettingsIntent.SetActivePreset ->
+                presetManager.setActivePreset(_state.value.workingConfiguration, intent.presetId)
+                    .also { launchSave() }
+
+            is SettingsIntent.UpdateServiceInActivePreset ->
+                presetManager.updateServiceInActivePreset(_state.value.workingConfiguration, intent)
+                    .also { launchSave() }
+
+            is SettingsIntent.CreatePreset ->
+                presetManager.createPreset(_state.value.workingConfiguration, intent.name)
+                    .also { launchSave() }
+
+            is SettingsIntent.DeletePreset ->
+                presetManager.deletePreset(_state.value.workingConfiguration, intent.presetId)
+                    .also { launchSave() }
+
+            is SettingsIntent.RenamePreset ->
+                presetManager.renamePreset(_state.value.workingConfiguration, intent.presetId, intent.newName)
+                    .also { launchSave() }
         }
     }
 
-    // ============================================================
-    // Draft Mode Handlers (Manual Save)
-    // ============================================================
+    // -------------------------------------------------------------------------
+    // Draft mode handlers
+    // -------------------------------------------------------------------------
 
-    /**
-     * Updates the working configuration without persisting.
-     * Sets isDirty flag if working differs from original.
-     */
     private fun handleUpdateDraft(newConfiguration: Configuration) {
-        _state.update { currentState ->
-            val isDirty = newConfiguration != currentState.originalConfiguration
-
-            logger.debug("Draft updated, isDirty=$isDirty")
-
-            currentState.copy(
+        _state.update { current ->
+            current.copy(
                 workingConfiguration = newConfiguration,
-                isDirty = isDirty
+                isDirty = newConfiguration != current.originalConfiguration
+            ).also { logger.debug("Draft updated, isDirty=${it.isDirty}") }
+        }
+    }
+
+    private fun handleCancelChanges() {
+        logger.info("Cancelling changes — reverting to original")
+        _state.update { it.copy(workingConfiguration = it.originalConfiguration, isDirty = false) }
+        scope.launch { _eventChannel.send(SettingsEvent.CloseSettingsDialog) }
+    }
+
+    private fun handleResetToDefaults() {
+        logger.info("Resetting working configuration to defaults")
+        _state.update { current ->
+            current.copy(
+                workingConfiguration = Configuration.DEFAULT,
+                isDirty = Configuration.DEFAULT != current.originalConfiguration
             )
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Working copy update (shared by all handlers and PresetManager)
+    // -------------------------------------------------------------------------
+
     /**
-     * Persists the working configuration to storage.
-     * On success, working becomes the new original.
+     * Applies [newConfig] as the new working configuration and marks the state dirty
+     * if it differs from the original. Called by both internal handlers and [PresetManager].
      */
-    private fun saveChanges() {
-        val currentState = _state.value
-
-        if (currentState.isSaving) {
-            logger.warn("Save already in progress, skipping duplicate save request")
-            return
+    private fun applyWorkingUpdate(newConfig: Configuration) {
+        _state.update { current ->
+            current.copy(
+                workingConfiguration = newConfig,
+                isDirty = newConfig != current.originalConfiguration
+            )
         }
+    }
 
-        if (!currentState.isDirty) {
-            logger.debug("No changes to save")
-            return
-        }
+    // -------------------------------------------------------------------------
+    // Save
+    // -------------------------------------------------------------------------
 
-        logger.info("Saving configuration changes...")
-
+    /**
+     * Launches a save coroutine on [scope].
+     *
+     * [saveMutex] ensures only one save runs at a time — if a save is already in
+     * progress, the new call waits for it to finish and then re-evaluates whether
+     * there is still anything to save (the in-flight save may have already captured
+     * the latest changes).
+     */
+    private fun launchSave() {
         scope.launch {
-            _state.update { it.copy(isSaving = true) }
+            saveMutex.withLock {
+                // Re-read state inside the coroutine and inside the lock —
+                // this is the fix for the stale-state race condition.
+                val current = _state.value
 
-            try {
-                val result = settingsRepository.updateConfiguration(currentState.workingConfiguration)
+                if (!current.isDirty) {
+                    logger.debug("Nothing to save — skipping")
+                    return@withLock
+                }
 
-                result.fold(
+                // Capture the config we intend to save while holding the lock
+                val configToSave = current.workingConfiguration
+
+                logger.info("Saving configuration...")
+                _state.update { it.copy(isSaving = true) }
+
+                settingsRepository.updateConfiguration(configToSave).fold(
                     success = {
                         logger.info("Configuration saved successfully")
-
-                        // Update state: working is now the original
                         _state.update {
                             it.copy(
-                                originalConfiguration = it.workingConfiguration,
-                                isDirty = false,
+                                originalConfiguration = configToSave,
+                                isDirty = it.workingConfiguration != configToSave,
                                 isSaving = false
                             )
                         }
-
-                        // Emit domain event
-                        eventBus.emit(AppEvent.ConfigurationSaved(currentState.workingConfiguration))
-
-                        // Notify UI
+                        eventBus.emit(AppEvent.ConfigurationSaved(configToSave))
                         _eventChannel.send(
-                            SettingsEvent.ShowMessage(
-                                "Settings saved successfully",
-                                NotificationType.SUCCESS
-                            )
+                            SettingsEvent.ShowMessage("Settings saved", NotificationType.SUCCESS)
                         )
                     },
                     failure = { error ->
                         logger.error("Failed to save configuration: ${error.message}")
-
                         _state.update { it.copy(isSaving = false) }
-
                         _eventChannel.send(
                             SettingsEvent.ShowMessage(
                                 "Failed to save settings: ${error.message}",
@@ -187,237 +246,7 @@ class SettingsStore(
                         )
                     }
                 )
-            } catch (e: Exception) {
-                logger.error("Unexpected error during save", e)
-
-                _state.update { it.copy(isSaving = false) }
-
-                _eventChannel.send(
-                    SettingsEvent.ShowMessage(
-                        "Unexpected error: ${e.message ?: "Unknown error"}",
-                        NotificationType.ERROR
-                    )
-                )
             }
         }
-    }
-
-    /**
-     * Cancels unsaved changes by reverting working to original.
-     */
-    private fun cancelChanges() {
-        logger.info("Canceling configuration changes")
-
-        _state.update { currentState ->
-            currentState.copy(
-                workingConfiguration = currentState.originalConfiguration,
-                isDirty = false
-            )
-        }
-
-        scope.launch {
-            _eventChannel.send(SettingsEvent.CloseSettingsDialog)
-        }
-    }
-
-    /**
-     * Resets working configuration to application defaults.
-     * User must still save to persist.
-     */
-    private fun resetToDefaults() {
-        logger.info("Resetting configuration to defaults")
-
-        _state.update { currentState ->
-            val isDirty = Configuration.DEFAULT != currentState.originalConfiguration
-
-            currentState.copy(
-                workingConfiguration = Configuration.DEFAULT,
-                isDirty = isDirty
-            )
-        }
-    }
-
-    // ============================================================
-    // Quick Action Handlers (Auto-Save)
-    // ============================================================
-
-    /**
-     * Applies a quick setting toggle and auto-saves.
-     * Used for menu checkboxes and toolbar toggles.
-     */
-    private fun handleToggleSetting(update: (Configuration) -> Configuration) {
-        logger.debug("Handling toggle setting")
-
-        val updated = update(_state.value.workingConfiguration)
-
-        _state.update {
-            it.copy(
-                workingConfiguration = updated,
-                isDirty = updated != it.originalConfiguration
-            )
-        }
-
-        saveChanges()
-    }
-
-    /**
-     * Changes the active preset and auto-saves.
-     */
-    private fun handleSetActivePreset(presetId: String) {
-        logger.info("Setting active preset: $presetId")
-
-        val currentConfig = _state.value.workingConfiguration
-        val preset = currentConfig.servicePresets.find { it.id == presetId }
-
-        if (preset == null) {
-            logger.warn("Preset not found: $presetId")
-            return
-        }
-
-        val updated = currentConfig.withActivePresetId(presetId)
-
-        _state.update {
-            it.copy(
-                workingConfiguration = updated,
-                isDirty = updated != it.originalConfiguration
-            )
-        }
-
-        // Emit event before saving
-        scope.launch {
-            eventBus.emit(AppEvent.ActivePresetChanged(presetId, preset.name))
-        }
-
-        saveChanges()
-    }
-
-    /**
-     * Updates a service selection in the active preset and auto-saves.
-     */
-    private fun handleUpdateServiceInActivePreset(intent: SettingsIntent.UpdateServiceInActivePreset) {
-        logger.info("Updating service in active preset: ${intent.type} -> ${intent.serviceId}")
-
-        val currentConfig = _state.value.workingConfiguration
-        val activePresetId = currentConfig.activeServicePresetId
-
-        if (activePresetId == null) {
-            logger.warn("No active preset, cannot update service")
-            return
-        }
-
-        val updated = currentConfig.withServiceSelection(intent.type, intent.serviceId)
-
-        _state.update {
-            it.copy(
-                workingConfiguration = updated,
-                isDirty = updated != it.originalConfiguration
-            )
-        }
-
-        // Emit event before saving
-        scope.launch {
-            eventBus.emit(AppEvent.ServiceSelectionChanged(intent.type, intent.serviceId))
-        }
-
-        saveChanges()
-    }
-
-    // ============================================================
-    // Preset Management Handlers (Auto-Save)
-    // ============================================================
-
-    /**
-     * Creates a new preset with default services.
-     * The new preset becomes active and is auto-saved.
-     */
-    @OptIn(ExperimentalUuidApi::class)
-    private fun handleCreatePreset(name: String) {
-        logger.info("Creating new preset: $name")
-
-        val currentConfig = _state.value.workingConfiguration
-        val newPreset = ServicePreset.createDefault(name)
-
-        val updated = currentConfig
-            .withPreset(newPreset)
-            .withActivePresetId(newPreset.id)
-
-        _state.update {
-            it.copy(
-                workingConfiguration = updated,
-                isDirty = updated != it.originalConfiguration
-            )
-        }
-
-        scope.launch {
-            eventBus.emit(AppEvent.ActivePresetChanged(newPreset.id, newPreset.name))
-        }
-
-        saveChanges()
-    }
-
-    /**
-     * Deletes a preset.
-     * Cannot delete the last preset.
-     * If deleting active preset, activates the first remaining preset.
-     */
-    private fun handleDeletePreset(presetId: String) {
-        logger.info("Deleting preset: $presetId")
-
-        val currentConfig = _state.value.workingConfiguration
-
-        if (currentConfig.servicePresets.size <= 1) {
-            logger.warn("Cannot delete last preset")
-            scope.launch {
-                _eventChannel.send(
-                    SettingsEvent.ShowMessage(
-                        "Cannot delete the last preset",
-                        NotificationType.ERROR
-                    )
-                )
-            }
-            return
-        }
-
-        val updated = currentConfig.withoutPreset(presetId)
-
-        _state.update {
-            it.copy(
-                workingConfiguration = updated,
-                isDirty = updated != it.originalConfiguration
-            )
-        }
-
-        // If active preset changed, emit event
-        if (updated.activeServicePresetId != currentConfig.activeServicePresetId) {
-            val newActivePreset = updated.getActivePreset()
-            if (newActivePreset != null) {
-                scope.launch {
-                    eventBus.emit(
-                        AppEvent.ActivePresetChanged(newActivePreset.id, newActivePreset.name)
-                    )
-                }
-            }
-        }
-
-        saveChanges()
-    }
-
-    /**
-     * Renames a preset and auto-saves.
-     */
-    private fun handleRenamePreset(presetId: String, newName: String) {
-        logger.info("Renaming preset $presetId to: $newName")
-
-        val currentConfig = _state.value.workingConfiguration
-        val updated = currentConfig.withPresetRenamed(presetId, newName)
-
-        _state.update {
-            it.copy(
-                workingConfiguration = updated,
-                isDirty = updated != it.originalConfiguration
-            )
-        }
-
-        saveChanges()
     }
 }

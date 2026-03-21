@@ -5,9 +5,11 @@ import kotlinx.serialization.Serializable
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-/**
- * Defines the type of extra output the user wants the application to generate.
- */
+// -------------------------------------------------------------------------
+// Supporting enums
+// -------------------------------------------------------------------------
+
+/** The type of secondary output the user wants the application to generate. */
 @Serializable
 enum class ExtraOutputType {
     None,
@@ -29,9 +31,11 @@ enum class TextSource {
     ExtraOutput
 }
 
-/**
- * Visibility flags for the various toolbars in the main window.
- */
+// -------------------------------------------------------------------------
+// UI layout types
+// -------------------------------------------------------------------------
+
+/** Visibility flags for the various toolbars in the main window. */
 @Serializable
 data class ToolbarVisibility(
     val isHistoryBarVisible: Boolean = true,
@@ -44,47 +48,51 @@ data class ToolbarVisibility(
     }
 }
 
-/**
- * Font configuration for text rendering.
- */
+/** Font name and size for a text rendering context. */
 @Serializable
 data class FontConfig(
     val name: String,
     val size: Int
 ) {
     init {
-        require(size > 0) { "Font size must be positive" }
+        require(size > 0) { "Font size must be positive, was $size." }
     }
 }
 
-/**
- * Dimensions of a UI element.
- */
+/** Pixel dimensions of a UI element. */
 @Serializable
 data class Size(
     val width: Int,
     val height: Int
 ) {
     init {
-        require(width > 0 && height > 0) { "Size dimensions must be positive" }
+        require(width > 0 && height > 0) { "Size dimensions must be positive, was ${width}x${height}." }
     }
 }
 
-/**
- * Screen position of a UI element.
- */
+/** Screen position of a UI element. */
 @Serializable
 data class Position(
     val x: Int,
     val y: Int
 ) {
     init {
-        require(x >= 0 && y >= 0) { "Position coordinates must be non-negative" }
+        require(x >= 0 && y >= 0) { "Position coordinates must be non-negative, was ($x, $y)." }
     }
 }
 
+// -------------------------------------------------------------------------
+// Service presets
+// -------------------------------------------------------------------------
+
 /**
- * A service preset defines which services are selected for each service type.
+ * A named set of service selections — one service ID per [ServiceType].
+ *
+ * A `null` value for a given [ServiceType] means "use the first available service
+ * of that type" (the [ActiveServiceManager] fallback). This is preferred over
+ * hardcoding a specific service ID when a default selection doesn't matter.
+ *
+ * The app ships with Google as the default provider for all service types.
  */
 @Serializable
 data class ServicePreset(
@@ -93,40 +101,58 @@ data class ServicePreset(
     val selectedServices: Map<ServiceType, String?>
 ) {
     companion object {
+        /**
+         * The stable IDs of the built-in default services.
+         * These IDs match the `id` properties declared in the shipped Google plugin services.
+         * Do not change these without also updating the corresponding service implementations.
+         */
+        private const val DEFAULT_TRANSLATOR   = "google-translator"
+        private const val DEFAULT_TTS          = "google-tts"
+        private const val DEFAULT_SPELL_CHECKER = "google-spell-checker"
+        private const val DEFAULT_OCR          = "google-ocr"
+        private const val DEFAULT_DICTIONARY   = "google-dictionary"
+
+        /**
+         * Creates a new preset with Google services pre-selected.
+         * The app ships with Google and Bing as built-in plugins — Google is the default.
+         */
         @OptIn(ExperimentalUuidApi::class)
-        fun createDefault(name: String = "Default"): ServicePreset {
-            return ServicePreset(
-                id = Uuid.random().toString(),
-                name = name,
-                selectedServices = mapOf(
-                    ServiceType.TRANSLATOR to "google-translator",
-                    ServiceType.TTS to "google-tts",
-                    ServiceType.SPELL_CHECKER to "google-spellchecker",
-                    ServiceType.OCR to "google-ocr",
-                    ServiceType.DICTIONARY to "google-dictionary"
-                )
+        fun createDefault(name: String = "Default"): ServicePreset = ServicePreset(
+            id = Uuid.random().toString(),
+            name = name,
+            selectedServices = mapOf(
+                ServiceType.TRANSLATOR   to DEFAULT_TRANSLATOR,
+                ServiceType.TTS          to DEFAULT_TTS,
+                ServiceType.SPELL_CHECKER to DEFAULT_SPELL_CHECKER,
+                ServiceType.OCR          to DEFAULT_OCR,
+                ServiceType.DICTIONARY   to DEFAULT_DICTIONARY
             )
-        }
+        )
     }
 }
 
+// -------------------------------------------------------------------------
+// Root configuration
+// -------------------------------------------------------------------------
+
 /**
- * Application configuration.
+ * The complete application configuration.
  *
- * This is a pure data class with no business logic.
- * All transformations are done via extension functions.
+ * This is a pure data class — no business logic lives here.
+ * All transformations are performed via the extension functions in
+ * [ConfigurationExtensions]. The UI layer may add its own extensions
+ * (e.g. scaled font helpers) without polluting this domain model.
  *
- * Note: Font scaling is NOT done here - it's handled by UI-layer
- * extensions to keep presentation logic out of the domain model.
+ * Persisted as JSON by [SettingsRepository].
  */
 @Serializable
 data class Configuration(
-    // Presets & Services
+    // ---- Presets & Services ----
     val servicePresets: List<ServicePreset>,
     val activeServicePresetId: String?,
     val disabledServices: Set<String>,
 
-    // General Behavior
+    // ---- General Behaviour ----
     val launchOnSystemStartup: Boolean,
     val autoCheckForUpdates: Boolean,
     val isGlobalHotkeysEnabled: Boolean,
@@ -136,11 +162,11 @@ data class Configuration(
     val extraOutputType: ExtraOutputType,
     val extraOutputSource: ExtraOutputSource,
 
-    // History
+    // ---- History ----
     val isHistoryEnabled: Boolean,
     val clearHistoryOnExit: Boolean,
 
-    // UI - Main Window
+    // ---- UI — Main Window ----
     val uiFontConfig: FontConfig,
     val uiScale: Int,
     val themeId: String,
@@ -150,58 +176,50 @@ data class Configuration(
     val layoutPresetId: String,
     val toolbarVisibility: ToolbarVisibility,
 
-    // UI - Quick Panel (Popup Window)
+    // ---- UI — Quick Panel (Popup) ----
     val isPopupAutoSizeEnabled: Boolean,
     val isPopupAutoPositionEnabled: Boolean,
     val popupTransparencyPercentage: Int,
     val popupLastKnownSize: Size,
     val popupLastKnownPosition: Position
 ) {
-    /**
-     * Returns the currently active preset, or null if none is set.
-     */
-    fun getActivePreset(): ServicePreset? {
-        return servicePresets.find { it.id == activeServicePresetId }
-    }
+    /** Returns the currently active [ServicePreset], or `null` if none is set. */
+    fun getActivePreset(): ServicePreset? =
+        servicePresets.find { it.id == activeServicePresetId }
 
     companion object {
         val DEFAULT: Configuration by lazy {
             val defaultPreset = ServicePreset.createDefault()
             Configuration(
-                // Presets & Services
-                servicePresets = listOf(defaultPreset),
-                activeServicePresetId = defaultPreset.id,
-                disabledServices = emptySet(),
+                servicePresets          = listOf(defaultPreset),
+                activeServicePresetId   = defaultPreset.id,
+                disabledServices        = emptySet(),
 
-                // General Behavior
-                launchOnSystemStartup = false,
-                isGlobalHotkeysEnabled = true,
-                autoCheckForUpdates = true,
-                interfaceLanguage = "en",
+                launchOnSystemStartup   = false,
+                isGlobalHotkeysEnabled  = true,
+                autoCheckForUpdates     = true,
+                interfaceLanguage       = "en",
                 isInstantTranslationEnabled = false,
-                isSpellCheckingEnabled = true,
-                extraOutputType = ExtraOutputType.None,
-                extraOutputSource = ExtraOutputSource.Output,
+                isSpellCheckingEnabled  = true,
+                extraOutputType         = ExtraOutputType.None,
+                extraOutputSource       = ExtraOutputSource.Output,
 
-                // History
-                isHistoryEnabled = true,
-                clearHistoryOnExit = false,
+                isHistoryEnabled        = true,
+                clearHistoryOnExit      = false,
 
-                // UI - Main Window
-                uiScale = 200,
-                themeId = "custom:github_dark_dimmed",
-                uiFontConfig = FontConfig(name = "IBM Plex Sans", size = 13),
-                editorFontConfig = FontConfig(name = "IBM Plex Sans", size = 15),
-                editorFallbackFontConfig = FontConfig(name = "IBM Plex Sans Arabic", size = 15),
-                useUnifiedTitleBar = true,
-                layoutPresetId = "classic",
-                toolbarVisibility = ToolbarVisibility.DEFAULT,
+                uiScale                 = 100,
+                themeId                 = "custom:resharper_dark",
+                uiFontConfig            = FontConfig(name = "Rubik", size = 13),
+                editorFontConfig        = FontConfig(name = "Rubik", size = 15),
+                editorFallbackFontConfig = FontConfig(name = "Rubik", size = 15),
+                useUnifiedTitleBar      = true,
+                layoutPresetId          = "classic",
+                toolbarVisibility       = ToolbarVisibility.DEFAULT,
 
-                // UI - Quick Panel
-                isPopupAutoSizeEnabled = true,
+                isPopupAutoSizeEnabled     = true,
                 isPopupAutoPositionEnabled = true,
                 popupTransparencyPercentage = 5,
-                popupLastKnownSize = Size(width = 450, height = 250),
+                popupLastKnownSize     = Size(width = 450, height = 250),
                 popupLastKnownPosition = Position(x = 0, y = 0)
             )
         }

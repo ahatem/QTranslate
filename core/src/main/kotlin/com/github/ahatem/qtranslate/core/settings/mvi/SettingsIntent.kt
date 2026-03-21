@@ -5,91 +5,78 @@ import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
 
 /**
- * User actions for settings management.
+ * All user actions that can be dispatched to [SettingsStore].
  *
- * Intents are organized into two categories:
+ * Intents fall into two behavioural categories:
  *
- * 1. Draft Mode (for settings dialog):
- *    - UpdateDraft: Updates working configuration without persisting
- *    - SaveChanges: Persists working configuration
- *    - CancelChanges: Reverts working to original
- *    - ResetToDefaults: Sets working to default configuration
+ * ### Draft mode (manual save)
+ * Used by the settings dialog where the user edits freely and must explicitly
+ * confirm or cancel their changes:
+ * - [UpdateDraft] — updates the working copy without persisting
+ * - [SaveChanges] — persists the working copy
+ * - [CancelChanges] — reverts to the last saved configuration and closes the dialog
+ * - [ResetToDefaults] — replaces the working copy with [Configuration.DEFAULT]
  *
- * 2. Quick Actions (auto-save):
- *    - ToggleSetting: Updates and immediately persists (for menu toggles)
- *    - SetActivePreset: Changes active preset and auto-saves
- *    - UpdateServiceInActivePreset: Changes service selection and auto-saves
- *    - CreatePreset, DeletePreset, RenamePreset: Preset management (auto-save)
+ * ### Quick actions (auto-save)
+ * Used by toolbar toggles, menu items, and the service selector panel where
+ * changes take effect immediately and are persisted without a confirmation step:
+ * - [ToggleSetting] — applies an arbitrary transform and immediately saves
+ * - [SetActivePreset] — switches the active preset and saves
+ * - [UpdateServiceInActivePreset] — changes a service selection and saves
+ * - [CreatePreset], [DeletePreset], [RenamePreset] — preset CRUD, all auto-saved
  */
 sealed interface SettingsIntent : UiIntent {
 
-    // ============================================================
-    // Draft Mode (Manual Save)
-    // ============================================================
+    // ---- Draft mode ----
 
     /**
      * Updates the working configuration without persisting.
-     * Used in settings dialog where user can cancel changes.
-     *
-     * @property newConfiguration The new draft configuration
+     * [isDirty][SettingsState.isDirty] becomes `true` if [newConfiguration] differs
+     * from the original.
      */
     data class UpdateDraft(val newConfiguration: Configuration) : SettingsIntent
 
-    /**
-     * Persists the current working configuration.
-     * After success, working becomes the new original.
-     */
+    /** Persists the current working configuration. On success, working becomes the new original. */
     data object SaveChanges : SettingsIntent
 
     /**
-     * Discards changes by reverting working to original.
-     * Typically triggered by "Cancel" button in settings dialog.
+     * Discards unsaved changes by reverting the working copy to the original.
+     * Also closes the settings dialog via [SettingsEvent.CloseSettingsDialog].
      */
     data object CancelChanges : SettingsIntent
 
     /**
-     * Resets working configuration to application defaults.
-     * User must still click "Save" to persist.
+     * Replaces the working configuration with [Configuration.DEFAULT].
+     * The user must still dispatch [SaveChanges] to persist.
      */
     data object ResetToDefaults : SettingsIntent
 
-    // ============================================================
-    // Quick Actions (Auto-Save)
-    // ============================================================
+    // ---- Quick actions ----
 
     /**
-     * Applies a quick setting toggle and immediately persists.
-     * Used for menu checkboxes and toolbar toggles.
+     * Applies [update] to the current working configuration and immediately saves.
+     *
+     * Use this for menu checkboxes and toolbar toggles where changes take effect instantly.
      *
      * Example:
+     * ```kotlin
+     * store.dispatch(SettingsIntent.ToggleSetting {
+     *     it.copy(isSpellCheckingEnabled = !it.isSpellCheckingEnabled)
+     * })
      * ```
-     * ToggleSetting { it.copy(isSpellCheckingEnabled = !it.isSpellCheckingEnabled) }
-     * ```
-     *
-     * @property update Transform function to apply to current configuration
      */
-    data class ToggleSetting(
-        val update: (Configuration) -> Configuration
-    ) : SettingsIntent
-
-    // ============================================================
-    // Service Preset Management (Auto-Save)
-    // ============================================================
+    data class ToggleSetting(val update: (Configuration) -> Configuration) : SettingsIntent
 
     /**
-     * Changes the globally active service preset.
-     * This immediately persists to ensure service selection is saved.
-     *
-     * @property presetId The ID of the preset to activate
+     * Switches the active service preset to [presetId] and immediately saves.
+     * Emits [AppEvent.ActivePresetChanged] on the event bus.
      */
     data class SetActivePreset(val presetId: String) : SettingsIntent
 
     /**
-     * Updates a service selection in the currently active preset.
-     * This immediately persists to ensure service selection is saved.
-     *
-     * @property type The type of service (e.g., TRANSLATOR, TTS)
-     * @property serviceId The ID of the service to select, or null to clear
+     * Selects [serviceId] for [type] in the active preset and immediately saves.
+     * Pass `null` for [serviceId] to clear the selection (fall back to first available).
+     * Emits [AppEvent.ServiceSelectionChanged] on the event bus.
      */
     data class UpdateServiceInActivePreset(
         val type: ServiceType,
@@ -97,32 +84,23 @@ sealed interface SettingsIntent : UiIntent {
     ) : SettingsIntent
 
     /**
-     * Creates a new service preset with default services.
-     * The new preset becomes active and changes are persisted.
-     *
-     * @property name The display name for the new preset
+     * Creates a new preset named [name] with default Google services pre-selected,
+     * makes it active, and immediately saves.
+     * Emits [AppEvent.ActivePresetChanged] on the event bus.
      */
     data class CreatePreset(val name: String) : SettingsIntent
 
     /**
-     * Deletes a service preset.
-     * Cannot delete the last remaining preset.
-     * If deleting the active preset, the first remaining preset becomes active.
-     * Changes are immediately persisted.
-     *
-     * @property presetId The ID of the preset to delete
+     * Deletes the preset identified by [presetId] and immediately saves.
+     * Cannot delete the last remaining preset — dispatching this intent when only
+     * one preset exists sends [SettingsEvent.ShowMessage] with an error.
+     * If the deleted preset was active, the first remaining preset becomes active
+     * and [AppEvent.ActivePresetChanged] is emitted.
      */
     data class DeletePreset(val presetId: String) : SettingsIntent
 
     /**
-     * Renames a service preset.
-     * Changes are immediately persisted.
-     *
-     * @property presetId The ID of the preset to rename
-     * @property newName The new display name
+     * Renames the preset identified by [presetId] to [newName] and immediately saves.
      */
-    data class RenamePreset(
-        val presetId: String,
-        val newName: String
-    ) : SettingsIntent
+    data class RenamePreset(val presetId: String, val newName: String) : SettingsIntent
 }
