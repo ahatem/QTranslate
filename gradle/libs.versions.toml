@@ -5,7 +5,7 @@ kotlinxDatetime = "0.6.2"
 kotlinxSerializationJSON = "1.9.0"
 result = "2.1.0"
 ktor = "3.3.0"
-flatlaf = "3.7-SNAPSHOT"
+flatlaf = "3.7.1"
 
 jintellitype = "1.5.6"
 jnativehook = "2.2.2"
