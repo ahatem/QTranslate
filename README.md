@@ -15,7 +15,7 @@ all from a single keyboard shortcut, without opening a browser.
 [![License](https://img.shields.io/github/license/ahatem/qtranslate?style=flat-square)](LICENSE)
 [![Build](https://img.shields.io/github/actions/workflow/status/ahatem/qtranslate/ci.yml?branch=develop&style=flat-square&label=build)](https://github.com/ahatem/qtranslate/actions)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
-[![Made with Kotlin](https://img.shields.io/badge/Kotlin-1.9-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Made with Kotlin](https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 
 <br>
 
@@ -101,7 +101,17 @@ QTranslate/
         └── google-services-plugin.jar
 ```
 
-> **Requires Java 11 or later.** → [Download Temurin JDK](https://adoptium.net)
+>  **Requires Java 11 or later.** → [Download Temurin JDK](https://adoptium.net)
+
+### ❓ Getting "This application requires a Java Runtime Environment"?
+
+This means Java is not installed or not configured correctly on your machine. You need to install the Java JDK and set the `JAVA_HOME` environment variable so your system knows where to find it.
+
+This video walks you through the entire process — downloading, installing, and setting `JAVA_HOME`:
+
+**▶ [How to Install Java JDK and Set JAVA_HOME](https://youtu.be/VTzzmqNwGzM)**
+
+> **Note:** You only need the first 7 minutes — that covers everything required to run QTranslate.
 
 ### Build from source
 
