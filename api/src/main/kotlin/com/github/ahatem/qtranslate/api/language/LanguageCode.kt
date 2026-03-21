@@ -1,8 +1,17 @@
 package com.github.ahatem.qtranslate.api.language
 
 /**
- * Represents a language tag, standardized using the IETF BCP 47 specification.
- * Examples: "en-US" (English, US), "zh-Hans" (Simplified Chinese), "auto" (Auto-detect).
+ * Represents a language tag standardized using the IETF BCP 47 specification.
+ * Examples: `"en-US"` (English, US), `"zh-Hans"` (Simplified Chinese), `"auto"` (auto-detect).
+ *
+ * ### Provider codes vs. BCP-47
+ * The constants in this companion object are standard BCP-47 tags and are the values
+ * used in the public API (UI display, user preferences, service contracts).
+ *
+ * Individual translation/TTS providers may use non-standard internal codes (e.g. Google
+ * uses `"zh-CN"` instead of `"zh-Hans"`, Bing uses `"jav"` for Javanese). These
+ * provider-specific mappings are the responsibility of each plugin's `LanguageMapper`
+ * and must never leak into this class or into [com.github.ahatem.qtranslate.api.plugin.SupportedLanguages].
  *
  * @see <a href="https://en.wikipedia.org/wiki/IETF_language_tag">IETF Language Tag</a>
  */
@@ -44,7 +53,7 @@ value class LanguageCode(val tag: String) {
         val ITALIAN             = LanguageCode("it")
         val THAI                = LanguageCode("th")
         val GUJARATI            = LanguageCode("gu")
-        val JAVANESE            = LanguageCode("jw")
+        val JAVANESE            = LanguageCode("jv")
         val FARSI               = LanguageCode("fa")
         val HAUSA               = LanguageCode("ha")
         val BURMESE             = LanguageCode("my")
@@ -97,4 +106,3 @@ value class LanguageCode(val tag: String) {
         // @formatter:on
     }
 }
-

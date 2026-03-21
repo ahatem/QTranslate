@@ -1,73 +1,145 @@
 package com.github.ahatem.qtranslate.api.plugin
 
 import com.github.ahatem.qtranslate.api.core.Logger
+import kotlinx.coroutines.CoroutineScope
 import java.io.File
 
 /**
  * Provides a plugin with a sandboxed, secure context to interact with the core application.
  *
- * An instance of this interface is passed to a plugin during its `initialize` phase.
- * It is the **only** channel through which a plugin should communicate with the host application.
- * Each plugin receives its own unique, scoped instance, ensuring its actions and data
- * are isolated from other plugins.
+ * An instance is passed to the plugin during [Plugin.initialize] and should be stored
+ * as a property for use throughout the plugin's lifetime. This is the **only** sanctioned
+ * channel through which a plugin communicates with the host — plugins must not access
+ * application internals through any other means.
+ *
+ * Each plugin receives its own unique, isolated instance. Actions taken through this
+ * context (storage, notifications, file I/O) are scoped to the plugin and cannot
+ * affect other plugins.
  *
  * @see Plugin
  */
 interface PluginContext {
 
+    // -------------------------------------------------------------------------
+    // Core Resources
+    // -------------------------------------------------------------------------
+
     /**
-     * A pre-configured Logger instance for the plugin to use.
+     * A pre-configured [Logger] scoped to this plugin.
      *
-     * The logger is automatically scoped to the plugin, so all messages
-     * will be tagged with the plugin's ID in the application logs.
-     * This property is guaranteed to be available throughout the plugin's lifecycle.
+     * All messages emitted through this logger are automatically tagged with the
+     * plugin's ID, making them easy to filter in the application's log output.
+     * Thread-safe; may be called from any thread or coroutine.
      */
     val logger: Logger
 
     /**
-     * Displays a non-intrusive notification to the user. This is the preferred way
-     * to provide feedback for background operations or minor events.
+     * A [CoroutineScope] managed by the core application, tied to this plugin's lifecycle.
      *
-     * @param title The title of the notification.
-     * @param body The main text of the notification.
-     * @param type The severity level, which may affect the notification's appearance (e.g., color or icon).
+     * Use this scope to launch any background coroutines your plugin needs (polling,
+     * keep-alive pings, background sync, etc.). The core **automatically cancels** this
+     * scope when [Plugin.onDisable] returns, ensuring all launched coroutines are
+     * cleaned up without the plugin needing to manage cancellation manually.
+     *
+     * ### Do not use `GlobalScope`
+     * Launching coroutines on `GlobalScope` from a plugin creates unmanaged coroutine
+     * leaks that survive plugin disable/enable cycles and cannot be tracked by the core.
+     * Always use this scope.
+     *
+     * ### Dispatcher
+     * The scope uses [kotlinx.coroutines.Dispatchers.IO] by default. Switch dispatchers
+     * inside your coroutines as needed (e.g. `withContext(Dispatchers.Default)` for CPU work).
+     *
+     * ### Example
+     * ```kotlin
+     * override suspend fun onEnable(): Result<Unit, ServiceError> {
+     *     context.scope.launch {
+     *         while (isActive) {
+     *             refreshTokenIfNeeded()
+     *             delay(30.minutes)
+     *         }
+     *     }
+     *     return Ok(Unit)
+     * }
+     * ```
+     */
+    val scope: CoroutineScope
+
+    // -------------------------------------------------------------------------
+    // User Notifications
+    // -------------------------------------------------------------------------
+
+    /**
+     * Displays a brief, non-intrusive notification to the user.
+     *
+     * This is the preferred channel for communicating background operation outcomes
+     * (e.g. "Cache refreshed", "API key expired"). For critical errors that require
+     * user action, prefer returning an `Err` from the relevant lifecycle method instead.
+     *
+     * **Rate limiting**: The core applies best-effort debouncing per plugin. Avoid
+     * calling this in tight loops — repeated notifications will be coalesced or dropped.
+     *
+     * @param title   Short title for the notification (aim for ≤ 5 words).
+     * @param body    The main message body, providing context or suggested action.
+     * @param type    Severity level, which affects the notification's appearance.
+     *                Defaults to [NotificationType.INFO].
      */
     suspend fun notify(title: String, body: String, type: NotificationType = NotificationType.INFO)
 
+    // -------------------------------------------------------------------------
+    // Private Key-Value Storage
+    // -------------------------------------------------------------------------
 
     /**
      * Stores a private key-value pair scoped exclusively to this plugin.
      *
-     * This is the ideal place for a plugin to store **operational data** that isn't directly
-     * part of its user-facing settings form, such as authentication tokens, API usage counters,
-     * cache timestamps, or other internal state.
+     * Ideal for **operational state** that is not part of user-facing settings:
+     * authentication tokens, refresh timestamps, API usage counters, cache metadata.
      *
-     * **A plugin is responsible for its own data security.** The core provides simple persistence;
-     * if a value is highly sensitive, the plugin should encrypt it before calling this method.
+     * **Security note**: The core provides simple string persistence. If the value
+     * is sensitive (e.g. an OAuth refresh token), encrypt it before storing.
      *
-     * @param key A unique key for the data. Using a prefix (e.g., "cache_item_") is recommended.
-     * @param value The string value to store.
+     * @param key   A unique key for the entry. Use a prefix to avoid collisions
+     *              within your own plugin (e.g. `"auth_token"`, `"cache_ts_en"`).
+     *              Keys are scoped per plugin — there is no risk of collision with
+     *              other plugins' keys.
+     * @param value The string value to persist.
      */
     suspend fun storeValue(key: String, value: String)
 
     /**
-     * Retrieves a private value that was previously stored by this plugin.
+     * Retrieves a value previously stored by this plugin via [storeValue].
      *
-     * @param key The unique key for the data.
-     * @return The stored string value, or `null` if no value is found for the given key.
+     * @param key The key used when the value was stored.
+     * @return The stored string, or `null` if no value exists for the given key.
      */
     suspend fun getValue(key: String): String?
 
     /**
-     * Returns a dedicated, private directory on the file system that this plugin
-     * can safely use for caching, configuration, or other data storage needs.
+     * Removes a value previously stored by this plugin.
+     * A no-op if the key does not exist.
      *
-     * The core application guarantees that this directory is unique to this plugin.
-     * For security and stability, plugins **MUST NOT** attempt to write files
-     * outside the directory provided by this method.
+     * @param key The key to remove.
+     */
+    suspend fun deleteValue(key: String)
+
+    // -------------------------------------------------------------------------
+    // File System
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns a dedicated, private directory on the file system for this plugin's
+     * exclusive use (caching, local databases, downloaded assets, etc.).
      *
-     * @return A `File` object representing the root of the plugin's sandboxed data directory.
+     * The directory is guaranteed to exist and be writable when this method is called.
+     * Its location is managed entirely by the core and is guaranteed to be unique
+     * to this plugin.
+     *
+     * **Sandbox contract**: Plugins **must not** read from or write to any path
+     * outside the directory returned by this method. Violations may result in the
+     * plugin being disabled by the core.
+     *
+     * @return A [File] pointing to the root of this plugin's sandboxed data directory.
      */
     fun getPluginDataDirectory(): File
 }
-

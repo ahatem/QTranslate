@@ -4,124 +4,212 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 
 /**
- * The main entry point for a QTranslate plugin, defining its complete lifecycle.
+ * Defines the settings contract for a plugin. Use this sealed hierarchy as the
+ * generic type parameter `S` in [Plugin].
  *
- * Each plugin must implement this interface, specifying its settings class as the
- * generic type `S`. For plugins without settings, use the `NoSettings` marker object.
+ * - **No settings**: `class MyPlugin : Plugin<PluginSettings.None>`
+ * - **Has settings**: create a class extending [PluginSettings.Configurable] and
+ *   annotate its properties with [@Setting][com.github.ahatem.qtranslate.api.settings.Setting].
  *
- * - With settings: `class MyPlugin : Plugin<MySettingsClass>`
- * - Without settings: `class MyPlugin : Plugin<NoSettings>`
+ * The core uses a `when` match on this sealed type to decide whether to render a
+ * settings panel, eliminating the need for `Class<S>` reflection bridges and the
+ * associated runtime guard logic.
  *
- * This class must be registered via Java's ServiceLoader mechanism by creating a file in
- * `resources/META-INF/services/com.github.ahatem.qtranslate.api.plugin.Plugin` which contains the
- * fully qualified name of the implementing class.
+ * ### Example
+ * ```kotlin
+ * class MyPluginSettings : PluginSettings.Configurable() {
+ *     @Setting(label = "API Key", type = SettingType.PASSWORD, order = 1, isRequired = true)
+ *     var apiKey: String = ""
  *
- * ### Threading Model
- * All methods on this interface are guaranteed to be called sequentially from a dedicated
- * background thread by the core application. Implementations **do not** need to be
- * internally thread-safe.
- *
- * ### Plugin Lifecycle
- * The core application manages a precise lifecycle to ensure stability and efficiency.
- *
- * 1.  **`initialize()`**: Called **once** when the plugin is first loaded. Used for heavyweight,
- *     one-time setup. A failure here prevents the plugin from loading further.
- *
- * 2.  **`onEnable()`**: Called after `initialize()` and whenever a user enables the plugin. This
- *     method prepares the plugin's services. A failure here will keep the plugin disabled.
- *
- * 3.  **`getServices()`**: Called immediately after a successful `onEnable()`. This method must
- *     be a fast, synchronous operation that returns the active services.
- *
- * 4.  **`onDisable()`**: Called when a user disables the plugin or before shutdown. This method
- *     should release all active resources.
- *
- * 5.  **`shutdown()`**: Called **once** when the application is closing. Used for final,
- *     irreversible cleanup.
- *
- * @param S The type of the data class used for this plugin's settings.
- * @see PluginContext
- * @see Service
- * @see NoSettings
+ *     @Setting(label = "Enable cache", type = SettingType.BOOLEAN, order = 2)
+ *     var cacheEnabled: Boolean = true
+ * }
+ * ```
  */
-interface Plugin<S : Any> {
-    // --- Core Lifecycle Methods ---
+sealed class PluginSettings {
 
     /**
-     * Called once when the plugin is first loaded at application startup.
+     * Use as the type parameter for plugins that have no user-configurable settings.
+     * The core will not render a settings panel for such plugins.
      *
-     * This is a suspending function for non-blocking I/O. Use this method for
-     * heavyweight, one-time setup (e.g., creating HTTP clients).
+     * Example: `class MyPlugin : Plugin<PluginSettings.None>`
+     */
+    data object None : PluginSettings()
+
+    /**
+     * Base class for plugins that expose user-configurable settings.
+     * Subclass this and annotate fields with
+     * [@Setting][com.github.ahatem.qtranslate.api.settings.Setting] to have the core
+     * automatically generate a settings UI via reflection.
      *
-     * @param context Provides a sandboxed, secure context for the plugin to interact with the core.
-     * @return `Ok(Unit)` if initialization was successful. An `Err` will prevent the plugin from
-     *         being loaded further.
+     * The core reflects only on subclasses of this class, so the reflection guard
+     * (`if NoSettings skip`) is replaced by a compile-time sealed match.
+     *
+     * Example: `class MyPlugin : Plugin<MyPluginSettings>`
+     */
+    abstract class Configurable : PluginSettings()
+}
+
+/**
+ * The main entry point for a QTranslate plugin, defining its complete lifecycle.
+ *
+ * Implement this interface to create a plugin, specifying your settings class as
+ * the generic type `S`:
+ * - **With settings**: `class MyPlugin : Plugin<MyPluginSettings>` where
+ *   `MyPluginSettings : PluginSettings.Configurable()`
+ * - **Without settings**: `class MyPlugin : Plugin<PluginSettings.None>`
+ *
+ * Register your implementation via Java's ServiceLoader by creating:
+ * `resources/META-INF/services/com.github.ahatem.qtranslate.api.plugin.Plugin`
+ * containing the fully qualified class name of your implementation.
+ *
+ * ### Threading Model
+ * All lifecycle methods are called sequentially from a single dedicated background
+ * thread managed by the core. Implementations **do not** need to be internally
+ * thread-safe with respect to these calls.
+ *
+ * For any background work a plugin needs to initiate itself (polling, keep-alive pings,
+ * background sync), use the [PluginContext.scope] coroutine scope provided during
+ * [initialize]. It is automatically cancelled by the core when [onDisable] is called,
+ * preventing coroutine leaks.
+ *
+ * ### Plugin Lifecycle
+ *
+ * ```
+ * [App Start]
+ *     │
+ *     ▼
+ * initialize(context)  ──── Err ──► [Plugin rejected, not loaded]
+ *     │ Ok
+ *     ▼
+ * onEnable()  ──────────── Err ──► [Plugin disabled, user notified]
+ *     │ Ok
+ *     ▼
+ * getServices()   ◄──── called immediately, must be fast & synchronous
+ *     │
+ *     ▼
+ * [Plugin active — user can interact]
+ *     │
+ *     ├─ onSettingsChanged(settings) ◄── called on each user save
+ *     │
+ *     ▼
+ * onDisable()   ◄── on user disable or before shutdown
+ *     │
+ *     ▼
+ * shutdown()    ◄── once, on app close (final cleanup)
+ * ```
+ *
+ * @param S The settings type. Must be either [PluginSettings.None] or a subclass
+ *          of [PluginSettings.Configurable].
+ * @see PluginContext
+ * @see Service
+ * @see PluginSettings
+ */
+interface Plugin<S : PluginSettings> {
+
+    // -------------------------------------------------------------------------
+    // Core Lifecycle
+    // -------------------------------------------------------------------------
+
+    /**
+     * Called **once** when the plugin is first loaded at application startup.
+     *
+     * Use this for heavyweight, one-time setup — creating HTTP clients, loading
+     * native libraries, or reading initial configuration. Prefer lazy initialization
+     * inside this method over static initializers.
+     *
+     * The provided [context] is your plugin's only sanctioned channel to the host
+     * application. Store it as a property for use in subsequent lifecycle methods.
+     *
+     * @param context A sandboxed context providing logging, storage, notifications,
+     *                and a managed [kotlinx.coroutines.CoroutineScope].
+     * @return `Ok(Unit)` on success. An `Err` permanently prevents this plugin from
+     *         loading — the user will be notified and [onEnable] will never be called.
      */
     suspend fun initialize(context: PluginContext): Result<Unit, ServiceError>
 
     /**
-     * Called after a successful `initialize()` and whenever a user enables the plugin.
+     * Called after [initialize] succeeds, and again whenever the user re-enables
+     * the plugin from the settings panel.
      *
-     * This method signals that the plugin should become "active" by preparing its services.
-     * If this method returns an error, the plugin will be considered disabled.
+     * Use this to prepare or re-initialize your services. After a successful return,
+     * [getServices] will be called immediately.
      *
-     * @return `Ok(Unit)` if the plugin was enabled successfully, or an `Err` otherwise.
+     * @return `Ok(Unit)` if services are ready. An `Err` keeps the plugin disabled
+     *         and is shown to the user as the reason.
      */
     suspend fun onEnable(): Result<Unit, ServiceError> = Ok(Unit)
 
     /**
-     * Called when a user disables the plugin, or before shutdown if the plugin was active.
+     * Called when the user disables the plugin, or just before [shutdown] if the
+     * plugin was still active.
      *
-     * This method signals that the plugin should become "inactive." It should stop all active
-     * processes and clear its list of services. The core will log any exceptions.
+     * Release all active resources here (close connections, flush caches). The
+     * [PluginContext.scope] is cancelled by the core immediately after this returns,
+     * so any coroutines you launched in that scope will be cleaned up automatically.
      */
     suspend fun onDisable() {}
 
     /**
-     * Called once just before the application shuts down for final, irreversible cleanup.
+     * Called **once**, just before the application closes, for final irreversible cleanup.
      *
-     * This is the plugin's final chance to perform graceful cleanup. The core will log any
-     * exceptions thrown by this method.
+     * If the plugin was active, [onDisable] is guaranteed to have been called first.
+     * Any exceptions thrown here are caught and logged by the core.
      */
     suspend fun shutdown() {}
 
-
-    // --- Service Management ---
+    // -------------------------------------------------------------------------
+    // Service Management
+    // -------------------------------------------------------------------------
 
     /**
-     * Called by the core immediately after a successful `onEnable()` to retrieve the list of
-     * functional services this plugin provides.
+     * Returns the list of active [Service] instances this plugin provides.
      *
-     * **This method must be a fast, synchronous operation.** It should simply return a
-     * collection of the `Service` instances that were prepared during `onEnable()`.
+     * Called immediately after a successful [onEnable]. **This must be a fast,
+     * synchronous operation** — simply return the service instances that were
+     * prepared in [onEnable]. Do not perform I/O here.
      *
-     * @return A `List` of services.
+     * @return A list of ready [Service] instances. Return an empty list if the
+     *         plugin is temporarily unable to provide services (the plugin will
+     *         appear enabled but inactive in the UI).
      */
     fun getServices(): List<Service>
 
-
-    // --- Settings Management ---
+    // -------------------------------------------------------------------------
+    // Settings Management
+    // -------------------------------------------------------------------------
 
     /**
-     * Returns the `Class` of the settings data class for this plugin. This is the essential
-     * bridge that allows the core's dynamic runtime to interact with the plugin's type-safe
-     * settings model.
+     * Returns the settings descriptor for this plugin.
      *
-     * @return The `.java` class of your settings object. For plugins with no settings, this
-     *         must return `NoSettings::class.java`.
+     * The core uses a `when` match on [PluginSettings]:
+     * - [PluginSettings.None] → no settings panel is shown.
+     * - [PluginSettings.Configurable] → the core reflects on the subclass properties
+     *   annotated with [@Setting][com.github.ahatem.qtranslate.api.settings.Setting]
+     *   and generates the settings UI automatically.
+     *
+     * For a plugin without settings, simply return `PluginSettings.None`:
+     * ```kotlin
+     * override fun getSettings(): PluginSettings.None = PluginSettings.None
+     * ```
+     *
+     * For a plugin with settings, return your current settings instance:
+     * ```kotlin
+     * override fun getSettings(): MyPluginSettings = currentSettings
+     * ```
      */
-    fun getSettingsClass(): Class<S>
+    fun getSettings(): S
 
     /**
-     * Called by the core after the user saves changes to this plugin's settings.
-     * This method gives the plugin a chance to validate and apply the new settings.
+     * Called by the core when the user saves changes to this plugin's settings panel.
+     * Validate the new settings and apply them if valid.
      *
-     * This method is **never** called for plugins that implement `Plugin<NoSettings>`.
+     * This method is **never called** for plugins where [getSettings] returns
+     * [PluginSettings.None].
      *
-     * @param settings The new, fully-populated, type-safe instance of the settings data class.
-     * @return `Ok(Unit)` if the settings were successfully validated and applied. Returning an
-     *         `Err` will signal to the core that the settings were rejected, allowing the UI
-     *         to display the error and remain open for the user to correct.
+     * @param settings The new, fully-populated settings instance.
+     * @return `Ok(Unit)` if valid and applied. An `Err` rejects the save — the
+     *         settings panel stays open and the error message is shown to the user.
      */
     suspend fun onSettingsChanged(settings: S): Result<Unit, ServiceError> = Ok(Unit)
 }
