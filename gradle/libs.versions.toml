@@ -18,7 +18,7 @@ miglayout = "11.1"
 swt = "3.123.0"
 shadow = "9.4.0"
 diffUtils = "4.16"
-datastore = "1.2.0-alpha02"
+datastore = "1.3.0-alpha07"
 
 slf4j = "2.0.17"
 logback = "1.5.32"

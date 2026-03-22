@@ -3,30 +3,38 @@ version: 2
 updates:
   - package-ecosystem: gradle
     directory: "/"
+    target-branch: "develop"
     schedule:
       interval: weekly
       day: monday
       time: "09:00"
+      timezone: "Africa/Cairo"
     open-pull-requests-limit: 5
     labels:
       - dependencies
     commit-message:
       prefix: "chore(deps)"
+      include: scope
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
     groups:
-      gradle-non-breaking:
+      gradle-patch:
+        update-types:
+          - patch
+      gradle-minor:
         update-types:
           - minor
-          - patch
-      gradle-major:
-        update-types:
-          - major
 
   - package-ecosystem: github-actions
     directory: "/"
+    target-branch: "develop"
     schedule:
       interval: weekly
       day: monday
       time: "09:00"
+      timezone: "Africa/Cairo"
     open-pull-requests-limit: 5
     labels:
       - dependencies
