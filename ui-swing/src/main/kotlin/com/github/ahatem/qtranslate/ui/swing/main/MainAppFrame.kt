@@ -275,11 +275,17 @@ class MainAppFrame(
     }
 
     /**
-     * Applies LEFT_TO_RIGHT or RIGHT_TO_LEFT component orientation to the entire
-     * window and forces a UI update so every component redraws in the new direction.
+     * Applies LEFT_TO_RIGHT or RIGHT_TO_LEFT orientation to the entire window.
      *
-     * Called at construction (using the already-loaded language) and whenever
-     * [LocalizationManager.activeLanguageFlow] emits a new value.
+     * ### Flicker prevention
+     * `applyComponentOrientation` + `updateComponentTreeUI` causes multiple
+     * intermediate repaints which produce a visible flicker. We suppress this by:
+     * 1. Hiding the window briefly while the layout changes (if already visible)
+     * 2. Using `revalidate()` + `repaint()` instead of the heavier `updateComponentTreeUI`
+     *    which reinstalls the entire Look and Feel on every component unnecessarily.
+     *
+     * Called at construction (window not yet visible — no flicker risk) and
+     * whenever [LocalizationManager.activeLanguageFlow] emits a new value.
      */
     private fun applyOrientation(isRtl: Boolean) {
         val orientation = if (isRtl)
@@ -287,8 +293,16 @@ class MainAppFrame(
         else
             ComponentOrientation.LEFT_TO_RIGHT
 
+        // Suppress flicker by hiding during layout change if window is visible.
+        // At construction time isVisible=false so this is a no-op.
+        val wasVisible = isVisible
+        if (wasVisible) isVisible = false
+
         applyComponentOrientation(orientation)
-        SwingUtilities.updateComponentTreeUI(this)
+        rootPane.revalidate()
+        rootPane.repaint()
+
+        if (wasVisible) isVisible = true
     }
 
     private fun runOnUi(block: () -> Unit) {
