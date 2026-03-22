@@ -1,33 +1,52 @@
 version: 2
 
+multi-ecosystem-groups:
+  maintenance:
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+
 updates:
-  # Gradle dependencies
   - package-ecosystem: gradle
     directory: "/"
     schedule:
       interval: weekly
       day: monday
       time: "09:00"
+    multi-ecosystem-group: maintenance
     open-pull-requests-limit: 5
     labels:
       - dependencies
     commit-message:
       prefix: "chore(deps)"
     groups:
-      # Group all patch updates into one PR to reduce noise
-      patch-updates:
+      gradle-non-breaking:
         update-types:
+          - minor
           - patch
+      gradle-major:
+        update-types:
+          - major
 
-  # GitHub Actions versions
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
       day: monday
       time: "09:00"
+    multi-ecosystem-group: maintenance
+    open-pull-requests-limit: 5
     labels:
       - dependencies
       - ci
     commit-message:
       prefix: "chore(ci)"
+    groups:
+      actions-non-breaking:
+        update-types:
+          - minor
+          - patch
+      actions-major:
+        update-types:
+          - major
