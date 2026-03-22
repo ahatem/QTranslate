@@ -208,7 +208,7 @@ data class Configuration(
                 clearHistoryOnExit      = false,
 
                 uiScale                 = 100,
-                themeId                 = "custom:resharper_dark",
+                themeId                 = "custom:xcode_dark",
                 uiFontConfig            = FontConfig(name = "Rubik", size = 13),
                 editorFontConfig        = FontConfig(name = "Rubik", size = 15),
                 editorFallbackFontConfig = FontConfig(name = "Rubik", size = 15),

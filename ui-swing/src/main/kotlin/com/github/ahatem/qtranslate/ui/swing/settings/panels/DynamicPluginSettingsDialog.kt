@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.settings.*
 import com.github.ahatem.qtranslate.ui.swing.shared.util.GridBag
 import java.awt.*
@@ -24,9 +25,10 @@ import javax.swing.filechooser.FileNameExtensionFilter
 class DynamicPluginSettingsDialog(
     owner: Window?,
     pluginName: String,
+    private val localizationManager: LocalizationManager,
     private val settingsModel: PluginSettingsModel,
     private val onSave: (Map<String, String>) -> Unit
-) : JDialog(owner, "Configure — $pluginName", ModalityType.APPLICATION_MODAL) {
+) : JDialog(owner,     localizationManager.getString("plugin_config.title_format").format(pluginName), ModalityType.APPLICATION_MODAL) {
 
     private val components = mutableMapOf<String, SettingComponent>()
 
@@ -124,8 +126,8 @@ class DynamicPluginSettingsDialog(
             border = BorderFactory.createMatteBorder(
                 1, 0, 0, 0, UIManager.getColor("Component.borderColor") ?: Color.GRAY
             )
-            add(JButton("Save").apply   { addActionListener { onSaveClicked() }; isDefaultCapable = true })
-            add(JButton("Cancel").apply { addActionListener { dispose() } })
+            add(JButton(localizationManager.getString("common.save")).apply   { addActionListener { onSaveClicked() }; isDefaultCapable = true })
+            add(JButton(localizationManager.getString("common.cancel")).apply { addActionListener { dispose() } })
         }
 
         add(scroll,    BorderLayout.CENTER)
@@ -206,7 +208,7 @@ class DynamicPluginSettingsDialog(
         is FilePathSetting, is DirectoryPathSetting -> {
             val isDir = setting is DirectoryPathSetting
             val tf    = JTextField(setting.currentValue)
-            val btn   = JButton("Browse…").apply {
+            val btn   = JButton(localizationManager.getString("common.browse")).apply {
                 addActionListener {
                     val chooser = JFileChooser().apply {
                         fileSelectionMode = if (isDir) JFileChooser.DIRECTORIES_ONLY
@@ -257,8 +259,10 @@ class DynamicPluginSettingsDialog(
 
             JOptionPane.showMessageDialog(
                 this,
-                "<html>Please fill in the required fields:<br>• ${missing.joinToString("<br>• ") { it.label }}</html>",
-                "Required Fields",
+                "<html>${localizationManager.getString("plugin_config.required_fields_error_msg")}<br>• ${
+                    missing.joinToString("<br>• ") { it.label }
+                }</html>",
+                localizationManager.getString("plugin_config.required_fields_error_title"),
                 JOptionPane.WARNING_MESSAGE
             )
             return

@@ -35,14 +35,14 @@ class AppearancePanel(
     private lateinit var fallbackFontCombo: JComboBox<String>
     private lateinit var fontPreview:       JLabel
 
-    private val loadingItem = "<Loading fonts…>"
+    private val loadingItem = localizationManager.getString("settings_appearance.loading_fonts")
 
     init { buildUI() }
 
     private fun buildUI() {
 
         // ---- Language ----
-        addSeparator("Language")
+        addSeparator(localizationManager.getString("settings_appearance.language_group"))
 
         languageCombo = JComboBox(buildLanguageList().toTypedArray()).apply {
             setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
@@ -58,11 +58,11 @@ class AppearancePanel(
                 }
             }
         }
-        addRow("Interface Language:", languageCombo)
-        addHint("Changes apply immediately. Some labels may require a restart to update fully.")
+        addRow(localizationManager.getString("settings_appearance.interface_language"), languageCombo)
+        addHint(localizationManager.getString("settings_appearance.language_hint"))
 
         // ---- Theme ----
-        addSeparator("Theme")
+        addSeparator(localizationManager.getString("settings_appearance.theme_group"))
 
         themeCombo = JComboBox(themes.toTypedArray()).apply {
             addActionListener {
@@ -72,16 +72,16 @@ class AppearancePanel(
                 }
             }
         }
-        addRow("Theme:", themeCombo)
+        addRow(localizationManager.getString("settings_appearance.theme_label"), themeCombo)
 
         titleBarCheck = addCheckbox(
-            text = "Use unified title bar",
+            text = localizationManager.getString("settings_appearance.unified_title_bar"),
             selected = false,
             onChange = { enabled -> applyDraft(store) { it.copy(useUnifiedTitleBar = enabled) } }
         )
 
         // ---- UI Scale ----
-        addSeparator("UI Scale")
+        addSeparator(localizationManager.getString("settings_appearance.scale_group"))
 
         scaleLabel = JLabel("150%").apply {
             preferredSize = Dimension(48, preferredSize.height)
@@ -98,15 +98,15 @@ class AppearancePanel(
                 }
             }
         }
-        addRow("Scale:", JPanel(BorderLayout(8, 0)).apply {
+        addRow(localizationManager.getString("settings_appearance.scale_label"), JPanel(BorderLayout(8, 0)).apply {
             isOpaque = false
             add(scaleSlider, BorderLayout.CENTER)
             add(scaleLabel,  BorderLayout.EAST)
         })
-        addHint("Restart the application to fully apply scale changes.")
+        addHint(localizationManager.getString("settings_appearance.scale_hint"))
 
         // ---- Fonts ----
-        addSeparator("Fonts")
+        addSeparator(localizationManager.getString("settings_appearance.fonts_group"))
 
         uiFontCombo       = JComboBox(arrayOf(loadingItem)).apply { isEnabled = false }
         uiFontSize        = JSpinner(SpinnerNumberModel(13, 8, 32, 1))
@@ -114,12 +114,12 @@ class AppearancePanel(
         editorFontSize    = JSpinner(SpinnerNumberModel(15, 8, 32, 1))
         fallbackFontCombo = JComboBox(arrayOf(loadingItem)).apply { isEnabled = false }
 
-        addRow("UI Font:",       createFontRow(uiFontCombo, uiFontSize))
-        addRow("Editor Font:",   createFontRow(editorFontCombo, editorFontSize))
-        addRow("Fallback Font:", fallbackFontCombo)
-        addHint("Fallback font is used for characters the editor font cannot display.")
+        addRow(localizationManager.getString("settings_appearance.ui_font"),       createFontRow(uiFontCombo, uiFontSize))
+        addRow(localizationManager.getString("settings_appearance.editor_font"),   createFontRow(editorFontCombo, editorFontSize))
+        addRow(localizationManager.getString("settings_appearance.fallback_font"), fallbackFontCombo)
+        addHint(localizationManager.getString("settings_appearance.fallback_hint"))
 
-        fontPreview = JLabel("The quick brown fox jumps over the lazy dog  — 大きな茶色の狐が怠け者の犬を飛び越えた").apply {
+        fontPreview = JLabel(localizationManager.getString("settings_appearance.font_preview_text")).apply {
             border = BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor") ?: Color.GRAY),
                 BorderFactory.createEmptyBorder(10, 10, 10, 10)

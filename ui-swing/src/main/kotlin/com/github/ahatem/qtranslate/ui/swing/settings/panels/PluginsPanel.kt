@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
@@ -22,6 +23,7 @@ import javax.swing.filechooser.FileNameExtensionFilter
 class PluginsPanel(
     private val iconManager: IconManager,
     private val pluginManager: PluginManager,
+    private val localizationManager: LocalizationManager,
     private val scope: CoroutineScope
 ) : SettingsPanel() {
 
@@ -56,7 +58,9 @@ class PluginsPanel(
             )
         }
 
-        val installBtn = JButton("Install Plugin…").apply {
+        val installBtn = JButton(
+            localizationManager.getString("settings_plugins.install_plugin")
+        ).apply {
             addActionListener { onInstall() }
         }
 
@@ -102,14 +106,13 @@ class PluginsPanel(
     private fun showEmptyState() {
         detailPane.removeAll()
         detailPane.add(JPanel(GridBagLayout()).apply {
-//            isOpaque = false
             val gbc = GridBagConstraints().apply {
                 gridx = 0; gridy = GridBagConstraints.RELATIVE
                 anchor = GridBagConstraints.CENTER
                 insets = Insets(4, 0, 4, 0)
             }
             add(JLabel(iconManager.getIcon("icons/lucide/package.svg", 40, 40)), gbc)
-            add(JLabel("Select a plugin to view its details").apply {
+            add(JLabel(localizationManager.getString("settings_plugins.empty_selection_hint")).apply {
                 foreground = UIManager.getColor("Label.disabledForeground")
             }, gbc)
         }, BorderLayout.CENTER)
@@ -170,11 +173,13 @@ class PluginsPanel(
 
         // ---- Services ----
         if (plugin.services.isNotEmpty()) {
-            detail.nextRow().spanLine().add(makeLabel("Provided Services"))
+            detail.nextRow().spanLine().add(
+                makeLabel(localizationManager.getString("settings_plugins.provided_services"))
+            )
 
-            val servicePanel = JPanel(GridLayout(0, 1, 0, 2)).apply {/* isOpaque = false*/ }
+            val servicePanel = JPanel(GridLayout(0, 1, 0, 2)).apply { }
             plugin.services.forEach { service ->
-                servicePanel.add(JLabel("  •  ${service.name}  (${service.type?.readableName()})").apply {
+                servicePanel.add(JLabel("  •  ${service.name}  (${service.type?.readableName(localizationManager)})").apply {
                     foreground = UIManager.getColor("Label.disabledForeground")
                 })
             }
@@ -185,15 +190,20 @@ class PluginsPanel(
 
         // ---- Error ----
         if (plugin.status == PluginStatus.FAILED && plugin.lastError != null) {
-            detail.nextRow().spanLine().add(makeLabel("Error", UIManager.getColor("Actions.Red")))
+            detail.nextRow().spanLine().add(
+                makeLabel(
+                    localizationManager.getString("settings_plugins.plugin_error_label"),
+                    UIManager.getColor("Actions.Red")
+                )
+            )
 
             val errorArea = JTextArea(plugin.lastError!!.message ?: "Unknown error").apply {
                 isEditable = false
-                lineWrap   = true
+                lineWrap = true
                 wrapStyleWord = true
-                isOpaque   = false
+                isOpaque = false
                 foreground = UIManager.getColor("Actions.Red") ?: Color.RED
-                border     = BorderFactory.createEmptyBorder()
+                border = BorderFactory.createEmptyBorder()
             }
             detail.nextRow().spanLine().weightX(1.0)
                 .fill(GridBagConstraints.HORIZONTAL)
@@ -223,52 +233,71 @@ class PluginsPanel(
 
     private fun makeStatusBadge(status: PluginStatus): JLabel {
         val (text, bg, fg) = when (status) {
-            PluginStatus.ENABLED             -> Triple("Enabled",              Color(0x2E7D32), Color.WHITE)
-            PluginStatus.DISABLED            -> Triple("Disabled",             Color(0x757575), Color.WHITE)
-            PluginStatus.FAILED              -> Triple("Failed",               Color(0xC62828), Color.WHITE)
-            PluginStatus.AWAITING_VERIFICATION -> Triple("Awaiting Verification", Color(0xE65100), Color.WHITE)
+            PluginStatus.ENABLED -> Triple(
+                localizationManager.getString("settings_plugins.status_enabled"),
+                Color(0x2E7D32),
+                Color.WHITE
+            )
+            PluginStatus.DISABLED -> Triple(
+                localizationManager.getString("settings_plugins.status_disabled"),
+                Color(0x757575),
+                Color.WHITE
+            )
+            PluginStatus.FAILED -> Triple(
+                localizationManager.getString("settings_plugins.status_failed"),
+                Color(0xC62828),
+                Color.WHITE
+            )
+            PluginStatus.AWAITING_VERIFICATION -> Triple(
+                localizationManager.getString("settings_plugins.status_verification"),
+                Color(0xE65100),
+                Color.WHITE
+            )
         }
+
         return JLabel(" $text ").apply {
-            foreground   = fg
-            background   = bg
-            isOpaque     = true
-            font         = font.deriveFont(Font.BOLD, font.size - 1f)
-            border       = BorderFactory.createEmptyBorder(2, 6, 2, 6)
+            foreground = fg
+            background = bg
+            isOpaque = true
+            font = font.deriveFont(Font.BOLD, font.size - 1f)
+            border = BorderFactory.createEmptyBorder(2, 6, 2, 6)
             putClientProperty("FlatLaf.style", "arc: 8")
         }
     }
 
     private fun buildActionButtons(plugin: PluginState): JPanel =
         JPanel(FlowLayout(FlowLayout.LEFT, 6, 0)).apply {
-//            isOpaque = false
             when (plugin.status) {
                 PluginStatus.ENABLED -> {
-                    add(JButton("Disable").apply {
+                    add(JButton(localizationManager.getString("settings_plugins.btn_disable")).apply {
                         addActionListener { scope.launch { pluginManager.disablePlugin(plugin.manifest.id) } }
                     })
-                    add(JButton("Configure…").apply {
+                    add(JButton(localizationManager.getString("settings_plugins.btn_configure")).apply {
                         addActionListener { onConfigure(plugin) }
                     })
                 }
+
                 PluginStatus.DISABLED -> {
-                    add(JButton("Enable").apply {
+                    add(JButton(localizationManager.getString("settings_plugins.btn_enable")).apply {
                         addActionListener { scope.launch { pluginManager.enablePlugin(plugin.manifest.id) } }
                     })
                 }
+
                 PluginStatus.AWAITING_VERIFICATION -> {
-                    add(JButton("Accept Update").apply {
-                        toolTipText = "Keep existing data and re-enable the plugin"
+                    add(JButton(localizationManager.getString("settings_plugins.btn_accept_update")).apply {
+                        toolTipText = localizationManager.getString("settings_plugins.tip_accept_update")
                         addActionListener { scope.launch { pluginManager.resolveAsUpdate(plugin.manifest.id) } }
                     })
-                    add(JButton("Clean Install").apply {
-                        toolTipText = "Wipe all plugin data before re-enabling"
+                    add(JButton(localizationManager.getString("settings_plugins.btn_clean_install")).apply {
+                        toolTipText = localizationManager.getString("settings_plugins.tip_clean_install")
                         addActionListener { scope.launch { pluginManager.resolveAsCleanInstall(plugin.manifest.id) } }
                     })
                 }
-                PluginStatus.FAILED -> Unit // no enable/disable for failed plugins
+
+                PluginStatus.FAILED -> Unit
             }
 
-            add(JButton("Uninstall").apply {
+            add(JButton(localizationManager.getString("settings_plugins.btn_uninstall")).apply {
                 foreground = UIManager.getColor("Actions.Red") ?: Color.RED
                 addActionListener { onUninstall(plugin) }
             })
@@ -278,8 +307,11 @@ class PluginsPanel(
 
     private fun onInstall() {
         val chooser = JFileChooser().apply {
-            dialogTitle = "Select Plugin JAR"
-            fileFilter  = FileNameExtensionFilter("QTranslate Plugin (*.jar)", "jar")
+            dialogTitle = localizationManager.getString("settings_plugins.install_dialog_title")
+            fileFilter = FileNameExtensionFilter(
+                localizationManager.getString("settings_plugins.install_dialog_filter"),
+                "jar"
+            )
         }
         if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return
 
@@ -289,8 +321,8 @@ class PluginsPanel(
                     SwingUtilities.invokeLater {
                         JOptionPane.showMessageDialog(
                             this@PluginsPanel,
-                            "Plugin installed successfully.",
-                            "Plugin Installed",
+                            localizationManager.getString("settings_plugins.install_success_msg"),
+                            localizationManager.getString("settings_plugins.install_success_title"),
                             JOptionPane.INFORMATION_MESSAGE
                         )
                     }
@@ -300,7 +332,7 @@ class PluginsPanel(
                         JOptionPane.showMessageDialog(
                             this@PluginsPanel,
                             error,
-                            "Installation Failed",
+                            localizationManager.getString("settings_plugins.install_fail_title"),
                             JOptionPane.ERROR_MESSAGE
                         )
                     }
@@ -310,15 +342,21 @@ class PluginsPanel(
     }
 
     private fun onUninstall(plugin: PluginState) {
+        val message = localizationManager
+            .getString("settings_plugins.uninstall_confirm_msg")
+            .format(plugin.manifest.name)
+
         val result = JOptionPane.showConfirmDialog(
             this,
-            "Uninstall \"${plugin.manifest.name}\"?\nAll plugin data will be permanently deleted.",
-            "Uninstall Plugin",
+            message,
+            localizationManager.getString("settings_plugins.uninstall_confirm_title"),
             JOptionPane.YES_NO_OPTION,
             JOptionPane.WARNING_MESSAGE
         )
-        if (result == JOptionPane.YES_OPTION)
+
+        if (result == JOptionPane.YES_OPTION) {
             scope.launch { pluginManager.uninstallPlugin(plugin.manifest.id) }
+        }
     }
 
     private fun onConfigure(plugin: PluginState) {
@@ -327,17 +365,18 @@ class PluginsPanel(
             SwingUtilities.invokeLater {
                 if (model != null) {
                     DynamicPluginSettingsDialog(
-                        owner        = SwingUtilities.getWindowAncestor(this@PluginsPanel),
-                        pluginName   = plugin.manifest.name,
+                        owner = SwingUtilities.getWindowAncestor(this@PluginsPanel),
+                        pluginName = plugin.manifest.name,
+                        localizationManager = localizationManager,
                         settingsModel = model,
-                        onSave       = { map ->
+                        onSave = { map ->
                             scope.launch { pluginManager.applySettingsFromMap(plugin.manifest.id, map) }
                         }
                     ).isVisible = true
                 } else {
                     JOptionPane.showMessageDialog(
                         this@PluginsPanel,
-                        "This plugin has no configurable settings.",
+                        localizationManager.getString("settings_plugins.no_settings_msg"),
                         plugin.manifest.name,
                         JOptionPane.INFORMATION_MESSAGE
                     )
@@ -402,11 +441,20 @@ class PluginsPanel(
     }
 }
 
-fun ServiceType.readableName(): String =
+fun ServiceType.readableName(localizationManager: LocalizationManager): String =
     when (this) {
-        ServiceType.TRANSLATOR -> "Translator"
-        ServiceType.TTS -> "Text-to-Speech"
-        ServiceType.OCR -> "Text Recognition (OCR)"
-        ServiceType.SPELL_CHECKER -> "Spell Checker"
-        ServiceType.DICTIONARY -> "Dictionary"
+        ServiceType.TRANSLATOR ->
+            localizationManager.getString("settings_services.translator").removeSuffix(":")
+
+        ServiceType.TTS ->
+            localizationManager.getString("settings_services.tts").removeSuffix(":")
+
+        ServiceType.OCR ->
+            localizationManager.getString("settings_services.ocr").removeSuffix(":")
+
+        ServiceType.SPELL_CHECKER ->
+            localizationManager.getString("settings_services.spell_checker").removeSuffix(":")
+
+        ServiceType.DICTIONARY ->
+            localizationManager.getString("settings_services.dictionary").removeSuffix(":")
     }

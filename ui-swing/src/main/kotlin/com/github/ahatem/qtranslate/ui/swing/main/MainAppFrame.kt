@@ -39,6 +39,7 @@ import com.github.kwhat.jnativehook.keyboard.NativeKeyEvent
 import com.github.kwhat.jnativehook.keyboard.NativeKeyListener
 import com.tulskiy.keymaster.common.Provider
 import kotlinx.coroutines.*
+import java.awt.ComponentOrientation
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterIsInstance
@@ -95,16 +96,17 @@ class MainAppFrame(
         )
     }
 
-    private val settingsDialog by lazy {
-        SettingsDialog(
-            owner = this,
-            settingsStore = settingsStore,
-            pluginManager = pluginManager,
-            iconManager = iconManager,
-            themeManager = themeManager,
-            localizationManager = localizer
-        )
-    }
+    // Do NOT cache as a lazy — SettingsDialog cancels its own scope on dispose().
+    // Reusing a disposed dialog gives a dead scope where Apply never enables
+    // and Cancel/Close buttons stop working. Always create a fresh instance.
+    private fun createSettingsDialog() = SettingsDialog(
+        owner = this,
+        settingsStore = settingsStore,
+        pluginManager = pluginManager,
+        iconManager = iconManager,
+        themeManager = themeManager,
+        localizationManager = localizer
+    )
 
     private val mainContentView: MainContentView = MainContentView(
         iconManager = iconManager,
@@ -155,6 +157,11 @@ class MainAppFrame(
             mainContentView.render(mainStore.state.value, settingsStore.state.value)
             pack()
             setLocationRelativeTo(null)
+
+            // Apply orientation based on the already-loaded language.
+            // localizer.isRtl is accurate here because Main.kt calls
+            // loadLanguage() before this window is constructed.
+            applyOrientation(localizer.isRtl)
 
             setupWindowListeners()
             setupMenuBar()
@@ -253,6 +260,49 @@ class MainAppFrame(
                     }
                 }
         }
+
+        // Language / RTL changes
+        // Observes localizer.activeLanguageFlow so that when the user picks a new
+        // language in the settings panel, the whole window re-orients immediately.
+        appScope.launch(handler) {
+            localizer.activeLanguageFlow
+                .collect { _ ->
+                    withContext(Dispatchers.Swing) {
+                        applyOrientation(localizer.isRtl)
+                    }
+                }
+        }
+    }
+
+    /**
+     * Applies LEFT_TO_RIGHT or RIGHT_TO_LEFT orientation to the entire window.
+     *
+     * ### Flicker prevention
+     * `applyComponentOrientation` + `updateComponentTreeUI` causes multiple
+     * intermediate repaints which produce a visible flicker. We suppress this by:
+     * 1. Hiding the window briefly while the layout changes (if already visible)
+     * 2. Using `revalidate()` + `repaint()` instead of the heavier `updateComponentTreeUI`
+     *    which reinstalls the entire Look and Feel on every component unnecessarily.
+     *
+     * Called at construction (window not yet visible — no flicker risk) and
+     * whenever [LocalizationManager.activeLanguageFlow] emits a new value.
+     */
+    private fun applyOrientation(isRtl: Boolean) {
+        val orientation = if (isRtl)
+            ComponentOrientation.RIGHT_TO_LEFT
+        else
+            ComponentOrientation.LEFT_TO_RIGHT
+
+        // Suppress flicker by hiding during layout change if window is visible.
+        // At construction time isVisible=false so this is a no-op.
+        val wasVisible = isVisible
+        if (wasVisible) isVisible = false
+
+        applyComponentOrientation(orientation)
+        rootPane.revalidate()
+        rootPane.repaint()
+
+        if (wasVisible) isVisible = true
     }
 
     private fun runOnUi(block: () -> Unit) {
@@ -308,7 +358,16 @@ class MainAppFrame(
             },
             onShowDictionary = { /* TODO */ },
             onShowHistory = { /* TODO */ },
-            onShowSettings = { settingsDialog.isVisible = true },
+            onShowSettings = {
+                val dialog = createSettingsDialog()
+                // Apply current orientation to the dialog so it opens
+                // in the correct direction without requiring a restart.
+                dialog.applyComponentOrientation(
+                    if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
+                    else ComponentOrientation.LEFT_TO_RIGHT
+                )
+                dialog.isVisible = true
+            },
             onShowHowToUse = { /* TODO */ },
             onShowAboutQTranslate = { onShowAboutDialog() },
             onContactUs = { /* TODO */ },

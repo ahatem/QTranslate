@@ -3,10 +3,10 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'   # triggers on v1.0.0, v1.2.3, v2.0.0-beta.1 etc.
+      - 'v*.*.*'
 
 permissions:
-  contents: write   # required to create a GitHub Release
+  contents: write
 
 jobs:
   release:
@@ -14,45 +14,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -----------------------------------------------------------------------
-      # 1. Checkout
-      # -----------------------------------------------------------------------
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          fetch-depth: 0   # full history for changelog generation
+          fetch-depth: 0
 
-      # -----------------------------------------------------------------------
-      # 2. Java
-      # -----------------------------------------------------------------------
-      - name: Set up Java 11
-        uses: actions/setup-java@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '11'
-          cache: gradle
+          java-version: '17'
 
-      - name: Validate Gradle wrapper
-        uses: gradle/wrapper-validation-action@v2
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
 
-      # -----------------------------------------------------------------------
-      # 3. Extract version from tag  (v1.2.0 → 1.2.0)
-      # -----------------------------------------------------------------------
       - name: Extract version
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      # -----------------------------------------------------------------------
-      # 4. Build app fat JAR
-      # -----------------------------------------------------------------------
       - name: Build app JAR
         run: ./gradlew :app:shadowJar --no-daemon
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
-      # -----------------------------------------------------------------------
-      # 5. Build plugin JARs
-      # -----------------------------------------------------------------------
       - name: Build plugin JARs
         run: |
           ./gradlew :plugins:bing-services:shadowJar --no-daemon
@@ -60,44 +44,32 @@ jobs:
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
-      # -----------------------------------------------------------------------
-      # 6. Assemble the release zip
-      #
-      #    QTranslate-<version>.zip
-      #      └── QTranslate/
-      #            ├── QTranslate.jar
-      #            └── plugins/
-      #                  ├── bing-services-plugin.jar
-      #                  └── google-services-plugin.jar
-      # -----------------------------------------------------------------------
       - name: Assemble release zip
         run: |
-          VERSION=${{ steps.version.outputs.version }}
+          VERSION="${{ steps.version.outputs.version }}"
 
-          # Create the folder structure
           mkdir -p dist/QTranslate/plugins
+          mkdir -p dist/QTranslate/languages
 
-          # Copy app JAR
           cp app/build/libs/QTranslate.jar \
              dist/QTranslate/QTranslate.jar
 
-          # Copy plugin JARs
           cp plugins/bing-services/build/libs/bing-services-plugin.jar \
              dist/QTranslate/plugins/bing-services-plugin.jar
 
           cp plugins/google-services/build/libs/google-services-plugin.jar \
              dist/QTranslate/plugins/google-services-plugin.jar
 
-          # Zip — the top-level folder inside the zip is QTranslate/
+          if [ -d languages ]; then
+            cp -R languages/. dist/QTranslate/languages/
+          fi
+
           cd dist
           zip -r "../QTranslate-${VERSION}.zip" QTranslate/
 
           echo "Built: QTranslate-${VERSION}.zip"
           ls -lh "../QTranslate-${VERSION}.zip"
 
-      # -----------------------------------------------------------------------
-      # 7. Generate changelog from commit messages since the last tag
-      # -----------------------------------------------------------------------
       - name: Generate changelog
         id: changelog
         run: |
@@ -109,14 +81,10 @@ jobs:
             LOG=$(git log --pretty=format:"- %s" "$PREV_TAG"..HEAD)
           fi
 
-          # Write to output (multiline safe)
           echo "log<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$LOG"    >> "$GITHUB_OUTPUT"
-          echo "EOF"     >> "$GITHUB_OUTPUT"
+          echo "$LOG" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
-      # -----------------------------------------------------------------------
-      # 8. Create GitHub Release and attach zip
-      # -----------------------------------------------------------------------
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -133,14 +101,13 @@ jobs:
             ## Installation
 
             1. Download `QTranslate-${{ steps.version.outputs.version }}.zip`
-            2. Unzip it — you'll get a `QTranslate/` folder
-            3. Run `QTranslate.jar` inside it (double-click or `java -jar QTranslate.jar`)
-            4. The `plugins/` folder next to the JAR already contains the Bing and Google plugins
+            2. Extract it — you'll get a `QTranslate/` folder
+            3. Run `QTranslate.jar` inside it
+            4. The `plugins/` folder already contains the bundled plugins
+            5. The `languages/` folder already contains the bundled language files
 
-            > **Requires Java 11 or later.** [Download Java](https://adoptium.net)
+            > **Requires Java 17 or later.** [Download Java](https://adoptium.net)
 
           files: QTranslate-${{ steps.version.outputs.version }}.zip
-
-          # Tags containing -beta, -alpha, or -rc are marked as pre-releases automatically
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc') }}
           draft: false
