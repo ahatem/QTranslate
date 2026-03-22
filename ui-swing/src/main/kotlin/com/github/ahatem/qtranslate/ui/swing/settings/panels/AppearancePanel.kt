@@ -9,8 +9,11 @@ import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.swing.Swing
+import kotlinx.coroutines.withContext
 import java.awt.*
 import javax.swing.*
+import javax.swing.DefaultListCellRenderer
 
 class AppearancePanel(
     private val store: SettingsStore,
@@ -26,8 +29,7 @@ class AppearancePanel(
     private lateinit var languageCombo:     JComboBox<LanguageInfo>
     private lateinit var themeCombo:        JComboBox<ThemeInfo>
     private lateinit var titleBarCheck:     JCheckBox
-    private lateinit var scaleSlider:       JSlider
-    private lateinit var scaleLabel:        JLabel
+    private lateinit var scaleSpinner:      JSpinner
     private lateinit var uiFontCombo:       JComboBox<String>
     private lateinit var uiFontSize:        JSpinner
     private lateinit var editorFontCombo:   JComboBox<String>
@@ -44,17 +46,16 @@ class AppearancePanel(
         // ---- Language ----
         addSeparator(localizationManager.getString("settings_appearance.language_group"))
 
-        languageCombo = JComboBox(buildLanguageList().toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+        languageCombo = JComboBox<LanguageInfo>().apply {
+            isEnabled = false
+            renderer  = languageRenderer()
             addActionListener {
                 if (!isUpdatingFromState) {
                     val selected = selectedItem as? LanguageInfo ?: return@addActionListener
-                    // Persist the selection
+                    // Only update the draft — language is applied on Save, not live.
+                    // This avoids triggering orientation changes and app flickering
+                    // while the user is still browsing the settings dialog.
                     applyDraft(store) { it.copy(interfaceLanguage = selected.code) }
-                    // Apply immediately — no restart needed for most strings
-                    scope.launch(Dispatchers.IO) {
-                        localizationManager.loadLanguage(LanguageCode(selected.code))
-                    }
                 }
             }
         }
@@ -65,9 +66,11 @@ class AppearancePanel(
         addSeparator(localizationManager.getString("settings_appearance.theme_group"))
 
         themeCombo = JComboBox(themes.toTypedArray()).apply {
+            renderer = themeRenderer()
             addActionListener {
                 if (!isUpdatingFromState) {
                     val theme = selectedItem as? ThemeInfo ?: return@addActionListener
+                    // Only update the draft — theme is applied on Save, not live.
                     applyDraft(store) { it.copy(themeId = theme.id) }
                 }
             }
@@ -75,7 +78,7 @@ class AppearancePanel(
         addRow(localizationManager.getString("settings_appearance.theme_label"), themeCombo)
 
         titleBarCheck = addCheckbox(
-            text = localizationManager.getString("settings_appearance.unified_title_bar"),
+            text     = localizationManager.getString("settings_appearance.unified_title_bar"),
             selected = false,
             onChange = { enabled -> applyDraft(store) { it.copy(useUnifiedTitleBar = enabled) } }
         )
@@ -83,26 +86,24 @@ class AppearancePanel(
         // ---- UI Scale ----
         addSeparator(localizationManager.getString("settings_appearance.scale_group"))
 
-        scaleLabel = JLabel("150%").apply {
-            preferredSize = Dimension(48, preferredSize.height)
-            horizontalAlignment = SwingConstants.RIGHT
-        }
-        scaleSlider = JSlider(100, 300, 150).apply {
-            majorTickSpacing = 50
-            minorTickSpacing = 25
-            paintTicks = true
+        scaleSpinner = JSpinner(SpinnerNumberModel(100, 75, 300, 25)).apply {
+            (editor as? JSpinner.NumberEditor)?.textField?.columns = 4
             addChangeListener {
-                scaleLabel.text = "${value}%"
-                if (!valueIsAdjusting && !isUpdatingFromState) {
-                    applyDraft(store) { it.copy(uiScale = value) }
+                if (!isUpdatingFromState) {
+                    applyDraft(store) { it.copy(uiScale = value as Int) }
                 }
             }
         }
-        addRow(localizationManager.getString("settings_appearance.scale_label"), JPanel(BorderLayout(8, 0)).apply {
-            isOpaque = false
-            add(scaleSlider, BorderLayout.CENTER)
-            add(scaleLabel,  BorderLayout.EAST)
-        })
+        addRow(
+            localizationManager.getString("settings_appearance.scale_label"),
+            JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+                isOpaque = false
+                add(scaleSpinner)
+                add(JLabel("  %").apply {
+                    foreground = UIManager.getColor("Label.disabledForeground")
+                })
+            }
+        )
         addHint(localizationManager.getString("settings_appearance.scale_hint"))
 
         // ---- Fonts ----
@@ -114,7 +115,7 @@ class AppearancePanel(
         editorFontSize    = JSpinner(SpinnerNumberModel(15, 8, 32, 1))
         fallbackFontCombo = JComboBox(arrayOf(loadingItem)).apply { isEnabled = false }
 
-        addRow(localizationManager.getString("settings_appearance.ui_font"),       createFontRow(uiFontCombo, uiFontSize))
+        addRow(localizationManager.getString("settings_appearance.ui_font"),       createFontRow(uiFontCombo,     uiFontSize))
         addRow(localizationManager.getString("settings_appearance.editor_font"),   createFontRow(editorFontCombo, editorFontSize))
         addRow(localizationManager.getString("settings_appearance.fallback_font"), fallbackFontCombo)
         addHint(localizationManager.getString("settings_appearance.fallback_hint"))
@@ -130,35 +131,78 @@ class AppearancePanel(
 
         finishLayout()
         loadFontsAsync()
+        loadLanguageListAsync()
     }
 
     // -------------------------------------------------------------------------
-    // Language list
+    // Language list — loaded off EDT using readLanguageMeta (no side effects)
     // -------------------------------------------------------------------------
 
+    private fun loadLanguageListAsync() {
+        scope.launch(Dispatchers.IO) {
+            val languages = buildLanguageList()
+            withContext(Dispatchers.Swing) {
+                withoutTrigger {
+                    languageCombo.removeAllItems()
+                    languages.forEach { languageCombo.addItem(it) }
+                    val currentCode = store.state.value.workingConfiguration.interfaceLanguage
+                    for (i in 0 until languageCombo.itemCount) {
+                        if (languageCombo.getItemAt(i).code == currentCode) {
+                            languageCombo.selectedIndex = i
+                            break
+                        }
+                    }
+                    languageCombo.isEnabled = true
+                }
+            }
+        }
+    }
+
     /**
-     * Builds the list of selectable interface languages.
-     *
-     * English is always first as the built-in fallback — it works even if no
-     * `en.toml` file exists in the languages directory.
-     * All other languages come from `.toml` files found in `languages/` by
-     * [LocalizationManager.availableLanguages], sorted alphabetically.
-     * Display names use the `name` and `native_name` fields from the file's
-     * `[meta]` section when available, falling back to the raw language code.
+     * Builds the language list using [LocalizationManager.readLanguageMeta] —
+     * which reads TOML meta without changing the active language or emitting
+     * to [LocalizationManager.activeLanguageFlow]. No orientation changes,
+     * no window flicker.
      */
-    private fun buildLanguageList(): List<LanguageInfo> {
+    private suspend fun buildLanguageList(): List<LanguageInfo> {
         val builtIn = listOf(LanguageInfo("en", "English (built-in)"))
 
         val external = localizationManager.availableLanguages
             .filter { it != "en" }
             .map { code ->
-                val meta = localizationManager.getLanguageMeta(LanguageCode(code))
+                val meta    = localizationManager.readLanguageMeta(LanguageCode(code))
                 val display = if (meta != null) "${meta.name} (${meta.nativeName})" else code
                 LanguageInfo(code, display)
             }
             .sortedBy { it.displayName }
 
         return builtIn + external
+    }
+
+    // -------------------------------------------------------------------------
+    // Renderers
+    // -------------------------------------------------------------------------
+
+    private fun languageRenderer() = object : DefaultListCellRenderer() {
+        override fun getListCellRendererComponent(
+            list: JList<*>?, value: Any?,
+            index: Int, isSelected: Boolean, cellHasFocus: Boolean
+        ): Component {
+            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+            text = (value as? LanguageInfo)?.displayName ?: ""
+            return this
+        }
+    }
+
+    private fun themeRenderer() = object : DefaultListCellRenderer() {
+        override fun getListCellRendererComponent(
+            list: JList<*>?, value: Any?,
+            index: Int, isSelected: Boolean, cellHasFocus: Boolean
+        ): Component {
+            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+            text = (value as? ThemeInfo)?.displayName ?: ""
+            return this
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -240,18 +284,15 @@ class AppearancePanel(
     override fun render(state: SettingsState) {
         val c = state.workingConfiguration
         withoutTrigger {
-            // Match by code — not by object reference
             for (i in 0 until languageCombo.itemCount) {
                 if (languageCombo.getItemAt(i).code == c.interfaceLanguage) {
                     languageCombo.selectedIndex = i
                     break
                 }
             }
-
             themeCombo.selectedItem  = themes.find { it.id == c.themeId }
             titleBarCheck.isSelected = c.useUnifiedTitleBar
-            scaleSlider.value        = c.uiScale
-            scaleLabel.text          = "${c.uiScale}%"
+            scaleSpinner.value       = c.uiScale
             uiFontSize.value         = c.uiFontConfig.size
             editorFontSize.value     = c.editorFontConfig.size
             updatePreview()
@@ -266,12 +307,6 @@ class AppearancePanel(
         override fun toString() = displayName
     }
 
-    /**
-     * @property code  The BCP-47 language code used as the filename stem (e.g. `"ar"`, `"fr"`)
-     *                 and stored in [Configuration.interfaceLanguage].
-     * @property displayName  Human-readable label shown in the dropdown
-     *                        (e.g. `"Arabic (العربية)"` or `"English (built-in)"`).
-     */
     private data class LanguageInfo(val code: String, val displayName: String) {
         override fun toString() = displayName
     }

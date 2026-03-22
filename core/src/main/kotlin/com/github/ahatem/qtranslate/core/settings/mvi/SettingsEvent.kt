@@ -1,7 +1,6 @@
 package com.github.ahatem.qtranslate.core.settings.mvi
 
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
-import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.shared.arch.UiEvent
 
 /**
@@ -10,15 +9,10 @@ import com.github.ahatem.qtranslate.core.shared.arch.UiEvent
 sealed interface SettingsEvent : UiEvent {
 
     /**
+     * Instructs the UI to close the settings dialog.
      * Emitted after [SettingsIntent.CancelChanges].
-     *
-     * Carries the [originalConfiguration] so the dialog can revert any side
-     * effects that were applied for live preview (e.g. language change).
-     * The dialog should close after handling this event.
      */
-    data class ChangesReverted(
-        val originalConfiguration: Configuration
-    ) : SettingsEvent
+    data object CloseSettingsDialog : SettingsEvent
 
     /**
      * Instructs the UI to display a transient message to the user.

@@ -6,7 +6,6 @@ import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsEvent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
-import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.*
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
@@ -154,16 +153,12 @@ class SettingsDialog(
         add(split,            BorderLayout.CENTER)
         add(buildButtonBar(), BorderLayout.SOUTH)
 
-        // ESC → cancel and close directly (no event channel needed)
         rootPane.registerKeyboardAction(
             { cancelAndClose() },
             KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
             JComponent.WHEN_IN_FOCUSED_WINDOW
         )
 
-        // X button → same as Cancel
-        // Fix: call dispose() directly here rather than relying on the event channel,
-        // which only works if someone is actively collecting events.
         defaultCloseOperation = DO_NOTHING_ON_CLOSE
         addWindowListener(object : WindowAdapter() {
             override fun windowClosing(e: WindowEvent) = cancelAndClose()
@@ -200,15 +195,8 @@ class SettingsDialog(
         contentArea.revalidate()
         contentArea.repaint()
 
-        // Panels in the cache are detached from the window while not visible,
-        // so FlatLaf.updateUI() does not reach them when the theme changes.
-        // Calling updateComponentTreeUI() here ensures the panel picks up the
-        // current Look and Feel the moment it becomes visible again.
         SwingUtilities.updateComponentTreeUI(panel)
 
-        // Always render with the current store state — not cached state.
-        // This ensures the dirty dot and button states are accurate when
-        // reopening the dialog after a Cancel.
         if (panel is Renderable<*>) {
             @Suppress("UNCHECKED_CAST")
             (panel as Renderable<SettingsState>).render(settingsStore.state.value)
@@ -288,9 +276,6 @@ class SettingsDialog(
             settingsStore.state.collect { state ->
                 withContext(Dispatchers.Swing) {
                     dirtyDot.isVisible = state.isDirty
-
-                    // Apply is enabled only when there are unsaved changes AND
-                    // no save is currently in flight — prevents double-saves.
                     applyButton.isEnabled = state.isDirty && !state.isSaving
 
                     currentPanelName?.let { name ->
@@ -330,7 +315,7 @@ class SettingsDialog(
                     dispose()
                 } else {
                     okButton.isEnabled = true
-                    okButton.text = "OK"
+                    okButton.text = localizationManager.getString("common.ok")
                     JOptionPane.showMessageDialog(
                         this@SettingsDialog,
                         event.message,
@@ -343,57 +328,15 @@ class SettingsDialog(
     }
 
     /**
-     * Discards unsaved changes, reverts any live-preview side effects, and closes.
+     * Discards unsaved changes and closes the dialog.
      *
-     * Dispatches [SettingsIntent.CancelChanges] which causes the store to emit
-     * [SettingsEvent.ChangesReverted] carrying the original configuration.
-     * We wait for that event to revert side effects (e.g. language that was
-     * changed for preview) before disposing.
+     * No side effects to revert — theme and language are only applied when
+     * [SettingsIntent.SaveChanges] is dispatched (i.e. on OK or Apply).
+     * Cancel simply reverts the store's working copy and disposes.
      */
     private fun cancelAndClose() {
         settingsStore.dispatch(SettingsIntent.CancelChanges)
-
-        scope.launch {
-            // Wait for the store to confirm the revert and give us the original config
-            val event = settingsStore.events
-                .filter { it is SettingsEvent.ChangesReverted }
-                .first() as SettingsEvent.ChangesReverted
-
-            withContext(Dispatchers.Swing) {
-                revertSideEffects(event.originalConfiguration)
-                dispose()
-            }
-        }
-    }
-
-    /**
-     * Re-applies settings that were previewed live but must be reverted on cancel.
-     *
-     * Both theme and language are applied immediately when the user changes them
-     * in the settings panel (theme via [MainAppFrame]'s workingConfiguration observer,
-     * language via [AppearancePanel]'s combo listener). When the user cancels,
-     * [SettingsStore] reverts [workingConfiguration] to [originalConfiguration] in
-     * the store — but the store observer in [MainAppFrame] will pick that up and
-     * re-apply the original theme automatically via the normal state flow.
-     *
-     * Language however is managed outside the store observation loop, so we
-     * must explicitly reload it here.
-     */
-    private fun revertSideEffects(original: Configuration) {
-        // Language — reload the original language explicitly since it is applied
-        // outside the normal settings state observation loop.
-        scope.launch(Dispatchers.IO) {
-            runCatching {
-                localizationManager.loadLanguage(
-                    com.github.ahatem.qtranslate.api.language.LanguageCode(original.interfaceLanguage)
-                )
-            }
-        }
-
-        // Theme — no explicit revert needed here. When cancelAndClose() calls
-        // settingsStore.dispatch(CancelChanges), the store reverts workingConfiguration
-        // back to originalConfiguration. MainAppFrame's workingConfiguration observer
-        // detects the themeId change and calls themeManager.applyTheme() automatically.
+        dispose()
     }
 
     private fun onReset() {

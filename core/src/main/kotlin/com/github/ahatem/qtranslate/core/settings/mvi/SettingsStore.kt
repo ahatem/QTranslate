@@ -159,11 +159,8 @@ class SettingsStore(
 
     private fun handleCancelChanges() {
         logger.info("Cancelling changes — reverting to original")
-        val original = _state.value.originalConfiguration
         _state.update { it.copy(workingConfiguration = it.originalConfiguration, isDirty = false) }
-        // Emit ChangesReverted so the dialog can revert any live-preview side
-        // effects (e.g. language or theme applied before saving) and then close.
-        scope.launch { _eventChannel.send(SettingsEvent.ChangesReverted(original)) }
+        scope.launch { _eventChannel.send(SettingsEvent.CloseSettingsDialog) }
     }
 
     private fun handleResetToDefaults() {

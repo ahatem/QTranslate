@@ -158,11 +158,6 @@ class MainAppFrame(
             pack()
             setLocationRelativeTo(null)
 
-            // Apply orientation based on the already-loaded language.
-            // localizer.isRtl is accurate here because Main.kt calls
-            // loadLanguage() before this window is constructed.
-            applyOrientation(localizer.isRtl)
-
             setupWindowListeners()
             setupMenuBar()
             setupTrayMenu()
@@ -179,10 +174,13 @@ class MainAppFrame(
             throwable.printStackTrace()
         }
 
-        // Theme and font updates
+        // Theme and font updates — observe originalConfiguration (saved state only).
+        // Theme and language are NOT applied live during draft editing — only on Save.
+        // This eliminates flicker when the user browses the Appearance panel and
+        // removes the need for any revert logic on Cancel.
         appScope.launch(handler) {
             settingsStore.state
-                .map { it.workingConfiguration }
+                .map { it.originalConfiguration }
                 .distinctUntilChanged { a, b ->
                     a.themeId == b.themeId &&
                             a.useUnifiedTitleBar == b.useUnifiedTitleBar &&
@@ -261,12 +259,19 @@ class MainAppFrame(
                 }
         }
 
-        // Language / RTL changes
-        // Observes localizer.activeLanguageFlow so that when the user picks a new
-        // language in the settings panel, the whole window re-orients immediately.
+        // Language / RTL changes — observe originalConfiguration (saved state only).
+        // Language is applied when the user saves settings, not during draft editing.
+        // This prevents orientation flicker when the user opens the Appearance panel.
         appScope.launch(handler) {
-            localizer.activeLanguageFlow
-                .collect { _ ->
+            settingsStore.state
+                .map { it.originalConfiguration.interfaceLanguage }
+                .distinctUntilChanged()
+                .collect { languageCode ->
+                    withContext(Dispatchers.IO) {
+                        localizer.loadLanguage(
+                            com.github.ahatem.qtranslate.api.language.LanguageCode(languageCode)
+                        )
+                    }
                     withContext(Dispatchers.Swing) {
                         applyOrientation(localizer.isRtl)
                     }

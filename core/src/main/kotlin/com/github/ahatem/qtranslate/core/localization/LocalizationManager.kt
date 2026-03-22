@@ -20,28 +20,15 @@ class LocalizationManager(
 
     private var activeTranslations: Map<String, String> = emptyMap()
 
-    // StateFlow so MainAppFrame (and any other observer) can react to language
-    // changes without polling. Emits on every successful loadLanguage() call.
     private val _activeLanguage = MutableStateFlow(LanguageCode.ENGLISH)
     val activeLanguageFlow: StateFlow<LanguageCode> = _activeLanguage.asStateFlow()
     val activeLanguage: LanguageCode get() = _activeLanguage.value
 
-    /**
-     * Whether the currently active language is right-to-left.
-     * Reads from the `[meta] rtl` field in the language TOML file.
-     * Falls back to `false` if the language has no meta section.
-     */
     val isRtl: Boolean
         get() = languageMetaCache[_activeLanguage.value]?.isRtl == true
 
     val languagesDirectory: File = File(appDataDirectory, "languages").also { it.mkdirs() }
 
-    /**
-     * Returns the list of available language codes from the languages directory.
-     *
-     * Computed on every call rather than cached at construction time, so that
-     * language files added after startup are visible without restarting.
-     */
     val availableLanguages: List<String>
         get() = languagesDirectory
             .listFiles { _, name -> name.endsWith(".toml") }
@@ -54,7 +41,7 @@ class LocalizationManager(
     }
 
     // -------------------------------------------------------------------------
-    // Language loading
+    // Language loading — changes the active language
     // -------------------------------------------------------------------------
 
     suspend fun loadLanguage(languageCode: LanguageCode) {
@@ -62,18 +49,43 @@ class LocalizationManager(
             if (languageCode != LanguageCode.ENGLISH && LanguageCode.ENGLISH !in translationCache) {
                 loadAndCacheLanguage(LanguageCode.ENGLISH)
             }
-
             loadAndCacheLanguage(languageCode)
-            activeTranslations  = translationCache[languageCode] ?: emptyMap()
+            activeTranslations    = translationCache[languageCode] ?: emptyMap()
             _activeLanguage.value = languageCode
-
             logger.debug("Language loaded: ${languageCode.tag}, isRtl=$isRtl")
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Meta reading — does NOT change the active language
+    // -------------------------------------------------------------------------
+
+    /**
+     * Reads the meta section of a language TOML file without changing the active
+     * language or affecting [activeLanguageFlow].
+     *
+     * Use this when you only need display names (e.g. building a language picker
+     * list) and don't want to trigger orientation changes or translation switches.
+     *
+     * Results are cached — repeated calls for the same code are free after the
+     * first read.
+     */
+    suspend fun readLanguageMeta(code: LanguageCode): LocalizedLanguageMeta? {
+        return withContext(Dispatchers.IO) {
+            // Return from cache if already loaded
+            languageMetaCache[code]?.let { return@withContext it }
+
+            runCatching {
+                val file = File(languagesDirectory, "${code.tag}.toml")
+                if (!file.exists()) return@withContext null
+                val parsed = parser.parse(file.readText())
+                parsed.meta?.also { languageMetaCache[code] = it }
+            }.getOrNull()
         }
     }
 
     private fun loadAndCacheLanguage(code: LanguageCode) {
         if (code in translationCache) return
-
         runCatching {
             val file = File(languagesDirectory, "${code.tag}.toml")
             if (!file.exists()) {
@@ -92,13 +104,6 @@ class LocalizationManager(
     // String resolution
     // -------------------------------------------------------------------------
 
-    /**
-     * Returns the localised string for [key], falling back through:
-     * 1. Active language translations
-     * 2. English external fallback (if loaded)
-     * 3. Embedded English fallback (bundled in the JAR)
-     * 4. The raw [key] itself (so the UI always shows something)
-     */
     fun getString(key: String, vararg args: Any): String {
         val raw = activeTranslations[key]
             ?: translationCache[LanguageCode.ENGLISH]?.get(key)
