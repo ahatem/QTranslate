@@ -16,8 +16,8 @@ import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
-import com.github.michaelbull.result.onFailure
-import com.github.michaelbull.result.onSuccess
+import com.github.michaelbull.result.onErr
+import com.github.michaelbull.result.onOk
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -62,7 +62,7 @@ class HandleTextToSpeechUseCase(
         // (language was already validated when the service's list was fetched and cached).
         // Specific = check the set directly.
         val languageSupported = when (val supported = ttsService.supportedLanguages) {
-            is SupportedLanguages.All     -> true
+            is SupportedLanguages.All -> true
             is SupportedLanguages.Dynamic -> true
             is SupportedLanguages.Specific -> language in supported.languages
         }
@@ -96,7 +96,7 @@ class HandleTextToSpeechUseCase(
         }
 
         result
-            .onSuccess { response ->
+            .onOk { response ->
                 when (val audio = response.audio) {
                     is TTSAudio.Bytes -> {
                         logger.info("TTS successful — playing ${audio.data.size} bytes (${audio.format})")
@@ -106,6 +106,7 @@ class HandleTextToSpeechUseCase(
                         audioPlayer.play(audio)
                         onStatusUpdate("Audio playback complete.", NotificationType.SUCCESS, true)
                     }
+
                     is TTSAudio.StreamUrl -> {
                         logger.warn("Streaming audio URLs are not yet supported")
                         onStatusUpdate(
@@ -116,7 +117,7 @@ class HandleTextToSpeechUseCase(
                     }
                 }
             }
-            .onFailure { error ->
+            .onErr { error ->
                 logger.error("TTS failed: ${error.message}", error.cause)
                 onStatusUpdate("Text-to-Speech failed: ${error.message}", NotificationType.ERROR, true)
             }
@@ -124,17 +125,17 @@ class HandleTextToSpeechUseCase(
 
     private fun getTextFromSource(state: MainState, source: TextSource): String =
         when (source) {
-            TextSource.Input       -> state.inputText
-            TextSource.Output      -> state.translatedText
+            TextSource.Input -> state.inputText
+            TextSource.Output -> state.translatedText
             TextSource.ExtraOutput -> state.extraOutputText
         }
 
     private fun determineLanguage(state: MainState, source: TextSource): LanguageCode? =
         when (source) {
-            TextSource.Input  -> state.sourceLanguage
+            TextSource.Input -> state.sourceLanguage
             TextSource.Output -> state.targetLanguage
             TextSource.ExtraOutput -> when (settingsState.value.extraOutputSource) {
-                ExtraOutputSource.Input  -> state.sourceLanguage
+                ExtraOutputSource.Input -> state.sourceLanguage
                 ExtraOutputSource.Output -> state.targetLanguage
             }
         }

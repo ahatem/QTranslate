@@ -9,8 +9,8 @@ import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
 import com.github.ahatem.qtranslate.core.updater.Updater
 import com.github.ahatem.qtranslate.core.updater.UpdaterError
 import com.github.ahatem.qtranslate.core.updater.data.UpdateCheckResult
-import com.github.michaelbull.result.onFailure
-import com.github.michaelbull.result.onSuccess
+import com.github.michaelbull.result.onErr
+import com.github.michaelbull.result.onOk
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -50,7 +50,7 @@ class CheckForUpdatesUseCase(
         logger.info("Checking for updates (currentVersion=$currentVersion, force=$force)")
 
         updater.checkForUpdate(currentVersion)
-            .onSuccess { result ->
+            .onOk { result ->
                 when (result) {
                     is UpdateCheckResult.UpdateAvailable -> {
                         val info = result.info
@@ -82,14 +82,16 @@ class CheckForUpdatesUseCase(
                     }
                 }
             }
-            .onFailure { error ->
+            .onErr { error ->
                 logger.error("Update check failed: ${error.message}", error.cause)
 
                 val userMessage = when (error) {
                     is UpdaterError.NetworkError ->
                         "Update check failed. Please check your internet connection and try again."
+
                     is UpdaterError.ParseError ->
                         "Update check failed. The server returned unexpected data. Please try again later."
+
                     is UpdaterError.UnknownError ->
                         "Update check failed. An unexpected error occurred. Please try again later."
                 }
