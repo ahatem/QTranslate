@@ -62,20 +62,30 @@ class SettingsDialog(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val navItems = listOf(
-        "General", "Appearance", "Services & Presets",
-        "Plugins", "Keyboard & Hotkeys", "Translation", "Window & Layout"
+        localizationManager.getString("settings_dialog_sidebar.general"),
+        localizationManager.getString("settings_dialog_sidebar.appearance"),
+        localizationManager.getString("settings_dialog_sidebar.services"),
+        localizationManager.getString("settings_dialog_sidebar.plugins"),
+        localizationManager.getString("settings_dialog_sidebar.hotkeys"),
+        localizationManager.getString("settings_dialog_sidebar.translation"),
+        localizationManager.getString("settings_dialog_sidebar.window_layout")
     )
     private val tree: JTree
 
     private val contentArea = JPanel(BorderLayout())
-    private val panelTitle  = JLabel("General").apply {
-        font   = font.deriveFont(Font.BOLD, font.size + 2f)
+    private val panelTitle = JLabel(
+        localizationManager.getString("settings_dialog_sidebar.general")
+    ).apply {
+        font = font.deriveFont(Font.BOLD, font.size + 2f)
         border = BorderFactory.createEmptyBorder(0, 0, 0, 12)
     }
-    private val dirtyDot = JLabel("● Unsaved changes").apply {
+
+    private val dirtyDot = JLabel(
+        localizationManager.getString("settings_dialog.unsaved_changes")
+    ).apply {
         foreground = UIManager.getColor("Actions.Yellow") ?: Color(0xE65100)
-        font       = font.deriveFont(font.size - 1f)
-        isVisible  = false
+        font = font.deriveFont(font.size - 1f)
+        isVisible = false
     }
 
     private val panelCache = mutableMapOf<String, JPanel>()
@@ -85,6 +95,7 @@ class SettingsDialog(
     private lateinit var applyButton: JButton
 
     init {
+        title = localizationManager.getString("settings_dialog.title")
         layout = BorderLayout()
 
         // ---- Tree navigation ----
@@ -205,14 +216,28 @@ class SettingsDialog(
     }
 
     private fun createPanel(name: String): JPanel = when (name) {
-        "General"            -> GeneralPanel(settingsStore)
-        "Appearance"         -> AppearancePanel(settingsStore, themeManager, localizationManager, scope)
-        "Services & Presets" -> ServicesPanel(settingsStore, pluginManager, scope)
-        "Plugins"            -> PluginsPanel(iconManager, pluginManager, scope)
-        "Keyboard & Hotkeys" -> KeyboardPanel(settingsStore)
-        "Translation"        -> TranslationPanel(settingsStore)
-        "Window & Layout"    -> WindowPanel(settingsStore)
-        else                 -> JPanel()
+        localizationManager.getString("settings_dialog_sidebar.general") ->
+            GeneralPanel(settingsStore, localizationManager)
+
+        localizationManager.getString("settings_dialog_sidebar.appearance") ->
+            AppearancePanel(settingsStore, themeManager, localizationManager, scope)
+
+        localizationManager.getString("settings_dialog_sidebar.services") ->
+            ServicesPanel(settingsStore, pluginManager, localizationManager, scope)
+
+        localizationManager.getString("settings_dialog_sidebar.plugins") ->
+            PluginsPanel(iconManager, pluginManager, localizationManager, scope)
+
+        localizationManager.getString("settings_dialog_sidebar.hotkeys") ->
+            KeyboardPanel(settingsStore, localizationManager)
+
+        localizationManager.getString("settings_dialog_sidebar.translation") ->
+            TranslationPanel(settingsStore, localizationManager)
+
+        localizationManager.getString("settings_dialog_sidebar.window_layout") ->
+            WindowPanel(settingsStore, localizationManager)
+
+        else -> JPanel()
     }
 
     // -------------------------------------------------------------------------
@@ -220,20 +245,22 @@ class SettingsDialog(
     // -------------------------------------------------------------------------
 
     private fun buildButtonBar(): JPanel {
-        okButton = JButton("OK").apply {
+        okButton = JButton(localizationManager.getString("common.ok")).apply {
             mnemonic = KeyEvent.VK_O
             addActionListener { onOk() }
         }
-        val cancelButton = JButton("Cancel").apply {
+        val cancelButton = JButton(localizationManager.getString("common.cancel")).apply {
             mnemonic = KeyEvent.VK_C
             addActionListener { cancelAndClose() }
         }
-        applyButton = JButton("Apply").apply {
+        applyButton = JButton(localizationManager.getString("common.apply")).apply {
             mnemonic  = KeyEvent.VK_A
             isEnabled = false
             addActionListener { settingsStore.dispatch(SettingsIntent.SaveChanges) }
         }
-        val resetButton = JButton("Reset to Defaults").apply {
+        val resetButton = JButton(
+            localizationManager.getString("settings_dialog.reset_defaults_button")
+        ).apply {
             mnemonic = KeyEvent.VK_R
             addActionListener { onReset() }
         }
@@ -283,21 +310,16 @@ class SettingsDialog(
     // -------------------------------------------------------------------------
 
     private fun onOk() {
-        // If nothing has changed since the last save (e.g. the user clicked Apply
-        // first), there is nothing to save — close immediately.
         if (!settingsStore.state.value.isDirty) {
             dispose()
             return
         }
 
         okButton.isEnabled = false
-        okButton.text      = "Saving…"
+        okButton.text = localizationManager.getString("settings_dialog.saving")
 
         settingsStore.dispatch(SettingsIntent.SaveChanges)
 
-        // Wait for exactly ONE ShowMessage event then stop.
-        // Using first { } instead of collect { } ensures the coroutine terminates
-        // after one event and cannot accumulate across multiple OK clicks.
         scope.launch {
             val event = settingsStore.events
                 .filter { it is SettingsEvent.ShowMessage }
@@ -308,11 +330,11 @@ class SettingsDialog(
                     dispose()
                 } else {
                     okButton.isEnabled = true
-                    okButton.text      = "OK"
+                    okButton.text = "OK"
                     JOptionPane.showMessageDialog(
                         this@SettingsDialog,
                         event.message,
-                        "Save Failed",
+                        localizationManager.getString("settings_dialog.save_failed_title"),
                         JOptionPane.ERROR_MESSAGE
                     )
                 }
@@ -377,12 +399,14 @@ class SettingsDialog(
     private fun onReset() {
         val result = JOptionPane.showConfirmDialog(
             this,
-            "Reset all settings to their defaults?\nThis cannot be undone.",
-            "Reset to Defaults",
+            localizationManager.getString("settings_dialog.reset_confirmation_message"),
+            localizationManager.getString("settings_dialog.reset_confirmation_title"),
             JOptionPane.YES_NO_OPTION,
             JOptionPane.WARNING_MESSAGE
         )
-        if (result == JOptionPane.YES_OPTION) settingsStore.dispatch(SettingsIntent.ResetToDefaults)
+        if (result == JOptionPane.YES_OPTION) {
+            settingsStore.dispatch(SettingsIntent.ResetToDefaults)
+        }
     }
 
     override fun dispose() {

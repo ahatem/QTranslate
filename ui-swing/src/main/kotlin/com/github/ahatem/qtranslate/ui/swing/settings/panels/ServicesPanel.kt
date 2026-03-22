@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
@@ -17,6 +18,7 @@ import javax.swing.*
 class ServicesPanel(
     private val store: SettingsStore,
     private val pluginManager: PluginManager,
+    private val localizationManager: LocalizationManager,
     private val scope: CoroutineScope
 ) : SettingsPanel() {
 
@@ -31,8 +33,8 @@ class ServicesPanel(
     }
 
     private fun buildUI() {
-        // ---- Active Preset ----
-        addSeparator("Active Preset")
+
+        addSeparator(localizationManager.getString("settings_services.presets_group"))
 
         presetCombo = JComboBox<PresetInfo>().apply {
             setRenderer { _, value, _, _, _ -> JLabel(value?.name ?: "") }
@@ -44,11 +46,23 @@ class ServicesPanel(
                 }
             }
         }
-        addRow("Current Preset:", presetCombo)
 
-        val newBtn    = JButton("New…").apply    { addActionListener { onNew() } }
-        renameBtn     = JButton("Rename…").apply { addActionListener { onRename() } }
-        deleteBtn     = JButton("Delete").apply  { addActionListener { onDelete() } }
+        addRow(
+            localizationManager.getString("settings_services.current_preset"),
+            presetCombo
+        )
+
+        val newBtn = JButton(
+            localizationManager.getString("settings_services.new_preset_btn")
+        ).apply { addActionListener { onNew() } }
+
+        renameBtn = JButton(
+            localizationManager.getString("settings_services.rename_preset_btn")
+        ).apply { addActionListener { onRename() } }
+
+        deleteBtn = JButton(
+            localizationManager.getString("settings_services.delete_preset_btn")
+        ).apply { addActionListener { onDelete() } }
 
         gb.nextRow()
             .spanLine()
@@ -62,35 +76,64 @@ class ServicesPanel(
                 add(renameBtn)
                 add(deleteBtn)
             })
-        addHint("Presets let you save different service combinations and switch between them quickly.")
 
-        // ---- Service Configuration ----
-        addSeparator("Service Configuration")
+        addHint(
+            localizationManager.getString("settings_services.preset_hint")
+        )
+
+
+        addSeparator(
+            localizationManager.getString("settings_services.config_group")
+        )
 
         ServiceType.entries.forEach { type ->
+
             val combo = JComboBox<ServiceOption>().apply {
-                setRenderer { _, value, _, _, _ -> JLabel(value?.name ?: "None") }
+                setRenderer { _, value, _, _, _ ->
+                    JLabel(value?.name ?: "None")
+                }
+
                 addActionListener {
                     if (!isUpdatingFromState) {
                         val selected = selectedItem as? ServiceOption
-                        store.dispatch(SettingsIntent.UpdateServiceInActivePreset(type, selected?.id))
+                        store.dispatch(
+                            SettingsIntent.UpdateServiceInActivePreset(
+                                type,
+                                selected?.id
+                            )
+                        )
                     }
                 }
             }
+
             serviceComboBoxes[type] = combo
-            addRow(type.displayLabel(), combo)
+
+            addRow(
+                serviceLabel(type),
+                combo
+            )
         }
 
         finishLayout()
     }
 
-    private fun ServiceType.displayLabel() = when (this) {
-        ServiceType.TRANSLATOR    -> "Translator:"
-        ServiceType.TTS           -> "Text-to-Speech:"
-        ServiceType.OCR           -> "OCR:"
-        ServiceType.SPELL_CHECKER -> "Spell Checker:"
-        ServiceType.DICTIONARY    -> "Dictionary:"
-    }
+    private fun serviceLabel(type: ServiceType): String =
+        when (type) {
+            ServiceType.TRANSLATOR ->
+                localizationManager.getString("settings_services.translator")
+
+            ServiceType.TTS ->
+                localizationManager.getString("settings_services.tts")
+
+            ServiceType.OCR ->
+                localizationManager.getString("settings_services.ocr")
+
+            ServiceType.SPELL_CHECKER ->
+                localizationManager.getString("settings_services.spell_checker")
+
+            ServiceType.DICTIONARY ->
+                localizationManager.getString("settings_services.dictionary")
+        }
 
     private fun observePlugins() {
         // Populate immediately from the current snapshot so combos are never
@@ -160,7 +203,7 @@ class ServicesPanel(
                     val selectedId = preset.selectedServices[type]
                     for (i in 0 until combo.itemCount) {
                         val item = combo.getItemAt(i)
-                        if (item?.id == selectedId || (selectedId == null && item == null)) {
+                        if (item?.id == selectedId) {
                             combo.selectedIndex = i; break
                         }
                     }
@@ -172,32 +215,60 @@ class ServicesPanel(
     // ---- Preset dialogs ----
 
     private fun onNew() {
+
         val name = JOptionPane.showInputDialog(
-            this, "Enter a name for the new preset:", "New Preset", JOptionPane.PLAIN_MESSAGE
+            this,
+            localizationManager.getString("settings_services.new_preset_prompt"),
+            localizationManager.getString("settings_services.new_preset_title"),
+            JOptionPane.PLAIN_MESSAGE
         )
-        if (!name.isNullOrBlank()) store.dispatch(SettingsIntent.CreatePreset(name.trim()))
+
+        if (!name.isNullOrBlank())
+            store.dispatch(SettingsIntent.CreatePreset(name.trim()))
     }
 
     private fun onRename() {
+
         val selected = presetCombo.selectedItem as? PresetInfo ?: return
-        val newName  = JOptionPane.showInputDialog(
-            this, "Enter new name:", "Rename Preset",
-            JOptionPane.PLAIN_MESSAGE, null, null, selected.name
+
+        val newName = JOptionPane.showInputDialog(
+            this,
+            localizationManager.getString("settings_services.rename_preset_prompt"),
+            localizationManager.getString("settings_services.rename_preset_title"),
+            JOptionPane.PLAIN_MESSAGE,
+            null,
+            null,
+            selected.name
         ) as? String
+
         if (!newName.isNullOrBlank() && newName != selected.name)
-            store.dispatch(SettingsIntent.RenamePreset(selected.id, newName.trim()))
+            store.dispatch(
+                SettingsIntent.RenamePreset(
+                    selected.id,
+                    newName.trim()
+                )
+            )
     }
 
     private fun onDelete() {
+
         val selected = presetCombo.selectedItem as? PresetInfo ?: return
+
+        val message =
+            localizationManager
+                .getString("settings_services.delete_preset_confirm")
+                .format(selected.name)
+
         val result = JOptionPane.showConfirmDialog(
             this,
-            "Delete preset \"${selected.name}\"?\nThis cannot be undone.",
-            "Delete Preset",
+            message,
+            localizationManager.getString("settings_services.delete_preset_title"),
             JOptionPane.YES_NO_OPTION,
             JOptionPane.WARNING_MESSAGE
         )
-        if (result == JOptionPane.YES_OPTION) store.dispatch(SettingsIntent.DeletePreset(selected.id))
+
+        if (result == JOptionPane.YES_OPTION)
+            store.dispatch(SettingsIntent.DeletePreset(selected.id))
     }
 
     private data class PresetInfo(val id: String, val name: String)

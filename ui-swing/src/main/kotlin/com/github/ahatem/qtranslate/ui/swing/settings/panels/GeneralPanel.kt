@@ -1,10 +1,11 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import javax.swing.JCheckBox
 
-class GeneralPanel(private val store: SettingsStore) : SettingsPanel() {
+class GeneralPanel(private val store: SettingsStore, private val localizationManager: LocalizationManager) : SettingsPanel() {
 
     private lateinit var launchCheckbox:  JCheckBox
     private lateinit var updatesCheckbox: JCheckBox
@@ -14,35 +15,35 @@ class GeneralPanel(private val store: SettingsStore) : SettingsPanel() {
     init { buildUI() }
 
     private fun buildUI() {
-        addSeparator("Startup")
+        addSeparator(localizationManager.getString("settings_general.startup_group"))
         launchCheckbox = addCheckbox(
-            text = "Launch on system startup",
+            text = localizationManager.getString("settings_general.launch_on_startup"),
             selected = false,
             onChange = { enabled -> applyDraft(store) { it.copy(launchOnSystemStartup = enabled) } }
         )
 
-        addSeparator("Updates")
+        addSeparator(localizationManager.getString("settings_general.updates_group"))
         updatesCheckbox = addCheckbox(
-            text = "Automatically check for updates",
+            text = localizationManager.getString("settings_general.auto_check_updates"),
             selected = false,
             onChange = { enabled -> applyDraft(store) { it.copy(autoCheckForUpdates = enabled) } }
         )
 
-        addSeparator("History")
+        addSeparator(localizationManager.getString("settings_general.history_group"))
         historyCheckbox = addCheckbox(
-            text = "Enable translation history",
+            text = localizationManager.getString("settings_general.enable_history"),
             selected = false,
             onChange = { enabled ->
                 applyDraft(store) { it.copy(isHistoryEnabled = enabled) }
             }
         )
         clearCheckbox = addCheckbox(
-            text = "Clear history when the app closes",
+            text = localizationManager.getString("settings_general.clear_history_on_exit"),
             selected = false,
             enabled = false,
             onChange = { enabled -> applyDraft(store) { it.copy(clearHistoryOnExit = enabled) } }
         )
-        addHint("Saved translations are permanently deleted on exit when this is on.")
+        addHint(localizationManager.getString("settings_general.clear_history_hint"))
 
         finishLayout()
     }
