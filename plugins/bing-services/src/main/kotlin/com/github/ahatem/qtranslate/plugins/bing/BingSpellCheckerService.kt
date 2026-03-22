@@ -1,14 +1,9 @@
 package com.github.ahatem.qtranslate.plugins.bing
 
-import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
-import com.github.ahatem.qtranslate.api.spellchecker.Correction
-import com.github.ahatem.qtranslate.api.spellchecker.CorrectionType
-import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckRequest
-import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckResponse
-import com.github.ahatem.qtranslate.api.spellchecker.SpellChecker
+import com.github.ahatem.qtranslate.api.spellchecker.*
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
@@ -17,8 +12,6 @@ import com.github.difflib.patch.DeltaType
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
-import com.github.michaelbull.result.getOrElse
-import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
@@ -61,7 +54,6 @@ class BingSpellCheckerService(
             val correctedChunks = chunks
                 .map { chunk -> async { checkChunk(chunk, language, auth) } }
                 .awaitAll()
-                .map { chunk -> chunk.getOrElse { "" } }
 
             val correctedText = correctedChunks.joinToString(" ").trim()
             SpellCheckResponse(
@@ -134,6 +126,7 @@ class BingSpellCheckerService(
                         )
                     }
                 }
+
                 DeltaType.DELETE -> {
                     val origText = delta.source.lines.joinToString(" ")
                     val position = findPhrasePosition(original, origText)
@@ -149,6 +142,7 @@ class BingSpellCheckerService(
                         )
                     }
                 }
+
                 else -> {
                     // INSERT delta — no original span to map to, nothing to record
                 }

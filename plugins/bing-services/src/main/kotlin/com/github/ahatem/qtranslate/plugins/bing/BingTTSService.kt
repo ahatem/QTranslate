@@ -195,7 +195,6 @@ class BingTTSService(
                     }
                 }
                 .awaitAll()
-                .map { it.getOrElse { ByteArray(0) } }
 
             val audioData =
                 if (audioChunks.isEmpty()) ByteArray(0)
