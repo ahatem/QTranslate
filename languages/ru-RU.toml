@@ -1,0 +1,300 @@
+# ===================================================================
+# META SECTION
+# ===================================================================
+[meta]
+name = "Russian"
+native_name = "Русский"
+locale = "ru-RU"
+version = "1.0.0"
+author = "QTranslate Team <ahatem925@gmail.com>"
+last_updated = "2026-03-22"
+rtl = false
+
+# ===================================================================
+# COMMON STRINGS
+# ===================================================================
+[common]
+ok = "ОК"
+cancel = "Отмена"
+apply = "Применить"
+save = "Сохранить"
+yes = "Да"
+no = "Нет"
+close = "Закрыть"
+save_as = "Сохранить как..."
+submit = "Отправить"
+search = "Поиск..."
+copy = "Копировать"
+copy_all = "Копировать всё"
+paste = "Вставить"
+cut = "Вырезать"
+cut_all = "Вырезать всё"
+undo = "Отменить"
+version = "Версия %s"
+seconds = "сек."
+from = "С"
+to = "на"
+listen = "Озвучить"
+pin = "Закрепить"
+unpin = "Открепить"
+loading = "Загрузка..."
+none = "Нет"
+error = "Ошибка"
+browse = "Обзор..."
+delete = "Удалить"
+rename = "Переименовать..."
+new = "Создать..."
+
+# ===================================================================
+# MAIN APPLICATION WINDOW
+# ===================================================================
+[main_window]
+status_format = "Используется %s: %s → %s"
+no_translator = "Переводчик не выбран"
+
+[main_window_history_bar]
+backward_tooltip = "Перейти назад по истории переводов"
+forward_tooltip = "Перейти вперёд по истории переводов"
+image_translate_tooltip = "Захватить и перевести текст с области экрана"
+
+[main_window_language_bar]
+clear_tooltip = "Очистить исходный текст"
+swap_languages_tooltip = "Поменять языки местами"
+translate_button = "Перевести"
+
+[main_window_editor_context_menu]
+spelling_suggestions = "Варианты исправления"
+undo = "@common.undo"
+cut = "@common.cut"
+cut_all = "@common.cut_all"
+copy = "@common.copy"
+copy_all = "@common.copy_all"
+paste = "@common.paste"
+translate = "@main_window_language_bar.translate_button"
+listen = "@common.listen"
+spell_check = "Проверка орфографии"
+
+[main_window_main_menu]
+layout_presets = "Пресеты макета"
+layout_preset_classic = "Классический"
+layout_preset_side_by_side = "Бок о бок"
+layout_preset_compact = "Компактный"
+instant_translation = "Мгновенный перевод"
+show_extra_output = "Показывать дополнительный результат"
+spell_check = "Проверка орфографии"
+options_submenu = "Параметры"
+show_history_bar = "Показывать панель истории"
+show_language_bar = "Показывать панель выбора языка"
+show_services_panel = "Показывать панель сервисов"
+show_status_bar = "Показывать строку состояния"
+settings = "Настройки..."
+help_submenu = "Справка"
+how_to_use = "Как пользоваться"
+contact_us = "Связаться с нами"
+auto_check_for_updates = "Автоматически проверять обновления"
+check_for_updates = "Проверить наличие обновлений"
+about_qtranslate = "О QTranslate"
+exit = "Выход"
+
+[main_window_status_bar]
+ready_message = "Готово"
+notifications_tooltip = "Уведомления"
+notifications_empty_tooltip = "Новых уведомлений нет"
+
+# ===================================================================
+# SYSTEM TRAY MENU
+# ===================================================================
+[system_tray_menu]
+show_application = "Показать QTranslate"
+recognize_text = "Распознать текст (OCR)"
+dictionary = "Словарь"
+history = "История"
+settings = "@main_window_main_menu.settings"
+enable_hotkeys = "Включить глобальные горячие клавиши"
+exit = "@main_window_main_menu.exit"
+
+# ===================================================================
+# SETTINGS DIALOG (SHELL & NAVIGATION)
+# ===================================================================
+[settings_dialog]
+title = "Настройки"
+unsaved_changes = "● Несохранённые изменения"
+saving = "Сохранение..."
+save_failed_title = "Не удалось сохранить"
+reset_defaults_button = "Сбросить по умолчанию"
+reset_confirmation_title = "Сбросить по умолчанию"
+reset_confirmation_message = "Сбросить все настройки к значениям по умолчанию?\nЭто действие нельзя отменить."
+
+[settings_dialog_sidebar]
+general = "Общие"
+appearance = "Внешний вид"
+services = "Сервисы и пресеты"
+plugins = "Плагины"
+hotkeys = "Клавиатура и горячие клавиши"
+translation = "Перевод"
+window_layout = "Окно и макет"
+
+# ===================================================================
+# SETTINGS PAGES
+# ===================================================================
+
+[settings_general]
+startup_group = "Запуск"
+launch_on_startup = "Запускать вместе с системой"
+updates_group = "Обновления"
+auto_check_updates = "Автоматически проверять обновления"
+history_group = "История"
+enable_history = "Включить историю переводов"
+clear_history_on_exit = "Очищать историю при закрытии приложения"
+clear_history_hint = "Если этот параметр включён, сохранённые переводы будут безвозвратно удаляться при выходе."
+
+[settings_appearance]
+language_group = "Язык"
+interface_language = "Язык интерфейса:"
+language_hint = "Изменения применяются сразу. Для полного обновления некоторых надписей может потребоваться перезапуск."
+theme_group = "Тема"
+theme_label = "Тема:"
+unified_title_bar = "Использовать объединённую строку заголовка"
+scale_group = "Масштаб интерфейса"
+scale_label = "Масштаб:"
+scale_hint = "Для полного применения изменения масштаба перезапустите приложение."
+fonts_group = "Шрифты"
+ui_font = "Шрифт интерфейса:"
+editor_font = "Шрифт редактора:"
+fallback_font = "Резервный шрифт:"
+fallback_hint = "Резервный шрифт используется для символов, которые не поддерживает шрифт редактора."
+loading_fonts = "<Загрузка шрифтов...>"
+font_preview_text = "Съешь ещё этих мягких французских булок, да выпей чаю — 大きな茶色の狐が怠け者の犬を飛び越えた"
+
+[settings_services]
+presets_group = "Активный пресет"
+current_preset = "Текущий пресет:"
+preset_hint = "Пресеты позволяют сохранять разные комбинации сервисов и быстро переключаться между ними."
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+config_group = "Конфигурация сервисов"
+translator = "Переводчик:"
+tts = "Синтез речи:"
+ocr = "OCR:"
+spell_checker = "Проверка орфографии:"
+dictionary = "Словарь:"
+# Dialogs
+new_preset_title = "Новый пресет"
+new_preset_prompt = "Введите имя нового пресета:"
+rename_preset_title = "Переименовать пресет"
+rename_preset_prompt = "Введите новое имя:"
+delete_preset_title = "Удалить пресет"
+delete_preset_confirm = "Удалить пресет \"%s\"?\nЭто действие нельзя отменить."
+
+[settings_plugins]
+install_plugin = "Установить плагин..."
+empty_selection_hint = "Выберите плагин, чтобы просмотреть сведения о нём"
+provided_services = "Предоставляемые сервисы"
+plugin_error_label = "Ошибка"
+status_enabled = "Включён"
+status_disabled = "Отключён"
+status_failed = "Сбой"
+status_verification = "Ожидает подтверждения"
+# Actions
+btn_disable = "Отключить"
+btn_enable = "Включить"
+btn_configure = "Настроить..."
+btn_accept_update = "Принять обновление"
+btn_clean_install = "Чистая установка"
+btn_uninstall = "Удалить"
+tip_accept_update = "Сохранить существующие данные и снова включить плагин"
+tip_clean_install = "Удалить все данные плагина перед повторным включением"
+# Dialogs
+install_dialog_title = "Выберите JAR-файл плагина"
+install_dialog_filter = "Плагин QTranslate (*.jar)"
+install_success_title = "Плагин установлен"
+install_success_msg = "Плагин успешно установлен."
+install_fail_title = "Ошибка установки"
+uninstall_confirm_title = "Удаление плагина"
+uninstall_confirm_msg = "Удалить \"%s\"?\nВсе данные плагина будут безвозвратно удалены."
+no_settings_msg = "У этого плагина нет настраиваемых параметров."
+
+[settings_hotkeys]
+global_group = "Глобальные горячие клавиши"
+enable_global = "Включить глобальные горячие клавиши"
+assignments_group = "Назначения горячих клавиш"
+column_action = "Действие"
+column_hotkey = "Горячая клавиша"
+column_description = "Описание"
+customization_hint = "Настройка горячих клавиш будет доступна в одном из следующих обновлений."
+# Default Actions
+action_show_main = "Показать главное окно"
+action_quick_translate = "Быстрый перевод"
+action_listen = "Озвучить выделение"
+action_ocr = "OCR с экрана"
+# Default Actions Descriptions
+desc_show_main = "Дважды нажмите Ctrl, чтобы показать главное окно"
+desc_quick_translate = "Перевести выделенный текст во всплывающем окне"
+desc_listen = "Озвучить выделенный текст"
+desc_ocr = "Выбрать область экрана и распознать текст"
+
+[settings_translation]
+behavior_group = "Поведение"
+instant_translation = "Мгновенный перевод (переводить во время ввода)"
+instant_hint = "Перевод запускается автоматически после того, как вы перестаёте печатать."
+spell_check_input = "Включить проверку орфографии для вводимого текста"
+extra_output_group = "Дополнительный результат"
+extra_output_type = "Тип:"
+extra_output_hint = "Показывает дополнительную панель результата под основным переводом."
+extra_output_source = "Источник:"
+source_use_translated = "Использовать переведённый текст"
+source_use_input = "Использовать исходный текст"
+# Types
+type_none = "@common.none"
+type_backward = "Обратный перевод"
+type_summarize = "Суммаризация"
+type_rewrite = "Перефразирование"
+
+[settings_window]
+layout_group = "Макет"
+layout_preset = "Пресет макета:"
+toolbars_group = "Панели"
+show_history_bar = "Показывать панель навигации по истории"
+show_language_bar = "Показывать панель выбора языка"
+show_services_panel = "Показывать панель сервисов"
+show_status_bar = "Показывать строку состояния"
+popup_group = "Всплывающее окно быстрого перевода"
+auto_size = "Автоматически подбирать размер окна по содержимому"
+auto_position = "Автоматически размещать окно рядом с курсором"
+transparency = "Прозрачность фона:"
+
+# ===================================================================
+# DYNAMIC PLUGIN CONFIGURATION
+# ===================================================================
+[plugin_config]
+title_format = "Настройка — %s"
+required_fields_error_title = "Обязательные поля"
+required_fields_error_msg = "Пожалуйста, заполните обязательные поля:"
+
+# ===================================================================
+# OTHER DIALOGS
+# ===================================================================
+[about_dialog]
+title = "О QTranslate"
+description = "QTranslate переводит текст с помощью различных онлайн-сервисов."
+
+[history_dialog]
+title = "История переводов"
+
+[update_dialog]
+title = "Доступно обновление"
+header = "Доступна новая версия QTranslate!"
+details_format = "Теперь доступна версия %s (у вас установлена %s). Хотите обновиться?"
+release_notes_label = "Что нового:"
+skip_button = "Пропустить эту версию"
+remind_later_button = "Напомнить позже"
+download_button = "Перейти на страницу загрузки"
+
+# ===================================================================
+# NOTIFICATIONS & ERRORS
+# ===================================================================
+[notifications]
+language_not_supported_format = "Язык \"%s\" не поддерживается сервисом %s."
+tts_not_supported_format = "Синтез речи не поддерживается сервисом %s."
+unknown_error = "Произошла неизвестная ошибка."

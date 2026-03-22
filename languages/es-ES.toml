@@ -1,0 +1,304 @@
+# ===================================================================
+# META SECTION
+# ===================================================================
+[meta]
+name = "Spanish"
+native_name = "Español"
+locale = "es-ES"
+version = "1.0.0"
+author = "QTranslate Team"
+last_updated = "2026-03-22"
+rtl = false
+
+
+# ===================================================================
+# COMMON STRINGS
+# ===================================================================
+[common]
+ok = "Aceptar"
+cancel = "Cancelar"
+apply = "Aplicar"
+save = "Guardar"
+yes = "Sí"
+no = "No"
+close = "Cerrar"
+save_as = "Guardar como..."
+submit = "Enviar"
+search = "Buscar..."
+copy = "Copiar"
+copy_all = "Copiar todo"
+paste = "Pegar"
+cut = "Cortar"
+cut_all = "Cortar todo"
+undo = "Deshacer"
+version = "Versión %s"
+seconds = "segundos"
+from = "De"
+to = "a"
+listen = "Escuchar"
+pin = "Fijar"
+unpin = "Desfijar"
+loading = "Cargando..."
+none = "Ninguno"
+error = "Error"
+browse = "Examinar..."
+delete = "Eliminar"
+rename = "Renombrar..."
+new = "Nuevo..."
+
+
+# ===================================================================
+# MAIN WINDOW
+# ===================================================================
+[main_window]
+status_format = "Usando %s: %s → %s"
+no_translator = "Sin traductor"
+
+[main_window_history_bar]
+backward_tooltip = "Ir atrás en el historial"
+forward_tooltip = "Ir adelante en el historial"
+image_translate_tooltip = "Capturar y traducir texto de la pantalla"
+
+[main_window_language_bar]
+clear_tooltip = "Borrar texto"
+swap_languages_tooltip = "Cambiar idiomas"
+translate_button = "Traducir"
+
+[main_window_editor_context_menu]
+spelling_suggestions = "Ortografía"
+undo = "@common.undo"
+cut = "@common.cut"
+cut_all = "@common.cut_all"
+copy = "@common.copy"
+copy_all = "@common.copy_all"
+paste = "@common.paste"
+translate = "@main_window_language_bar.translate_button"
+listen = "@common.listen"
+spell_check = "Corrector ortográfico"
+
+[main_window_main_menu]
+layout_presets = "Diseños"
+layout_preset_classic = "Clásico"
+layout_preset_side_by_side = "Lado a lado"
+layout_preset_compact = "Compacto"
+instant_translation = "Traducción instantánea"
+show_extra_output = "Mostrar resultado extra"
+spell_check = "Corrector"
+options_submenu = "Opciones"
+show_history_bar = "Mostrar historial"
+show_language_bar = "Mostrar idiomas"
+show_services_panel = "Mostrar servicios"
+show_status_bar = "Mostrar estado"
+settings = "Configuración..."
+help_submenu = "Ayuda"
+how_to_use = "Cómo usar"
+contact_us = "Contacto"
+auto_check_for_updates = "Buscar actualizaciones automáticamente"
+check_for_updates = "Buscar actualizaciones"
+about_qtranslate = "Acerca de QTranslate"
+exit = "Salir"
+
+[main_window_status_bar]
+ready_message = "Listo"
+notifications_tooltip = "Notificaciones"
+notifications_empty_tooltip = "Sin notificaciones"
+
+
+# ===================================================================
+# SYSTEM TRAY
+# ===================================================================
+[system_tray_menu]
+show_application = "Mostrar QTranslate"
+recognize_text = "Reconocer texto (OCR)"
+dictionary = "Diccionario"
+history = "Historial"
+settings = "@main_window_main_menu.settings"
+enable_hotkeys = "Activar teclas globales"
+exit = "@main_window_main_menu.exit"
+
+
+# ===================================================================
+# SETTINGS DIALOG
+# ===================================================================
+[settings_dialog]
+title = "Configuración"
+unsaved_changes = "● Cambios sin guardar"
+saving = "Guardando..."
+save_failed_title = "Error al guardar"
+reset_defaults_button = "Restablecer"
+reset_confirmation_title = "Restablecer"
+reset_confirmation_message = "¿Restablecer todos los ajustes?\nNo se puede deshacer."
+
+[settings_dialog_sidebar]
+general = "General"
+appearance = "Apariencia"
+services = "Servicios y presets"
+plugins = "Plugins"
+hotkeys = "Teclado y atajos"
+translation = "Traducción"
+window_layout = "Ventana y diseño"
+
+
+# ===================================================================
+# SETTINGS GENERAL
+# ===================================================================
+[settings_general]
+startup_group = "Inicio"
+launch_on_startup = "Iniciar con el sistema"
+updates_group = "Actualizaciones"
+auto_check_updates = "Buscar actualizaciones automáticamente"
+history_group = "Historial"
+enable_history = "Activar historial"
+clear_history_on_exit = "Borrar historial al salir"
+clear_history_hint = "Las traducciones se eliminarán al salir."
+
+
+# ===================================================================
+# SETTINGS APPEARANCE
+# ===================================================================
+[settings_appearance]
+language_group = "Idioma"
+interface_language = "Idioma de la interfaz:"
+language_hint = "Algunos cambios requieren reinicio."
+theme_group = "Tema"
+theme_label = "Tema:"
+unified_title_bar = "Usar barra unificada"
+scale_group = "Escala"
+scale_label = "Escala:"
+scale_hint = "Reiniciar para aplicar."
+fonts_group = "Fuentes"
+ui_font = "Fuente UI:"
+editor_font = "Fuente editor:"
+fallback_font = "Fuente alternativa:"
+fallback_hint = "Usada si falta un carácter."
+loading_fonts = "<Cargando fuentes...>"
+font_preview_text = "El veloz murciélago hindú comía feliz cardillo y kiwi — 大きな茶色の狐が怠け者の犬を飛び越えた"
+
+
+# ===================================================================
+# SETTINGS SERVICES
+# ===================================================================
+[settings_services]
+presets_group = "Preset activo"
+current_preset = "Preset actual:"
+preset_hint = "Permite guardar combinaciones."
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+config_group = "Configuración"
+translator = "Traductor:"
+tts = "Voz:"
+ocr = "OCR:"
+spell_checker = "Ortografía:"
+dictionary = "Diccionario:"
+
+new_preset_title = "Nuevo preset"
+new_preset_prompt = "Nombre:"
+rename_preset_title = "Renombrar"
+rename_preset_prompt = "Nuevo nombre:"
+delete_preset_title = "Eliminar"
+delete_preset_confirm = "¿Eliminar \"%s\"?\nNo se puede deshacer."
+
+
+# ===================================================================
+# SETTINGS PLUGINS
+# ===================================================================
+[settings_plugins]
+install_plugin = "Instalar plugin..."
+empty_selection_hint = "Seleccione un plugin"
+provided_services = "Servicios"
+plugin_error_label = "Error"
+status_enabled = "Activo"
+status_disabled = "Desactivado"
+status_failed = "Falló"
+status_verification = "Pendiente"
+
+btn_disable = "Desactivar"
+btn_enable = "Activar"
+btn_configure = "Configurar..."
+btn_accept_update = "Actualizar"
+btn_clean_install = "Instalar limpio"
+btn_uninstall = "Desinstalar"
+
+tip_accept_update = "Conservar datos"
+tip_clean_install = "Borrar datos"
+
+install_dialog_title = "Seleccionar plugin"
+install_dialog_filter = "Plugin (*.jar)"
+install_success_title = "Instalado"
+install_success_msg = "Instalado correctamente."
+install_fail_title = "Error"
+uninstall_confirm_title = "Desinstalar"
+uninstall_confirm_msg = "¿Eliminar \"%s\"?\nDatos borrados."
+no_settings_msg = "Sin opciones."
+
+
+# ===================================================================
+# SETTINGS HOTKEYS
+# ===================================================================
+[settings_hotkeys]
+global_group = "Atajos globales"
+enable_global = "Activar atajos"
+assignments_group = "Asignaciones"
+column_action = "Acción"
+column_hotkey = "Tecla"
+column_description = "Descripción"
+customization_hint = "Disponible pronto."
+
+action_show_main = "Mostrar ventana"
+action_quick_translate = "Traducción rápida"
+action_listen = "Escuchar"
+action_ocr = "OCR"
+
+desc_show_main = "Doble Ctrl"
+desc_quick_translate = "Traducir selección"
+desc_listen = "Leer texto"
+desc_ocr = "Capturar pantalla"
+
+
+# ===================================================================
+# SETTINGS TRANSLATION
+# ===================================================================
+[settings_translation]
+behavior_group = "Comportamiento"
+instant_translation = "Traducción instantánea"
+instant_hint = "Traduce automáticamente."
+spell_check_input = "Ortografía"
+extra_output_group = "Salida extra"
+extra_output_type = "Tipo:"
+extra_output_hint = "Panel extra"
+extra_output_source = "Origen:"
+source_use_translated = "Texto traducido"
+source_use_input = "Texto original"
+
+type_none = "@common.none"
+type_backward = "Retrotraducción"
+type_summarize = "Resumen"
+type_rewrite = "Reescritura"
+
+
+# ===================================================================
+# SETTINGS WINDOW
+# ===================================================================
+[settings_window]
+layout_group = "Diseño"
+layout_preset = "Preset:"
+toolbars_group = "Barras"
+show_history_bar = "Historial"
+show_language_bar = "Idiomas"
+show_services_panel = "Servicios"
+show_status_bar = "Estado"
+
+popup_group = "Popup"
+auto_size = "Auto tamaño"
+auto_position = "Auto posición"
+transparency = "Transparencia:"
+
+
+# ===================================================================
+# PLUGIN CONFIG
+# ===================================================================
+[plugin_config]
+title_format = "Configurar — %s"
+required_fields_error_title = "Campos requeridos"
+required_fields_error_msg = "Complete los campos:"

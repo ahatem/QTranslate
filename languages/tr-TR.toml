@@ -1,0 +1,304 @@
+# ===================================================================
+# META SECTION
+# ===================================================================
+[meta]
+name = "Turkish"
+native_name = "Türkçe"
+locale = "tr-TR"
+version = "1.0.0"
+author = "QTranslate Team"
+last_updated = "2026-03-22"
+rtl = false
+
+
+# ===================================================================
+# COMMON STRINGS
+# ===================================================================
+[common]
+ok = "Tamam"
+cancel = "İptal"
+apply = "Uygula"
+save = "Kaydet"
+yes = "Evet"
+no = "Hayır"
+close = "Kapat"
+save_as = "Farklı kaydet..."
+submit = "Gönder"
+search = "Ara..."
+copy = "Kopyala"
+copy_all = "Tümünü kopyala"
+paste = "Yapıştır"
+cut = "Kes"
+cut_all = "Tümünü kes"
+undo = "Geri al"
+version = "Sürüm %s"
+seconds = "saniye"
+from = "Şu dilden"
+to = "şu dile"
+listen = "Dinle"
+pin = "Sabitle"
+unpin = "Sabitlemeyi kaldır"
+loading = "Yükleniyor..."
+none = "Yok"
+error = "Hata"
+browse = "Gözat..."
+delete = "Sil"
+rename = "Yeniden adlandır..."
+new = "Yeni..."
+
+
+# ===================================================================
+# MAIN WINDOW
+# ===================================================================
+[main_window]
+status_format = "%s kullanılıyor: %s → %s"
+no_translator = "Çevirmen yok"
+
+[main_window_history_bar]
+backward_tooltip = "Geçmişte geri git"
+forward_tooltip = "Geçmişte ileri git"
+image_translate_tooltip = "Ekrandan metin yakala ve çevir"
+
+[main_window_language_bar]
+clear_tooltip = "Metni temizle"
+swap_languages_tooltip = "Dilleri değiştir"
+translate_button = "Çevir"
+
+[main_window_editor_context_menu]
+spelling_suggestions = "Yazım"
+undo = "@common.undo"
+cut = "@common.cut"
+cut_all = "@common.cut_all"
+copy = "@common.copy"
+copy_all = "@common.copy_all"
+paste = "@common.paste"
+translate = "@main_window_language_bar.translate_button"
+listen = "@common.listen"
+spell_check = "Yazım denetimi"
+
+[main_window_main_menu]
+layout_presets = "Yerleşim hazırları"
+layout_preset_classic = "Klasik"
+layout_preset_side_by_side = "Yan yana"
+layout_preset_compact = "Kompakt"
+instant_translation = "Anında çeviri"
+show_extra_output = "Ek çıktı göster"
+spell_check = "Yazım denetimi"
+options_submenu = "Seçenekler"
+show_history_bar = "Geçmiş çubuğunu göster"
+show_language_bar = "Dil çubuğunu göster"
+show_services_panel = "Servis panelini göster"
+show_status_bar = "Durum çubuğunu göster"
+settings = "Ayarlar..."
+help_submenu = "Yardım"
+how_to_use = "Nasıl kullanılır"
+contact_us = "İletişim"
+auto_check_for_updates = "Otomatik güncelleme kontrolü"
+check_for_updates = "Güncellemeleri kontrol et"
+about_qtranslate = "QTranslate hakkında"
+exit = "Çıkış"
+
+[main_window_status_bar]
+ready_message = "Hazır"
+notifications_tooltip = "Bildirimler"
+notifications_empty_tooltip = "Bildirim yok"
+
+
+# ===================================================================
+# SYSTEM TRAY
+# ===================================================================
+[system_tray_menu]
+show_application = "QTranslate göster"
+recognize_text = "Metin tanı (OCR)"
+dictionary = "Sözlük"
+history = "Geçmiş"
+settings = "@main_window_main_menu.settings"
+enable_hotkeys = "Global kısayolları etkinleştir"
+exit = "@main_window_main_menu.exit"
+
+
+# ===================================================================
+# SETTINGS DIALOG
+# ===================================================================
+[settings_dialog]
+title = "Ayarlar"
+unsaved_changes = "● Kaydedilmemiş değişiklikler"
+saving = "Kaydediliyor..."
+save_failed_title = "Kaydetme hatası"
+reset_defaults_button = "Varsayılana sıfırla"
+reset_confirmation_title = "Varsayılana sıfırla"
+reset_confirmation_message = "Tüm ayarlar sıfırlansın mı?\nBu işlem geri alınamaz."
+
+[settings_dialog_sidebar]
+general = "Genel"
+appearance = "Görünüm"
+services = "Servisler ve hazırlar"
+plugins = "Eklentiler"
+hotkeys = "Klavye ve kısayollar"
+translation = "Çeviri"
+window_layout = "Pencere ve yerleşim"
+
+
+# ===================================================================
+# SETTINGS GENERAL
+# ===================================================================
+[settings_general]
+startup_group = "Başlangıç"
+launch_on_startup = "Sistem açılışında başlat"
+updates_group = "Güncellemeler"
+auto_check_updates = "Otomatik güncelleme kontrolü"
+history_group = "Geçmiş"
+enable_history = "Çeviri geçmişini etkinleştir"
+clear_history_on_exit = "Çıkışta geçmişi temizle"
+clear_history_hint = "Bu açıkken geçmiş silinir."
+
+
+# ===================================================================
+# SETTINGS APPEARANCE
+# ===================================================================
+[settings_appearance]
+language_group = "Dil"
+interface_language = "Arayüz dili:"
+language_hint = "Bazı değişiklikler için yeniden başlatma gerekir."
+theme_group = "Tema"
+theme_label = "Tema:"
+unified_title_bar = "Birleşik başlık çubuğu kullan"
+scale_group = "Arayüz ölçeği"
+scale_label = "Ölçek:"
+scale_hint = "Tam uygulama için yeniden başlat."
+fonts_group = "Yazı tipleri"
+ui_font = "Arayüz fontu:"
+editor_font = "Editör fontu:"
+fallback_font = "Yedek font:"
+fallback_hint = "Karakter desteklenmezse kullanılır."
+loading_fonts = "<Fontlar yükleniyor...>"
+font_preview_text = "Pijamalı hasta yağız şoföre çabucak güvendi — 大きな茶色の狐が怠け者の犬を飛び越えた"
+
+
+# ===================================================================
+# SETTINGS SERVICES
+# ===================================================================
+[settings_services]
+presets_group = "Aktif hazır"
+current_preset = "Geçerli hazır:"
+preset_hint = "Servis kombinasyonlarını kaydedin."
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+config_group = "Servis ayarları"
+translator = "Çevirmen:"
+tts = "Ses:"
+ocr = "OCR:"
+spell_checker = "Yazım:"
+dictionary = "Sözlük:"
+
+new_preset_title = "Yeni hazır"
+new_preset_prompt = "Ad girin:"
+rename_preset_title = "Yeniden adlandır"
+rename_preset_prompt = "Yeni ad:"
+delete_preset_title = "Sil"
+delete_preset_confirm = "\"%s\" silinsin mi?\nGeri alınamaz."
+
+
+# ===================================================================
+# SETTINGS PLUGINS
+# ===================================================================
+[settings_plugins]
+install_plugin = "Eklenti yükle..."
+empty_selection_hint = "Eklenti seç"
+provided_services = "Servisler"
+plugin_error_label = "Hata"
+status_enabled = "Etkin"
+status_disabled = "Devre dışı"
+status_failed = "Başarısız"
+status_verification = "Onay bekliyor"
+
+btn_disable = "Devre dışı"
+btn_enable = "Etkinleştir"
+btn_configure = "Ayarlar..."
+btn_accept_update = "Güncelle"
+btn_clean_install = "Temiz kur"
+btn_uninstall = "Kaldır"
+
+tip_accept_update = "Veriyi koru"
+tip_clean_install = "Veriyi sil"
+
+install_dialog_title = "Eklenti seç"
+install_dialog_filter = "Plugin (*.jar)"
+install_success_title = "Yüklendi"
+install_success_msg = "Başarıyla yüklendi."
+install_fail_title = "Hata"
+uninstall_confirm_title = "Kaldır"
+uninstall_confirm_msg = "\"%s\" silinsin mi?\nVeri silinir."
+no_settings_msg = "Ayar yok."
+
+
+# ===================================================================
+# SETTINGS HOTKEYS
+# ===================================================================
+[settings_hotkeys]
+global_group = "Global kısayollar"
+enable_global = "Kısayolları etkinleştir"
+assignments_group = "Atamalar"
+column_action = "Eylem"
+column_hotkey = "Kısayol"
+column_description = "Açıklama"
+customization_hint = "Yakında."
+
+action_show_main = "Ana pencere"
+action_quick_translate = "Hızlı çeviri"
+action_listen = "Dinle"
+action_ocr = "OCR"
+
+desc_show_main = "Ctrl çift bas"
+desc_quick_translate = "Seçimi çevir"
+desc_listen = "Metni oku"
+desc_ocr = "Ekran yakala"
+
+
+# ===================================================================
+# SETTINGS TRANSLATION
+# ===================================================================
+[settings_translation]
+behavior_group = "Davranış"
+instant_translation = "Anında çeviri"
+instant_hint = "Yazmayı bırakınca çevir."
+spell_check_input = "Yazım kontrolü"
+extra_output_group = "Ek çıktı"
+extra_output_type = "Tür:"
+extra_output_hint = "Ek panel"
+extra_output_source = "Kaynak:"
+source_use_translated = "Çevrilmiş metin"
+source_use_input = "Giriş metni"
+
+type_none = "@common.none"
+type_backward = "Geri çeviri"
+type_summarize = "Özet"
+type_rewrite = "Yeniden yaz"
+
+
+# ===================================================================
+# SETTINGS WINDOW
+# ===================================================================
+[settings_window]
+layout_group = "Yerleşim"
+layout_preset = "Hazır:"
+toolbars_group = "Çubuklar"
+show_history_bar = "Geçmiş"
+show_language_bar = "Dil"
+show_services_panel = "Servis"
+show_status_bar = "Durum"
+
+popup_group = "Popup"
+auto_size = "Oto boyut"
+auto_position = "Oto konum"
+transparency = "Saydamlık:"
+
+
+# ===================================================================
+# PLUGIN CONFIG
+# ===================================================================
+[plugin_config]
+title_format = "Ayarla — %s"
+required_fields_error_title = "Gerekli alanlar"
+required_fields_error_msg = "Alanları doldurun:"
