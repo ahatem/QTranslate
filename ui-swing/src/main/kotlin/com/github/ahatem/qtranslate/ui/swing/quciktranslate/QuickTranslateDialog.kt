@@ -144,6 +144,8 @@ class QuickTranslateDialog(
             if (!isPinned) hideDialog()
             (it.source as Timer).stop()
         }.apply { isRepeats = false }
+
+        updatePinButtonStyle(isPinned)
     }
 
     // Render entrypoint
