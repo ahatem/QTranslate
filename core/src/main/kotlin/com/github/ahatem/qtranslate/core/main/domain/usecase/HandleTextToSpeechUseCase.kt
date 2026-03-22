@@ -57,10 +57,6 @@ class HandleTextToSpeechUseCase(
             return
         }
 
-        // Check language support using the new SupportedLanguages sealed API.
-        // All = any language is fine. Dynamic = we trust the service to handle it
-        // (language was already validated when the service's list was fetched and cached).
-        // Specific = check the set directly.
         val languageSupported = when (val supported = ttsService.supportedLanguages) {
             is SupportedLanguages.All -> true
             is SupportedLanguages.Dynamic -> true
@@ -80,9 +76,6 @@ class HandleTextToSpeechUseCase(
         logger.info("Starting TTS with '${ttsService.name}' for $textSource, language: $language")
         onStatusUpdate("Converting text to speech...", NotificationType.INFO, false)
 
-        // Use TTSRequest.ByLanguage — the sealed variant for services without voice selection.
-        // TTSRequest.ByVoice is dispatched only when VoiceSupport is detected, which is
-        // handled at a higher level (e.g. a voice-picker UI component).
         val request = TTSRequest.ByLanguage(text = textToSynthesize, language = language)
 
         val result = withTimeoutOrNull(AppConstants.TTS_TIMEOUT_MS) {
@@ -101,8 +94,6 @@ class HandleTextToSpeechUseCase(
                     is TTSAudio.Bytes -> {
                         logger.info("TTS successful — playing ${audio.data.size} bytes (${audio.format})")
                         onStatusUpdate("Playing audio...", NotificationType.INFO, false)
-                        // Pass TTSAudio.Bytes directly — AudioPlayer.play() now takes the
-                        // full object so it can inspect the format before attempting playback.
                         audioPlayer.play(audio)
                         onStatusUpdate("Audio playback complete.", NotificationType.SUCCESS, true)
                     }
@@ -132,10 +123,10 @@ class HandleTextToSpeechUseCase(
 
     private fun determineLanguage(state: MainState, source: TextSource): LanguageCode? =
         when (source) {
-            TextSource.Input -> state.sourceLanguage
+            TextSource.Input -> if (state.sourceLanguage == LanguageCode.AUTO) state.detectedSourceLanguage else state.sourceLanguage
             TextSource.Output -> state.targetLanguage
             TextSource.ExtraOutput -> when (settingsState.value.extraOutputSource) {
-                ExtraOutputSource.Input -> state.sourceLanguage
+                ExtraOutputSource.Input -> if (state.sourceLanguage == LanguageCode.AUTO) state.detectedSourceLanguage else state.sourceLanguage
                 ExtraOutputSource.Output -> state.targetLanguage
             }
         }
