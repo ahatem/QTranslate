@@ -6,6 +6,8 @@ multi-ecosystem-groups:
       interval: weekly
       day: monday
       time: "09:00"
+    labels:
+      - dependencies
 
 updates:
   - package-ecosystem: gradle
@@ -15,6 +17,8 @@ updates:
       day: monday
       time: "09:00"
     multi-ecosystem-group: maintenance
+    patterns:
+      - "*"
     open-pull-requests-limit: 5
     labels:
       - dependencies
@@ -36,6 +40,8 @@ updates:
       day: monday
       time: "09:00"
     multi-ecosystem-group: maintenance
+    patterns:
+      - "*"
     open-pull-requests-limit: 5
     labels:
       - dependencies
