@@ -20,6 +20,9 @@ shadow = "9.4.0"
 diffUtils = "4.16"
 datastore = "1.2.0-alpha02"
 
+slf4j = "2.0.17"
+logback = "1.5.32"
+
 [libraries]
 # Kotlin ecosystem
 kotlinGradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
@@ -58,6 +61,10 @@ datastore-preferences = { module = "androidx.datastore:datastore-preferences-cor
 # Parsing
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 java-diff-utils = { module = "io.github.java-diff-utils:java-diff-utils", version.ref = "diffUtils" }
+
+# Logging
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 
 [bundles]
 kotlinxEcosystem = ["kotlinxCoroutines", "kotlinxCoroutinesSwing", "kotlinxDatetime", "kotlinxSerialization"]

@@ -3,6 +3,9 @@ package com.github.ahatem.qtranslate.core.localization
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -11,14 +14,25 @@ class LocalizationManager(
     private val parser: LanguageTomlParser,
     private val logger: Logger
 ) {
-    private val translationCache   = mutableMapOf<LanguageCode, Map<String, String>>()
-    private val languageMetaCache  = mutableMapOf<LanguageCode, LocalizedLanguageMeta>()
+    private val translationCache  = mutableMapOf<LanguageCode, Map<String, String>>()
+    private val languageMetaCache = mutableMapOf<LanguageCode, LocalizedLanguageMeta>()
     private val embeddedFallback: Map<String, String>
 
     private var activeTranslations: Map<String, String> = emptyMap()
-    private var _activeLanguage: LanguageCode = LanguageCode.ENGLISH
 
-    val activeLanguage: LanguageCode get() = _activeLanguage
+    // StateFlow so MainAppFrame (and any other observer) can react to language
+    // changes without polling. Emits on every successful loadLanguage() call.
+    private val _activeLanguage = MutableStateFlow(LanguageCode.ENGLISH)
+    val activeLanguageFlow: StateFlow<LanguageCode> = _activeLanguage.asStateFlow()
+    val activeLanguage: LanguageCode get() = _activeLanguage.value
+
+    /**
+     * Whether the currently active language is right-to-left.
+     * Reads from the `[meta] rtl` field in the language TOML file.
+     * Falls back to `false` if the language has no meta section.
+     */
+    val isRtl: Boolean
+        get() = languageMetaCache[_activeLanguage.value]?.isRtl == true
 
     val languagesDirectory: File = File(appDataDirectory, "languages").also { it.mkdirs() }
 
@@ -26,8 +40,7 @@ class LocalizationManager(
      * Returns the list of available language codes from the languages directory.
      *
      * Computed on every call rather than cached at construction time, so that
-     * language files added after startup (e.g. downloaded at runtime) are visible
-     * without restarting the application.
+     * language files added after startup are visible without restarting.
      */
     val availableLanguages: List<String>
         get() = languagesDirectory
@@ -46,20 +59,20 @@ class LocalizationManager(
 
     suspend fun loadLanguage(languageCode: LanguageCode) {
         withContext(Dispatchers.IO) {
-            // Load English as the external fallback chain — but only if the
-            // requested language is not already English (avoids loading it twice).
             if (languageCode != LanguageCode.ENGLISH && LanguageCode.ENGLISH !in translationCache) {
                 loadAndCacheLanguage(LanguageCode.ENGLISH)
             }
 
             loadAndCacheLanguage(languageCode)
-            activeTranslations = translationCache[languageCode] ?: emptyMap()
-            _activeLanguage    = languageCode
+            activeTranslations  = translationCache[languageCode] ?: emptyMap()
+            _activeLanguage.value = languageCode
+
+            logger.debug("Language loaded: ${languageCode.tag}, isRtl=$isRtl")
         }
     }
 
     private fun loadAndCacheLanguage(code: LanguageCode) {
-        if (code in translationCache) return   // already cached, skip I/O
+        if (code in translationCache) return
 
         runCatching {
             val file = File(languagesDirectory, "${code.tag}.toml")
@@ -85,8 +98,6 @@ class LocalizationManager(
      * 2. English external fallback (if loaded)
      * 3. Embedded English fallback (bundled in the JAR)
      * 4. The raw [key] itself (so the UI always shows something)
-     *
-     * If [args] are provided, the result is formatted via [String.format].
      */
     fun getString(key: String, vararg args: Any): String {
         val raw = activeTranslations[key]
@@ -102,7 +113,8 @@ class LocalizationManager(
     fun clearCache() {
         translationCache.clear()
         languageMetaCache.clear()
-        activeTranslations = emptyMap()
+        activeTranslations    = emptyMap()
+        _activeLanguage.value = LanguageCode.ENGLISH
     }
 
     // -------------------------------------------------------------------------

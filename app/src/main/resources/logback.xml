@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- ================================================================
+         Properties
+         ================================================================ -->
+    <property name="LOG_PATTERN"
+              value="%d{HH:mm:ss.SSS} [%thread] %highlight(%-5level) %cyan(%logger{36}) - %msg%n"/>
+
+    <property name="FILE_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"/>
+
+    <!-- Resolved at runtime from AppDataDirectory — set as a system property in Main.kt -->
+    <property name="LOG_DIR" value="${logDir:-logs}"/>
+
+    <!-- ================================================================
+         Console appender — coloured, for development
+         ================================================================ -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ================================================================
+         Rolling file appender — for production
+         Rotates daily, keeps 30 days, max 50MB per file, 500MB total
+         ================================================================ -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/qtranslate.log</file>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- Daily rollover, gzip compressed -->
+            <fileNamePattern>${LOG_DIR}/qtranslate.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>500MB</totalSizeCap>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>${FILE_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ================================================================
+         Log levels per package
+         ================================================================ -->
+
+    <!-- Your application code — DEBUG in dev, INFO in prod -->
+    <logger name="com.github.ahatem.qtranslate" level="DEBUG"/>
+
+    <!-- Ktor — INFO is enough, DEBUG is very noisy -->
+    <logger name="io.ktor" level="INFO"/>
+
+    <!-- DataStore / AndroidX — suppress verbose internal logs -->
+    <logger name="androidx" level="WARN"/>
+
+    <!-- Coroutines debug — off in production -->
+    <logger name="kotlinx.coroutines" level="WARN"/>
+
+    <!-- SLF4J itself -->
+    <logger name="org.slf4j" level="WARN"/>
+
+    <!-- ================================================================
+         Root — everything not matched above
+         ================================================================ -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+
+</configuration>

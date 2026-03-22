@@ -93,32 +93,51 @@ class ServicesPanel(
     }
 
     private fun observePlugins() {
+        // Populate immediately from the current snapshot so combos are never
+        // empty on first navigation. The StateFlow always has a current value —
+        // we don't need to wait for the next emission.
+        populateCombos(groupByType(pluginManager.activeServices.value.values))
+
+        // Then keep them updated as plugins are loaded/unloaded/enabled/disabled.
         scope.launch {
             pluginManager.activeServices
-                .map { it.values.groupBy { s -> s.type } }
-                .distinctUntilChanged()
-                .collect { servicesByType ->
+                .collect { services ->
                     SwingUtilities.invokeLater {
-                        serviceComboBoxes.forEach { (type, combo) ->
-                            val current = combo.selectedItem as? ServiceOption
-                            combo.removeAllItems()
-                            combo.addItem(null) // "None" option
-
-                            servicesByType[type]?.forEach { service ->
-                                combo.addItem(ServiceOption(service.id, service.name))
-                            }
-
-                            // Restore previous selection if still available
-                            if (current != null) {
-                                for (i in 0 until combo.itemCount) {
-                                    if (combo.getItemAt(i)?.id == current.id) {
-                                        combo.selectedIndex = i; break
-                                    }
-                                }
-                            }
-                        }
+                        populateCombos(groupByType(services.values))
                     }
                 }
+        }
+    }
+
+    private fun groupByType(
+        services: Collection<com.github.ahatem.qtranslate.api.plugin.Service>
+    ): Map<com.github.ahatem.qtranslate.core.shared.arch.ServiceType, List<com.github.ahatem.qtranslate.api.plugin.Service>> {
+        val result = mutableMapOf<com.github.ahatem.qtranslate.core.shared.arch.ServiceType, MutableList<com.github.ahatem.qtranslate.api.plugin.Service>>()
+        services.forEach { service ->
+            val type = service.type ?: return@forEach
+            result.getOrPut(type) { mutableListOf() }.add(service)
+        }
+        return result
+    }
+
+    private fun populateCombos(servicesByType: Map<com.github.ahatem.qtranslate.core.shared.arch.ServiceType, List<com.github.ahatem.qtranslate.api.plugin.Service>>) {
+        serviceComboBoxes.forEach { (type, combo) ->
+            val current = combo.selectedItem as? ServiceOption
+            combo.removeAllItems()
+            combo.addItem(null) // "None" option
+
+            servicesByType[type]?.forEach { service ->
+                combo.addItem(ServiceOption(service.id, service.name))
+            }
+
+            // Restore previous selection if still available
+            if (current != null) {
+                for (i in 0 until combo.itemCount) {
+                    if (combo.getItemAt(i)?.id == current.id) {
+                        combo.selectedIndex = i; break
+                    }
+                }
+            }
         }
     }
 

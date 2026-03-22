@@ -41,6 +41,12 @@ dependencies {
     // Also a transitive dep via :ui-swing, but needed here for compilation.
     implementation(libs.bundles.flatlaf)
 
+    // Logging — SLF4J API + Logback backend
+    // SLF4J is the facade; Logback does the actual writing.
+    // The :api module's Logger interface bridges to SLF4J here in :app.
+    implementation(libs.slf4j.api)
+    implementation(libs.logback.classic)
+
     // Tests
     testImplementation(kotlin("test"))
 }
