@@ -104,6 +104,7 @@ internal class PluginSettingsSchemaBuilder(
         }
     }
 
+    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
     private fun buildNumberSchemaForField(field: Field, args: SettingArgs): SettingSchema =
         when (field.type) {
             Int::class.java, Long::class.java,
@@ -115,6 +116,7 @@ internal class PluginSettingsSchemaBuilder(
     // Value conversion — used by PluginSettingsManager when applying settings
     // -------------------------------------------------------------------------
 
+    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
     internal fun convertValue(raw: String, field: Field): Any? = runCatching {
         when (field.type) {
             String::class.java                              -> raw
