@@ -234,6 +234,20 @@ desc_quick_translate = "Перевести выделенный текст во 
 desc_listen = "Озвучить выделенный текст"
 desc_ocr = "Выбрать область экрана и распознать текст"
 
+edit_hint = "Дважды щёлкните строку или выберите её и нажмите «Изменить», чтобы изменить назначение."
+edit_button = "Изменить…"
+clear_button = "Очистить"
+reset_button = "Сбросить всё"
+no_binding = "(нет)"
+reset_confirmation = "Сбросить все горячие клавиши к значениям по умолчанию?"
+reset_title = "Сброс горячих клавиш"
+recorder_title = "Запись клавиши"
+recorder_prompt = "Нажмите комбинацию клавиш, которую хотите назначить для:"
+double_ctrl = "Двойной Ctrl"
+recorder_waiting = "— нажмите комбинацию клавиш —"
+recorder_hint = "Нажмите Escape для отмены"
+
+
 [settings_translation]
 behavior_group = "Поведение"
 instant_translation = "Мгновенный перевод (переводить во время ввода)"

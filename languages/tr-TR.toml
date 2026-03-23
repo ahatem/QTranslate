@@ -255,6 +255,18 @@ desc_quick_translate = "Seçimi çevir"
 desc_listen = "Metni oku"
 desc_ocr = "Ekran yakala"
 
+edit_hint = "Bir satıra çift tıklayın veya seçip Düzenle'ye basarak atamayı değiştirin."
+edit_button = "Düzenle…"
+clear_button = "Temizle"
+reset_button = "Tümünü varsayılana sıfırla"
+no_binding = "(yok)"
+reset_confirmation = "Tüm kısayollar varsayılan değerlerine sıfırlansın mı?"
+reset_title = "Kısayolları sıfırla"
+recorder_title = "Kısayol kaydet"
+recorder_prompt = "Atamak istediğiniz tuş kombinasyonuna basın:"
+double_ctrl = "Çift Ctrl"
+recorder_waiting = "— bir tuş kombinasyonuna basın —"
+recorder_hint = "İptal etmek için Escape tuşuna basın"
 
 # ===================================================================
 # SETTINGS TRANSLATION

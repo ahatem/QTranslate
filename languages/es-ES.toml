@@ -255,6 +255,18 @@ desc_quick_translate = "Traducir selección"
 desc_listen = "Leer texto"
 desc_ocr = "Capturar pantalla"
 
+edit_hint = "Haz doble clic en una fila o selecciónala y pulsa Editar para cambiar la asignación."
+edit_button = "Editar…"
+clear_button = "Borrar"
+reset_button = "Restablecer todo"
+no_binding = "(ninguno)"
+reset_confirmation = "¿Restablecer todos los atajos a sus valores predeterminados?"
+reset_title = "Restablecer atajos"
+recorder_title = "Registrar atajo"
+recorder_prompt = "Presiona la combinación de teclas que deseas asignar a:"
+double_ctrl = "Doble Ctrl"
+recorder_waiting = "— presiona una combinación de teclas —"
+recorder_hint = "Pulsa Escape para cancelar"
 
 # ===================================================================
 # SETTINGS TRANSLATION

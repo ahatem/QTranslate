@@ -2,14 +2,10 @@ package com.github.ahatem.qtranslate.core.settings.data
 
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import kotlinx.serialization.Serializable
+import javax.swing.KeyStroke
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-// -------------------------------------------------------------------------
-// Supporting enums
-// -------------------------------------------------------------------------
-
-/** The type of secondary output the user wants the application to generate. */
 @Serializable
 enum class ExtraOutputType {
     None,
@@ -34,8 +30,6 @@ enum class TextSource {
 // -------------------------------------------------------------------------
 // UI layout types
 // -------------------------------------------------------------------------
-
-/** Visibility flags for the various toolbars in the main window. */
 @Serializable
 data class ToolbarVisibility(
     val isHistoryBarVisible: Boolean = true,
@@ -48,7 +42,6 @@ data class ToolbarVisibility(
     }
 }
 
-/** Font name and size for a text rendering context. */
 @Serializable
 data class FontConfig(
     val name: String,
@@ -59,7 +52,6 @@ data class FontConfig(
     }
 }
 
-/** Pixel dimensions of a UI element. */
 @Serializable
 data class Size(
     val width: Int,
@@ -70,7 +62,6 @@ data class Size(
     }
 }
 
-/** Screen position of a UI element. */
 @Serializable
 data class Position(
     val x: Int,
@@ -78,6 +69,54 @@ data class Position(
 ) {
     init {
         require(x >= 0 && y >= 0) { "Position coordinates must be non-negative, was ($x, $y)." }
+    }
+}
+
+
+// -------------------------------------------------------------------------
+// Hotkeys
+// -------------------------------------------------------------------------
+
+/**
+ * Stable identifiers for every bindable action in the application.
+ * Never rename these — they are persisted in the config file.
+ */
+@Serializable
+enum class HotkeyAction {
+    SHOW_MAIN_WINDOW,
+    SHOW_QUICK_TRANSLATE,
+    LISTEN_TO_TEXT,
+    OPEN_OCR
+}
+
+/**
+ * A user-configurable hotkey binding stored as raw [keyCode] + [modifiers] integers.
+ * - Reconstruct: `KeyStroke.getKeyStroke(keyCode, modifiers)`
+ * - Display:     `KeyEvent.getKeyText(keyCode)` + modifier names
+ *
+ * [keyCode] = 0 and [modifiers] = 0 means "no binding" (used for SHOW_MAIN_WINDOW
+ * which is handled by the double-Ctrl JNativeHook sequence, not a KeyStroke).
+ */
+@Serializable
+data class HotkeyBinding(
+    val action: HotkeyAction,
+    val keyCode: Int = 0,
+    val modifiers: Int = 0,
+    val isEnabled: Boolean = true
+) {
+    val hasBinding: Boolean get() = keyCode != 0
+
+    fun toKeyStroke(): KeyStroke? =
+        if (hasBinding) KeyStroke.getKeyStroke(keyCode, modifiers) else null
+
+    companion object {
+        val DEFAULTS: List<HotkeyBinding> = listOf(
+            // SHOW_MAIN_WINDOW uses double-Ctrl via JNativeHook — no KeyStroke
+            HotkeyBinding(HotkeyAction.SHOW_MAIN_WINDOW,     keyCode = 0,                                    modifiers = 0),
+            HotkeyBinding(HotkeyAction.SHOW_QUICK_TRANSLATE, keyCode = java.awt.event.KeyEvent.VK_Q,         modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK),
+            HotkeyBinding(HotkeyAction.LISTEN_TO_TEXT,       keyCode = java.awt.event.KeyEvent.VK_E,         modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK),
+            HotkeyBinding(HotkeyAction.OPEN_OCR,             keyCode = java.awt.event.KeyEvent.VK_I,         modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK),
+        )
     }
 }
 
@@ -152,6 +191,9 @@ data class Configuration(
     val activeServicePresetId: String?,
     val disabledServices: Set<String>,
 
+    // ---- Hotkeys ----
+    val hotkeys: List<HotkeyBinding> = HotkeyBinding.DEFAULTS,
+
     // ---- General Behaviour ----
     val launchOnSystemStartup: Boolean,
     val autoCheckForUpdates: Boolean,
@@ -194,6 +236,8 @@ data class Configuration(
                 servicePresets          = listOf(defaultPreset),
                 activeServicePresetId   = defaultPreset.id,
                 disabledServices        = emptySet(),
+
+                hotkeys                 = HotkeyBinding.DEFAULTS,
 
                 launchOnSystemStartup   = false,
                 isGlobalHotkeysEnabled  = true,

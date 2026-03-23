@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.shared.theme
 
 import com.formdev.flatlaf.FlatLaf
 import com.formdev.flatlaf.IntelliJTheme
+import com.formdev.flatlaf.extras.FlatAnimatedLafChange
 import com.github.ahatem.qtranslate.api.core.Logger
 import java.io.File
 import java.util.Locale.getDefault
@@ -67,12 +68,25 @@ class ThemeManager(
 
     fun applyTheme(theme: Theme) {
         try {
+            FlatAnimatedLafChange.showSnapshot()
             theme.apply()
             FlatLaf.updateUI()
+            FlatAnimatedLafChange.hideSnapshotWithAnimation()
         } catch (e: Exception) {
             logger.error("Failed to apply theme '${theme.name}' (ID: ${theme.id})", e)
+            FlatAnimatedLafChange.hideSnapshotWithAnimation()
             findThemeById(defaultDarkThemeId).apply()
             FlatLaf.updateUI()
+        }
+    }
+
+    fun applyThemeForStartup(theme: Theme) {
+        try {
+            theme.apply()
+            // No FlatLaf.updateUI() here — no windows exist yet
+        } catch (e: Exception) {
+            logger.error("Failed to apply startup theme '${theme.name}' (ID: ${theme.id})", e)
+            findThemeById(defaultDarkThemeId).apply()
         }
     }
 

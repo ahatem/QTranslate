@@ -234,6 +234,20 @@ desc_quick_translate = "Translate selected text in a popup"
 desc_listen = "Read selected text aloud"
 desc_ocr = "Capture a screen region and extract text"
 
+edit_hint = "Double-click a row or select it and click Edit to change a binding."
+edit_button = "Edit…"
+clear_button = "Clear"
+reset_button = "Reset All to Defaults"
+no_binding = "(none)"
+reset_confirmation = "Reset all hotkeys to their default values?"
+reset_title = "Reset Hotkeys"
+recorder_title = "Record Hotkey"
+recorder_prompt = "Press the key combination you want to assign to:"
+double_ctrl = "Double Ctrl"
+recorder_waiting = "— press a key combination —"
+recorder_hint = "Press Escape to cancel"
+
+
 [settings_translation]
 behavior_group = "Behavior"
 instant_translation = "Instant translation (translate as you type)"

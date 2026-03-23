@@ -27,28 +27,16 @@ import com.github.ahatem.qtranslate.ui.swing.quciktranslate.*
 import com.github.ahatem.qtranslate.ui.swing.settings.SettingsDialog
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
-import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
-import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
-import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFallbackFont
-import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFont
-import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledUiFont
+import com.github.ahatem.qtranslate.ui.swing.shared.util.*
 import com.github.ahatem.qtranslate.ui.swing.snippingtool.SnippingToolDialog
-import com.github.kwhat.jnativehook.GlobalScreen
-import com.github.kwhat.jnativehook.NativeHookException
-import com.github.kwhat.jnativehook.keyboard.NativeKeyEvent
-import com.github.kwhat.jnativehook.keyboard.NativeKeyListener
-import com.tulskiy.keymaster.common.Provider
 import kotlinx.coroutines.*
-import java.awt.ComponentOrientation
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.swing.Swing
 import java.awt.*
-import java.awt.datatransfer.DataFlavor
-import java.awt.event.*
-import java.util.concurrent.atomic.AtomicBoolean
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
 import javax.imageio.ImageIO
 import javax.swing.*
 import kotlin.system.exitProcess
@@ -96,9 +84,6 @@ class MainAppFrame(
         )
     }
 
-    // Do NOT cache as a lazy — SettingsDialog cancels its own scope on dispose().
-    // Reusing a disposed dialog gives a dead scope where Apply never enables
-    // and Cancel/Close buttons stop working. Always create a fresh instance.
     private fun createSettingsDialog() = SettingsDialog(
         owner = this,
         settingsStore = settingsStore,
@@ -137,6 +122,10 @@ class MainAppFrame(
     )
 
     init {
+        globalKeyListener.updateBindings(
+            settingsStore.state.value.originalConfiguration.hotkeys
+        )
+
         SwingUtilities.invokeLater {
             contentPane.add(mainContentView, BorderLayout.CENTER)
             defaultCloseOperation = DO_NOTHING_ON_CLOSE
@@ -163,6 +152,8 @@ class MainAppFrame(
             setupTrayMenu()
             setupGlobalHotkeys()
 
+            applyOrientation(localizer.isRtl)
+
             observeStateAndEvents()
             isVisible = true
         }
@@ -175,9 +166,6 @@ class MainAppFrame(
         }
 
         // Theme and font updates — observe originalConfiguration (saved state only).
-        // Theme and language are NOT applied live during draft editing — only on Save.
-        // This eliminates flicker when the user browses the Appearance panel and
-        // removes the need for any revert logic on Cancel.
         appScope.launch(handler) {
             settingsStore.state
                 .map { it.originalConfiguration }
@@ -187,6 +175,7 @@ class MainAppFrame(
                             a.uiFontConfig == b.uiFontConfig &&
                             a.uiScale == b.uiScale
                 }
+                .drop(1)
                 .collect { config ->
                     withContext(Dispatchers.Swing) {
                         try {
@@ -259,13 +248,26 @@ class MainAppFrame(
                 }
         }
 
+        // Hotkey binding changes — re-register whenever saved config changes
+        appScope.launch(handler) {
+            settingsStore.state
+                .map { it.originalConfiguration.hotkeys }
+                .distinctUntilChanged()
+                .drop(1) // skip initial — already applied above in init
+                .collect { bindings ->
+                    globalKeyListener.updateBindings(bindings)
+                    globalKeyListener.setHotkeysEnabled(
+                        settingsStore.state.value.originalConfiguration.isGlobalHotkeysEnabled
+                    )
+                }
+        }
+
         // Language / RTL changes — observe originalConfiguration (saved state only).
-        // Language is applied when the user saves settings, not during draft editing.
-        // This prevents orientation flicker when the user opens the Appearance panel.
         appScope.launch(handler) {
             settingsStore.state
                 .map { it.originalConfiguration.interfaceLanguage }
                 .distinctUntilChanged()
+                .drop(1)
                 .collect { languageCode ->
                     withContext(Dispatchers.IO) {
                         localizer.loadLanguage(
@@ -279,27 +281,12 @@ class MainAppFrame(
         }
     }
 
-    /**
-     * Applies LEFT_TO_RIGHT or RIGHT_TO_LEFT orientation to the entire window.
-     *
-     * ### Flicker prevention
-     * `applyComponentOrientation` + `updateComponentTreeUI` causes multiple
-     * intermediate repaints which produce a visible flicker. We suppress this by:
-     * 1. Hiding the window briefly while the layout changes (if already visible)
-     * 2. Using `revalidate()` + `repaint()` instead of the heavier `updateComponentTreeUI`
-     *    which reinstalls the entire Look and Feel on every component unnecessarily.
-     *
-     * Called at construction (window not yet visible — no flicker risk) and
-     * whenever [LocalizationManager.activeLanguageFlow] emits a new value.
-     */
     private fun applyOrientation(isRtl: Boolean) {
         val orientation = if (isRtl)
             ComponentOrientation.RIGHT_TO_LEFT
         else
             ComponentOrientation.LEFT_TO_RIGHT
 
-        // Suppress flicker by hiding during layout change if window is visible.
-        // At construction time isVisible=false so this is a no-op.
         val wasVisible = isVisible
         if (wasVisible) isVisible = false
 
@@ -336,8 +323,6 @@ class MainAppFrame(
         }
     }
 
-    // ... (window listeners stay the same) ...
-
     private fun createOptionsPopupMenu(): JPopupMenu {
         val currentConfig = settingsStore.state.value.workingConfiguration
         val layouts = LayoutManager.getAvailableLayouts().map {
@@ -365,8 +350,6 @@ class MainAppFrame(
             onShowHistory = { /* TODO */ },
             onShowSettings = {
                 val dialog = createSettingsDialog()
-                // Apply current orientation to the dialog so it opens
-                // in the correct direction without requiring a restart.
                 dialog.applyComponentOrientation(
                     if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
                     else ComponentOrientation.LEFT_TO_RIGHT
@@ -575,8 +558,6 @@ class MainAppFrame(
         }
     }
 
-    // REMOVED: updateSettings() helper method - now using proper intents directly
-
     private fun mapToQuickTranslateState(mainState: MainState, config: Configuration): QuickTranslateDialogState {
         val displaySourceLanguage = mainState.detectedSourceLanguage ?: mainState.sourceLanguage
 
@@ -686,183 +667,6 @@ class MainAppFrame(
                     isNotificationButtonEnabled = true
                 )
             )
-        }
-    }
-}
-
-// Global hotkey listener remains the same
-class MainGlobalKeyListener(
-    private val scope: CoroutineScope,
-    private val onShowApp: (String) -> Unit,
-    private val onShowQuickTranslate: (String) -> Unit,
-    private val onListenToText: (String) -> Unit,
-    private val onOpenSnippingTool: () -> Unit
-) {
-
-    private var provider: Provider? = null
-    private var nativeHookRegistered = false
-    private val sequenceListener = CustomSequenceListener()
-    private val clipboardLock = AtomicBoolean(false)
-    private val hotkeysEnabled = AtomicBoolean(true)
-    private var initialized = false
-
-    fun initialize() {
-        if (initialized) return
-        try {
-            initJKeyMaster()
-            initJNativeHook()
-            initialized = true
-        } catch (e: Exception) {
-            System.err.println("Hotkey initialization failed: ${e.message}")
-            e.printStackTrace()
-        }
-    }
-
-    fun setHotkeysEnabled(enabled: Boolean) {
-        if (!initialized) return
-        if (hotkeysEnabled.getAndSet(enabled) == enabled) return
-
-        if (enabled) {
-            enableHotkeys()
-        } else {
-            disableHotkeys()
-        }
-    }
-
-    fun areHotkeysEnabled(): Boolean = hotkeysEnabled.get()
-
-    fun shutdown() {
-        if (!initialized) return
-        try {
-            provider?.reset()
-            provider?.stop()
-            provider = null
-
-            if (nativeHookRegistered) {
-                GlobalScreen.removeNativeKeyListener(sequenceListener)
-                GlobalScreen.unregisterNativeHook()
-                nativeHookRegistered = false
-            }
-        } catch (e: Exception) {
-            System.err.println("Hotkey manager shutdown error: ${e.message}")
-        } finally {
-            initialized = false
-        }
-    }
-
-    private fun initJKeyMaster() {
-        provider = Provider.getCurrentProvider(false)
-            ?: throw Exception("Hotkey provider unavailable")
-
-        registerHotkeys()
-    }
-
-    private fun registerHotkeys() {
-        val p = provider ?: return
-
-        p.register(KeyStroke.getKeyStroke("control Q")) {
-            if (hotkeysEnabled.get()) scope.launch { handleSelectedText(onShowQuickTranslate) }
-        }
-
-        p.register(KeyStroke.getKeyStroke("control E")) {
-            if (hotkeysEnabled.get()) scope.launch { handleSelectedText(onListenToText) }
-        }
-
-        p.register(KeyStroke.getKeyStroke("control I")) {
-            if (hotkeysEnabled.get()) onOpenSnippingTool()
-        }
-    }
-
-    private fun enableHotkeys() {
-        try {
-            provider?.reset()
-            registerHotkeys()
-        } catch (e: Exception) {
-            System.err.println("Enable hotkeys failed: ${e.message}")
-        }
-    }
-
-    private fun disableHotkeys() {
-        try {
-            provider?.reset()
-        } catch (e: Exception) {
-            System.err.println("Disable hotkeys failed: ${e.message}")
-        }
-    }
-
-    private fun initJNativeHook() {
-        try {
-            if (!nativeHookRegistered) {
-                GlobalScreen.registerNativeHook()
-                nativeHookRegistered = true
-            }
-            GlobalScreen.addNativeKeyListener(sequenceListener)
-        } catch (ex: NativeHookException) {
-            throw Exception("Native hook registration failed", ex)
-        }
-    }
-
-    private inner class CustomSequenceListener : NativeKeyListener {
-        private var lastCtrlTime = 0L
-        private val threshold = 400
-
-        override fun nativeKeyReleased(e: NativeKeyEvent) {
-            if (!hotkeysEnabled.get()) return
-            if (e.keyCode != NativeKeyEvent.VC_CONTROL) return
-
-            val now = System.currentTimeMillis()
-            if (now - lastCtrlTime < threshold) {
-                scope.launch { handleSelectedText(onShowApp) }
-            }
-            lastCtrlTime = now
-        }
-    }
-
-    private suspend fun handleSelectedText(callback: (String) -> Unit) {
-        if (!clipboardLock.compareAndSet(false, true)) return
-
-        try {
-            val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-            val original = runCatching { clipboard.getContents(null) }.getOrNull()
-            val originalText = original?.let {
-                runCatching { it.getTransferData(DataFlavor.stringFlavor).toString() }.getOrNull()
-            }
-
-            var text: String? = null
-
-            repeat(2) {
-                simulateCopy()
-                delay(50)
-                text = runCatching {
-                    if (clipboard.isDataFlavorAvailable(DataFlavor.stringFlavor)) {
-                        clipboard.getData(DataFlavor.stringFlavor).toString().trim()
-                    } else null
-                }.getOrNull()
-
-                if (!text.isNullOrEmpty()) return@repeat
-            }
-
-            if (text.isNullOrEmpty()) text = originalText ?: ""
-
-            callback(text)
-
-            original?.let { runCatching { clipboard.setContents(it, null) } }
-        } finally {
-            clipboardLock.set(false)
-        }
-    }
-
-    private fun simulateCopy() {
-        runCatching {
-            val robot = Robot()
-            robot.autoDelay = 20
-
-            robot.keyPress(KeyEvent.VK_CONTROL)
-            robot.keyPress(KeyEvent.VK_C)
-            robot.keyRelease(KeyEvent.VK_C)
-            robot.keyRelease(KeyEvent.VK_CONTROL)
-        }.onFailure {
-            System.err.println("Copy simulation failed: ${it.message}")
         }
     }
 }
