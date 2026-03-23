@@ -85,6 +85,12 @@ sealed interface MainIntent : UiIntent {
     /** User dismissed the quick translate popup. */
     data object HideQuickTranslate : MainIntent
 
+    /** User triggered inline translation — selected text will be replaced with its translation. */
+    data class ReplaceWithTranslation(val selectedText: String) : MainIntent
+
+    /** User cycled to the next available target language. */
+    data object CycleTargetLanguage : MainIntent
+
     /** User toggled the pin state of the quick translate popup. */
     data object ToggleQuickTranslateDialogPin : MainIntent
 }

@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
@@ -27,11 +28,18 @@ class KeyboardPanel(
         HotkeyAction.SHOW_MAIN_WINDOW,
         HotkeyAction.SHOW_QUICK_TRANSLATE,
         HotkeyAction.LISTEN_TO_TEXT,
-        HotkeyAction.OPEN_OCR
+        HotkeyAction.OPEN_OCR,
+        HotkeyAction.REPLACE_WITH_TRANSLATION,
+        HotkeyAction.CYCLE_TARGET_LANGUAGE
     )
 
-    // SHOW_MAIN_WINDOW = double-Ctrl via JNativeHook, cannot be recorded as KeyStroke
+    // Cannot be recorded — uses JNativeHook double-Ctrl sequence
     private val nonEditableActions = setOf(HotkeyAction.SHOW_MAIN_WINDOW)
+
+    // COL indices
+    private val COL_ACTION = 0
+    private val COL_HOTKEY = 1
+    private val COL_SCOPE  = 2
 
     init { buildUI() }
 
@@ -52,14 +60,16 @@ class KeyboardPanel(
         val model = object : DefaultTableModel(
             arrayOf(
                 localizationManager.getString("settings_hotkeys.column_action"),
-                localizationManager.getString("settings_hotkeys.column_hotkey")
+                localizationManager.getString("settings_hotkeys.column_hotkey"),
+                localizationManager.getString("settings_hotkeys.column_scope")
             ), 0
         ) {
             override fun isCellEditable(row: Int, column: Int) = false
+            override fun getColumnClass(col: Int) = String::class.java
         }
 
         actionOrder.forEach { action ->
-            model.addRow(arrayOf<Any>(actionDisplayName(action), ""))
+            model.addRow(arrayOf<Any>(actionDisplayName(action), "", scopeLabel(HotkeyScope.GLOBAL)))
         }
 
         table = JTable(model).apply {
@@ -70,16 +80,36 @@ class KeyboardPanel(
             setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
             putClientProperty("FlatLaf.style", "showCellFocusIndicator: false")
 
-            columnModel.getColumn(0).apply { preferredWidth = 220; minWidth = 160 }
-            columnModel.getColumn(1).apply {
-                preferredWidth = 160
-                minWidth       = 120
+            columnModel.getColumn(COL_ACTION).apply { preferredWidth = 200; minWidth = 150 }
+            columnModel.getColumn(COL_HOTKEY).apply {
+                preferredWidth = 150
+                minWidth       = 110
                 cellRenderer   = HotkeyColumnRenderer()
+            }
+            columnModel.getColumn(COL_SCOPE).apply {
+                preferredWidth = 90
+                minWidth       = 80
+                maxWidth       = 110
+                cellRenderer   = ScopeColumnRenderer()
             }
 
             addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent) {
-                    if (e.clickCount == 2 && selectedRow >= 0) onEditSelected()
+                    val row = rowAtPoint(e.point)
+                    val col = columnAtPoint(e.point)
+                    if (row < 0) return
+                    when {
+                        // Double-click hotkey column — open recorder
+                        col == COL_HOTKEY && e.clickCount == 2 -> {
+                            setRowSelectionInterval(row, row)
+                            onEditSelected()
+                        }
+                        // Single click scope column — toggle global/local
+                        col == COL_SCOPE -> {
+                            setRowSelectionInterval(row, row)
+                            onToggleScope(row)
+                        }
+                    }
                 }
             })
 
@@ -132,10 +162,10 @@ class KeyboardPanel(
 
         val result = HotkeyRecorderDialog.show(
             owner      = SwingUtilities.getWindowAncestor(this),
-            actionName = actionDisplayName(action),
+            action     = action,
             current    = current,
             localizer  = localizationManager
-        ) ?: return  // null = user cancelled
+        ) ?: return
 
         saveBinding(result)
     }
@@ -144,7 +174,18 @@ class KeyboardPanel(
         val row    = table.selectedRow.takeIf { it >= 0 } ?: return
         val action = actionOrder[row]
         if (action in nonEditableActions) return
-        saveBinding(HotkeyBinding(action = action, keyCode = 0, modifiers = 0))
+        // Keep existing scope when clearing
+        val existing = store.state.value.workingConfiguration.hotkeys.find { it.action == action }
+        saveBinding(HotkeyBinding(action = action, keyCode = 0, modifiers = 0, scope = existing?.scope ?: HotkeyScope.GLOBAL))
+    }
+
+    private fun onToggleScope(row: Int) {
+        val action = actionOrder[row]
+        if (action in nonEditableActions) return  // SHOW_MAIN_WINDOW always GLOBAL
+        val current = store.state.value.workingConfiguration.hotkeys.find { it.action == action }
+            ?: return
+        val newScope = if (current.scope == HotkeyScope.GLOBAL) HotkeyScope.LOCAL else HotkeyScope.GLOBAL
+        saveBinding(current.copy(scope = newScope))
     }
 
     private fun onResetAll() {
@@ -156,10 +197,7 @@ class KeyboardPanel(
             JOptionPane.WARNING_MESSAGE
         ) == JOptionPane.YES_OPTION
         if (!confirmed) return
-
-        store.dispatch(SettingsIntent.ToggleSetting {
-            it.copy(hotkeys = HotkeyBinding.DEFAULTS)
-        })
+        store.dispatch(SettingsIntent.ToggleSetting { it.copy(hotkeys = HotkeyBinding.DEFAULTS) })
     }
 
     private fun saveBinding(binding: HotkeyBinding) {
@@ -167,7 +205,6 @@ class KeyboardPanel(
             val updated = config.hotkeys.map { b ->
                 if (b.action == binding.action) binding else b
             }
-            // Add if action wasn't in the list (shouldn't happen with DEFAULTS)
             val final = if (updated.any { it.action == binding.action }) updated
             else updated + binding
             config.copy(hotkeys = final)
@@ -194,7 +231,8 @@ class KeyboardPanel(
             val model = table.model as DefaultTableModel
             actionOrder.forEachIndexed { row, action ->
                 val binding = c.hotkeys.find { it.action == action }
-                model.setValueAt(binding, row, 1)
+                model.setValueAt(binding, row, COL_HOTKEY)
+                model.setValueAt(scopeLabel(binding?.scope ?: HotkeyScope.GLOBAL), row, COL_SCOPE)
             }
 
             table.isEnabled = c.isGlobalHotkeysEnabled
@@ -207,10 +245,17 @@ class KeyboardPanel(
     // -------------------------------------------------------------------------
 
     private fun actionDisplayName(action: HotkeyAction): String = when (action) {
-        HotkeyAction.SHOW_MAIN_WINDOW     -> localizationManager.getString("settings_hotkeys.action_show_main")
-        HotkeyAction.SHOW_QUICK_TRANSLATE -> localizationManager.getString("settings_hotkeys.action_quick_translate")
-        HotkeyAction.LISTEN_TO_TEXT       -> localizationManager.getString("settings_hotkeys.action_listen")
-        HotkeyAction.OPEN_OCR             -> localizationManager.getString("settings_hotkeys.action_ocr")
+        HotkeyAction.SHOW_MAIN_WINDOW         -> localizationManager.getString("settings_hotkeys.action_show_main")
+        HotkeyAction.SHOW_QUICK_TRANSLATE     -> localizationManager.getString("settings_hotkeys.action_quick_translate")
+        HotkeyAction.LISTEN_TO_TEXT           -> localizationManager.getString("settings_hotkeys.action_listen")
+        HotkeyAction.OPEN_OCR                 -> localizationManager.getString("settings_hotkeys.action_ocr")
+        HotkeyAction.REPLACE_WITH_TRANSLATION -> localizationManager.getString("settings_hotkeys.action_replace")
+        HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizationManager.getString("settings_hotkeys.action_cycle_language")
+    }
+
+    private fun scopeLabel(scope: HotkeyScope): String = when (scope) {
+        HotkeyScope.GLOBAL -> localizationManager.getString("settings_hotkeys.scope_global")
+        HotkeyScope.LOCAL  -> localizationManager.getString("settings_hotkeys.scope_local")
     }
 
     private inner class HotkeyColumnRenderer : DefaultTableCellRenderer() {
@@ -245,6 +290,33 @@ class KeyboardPanel(
         }
     }
 
+    private inner class ScopeColumnRenderer : DefaultTableCellRenderer() {
+        init { horizontalAlignment = SwingConstants.CENTER }
+
+        override fun getTableCellRendererComponent(
+            t: JTable, value: Any?, sel: Boolean, focus: Boolean, row: Int, col: Int
+        ): Component {
+            super.getTableCellRendererComponent(t, value, sel, focus, row, col)
+            val action = actionOrder.getOrNull(row)
+            val label  = value as? String ?: ""
+
+            if (action in nonEditableActions) {
+                // SHOW_MAIN_WINDOW is always global — show muted
+                text       = label
+                foreground = UIManager.getColor("Label.disabledForeground")
+                font       = font.deriveFont(Font.ITALIC)
+            } else {
+                text       = label
+                foreground = if (sel) UIManager.getColor("Table.selectionForeground")
+                else     UIManager.getColor("Component.accentColor")
+                    ?: UIManager.getColor("Table.foreground")
+                font       = font.deriveFont(Font.PLAIN)
+                toolTipText = localizationManager.getString("settings_hotkeys.scope_toggle_hint")
+            }
+            return this
+        }
+    }
+
     companion object {
         fun formatBinding(binding: HotkeyBinding): String {
             if (!binding.hasBinding) return ""
@@ -265,18 +337,21 @@ class KeyboardPanel(
 
 object HotkeyRecorderDialog {
 
+    /**
+     * @param action  The action being recorded — passed explicitly so we can
+     *                create a new binding even when [current] is null.
+     * @param current Existing binding to pre-populate, or null for a fresh binding.
+     * @return The recorded [HotkeyBinding], or null if the user cancelled.
+     */
     fun show(
         owner: Window?,
-        actionName: String,
+        action: HotkeyAction,
         current: HotkeyBinding?,
         localizer: LocalizationManager
     ): HotkeyBinding? {
 
-        var capturedKeyCode  = current?.keyCode  ?: 0
-        var capturedModifiers = current?.modifiers ?: 0
-        var hasCapture       = current?.hasBinding ?: false
-
-        val action = current?.action ?: return null
+        var capturedKeyCode   = current?.keyCode   ?: 0
+        var capturedModifiers = current?.modifiers  ?: 0
 
         val dialog = JDialog(
             owner,
@@ -285,26 +360,30 @@ object HotkeyRecorderDialog {
         )
         dialog.defaultCloseOperation = JDialog.DISPOSE_ON_CLOSE
 
-        // ---- Labels ----
+        val actionName = when (action) {
+            HotkeyAction.SHOW_MAIN_WINDOW         -> localizer.getString("settings_hotkeys.action_show_main")
+            HotkeyAction.SHOW_QUICK_TRANSLATE     -> localizer.getString("settings_hotkeys.action_quick_translate")
+            HotkeyAction.LISTEN_TO_TEXT           -> localizer.getString("settings_hotkeys.action_listen")
+            HotkeyAction.OPEN_OCR                 -> localizer.getString("settings_hotkeys.action_ocr")
+            HotkeyAction.REPLACE_WITH_TRANSLATION -> localizer.getString("settings_hotkeys.action_replace")
+            HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizer.getString("settings_hotkeys.action_cycle_language")
+        }
+
         val promptLabel = JLabel(
-            "<html><center>${localizer.getString("settings_hotkeys.recorder_prompt")}<br>" +
-                    "<b>$actionName</b></center></html>",
+            "<html><center>${localizer.getString("settings_hotkeys.recorder_prompt")}<br><b>$actionName</b></center></html>",
             SwingConstants.CENTER
         ).apply {
             border     = BorderFactory.createEmptyBorder(20, 24, 16, 24)
             alignmentX = Component.CENTER_ALIGNMENT
         }
 
-        // ---- Input field — the capture sink ----
         val inputField = JTextField(
             if (current?.hasBinding == true) KeyboardPanel.formatBinding(current) else ""
         ).apply {
             font                = font.deriveFont(Font.BOLD, font.size + 4f)
             horizontalAlignment = JTextField.CENTER
             border = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(
-                    UIManager.getColor("Component.borderColor") ?: Color.GRAY
-                ),
+                BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor") ?: Color.GRAY),
                 BorderFactory.createEmptyBorder(10, 16, 10, 16)
             )
         }
@@ -319,10 +398,7 @@ object HotkeyRecorderDialog {
             alignmentX = Component.CENTER_ALIGNMENT
         }
 
-        // ---- Buttons ----
-        val okButton = JButton(localizer.getString("common.ok")).apply {
-            isEnabled = current?.hasBinding ?: false
-        }
+        val okButton     = JButton(localizer.getString("common.ok")).apply { isEnabled = current?.hasBinding ?: false }
         val cancelButton = JButton(localizer.getString("common.cancel"))
 
         var confirmed = false
@@ -330,10 +406,8 @@ object HotkeyRecorderDialog {
         cancelButton.addActionListener { confirmed = false; dialog.dispose() }
         dialog.rootPane.defaultButton = okButton
 
-        // ---- Key capture ----
         inputField.addKeyListener(object : KeyAdapter() {
             override fun keyPressed(e: KeyEvent) {
-                // Consume immediately — prevent any text from appearing
                 e.consume()
 
                 if (e.keyCode == KeyEvent.VK_ESCAPE) {
@@ -342,33 +416,22 @@ object HotkeyRecorderDialog {
                     return
                 }
 
-                // Ignore bare modifier presses — need an actual key
                 if (e.keyCode in setOf(
                         KeyEvent.VK_CONTROL, KeyEvent.VK_SHIFT,
-                        KeyEvent.VK_ALT, KeyEvent.VK_META,
-                        KeyEvent.VK_ALT_GRAPH
+                        KeyEvent.VK_ALT, KeyEvent.VK_META, KeyEvent.VK_ALT_GRAPH
                     )) return
 
-                // Store raw integers — no string conversion at all
                 capturedKeyCode   = e.keyCode
                 capturedModifiers = e.modifiersEx
-                hasCapture        = true
 
-                // Build a temporary binding just for display
-                val preview = HotkeyBinding(
-                    action    = action,
-                    keyCode   = capturedKeyCode,
-                    modifiers = capturedModifiers
-                )
+                val preview = HotkeyBinding(action = action, keyCode = capturedKeyCode, modifiers = capturedModifiers)
                 inputField.text    = KeyboardPanel.formatBinding(preview)
                 okButton.isEnabled = true
             }
 
-            // Swallow keyTyped so no character ever gets inserted
             override fun keyTyped(e: KeyEvent) { e.consume() }
         })
 
-        // ---- Layout ----
         val mainPanel = JPanel(BorderLayout(0, 0)).apply {
             border = BorderFactory.createEmptyBorder(0, 12, 0, 12)
             add(promptLabel, BorderLayout.NORTH)
@@ -376,24 +439,19 @@ object HotkeyRecorderDialog {
             add(hintLabel,   BorderLayout.SOUTH)
         }
 
-        val buttonsPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 8)).apply {
-            add(cancelButton)
-            add(okButton)
-        }
-
-        dialog.contentPane.add(mainPanel,     BorderLayout.CENTER)
-        dialog.contentPane.add(buttonsPanel,  BorderLayout.SOUTH)
+        dialog.contentPane.add(mainPanel, BorderLayout.CENTER)
+        dialog.contentPane.add(JPanel(FlowLayout(FlowLayout.RIGHT, 8, 8)).apply {
+            add(cancelButton); add(okButton)
+        }, BorderLayout.SOUTH)
 
         dialog.addWindowListener(object : WindowAdapter() {
-            override fun windowOpened(e: WindowEvent) {
-                inputField.requestFocusInWindow()
-            }
+            override fun windowOpened(e: WindowEvent) { inputField.requestFocusInWindow() }
         })
 
         dialog.pack()
         dialog.minimumSize = Dimension(340, dialog.preferredSize.height)
         dialog.setLocationRelativeTo(owner)
-        dialog.isVisible = true  // blocks until disposed
+        dialog.isVisible = true
 
         if (!confirmed) return null
 
@@ -401,7 +459,8 @@ object HotkeyRecorderDialog {
             action    = action,
             keyCode   = capturedKeyCode,
             modifiers = capturedModifiers,
-            isEnabled = true
+            isEnabled = current?.isEnabled ?: true,
+            scope     = current?.scope ?: HotkeyScope.GLOBAL
         )
     }
 }

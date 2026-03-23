@@ -17,6 +17,12 @@ sealed interface MainEvent : UiEvent {
      *   [com.github.ahatem.qtranslate.core.shared.AppConstants.STATUS_MESSAGE_DURATION_MS].
      *   If `false`, it persists until replaced by the next status update.
      */
+    /**
+     * Instructs the UI to paste [translatedText] back, replacing the previously
+     * selected text. Emitted after [MainIntent.ReplaceWithTranslation] completes.
+     */
+    data class PasteTranslation(val translatedText: String) : MainEvent
+
     data class UpdateStatusBar(
         val message: String,
         val type: NotificationType = NotificationType.INFO,

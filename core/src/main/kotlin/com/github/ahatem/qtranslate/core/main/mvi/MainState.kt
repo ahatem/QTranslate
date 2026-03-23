@@ -46,7 +46,9 @@ data class MainState(
     val historyIndex: Int = 0,
     val spellCheckCorrections: List<Correction> = emptyList(),
     val isQuickTranslateDialogVisible: Boolean = false,
-    val isQuickTranslateDialogPinned: Boolean = false
+    val isQuickTranslateDialogPinned: Boolean = false,
+    /** True while a silent background translation for inline replace is running. */
+    val isReplacingSelection: Boolean = false
 ) : UiState {
 
     /** `true` when [sourceLanguage] is [LanguageCode.AUTO]. */

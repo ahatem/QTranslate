@@ -130,8 +130,14 @@ class MainStore(
 
             // ---- Synchronous state mutations — no coroutine needed ----
 
-            is MainIntent.UpdateInputText ->
-                _state.update { it.copy(inputText = intent.text, detectedSourceLanguage = null) }
+            is MainIntent.UpdateInputText -> {
+                // Remove line breaks if enabled — replaces \n with space so
+                // PDF-copied text translates as complete sentences (Mohamed's request)
+                val cleaned = if (settingsState.value.isRemoveLineBreaksEnabled)
+                    intent.text.replace("\n", " ").replace("\r", "").replace("  ", " ").trim()
+                else intent.text
+                _state.update { it.copy(inputText = cleaned, detectedSourceLanguage = null) }
+            }
 
             is MainIntent.SelectSourceLanguage ->
                 _state.update { it.copy(sourceLanguage = intent.language, detectedSourceLanguage = null) }
@@ -152,6 +158,7 @@ class MainStore(
 
             MainIntent.UndoTranslation -> handleUndo()
             MainIntent.RedoTranslation -> handleRedo()
+            MainIntent.CycleTargetLanguage -> handleCycleTargetLanguage()
 
             // ---- Async operations — launched on scope ----
 
@@ -162,6 +169,10 @@ class MainStore(
             }
 
             is MainIntent.Translate -> scope.launch { translateText(intent.text) }
+
+            is MainIntent.ReplaceWithTranslation -> scope.launch {
+                handleReplaceWithTranslation(intent.selectedText)
+            }
 
             is MainIntent.ListenToText -> scope.launch {
                 handleListen(intent.textSource, intent.text)
@@ -323,6 +334,35 @@ class MainStore(
                 )
             }
         }
+    }
+
+    private suspend fun handleReplaceWithTranslation(selectedText: String) {
+        if (selectedText.isBlank()) return
+        // isReplacingSelection=true tells the LoadingIndicator observer to show
+        // even when the main window is visible. focusableWindowState=false on
+        // LoadingIndicator means it never steals focus from the source app.
+        _state.update { it.copy(inputText = selectedText, isReplacingSelection = true) }
+        translateTextUseCase(
+            getState       = { _state.value },
+            updateState    = { transform -> _state.update(transform) },
+            onStatusUpdate = ::updateStatusBar,
+            textOverride   = selectedText
+        )
+        val result = _state.value.translatedText
+        _state.update { it.copy(isReplacingSelection = false) }
+        if (result.isNotBlank()) {
+            _eventChannel.send(MainEvent.PasteTranslation(result))
+        }
+    }
+
+    private fun handleCycleTargetLanguage() {
+        val languages = _state.value.availableLanguages
+            .filter { it != com.github.ahatem.qtranslate.api.language.LanguageCode.AUTO }
+        if (languages.isEmpty()) return
+        val current = _state.value.targetLanguage
+        val currentIdx = languages.indexOf(current)
+        val nextIdx = (currentIdx + 1) % languages.size
+        _state.update { it.copy(targetLanguage = languages[nextIdx]) }
     }
 
     // -------------------------------------------------------------------------

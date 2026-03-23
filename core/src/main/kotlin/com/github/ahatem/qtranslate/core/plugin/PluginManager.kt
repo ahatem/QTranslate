@@ -15,6 +15,7 @@ import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
+import com.github.ahatem.qtranslate.core.shared.notification.AppNotification
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
 import kotlinx.coroutines.Dispatchers
@@ -121,13 +122,56 @@ class PluginManager(
                 }.joinAll()
             }
 
-            val enabled = registry.mutex.withLock {
-                registry.getAll().count { it.status == PluginStatus.ENABLED }
-            }
+            val allPlugins = registry.mutex.withLock { registry.getAll() }
+            val enabled = allPlugins.count { it.status == PluginStatus.ENABLED }
             logger.info(
-                "Plugin loading complete: ${registry.mutex.withLock { registry.getAll().size }} total, " +
-                        "$enabled enabled."
+                "Plugin loading complete: ${allPlugins.size} total, $enabled enabled."
             )
+
+            // Surface load failures and JAR-change warnings to the UI via NotificationBus.
+            // Errors that happened during validateAndFilter are in loadResult.failed —
+            // those plugins never made it into the registry so we report them separately.
+            loadResult.failed.forEach { error ->
+                notificationBus.post(
+                    AppNotification(
+                        type         = com.github.ahatem.qtranslate.api.plugin.NotificationType.ERROR,
+                        title        = "Plugin failed to load",
+                        body         = "${error.pluginId}: ${error.message}",
+                        sourcePluginId = error.pluginId
+                    )
+                )
+            }
+
+            // Plugins that loaded but are paused pending user confirmation
+            allPlugins.filter { it.status == PluginStatus.AWAITING_VERIFICATION }.forEach { container ->
+                notificationBus.post(
+                    AppNotification(
+                        type           = com.github.ahatem.qtranslate.api.plugin.NotificationType.WARNING,
+                        title          = "Plugin update detected",
+                        body           = "${container.id}: JAR has changed — open Plugin Manager to verify.",
+                        sourcePluginId = container.id
+                    )
+                )
+            }
+
+            // First-run / no plugins: guide the user
+            if (allPlugins.isEmpty()) {
+                notificationBus.post(
+                    AppNotification(
+                        type  = com.github.ahatem.qtranslate.api.plugin.NotificationType.WARNING,
+                        title = "No plugins found",
+                        body  = "Drop plugin JARs into the plugins folder and restart, or install via Plugin Manager."
+                    )
+                )
+            } else if (enabled == 0) {
+                notificationBus.post(
+                    AppNotification(
+                        type  = com.github.ahatem.qtranslate.api.plugin.NotificationType.WARNING,
+                        title = "No services active",
+                        body  = "All plugins are disabled or failed. Open Plugin Manager to enable them."
+                    )
+                )
+            }
         }
 
         updateFlows()

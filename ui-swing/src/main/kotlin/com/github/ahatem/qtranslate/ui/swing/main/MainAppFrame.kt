@@ -11,6 +11,7 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
@@ -47,7 +48,8 @@ class MainAppFrame(
     private val iconManager: IconManager,
     private val themeManager: ThemeManager,
     private val pluginManager: PluginManager,
-    private val localizer: LocalizationManager
+    private val localizer: LocalizationManager,
+    private val notificationBus: com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
 ) : JFrame("QTranslate") {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("MainAppFrame"))
@@ -111,8 +113,18 @@ class MainAppFrame(
         onShowQuickTranslate = { text ->
             appScope.launch { mainStore.dispatch(MainIntent.ShowQuickTranslate(text)) }
         },
-        onListenToText = { text -> mainStore.dispatch(MainIntent.ListenToText(TextSource.Input, text)) },
-        onOpenSnippingTool = { openSnippingTool() }
+        onListenToText = { text ->
+            mainStore.dispatch(MainIntent.ListenToText(TextSource.Input, text))
+        },
+        onOpenSnippingTool = { openSnippingTool() },
+        // Rob #2 / Davide — translate selected text and replace it in-place
+        onReplaceWithTranslation = { text ->
+            mainStore.dispatch(MainIntent.ReplaceWithTranslation(text))
+        },
+        // Yan #3 — cycle target language without touching the mouse
+        onCycleTargetLanguage = {
+            mainStore.dispatch(MainIntent.CycleTargetLanguage)
+        }
     )
 
     private val statusBarController = StatusBarController(
@@ -207,7 +219,18 @@ class MainAppFrame(
                 .collect { (mainState, settingsState) ->
                     withContext(Dispatchers.Swing) {
                         try {
-                            mainContentView.render(mainState, settingsState)
+                            // Filter available languages by pinned list (Yan's request).
+                            // If pinnedLanguages is empty, show all languages.
+                            val filteredState = run {
+                                val pinned = settingsState.workingConfiguration.pinnedLanguages
+                                if (pinned.isEmpty()) mainState
+                                else mainState.copy(
+                                    availableLanguages = mainState.availableLanguages.filter {
+                                        it.tag == "auto" || it.tag in pinned
+                                    }
+                                )
+                            }
+                            mainContentView.render(filteredState, settingsState)
 
                             if (mainState.isQuickTranslateDialogVisible || quickTranslateDialog.isVisible) {
                                 val dialogState = mapToQuickTranslateState(
@@ -224,14 +247,17 @@ class MainAppFrame(
                 }
         }
 
-        // Loading indicator for quick translate dialog
+        // Loading indicator — show when:
+        // a) quick translate is loading (main window hidden, no dialog visible), OR
+        // b) replace-with-translation is running (main window may be visible, but
+        //    LoadingIndicator.focusableWindowState=false so it never steals focus)
         appScope.launch(handler) {
             mainStore.state
-                .map { it.isLoading to it.isQuickTranslateDialogVisible }
+                .map { Triple(it.isLoading, it.isQuickTranslateDialogVisible, it.isReplacingSelection) }
                 .distinctUntilChanged()
-                .collect { (isLoading, isDialogVisible) ->
+                .collect { (isLoading, isDialogVisible, isReplacing) ->
                     withContext(Dispatchers.Swing) {
-                        val shouldShow = isLoading && !isVisible && !isDialogVisible
+                        val shouldShow = isLoading && (!isVisible && !isDialogVisible || isReplacing)
                         loadingIndicator.render(LoadingIndicatorState(isVisible = shouldShow))
                     }
                 }
@@ -248,17 +274,38 @@ class MainAppFrame(
                 }
         }
 
+        // Paste translation back — replaces selected text with the translation result
+        appScope.launch(handler) {
+            mainStore.events
+                .filterIsInstance<MainEvent.PasteTranslation>()
+                .collect { event ->
+                    if (event.translatedText.isNotBlank()) {
+                        pasteTextToActiveApp(event.translatedText)
+                    }
+                }
+        }
+
+        // Plugin and system notifications — routed to the status bar
+        appScope.launch(handler) {
+            notificationBus.notifications.collect { notification ->
+                withContext(Dispatchers.Swing) {
+                    statusBarController.handleNotification(notification)
+                }
+            }
+        }
+
         // Hotkey binding changes — re-register whenever saved config changes
         appScope.launch(handler) {
             settingsStore.state
                 .map { it.originalConfiguration.hotkeys }
                 .distinctUntilChanged()
-                .drop(1) // skip initial — already applied above in init
+                .drop(1)
                 .collect { bindings ->
                     globalKeyListener.updateBindings(bindings)
                     globalKeyListener.setHotkeysEnabled(
                         settingsStore.state.value.originalConfiguration.isGlobalHotkeysEnabled
                     )
+                    withContext(Dispatchers.Swing) { registerLocalHotkeys() }
                 }
         }
 
@@ -278,6 +325,60 @@ class MainAppFrame(
                         applyOrientation(localizer.isRtl)
                     }
                 }
+        }
+    }
+
+    /**
+     * Registers LOCAL-scope hotkeys via Swing InputMap/ActionMap.
+     * These only fire when QTranslate has focus — they never intercept keys
+     * from other applications. Called after globalKeyListener.initialize() and
+     * whenever bindings change (Dinar's per-action scope request).
+     */
+    private fun registerLocalHotkeys() {
+        // Clear previous local registrations
+        rootPane.inputMap.clear()
+        rootPane.actionMap.clear()
+
+        globalKeyListener.getLocalBindings().forEach { binding ->
+            val keyStroke = binding.toKeyStroke() ?: return@forEach
+            val actionKey = "localHotkey_${binding.action.name}"
+            rootPane.inputMap.put(keyStroke, actionKey)
+            rootPane.actionMap.put(actionKey, object : javax.swing.AbstractAction() {
+                override fun actionPerformed(e: java.awt.event.ActionEvent) {
+                    globalKeyListener.dispatchAction(binding.action)
+                }
+            })
+        }
+    }
+
+    /**
+     * Pastes [text] back into the source application, replacing the selected text.
+     *
+     * The global hotkey fires from jKeymaster on a background thread — at that
+     * point the source app (browser, editor, etc.) still has OS focus because
+     * QTranslate never opened a window. We must NOT show any window here.
+     * The sequence is simply:
+     * 1. Put translated text on clipboard
+     * 2. Small delay for the translation coroutine to complete
+     * 3. Simulate Ctrl+V — source app still has focus, paste lands correctly
+     */
+    private fun pasteTextToActiveApp(text: String) {
+        appScope.launch {
+            runCatching {
+                delay(150) // let any in-flight UI work settle
+
+                val clipboard = java.awt.Toolkit.getDefaultToolkit().systemClipboard
+                clipboard.setContents(java.awt.datatransfer.StringSelection(text), null)
+
+                val robot = java.awt.Robot()
+                robot.autoDelay = 20
+                robot.keyPress(java.awt.event.KeyEvent.VK_CONTROL)
+                robot.keyPress(java.awt.event.KeyEvent.VK_V)
+                robot.keyRelease(java.awt.event.KeyEvent.VK_V)
+                robot.keyRelease(java.awt.event.KeyEvent.VK_CONTROL)
+            }.onFailure {
+                System.err.println("Failed to paste translation: ${it.message}")
+            }
         }
     }
 
@@ -607,6 +708,7 @@ class MainAppFrame(
                 globalKeyListener.initialize()
                 val config = settingsStore.state.value.workingConfiguration
                 globalKeyListener.setHotkeysEnabled(config.isGlobalHotkeysEnabled)
+                registerLocalHotkeys()
             }
 
             override fun windowClosed(e: WindowEvent?) {
@@ -622,7 +724,7 @@ class MainAppFrame(
             isVisible = true,
             title = localizer.getString("about_dialog.title"),
             appName = "QTranslate",
-            versionText = localizer.getString("common.version", "2.0.0"),
+            versionText = localizer.getString("common.version", AppConstants.APP_VERSION),
             descriptionHtml = localizer.getString("about_dialog.description"),
             websiteUrl = "https://github.com/ahatem/qtranslate",
             icon = iconManager.getIcon("icons/app/128.png", 32, 32),
@@ -645,13 +747,26 @@ class MainAppFrame(
 
         fun handleEvent(event: MainEvent.UpdateStatusBar) {
             clearMessageJob?.cancel()
-
             renderMessage(event.message, event.type)
-
             if (event.isTemporary) {
                 clearMessageJob = scope.launch {
                     delay(AppConstants.STATUS_MESSAGE_DURATION_MS)
                     if (statusBar.text() == event.message) {
+                        renderMessage(defaultMessage, NotificationType.INFO)
+                    }
+                }
+            }
+        }
+
+        fun handleNotification(notification: com.github.ahatem.qtranslate.core.shared.notification.AppNotification) {
+            clearMessageJob?.cancel()
+            // Show body in status bar; title is shown as tooltip via the notification button
+            renderMessage(notification.body, notification.type)
+            // Plugin notifications are persistent — don't auto-clear errors or warnings
+            if (notification.type == NotificationType.INFO) {
+                clearMessageJob = scope.launch {
+                    delay(AppConstants.STATUS_MESSAGE_DURATION_MS)
+                    if (statusBar.text() == notification.body) {
                         renderMessage(defaultMessage, NotificationType.INFO)
                     }
                 }
