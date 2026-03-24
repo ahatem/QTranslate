@@ -45,18 +45,18 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 <table>
 <tr>
 <td align="center" width="50%">
-<img src="docs/images/screenshot-ocr.png" alt="OCR" width="340"><br>
-<sub><b>Screen OCR</b> — draw a region, extract and translate the text inside</sub>
-</td>
-<td align="center" width="50%">
 <img src="docs/images/screenshot-extra-output.png" alt="Extra output panel" width="340"><br>
 <sub><b>Extra output panel</b> — backward translation, summary, or rewrite alongside the main result</sub>
+</td>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-rtl.png" alt="RTL layout" width="340"><br>
+<sub><b>RTL support</b> — full layout mirroring for Arabic, Hebrew, Farsi</sub>
 </td>
 </tr>
 <tr>
 <td align="center" width="50%">
-<img src="docs/images/screenshot-rtl.png" alt="RTL layout" width="340"><br>
-<sub><b>RTL support</b> — full layout mirroring for Arabic, Hebrew, Farsi</sub>
+<img src="docs/images/screenshot-light.png" alt="Light theme" width="340"><br>
+<sub><b>Light theme</b> — fully themeable with FlatLaf, dark and light</sub>
 </td>
 <td align="center" width="50%">
 <img src="docs/images/screenshot-plugins.png" alt="Plugin manager" width="340"><br>
