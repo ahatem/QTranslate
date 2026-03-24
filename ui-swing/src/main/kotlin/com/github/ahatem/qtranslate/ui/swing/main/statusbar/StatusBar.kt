@@ -41,6 +41,7 @@ class StatusBar(
     }
 
     override fun render(state: StatusBarState) {
+        border = MatteBorder(1, 0, 0, 0, UIManager.getColor("Component.borderColor"))
         statusLabel.text = state.message
 
         statusLabel.foreground = when (state.type) {
