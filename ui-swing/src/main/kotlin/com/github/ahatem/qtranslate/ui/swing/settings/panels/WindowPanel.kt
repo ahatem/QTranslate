@@ -15,7 +15,7 @@ class WindowPanel(
 ) : SettingsPanel() {
 
     private val layouts = LayoutManager.getAvailableLayouts().map {
-        LayoutInfo(it.id, it.id.replaceFirstChar { c -> c.uppercase() })
+        LayoutInfo(it.id, localizationManager.getString(it.localizeId))
     }
 
     private lateinit var layoutCombo: JComboBox<LayoutInfo>
