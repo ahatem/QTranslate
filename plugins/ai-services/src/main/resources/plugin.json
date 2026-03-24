@@ -1,0 +1,9 @@
+{
+  "id": "ai-plugin",
+  "name": "AI Services",
+  "version": "1.0.0",
+  "author": "Ahmed Hatem",
+  "description": "Provides Translation, Summarization, Rewriting, and Spell Checking via any OpenAI-compatible AI provider (Gemini, OpenAI, Mistral, Anthropic).",
+  "minApiVersion": "1.0.0",
+  "icon": "assets/ai-icon.svg"
+}
