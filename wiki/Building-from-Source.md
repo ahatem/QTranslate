@@ -30,7 +30,11 @@ If you want to contribute, fork first and clone your fork instead.
 ## Build all modules
 
 ```bash
+# macOS / Linux
 ./gradlew build
+
+# Windows
+gradlew.bat build
 ```
 
 This compiles `:api`, `:core`, `:ui-swing`, `:app`, and the bundled plugins. On first run it downloads dependencies, which may take a minute.
@@ -114,7 +118,7 @@ qtranslate/
 Your Java version is too old. Run `java -version` and make sure it's 11 or later.
 
 **Build fails on `ui-swing`**
-This module requires the FlatLaf dependencies from `sonatype-snapshots`. Make sure you have internet access and the snapshot repos are reachable (listed in `ui-swing/build.gradle.kts`).
+Make sure you have internet access — FlatLaf and other dependencies are downloaded from Maven Central on first build. If you are behind a proxy, configure it in `~/.gradle/gradle.properties`.
 
 **`There are multiple DataStores active for the same file`**
 You have two run configurations pointing at the same `appData` directory. Use a different directory per configuration, or stop the first instance before starting the second.

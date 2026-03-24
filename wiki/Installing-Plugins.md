@@ -1,6 +1,6 @@
 # Installing Plugins
 
-Plugins extend QTranslate with new translation engines, OCR providers, TTS services, and more. They are standard JAR files that you install at runtime — no restart required.
+Plugins extend QTranslate with new translation engines, OCR providers, TTS services, and more. They are standard JAR files that you install through the Settings panel.
 
 ---
 
@@ -71,9 +71,6 @@ Check the error message in the plugin detail panel. Common causes:
 
 **Plugin installed but services don't appear in the dropdowns**
 Go to **Settings → Services & Presets** and check the dropdowns — the service may be there but not assigned to your active preset.
-
-**Plugin requires a dependency JAR**
-Some plugins document additional JARs they need. Install those the same way — via **Install Plugin…**.
 
 ---
 

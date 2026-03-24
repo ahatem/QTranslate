@@ -45,7 +45,7 @@ git pull upstream develop
 git checkout -b feature/my-feature-name
 
 # 2. Make your changes, commit often
-git add -p                          # stage changes interactively
+git add .                           # stage everything
 git commit -m "feat(core): add X"
 
 # 3. Keep your branch up to date if develop moves on
@@ -103,7 +103,7 @@ We don't enforce a strict formatter, but please follow these conventions:
 
 | Module | Can import | Cannot import |
 |--------|-----------|---------------|
-| `:api` | stdlib, coroutines interfaces, kotlin-result | `:core`, `:ui-swing`, Swing |
+| `:api` | stdlib, kotlinx-coroutines (for suspend), kotlin-result | `:core`, `:ui-swing`, Swing |
 | `:core` | `:api`, kotlinx, DataStore, Ktor | `:ui-swing`, Swing |
 | `:ui-swing` | `:api`, `:core`, Swing, FlatLaf | `:app` |
 | `:app` | everything | — |
@@ -166,16 +166,4 @@ If you have write access, please review PRs within a few days. When reviewing:
 
 ## Release process (maintainers)
 
-1. Merge all ready PRs into `develop`
-2. Update `CHANGELOG.md` — move items from `[Unreleased]` to a new versioned section
-3. PR `develop` → `main`, title: `release: v1.x.0`
-4. Merge the PR
-5. Tag `main`:
-   ```bash
-   git checkout main
-   git pull
-   git tag v1.x.0
-   git push origin v1.x.0
-   ```
-6. The release workflow fires automatically, builds the JAR, and creates the GitHub Release
-7. Check the release page and edit the notes if needed
+See [GITHUB_GUIDE.md — Part 5](https://github.com/ahatem/qtranslate/blob/main/GITHUB_GUIDE.md#part-5--releasing-a-version) for the full release process.

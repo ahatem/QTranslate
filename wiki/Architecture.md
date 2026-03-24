@@ -31,7 +31,7 @@ QTranslate is structured around Clean Architecture with an MVI (Model-View-Inten
 └─────────────────────────────────────────────┘
 ```
 
-**Dependency rule:** lower layers never import from upper layers. `:core` has no Swing imports. `:api` has no Coroutines imports (except what it needs for its own interfaces). Plugins only import `:api`.
+**Dependency rule:** lower layers never import from upper layers. `:core` has no Swing imports. `:api` imports only what its own interfaces need (coroutines for suspend functions, kotlin-result for `Result`). Plugins only import `:api`.
 
 ---
 
@@ -127,6 +127,53 @@ Expected failures (network errors, invalid API keys, parse failures) are returne
 - `RateLimitError` — API quota exceeded (retryable)
 - `InvalidResponseError` — unexpected API response format
 - `UnknownError` — catch-all for unexpected failures
+
+---
+
+## Settings — draft and commit
+
+`SettingsStore` maintains two copies of the configuration:
+- **Saved** — the persisted configuration loaded from DataStore on startup
+- **Working draft** — an in-memory copy the user edits in the settings dialog
+
+`UpdateDraft` intents mutate the working draft without touching the saved config. `SaveChanges` persists the draft. `CancelChanges` discards it and reverts to the saved copy. This means the user can freely edit settings and cancel without any side effects — nothing is written to disk until they explicitly save.
+
+`applyDraft(store) { it.copy(...) }` is the correct way to update the draft from a settings panel. It reads the current working draft atomically and dispatches `UpdateDraft` with the result — avoids stale reads when two fields change in rapid succession.
+
+---
+
+## RTL support
+
+QTranslate mirrors its entire layout for RTL languages (Arabic, Hebrew, Farsi, etc.). The mechanism:
+
+1. `LocalizationManager` exposes `isRtl: Boolean` based on the active language's `[meta] rtl = true` field
+2. On language change, `MainAppFrame` calls `applyComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT)` on the root pane — Swing propagates this down the component tree
+3. Layout managers that respect orientation (`BorderLayout.LINE_START/LINE_END`, `FlowLayout.LEADING/TRAILING`, `GridBagConstraints.LINE_START`) flip automatically
+4. `LayoutManager.switchLayout(id, isRtl)` rebuilds the main content layout, passing `isRtl` so `SideBySideLayout` swaps the input/output panel positions
+
+The key rule: never use absolute constants (`WEST`, `EAST`, `LEFT`, `RIGHT`) in layout code — always use orientation-relative ones (`LINE_START`, `LINE_END`, `LEADING`, `TRAILING`).
+
+---
+
+## Hotkey system
+
+Hotkeys are data-driven — stored in `Configuration.hotkeys` as `List<HotkeyBinding>`. Each binding holds a `keyCode`, `modifiers`, `HotkeyAction`, and `HotkeyScope`.
+
+`HotkeyScope` controls where the hotkey fires:
+- `GLOBAL` — registered with jKeymaster, fires system-wide even when QTranslate is not focused
+- `LOCAL` — registered via Swing `InputMap`/`ActionMap`, fires only when QTranslate has focus
+
+`MainGlobalKeyListener` splits bindings by scope: GLOBAL bindings go to jKeymaster, LOCAL bindings are returned via `getLocalBindings()` for `MainAppFrame` to register on the `rootPane`.
+
+`SHOW_MAIN_WINDOW` is special — it uses a double-Ctrl sequence via JNativeHook, not a standard KeyStroke.
+
+---
+
+## Notification system
+
+`NotificationBus` is a `SharedFlow`-based pub/sub channel for cross-component notifications. `PluginManager` posts to it when plugins fail to load, need verification, or when no plugins are found at all. `MainAppFrame` subscribes and routes messages to the status bar via `StatusBarController.handleNotification()`.
+
+This keeps `PluginManager` decoupled from the UI — it posts a domain notification, not a UI event.
 
 ---
 
