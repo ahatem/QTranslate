@@ -1,7 +1,5 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
-import com.github.ahatem.qtranslate.core.settings.data.Configuration
-import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import java.awt.*
 import javax.swing.*
 
@@ -77,23 +75,6 @@ enum class LayoutType(val localizeId: String) {
     COMPACT("layout_preset_compact");
 
     val id: String = name.lowercase()
-}
-
-interface LayoutStrategy {
-    val type: LayoutType
-    val id: String get() = type.id
-    val localizeId: String get() = type.localizeId
-    fun arrange(components: ComponentRegistry, isRtl: Boolean = false): ArrangedLayout
-}
-
-object UISpacing {
-    const val PADDING = 12 // Padding for the main window frame
-    const val H_GAP = 12 // Horizontal gap for content
-    const val V_GAP = 8  // Vertical gap between stacked components
-    const val DIVIDER_SIZE = 8
-    const val MIN_PANEL_HEIGHT = 150
-    const val MIN_PANEL_WIDTH = 200
-    const val MIN_EXTRA_HEIGHT = 100
 }
 
 object LayoutBuilders {
@@ -332,65 +313,3 @@ object CompactLayout : LayoutStrategy {
     }
 }
 
-class LayoutManager(
-    private val components: ComponentRegistry,
-    private val container: JPanel
-) {
-    private var currentLayout: ArrangedLayout? = null
-    private var currentLayoutId: String? = null
-
-    companion object {
-        private val strategies = listOf(ClassicLayout, SideBySideLayout, CompactLayout)
-        fun getAvailableLayouts(): List<LayoutStrategy> = strategies
-    }
-
-    fun getLayoutById(id: String): LayoutStrategy {
-        return strategies.find { it.id == id } ?: ClassicLayout
-    }
-
-    private var currentIsRtl: Boolean = false
-
-    fun switchLayout(layoutId: String, isRtl: Boolean = currentIsRtl) {
-        currentIsRtl = isRtl
-        if (layoutId == currentLayoutId) return
-        SwingUtilities.invokeLater {
-            detachAll()
-            container.removeAll()
-
-            val strategy = getLayoutById(layoutId)
-            val arranged = strategy.arrange(components, isRtl)
-            container.add(arranged.rootComponent, BorderLayout.CENTER)
-            currentLayout = arranged
-            currentLayoutId = layoutId
-            arranged.componentRefs.syncExtraOutputState(components.extraOutputPanel)
-            container.revalidate()
-            container.repaint()
-        }
-    }
-
-    private fun detachAll() {
-        listOf(
-            components.historyBar,
-            components.inputPanel,
-            components.languageBar,
-            components.outputPanel,
-            components.extraOutputPanel,
-            components.translatorSelector,
-            components.statusBar
-        ).forEach { it.parent?.remove(it) }
-    }
-
-    fun updateVisibility(config: Configuration) {
-        SwingUtilities.invokeLater {
-            if (currentLayoutId == null) return@invokeLater
-
-            components.historyBar.isVisible = config.toolbarVisibility.isHistoryBarVisible
-            components.translatorSelector.isVisible = config.toolbarVisibility.isServicesPanelVisible
-            components.languageBar.isVisible = config.toolbarVisibility.isLanguageBarVisible
-            components.statusBar.isVisible = config.toolbarVisibility.isStatusBarVisible
-
-            val showExtra = config.extraOutputType != ExtraOutputType.None
-            currentLayout?.componentRefs?.updateExtraOutputVisibility(showExtra, components.extraOutputPanel)
-        }
-    }
-}
