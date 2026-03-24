@@ -1,0 +1,370 @@
+# ===================================================================
+# META SECTION
+# ===================================================================
+[meta]
+name = "Chinese (Simplified)"
+native_name = "简体中文"
+locale = "zh-CN"
+version = "1.0.0"
+author = "QTranslate Team <ahatem925@gmail.com>"
+last_updated = "2025-10-17"
+rtl = false
+
+# ===================================================================
+# COMMON STRINGS
+# ===================================================================
+[common]
+ok = "确定"
+cancel = "取消"
+apply = "应用"
+save = "保存"
+yes = "是"
+no = "否"
+close = "关闭"
+save_as = "另存为..."
+submit = "提交"
+search = "搜索..."
+copy = "复制"
+copy_all = "复制全部"
+paste = "粘贴"
+cut = "剪切"
+cut_all = "剪切全部"
+undo = "撤销"
+version = "版本 %s"
+seconds = "秒"
+from = "从"
+to = "至"
+listen = "朗读"
+pin = "固定"
+unpin = "取消固定"
+loading = "加载中..."
+none = "无"
+error = "错误"
+browse = "浏览..."
+delete = "删除"
+rename = "重命名..."
+new = "新建..."
+configure = "配置"
+
+# ===================================================================
+# MAIN APPLICATION WINDOW
+# ===================================================================
+[main_window]
+status_format = "正在使用 %s: %s → %s"
+no_translator = "未选择翻译器"
+
+[main_window_history_bar]
+backward_tooltip = "返回翻译历史"
+forward_tooltip = "前进翻译历史"
+image_translate_tooltip = "截取屏幕区域并翻译文本"
+
+[main_window_language_bar]
+clear_tooltip = "清除输入文本"
+swap_languages_tooltip = "切换翻译方向"
+translate_button = "翻译"
+
+[main_window_editor_context_menu]
+spelling_suggestions = "拼写建议"
+undo = "@common.undo"
+cut = "@common.cut"
+cut_all = "@common.cut_all"
+copy = "@common.copy"
+copy_all = "@common.copy_all"
+paste = "@common.paste"
+translate = "@main_window_language_bar.translate_button"
+listen = "@common.listen"
+spell_check = "拼写检查"
+
+
+[main_window_main_menu]
+layout_presets = "布局预设"
+layout_preset_classic = "经典"
+layout_preset_side_by_side = "并排"
+layout_preset_compact = "紧凑"
+instant_translation = "即时翻译"
+show_extra_output = "显示额外输出"
+spell_check = "拼写检查"
+options_submenu = "选项"
+show_history_bar = "显示历史栏"
+show_language_bar = "显示语言栏"
+show_services_panel = "显示服务面板"
+show_status_bar = "显示状态栏"
+settings = "设置..."
+help_submenu = "帮助"
+how_to_use = "使用指南"
+contact_us = "联系我们"
+auto_check_for_updates = "自动检查更新"
+check_for_updates = "检查更新"
+about_qtranslate = "关于 QTranslate"
+exit = "退出"
+
+[main_window_status_bar]
+ready_message = "就绪"
+notifications_tooltip = "通知"
+notifications_empty_tooltip = "暂无新通知"
+
+# ===================================================================
+# SYSTEM TRAY MENU
+# ===================================================================
+[system_tray_menu]
+show_application = "显示 QTranslate"
+recognize_text = "文本识别 (OCR)"
+dictionary = "词典"
+history = "历史记录"
+settings = "@main_window_main_menu.settings"
+enable_hotkeys = "启用全局热键"
+exit = "@main_window_main_menu.exit"
+
+# ===================================================================
+# SETTINGS DIALOG (SHELL & NAVIGATION)
+# ===================================================================
+[settings_dialog]
+title = "设置"
+unsaved_changes = "● 未保存的更改"
+saving = "正在保存..."
+save_failed_title = "保存失败"
+reset_defaults_button = "恢复默认设置"
+reset_confirmation_title = "恢复默认设置"
+reset_confirmation_message = "确认要将所有设置恢复为默认值吗？\n此操作无法撤销。"
+
+[settings_dialog_sidebar]
+general = "常规"
+appearance = "外观"
+services = "服务与预设"
+plugins = "插件"
+hotkeys = "键盘与热键"
+translation = "翻译"
+window_layout = "窗口与布局"
+
+# ===================================================================
+# SETTINGS PAGES
+# ===================================================================
+
+[settings_general]
+startup_group = "启动"
+launch_on_startup = "开机自启动"
+updates_group = "更新"
+auto_check_updates = "自动检查更新"
+history_group = "历史记录"
+enable_history = "启用翻译历史"
+clear_history_on_exit = "关闭程序时清除历史"
+clear_history_hint = "开启此项后，保存的翻译将在退出时永久删除。"
+
+[settings_appearance]
+language_group = "语言"
+interface_language = "界面语言："
+language_hint = "更改将立即生效。某些标签可能需要重启程序才能完全更新。"
+theme_group = "主题"
+theme_label = "主题："
+unified_title_bar = "使用统一标题栏"
+scale_group = "界面缩放"
+scale_label = "比例："
+scale_hint = "重启应用程序以完全应用缩放更改。"
+fonts_group = "字体"
+ui_font = "界面字体："
+editor_font = "编辑器字体："
+fallback_font = "备用字体："
+fallback_hint = "当编辑器字体无法显示某些字符时，将使用备用字体。"
+loading_fonts = "<正在加载字体...>"
+font_preview_text = "中文测试：敏捷的棕色狐狸跳过了懒狗 — 大きな茶色の狐が怠け者の犬を飛び越えた"
+
+[settings_services]
+presets_group = "当前预设"
+current_preset = "当前预设："
+preset_hint = "通过预设，您可以保存不同的服务组合并快速切换。"
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+config_group = "服务配置"
+translator = "翻译器："
+tts = "语音合成 (TTS)："
+ocr = "文本识别 (OCR)："
+spell_checker = "拼写检查器："
+dictionary = "词典："
+summarizer = "摘要生成器："
+rewriter = "改写器："
+# Dialogs
+new_preset_title = "新建预设"
+new_preset_prompt = "输入新预设的名称："
+rename_preset_title = "重命名预设"
+rename_preset_prompt = "输入新名称："
+delete_preset_title = "删除预设"
+delete_preset_confirm = "确定要删除预设 \"%s\" 吗？\n此操作无法撤销。"
+
+[settings_plugins]
+install_plugin = "安装插件..."
+empty_selection_hint = "选择一个插件以查看其详情"
+provided_services = "提供的服务"
+plugin_error_label = "错误"
+status_enabled = "已启用"
+status_disabled = "已禁用"
+status_failed = "失败"
+status_verification = "等待验证"
+# Actions
+btn_disable = "禁用"
+btn_enable = "启用"
+btn_configure = "配置..."
+btn_accept_update = "接受更新"
+btn_clean_install = "全新安装"
+btn_uninstall = "卸载"
+tip_accept_update = "保留现有数据并重新启用插件"
+tip_clean_install = "在重新启用前擦除所有插件数据"
+# Dialogs
+install_dialog_title = "选择插件 JAR 文件"
+install_dialog_filter = "QTranslate 插件 (*.jar)"
+install_success_title = "插件已安装"
+install_success_msg = "插件安装成功。"
+install_fail_title = "安装失败"
+uninstall_confirm_title = "卸载插件"
+uninstall_confirm_msg = "确定要卸载 \"%s\" 吗？\n所有插件数据将被永久删除。"
+no_settings_msg = "此插件没有可配置的设置。"
+
+[settings_hotkeys]
+global_group = "全局热键"
+enable_global = "启用全局热键"
+assignments_group = "热键分配"
+column_action = "操作"
+column_hotkey = "热键"
+column_description = "描述"
+customization_hint = "热键自定义功能将在未来的更新中提供。"
+column_scope = "范围"
+scope_global = "全局"
+scope_local = "本地"
+# Default Actions
+action_show_main = "显示主窗口"
+action_quick_translate = "快速翻译"
+action_listen = "朗读所选内容"
+action_ocr = "屏幕 OCR"
+action_replace = "用翻译替换选中文本 (实验性)"
+action_cycle_language = "循环切换目标语言"
+scope_toggle_hint = "点击在全局和本地范围之间切换"
+
+# Default Actions Descriptions
+desc_show_main = "连按两次 Ctrl 显示主窗口"
+desc_quick_translate = "在弹窗中翻译选中的文本"
+desc_listen = "大声朗读选中的文本"
+desc_ocr = "捕获屏幕区域并提取文本"
+desc_replace = "翻译选中的文本并将其粘贴回原处 (实验性)"
+desc_cycle = "无需打开窗口即可循环切换可用的目标语言"
+
+edit_hint = "双击一行或选中后点击编辑来更改绑定。"
+edit_button = "编辑…"
+clear_button = "清除"
+reset_button = "全部恢复默认"
+no_binding = "(无)"
+reset_confirmation = "确定要将所有热键恢复为默认值吗？"
+reset_title = "重置热键"
+recorder_title = "录制热键"
+recorder_prompt = "按下您想要分配给以下操作的组合键："
+double_ctrl = "连按两次 Ctrl"
+recorder_waiting = "— 请按下组合键 —"
+recorder_hint = "按 Escape 键取消"
+
+
+[settings_translation]
+behavior_group = "行为"
+instant_translation = "即时翻译 (随输随译)"
+instant_hint = "在您停止输入后自动触发翻译。"
+spell_check_input = "启用输入框拼写检查"
+extra_output_group = "额外输出"
+extra_output_type = "类型："
+extra_output_hint = "在主翻译输出下方显示次要结果面板。"
+extra_output_source = "来源："
+source_use_translated = "使用翻译后的文本"
+source_use_input = "使用输入的原文"
+remove_line_breaks = "删除输入文本中的换行符"
+remove_line_breaks_hint = "从 PDF 复制文本时非常有用，因为 PDF 的每行通常以换行符结尾。"
+pinned_languages_group = "语言过滤器"
+pinned_languages_hint = "选择要在目标语言选择器中显示的语言。若全部不勾选，则显示所有可用语言。"
+pinned_languages_clear = "清除过滤器 (显示全部)"
+# Types
+type_none = "@common.none"
+type_backward = "回译"
+type_summarize = "摘要生成"
+type_rewrite = "文本改写"
+# Summary length options (shown when type = Summarization)
+summary_length = "摘要长度："
+summary_length_short = "短 (一句话)"
+summary_length_medium = "中 (几句话)"
+summary_length_long = "长 (详细)"
+# Rewrite style options (shown when type = Rewriting)
+rewrite_style = "改写风格："
+rewrite_style_formal = "正式"
+rewrite_style_casual = "随意"
+rewrite_style_concise = "简练"
+rewrite_style_detailed = "详细"
+rewrite_style_simplified = "精简"
+
+[settings_window]
+layout_group = "布局"
+layout_preset = "布局预设："
+toolbars_group = "工具栏"
+show_history_bar = "显示历史导航栏"
+show_language_bar = "显示语言选择栏"
+show_services_panel = "显示服务面板"
+show_status_bar = "显示状态栏"
+popup_group = "快速翻译弹窗"
+auto_size = "弹窗大小自适应内容"
+auto_position = "弹窗位置靠近光标"
+transparency = "背景透明度："
+# Close button
+close_behavior_group   = "关闭按钮"
+close_button           = "点击关闭时："
+close_behavior_ask     = "每次询问"
+close_behavior_minimize = "最小化到系统托盘"
+close_behavior_exit    = "退出应用程序"
+close_behavior_hint    = "控制点击 × 按钮时的行为。您也可以在关闭对话框中进行设置。"
+
+# ===================================================================
+# DYNAMIC PLUGIN CONFIGURATION
+# ===================================================================
+[plugin_config]
+title_format = "配置 — %s"
+required_fields_error_title = "必填项"
+required_fields_error_msg = "请填写必填字段："
+
+# ===================================================================
+# OTHER DIALOGS
+# ===================================================================
+[about_dialog]
+title = "关于 QTranslate"
+description = "原版 QTranslate 已停止维护。这是一个完全重写的版本 —— 理念相同，且由插件驱动，确保应用永不过时。"
+
+[history_dialog]
+title = "翻译历史"
+
+[update_dialog]
+title = "有可用更新"
+header = "QTranslate 的新版本已发布！"
+# %1$s = new version number, %2$s = current version number
+details_format = "版本 %s 现已发布 (当前版本为 %s)。是否要更新？"
+release_notes_label = "更新日志："
+skip_button = "跳过此版本"
+remind_later_button = "稍后提醒我"
+download_button = "前往下载页面"
+
+# ===================================================================
+# CLOSE DIALOG
+# ===================================================================
+[close_dialog]
+title           = "关闭 QTranslate"
+message         = "您想执行什么操作？"
+minimize_to_tray = "最小化到系统托盘"
+exit            = "退出"
+remember_choice = "记住我的选择"
+
+# ===================================================================
+# EXTRA OUTPUT PANEL
+# ===================================================================
+[extra_output]
+label_backward = "回译结果"
+label_summary = "内容摘要"
+label_rewrite = "文本改写"
+
+# ===================================================================
+# NOTIFICATIONS & ERRORS
+# ===================================================================
+[notifications]
+language_not_supported_format = "%2$s 不支持语言 '%1$s'。"
+tts_not_supported_format = "%s 不支持语音合成 (TTS)。"
+unknown_error = "发生了未知错误。"

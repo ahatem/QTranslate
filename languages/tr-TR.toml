@@ -6,10 +6,9 @@ name = "Turkish"
 native_name = "Türkçe"
 locale = "tr-TR"
 version = "1.0.0"
-author = "QTranslate Team"
-last_updated = "2026-03-22"
+author = "QTranslate Team <ahatem925@gmail.com>"
+last_updated = "2025-10-17"
 rtl = false
-
 
 # ===================================================================
 # COMMON STRINGS
@@ -22,50 +21,50 @@ save = "Kaydet"
 yes = "Evet"
 no = "Hayır"
 close = "Kapat"
-save_as = "Farklı kaydet..."
+save_as = "Farklı Kaydet..."
 submit = "Gönder"
 search = "Ara..."
 copy = "Kopyala"
-copy_all = "Tümünü kopyala"
+copy_all = "Tümünü Kopyala"
 paste = "Yapıştır"
 cut = "Kes"
-cut_all = "Tümünü kes"
-undo = "Geri al"
+cut_all = "Tümünü Kes"
+undo = "Geri Al"
 version = "Sürüm %s"
 seconds = "saniye"
-from = "Şu dilden"
-to = "şu dile"
+from = "Kaynak:"
+to = "Hedef:"
 listen = "Dinle"
 pin = "Sabitle"
-unpin = "Sabitlemeyi kaldır"
+unpin = "Sabitlemeyi Kaldır"
 loading = "Yükleniyor..."
 none = "Yok"
 error = "Hata"
 browse = "Gözat..."
 delete = "Sil"
-rename = "Yeniden adlandır..."
+rename = "Yeniden Adlandır..."
 new = "Yeni..."
-
+configure = "Yapılandır"
 
 # ===================================================================
-# MAIN WINDOW
+# MAIN APPLICATION WINDOW
 # ===================================================================
 [main_window]
-status_format = "%s kullanılıyor: %s → %s"
-no_translator = "Çevirmen yok"
+status_format = "Kullanılan %s: %s → %s"
+no_translator = "Çevirmen Yok"
 
 [main_window_history_bar]
-backward_tooltip = "Geçmişte geri git"
-forward_tooltip = "Geçmişte ileri git"
-image_translate_tooltip = "Ekrandan metin yakala ve çevir"
+backward_tooltip = "Çeviri geçmişinde geri git"
+forward_tooltip = "Çeviri geçmişinde ileri git"
+image_translate_tooltip = "Ekrandaki bir alandan metin yakala ve çevir"
 
 [main_window_language_bar]
-clear_tooltip = "Metni temizle"
-swap_languages_tooltip = "Dilleri değiştir"
+clear_tooltip = "Giriş metnini temizle"
+swap_languages_tooltip = "Çeviri yönünü değiştir"
 translate_button = "Çevir"
 
 [main_window_editor_context_menu]
-spelling_suggestions = "Yazım"
+spelling_suggestions = "Yazım Önerileri"
 undo = "@common.undo"
 cut = "@common.cut"
 cut_all = "@common.cut_all"
@@ -74,243 +73,298 @@ copy_all = "@common.copy_all"
 paste = "@common.paste"
 translate = "@main_window_language_bar.translate_button"
 listen = "@common.listen"
-spell_check = "Yazım denetimi"
+spell_check = "Yazım Denetimi"
+
 
 [main_window_main_menu]
-layout_presets = "Yerleşim hazırları"
+layout_presets = "Görünüm Düzenleri"
 layout_preset_classic = "Klasik"
-layout_preset_side_by_side = "Yan yana"
+layout_preset_side_by_side = "Yan Yana"
 layout_preset_compact = "Kompakt"
-instant_translation = "Anında çeviri"
-show_extra_output = "Ek çıktı göster"
-spell_check = "Yazım denetimi"
+instant_translation = "Anında Çeviri"
+show_extra_output = "Ek Çıktıyı Göster"
+spell_check = "Yazım Denetimi"
 options_submenu = "Seçenekler"
-show_history_bar = "Geçmiş çubuğunu göster"
-show_language_bar = "Dil çubuğunu göster"
-show_services_panel = "Servis panelini göster"
-show_status_bar = "Durum çubuğunu göster"
+show_history_bar = "Geçmiş Çubuğunu Göster"
+show_language_bar = "Dil Çubuğunu Göster"
+show_services_panel = "Servis Panelini Göster"
+show_status_bar = "Durum Çubuğunu Göster"
 settings = "Ayarlar..."
 help_submenu = "Yardım"
-how_to_use = "Nasıl kullanılır"
-contact_us = "İletişim"
-auto_check_for_updates = "Otomatik güncelleme kontrolü"
-check_for_updates = "Güncellemeleri kontrol et"
-about_qtranslate = "QTranslate hakkında"
+how_to_use = "Nasıl Kullanılır"
+contact_us = "Bize Ulaşın"
+auto_check_for_updates = "Güncellemeleri Otomatik Denetle"
+check_for_updates = "Güncellemeleri Denetle"
+about_qtranslate = "QTranslate Hakkında"
 exit = "Çıkış"
 
 [main_window_status_bar]
 ready_message = "Hazır"
 notifications_tooltip = "Bildirimler"
-notifications_empty_tooltip = "Bildirim yok"
-
+notifications_empty_tooltip = "Yeni bildirim yok"
 
 # ===================================================================
-# SYSTEM TRAY
+# SYSTEM TRAY MENU
 # ===================================================================
 [system_tray_menu]
-show_application = "QTranslate göster"
-recognize_text = "Metin tanı (OCR)"
+show_application = "QTranslate'i Göster"
+recognize_text = "Metin Tanıma (OCR)"
 dictionary = "Sözlük"
 history = "Geçmiş"
 settings = "@main_window_main_menu.settings"
-enable_hotkeys = "Global kısayolları etkinleştir"
+enable_hotkeys = "Küresel Kısayolları Etkinleştir"
 exit = "@main_window_main_menu.exit"
 
-
 # ===================================================================
-# SETTINGS DIALOG
+# SETTINGS DIALOG (SHELL & NAVIGATION)
 # ===================================================================
 [settings_dialog]
 title = "Ayarlar"
 unsaved_changes = "● Kaydedilmemiş değişiklikler"
 saving = "Kaydediliyor..."
-save_failed_title = "Kaydetme hatası"
-reset_defaults_button = "Varsayılana sıfırla"
-reset_confirmation_title = "Varsayılana sıfırla"
-reset_confirmation_message = "Tüm ayarlar sıfırlansın mı?\nBu işlem geri alınamaz."
+save_failed_title = "Kaydetme Başarısız"
+reset_defaults_button = "Varsayılanlara Sıfırla"
+reset_confirmation_title = "Varsayılanlara Sıfırla"
+reset_confirmation_message = "Tüm ayarlar varsayılan değerlerine sıfırlansın mı?\nBu işlem geri alınamaz."
 
 [settings_dialog_sidebar]
 general = "Genel"
 appearance = "Görünüm"
-services = "Servisler ve hazırlar"
+services = "Servisler ve Önayarlar"
 plugins = "Eklentiler"
-hotkeys = "Klavye ve kısayollar"
+hotkeys = "Klavye ve Kısayollar"
 translation = "Çeviri"
-window_layout = "Pencere ve yerleşim"
-
+window_layout = "Pencere ve Düzen"
 
 # ===================================================================
-# SETTINGS GENERAL
+# SETTINGS PAGES
 # ===================================================================
+
 [settings_general]
 startup_group = "Başlangıç"
-launch_on_startup = "Sistem açılışında başlat"
+launch_on_startup = "Sistem başlangıcında çalıştır"
 updates_group = "Güncellemeler"
-auto_check_updates = "Otomatik güncelleme kontrolü"
+auto_check_updates = "Güncellemeleri otomatik olarak denetle"
 history_group = "Geçmiş"
 enable_history = "Çeviri geçmişini etkinleştir"
-clear_history_on_exit = "Çıkışta geçmişi temizle"
-clear_history_hint = "Bu açıkken geçmiş silinir."
+clear_history_on_exit = "Uygulama kapandığında geçmişi temizle"
+clear_history_hint = "Bu seçenek açık olduğunda, kaydedilen çeviriler çıkışta kalıcı olarak silinir."
 
-
-# ===================================================================
-# SETTINGS APPEARANCE
-# ===================================================================
 [settings_appearance]
 language_group = "Dil"
-interface_language = "Arayüz dili:"
-language_hint = "Bazı değişiklikler için yeniden başlatma gerekir."
+interface_language = "Arayüz Dili:"
+language_hint = "Değişiklikler anında uygulanır. Bazı etiketlerin tamamen güncellenmesi için yeniden başlatma gerekebilir."
 theme_group = "Tema"
 theme_label = "Tema:"
-unified_title_bar = "Birleşik başlık çubuğu kullan"
-scale_group = "Arayüz ölçeği"
+unified_title_bar = "Birleşik başlık çubuğunu kullan"
+scale_group = "Arayüz Ölçeği"
 scale_label = "Ölçek:"
-scale_hint = "Tam uygulama için yeniden başlat."
-fonts_group = "Yazı tipleri"
-ui_font = "Arayüz fontu:"
-editor_font = "Editör fontu:"
-fallback_font = "Yedek font:"
-fallback_hint = "Karakter desteklenmezse kullanılır."
-loading_fonts = "<Fontlar yükleniyor...>"
-font_preview_text = "Pijamalı hasta yağız şoföre çabucak güvendi — 大きな茶色の狐が怠け者の犬を飛び越えた"
+scale_hint = "Ölçek değişikliklerini tam olarak uygulamak için uygulamayı yeniden başlatın."
+fonts_group = "Yazı Tipleri"
+ui_font = "Arayüz Yazı Tipi:"
+editor_font = "Editör Yazı Tipi:"
+fallback_font = "Yedek Yazı Tipi:"
+fallback_hint = "Yedek yazı tipi, editör yazı tipinin görüntüleyemediği karakterler için kullanılır."
+loading_fonts = "<Yazı tipleri yükleniyor...>"
+font_preview_text = "Pijamalı hasta yağız şoföre çabucak güvendi. — 大きな茶色の狐が怠け者の犬を飛び越えた"
 
-
-# ===================================================================
-# SETTINGS SERVICES
-# ===================================================================
 [settings_services]
-presets_group = "Aktif hazır"
-current_preset = "Geçerli hazır:"
-preset_hint = "Servis kombinasyonlarını kaydedin."
+presets_group = "Aktif Önayar"
+current_preset = "Geçerli Önayar:"
+preset_hint = "Önayarlar, farklı servis kombinasyonlarını kaydetmenize ve aralarında hızlıca geçiş yapmanıza olanak tanır."
 new_preset_btn = "@common.new"
 rename_preset_btn = "@common.rename"
 delete_preset_btn = "@common.delete"
-config_group = "Servis ayarları"
+config_group = "Servis Yapılandırması"
 translator = "Çevirmen:"
-tts = "Ses:"
-ocr = "OCR:"
-spell_checker = "Yazım:"
+tts = "Metinden Sese (TTS):"
+ocr = "OCR (Optik Karakter Tanıma):"
+spell_checker = "Yazım Denetleyici:"
 dictionary = "Sözlük:"
+summarizer = "Özetleyici:"
+rewriter = "Yeniden Yazıcı:"
+# Dialogs
+new_preset_title = "Yeni Önayar"
+new_preset_prompt = "Yeni önayar için bir ad girin:"
+rename_preset_title = "Önayarı Yeniden Adlandır"
+rename_preset_prompt = "Yeni adı girin:"
+delete_preset_title = "Önayarı Sil"
+delete_preset_confirm = "\"%s\" önayarı silinsin mi?\nBu işlem geri alınamaz."
 
-new_preset_title = "Yeni hazır"
-new_preset_prompt = "Ad girin:"
-rename_preset_title = "Yeniden adlandır"
-rename_preset_prompt = "Yeni ad:"
-delete_preset_title = "Sil"
-delete_preset_confirm = "\"%s\" silinsin mi?\nGeri alınamaz."
-
-
-# ===================================================================
-# SETTINGS PLUGINS
-# ===================================================================
 [settings_plugins]
-install_plugin = "Eklenti yükle..."
-empty_selection_hint = "Eklenti seç"
-provided_services = "Servisler"
+install_plugin = "Eklenti Kur..."
+empty_selection_hint = "Detayları görüntülemek için bir eklenti seçin"
+provided_services = "Sağlanan Servisler"
 plugin_error_label = "Hata"
 status_enabled = "Etkin"
-status_disabled = "Devre dışı"
+status_disabled = "Devre Dışı"
 status_failed = "Başarısız"
-status_verification = "Onay bekliyor"
-
-btn_disable = "Devre dışı"
+status_verification = "Doğrulama Bekleniyor"
+# Actions
+btn_disable = "Devre Dışı Bırak"
 btn_enable = "Etkinleştir"
-btn_configure = "Ayarlar..."
-btn_accept_update = "Güncelle"
-btn_clean_install = "Temiz kur"
+btn_configure = "Yapılandır..."
+btn_accept_update = "Güncellemeyi Kabul Et"
+btn_clean_install = "Temiz Kurulum"
 btn_uninstall = "Kaldır"
+tip_accept_update = "Mevcut verileri koru ve eklentiyi yeniden etkinleştir"
+tip_clean_install = "Yeniden etkinleştirmeden önce tüm eklenti verilerini sil"
+# Dialogs
+install_dialog_title = "Eklenti JAR Dosyasını Seçin"
+install_dialog_filter = "QTranslate Eklentisi (*.jar)"
+install_success_title = "Eklenti Kuruldu"
+install_success_msg = "Eklenti başarıyla kuruldu."
+install_fail_title = "Kurulum Başarısız"
+uninstall_confirm_title = "Eklentiyi Kaldır"
+uninstall_confirm_msg = "\"%s\" kaldırılsın mı?\nTüm eklenti verileri kalıcı olarak silinecektir."
+no_settings_msg = "Bu eklentinin yapılandırılabilir bir ayarı yok."
 
-tip_accept_update = "Veriyi koru"
-tip_clean_install = "Veriyi sil"
-
-install_dialog_title = "Eklenti seç"
-install_dialog_filter = "Plugin (*.jar)"
-install_success_title = "Yüklendi"
-install_success_msg = "Başarıyla yüklendi."
-install_fail_title = "Hata"
-uninstall_confirm_title = "Kaldır"
-uninstall_confirm_msg = "\"%s\" silinsin mi?\nVeri silinir."
-no_settings_msg = "Ayar yok."
-
-
-# ===================================================================
-# SETTINGS HOTKEYS
-# ===================================================================
 [settings_hotkeys]
-global_group = "Global kısayollar"
-enable_global = "Kısayolları etkinleştir"
-assignments_group = "Atamalar"
+global_group = "Küresel Kısayollar"
+enable_global = "Küresel kısayolları etkinleştir"
+assignments_group = "Kısayol Atamaları"
 column_action = "Eylem"
 column_hotkey = "Kısayol"
 column_description = "Açıklama"
-customization_hint = "Yakında."
+customization_hint = "Kısayol özelleştirme özelliği gelecek bir güncellemede sunulacaktır."
+column_scope = "Kapsam"
+scope_global = "Küresel"
+scope_local = "Yerel"
+# Default Actions
+action_show_main = "Ana Pencereyi Göster"
+action_quick_translate = "Hızlı Çeviri"
+action_listen = "Seçileni Dinle"
+action_ocr = "Ekrandan OCR Yap"
+action_replace = "Seçileni Çeviri ile Değiştir (deneysel)"
+action_cycle_language = "Hedef Dili Değiştir"
+scope_toggle_hint = "Küresel ve Yerel arasında geçiş yapmak için tıklayın"
 
-action_show_main = "Ana pencere"
-action_quick_translate = "Hızlı çeviri"
-action_listen = "Dinle"
-action_ocr = "OCR"
+# Default Actions Descriptions
+desc_show_main = "Ana pencereyi göstermek için Ctrl tuşuna çift basın"
+desc_quick_translate = "Seçili metni bir açılır pencerede çevirir"
+desc_listen = "Seçili metni yüksek sesle okur"
+desc_ocr = "Ekranın bir bölgesini yakalar ve metni çıkarır"
+desc_replace = "Seçili metni çevirir ve yerine yapıştırır (deneysel)"
+desc_cycle = "Pencereyi açmadan mevcut hedef diller arasında geçiş yapar"
 
-desc_show_main = "Ctrl çift bas"
-desc_quick_translate = "Seçimi çevir"
-desc_listen = "Metni oku"
-desc_ocr = "Ekran yakala"
-
-edit_hint = "Bir satıra çift tıklayın veya seçip Düzenle'ye basarak atamayı değiştirin."
+edit_hint = "Bir tuş atamasını değiştirmek için bir satıra çift tıklayın veya seçip Düzenle'ye basın."
 edit_button = "Düzenle…"
 clear_button = "Temizle"
-reset_button = "Tümünü varsayılana sıfırla"
+reset_button = "Tümünü Varsayılana Sıfırla"
 no_binding = "(yok)"
 reset_confirmation = "Tüm kısayollar varsayılan değerlerine sıfırlansın mı?"
-reset_title = "Kısayolları sıfırla"
-recorder_title = "Kısayol kaydet"
+reset_title = "Kısayolları Sıfırla"
+recorder_title = "Kısayol Kaydet"
 recorder_prompt = "Atamak istediğiniz tuş kombinasyonuna basın:"
 double_ctrl = "Çift Ctrl"
 recorder_waiting = "— bir tuş kombinasyonuna basın —"
 recorder_hint = "İptal etmek için Escape tuşuna basın"
 
-# ===================================================================
-# SETTINGS TRANSLATION
-# ===================================================================
+
 [settings_translation]
 behavior_group = "Davranış"
-instant_translation = "Anında çeviri"
-instant_hint = "Yazmayı bırakınca çevir."
-spell_check_input = "Yazım kontrolü"
-extra_output_group = "Ek çıktı"
+instant_translation = "Anında çeviri (yazarken çevir)"
+instant_hint = "Yazmayı bıraktıktan sonra çeviriyi otomatik olarak tetikler."
+spell_check_input = "Giriş metninde yazım denetimini etkinleştir"
+extra_output_group = "Ek Çıktı"
 extra_output_type = "Tür:"
-extra_output_hint = "Ek panel"
+extra_output_hint = "Ana çeviri çıktısının altında ikincil bir sonuç paneli gösterir."
 extra_output_source = "Kaynak:"
-source_use_translated = "Çevrilmiş metin"
-source_use_input = "Giriş metni"
-
+source_use_translated = "Çevrilmiş metni kullan"
+source_use_input = "Giriş metnini kullan"
+remove_line_breaks = "Giriş metnindeki satır sonlarını kaldır"
+remove_line_breaks_hint = "Her satırın bir yeni satır karakteriyle bittiği PDF'lerden kopyalama yaparken kullanışlıdır."
+pinned_languages_group = "Dil Filtresi"
+pinned_languages_hint = "Hedef dil seçicide gösterilecek dilleri seçin. Tüm dilleri göstermek için hepsini işaretsiz bırakın."
+pinned_languages_clear = "Filtreyi Temizle (Hepsini Göster)"
+# Types
 type_none = "@common.none"
-type_backward = "Geri çeviri"
-type_summarize = "Özet"
-type_rewrite = "Yeniden yaz"
+type_backward = "Geri Çeviri"
+type_summarize = "Özetleme"
+type_rewrite = "Yeniden Yazma"
+# Summary length options (shown when type = Summarization)
+summary_length = "Özet Uzunluğu:"
+summary_length_short = "Kısa (bir cümle)"
+summary_length_medium = "Orta (birkaç cümle)"
+summary_length_long = "Uzun (ayrıntılı)"
+# Rewrite style options (shown when type = Rewriting)
+rewrite_style = "Yeniden Yazma Stili:"
+rewrite_style_formal = "Resmi"
+rewrite_style_casual = "Günlük"
+rewrite_style_concise = "Kısa ve Öz"
+rewrite_style_detailed = "Ayrıntılı"
+rewrite_style_simplified = "Basitleştirilmiş"
 
-
-# ===================================================================
-# SETTINGS WINDOW
-# ===================================================================
 [settings_window]
-layout_group = "Yerleşim"
-layout_preset = "Hazır:"
-toolbars_group = "Çubuklar"
-show_history_bar = "Geçmiş"
-show_language_bar = "Dil"
-show_services_panel = "Servis"
-show_status_bar = "Durum"
-
-popup_group = "Popup"
-auto_size = "Oto boyut"
-auto_position = "Oto konum"
-transparency = "Saydamlık:"
-
+layout_group = "Düzen"
+layout_preset = "Düzen Önayarı:"
+toolbars_group = "Araç Çubukları"
+show_history_bar = "Geçmiş navigasyon çubuğunu göster"
+show_language_bar = "Dil seçici çubuğunu göster"
+show_services_panel = "Servis panelini göster"
+show_status_bar = "Durum çubuğunu göster"
+popup_group = "Hızlı Çeviri Penceresi"
+auto_size = "Pencereyi içeriğe göre otomatik boyutlandır"
+auto_position = "Pencereyi imlecin yakınına konumlandır"
+transparency = "Arka Plan Şeffaflığı:"
+# Close button
+close_behavior_group   = "Kapatma Butonu"
+close_button           = "Kapatırken:"
+close_behavior_ask     = "Her seferinde sor"
+close_behavior_minimize = "Sistem tepsisine küçült"
+close_behavior_exit    = "Uygulamadan çık"
+close_behavior_hint    = "× butonuna tıkladığınızda ne olacağını kontrol eder. Bunu kapatma iletişim kutusundan da ayarlayabilirsiniz."
 
 # ===================================================================
-# PLUGIN CONFIG
+# DYNAMIC PLUGIN CONFIGURATION
 # ===================================================================
 [plugin_config]
-title_format = "Ayarla — %s"
-required_fields_error_title = "Gerekli alanlar"
-required_fields_error_msg = "Alanları doldurun:"
+title_format = "Yapılandır — %s"
+required_fields_error_title = "Gerekli Alanlar"
+required_fields_error_msg = "Lütfen gerekli alanları doldurun:"
+
+# ===================================================================
+# OTHER DIALOGS
+# ===================================================================
+[about_dialog]
+title = "QTranslate Hakkında"
+description = "Orijinal QTranslate projesi durduruldu. Bu, eklenti tabanlı yapısıyla uygulamanın asla eskimeyeceği tam bir yeniden yazımdır."
+
+[history_dialog]
+title = "Çeviri Geçmişi"
+
+[update_dialog]
+title = "Güncelleme Mevcut"
+header = "QTranslate'in yeni bir sürümü mevcut!"
+# %1$s = new version number, %2$s = current version number
+details_format = "Sürüm %s şu an indirilebilir (sizdeki sürüm: %s). Güncellemek ister misiniz?"
+release_notes_label = "Sürüm Notları:"
+skip_button = "Bu Sürümü Atla"
+remind_later_button = "Daha Sonra Hatırlat"
+download_button = "İndirme Sayfasına Git"
+
+# ===================================================================
+# CLOSE DIALOG
+# ===================================================================
+[close_dialog]
+title           = "QTranslate'i Kapat"
+message         = "Ne yapmak istersiniz?"
+minimize_to_tray = "Sistem Tepsisine Küçült"
+exit            = "Çıkış"
+remember_choice = "Seçimimi hatırla"
+
+# ===================================================================
+# EXTRA OUTPUT PANEL
+# ===================================================================
+[extra_output]
+label_backward = "Geri Çeviri"
+label_summary = "Özet"
+label_rewrite = "Yeniden Yazım"
+
+# ===================================================================
+# NOTIFICATIONS & ERRORS
+# ===================================================================
+[notifications]
+language_not_supported_format = "'%s' dili %s tarafından desteklenmiyor."
+tts_not_supported_format = "Metinden sese özelliği %s tarafından desteklenmiyor."
+unknown_error = "Bilinmeyen bir hata oluştu."

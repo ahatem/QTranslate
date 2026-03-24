@@ -1,0 +1,370 @@
+# ===================================================================
+# META SECTION
+# ===================================================================
+[meta]
+name = "Arabic"
+native_name = "العربية"
+locale = "ar-SA"
+version = "1.0.0"
+author = "QTranslate Team <ahatem925@gmail.com>"
+last_updated = "2025-10-17"
+rtl = true
+
+# ===================================================================
+# COMMON STRINGS
+# ===================================================================
+[common]
+ok = "موافق"
+cancel = "إلغاء"
+apply = "تطبيق"
+save = "حفظ"
+yes = "نعم"
+no = "لا"
+close = "إغلاق"
+save_as = "حفظ باسم..."
+submit = "إرسال"
+search = "بحث..."
+copy = "نسخ"
+copy_all = "نسخ الكل"
+paste = "لصق"
+cut = "قص"
+cut_all = "قص الكل"
+undo = "تراجع"
+version = "الإصدار %s"
+seconds = "ثوانٍ"
+from = "من"
+to = "إلى"
+listen = "استماع"
+pin = "تثبيت"
+unpin = "إلغاء التثبيت"
+loading = "جاري التحميل..."
+none = "بلا"
+error = "خطأ"
+browse = "استعراض..."
+delete = "حذف"
+rename = "إعادة تسمية..."
+new = "جديد..."
+configure = "تكوين"
+
+# ===================================================================
+# MAIN APPLICATION WINDOW
+# ===================================================================
+[main_window]
+status_format = "باستخدام %s: %s ← %s"
+no_translator = "لا يوجد مترجم"
+
+[main_window_history_bar]
+backward_tooltip = "الرجوع للخلف في سجل الترجمة"
+forward_tooltip = "التقدم للأمام في سجل الترجمة"
+image_translate_tooltip = "التقاط وترجمة نص من منطقة على الشاشة"
+
+[main_window_language_bar]
+clear_tooltip = "مسح نص الإدخال"
+swap_languages_tooltip = "تبديل اتجاه الترجمة"
+translate_button = "ترجمة"
+
+[main_window_editor_context_menu]
+spelling_suggestions = "اقتراحات الإملاء"
+undo = "@common.undo"
+cut = "@common.cut"
+cut_all = "@common.cut_all"
+copy = "@common.copy"
+copy_all = "@common.copy_all"
+paste = "@common.paste"
+translate = "@main_window_language_bar.translate_button"
+listen = "@common.listen"
+spell_check = "تدقيق إملائي"
+
+
+[main_window_main_menu]
+layout_presets = "قوالب التخطيط"
+layout_preset_classic = "كلاسيكي"
+layout_preset_side_by_side = "جنبًا إلى جنب"
+layout_preset_compact = "مدمج"
+instant_translation = "ترجمة فورية"
+show_extra_output = "إظهار مخرجات إضافية"
+spell_check = "التدقيق الإملائي"
+options_submenu = "خيارات"
+show_history_bar = "إظهار شريط السجل"
+show_language_bar = "إظهار شريط اللغة"
+show_services_panel = "إظهار لوحة الخدمات"
+show_status_bar = "إظهار شريط الحالة"
+settings = "الإعدادات..."
+help_submenu = "تعليمات"
+how_to_use = "كيفية الاستخدام"
+contact_us = "اتصل بنا"
+auto_check_for_updates = "تحقق تلقائي من التحديثات"
+check_for_updates = "تحقق من وجود تحديثات"
+about_qtranslate = "حول QTranslate"
+exit = "خروج"
+
+[main_window_status_bar]
+ready_message = "جاهز"
+notifications_tooltip = "الإشعارات"
+notifications_empty_tooltip = "لا توجد إشعارات جديدة"
+
+# ===================================================================
+# SYSTEM TRAY MENU
+# ===================================================================
+[system_tray_menu]
+show_application = "إظهار QTranslate"
+recognize_text = "التعرف على النص (OCR)"
+dictionary = "القاموس"
+history = "السجل"
+settings = "@main_window_main_menu.settings"
+enable_hotkeys = "تفعيل مفاتيح الاختصار العالمية"
+exit = "@main_window_main_menu.exit"
+
+# ===================================================================
+# SETTINGS DIALOG (SHELL & NAVIGATION)
+# ===================================================================
+[settings_dialog]
+title = "الإعدادات"
+unsaved_changes = "● تغييرات غير محفوظة"
+saving = "جاري الحفظ..."
+save_failed_title = "فشل الحفظ"
+reset_defaults_button = "استعادة الافتراضيات"
+reset_confirmation_title = "إعادة التعيين"
+reset_confirmation_message = "هل تريد إعادة تعيين كافة الإعدادات إلى افتراضياتها؟\nلا يمكن التراجع عن هذا الإجراء."
+
+[settings_dialog_sidebar]
+general = "عام"
+appearance = "المظهر"
+services = "الخدمات والقوالب"
+plugins = "الإضافات"
+hotkeys = "لوحة المفاتيح والاختصارات"
+translation = "الترجمة"
+window_layout = "النافذة والتخطيط"
+
+# ===================================================================
+# SETTINGS PAGES
+# ===================================================================
+
+[settings_general]
+startup_group = "بدء التشغيل"
+launch_on_startup = "التشغيل عند بدء تشغيل النظام"
+updates_group = "التحديثات"
+auto_check_updates = "التحقق من التحديثات تلقائيًا"
+history_group = "السجل"
+enable_history = "تفعيل سجل الترجمة"
+clear_history_on_exit = "مسح السجل عند إغلاق التطبيق"
+clear_history_hint = "سيتم حذف الترجمات المحفوظة نهائيًا عند الخروج في حال تفعيل هذا الخيار."
+
+[settings_appearance]
+language_group = "اللغة"
+interface_language = "لغة الواجهة:"
+language_hint = "يتم تطبيق التغييرات فورًا. قد تتطلب بعض العناوين إعادة تشغيل التطبيق للتحديث بالكامل."
+theme_group = "السمة"
+theme_label = "السمة:"
+unified_title_bar = "استخدام شريط عنوان موحد"
+scale_group = "مقياس الواجهة"
+scale_label = "المقياس:"
+scale_hint = "أعد تشغيل التطبيق لتطبيق تغييرات المقياس بالكامل."
+fonts_group = "الخطوط"
+ui_font = "خط الواجهة:"
+editor_font = "خط المحرر:"
+fallback_font = "الخط الاحتياطي:"
+fallback_hint = "يُستخدم الخط الاحتياطي للرموز التي لا يمكن لخط المحرر عرضها."
+loading_fonts = "<جاري تحميل الخطوط...>"
+font_preview_text = "نص حكيم له سر قاطع وذو حظ على رأس كل فيل — 大きな茶色の狐が怠け者の犬を飛び越えた"
+
+[settings_services]
+presets_group = "القالب النشط"
+current_preset = "القالب الحالي:"
+preset_hint = "تتيح لك القوالب حفظ مجموعات خدمات مختلفة والتبديل بينها بسرعة."
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+config_group = "تكوين الخدمة"
+translator = "المترجم:"
+tts = "نطق النص (TTS):"
+ocr = "التعرف على النص (OCR):"
+spell_checker = "مدقق إملائي:"
+dictionary = "قاموس:"
+summarizer = "ملخص:"
+rewriter = "إعادة صياغة:"
+# Dialogs
+new_preset_title = "قالب جديد"
+new_preset_prompt = "أدخل اسمًا للقالب الجديد:"
+rename_preset_title = "إعادة تسمية القالب"
+rename_preset_prompt = "أدخل الاسم الجديد:"
+delete_preset_title = "حذف القالب"
+delete_preset_confirm = "هل تريد حذف القالب \"%s\"؟\nلا يمكن التراجع عن هذا الإجراء."
+
+[settings_plugins]
+install_plugin = "تثبيت إضافة..."
+empty_selection_hint = "اختر إضافة لعرض تفاصيلها"
+provided_services = "الخدمات المقدمة"
+plugin_error_label = "خطأ"
+status_enabled = "مفعل"
+status_disabled = "معطل"
+status_failed = "فشل"
+status_verification = "في انتظار التحقق"
+# Actions
+btn_disable = "تعطيل"
+btn_enable = "تفعيل"
+btn_configure = "تكوين..."
+btn_accept_update = "قبول التحديث"
+btn_clean_install = "تثبيت نظيف"
+btn_uninstall = "إلغاء التثبيت"
+tip_accept_update = "الاحتفاظ بالبيانات الموجودة وإعادة تفعيل الإضافة"
+tip_clean_install = "مسح كافة بيانات الإضافة قبل إعادة التفعيل"
+# Dialogs
+install_dialog_title = "اختر ملف JAR الخاص بالإضافة"
+install_dialog_filter = "إضافة QTranslate (*.jar)"
+install_success_title = "تم تثبيت الإضافة"
+install_success_msg = "تم تثبيت الإضافة بنجاح."
+install_fail_title = "فشل التثبيت"
+uninstall_confirm_title = "إلغاء تثبيت الإضافة"
+uninstall_confirm_msg = "هل تريد إلغاء تثبيت \"%s\"؟\nسيتم حذف كافة بيانات الإضافة نهائيًا."
+no_settings_msg = "هذه الإضافة لا تملك إعدادات قابلة للتكوين."
+
+[settings_hotkeys]
+global_group = "مفاتيح الاختصار العالمية"
+enable_global = "تفعيل مفاتيح الاختصار العالمية"
+assignments_group = "تعيين الاختصارات"
+column_action = "الإجراء"
+column_hotkey = "الاختصار"
+column_description = "الوصف"
+customization_hint = "تخصيص مفاتيح الاختصار سيكون متاحًا في تحديث مستقبلي."
+column_scope = "النطاق"
+scope_global = "عالمي"
+scope_local = "محلي"
+# Default Actions
+action_show_main = "إظهار النافذة الرئيسية"
+action_quick_translate = "ترجمة سريعة"
+action_listen = "الاستماع للمحدد"
+action_ocr = "التعرف على النص من الشاشة"
+action_replace = "استبدال المحدد بالترجمة (تجريبي)"
+action_cycle_language = "تبديل لغة الهدف"
+scope_toggle_hint = "انقر للتبديل بين العالمي والمحلي"
+
+# Default Actions Descriptions
+desc_show_main = "انقر مرتين على Ctrl لإظهار النافذة الرئيسية"
+desc_quick_translate = "ترجمة النص المحدد في نافذة منبثقة"
+desc_listen = "قراءة النص المحدد بصوت عالٍ"
+desc_ocr = "التقاط منطقة من الشاشة واستخراج النص"
+desc_replace = "يترجم النص المحدد ويقوم بلصقه في مكانه (تجريبي)"
+desc_cycle = "التنقل عبر لغات الهدف المتاحة دون فتح النافذة"
+
+edit_hint = "انقر نقرًا مزدوجًا على صف أو اختره وانقر على تعديل لتغيير الاختصار."
+edit_button = "تعديل…"
+clear_button = "مسح"
+reset_button = "إعادة تعيين الكل للافتراضي"
+no_binding = "(لا يوجد)"
+reset_confirmation = "هل تريد إعادة تعيين كافة مفاتيح الاختصار إلى قيمها الافتراضية؟"
+reset_title = "إعادة تعيين الاختصارات"
+recorder_title = "تسجيل اختصار"
+recorder_prompt = "اضغط على مجموعة المفاتيح التي تريد تعيينها لـ:"
+double_ctrl = "نقر مزدوج Ctrl"
+recorder_waiting = "— اضغط على مجموعة مفاتيح —"
+recorder_hint = "اضغط Escape للإلغاء"
+
+
+[settings_translation]
+behavior_group = "السلوك"
+instant_translation = "ترجمة فورية (الترجمة أثناء الكتابة)"
+instant_hint = "تبدأ الترجمة تلقائيًا بعد التوقف عن الكتابة."
+spell_check_input = "تفعيل التدقيق الإملائي عند الإدخال"
+extra_output_group = "مخرجات إضافية"
+extra_output_type = "النوع:"
+extra_output_hint = "يظهر لوحة نتائج ثانوية أسفل مخرج الترجمة الرئيسي."
+extra_output_source = "المصدر:"
+source_use_translated = "استخدام النص المترجم"
+source_use_input = "استخدام نص الإدخال"
+remove_line_breaks = "إزالة فواصل الأسطر من الإدخال"
+remove_line_breaks_hint = "مفيد عند النسخ من ملفات PDF حيث ينتهي كل سطر بفاصل سطر جديد"
+pinned_languages_group = "فلتر اللغات"
+pinned_languages_hint = "اختر اللغات التي تظهر في منتقي لغة الهدف. اترك الكل دون تحديد لإظهار كافة اللغات المتاحة."
+pinned_languages_clear = "مسح الفلتر (إظهار الكل)"
+# Types
+type_none = "@common.none"
+type_backward = "ترجمة عكسية"
+type_summarize = "تلخيص"
+type_rewrite = "إعادة صياغة"
+# Summary length options (shown when type = Summarization)
+summary_length = "طول الملخص:"
+summary_length_short = "قصير (جملة واحدة)"
+summary_length_medium = "متوسط (بضع جمل)"
+summary_length_long = "طويل (مفصل)"
+# Rewrite style options (shown when type = Rewriting)
+rewrite_style = "أسلوب إعادة الصياغة:"
+rewrite_style_formal = "رسمي"
+rewrite_style_casual = "ودي"
+rewrite_style_concise = "موجز"
+rewrite_style_detailed = "مفصل"
+rewrite_style_simplified = "مبسط"
+
+[settings_window]
+layout_group = "التخطيط"
+layout_preset = "قالب التخطيط:"
+toolbars_group = "أشرطة الأدوات"
+show_history_bar = "إظهار شريط التنقل في السجل"
+show_language_bar = "إظهار شريط اختيار اللغة"
+show_services_panel = "إظهار لوحة الخدمات"
+show_status_bar = "إظهار شريط الحالة"
+popup_group = "نافذة الترجمة السريعة المنبثقة"
+auto_size = "تغيير حجم المنبثقة تلقائيًا حسب المحتوى"
+auto_position = "تحديد موقع المنبثقة تلقائيًا بالقرب من المؤشر"
+transparency = "شفافية الخلفية:"
+# Close button
+close_behavior_group   = "زر الإغلاق"
+close_button           = "عند الإغلاق:"
+close_behavior_ask     = "اسأل في كل مرة"
+close_behavior_minimize = "تصغير إلى صينية النظام"
+close_behavior_exit    = "الخروج من التطبيق"
+close_behavior_hint    = "يتحكم في ما يحدث عند النقر فوق الزر ×. يمكنك أيضًا تعيين ذلك من حوار الإغلاق نفسه."
+
+# ===================================================================
+# DYNAMIC PLUGIN CONFIGURATION
+# ===================================================================
+[plugin_config]
+title_format = "تكوين — %s"
+required_fields_error_title = "حقول مطلوبة"
+required_fields_error_msg = "يرجى ملء الحقول المطلوبة:"
+
+# ===================================================================
+# OTHER DIALOGS
+# ===================================================================
+[about_dialog]
+title = "حول QTranslate"
+description = "تم التخلي عن QTranslate الأصلي. هذه إعادة كتابة كاملة — نفس الفكرة، تعتمد على الإضافات لكي لا يتوقف التطبيق عن العمل أبدًا."
+
+[history_dialog]
+title = "سجل الترجمة"
+
+[update_dialog]
+title = "تحديث متاح"
+header = "إصدار جديد من QTranslate متاح الآن!"
+# %1$s = new version number, %2$s = current version number
+details_format = "الإصدار %s متاح الآن (لديك %s). هل ترغب في التحديث؟"
+release_notes_label = "ملاحظات الإصدار:"
+skip_button = "تخطي هذا الإصدار"
+remind_later_button = "ذكرني لاحقًا"
+download_button = "الانتقال إلى صفحة التحميل"
+
+# ===================================================================
+# CLOSE DIALOG
+# ===================================================================
+[close_dialog]
+title           = "إغلاق QTranslate"
+message         = "ماذا تريد أن تفعل؟"
+minimize_to_tray = "تصغير إلى صينية النظام"
+exit            = "خروج"
+remember_choice = "تذكر خياري"
+
+# ===================================================================
+# EXTRA OUTPUT PANEL
+# ===================================================================
+[extra_output]
+label_backward = "ترجمة عكسية"
+label_summary = "ملخص"
+label_rewrite = "إعادة صياغة"
+
+# ===================================================================
+# NOTIFICATIONS & ERRORS
+# ===================================================================
+[notifications]
+language_not_supported_format = "اللغة '%s' غير مدعومة من قبل %s."
+tts_not_supported_format = "نطق النص غير مدعوم من قبل %s."
+unknown_error = "حدث خطأ غير معروف."

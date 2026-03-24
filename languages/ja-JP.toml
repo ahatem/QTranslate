@@ -1,0 +1,370 @@
+# ===================================================================
+# META SECTION
+# ===================================================================
+[meta]
+name = "Japanese"
+native_name = "日本語"
+locale = "ja-JP"
+version = "1.0.0"
+author = "QTranslate Team <ahatem925@gmail.com>"
+last_updated = "2025-10-17"
+rtl = false
+
+# ===================================================================
+# COMMON STRINGS
+# ===================================================================
+[common]
+ok = "OK"
+cancel = "キャンセル"
+apply = "適用"
+save = "保存"
+yes = "はい"
+no = "いいえ"
+close = "閉じる"
+save_as = "名前を付けて保存..."
+submit = "送信"
+search = "検索..."
+copy = "コピー"
+copy_all = "すべてコピー"
+paste = "貼り付け"
+cut = "切り取り"
+cut_all = "すべて切り取り"
+undo = "元に戻す"
+version = "バージョン %s"
+seconds = "秒"
+from = "原文"
+to = "訳文"
+listen = "読み上げ"
+pin = "固定"
+unpin = "固定解除"
+loading = "読み込み中..."
+none = "なし"
+error = "エラー"
+browse = "参照..."
+delete = "削除"
+rename = "名前を変更..."
+new = "新規..."
+configure = "構成"
+
+# ===================================================================
+# MAIN APPLICATION WINDOW
+# ===================================================================
+[main_window]
+status_format = "%s を使用中: %s → %s"
+no_translator = "翻訳エンジン未選択"
+
+[main_window_history_bar]
+backward_tooltip = "前の翻訳に戻る"
+forward_tooltip = "次の翻訳に進む"
+image_translate_tooltip = "画面上の範囲を指定してテキストを翻訳"
+
+[main_window_language_bar]
+clear_tooltip = "入力をクリア"
+swap_languages_tooltip = "翻訳方向を入れ替え"
+translate_button = "翻訳"
+
+[main_window_editor_context_menu]
+spelling_suggestions = "スペルの候補"
+undo = "@common.undo"
+cut = "@common.cut"
+cut_all = "@common.cut_all"
+copy = "@common.copy"
+copy_all = "@common.copy_all"
+paste = "@common.paste"
+translate = "@main_window_language_bar.translate_button"
+listen = "@common.listen"
+spell_check = "スペルチェック"
+
+
+[main_window_main_menu]
+layout_presets = "レイアウト プリセット"
+layout_preset_classic = "クラシック"
+layout_preset_side_by_side = "左右表示"
+layout_preset_compact = "コンパクト"
+instant_translation = "即時翻訳"
+show_extra_output = "追加出力を表示"
+spell_check = "スペルチェック"
+options_submenu = "オプション"
+show_history_bar = "履歴バーを表示"
+show_language_bar = "言語バーを表示"
+show_services_panel = "サービスパネルを表示"
+show_status_bar = "ステータスバーを表示"
+settings = "設定..."
+help_submenu = "ヘルプ"
+how_to_use = "使い方"
+contact_us = "お問い合わせ"
+auto_check_for_updates = "更新を自動確認"
+check_for_updates = "更新を確認"
+about_qtranslate = "QTranslate について"
+exit = "終了"
+
+[main_window_status_bar]
+ready_message = "準備完了"
+notifications_tooltip = "通知"
+notifications_empty_tooltip = "新しい通知はありません"
+
+# ===================================================================
+# SYSTEM TRAY MENU
+# ===================================================================
+[system_tray_menu]
+show_application = "QTranslate を表示"
+recognize_text = "テキスト認識 (OCR)"
+dictionary = "辞書"
+history = "履歴"
+settings = "@main_window_main_menu.settings"
+enable_hotkeys = "グローバル ホットキーを有効化"
+exit = "@main_window_main_menu.exit"
+
+# ===================================================================
+# SETTINGS DIALOG (SHELL & NAVIGATION)
+# ===================================================================
+[settings_dialog]
+title = "設定"
+unsaved_changes = "● 未保存の変更"
+saving = "保存中..."
+save_failed_title = "保存失敗"
+reset_defaults_button = "デフォルトに戻す"
+reset_confirmation_title = "デフォルトに戻す"
+reset_confirmation_message = "すべての設定をデフォルトに戻しますか？\nこの操作は取り消せません。"
+
+[settings_dialog_sidebar]
+general = "全般"
+appearance = "外観"
+services = "サービスとプリセット"
+plugins = "プラグイン"
+hotkeys = "キーボードとホットキー"
+translation = "翻訳"
+window_layout = "ウィンドウとレイアウト"
+
+# ===================================================================
+# SETTINGS PAGES
+# ===================================================================
+
+[settings_general]
+startup_group = "起動"
+launch_on_startup = "システム起動時に実行"
+updates_group = "更新"
+auto_check_updates = "更新を自動的に確認する"
+history_group = "履歴"
+enable_history = "翻訳履歴を有効にする"
+clear_history_on_exit = "終了時に履歴を消去する"
+clear_history_hint = "これがオンの場合、保存された翻訳は終了時に完全に削除されます。"
+
+[settings_appearance]
+language_group = "言語"
+interface_language = "インターフェース言語:"
+language_hint = "変更はすぐに適用されます。一部のラベルの更新には再起動が必要な場合があります。"
+theme_group = "テーマ"
+theme_label = "テーマ:"
+unified_title_bar = "統合タイトルバーを使用する"
+scale_group = "UI スケール"
+scale_label = "スケール:"
+scale_hint = "スケールの変更を完全に適用するには、アプリケーションを再起動してください。"
+fonts_group = "フォント"
+ui_font = "UI フォント:"
+editor_font = "エディタ フォント:"
+fallback_font = "代替フォント:"
+fallback_hint = "代替フォントは、エディタフォントが表示できない文字に使用されます。"
+loading_fonts = "<フォントを読み込み中...>"
+font_preview_text = "いろはにほへと ちりぬるを わかよたれそ つねならむ — 大きな茶色の狐が怠け者の犬を飛び越えた"
+
+[settings_services]
+presets_group = "有効なプリセット"
+current_preset = "現在のプリセット:"
+preset_hint = "プリセットを使用すると、異なるサービスの組み合わせを保存して素早く切り替えることができます。"
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+config_group = "サービス構成"
+translator = "翻訳エンジン:"
+tts = "音声合成 (TTS):"
+ocr = "OCR (文字認識):"
+spell_checker = "スペルチェッカー:"
+dictionary = "辞書:"
+summarizer = "要約:"
+rewriter = "リライター:"
+# Dialogs
+new_preset_title = "新規プリセット"
+new_preset_prompt = "新しいプリセット名を入力してください:"
+rename_preset_title = "プリセット名を変更"
+rename_preset_prompt = "新しい名前を入力してください:"
+delete_preset_title = "プリセットを削除"
+delete_preset_confirm = "プリセット \"%s\" を削除しますか？\nこの操作は取り消せません。"
+
+[settings_plugins]
+install_plugin = "プラグインをインストール..."
+empty_selection_hint = "プラグインを選択して詳細を表示"
+provided_services = "提供されるサービス"
+plugin_error_label = "エラー"
+status_enabled = "有効"
+status_disabled = "無効"
+status_failed = "失敗"
+status_verification = "検証待ち"
+# Actions
+btn_disable = "無効化"
+btn_enable = "有効化"
+btn_configure = "構成..."
+btn_accept_update = "アップデートを承認"
+btn_clean_install = "クリーン インストール"
+btn_uninstall = "アンインストール"
+tip_accept_update = "既存のデータを保持してプラグインを再有効化"
+tip_clean_install = "再有効化する前にすべてのプラグインデータを消去"
+# Dialogs
+install_dialog_title = "プラグイン JAR を選択"
+install_dialog_filter = "QTranslate プラグイン (*.jar)"
+install_success_title = "インストール完了"
+install_success_msg = "プラグインが正常にインストールされました。"
+install_fail_title = "インストール失敗"
+uninstall_confirm_title = "プラグインを削除"
+uninstall_confirm_msg = "\"%s\" を削除しますか？\nすべてのプラグインデータが完全に削除されます。"
+no_settings_msg = "このプラグインに設定可能な項目はありません。"
+
+[settings_hotkeys]
+global_group = "グローバル ホットキー"
+enable_global = "グローバル ホットキーを有効化"
+assignments_group = "ホットキーの割り当て"
+column_action = "アクション"
+column_hotkey = "ホットキー"
+column_description = "説明"
+customization_hint = "ホットキーのカスタマイズは将来のアップデートで利用可能になる予定です。"
+column_scope = "スコープ"
+scope_global = "グローバル"
+scope_local = "ローカル"
+# Default Actions
+action_show_main = "メインウィンドウを表示"
+action_quick_translate = "クイック翻訳"
+action_listen = "選択範囲を読み上げ"
+action_ocr = "画面から OCR"
+action_replace = "選択範囲を翻訳で置換 (試験的)"
+action_cycle_language = "ターゲット言語を切り替え"
+scope_toggle_hint = "クリックしてグローバルとローカルを切り替え"
+
+# Default Actions Descriptions
+desc_show_main = "Ctrl を 2 回押してメインウィンドウを表示"
+desc_quick_translate = "選択したテキストをポップアップで翻訳"
+desc_listen = "選択したテキストを音声で読み上げ"
+desc_ocr = "画面の領域をキャプチャしてテキストを抽出"
+desc_replace = "選択したテキストを翻訳して元の場所に貼り付け (試験的)"
+desc_cycle = "ウィンドウを開かずにターゲット言語を順次切り替え"
+
+edit_hint = "行をダブルクリックするか、選択して [編集] をクリックして変更します。"
+edit_button = "編集…"
+clear_button = "クリア"
+reset_button = "すべてデフォルトに戻す"
+no_binding = "(なし)"
+reset_confirmation = "すべてのホットキーをデフォルト値に戻しますか？"
+reset_title = "ホットキーをリセット"
+recorder_title = "ホットキーを記録"
+recorder_prompt = "割り当てるキーの組み合わせを押してください:"
+double_ctrl = "Ctrl 2回押し"
+recorder_waiting = "— キーを押してください —"
+recorder_hint = "Escape キーでキャンセル"
+
+
+[settings_translation]
+behavior_group = "動作"
+instant_translation = "即時翻訳 (入力中に翻訳)"
+instant_hint = "入力が止まると自動的に翻訳を開始します。"
+spell_check_input = "入力時のスペルチェックを有効にする"
+extra_output_group = "追加出力"
+extra_output_type = "タイプ:"
+extra_output_hint = "メイン翻訳出力の下にサブ結果パネルを表示します。"
+extra_output_source = "ソース:"
+source_use_translated = "翻訳後のテキストを使用"
+source_use_input = "入力テキストを使用"
+remove_line_breaks = "入力から改行を削除"
+remove_line_breaks_hint = "各行が改行で終わる PDF からコピーする場合に便利です。"
+pinned_languages_group = "言語フィルター"
+pinned_languages_hint = "ターゲット言語選択に表示する言語を選択します。すべて未チェックの場合は全言語が表示されます。"
+pinned_languages_clear = "フィルター解除 (すべて表示)"
+# Types
+type_none = "@common.none"
+type_backward = "折返し翻訳"
+type_summarize = "要約"
+type_rewrite = "リライト"
+# Summary length options
+summary_length = "要約の長さ:"
+summary_length_short = "短い (1文)"
+summary_length_medium = "普通 (数文)"
+summary_length_long = "長い (詳細)"
+# Rewrite style options
+rewrite_style = "リライト スタイル:"
+rewrite_style_formal = "フォーマル"
+rewrite_style_casual = "カジュアル"
+rewrite_style_concise = "簡潔"
+rewrite_style_detailed = "詳細"
+rewrite_style_simplified = "シンプル"
+
+[settings_window]
+layout_group = "レイアウト"
+layout_preset = "レイアウト プリセット:"
+toolbars_group = "ツールバー"
+show_history_bar = "履歴ナビゲーションバーを表示"
+show_language_bar = "言語選択バーを表示"
+show_services_panel = "サービスパネルを表示"
+show_status_bar = "ステータスバーを表示"
+popup_group = "クイック翻訳ポップアップ"
+auto_size = "コンテンツに合わせてサイズを自動調整"
+auto_position = "カーソルの近くに自動配置"
+transparency = "背景の不透明度:"
+# Close button
+close_behavior_group   = "閉じるボタン"
+close_button           = "閉じるとき:"
+close_behavior_ask     = "毎回確認する"
+close_behavior_minimize = "トレイに最小化"
+close_behavior_exit    = "アプリケーションを終了"
+close_behavior_hint    = "× ボタンをクリックしたときの動作を制御します。終了ダイアログからも設定可能です。"
+
+# ===================================================================
+# DYNAMIC PLUGIN CONFIGURATION
+# ===================================================================
+[plugin_config]
+title_format = "構成 — %s"
+required_fields_error_title = "必須項目"
+required_fields_error_msg = "必須項目を入力してください:"
+
+# ===================================================================
+# OTHER DIALOGS
+# ===================================================================
+[about_dialog]
+title = "QTranslate について"
+description = "オリジナルの QTranslate は開発が終了しました。これはフルスクラッチによる再開発版です。プラグイン駆動により、アプリが古くなることはありません。"
+
+[history_dialog]
+title = "翻訳履歴"
+
+[update_dialog]
+title = "アップデートが利用可能"
+header = "QTranslate の新しいバージョンが利用可能です！"
+# %1$s = new version number, %2$s = current version number
+details_format = "バージョン %s が利用可能です (現在 %s)。更新しますか？"
+release_notes_label = "リリースノート:"
+skip_button = "このバージョンをスキップ"
+remind_later_button = "後で通知"
+download_button = "ダウンロード ページへ"
+
+# ===================================================================
+# CLOSE DIALOG
+# ===================================================================
+[close_dialog]
+title           = "QTranslate を閉じる"
+message         = "実行するアクションを選択してください:"
+minimize_to_tray = "トレイに最小化"
+exit            = "終了"
+remember_choice = "選択を記憶する"
+
+# ===================================================================
+# EXTRA OUTPUT PANEL
+# ===================================================================
+[extra_output]
+label_backward = "折返し翻訳"
+label_summary = "要約"
+label_rewrite = "リライト"
+
+# ===================================================================
+# NOTIFICATIONS & ERRORS
+# ===================================================================
+[notifications]
+language_not_supported_format = "言語 '%s' は %s でサポートされていません。"
+tts_not_supported_format = "音声合成は %s でサポートされていません。"
+unknown_error = "不明なエラーが発生しました。"

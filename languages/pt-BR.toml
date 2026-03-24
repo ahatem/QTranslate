@@ -1,0 +1,370 @@
+# ===================================================================
+# META SECTION
+# ===================================================================
+[meta]
+name = "Portuguese (Brazil)"
+native_name = "Português (Brasil)"
+locale = "pt-BR"
+version = "1.0.0"
+author = "QTranslate Team <ahatem925@gmail.com>"
+last_updated = "2025-10-17"
+rtl = false
+
+# ===================================================================
+# COMMON STRINGS
+# ===================================================================
+[common]
+ok = "OK"
+cancel = "Cancelar"
+apply = "Aplicar"
+save = "Salvar"
+yes = "Sim"
+no = "Não"
+close = "Fechar"
+save_as = "Salvar como..."
+submit = "Enviar"
+search = "Procurar..."
+copy = "Copiar"
+copy_all = "Copiar tudo"
+paste = "Colar"
+cut = "Recortar"
+cut_all = "Recortar tudo"
+undo = "Desfazer"
+version = "Versão %s"
+seconds = "segundos"
+from = "De"
+to = "para"
+listen = "Ouvir"
+pin = "Fixar"
+unpin = "Desafixar"
+loading = "Carregando..."
+none = "Nenhum"
+error = "Erro"
+browse = "Procurar..."
+delete = "Excluir"
+rename = "Renomear..."
+new = "Novo..."
+configure = "Configurar"
+
+# ===================================================================
+# MAIN APPLICATION WINDOW
+# ===================================================================
+[main_window]
+status_format = "Usando %s: %s → %s"
+no_translator = "Sem Tradutor"
+
+[main_window_history_bar]
+backward_tooltip = "Voltar no histórico de tradução"
+forward_tooltip = "Avançar no histórico de tradução"
+image_translate_tooltip = "Capturar e traduzir texto de uma área na tela"
+
+[main_window_language_bar]
+clear_tooltip = "Limpar texto de entrada"
+swap_languages_tooltip = "Inverter direção da tradução"
+translate_button = "Traduzir"
+
+[main_window_editor_context_menu]
+spelling_suggestions = "Sugestões de Ortografia"
+undo = "@common.undo"
+cut = "@common.cut"
+cut_all = "@common.cut_all"
+copy = "@common.copy"
+copy_all = "@common.copy_all"
+paste = "@common.paste"
+translate = "@main_window_language_bar.translate_button"
+listen = "@common.listen"
+spell_check = "Corretor Ortográfico"
+
+
+[main_window_main_menu]
+layout_presets = "Predefinições de Layout"
+layout_preset_classic = "Clássico"
+layout_preset_side_by_side = "Lado a Lado"
+layout_preset_compact = "Compacto"
+instant_translation = "Tradução Instantânea"
+show_extra_output = "Mostrar Saída Extra"
+spell_check = "Corretor Ortográfico"
+options_submenu = "Opções"
+show_history_bar = "Mostrar Barra de Histórico"
+show_language_bar = "Mostrar Barra de Idiomas"
+show_services_panel = "Mostrar Painel de Serviços"
+show_status_bar = "Mostrar Barra de Status"
+settings = "Configurações..."
+help_submenu = "Ajuda"
+how_to_use = "Como usar"
+contact_us = "Contate-nos"
+auto_check_for_updates = "Verificar atualizações automaticamente"
+check_for_updates = "Verificar atualizações"
+about_qtranslate = "Sobre o QTranslate"
+exit = "Sair"
+
+[main_window_status_bar]
+ready_message = "Pronto"
+notifications_tooltip = "Notificações"
+notifications_empty_tooltip = "Sem novas notificações"
+
+# ===================================================================
+# SYSTEM TRAY MENU
+# ===================================================================
+[system_tray_menu]
+show_application = "Mostrar QTranslate"
+recognize_text = "Reconhecimento de Texto (OCR)"
+dictionary = "Dicionário"
+history = "Histórico"
+settings = "@main_window_main_menu.settings"
+enable_hotkeys = "Ativar Atalhos Globais"
+exit = "@main_window_main_menu.exit"
+
+# ===================================================================
+# SETTINGS DIALOG (SHELL & NAVIGATION)
+# ===================================================================
+[settings_dialog]
+title = "Configurações"
+unsaved_changes = "● Alterações não salvas"
+saving = "Salvando..."
+save_failed_title = "Falha ao Salvar"
+reset_defaults_button = "Restaurar Padrões"
+reset_confirmation_title = "Restaurar Padrões"
+reset_confirmation_message = "Restaurar todas as configurações para os padrões?\nIsso não pode ser desfeito."
+
+[settings_dialog_sidebar]
+general = "Geral"
+appearance = "Aparência"
+services = "Serviços e Presets"
+plugins = "Plugins"
+hotkeys = "Teclado e Atalhos"
+translation = "Tradução"
+window_layout = "Janela e Layout"
+
+# ===================================================================
+# SETTINGS PAGES
+# ===================================================================
+
+[settings_general]
+startup_group = "Inicialização"
+launch_on_startup = "Iniciar com o sistema"
+updates_group = "Atualizações"
+auto_check_updates = "Verificar atualizações automaticamente"
+history_group = "Histórico"
+enable_history = "Ativar histórico de tradução"
+clear_history_on_exit = "Limpar histórico ao fechar o app"
+clear_history_hint = "As traduções salvas serão apagadas permanentemente ao sair se isto estiver ativado."
+
+[settings_appearance]
+language_group = "Idioma"
+interface_language = "Idioma da Interface:"
+language_hint = "As mudanças são aplicadas imediatamente. Alguns rótulos podem exigir reinicialização para atualizar."
+theme_group = "Tema"
+theme_label = "Tema:"
+unified_title_bar = "Usar barra de título unificada"
+scale_group = "Escala da UI"
+scale_label = "Escala:"
+scale_hint = "Reinicie o aplicativo para aplicar as mudanças de escala completamente."
+fonts_group = "Fontes"
+ui_font = "Fonte da UI:"
+editor_font = "Fonte do Editor:"
+fallback_font = "Fonte de Reserva:"
+fallback_hint = "A fonte de reserva é usada para caracteres que a fonte do editor não consegue exibir."
+loading_fonts = "<Carregando fontes...>"
+font_preview_text = "Vê que belo dia de sol, a raposa rápida saltou sobre o cão — 大きな茶色の狐が怠け者の犬を飛び越えた"
+
+[settings_services]
+presets_group = "Preset Ativo"
+current_preset = "Preset Atual:"
+preset_hint = "Presets permitem salvar diferentes combinações de serviços e alternar entre eles rapidamente."
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+config_group = "Configuração do Serviço"
+translator = "Tradutor:"
+tts = "Voz (TTS):"
+ocr = "OCR:"
+spell_checker = "Corretor Ortográfico:"
+dictionary = "Dicionário:"
+summarizer = "Resumidor:"
+rewriter = "Reescritor:"
+# Dialogs
+new_preset_title = "Novo Preset"
+new_preset_prompt = "Digite um nome para o novo preset:"
+rename_preset_title = "Renomear Preset"
+rename_preset_prompt = "Digite o novo nome:"
+delete_preset_title = "Excluir Preset"
+delete_preset_confirm = "Excluir o preset \"%s\"?\nIsso não pode ser desfeito."
+
+[settings_plugins]
+install_plugin = "Instalar Plugin..."
+empty_selection_hint = "Selecione um plugin para ver os detalhes"
+provided_services = "Serviços Fornecidos"
+plugin_error_label = "Erro"
+status_enabled = "Ativado"
+status_disabled = "Desativado"
+status_failed = "Falha"
+status_verification = "Aguardando Verificação"
+# Actions
+btn_disable = "Desativar"
+btn_enable = "Ativar"
+btn_configure = "Configurar..."
+btn_accept_update = "Aceitar Atualização"
+btn_clean_install = "Instalação Limpa"
+btn_uninstall = "Desinstalar"
+tip_accept_update = "Manter dados existentes e reativar o plugin"
+tip_clean_install = "Apagar todos os dados do plugin antes de reativar"
+# Dialogs
+install_dialog_title = "Selecionar JAR do Plugin"
+install_dialog_filter = "Plugin QTranslate (*.jar)"
+install_success_title = "Plugin Instalado"
+install_success_msg = "Plugin instalado com sucesso."
+install_fail_title = "Falha na Instalação"
+uninstall_confirm_title = "Desinstalar Plugin"
+uninstall_confirm_msg = "Desinstalar \"%s\"?\nTodos os dados do plugin serão permanentemente excluídos."
+no_settings_msg = "Este plugin não possui configurações ajustáveis."
+
+[settings_hotkeys]
+global_group = "Atalhos Globais"
+enable_global = "Ativar atalhos globais"
+assignments_group = "Atribuições de Atalhos"
+column_action = "Ação"
+column_hotkey = "Atalho"
+column_description = "Descrição"
+customization_hint = "A personalização de atalhos estará disponível em uma atualização futura."
+column_scope = "Escopo"
+scope_global = "Global"
+scope_local = "Local"
+# Default Actions
+action_show_main = "Mostrar Janela Principal"
+action_quick_translate = "Tradução Rápida"
+action_listen = "Ouvir Seleção"
+action_ocr = "OCR da Tela"
+action_replace = "Substituir Seleção pela Tradução (experimental)"
+action_cycle_language = "Alternar Idioma de Destino"
+scope_toggle_hint = "Clique para alternar entre Global e Local"
+
+# Default Actions Descriptions
+desc_show_main = "Toque duas vezes em Ctrl para mostrar a janela principal"
+desc_quick_translate = "Traduz o texto selecionado em um popup"
+desc_listen = "Lê o texto selecionado em voz alta"
+desc_ocr = "Captura uma região da tela e extrai o texto"
+desc_replace = "Traduz o texto selecionado e o cola de volta no lugar (experimental)"
+desc_cycle = "Alterna entre os idiomas de destino disponíveis sem abrir a janela"
+
+edit_hint = "Clique duplo em uma linha ou selecione-a e clique em Editar para mudar."
+edit_button = "Editar…"
+clear_button = "Limpar"
+reset_button = "Resetar Todos"
+no_binding = "(nenhum)"
+reset_confirmation = "Resetar todos os atalhos para os valores padrão?"
+reset_title = "Resetar Atalhos"
+recorder_title = "Gravar Atalho"
+recorder_prompt = "Pressione a combinação de teclas para:"
+double_ctrl = "Ctrl Duplo"
+recorder_waiting = "— pressione uma combinação de teclas —"
+recorder_hint = "Pressione Escape para cancelar"
+
+
+[settings_translation]
+behavior_group = "Comportamento"
+instant_translation = "Tradução instantânea (ao digitar)"
+instant_hint = "Inicia a tradução automaticamente após você parar de digitar."
+spell_check_input = "Ativar corretor ortográfico na entrada"
+extra_output_group = "Saída Extra"
+extra_output_type = "Tipo:"
+extra_output_hint = "Mostra um painel secundário abaixo da saída principal de tradução."
+extra_output_source = "Fonte:"
+source_use_translated = "Usar texto traduzido"
+source_use_input = "Usar texto original"
+remove_line_breaks = "Remover quebras de linha da entrada"
+remove_line_breaks_hint = "Útil ao copiar de PDFs onde cada linha termina com uma nova linha"
+pinned_languages_group = "Filtro de Idiomas"
+pinned_languages_hint = "Selecione idiomas para mostrar no seletor. Deixe vazio para ver todos."
+pinned_languages_clear = "Limpar Filtro (Ver Todos)"
+# Types
+type_none = "@common.none"
+type_backward = "Tradução Reversa"
+type_summarize = "Resumo"
+type_rewrite = "Reescrita"
+# Summary length options (shown when type = Summarization)
+summary_length = "Tamanho do Resumo:"
+summary_length_short = "Curto (uma frase)"
+summary_length_medium = "Médio (algumas frases)"
+summary_length_long = "Longo (detalhado)"
+# Rewrite style options (shown when type = Rewriting)
+rewrite_style = "Estilo de Reescrita:"
+rewrite_style_formal = "Formal"
+rewrite_style_casual = "Casual"
+rewrite_style_concise = "Conciso"
+rewrite_style_detailed = "Detalhado"
+rewrite_style_simplified = "Simplificado"
+
+[settings_window]
+layout_group = "Layout"
+layout_preset = "Predefinição de Layout:"
+toolbars_group = "Barras de Ferramentas"
+show_history_bar = "Mostrar barra de navegação do histórico"
+show_language_bar = "Mostrar barra de seleção de idiomas"
+show_services_panel = "Mostrar painel de serviços"
+show_status_bar = "Mostrar barra de status"
+popup_group = "Popup de Tradução Rápida"
+auto_size = "Ajustar tamanho do popup ao conteúdo"
+auto_position = "Posicionar popup perto do cursor"
+transparency = "Transparência do Fundo:"
+# Close button
+close_behavior_group   = "Botão Fechar"
+close_button           = "Ao fechar:"
+close_behavior_ask     = "Perguntar sempre"
+close_behavior_minimize = "Minimizar para a bandeja"
+close_behavior_exit    = "Sair do aplicativo"
+close_behavior_hint    = "Controla o que acontece ao clicar no botão ×. Você também pode definir isso no diálogo de fechamento."
+
+# ===================================================================
+# DYNAMIC PLUGIN CONFIGURATION
+# ===================================================================
+[plugin_config]
+title_format = "Configurar — %s"
+required_fields_error_title = "Campos Obrigatórios"
+required_fields_error_msg = "Por favor, preencha os campos obrigatórios:"
+
+# ===================================================================
+# OTHER DIALOGS
+# ===================================================================
+[about_dialog]
+title = "Sobre o QTranslate"
+description = "O QTranslate original foi abandonado. Esta é uma reescrita completa — mesma ideia, movido a plugins para que o app nunca fique obsoleto."
+
+[history_dialog]
+title = "Histórico de Tradução"
+
+[update_dialog]
+title = "Atualização Disponível"
+header = "Uma nova versão do QTranslate está disponível!"
+# %1$s = new version number, %2$s = current version number
+details_format = "A versão %s está disponível (você tem a %s). Deseja atualizar?"
+release_notes_label = "Notas da Versão:"
+skip_button = "Pular esta Versão"
+remind_later_button = "Lembrar mais tarde"
+download_button = "Ir para a Página de Download"
+
+# ===================================================================
+# CLOSE DIALOG
+# ===================================================================
+[close_dialog]
+title           = "Fechar QTranslate"
+message         = "O que você gostaria de fazer?"
+minimize_to_tray = "Minimizar para a Bandeja"
+exit            = "Sair"
+remember_choice = "Lembrar minha escolha"
+
+# ===================================================================
+# EXTRA OUTPUT PANEL
+# ===================================================================
+[extra_output]
+label_backward = "Tradução Reversa"
+label_summary = "Resumo"
+label_rewrite = "Reescrita"
+
+# ===================================================================
+# NOTIFICATIONS & ERRORS
+# ===================================================================
+[notifications]
+language_not_supported_format = "O idioma '%s' não é suportado por %s."
+tts_not_supported_format = "Síntese de voz não é suportada por %s."
+unknown_error = "Ocorreu um erro desconhecido."
