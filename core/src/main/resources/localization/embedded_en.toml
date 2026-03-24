@@ -44,6 +44,7 @@ browse = "Browse..."
 delete = "Delete"
 rename = "Rename..."
 new = "New..."
+configure = "Configure"
 
 # ===================================================================
 # MAIN APPLICATION WINDOW
@@ -180,6 +181,8 @@ tts = "Text-to-Speech:"
 ocr = "OCR:"
 spell_checker = "Spell Checker:"
 dictionary = "Dictionary:"
+summarizer = "Summarizer:"
+rewriter = "Rewriter:"
 # Dialogs
 new_preset_title = "New Preset"
 new_preset_prompt = "Enter a name for the new preset:"
@@ -241,6 +244,8 @@ desc_show_main = "Double-tap Ctrl to show the main window"
 desc_quick_translate = "Translate selected text in a popup"
 desc_listen = "Read selected text aloud"
 desc_ocr = "Capture a screen region and extract text"
+desc_replace = "Translates selected text and pastes it back in place (experimental)"
+desc_cycle = "Cycle through available target languages without opening the window"
 
 edit_hint = "Double-click a row or select it and click Edit to change a binding."
 edit_button = "Edit…"
@@ -277,6 +282,18 @@ type_none = "@common.none"
 type_backward = "Backward Translation"
 type_summarize = "Summarization"
 type_rewrite = "Rewriting"
+# Summary length options (shown when type = Summarization)
+summary_length = "Summary Length:"
+summary_length_short = "Short (one sentence)"
+summary_length_medium = "Medium (a few sentences)"
+summary_length_long = "Long (detailed)"
+# Rewrite style options (shown when type = Rewriting)
+rewrite_style = "Rewrite Style:"
+rewrite_style_formal = "Formal"
+rewrite_style_casual = "Casual"
+rewrite_style_concise = "Concise"
+rewrite_style_detailed = "Detailed"
+rewrite_style_simplified = "Simplified"
 
 [settings_window]
 layout_group = "Layout"
@@ -304,7 +321,7 @@ required_fields_error_msg = "Please fill in the required fields:"
 # ===================================================================
 [about_dialog]
 title = "About QTranslate"
-description = "QTranslate translates text using various online services."
+description = "The original QTranslate was abandoned. This is a full rewrite — same idea, plugin-driven so the app never goes stale."
 
 [history_dialog]
 title = "Translation History"
@@ -312,11 +329,20 @@ title = "Translation History"
 [update_dialog]
 title = "Update Available"
 header = "A new version of QTranslate is available!"
+# %1$s = new version number, %2$s = current version number
 details_format = "Version %s is now available (you have %s). Would you like to update?"
 release_notes_label = "Release Notes:"
 skip_button = "Skip This Version"
 remind_later_button = "Remind Me Later"
 download_button = "Go to Download Page"
+
+# ===================================================================
+# EXTRA OUTPUT PANEL
+# ===================================================================
+[extra_output]
+label_backward = "Backward Translation"
+label_summary = "Summary"
+label_rewrite = "Rewrite"
 
 # ===================================================================
 # NOTIFICATIONS & ERRORS
