@@ -45,7 +45,9 @@ class MainStore(
     private val selectActiveServiceUseCase: SelectActiveServiceUseCase,
     private val translateTextUseCase: TranslateTextUseCase,
     private val swapLanguagesUseCase: SwapLanguagesUseCase,
-    private val ocrAndTranslateUseCase: OcrAndTranslateUseCase
+    private val ocrAndTranslateUseCase: OcrAndTranslateUseCase,
+    private val summarizeUseCase: SummarizeUseCase,
+    private val rewriteUseCase: RewriteUseCase
 ) : Store<MainState, MainIntent, MainEvent> {
 
     private val _state = MutableStateFlow(MainState())

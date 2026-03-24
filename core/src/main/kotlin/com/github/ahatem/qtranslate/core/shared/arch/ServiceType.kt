@@ -5,5 +5,7 @@ enum class ServiceType {
     TTS,
     OCR,
     SPELL_CHECKER,
-    DICTIONARY
+    DICTIONARY,
+    SUMMARIZER,
+    REWRITER
 }

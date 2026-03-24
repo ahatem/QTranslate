@@ -10,6 +10,7 @@ import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
@@ -36,10 +37,15 @@ class TranslateTextUseCase(
     private val settingsState: StateFlow<Configuration>,
     private val activeServiceManager: ActiveServiceManager,
     private val historyRepository: HistoryRepository,
+    private val summarizeUseCase: SummarizeUseCase,
+    private val rewriteUseCase: RewriteUseCase,
     loggerFactory: LoggerFactory
 ) {
     private val logger: Logger = loggerFactory.getLogger("TranslateTextUseCase")
     private var translationJob: Job? = null
+
+    // Stored so handleExtraOutput can access current input text for ExtraOutputSource.Input
+    private var currentGetState: (() -> MainState)? = null
 
     suspend operator fun invoke(
         getState: () -> MainState,
@@ -47,6 +53,7 @@ class TranslateTextUseCase(
         onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit,
         textOverride: String? = null
     ) {
+        currentGetState = getState
         translationJob?.cancel(CancellationException("New translation requested"))
 
         val textToTranslate = textOverride ?: getState().inputText
@@ -188,25 +195,34 @@ class TranslateTextUseCase(
         targetForBackward: LanguageCode,
         translator: Translator,
         onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit
-    ): String = when (settingsState.value.extraOutputType) {
-        ExtraOutputType.BackwardTranslate -> performBackwardTranslation(
-            targetText        = targetText,
-            targetLanguage    = sourceForBackward,
-            sourceLanguage    = targetForBackward,
-            translator        = translator,
-            onStatusUpdate    = onStatusUpdate
-        )
-        ExtraOutputType.Summarize -> {
-            logger.warn("Summarize feature not yet implemented")
-            onStatusUpdate("Summary feature is not yet implemented.", NotificationType.WARNING, true)
-            ""
+    ): String {
+        val config = settingsState.value
+        // ExtraOutputSource determines whether we operate on the original input text
+        // or on the translated output. Resolved by the caller before this is called.
+        val sourceText = when (config.extraOutputSource) {
+            ExtraOutputSource.Output -> targetText
+            ExtraOutputSource.Input  -> currentGetState?.invoke()?.inputText ?: ""
         }
-        ExtraOutputType.Rewrite -> {
-            logger.warn("Rewrite feature not yet implemented")
-            onStatusUpdate("Rewrite feature is not yet implemented.", NotificationType.WARNING, true)
-            ""
+        return when (config.extraOutputType) {
+            ExtraOutputType.BackwardTranslate -> performBackwardTranslation(
+                targetText     = targetText,
+                targetLanguage = sourceForBackward,
+                sourceLanguage = targetForBackward,
+                translator     = translator,
+                onStatusUpdate = onStatusUpdate
+            )
+            ExtraOutputType.Summarize -> summarizeUseCase(
+                text           = sourceText,
+                config         = config,
+                onStatusUpdate = onStatusUpdate
+            )
+            ExtraOutputType.Rewrite -> rewriteUseCase(
+                text           = sourceText,
+                config         = config,
+                onStatusUpdate = onStatusUpdate
+            )
+            ExtraOutputType.None -> ""
         }
-        ExtraOutputType.None -> ""
     }
 
     private suspend fun performBackwardTranslation(

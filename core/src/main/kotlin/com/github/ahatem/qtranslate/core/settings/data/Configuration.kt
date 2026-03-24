@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.core.settings.data
 
+import com.github.ahatem.qtranslate.api.rewriter.RewriteStyle
+import com.github.ahatem.qtranslate.api.summarizer.SummaryLength
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import kotlinx.serialization.Serializable
 import javax.swing.KeyStroke
@@ -174,6 +176,8 @@ data class Configuration(
     val isSpellCheckingEnabled: Boolean,
     val extraOutputType: ExtraOutputType,
     val extraOutputSource: ExtraOutputSource,
+    val summaryLength: SummaryLength = SummaryLength.MEDIUM,
+    val rewriteStyle: RewriteStyle = RewriteStyle.FORMAL,
 
     // ---- Translation ----
     /**
@@ -231,12 +235,14 @@ data class Configuration(
                 isSpellCheckingEnabled       = true,
                 extraOutputType              = ExtraOutputType.None,
                 extraOutputSource            = ExtraOutputSource.Output,
+                summaryLength                = SummaryLength.MEDIUM,
+                rewriteStyle                 = RewriteStyle.FORMAL,
                 isRemoveLineBreaksEnabled    = false,
                 pinnedLanguages              = emptyList(),
                 isHistoryEnabled             = true,
                 clearHistoryOnExit           = false,
                 uiScale                      = 100,
-                themeId                      = "custom:xcode_dark",
+                themeId                      = "builtin:hiberbee_dark",
                 uiFontConfig                 = FontConfig(name = "Rubik", size = 13),
                 editorFontConfig             = FontConfig(name = "Rubik", size = 15),
                 editorFallbackFontConfig     = FontConfig(name = "Rubik", size = 15),
