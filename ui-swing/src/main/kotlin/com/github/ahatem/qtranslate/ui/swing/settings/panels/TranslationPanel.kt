@@ -1,6 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.api.rewriter.RewriteStyle
+import com.github.ahatem.qtranslate.api.summarizer.SummaryLength
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
@@ -12,6 +14,24 @@ class TranslationPanel(
     private val store: SettingsStore,
     private val localizationManager: LocalizationManager
 ) : SettingsPanel() {
+
+    private val summaryLengths by lazy {
+        listOf(
+            SummaryLengthInfo(SummaryLength.SHORT,  localizationManager.getString("settings_translation.summary_length_short")),
+            SummaryLengthInfo(SummaryLength.MEDIUM, localizationManager.getString("settings_translation.summary_length_medium")),
+            SummaryLengthInfo(SummaryLength.LONG,   localizationManager.getString("settings_translation.summary_length_long"))
+        )
+    }
+
+    private val rewriteStyles by lazy {
+        listOf(
+            RewriteStyleInfo(RewriteStyle.FORMAL,     localizationManager.getString("settings_translation.rewrite_style_formal")),
+            RewriteStyleInfo(RewriteStyle.CASUAL,     localizationManager.getString("settings_translation.rewrite_style_casual")),
+            RewriteStyleInfo(RewriteStyle.CONCISE,    localizationManager.getString("settings_translation.rewrite_style_concise")),
+            RewriteStyleInfo(RewriteStyle.DETAILED,   localizationManager.getString("settings_translation.rewrite_style_detailed")),
+            RewriteStyleInfo(RewriteStyle.SIMPLIFIED, localizationManager.getString("settings_translation.rewrite_style_simplified"))
+        )
+    }
 
     private val types by lazy {
         listOf(
@@ -28,6 +48,12 @@ class TranslationPanel(
     private lateinit var typeCombo:             JComboBox<ExtraOutputTypeInfo>
     private lateinit var useTranslated:         JRadioButton
     private lateinit var useInput:              JRadioButton
+
+    // Conditional setting rows — shown only for the relevant extra output type
+    private lateinit var summaryLengthRow: JPanel
+    private lateinit var summaryLengthCombo: JComboBox<SummaryLengthInfo>
+    private lateinit var rewriteStyleRow: JPanel
+    private lateinit var rewriteStyleCombo: JComboBox<RewriteStyleInfo>
 
     // Pinned languages — individual JCheckBoxes, NOT a JList.
     //
@@ -85,6 +111,47 @@ class TranslationPanel(
         }
         addRow(localizationManager.getString("settings_translation.extra_output_type"), typeCombo)
         addHint(localizationManager.getString("settings_translation.extra_output_hint"))
+
+        // ---- Summary length (only visible when type = Summarize) ----
+        // Wrapped in a JPanel so we can hide the entire row (label + combo) with one isVisible call.
+        // GridBag rows with isVisible=false still occupy space, but since the wrapper
+        // fills HORIZONTAL and the inner combo is the only content, it collapses cleanly.
+        summaryLengthCombo = JComboBox<SummaryLengthInfo>(summaryLengths.toTypedArray()).apply {
+            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            addActionListener {
+                if (!isUpdatingFromState) {
+                    val length = (selectedItem as? SummaryLengthInfo)?.length ?: return@addActionListener
+                    applyDraft(store) { it.copy(summaryLength = length) }
+                }
+            }
+        }
+        summaryLengthRow = JPanel(java.awt.BorderLayout(8, 0)).apply {
+            isOpaque  = false
+            isVisible = false  // hidden until type = Summarize
+            add(JLabel(localizationManager.getString("settings_translation.summary_length")), java.awt.BorderLayout.LINE_START)
+            add(summaryLengthCombo, java.awt.BorderLayout.CENTER)
+        }
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+            .insets(4, 0, 0, 0).add(summaryLengthRow)
+
+        // ---- Rewrite style (only visible when type = Rewrite) ----
+        rewriteStyleCombo = JComboBox<RewriteStyleInfo>(rewriteStyles.toTypedArray()).apply {
+            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            addActionListener {
+                if (!isUpdatingFromState) {
+                    val style = (selectedItem as? RewriteStyleInfo)?.style ?: return@addActionListener
+                    applyDraft(store) { it.copy(rewriteStyle = style) }
+                }
+            }
+        }
+        rewriteStyleRow = JPanel(java.awt.BorderLayout(8, 0)).apply {
+            isOpaque  = false
+            isVisible = false  // hidden until type = Rewrite
+            add(JLabel(localizationManager.getString("settings_translation.rewrite_style")), java.awt.BorderLayout.LINE_START)
+            add(rewriteStyleCombo, java.awt.BorderLayout.CENTER)
+        }
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+            .insets(4, 0, 0, 0).add(rewriteStyleRow)
 
         useTranslated = JRadioButton(localizationManager.getString("settings_translation.source_use_translated")).apply {
             addActionListener {
@@ -183,6 +250,12 @@ class TranslationPanel(
             useTranslated.isEnabled = extraEnabled
             useInput.isEnabled      = extraEnabled
 
+            // Sync and show/hide conditional settings
+            summaryLengthCombo.selectedItem = summaryLengths.find { it.length == c.summaryLength }
+            rewriteStyleCombo.selectedItem  = rewriteStyles.find  { it.style  == c.rewriteStyle  }
+            summaryLengthRow.isVisible = c.extraOutputType == ExtraOutputType.Summarize
+            rewriteStyleRow.isVisible  = c.extraOutputType == ExtraOutputType.Rewrite
+
             // Sync checkboxes — direct assignment, no selection model, no events fired
             // (isUpdatingFromState = true, so ActionListeners are all guarded)
             // Empty pinnedLanguages = no filter active = nothing checked
@@ -199,6 +272,8 @@ class TranslationPanel(
     }
 
     private data class ExtraOutputTypeInfo(val type: ExtraOutputType, val displayName: String)
+    private data class SummaryLengthInfo(val length: SummaryLength, val displayName: String)
+    private data class RewriteStyleInfo(val style: RewriteStyle, val displayName: String)
 
     companion object {
         private val COMMON_LANGUAGES = listOf(

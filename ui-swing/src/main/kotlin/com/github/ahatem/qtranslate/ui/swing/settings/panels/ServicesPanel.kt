@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
@@ -8,8 +9,6 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.util.type
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
@@ -23,8 +22,8 @@ class ServicesPanel(
 ) : SettingsPanel() {
 
     private lateinit var presetCombo: JComboBox<PresetInfo>
-    private lateinit var renameBtn:   JButton
-    private lateinit var deleteBtn:   JButton
+    private lateinit var renameBtn: JButton
+    private lateinit var deleteBtn: JButton
     private val serviceComboBoxes = mutableMapOf<ServiceType, JComboBox<ServiceOption>>()
 
     init {
@@ -133,15 +132,17 @@ class ServicesPanel(
 
             ServiceType.DICTIONARY ->
                 localizationManager.getString("settings_services.dictionary")
+
+            ServiceType.SUMMARIZER ->
+                localizationManager.getString("settings_services.summarizer")
+
+            ServiceType.REWRITER ->
+                localizationManager.getString("settings_services.rewriter")
         }
 
     private fun observePlugins() {
-        // Populate immediately from the current snapshot so combos are never
-        // empty on first navigation. The StateFlow always has a current value —
-        // we don't need to wait for the next emission.
         populateCombos(groupByType(pluginManager.activeServices.value.values))
 
-        // Then keep them updated as plugins are loaded/unloaded/enabled/disabled.
         scope.launch {
             pluginManager.activeServices
                 .collect { services ->
@@ -153,9 +154,9 @@ class ServicesPanel(
     }
 
     private fun groupByType(
-        services: Collection<com.github.ahatem.qtranslate.api.plugin.Service>
-    ): Map<com.github.ahatem.qtranslate.core.shared.arch.ServiceType, List<com.github.ahatem.qtranslate.api.plugin.Service>> {
-        val result = mutableMapOf<com.github.ahatem.qtranslate.core.shared.arch.ServiceType, MutableList<com.github.ahatem.qtranslate.api.plugin.Service>>()
+        services: Collection<Service>
+    ): Map<ServiceType, List<Service>> {
+        val result = mutableMapOf<ServiceType, MutableList<Service>>()
         services.forEach { service ->
             val type = service.type ?: return@forEach
             result.getOrPut(type) { mutableListOf() }.add(service)
@@ -163,7 +164,7 @@ class ServicesPanel(
         return result
     }
 
-    private fun populateCombos(servicesByType: Map<com.github.ahatem.qtranslate.core.shared.arch.ServiceType, List<com.github.ahatem.qtranslate.api.plugin.Service>>) {
+    private fun populateCombos(servicesByType: Map<ServiceType, List<Service>>) {
         serviceComboBoxes.forEach { (type, combo) ->
             val current = combo.selectedItem as? ServiceOption
             combo.removeAllItems()
@@ -193,7 +194,6 @@ class ServicesPanel(
             val active = c.servicePresets.find { it.id == c.activeServicePresetId }
             active?.let { presetCombo.selectedItem = PresetInfo(it.id, it.name) }
 
-            // Enable rename/delete only when there are presets to act on
             val hasPreset = active != null
             renameBtn.isEnabled = hasPreset
             deleteBtn.isEnabled = hasPreset && c.servicePresets.size > 1 // keep at least one
@@ -212,10 +212,7 @@ class ServicesPanel(
         }
     }
 
-    // ---- Preset dialogs ----
-
     private fun onNew() {
-
         val name = JOptionPane.showInputDialog(
             this,
             localizationManager.getString("settings_services.new_preset_prompt"),
@@ -228,7 +225,6 @@ class ServicesPanel(
     }
 
     private fun onRename() {
-
         val selected = presetCombo.selectedItem as? PresetInfo ?: return
 
         val newName = JOptionPane.showInputDialog(
@@ -251,7 +247,6 @@ class ServicesPanel(
     }
 
     private fun onDelete() {
-
         val selected = presetCombo.selectedItem as? PresetInfo ?: return
 
         val message =

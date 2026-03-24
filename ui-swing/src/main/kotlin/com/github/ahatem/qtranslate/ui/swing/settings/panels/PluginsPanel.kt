@@ -415,17 +415,12 @@ class PluginsPanel(
                 text   = value.manifest.name
                 border = BorderFactory.createEmptyBorder(6, 10, 6, 10)
 
-                // Load the plugin's own icon using the plugin classloader so the
-                // resource is resolved inside the plugin JAR, not the app classpath.
-                // The first service ID is used to look up the classloader — all
-                // services in one plugin share the same JAR and classloader.
                 val pluginIconPath = value.manifest.icon
                 val serviceId      = value.services.firstOrNull()?.id
 
                 icon = if (pluginIconPath != null && serviceId != null) {
                     iconManager.getIcon(serviceId, pluginIconPath, 16, 16)
                 } else {
-                    // No icon declared in plugin.json — use generic placeholder
                     iconManager.getIcon("icons/lucide/package.svg", 16, 16)
                 }
             }
@@ -450,4 +445,10 @@ fun ServiceType.readableName(localizationManager: LocalizationManager): String =
 
         ServiceType.DICTIONARY ->
             localizationManager.getString("settings_services.dictionary").removeSuffix(":")
+
+        ServiceType.SUMMARIZER ->
+            localizationManager.getString("settings_services.summarizer").removeSuffix(":")
+
+        ServiceType.REWRITER ->
+            localizationManager.getString("settings_services.rewriter").removeSuffix(":")
     }
