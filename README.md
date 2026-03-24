@@ -6,9 +6,9 @@
 
 **The translation tool that Questsoft abandoned. Rebuilt from scratch. Built to last.**
 
-[![Release](https://img.shields.io/github/v/release/ahatem/qtranslate?style=flat-square&color=4A90D9&label=latest)](https://github.com/ahatem/qtranslate/releases/latest)
-[![License](https://img.shields.io/github/license/ahatem/qtranslate?style=flat-square)](LICENSE)
-[![Build](https://img.shields.io/github/actions/workflow/status/ahatem/qtranslate/ci.yml?branch=develop&style=flat-square&label=build)](https://github.com/ahatem/qtranslate/actions)
+[![Release](https://img.shields.io/github/v/release/ahatem/QTranslate?style=flat-square&color=4A90D9&label=latest)](https://github.com/ahatem/QTranslate/releases/latest)
+[![License](https://img.shields.io/github/license/ahatem/QTranslate?style=flat-square)](LICENSE)
+[![Build](https://img.shields.io/github/actions/workflow/status/ahatem/QTranslate/ci.yml?branch=develop&style=flat-square&label=build)](https://github.com/ahatem/QTranslate/actions)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
 [![Made with Kotlin](https://img.shields.io/badge/Kotlin-2.x-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 
@@ -117,7 +117,7 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 
 **Requires Java 11 or later** — [download from Adoptium](https://adoptium.net) if you need it.
 
-1. Download `QTranslate-<version>.zip` from [**Releases**](https://github.com/ahatem/qtranslate/releases/latest)
+1. Download `QTranslate-<version>.zip` from [**Releases**](https://github.com/ahatem/QTranslate/releases/latest)
 2. Unzip anywhere
 3. Run `QTranslate.jar`
 
@@ -170,7 +170,7 @@ Open **Settings** (gear icon) to configure API keys, themes, hotkeys, and servic
 
 ### Community plugins
 
-> Built a plugin? [Submit it here](https://github.com/ahatem/qtranslate/issues/new?template=plugin_submission.md) — quality plugins get listed and promoted to all QTranslate users.
+> Built a plugin? [Submit it here](https://github.com/ahatem/QTranslate/issues/new?template=plugin_submission.md) — quality plugins get listed and promoted to all QTranslate users.
 
 | Plugin | Services | Author |
 |--------|----------|--------|
@@ -229,7 +229,7 @@ Clean Architecture + MVI. Nothing leaks between layers:
 
 ## Contributing
 
-Bug fixes, features, translations, docs, and plugins all welcome. Look for [`good first issue`](https://github.com/ahatem/qtranslate/labels/good%20first%20issue) for well-scoped starting points.
+Bug fixes, features, translations, docs, and plugins all welcome. Look for [`good first issue`](https://github.com/ahatem/QTranslate/labels/good%20first%20issue) for well-scoped starting points.
 
 → [Contributing Guide](CONTRIBUTING.md)
 
