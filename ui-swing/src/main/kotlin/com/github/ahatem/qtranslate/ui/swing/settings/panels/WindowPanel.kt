@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
+import com.github.ahatem.qtranslate.core.settings.data.CloseButtonBehavior
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -26,6 +27,7 @@ class WindowPanel(
     private lateinit var autoPositionCheck: JCheckBox
     private lateinit var transparencySlider: JSlider
     private lateinit var transparencyLabel: JLabel
+    private lateinit var closeButtonCombo: JComboBox<CloseButtonBehaviorInfo>
 
     init { buildUI() }
 
@@ -139,6 +141,26 @@ class WindowPanel(
             }
         )
 
+        addSeparator(localizationManager.getString("settings_window.close_behavior_group"))
+
+        val behaviorOptions = listOf(
+            CloseButtonBehaviorInfo(CloseButtonBehavior.ASK,              localizationManager.getString("settings_window.close_behavior_ask")),
+            CloseButtonBehaviorInfo(CloseButtonBehavior.MINIMIZE_TO_TRAY, localizationManager.getString("settings_window.close_behavior_minimize")),
+            CloseButtonBehaviorInfo(CloseButtonBehavior.EXIT,             localizationManager.getString("settings_window.close_behavior_exit"))
+        )
+
+        closeButtonCombo = JComboBox(behaviorOptions.toTypedArray()).apply {
+            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            addActionListener {
+                if (!isUpdatingFromState) {
+                    val selected = selectedItem as? CloseButtonBehaviorInfo ?: return@addActionListener
+                    applyDraft(store) { it.copy(closeButtonBehavior = selected.behavior) }
+                }
+            }
+        }
+        addRow(localizationManager.getString("settings_window.close_button"), closeButtonCombo)
+        addHint(localizationManager.getString("settings_window.close_behavior_hint"))
+
         finishLayout()
     }
 
@@ -154,8 +176,12 @@ class WindowPanel(
             autoPositionCheck.isSelected = c.isPopupAutoPositionEnabled
             transparencySlider.value = c.popupTransparencyPercentage
             transparencyLabel.text = "${c.popupTransparencyPercentage}%"
+            closeButtonCombo.selectedItem = (0 until closeButtonCombo.itemCount)
+                .map { closeButtonCombo.getItemAt(it) }
+                .find { it.behavior == c.closeButtonBehavior }
         }
     }
 
     private data class LayoutInfo(val id: String, val displayName: String)
+    private data class CloseButtonBehaviorInfo(val behavior: CloseButtonBehavior, val displayName: String)
 }

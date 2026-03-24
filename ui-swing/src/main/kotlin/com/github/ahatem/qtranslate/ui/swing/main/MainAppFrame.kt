@@ -11,6 +11,7 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.CloseButtonBehavior
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
@@ -601,7 +602,7 @@ class MainAppFrame(
             }
 
             override fun windowClosing(e: WindowEvent?) {
-                isVisible = false
+                handleCloseButton()
             }
 
             override fun windowIconified(e: WindowEvent?) {
@@ -620,6 +621,70 @@ class MainAppFrame(
                 exitProcess(0)
             }
         })
+    }
+
+    /**
+     * Handles the window close (X) button according to [Configuration.closeButtonBehavior].
+     *
+     * - [CloseButtonBehavior.MINIMIZE_TO_TRAY] — hides the window silently.
+     * - [CloseButtonBehavior.EXIT]             — disposes the window and exits.
+     * - [CloseButtonBehavior.ASK]              — shows a dialog with both options.
+     *   If the user checks "Remember my choice", saves it to configuration so
+     *   the dialog never appears again.
+     */
+    private fun handleCloseButton() {
+        when (settingsStore.state.value.originalConfiguration.closeButtonBehavior) {
+            CloseButtonBehavior.MINIMIZE_TO_TRAY -> isVisible = false
+            CloseButtonBehavior.EXIT             -> dispose()
+            CloseButtonBehavior.ASK              -> showCloseDialog()
+        }
+    }
+
+    private fun showCloseDialog() {
+        val rememberCheck = JCheckBox(localizer.getString("close_dialog.remember_choice"))
+
+        val panel = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            add(JLabel(localizer.getString("close_dialog.message")))
+            add(Box.createVerticalStrut(12))
+            add(rememberCheck)
+        }
+
+        val minimizeOption = localizer.getString("close_dialog.minimize_to_tray")
+        val exitOption     = localizer.getString("close_dialog.exit")
+        val cancelOption   = localizer.getString("common.cancel")
+
+        val result = JOptionPane.showOptionDialog(
+            this,
+            panel,
+            localizer.getString("close_dialog.title"),
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            arrayOf(minimizeOption, exitOption, cancelOption),
+            minimizeOption  // default button
+        )
+
+        when (result) {
+            0 -> { // Minimize to tray
+                if (rememberCheck.isSelected) saveClosePreference(CloseButtonBehavior.MINIMIZE_TO_TRAY)
+                isVisible = false
+            }
+            1 -> { // Exit
+                if (rememberCheck.isSelected) saveClosePreference(CloseButtonBehavior.EXIT)
+                dispose()
+            }
+            // 2 = Cancel, -1 = dialog dismissed — do nothing
+        }
+    }
+
+    private fun saveClosePreference(behavior: CloseButtonBehavior) {
+        settingsStore.dispatch(
+            SettingsIntent.ToggleSetting { it.copy(closeButtonBehavior = behavior) }
+        )
+        // SaveChanges so the preference persists immediately without requiring
+        // the user to open Settings and click Apply.
+        settingsStore.dispatch(SettingsIntent.SaveChanges)
     }
 
     private fun setupMenuBar() {

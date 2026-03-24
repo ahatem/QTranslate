@@ -23,6 +23,19 @@ enum class TextSource {
     Input, Output, ExtraOutput
 }
 
+/**
+ * What happens when the user clicks the window's close (X) button.
+ */
+@Serializable
+enum class CloseButtonBehavior {
+    /** Show a dialog asking whether to minimize or exit. */
+    ASK,
+    /** Always minimize to the system tray without asking. */
+    MINIMIZE_TO_TRAY,
+    /** Always exit the application without asking. */
+    EXIT
+}
+
 // -------------------------------------------------------------------------
 // UI layout types
 // -------------------------------------------------------------------------
@@ -195,6 +208,9 @@ data class Configuration(
      */
     val pinnedLanguages: List<String> = emptyList(),
 
+    // ---- Close button behavior ----
+    val closeButtonBehavior: CloseButtonBehavior = CloseButtonBehavior.ASK,
+
     // ---- History ----
     val isHistoryEnabled: Boolean,
     val clearHistoryOnExit: Boolean,
@@ -239,6 +255,7 @@ data class Configuration(
                 rewriteStyle                 = RewriteStyle.FORMAL,
                 isRemoveLineBreaksEnabled    = false,
                 pinnedLanguages              = emptyList(),
+                closeButtonBehavior          = CloseButtonBehavior.ASK,
                 isHistoryEnabled             = true,
                 clearHistoryOnExit           = false,
                 uiScale                      = 100,

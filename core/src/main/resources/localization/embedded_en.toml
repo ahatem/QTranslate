@@ -307,6 +307,13 @@ popup_group = "Quick Translate Popup"
 auto_size = "Auto-size popup to content"
 auto_position = "Auto-position popup near the cursor"
 transparency = "Background Transparency:"
+# Close button
+close_behavior_group   = "Close Button"
+close_button           = "When closing:"
+close_behavior_ask     = "Ask every time"
+close_behavior_minimize = "Minimize to tray"
+close_behavior_exit    = "Exit the application"
+close_behavior_hint    = "Controls what happens when you click the × button. You can also set this from the close dialog itself."
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION
@@ -335,6 +342,16 @@ release_notes_label = "Release Notes:"
 skip_button = "Skip This Version"
 remind_later_button = "Remind Me Later"
 download_button = "Go to Download Page"
+
+# ===================================================================
+# CLOSE DIALOG
+# ===================================================================
+[close_dialog]
+title           = "Close QTranslate"
+message         = "What would you like to do?"
+minimize_to_tray = "Minimize to Tray"
+exit            = "Exit"
+remember_choice = "Remember my choice"
 
 # ===================================================================
 # EXTRA OUTPUT PANEL
