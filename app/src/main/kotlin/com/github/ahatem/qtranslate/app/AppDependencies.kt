@@ -9,6 +9,8 @@ import com.github.ahatem.qtranslate.core.main.domain.usecase.OcrAndTranslateUseC
 import com.github.ahatem.qtranslate.core.main.domain.usecase.PerformSpellCheckUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SelectActiveServiceUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SwapLanguagesUseCase
+import com.github.ahatem.qtranslate.core.main.domain.usecase.RewriteUseCase
+import com.github.ahatem.qtranslate.core.main.domain.usecase.SummarizeUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateTextUseCase
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
@@ -191,11 +193,23 @@ suspend fun buildDependencies(
         loggerFactory        = loggerFactory
     )
 
+    val summarizeUseCase = SummarizeUseCase(
+        activeServiceManager = activeServiceManager,
+        loggerFactory        = loggerFactory
+    )
+
+    val rewriteUseCase = RewriteUseCase(
+        activeServiceManager = activeServiceManager,
+        loggerFactory        = loggerFactory
+    )
+
     val translateUseCase = TranslateTextUseCase(
         scope                = appScope,
         settingsState        = configState,
         activeServiceManager = activeServiceManager,
         historyRepository    = historyRepo,
+        summarizeUseCase     = summarizeUseCase,
+        rewriteUseCase       = rewriteUseCase,
         loggerFactory        = loggerFactory
     )
 
@@ -216,7 +230,9 @@ suspend fun buildDependencies(
         ),
         translateTextUseCase       = translateUseCase,
         swapLanguagesUseCase       = SwapLanguagesUseCase(),
-        ocrAndTranslateUseCase     = OcrAndTranslateUseCase(activeServiceManager, loggerFactory)
+        ocrAndTranslateUseCase     = OcrAndTranslateUseCase(activeServiceManager, loggerFactory),
+        summarizeUseCase           = summarizeUseCase,
+        rewriteUseCase             = rewriteUseCase
     )
 
     return AppDependencies(
