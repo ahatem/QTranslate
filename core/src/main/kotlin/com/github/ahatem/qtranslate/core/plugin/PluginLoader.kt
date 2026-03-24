@@ -23,7 +23,14 @@ class PluginLoader(
 
     /**
      * Scans [directory] for JAR files, loads each one, and returns the results sorted by
-     * manifest version descending (newest first).
+     * manifest ID alphabetically — stable and deterministic across all platforms and runs.
+     *
+     * Why not sort by version? Two plugins at the same version (e.g. both "1.0.0") would
+     * have undefined relative order, and updating one plugin could reorder unrelated ones.
+     *
+     * Why sort JARs by name first? [File.listFiles] returns entries in OS-defined order
+     * (hash-table order on Linux ext4, creation order on NTFS, etc.) which is not stable
+     * between runs. Sorting filenames before loading ensures consistent processing order.
      */
     fun loadPluginsFromDirectory(directory: File): List<LoadedPluginResult> {
         if (!directory.isDirectory) {
@@ -32,8 +39,9 @@ class PluginLoader(
         }
         return directory.listFiles { f -> f.extension == "jar" }
             .orEmpty()
+            .sortedBy { it.name }
             .mapNotNull { loadPluginFromFile(it) }
-            .sortedByDescending { it.manifest.version }
+            .sortedBy { it.manifest.id }
     }
 
     /**
