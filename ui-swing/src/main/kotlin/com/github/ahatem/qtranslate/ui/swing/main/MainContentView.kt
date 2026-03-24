@@ -6,6 +6,8 @@ import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.api.rewriter.RewriteStyle
+import com.github.ahatem.qtranslate.api.summarizer.SummaryLength
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
@@ -259,11 +261,53 @@ class MainContentView(
 
         extraOutputPanel.render(
             ExtraOutputState(
-                text = mainState.extraOutputText,
-                isVisible = config.extraOutputType != ExtraOutputType.None,
-                isLoading = mainState.isLoading,
-                fontConfig = config.scaledEditorFont,
+                text               = mainState.extraOutputText,
+                isVisible          = config.extraOutputType != ExtraOutputType.None,
+                isLoading          = mainState.isLoading,
+                fontConfig         = config.scaledEditorFont,
                 fallbackFontConfig = config.scaledEditorFallbackFont,
+                activeType         = config.extraOutputType,
+                summaryLength      = config.summaryLength,
+                rewriteStyle       = config.rewriteStyle,
+
+                labelBackward = localizer.getString("extra_output.label_backward"),
+                labelSummary  = localizer.getString("extra_output.label_summary"),
+                labelRewrite  = localizer.getString("extra_output.label_rewrite"),
+
+                labelConfigure = localizer.getString("common.configure"),
+
+                summaryLengthLabels = listOf(
+                    localizer.getString("settings_translation.summary_length_short"),
+                    localizer.getString("settings_translation.summary_length_medium"),
+                    localizer.getString("settings_translation.summary_length_long")
+                ),
+                rewriteStyleLabels = listOf(
+                    localizer.getString("settings_translation.rewrite_style_formal"),
+                    localizer.getString("settings_translation.rewrite_style_casual"),
+                    localizer.getString("settings_translation.rewrite_style_concise"),
+                    localizer.getString("settings_translation.rewrite_style_detailed"),
+                    localizer.getString("settings_translation.rewrite_style_simplified")
+                ),
+
+                onTypeChanged = { type ->
+                    dispatchSettings(SettingsIntent.UpdateDraft(
+                        config.copy(extraOutputType = type)
+                    ))
+                    dispatch(MainIntent.Translate())
+                },
+                onSummaryLengthChanged = { length ->
+                    dispatchSettings(SettingsIntent.UpdateDraft(
+                        config.copy(summaryLength = length)
+                    ))
+                    dispatch(MainIntent.Translate())
+                },
+                onRewriteStyleChanged = { style ->
+                    dispatchSettings(SettingsIntent.UpdateDraft(
+                        config.copy(rewriteStyle = style)
+                    ))
+                    dispatch(MainIntent.Translate())
+                },
+
                 actionsState = TextActionsState(
                     listOf(
                         Action(
