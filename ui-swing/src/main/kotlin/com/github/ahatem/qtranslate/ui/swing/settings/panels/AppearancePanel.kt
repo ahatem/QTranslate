@@ -52,9 +52,6 @@ class AppearancePanel(
             addActionListener {
                 if (!isUpdatingFromState) {
                     val selected = selectedItem as? LanguageInfo ?: return@addActionListener
-                    // Only update the draft — language is applied on Save, not live.
-                    // This avoids triggering orientation changes and app flickering
-                    // while the user is still browsing the settings dialog.
                     applyDraft(store) { it.copy(interfaceLanguage = selected.code) }
                 }
             }
@@ -70,7 +67,6 @@ class AppearancePanel(
             addActionListener {
                 if (!isUpdatingFromState) {
                     val theme = selectedItem as? ThemeInfo ?: return@addActionListener
-                    // Only update the draft — theme is applied on Save, not live.
                     applyDraft(store) { it.copy(themeId = theme.id) }
                 }
             }
@@ -96,7 +92,7 @@ class AppearancePanel(
         }
         addRow(
             localizationManager.getString("settings_appearance.scale_label"),
-            JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+            JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)).apply {
                 isOpaque = false
                 add(scaleSpinner)
                 add(JLabel("  %").apply {
@@ -134,9 +130,6 @@ class AppearancePanel(
         loadLanguageListAsync()
     }
 
-    // -------------------------------------------------------------------------
-    // Language list — loaded off EDT using readLanguageMeta (no side effects)
-    // -------------------------------------------------------------------------
 
     private fun loadLanguageListAsync() {
         scope.launch(Dispatchers.IO) {
@@ -158,12 +151,7 @@ class AppearancePanel(
         }
     }
 
-    /**
-     * Builds the language list using [LocalizationManager.readLanguageMeta] —
-     * which reads TOML meta without changing the active language or emitting
-     * to [LocalizationManager.activeLanguageFlow]. No orientation changes,
-     * no window flicker.
-     */
+
     private suspend fun buildLanguageList(): List<LanguageInfo> {
         val builtIn = listOf(LanguageInfo("en", "English (built-in)"))
 
@@ -179,9 +167,6 @@ class AppearancePanel(
         return builtIn + external
     }
 
-    // -------------------------------------------------------------------------
-    // Renderers
-    // -------------------------------------------------------------------------
 
     private fun languageRenderer() = object : DefaultListCellRenderer() {
         override fun getListCellRendererComponent(
@@ -205,9 +190,6 @@ class AppearancePanel(
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Font loading
-    // -------------------------------------------------------------------------
 
     private fun loadFontsAsync() {
         object : SwingWorker<Array<String>, Void>() {
@@ -274,12 +256,9 @@ class AppearancePanel(
         JPanel(BorderLayout(8, 0)).apply {
             isOpaque = false
             add(combo,   BorderLayout.CENTER)
-            add(spinner, BorderLayout.EAST)
+            add(spinner, BorderLayout.LINE_END)
         }
 
-    // -------------------------------------------------------------------------
-    // Render
-    // -------------------------------------------------------------------------
 
     override fun render(state: SettingsState) {
         val c = state.workingConfiguration
@@ -299,9 +278,6 @@ class AppearancePanel(
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Data classes
-    // -------------------------------------------------------------------------
 
     private data class ThemeInfo(val id: String, val displayName: String, val isDark: Boolean) {
         override fun toString() = displayName

@@ -63,7 +63,7 @@ swap_languages_tooltip = "Swap translation direction"
 translate_button = "Translate"
 
 [main_window_editor_context_menu]
-spelling_suggestions = "Spelling"
+spelling_suggestions = "Spelling Suggestions"
 undo = "@common.undo"
 cut = "@common.cut"
 cut_all = "@common.cut_all"
@@ -73,6 +73,7 @@ paste = "@common.paste"
 translate = "@main_window_language_bar.translate_button"
 listen = "@common.listen"
 spell_check = "Spell Check"
+
 
 [main_window_main_menu]
 layout_presets = "Layout Presets"

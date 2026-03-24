@@ -21,15 +21,15 @@ class GridBag(
         gridheight = 1
         weightx = 0.0
         weighty = 0.0
-        anchor = GridBagConstraints.WEST
+        anchor = GridBagConstraints.LINE_START
         fill = GridBagConstraints.NONE
+//        insets = Insets(4, 8, 4, 8)
     }
 
     private var temporaryConstraints = GridBagConstraints()
     private var cursorX = 0
     private var cursorY = 0
 
-    /** Current row index. Use this instead of reflection. */
     val currentY: Int get() = cursorY
 
     init {
@@ -96,10 +96,13 @@ class GridBag(
 
     fun add(component: Component): GridBag {
         applyGaps()
+
         temporaryConstraints.gridx = cursorX
         temporaryConstraints.gridy = cursorY
 
-        if (component is JComponent) normalizeComponentSize(component)
+        if (component is JComponent) {
+            normalizeComponentSize(component)
+        }
 
         panel.add(component, temporaryConstraints)
         cursorX += temporaryConstraints.gridwidth
@@ -120,34 +123,36 @@ class GridBag(
 
     private fun applyGaps() {
         val currentInsets = temporaryConstraints.insets ?: Insets(0, 0, 0, 0)
-        val top  = if (cursorY > 0) verticalGap   else 0
+        val top = if (cursorY > 0) verticalGap else 0
         val left = if (cursorX > 0) horizontalGap else 0
+
         if (top > 0 || left > 0) {
             temporaryConstraints.insets = Insets(
-                currentInsets.top    + top,
-                currentInsets.left   + left,
+                currentInsets.top + top,
+                currentInsets.left + left,
                 currentInsets.bottom,
                 currentInsets.right
             )
         }
     }
 
+    // --- Component normalization ---
     private fun normalizeComponentSize(comp: JComponent) {
         when (comp) {
             is JComboBox<*> -> {
                 val pref = comp.preferredSize
                 comp.preferredSize = Dimension(260, pref.height)
-                comp.maximumSize   = Dimension(300, pref.height)
+                comp.maximumSize = Dimension(300, pref.height)
             }
             is JSpinner -> {
                 val pref = comp.preferredSize
                 comp.preferredSize = Dimension(60, pref.height)
-                comp.maximumSize   = Dimension(80, pref.height)
+                comp.maximumSize = Dimension(80, pref.height)
             }
             is JTextField -> {
                 val pref = comp.preferredSize
                 comp.preferredSize = Dimension(260, pref.height)
-                comp.maximumSize   = Dimension(300, pref.height)
+                comp.maximumSize = Dimension(300, pref.height)
             }
         }
     }

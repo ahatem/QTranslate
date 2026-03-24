@@ -73,6 +73,7 @@ class MainContentView(
 
     private val inputTextPanel = InputTextPanel(
         iconManager = iconManager,
+        localizationManager = localizer,
         onTextChanged = { text -> dispatch(MainIntent.UpdateInputText(text)) },
         onListen = { text -> dispatch(MainIntent.ListenToText(TextSource.Input, text)) },
         onTranslateRequest = { text -> dispatch(MainIntent.Translate(text)) },
@@ -119,11 +120,10 @@ class MainContentView(
     private var lastState: Pair<MainState, SettingsState>? = null
 
     fun render(mainState: MainState, settingsState: SettingsState) {
-        // CHANGED: Read from workingConfiguration
         val config = settingsState.workingConfiguration
 
         if (lastState == null || lastState?.second?.workingConfiguration?.layoutPresetId != config.layoutPresetId) {
-            layoutManager.switchLayout(config.layoutPresetId)
+            layoutManager.switchLayout(config.layoutPresetId, localizer.isRtl)
         }
 
         if (lastState == null ||
@@ -140,7 +140,6 @@ class MainContentView(
     private fun renderComponents(mainState: MainState, config: Configuration) {
         val allLanguages = mainState.availableLanguages
 
-        // CHANGED: Get selected translator from config instead of mainState
         val activePreset = config.getActivePreset()
         val selectedTranslatorId = activePreset?.selectedServices?.get(ServiceType.TRANSLATOR)
         val selectedTranslator = mainState.availableServices.find { it.id == selectedTranslatorId }

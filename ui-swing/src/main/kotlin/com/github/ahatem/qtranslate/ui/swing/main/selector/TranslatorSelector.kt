@@ -3,8 +3,9 @@ package com.github.ahatem.qtranslate.ui.swing.main.selector
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
+import java.awt.ComponentOrientation
+import java.awt.FlowLayout
 import java.awt.Insets
-import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
 import javax.swing.JPanel
 import javax.swing.JToggleButton
@@ -22,7 +23,7 @@ class TranslatorSelector(
     }
 
     init {
-        layout = BoxLayout(this, BoxLayout.X_AXIS)
+        layout = FlowLayout(FlowLayout.LEADING, 2, 0)
         isOpaque = false
     }
 
@@ -38,13 +39,16 @@ class TranslatorSelector(
         updateEnabledState(!state.isLoading)
     }
 
+    override fun applyComponentOrientation(o: ComponentOrientation) {
+        super.applyComponentOrientation(o)
+        revalidate()
+    }
+
     private fun selectButton(serviceId: String?) {
         val buttonToSelect = serviceId?.let { serviceButtons[it] }
-
-        if (buttonToSelect != null && !buttonToSelect.isSelected) {
-            buttonToSelect.isSelected = true
-        } else if (serviceId == null) {
-            buttonGroup.clearSelection()
+        when {
+            buttonToSelect != null && !buttonToSelect.isSelected -> buttonToSelect.isSelected = true
+            serviceId == null -> buttonGroup.clearSelection()
         }
     }
 
@@ -76,14 +80,12 @@ class TranslatorSelector(
             text = service.name
             toolTipText = service.name
             isFocusable = false
+            isOpaque = false
 
             putClientProperty("JButton.buttonType", "toolBarButton")
             margin = Insets(4, 6, 4, 6)
 
-
-            addActionListener {
-                onTranslatorSelected(service.id)
-            }
+            addActionListener { onTranslatorSelected(service.id) }
         }
     }
 }

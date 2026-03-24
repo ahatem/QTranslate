@@ -11,7 +11,6 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
-import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
@@ -34,10 +33,9 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.swing.Swing
 import java.awt.*
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
-import java.awt.event.WindowAdapter
-import java.awt.event.WindowEvent
+import java.awt.datatransfer.StringSelection
+import java.awt.event.*
+import java.util.*
 import javax.imageio.ImageIO
 import javax.swing.*
 import kotlin.system.exitProcess
@@ -117,11 +115,9 @@ class MainAppFrame(
             mainStore.dispatch(MainIntent.ListenToText(TextSource.Input, text))
         },
         onOpenSnippingTool = { openSnippingTool() },
-        // Rob #2 / Davide — translate selected text and replace it in-place
         onReplaceWithTranslation = { text ->
             mainStore.dispatch(MainIntent.ReplaceWithTranslation(text))
         },
-        // Yan #3 — cycle target language without touching the mouse
         onCycleTargetLanguage = {
             mainStore.dispatch(MainIntent.CycleTargetLanguage)
         }
@@ -164,10 +160,16 @@ class MainAppFrame(
             setupTrayMenu()
             setupGlobalHotkeys()
 
-            applyOrientation(localizer.isRtl)
-
             observeStateAndEvents()
             isVisible = true
+
+            // applyOrientation must run AFTER switchLayout's invokeLater has fired.
+            // switchLayout() queues an invokeLater internally — if we call
+            // applyOrientation directly here it runs before the layout tree exists.
+            // Queuing a second invokeLater guarantees it executes after the first.
+            SwingUtilities.invokeLater {
+                applyOrientation(localizer.isRtl)
+            }
         }
     }
 
@@ -335,7 +337,6 @@ class MainAppFrame(
      * whenever bindings change (Dinar's per-action scope request).
      */
     private fun registerLocalHotkeys() {
-        // Clear previous local registrations
         rootPane.inputMap.clear()
         rootPane.actionMap.clear()
 
@@ -343,39 +344,29 @@ class MainAppFrame(
             val keyStroke = binding.toKeyStroke() ?: return@forEach
             val actionKey = "localHotkey_${binding.action.name}"
             rootPane.inputMap.put(keyStroke, actionKey)
-            rootPane.actionMap.put(actionKey, object : javax.swing.AbstractAction() {
-                override fun actionPerformed(e: java.awt.event.ActionEvent) {
+            rootPane.actionMap.put(actionKey, object : AbstractAction() {
+                override fun actionPerformed(e: ActionEvent) {
                     globalKeyListener.dispatchAction(binding.action)
                 }
             })
         }
     }
 
-    /**
-     * Pastes [text] back into the source application, replacing the selected text.
-     *
-     * The global hotkey fires from jKeymaster on a background thread — at that
-     * point the source app (browser, editor, etc.) still has OS focus because
-     * QTranslate never opened a window. We must NOT show any window here.
-     * The sequence is simply:
-     * 1. Put translated text on clipboard
-     * 2. Small delay for the translation coroutine to complete
-     * 3. Simulate Ctrl+V — source app still has focus, paste lands correctly
-     */
+
     private fun pasteTextToActiveApp(text: String) {
         appScope.launch {
             runCatching {
                 delay(150) // let any in-flight UI work settle
 
-                val clipboard = java.awt.Toolkit.getDefaultToolkit().systemClipboard
-                clipboard.setContents(java.awt.datatransfer.StringSelection(text), null)
+                val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+                clipboard.setContents(StringSelection(text), null)
 
-                val robot = java.awt.Robot()
+                val robot = Robot()
                 robot.autoDelay = 20
-                robot.keyPress(java.awt.event.KeyEvent.VK_CONTROL)
-                robot.keyPress(java.awt.event.KeyEvent.VK_V)
-                robot.keyRelease(java.awt.event.KeyEvent.VK_V)
-                robot.keyRelease(java.awt.event.KeyEvent.VK_CONTROL)
+                robot.keyPress(KeyEvent.VK_CONTROL)
+                robot.keyPress(KeyEvent.VK_V)
+                robot.keyRelease(KeyEvent.VK_V)
+                robot.keyRelease(KeyEvent.VK_CONTROL)
             }.onFailure {
                 System.err.println("Failed to paste translation: ${it.message}")
             }
@@ -388,14 +379,13 @@ class MainAppFrame(
         else
             ComponentOrientation.LEFT_TO_RIGHT
 
-        val wasVisible = isVisible
-        if (wasVisible) isVisible = false
+        val locale = Locale.forLanguageTag(localizer.activeLanguage.tag)
+        Locale.setDefault(locale)
+        JComponent.setDefaultLocale(locale)
 
         applyComponentOrientation(orientation)
-        rootPane.revalidate()
-        rootPane.repaint()
-
-        if (wasVisible) isVisible = true
+        revalidate()
+        repaint()
     }
 
     private fun runOnUi(block: () -> Unit) {
@@ -760,9 +750,7 @@ class MainAppFrame(
 
         fun handleNotification(notification: com.github.ahatem.qtranslate.core.shared.notification.AppNotification) {
             clearMessageJob?.cancel()
-            // Show body in status bar; title is shown as tooltip via the notification button
             renderMessage(notification.body, notification.type)
-            // Plugin notifications are persistent — don't auto-clear errors or warnings
             if (notification.type == NotificationType.INFO) {
                 clearMessageJob = scope.launch {
                     delay(AppConstants.STATUS_MESSAGE_DURATION_MS)

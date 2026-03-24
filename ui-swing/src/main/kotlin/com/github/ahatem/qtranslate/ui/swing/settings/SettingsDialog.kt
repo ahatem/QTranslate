@@ -20,35 +20,11 @@ import java.awt.event.KeyEvent
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import javax.swing.*
-import javax.swing.tree.*
+import javax.swing.tree.DefaultMutableTreeNode
+import javax.swing.tree.DefaultTreeCellRenderer
+import javax.swing.tree.DefaultTreeModel
+import javax.swing.tree.TreeSelectionModel
 
-/**
- * The application settings dialog.
- *
- * ### Layout
- * ```
- * ┌──────────────────────────────────────────────────────────┐
- * │  [Tree nav]  │  [Panel header: title  ● Unsaved changes] │
- * │              │  ─────────────────────────────────────────│
- * │              │  [Active settings panel — scrollable]     │
- * ├──────────────────────────────────────────────────────────┤
- * │  [Reset to Defaults]          [OK]  [Cancel]  [Apply]   │
- * └──────────────────────────────────────────────────────────┘
- * ```
- *
- * ### Button behaviour
- * - **OK** — saves and closes. Disabled and shows "Saving…" while the save is in
- *   flight. If the save fails, it restores to "OK" and shows an error dialog.
- * - **Apply** — saves without closing. Disabled when there are no unsaved changes
- *   or while a save is already in progress.
- * - **Cancel** — discards unsaved changes and closes immediately.
- * - **X / ESC** — same as Cancel.
- *
- * ### Event handling
- * [onOk] uses [kotlinx.coroutines.flow.first] on the event flow so it consumes
- * exactly one event and then stops. This prevents the collector from accumulating
- * across multiple OK clicks and bleeding events between sessions.
- */
 class SettingsDialog(
     owner: JFrame,
     private val settingsStore: SettingsStore,
@@ -90,32 +66,46 @@ class SettingsDialog(
     private val panelCache = mutableMapOf<String, JPanel>()
     private var currentPanelName: String? = null
 
-    private lateinit var okButton:    JButton
+    private lateinit var okButton: JButton
     private lateinit var applyButton: JButton
 
     init {
         title = localizationManager.getString("settings_dialog.title")
         layout = BorderLayout()
 
-        // ---- Tree navigation ----
         val root = DefaultMutableTreeNode("root")
         navItems.forEach { root.add(DefaultMutableTreeNode(it)) }
 
         tree = JTree(DefaultTreeModel(root)).apply {
-            isRootVisible    = false
+            isRootVisible = false
             showsRootHandles = false
             selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
-            putClientProperty("FlatLaf.style",
-                "rowHeight: 34; selectionArc: 8; selectionInsets: 2,6,2,6")
+
+            putClientProperty(
+                "FlatLaf.style",
+                "rowHeight: 38; selectionArc: 10; selectionInsets: 2,8,2,8; " +
+                        $$"selectionBackground: $Table.selectionBackground"
+            )
 
             cellRenderer = object : DefaultTreeCellRenderer() {
-                init { leafIcon = null; closedIcon = null; openIcon = null }
+                init {
+                    leafIcon = null
+                    closedIcon = null
+                    openIcon = null
+                }
+
                 override fun getTreeCellRendererComponent(
                     tree: JTree, value: Any, sel: Boolean,
                     expanded: Boolean, leaf: Boolean, row: Int, hasFocus: Boolean
                 ): Component {
-                    super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus)
-                    border = BorderFactory.createEmptyBorder(0, 8, 0, 8)
+                    super.getTreeCellRendererComponent(
+                        tree, value, sel, expanded, leaf, row, hasFocus
+                    )
+                    border = BorderFactory.createEmptyBorder(0, 12, 0, 12)
+
+                    if (!sel) {
+                        foreground = UIManager.getColor("Label.foreground")
+                    }
                     return this
                 }
             }
@@ -127,14 +117,15 @@ class SettingsDialog(
         }
 
         val treeScroll = JScrollPane(tree).apply {
-            minimumSize   = Dimension(190, 0)
-            preferredSize = Dimension(200, 0)
+            minimumSize = Dimension(210, 0)
+            preferredSize = Dimension(210, 0)
+            maximumSize = Dimension(210, Int.MAX_VALUE)
             border = BorderFactory.createMatteBorder(
                 0, 0, 0, 1, UIManager.getColor("Component.borderColor") ?: Color.GRAY
             )
         }
 
-        val headerStrip = JPanel(FlowLayout(FlowLayout.LEFT, 12, 10)).apply {
+        val headerStrip = JPanel(FlowLayout(FlowLayout.LEADING, 12, 10)).apply {
             border = BorderFactory.createMatteBorder(
                 0, 0, 1, 0, UIManager.getColor("Component.borderColor") ?: Color.GRAY
             )
@@ -143,14 +134,12 @@ class SettingsDialog(
         }
         contentArea.add(headerStrip, BorderLayout.NORTH)
 
-        val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, treeScroll, contentArea).apply {
-            dividerSize     = 1
-            resizeWeight    = 0.0
-            dividerLocation = 200
-            border          = null
+        val mainPanel = JPanel(BorderLayout()).apply {
+            add(treeScroll, BorderLayout.LINE_START)
+            add(contentArea, BorderLayout.CENTER)
         }
 
-        add(split,            BorderLayout.CENTER)
+        add(mainPanel, BorderLayout.CENTER)
         add(buildButtonBar(), BorderLayout.SOUTH)
 
         rootPane.registerKeyboardAction(
@@ -166,7 +155,7 @@ class SettingsDialog(
 
         observeState()
 
-        minimumSize   = Dimension(860, 580)
+        minimumSize = Dimension(860, 580)
         preferredSize = Dimension(1000, 680)
         pack()
         setLocationRelativeTo(owner)
@@ -174,13 +163,10 @@ class SettingsDialog(
         tree.setSelectionRow(0)
     }
 
-    // -------------------------------------------------------------------------
-    // Panel management
-    // -------------------------------------------------------------------------
 
     private fun showPanel(name: String) {
         currentPanelName = name
-        panelTitle.text  = name
+        panelTitle.text = name
 
         val panel = panelCache.getOrPut(name) { createPanel(name) }
 
@@ -189,7 +175,7 @@ class SettingsDialog(
         contentArea.add(JScrollPane(panel).apply {
             border = null
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-            verticalScrollBarPolicy   = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+            verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
         }, BorderLayout.CENTER)
 
         contentArea.revalidate()
@@ -228,10 +214,6 @@ class SettingsDialog(
         else -> JPanel()
     }
 
-    // -------------------------------------------------------------------------
-    // Button bar
-    // -------------------------------------------------------------------------
-
     private fun buildButtonBar(): JPanel {
         okButton = JButton(localizationManager.getString("common.ok")).apply {
             mnemonic = KeyEvent.VK_O
@@ -242,7 +224,7 @@ class SettingsDialog(
             addActionListener { cancelAndClose() }
         }
         applyButton = JButton(localizationManager.getString("common.apply")).apply {
-            mnemonic  = KeyEvent.VK_A
+            mnemonic = KeyEvent.VK_A
             isEnabled = false
             addActionListener { settingsStore.dispatch(SettingsIntent.SaveChanges) }
         }
@@ -258,18 +240,14 @@ class SettingsDialog(
                 1, 0, 0, 0, UIManager.getColor("Component.borderColor") ?: Color.GRAY
             )
             val gbc = GridBagConstraints().apply { gridy = 0; insets = Insets(8, 8, 8, 4) }
-            gbc.gridx = 0; gbc.weightx = 1.0; gbc.anchor = GridBagConstraints.WEST
+            gbc.gridx = 0; gbc.weightx = 1.0; gbc.anchor = GridBagConstraints.LINE_START
             add(resetButton, gbc)
-            gbc.gridx = 1; gbc.weightx = 0.0; gbc.anchor = GridBagConstraints.EAST
+            gbc.gridx = 1; gbc.weightx = 0.0; gbc.anchor = GridBagConstraints.LINE_END
             add(okButton, gbc)
             gbc.gridx = 2; add(cancelButton, gbc)
             gbc.gridx = 3; gbc.insets = Insets(8, 4, 8, 8); add(applyButton, gbc)
         }
     }
-
-    // -------------------------------------------------------------------------
-    // State observation
-    // -------------------------------------------------------------------------
 
     private fun observeState() {
         scope.launch {
@@ -290,9 +268,6 @@ class SettingsDialog(
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Actions
-    // -------------------------------------------------------------------------
 
     private fun onOk() {
         if (!settingsStore.state.value.isDirty) {
@@ -327,13 +302,6 @@ class SettingsDialog(
         }
     }
 
-    /**
-     * Discards unsaved changes and closes the dialog.
-     *
-     * No side effects to revert — theme and language are only applied when
-     * [SettingsIntent.SaveChanges] is dispatched (i.e. on OK or Apply).
-     * Cancel simply reverts the store's working copy and disposes.
-     */
     private fun cancelAndClose() {
         settingsStore.dispatch(SettingsIntent.CancelChanges)
         dispose()

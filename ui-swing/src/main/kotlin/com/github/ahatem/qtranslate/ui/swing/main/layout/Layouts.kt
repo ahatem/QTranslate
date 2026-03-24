@@ -83,7 +83,7 @@ interface LayoutStrategy {
     val type: LayoutType
     val id: String get() = type.id
     val localizeId: String get() = type.localizeId
-    fun arrange(components: ComponentRegistry): ArrangedLayout
+    fun arrange(components: ComponentRegistry, isRtl: Boolean = false): ArrangedLayout
 }
 
 object UISpacing {
@@ -114,7 +114,7 @@ object LayoutBuilders {
             val gbc = GridBagConstraints().apply {
                 gridx = 0
                 weightx = 1.0
-                anchor = GridBagConstraints.WEST
+                anchor = GridBagConstraints.LINE_START
                 fill = GridBagConstraints.HORIZONTAL
             }
             gbc.gridy = 0
@@ -181,13 +181,17 @@ object LayoutBuilders {
         right: JComponent,
         resizeWeight: Double = 0.5,
         leftMinWidth: Int = UISpacing.MIN_PANEL_WIDTH,
-        rightMinWidth: Int = UISpacing.MIN_PANEL_WIDTH
+        rightMinWidth: Int = UISpacing.MIN_PANEL_WIDTH,
+        rtl: Boolean = false
     ): JSplitPane {
-        left.minimumSize = Dimension(leftMinWidth, 0)
-        right.minimumSize = Dimension(rightMinWidth, 0)
-        return JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, right).apply {
+        val first = if (rtl) right else left
+        val second = if (rtl) left else right
+        val weight = if (rtl) 1.0 - resizeWeight else resizeWeight
+        first.minimumSize = Dimension(leftMinWidth, 0)
+        second.minimumSize = Dimension(rightMinWidth, 0)
+        return JSplitPane(JSplitPane.HORIZONTAL_SPLIT, first, second).apply {
             isContinuousLayout = true
-            this.resizeWeight = resizeWeight
+            this.resizeWeight = weight
             dividerSize = UISpacing.DIVIDER_SIZE
             border = null
         }
@@ -196,7 +200,7 @@ object LayoutBuilders {
 
 object ClassicLayout : LayoutStrategy {
     override val type = LayoutType.CLASSIC
-    override fun arrange(components: ComponentRegistry): ArrangedLayout {
+    override fun arrange(components: ComponentRegistry, isRtl: Boolean): ArrangedLayout {
         val topBar = LayoutBuilders.createSimpleTopBar(components.historyBar)
         val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
 
@@ -238,12 +242,13 @@ object ClassicLayout : LayoutStrategy {
 
 object SideBySideLayout : LayoutStrategy {
     override val type = LayoutType.SIDE_BY_SIDE
-    override fun arrange(components: ComponentRegistry): ArrangedLayout {
+    override fun arrange(components: ComponentRegistry, isRtl: Boolean): ArrangedLayout {
         val topBar = LayoutBuilders.createStackedTopBar(components.historyBar, components.languageBar)
         val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
 
         val mainSplit = LayoutBuilders.createHorizontalSplit(
-            left = components.inputPanel, right = components.outputPanel, resizeWeight = 0.5
+            left = components.inputPanel, right = components.outputPanel,
+            resizeWeight = 0.5, rtl = isRtl
         )
         val extraSplit = LayoutBuilders.createVerticalSplit(
             top = mainSplit,
@@ -276,7 +281,7 @@ object SideBySideLayout : LayoutStrategy {
 
 object CompactLayout : LayoutStrategy {
     override val type = LayoutType.COMPACT
-    override fun arrange(components: ComponentRegistry): ArrangedLayout {
+    override fun arrange(components: ComponentRegistry, isRtl: Boolean): ArrangedLayout {
         val topBar = LayoutBuilders.createStackedTopBar(components.historyBar, components.languageBar)
         val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
 
@@ -310,8 +315,14 @@ object CompactLayout : LayoutStrategy {
     private fun setupKeyboardShortcuts(tabs: JTabbedPane) {
         tabs.actionMap.put("tab1", createTabSwitchAction(tabs, 0))
         tabs.actionMap.put("tab2", createTabSwitchAction(tabs, 1))
-        tabs.inputMap.put(KeyStroke.getKeyStroke("alt 1"), "tab1")
-        tabs.inputMap.put(KeyStroke.getKeyStroke("alt 2"), "tab2")
+        tabs.inputMap.put(
+            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_1, java.awt.event.InputEvent.ALT_DOWN_MASK),
+            "tab1"
+        )
+        tabs.inputMap.put(
+            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_2, java.awt.event.InputEvent.ALT_DOWN_MASK),
+            "tab2"
+        )
     }
 
     private fun createTabSwitchAction(tabs: JTabbedPane, index: Int) = object : AbstractAction() {
@@ -337,12 +348,17 @@ class LayoutManager(
         return strategies.find { it.id == id } ?: ClassicLayout
     }
 
-    fun switchLayout(layoutId: String) {
+    private var currentIsRtl: Boolean = false
+
+    fun switchLayout(layoutId: String, isRtl: Boolean = currentIsRtl) {
+        currentIsRtl = isRtl
         if (layoutId == currentLayoutId) return
         SwingUtilities.invokeLater {
+            detachAll()
             container.removeAll()
+
             val strategy = getLayoutById(layoutId)
-            val arranged = strategy.arrange(components)
+            val arranged = strategy.arrange(components, isRtl)
             container.add(arranged.rootComponent, BorderLayout.CENTER)
             currentLayout = arranged
             currentLayoutId = layoutId
@@ -352,12 +368,27 @@ class LayoutManager(
         }
     }
 
+    private fun detachAll() {
+        listOf(
+            components.historyBar,
+            components.inputPanel,
+            components.languageBar,
+            components.outputPanel,
+            components.extraOutputPanel,
+            components.translatorSelector,
+            components.statusBar
+        ).forEach { it.parent?.remove(it) }
+    }
+
     fun updateVisibility(config: Configuration) {
         SwingUtilities.invokeLater {
+            if (currentLayoutId == null) return@invokeLater
+
             components.historyBar.isVisible = config.toolbarVisibility.isHistoryBarVisible
             components.translatorSelector.isVisible = config.toolbarVisibility.isServicesPanelVisible
             components.languageBar.isVisible = config.toolbarVisibility.isLanguageBarVisible
             components.statusBar.isVisible = config.toolbarVisibility.isStatusBarVisible
+
             val showExtra = config.extraOutputType != ExtraOutputType.None
             currentLayout?.componentRefs?.updateExtraOutputVisibility(showExtra, components.extraOutputPanel)
         }

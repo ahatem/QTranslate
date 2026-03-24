@@ -18,13 +18,6 @@ class StatusBar(
     private val onNotificationsClicked: () -> Unit
 ) : JPanel(BorderLayout()), Renderable<StatusBarState> {
 
-    companion object Colors {
-        val INFO: Color = UIManager.getColor("Label.foreground")
-        val SUCCESS: Color = UIManager.getColor("Actions.Green")
-        val WARNING: Color = UIManager.getColor("Actions.Yellow")
-        val ERROR: Color = UIManager.getColor("Actions.Red")
-    }
-
     private val statusLabel = JLabel().apply {
         putClientProperty(FlatClientProperties.STYLE_CLASS, "medium")
     }
@@ -32,7 +25,6 @@ class StatusBar(
     private val notificationButton = createButtonWithIcon(iconManager, "icons/lucide/notification.svg", 14).apply {
         putClientProperty("JButton.buttonType", "toolBarButton")
         isFocusable = false
-
         addActionListener { onNotificationsClicked() }
     }
 
@@ -41,7 +33,6 @@ class StatusBar(
 
         val contentPanel = JPanel(BorderLayout(4, 0)).apply {
             border = BorderFactory.createEmptyBorder(6, 8, 6, 8)
-
             add(statusLabel, BorderLayout.CENTER)
             add(notificationButton, BorderLayout.EAST)
         }
@@ -51,11 +42,12 @@ class StatusBar(
 
     override fun render(state: StatusBarState) {
         statusLabel.text = state.message
+
         statusLabel.foreground = when (state.type) {
-            NotificationType.SUCCESS -> SUCCESS
-            NotificationType.WARNING -> WARNING
-            NotificationType.ERROR -> ERROR
-            NotificationType.INFO -> INFO
+            NotificationType.SUCCESS -> resolveColor("Actions.Green", Color(0x59A869))
+            NotificationType.WARNING -> resolveColor("Actions.Yellow", Color(0xE2A53A))
+            NotificationType.ERROR -> resolveColor("Actions.Red", Color(0xE05555))
+            NotificationType.INFO -> resolveColor("Label.foreground", foreground)
         }
 
         notificationButton.toolTipText = state.notificationTooltip
@@ -63,4 +55,7 @@ class StatusBar(
     }
 
     fun text(): String = statusLabel.text
+
+    private fun resolveColor(key: String, fallback: Color): Color =
+        UIManager.getColor(key) ?: fallback
 }

@@ -1,8 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.main.languagebar
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
-import com.github.ahatem.qtranslate.ui.swing.shared.util.GridBag
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
+import com.github.ahatem.qtranslate.ui.swing.shared.util.GridBag
 import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.LanguageComboBox
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
@@ -10,7 +10,6 @@ import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import javax.swing.JButton
 import javax.swing.JPanel
-
 
 class LanguageSelectionBar(
     private val iconManager: IconManager,
@@ -33,9 +32,7 @@ class LanguageSelectionBar(
         translateButton.addActionListener { onTranslate() }
 
         val grid = GridBag(this, horizontalGap = 4)
-
         grid.defaultFill(GridBagConstraints.BOTH)
-
 
         grid.weightX(0.0).add(clearButton)
         grid.weightX(0.5).add(sourceLanguageComboBox)
@@ -48,20 +45,16 @@ class LanguageSelectionBar(
     }
 
     override fun render(state: LanguageSelectionBarState) {
-        // Clear button
         clearButton.isEnabled = !state.isLoading && state.canClear
         clearButton.toolTipText = state.strings.clearTooltip
 
-        // Swap button
         swapButton.isEnabled = !state.isLoading && state.canSwap
         swapButton.toolTipText = state.strings.swapTooltip
 
-        // Translate button
         translateButton.isEnabled = !state.isLoading
         translateButton.text = state.strings.translateButtonText
         translateButton.toolTipText = state.strings.translateButtonText
 
-        // Source language combo
         sourceLanguageComboBox.render(
             availableLanguages = state.allSourceLanguages,
             selectedLanguage = state.selectedSourceLanguage,
@@ -69,13 +62,11 @@ class LanguageSelectionBar(
             isEnabled = !state.isLoading
         )
 
-        // Target language combo
         targetLanguageComboBox.render(
             availableLanguages = state.allTargetLanguages,
             selectedLanguage = state.selectedTargetLanguage,
             autoDetectedLanguage = null,
             isEnabled = !state.isLoading
         )
-
     }
 }

@@ -41,7 +41,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
 
     init {
         border = BorderFactory.createEmptyBorder(16, 16, 16, 16)
-        gb.defaultAnchor(GridBagConstraints.WEST)
+        gb.defaultAnchor(GridBagConstraints.LINE_START)
         gb.defaultFill(GridBagConstraints.NONE)
     }
 
@@ -102,7 +102,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
 
         val headerRow = JPanel(BorderLayout(6, 0)).apply {
             isOpaque = false
-            add(accentBar,  BorderLayout.WEST)
+            add(accentBar,  BorderLayout.LINE_START)
             add(titleLabel, BorderLayout.CENTER)
         }
 

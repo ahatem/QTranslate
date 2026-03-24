@@ -68,9 +68,9 @@ class ServicesPanel(
             .spanLine()
             .weightX(1.0)
             .fill(GridBagConstraints.HORIZONTAL)
-            .anchor(GridBagConstraints.WEST)
+            .anchor(GridBagConstraints.LINE_START)
             .insets(4, 0, 0, 0)
-            .add(JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
+            .add(JPanel(FlowLayout(FlowLayout.LEADING, 4, 0)).apply {
                 isOpaque = false
                 add(newBtn)
                 add(renameBtn)

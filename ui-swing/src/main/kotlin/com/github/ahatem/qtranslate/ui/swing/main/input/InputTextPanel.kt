@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.input
 
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
+import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsPanel
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toFont
@@ -12,6 +13,7 @@ import javax.swing.*
 
 class InputTextPanel(
     private val iconManager: IconManager,
+    private val localizationManager: LocalizationManager,
     private val onTextChanged: (String) -> Unit,
     private val onListen: (String) -> Unit,
     private val onTranslateRequest: (String) -> Unit,
@@ -31,16 +33,16 @@ class InputTextPanel(
     private var currentState: InputTextState? = null
 
     init {
-
         val scrollPane = JScrollPane(textPane)
 
-        val rightPanel = JPanel(BorderLayout()).apply {
+        val actionsWrapper = JPanel(BorderLayout()).apply {
             border = BorderFactory.createEmptyBorder(0, 4, 0, 0)
+            isOpaque = false
             add(actionsPanel, BorderLayout.CENTER)
         }
 
         add(scrollPane, BorderLayout.CENTER)
-        add(rightPanel, BorderLayout.EAST)
+        add(actionsWrapper, BorderLayout.LINE_END)
 
         textPane.onBeforeContextMenuPopup = { menu, clickPosition ->
             customizeContextMenu(menu, clickPosition)
@@ -65,37 +67,26 @@ class InputTextPanel(
 
     fun requestFocusOnText() = textPane.requestFocusInWindow()
 
-    /**
-     * Adds a "Spelling Suggestions" menu to the context menu if the user
-     * right-clicked on a word with known corrections.
-     */
     private fun customizeContextMenu(menu: JPopupMenu, clickPosition: Point) {
-        // Always clean up items from the previous popup.
         spellingMenu?.let { menu.remove(it) }
         spellingMenuSeparator?.let { menu.remove(it) }
 
-        // Convert the mouse coordinates to a character index in the document.
         val clickOffset = textPane.viewToModel(clickPosition)
         val correction = findCorrectionAtOffset(clickOffset)
 
         if (correction != null && correction.suggestions.isNotEmpty()) {
             spellingMenu = buildSpellingMenu(correction)
             spellingMenuSeparator = JSeparator()
-
-            // Insert the new items at the top of the menu.
             menu.insert(spellingMenu, 0)
             menu.insert(spellingMenuSeparator, 1)
         }
     }
 
-    private fun findCorrectionAtOffset(offset: Int): Correction? {
-        return currentState?.corrections?.find {
-            offset >= it.startIndex && offset < it.endIndex
-        }
-    }
+    private fun findCorrectionAtOffset(offset: Int): Correction? =
+        currentState?.corrections?.find { offset >= it.startIndex && offset < it.endIndex }
 
     private fun buildSpellingMenu(correction: Correction): JMenu {
-        return JMenu("Spelling Suggestions").apply {
+        return JMenu(localizationManager.getString("main_window_editor_context_menu.spelling_suggestions")).apply {
             correction.suggestions.forEach { suggestion ->
                 add(JMenuItem(suggestion)).addActionListener {
                     onCorrectionApplied(correction.original, suggestion)

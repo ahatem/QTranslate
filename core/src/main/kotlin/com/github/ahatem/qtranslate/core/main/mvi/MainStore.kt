@@ -356,8 +356,7 @@ class MainStore(
     }
 
     private fun handleCycleTargetLanguage() {
-        val languages = _state.value.availableLanguages
-            .filter { it != com.github.ahatem.qtranslate.api.language.LanguageCode.AUTO }
+        val languages = _state.value.availableLanguages.filter { it != LanguageCode.AUTO }
         if (languages.isEmpty()) return
         val current = _state.value.targetLanguage
         val currentIdx = languages.indexOf(current)
@@ -365,20 +364,12 @@ class MainStore(
         _state.update { it.copy(targetLanguage = languages[nextIdx]) }
     }
 
-    // -------------------------------------------------------------------------
-    // Lifecycle
-    // -------------------------------------------------------------------------
-
     suspend fun onShutdown() {
         if (settingsState.value.clearHistoryOnExit) {
             historyRepository.clearHistory()
         }
         handleTextToSpeechUseCase.shutdown()
     }
-
-    // -------------------------------------------------------------------------
-    // Internal helpers
-    // -------------------------------------------------------------------------
 
     private suspend fun updateStatusBar(
         text: String,

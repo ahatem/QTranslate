@@ -108,7 +108,7 @@ class TranslationPanel(
             add(useInput)
         }
         gb.nextRow().add(JLabel(localizationManager.getString("settings_translation.extra_output_source")))
-        gb.weightX(1.0).fill(GridBagConstraints.HORIZONTAL).anchor(GridBagConstraints.WEST).add(radioPanel)
+        gb.weightX(1.0).fill(GridBagConstraints.HORIZONTAL).anchor(GridBagConstraints.LINE_START).add(radioPanel)
 
         // ---- Pinned languages ----
         addSeparator(localizationManager.getString("settings_translation.pinned_languages_group"))
@@ -159,7 +159,7 @@ class TranslationPanel(
         }
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
             .insets(4, 0, 0, 0)
-            .add(JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+            .add(JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)).apply {
                 isOpaque = false
                 add(clearBtn)
             })

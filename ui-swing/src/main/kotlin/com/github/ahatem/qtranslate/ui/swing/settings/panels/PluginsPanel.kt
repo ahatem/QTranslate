@@ -14,12 +14,6 @@ import java.awt.*
 import javax.swing.*
 import javax.swing.filechooser.FileNameExtensionFilter
 
-/**
- * Settings panel for browsing, enabling/disabling, configuring, and
- * installing/uninstalling plugins.
- *
- * Layout: left sidebar (plugin list + Install button) / right detail pane.
- */
 class PluginsPanel(
     private val iconManager: IconManager,
     private val pluginManager: PluginManager,
@@ -33,8 +27,6 @@ class PluginsPanel(
     private var selectedPlugin: PluginState? = null
 
     init {
-        // SettingsPanel sets BorderLayout via GridBagLayout — override for this panel
-        // which needs a full-bleed split layout with no padding on the outer container.
         removeAll()
         layout = BorderLayout()
         border = BorderFactory.createEmptyBorder()
@@ -66,9 +58,10 @@ class PluginsPanel(
 
         val leftPanel = JPanel(BorderLayout(0, 0)).apply {
             preferredSize = Dimension(220, 0)
+            minimumSize   = Dimension(220, 0)
+            maximumSize   = Dimension(220, Int.MAX_VALUE)
             add(listScroll, BorderLayout.CENTER)
             add(JPanel(FlowLayout(FlowLayout.CENTER, 8, 8)).apply {
-//                isOpaque = false
                 add(installBtn)
             }, BorderLayout.SOUTH)
         }
@@ -76,14 +69,14 @@ class PluginsPanel(
         // ---- Right: detail pane ----
         val detailScroll = JScrollPane(detailPane).apply { border = null }
 
-        val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, detailScroll).apply {
-            dividerLocation = 220
-            dividerSize     = 1
-            resizeWeight    = 0.0
-            border          = null
+        // BorderLayout with LINE_START for RTL support — no JSplitPane needed
+        // since the sidebar is fixed-width and doesn't need to be resizable.
+        val mainPanel = JPanel(BorderLayout()).apply {
+            add(leftPanel,   BorderLayout.LINE_START)
+            add(detailScroll, BorderLayout.CENTER)
         }
 
-        add(split, BorderLayout.CENTER)
+        add(mainPanel, BorderLayout.CENTER)
 
         // Observe live plugin list
         scope.launch {
@@ -139,7 +132,7 @@ class PluginsPanel(
             }
             val statusBadge = makeStatusBadge(plugin.status)
 
-            val nameRow = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+            val nameRow = JPanel(FlowLayout(FlowLayout.LEADING, 8, 0)).apply {
 //                isOpaque = false
                 add(nameLabel)
                 add(statusBadge)
@@ -213,7 +206,7 @@ class PluginsPanel(
         // ---- Action buttons ----
         detail.nextRow().spanLine()
             .fill(GridBagConstraints.NONE)
-            .anchor(GridBagConstraints.WEST)
+            .anchor(GridBagConstraints.LINE_START)
             .insets(4, 0, 0, 0).add(buildActionButtons(plugin))
 
         // glue
@@ -266,7 +259,7 @@ class PluginsPanel(
     }
 
     private fun buildActionButtons(plugin: PluginState): JPanel =
-        JPanel(FlowLayout(FlowLayout.LEFT, 6, 0)).apply {
+        JPanel(FlowLayout(FlowLayout.LEADING, 6, 0)).apply {
             when (plugin.status) {
                 PluginStatus.ENABLED -> {
                     add(JButton(localizationManager.getString("settings_plugins.btn_disable")).apply {

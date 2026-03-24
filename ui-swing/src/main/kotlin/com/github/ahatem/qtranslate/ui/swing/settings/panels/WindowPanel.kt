@@ -135,7 +135,7 @@ class WindowPanel(
             JPanel(BorderLayout(8, 0)).apply {
                 isOpaque = false
                 add(transparencySlider, BorderLayout.CENTER)
-                add(transparencyLabel, BorderLayout.EAST)
+                add(transparencyLabel, BorderLayout.LINE_END)
             }
         )
 

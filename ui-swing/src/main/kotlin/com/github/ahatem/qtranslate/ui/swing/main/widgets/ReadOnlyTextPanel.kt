@@ -27,13 +27,14 @@ class ReadOnlyTextPanel(
     init {
         val scrollPane = JScrollPane(textPane)
 
-        val rightPanel = JPanel(BorderLayout()).apply {
+        val actionsWrapper = JPanel(BorderLayout()).apply {
             border = BorderFactory.createEmptyBorder(0, 4, 0, 0)
+            isOpaque = false
             add(actionsPanel, BorderLayout.CENTER)
         }
 
         add(scrollPane, BorderLayout.CENTER)
-        add(rightPanel, BorderLayout.EAST)
+        add(actionsWrapper, BorderLayout.LINE_END)
     }
 
     override fun render(state: ReadOnlyTextPanelState) {

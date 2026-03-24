@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.app
 
+import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.AppConstants
@@ -47,6 +48,14 @@ fun main() = runBlocking {
         runCatching { deps.pluginManager.loadAndProcessPlugins() }
             .onSuccess { logger.info("Plugins loaded successfully") }
             .onFailure { e -> logger.error("Failed to load plugins", e) }
+    }
+
+    val savedLanguage = LanguageCode(initialConfig.interfaceLanguage)
+    runCatching {
+        deps.localizationManager.loadLanguage(savedLanguage)
+        logger.info("Interface language loaded: ${initialConfig.interfaceLanguage}")
+    }.onFailure { e ->
+        logger.warn("Failed to load interface language '${initialConfig.interfaceLanguage}': ${e.message}")
     }
 
     SwingUtilities.invokeLater {

@@ -33,10 +33,8 @@ class KeyboardPanel(
         HotkeyAction.CYCLE_TARGET_LANGUAGE
     )
 
-    // Cannot be recorded — uses JNativeHook double-Ctrl sequence
     private val nonEditableActions = setOf(HotkeyAction.SHOW_MAIN_WINDOW)
 
-    // COL indices
     private val COL_ACTION = 0
     private val COL_HOTKEY = 1
     private val COL_SCOPE  = 2
@@ -138,7 +136,7 @@ class KeyboardPanel(
 
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
             .insets(6, 0, 0, 0)
-            .add(JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
+            .add(JPanel(FlowLayout(FlowLayout.LEADING, 4, 0)).apply {
                 isOpaque = false
                 add(editButton)
                 add(clearButton)
@@ -148,9 +146,6 @@ class KeyboardPanel(
         finishLayout()
     }
 
-    // -------------------------------------------------------------------------
-    // Actions
-    // -------------------------------------------------------------------------
 
     private fun onEditSelected() {
         val row    = table.selectedRow.takeIf { it >= 0 } ?: return
@@ -219,9 +214,6 @@ class KeyboardPanel(
         clearButton.isEnabled = isEditable && enabled
     }
 
-    // -------------------------------------------------------------------------
-    // Render
-    // -------------------------------------------------------------------------
 
     override fun render(state: SettingsState) {
         val c = state.workingConfiguration
@@ -240,9 +232,6 @@ class KeyboardPanel(
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
 
     private fun actionDisplayName(action: HotkeyAction): String = when (action) {
         HotkeyAction.SHOW_MAIN_WINDOW         -> localizationManager.getString("settings_hotkeys.action_show_main")
@@ -301,7 +290,6 @@ class KeyboardPanel(
             val label  = value as? String ?: ""
 
             if (action in nonEditableActions) {
-                // SHOW_MAIN_WINDOW is always global — show muted
                 text       = label
                 foreground = UIManager.getColor("Label.disabledForeground")
                 font       = font.deriveFont(Font.ITALIC)
@@ -331,18 +319,8 @@ class KeyboardPanel(
     }
 }
 
-// =============================================================================
-// HotkeyRecorderDialog
-// =============================================================================
-
 object HotkeyRecorderDialog {
 
-    /**
-     * @param action  The action being recorded — passed explicitly so we can
-     *                create a new binding even when [current] is null.
-     * @param current Existing binding to pre-populate, or null for a fresh binding.
-     * @return The recorded [HotkeyBinding], or null if the user cancelled.
-     */
     fun show(
         owner: Window?,
         action: HotkeyAction,
@@ -440,7 +418,7 @@ object HotkeyRecorderDialog {
         }
 
         dialog.contentPane.add(mainPanel, BorderLayout.CENTER)
-        dialog.contentPane.add(JPanel(FlowLayout(FlowLayout.RIGHT, 8, 8)).apply {
+        dialog.contentPane.add(JPanel(FlowLayout(FlowLayout.TRAILING, 8, 8)).apply {
             add(cancelButton); add(okButton)
         }, BorderLayout.SOUTH)
 
