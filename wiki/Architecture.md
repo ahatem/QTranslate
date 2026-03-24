@@ -37,7 +37,7 @@ QTranslate is structured around Clean Architecture with an MVI (Model-View-Inten
 
 ## :api — the plugin contract
 
-Everything a plugin author needs lives here: service interfaces (`Translator`, `TextToSpeech`, `OCR`, `SpellChecker`, `Dictionary`), the `Plugin` base class, `PluginContext`, `PluginSettings`, request/response data classes, and `ServiceError`.
+Everything a plugin author needs lives here: service interfaces (`Translator`, `TextToSpeech`, `OCR`, `SpellChecker`, `Dictionary`, `Summarizer`, `Rewriter`), the `Plugin` base class, `PluginContext`, `PluginSettings`, request/response data classes, and `ServiceError`.
 
 This module is intentionally minimal. Adding something to `:api` is a commitment — it becomes part of the public plugin API and breaking changes require a major version bump.
 
@@ -58,7 +58,9 @@ Stores hold a `MutableStateFlow<State>` and expose it as `StateFlow<State>`. The
 
 Business logic lives in use cases, not stores. Each use case does one thing:
 
-- `TranslateTextUseCase` — calls the active translator, manages history
+- `TranslateTextUseCase` — calls the active translator, manages history, orchestrates extra output
+- `SummarizeUseCase` — calls the active summarizer with the configured `SummaryLength`
+- `RewriteUseCase` — calls the active rewriter with the configured `RewriteStyle`
 - `HandleTextToSpeechUseCase` — resolves language, calls TTS, plays audio
 - `OcrAndTranslateUseCase` — extracts text from image, returns it to the store
 - `PerformSpellCheckUseCase` — calls spell checker, returns corrections
@@ -138,7 +140,9 @@ Expected failures (network errors, invalid API keys, parse failures) are returne
 
 `UpdateDraft` intents mutate the working draft without touching the saved config. `SaveChanges` persists the draft. `CancelChanges` discards it and reverts to the saved copy. This means the user can freely edit settings and cancel without any side effects — nothing is written to disk until they explicitly save.
 
-`applyDraft(store) { it.copy(...) }` is the correct way to update the draft from a settings panel. It reads the current working draft atomically and dispatches `UpdateDraft` with the result — avoids stale reads when two fields change in rapid succession.
+`applyDraft(store) { it.copy(...) }` is the correct way to update the draft from a settings panel.
+
+Some settings take effect immediately without going through the draft cycle — `CloseButtonBehavior` is one example. When the user picks "remember my choice" in the close dialog, the app dispatches `ToggleSetting` + `SaveChanges` directly so the preference persists without the user having to open Settings. Use `ToggleSetting` for this pattern; use `UpdateDraft` for anything that should be subject to OK/Cancel/Apply. It reads the current working draft atomically and dispatches `UpdateDraft` with the result — avoids stale reads when two fields change in rapid succession.
 
 ---
 

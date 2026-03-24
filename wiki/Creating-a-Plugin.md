@@ -29,6 +29,8 @@ A single JAR can include any combination of these:
 | `OCR` | Extracts text from an image |
 | `SpellChecker` | Returns spelling corrections |
 | `Dictionary` | Definitions, synonyms, examples |
+| `Summarizer` | Condenses text into a shorter form, configurable length |
+| `Rewriter` | Rewrites text in a different style (Formal, Casual, Concise, Detailed, Simplified) |
 
 ---
 

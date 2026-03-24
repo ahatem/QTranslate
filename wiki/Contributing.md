@@ -150,20 +150,3 @@ If you want to add a completely new service category (e.g. a grammar checker) ra
 6. Add the UI surface in `:ui-swing`
 
 This is a significant change — open an issue and discuss before starting.
-
----
-
-## Reviewing pull requests
-
-If you have write access, please review PRs within a few days. When reviewing:
-
-- Be specific — point to the exact line, explain the concern
-- Suggest alternatives when requesting changes
-- Approve if it's good enough even if it's not perfect — perfect is the enemy of shipped
-- Use the GitHub "suggestion" feature for small changes so the author can apply them with one click
-
----
-
-## Release process (maintainers)
-
-See [GITHUB_GUIDE.md — Part 5](https://github.com/ahatem/qtranslate/blob/main/GITHUB_GUIDE.md#part-5--releasing-a-version) for the full release process.

@@ -4,60 +4,63 @@
 
 # QTranslate
 
-**A fast, extensible, plugin-driven desktop translation suite.**
-
-Translate text, recognise text in images, listen to text-to-speech, and check spelling —
-all from a single keyboard shortcut, without opening a browser.
-
-<br>
+**The translation tool that Questsoft abandoned. Rebuilt from scratch. Built to last.**
 
 [![Release](https://img.shields.io/github/v/release/ahatem/qtranslate?style=flat-square&color=4A90D9&label=latest)](https://github.com/ahatem/qtranslate/releases/latest)
 [![License](https://img.shields.io/github/license/ahatem/qtranslate?style=flat-square)](LICENSE)
 [![Build](https://img.shields.io/github/actions/workflow/status/ahatem/qtranslate/ci.yml?branch=develop&style=flat-square&label=build)](https://github.com/ahatem/qtranslate/actions)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
-[![Made with Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
-
-<br>
+[![Made with Kotlin](https://img.shields.io/badge/Kotlin-2.x-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 
 [**Download**](#-installation) · [**Plugin Guide**](wiki/Creating-a-Plugin.md) · [**Contributing**](CONTRIBUTING.md) · [**Wiki**](wiki/Home.md)
 
 <br>
 
-<!-- Main screenshot -->
-<img src="docs/images/screenshot-main-dark.png" alt="QTranslate main window" width="700">
+<img src="docs/images/screenshot-main-dark.png" alt="QTranslate main window" width="720">
 
 </div>
 
 ---
 
-## Overview
+The original QTranslate by Questsoft was the best desktop translation tool on Windows — until development stopped, APIs broke, and users were left with a dead app.
 
-QTranslate is a modular desktop translation app built for power users who want speed and flexibility. Instead of locking you into one translation service, it lets you install, configure, and switch between any number of providers — translation engines, OCR services, TTS voices — all through a clean plugin system.
+This is a full rewrite in Kotlin with one core design change: **everything is a plugin.** Translation engines, OCR, TTS, spell checkers, dictionaries — all separate JARs you install at runtime. When a service changes its API or shuts down, you swap the plugin. The app keeps running.
 
-Press a hotkey, translate, listen, done.
+---
+
+## What it does
+
+Select text anywhere → press `Ctrl+Q` → translation appears instantly. That's the core of it.
+
+<div align="center">
+<img src="docs/images/screenshot-quick-translate.png" alt="Quick Translate popup" width="500">
+<br><sub>Quick Translate — select text in any app, press Ctrl+Q</sub>
+</div>
 
 <br>
+
+For longer work: open the main window, type or paste, translate. Switch engines in one click. Run OCR on a screenshot. Listen to pronunciation. Check spelling. Browse history. All from the keyboard, all without opening a browser.
 
 <div align="center">
 <table>
 <tr>
-<td align="center">
-<img src="docs/images/screenshot-quick-translate.png" alt="Quick translate popup" width="340"><br>
-<sub><b>Quick Translate popup</b> — select text anywhere, press Ctrl+Q</sub>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-ocr.png" alt="OCR" width="340"><br>
+<sub><b>Screen OCR</b> — draw a region, extract and translate the text inside</sub>
 </td>
-<td align="center">
-<img src="docs/images/screenshot-settings.png" alt="Settings dialog" width="340"><br>
-<sub><b>Settings</b> — themes, fonts, service presets, plugins</sub>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-extra-output.png" alt="Extra output panel" width="340"><br>
+<sub><b>Extra output panel</b> — backward translation, summary, or rewrite alongside the main result</sub>
 </td>
 </tr>
 <tr>
-<td align="center">
-<img src="docs/images/screenshot-plugins.png" alt="Plugin manager" width="340"><br>
-<sub><b>Plugin Manager</b> — install and configure service plugins</sub>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-rtl.png" alt="RTL layout" width="340"><br>
+<sub><b>RTL support</b> — full layout mirroring for Arabic, Hebrew, Farsi</sub>
 </td>
-<td align="center">
-<img src="docs/images/screenshot-light.png" alt="Light theme" width="340"><br>
-<sub><b>Light theme</b> — fully themeable with FlatLaf</sub>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-plugins.png" alt="Plugin manager" width="340"><br>
+<sub><b>Plugin manager</b> — install, configure, enable, disable at runtime</sub>
 </td>
 </tr>
 </table>
@@ -65,109 +68,119 @@ Press a hotkey, translate, listen, done.
 
 ---
 
-## ✨ Features
+## Features
 
-| | Feature | Description |
-|--|---------|-------------|
-| ⚡ | **Instant translation** | Translates as you type with a configurable debounce |
-| 🔑 | **Global hotkeys** | Translate, OCR, or listen from any app with a keyboard shortcut |
-| 💬 | **Quick translate popup** | Select text anywhere → press Ctrl+Q → done |
-| 📷 | **OCR** | Capture any screen region and translate the text inside it |
-| 🔊 | **Text-to-speech** | Listen to input or output in the correct language |
-| ✍️ | **Spell checking** | Underlines mistakes as you type |
-| 📜 | **Translation history** | Undo/redo through past translations |
-| 🗂️ | **Service presets** | Save different service combinations and switch between them |
-| 🔌 | **Plugin system** | Install, configure, and swap services at runtime — no restart |
-| 🎨 | **Themes** | 15+ built-in FlatLaf themes, dark and light |
-| 🌍 | **RTL support** | Layout mirrors for Arabic, Hebrew, and other RTL languages |
-| 📦 | **Portable** | Runs from any folder — all data lives next to the JAR |
+### Translation
+
+| | |
+|---|---|
+| **Quick Translate popup** | `Ctrl+Q` on any selected text — popup with result, no main window needed |
+| **Instant translation** | Translates as you type with configurable debounce |
+| **Inline replace** | `Ctrl+Shift+T` — translates selected text and pastes the result back in place |
+| **Backward translation** | See the round-trip result alongside the main output — spots awkward phrasing instantly |
+| **Summarize** | Get a condensed version of long text, configurable length |
+| **Rewrite** | Rewrite in a different style: Formal, Casual, Concise, Detailed, or Simplified |
+| **Translation history** | Full undo/redo through every past translation |
+
+### Input
+
+| | |
+|---|---|
+| **Screen OCR** | Draw a rectangle anywhere on screen, extract the text, translate it |
+| **Spell checking** | Live underlines as you type, click a suggestion to apply |
+| **Remove line breaks** | Strips newlines from pasted text so PDF content translates as sentences |
+| **Language filter** | Pin 3–4 target languages so the picker isn't overwhelming |
+| **Cycle languages** | `Ctrl+L` steps through pinned languages without touching the mouse |
+
+### Services & plugins
+
+| | |
+|---|---|
+| **Plugin system** | Install `.jar` plugins at runtime — no restart, no reinstall |
+| **Service presets** | Save different engine combinations for different contexts |
+| **Google Services** | Translator, TTS, OCR, Spell Checker, Dictionary — included |
+| **Bing Services** | Translator, TTS, Spell Checker — included |
+
+### Interface
+
+| | |
+|---|---|
+| **Three layouts** | Classic (stacked), Side-by-side, Compact (tabbed) |
+| **Global hotkeys** | Every action is bindable, configurable as global or app-local |
+| **RTL support** | Full layout mirroring for Arabic, Hebrew, Farsi, and more |
+| **15+ themes** | Dark and light, via FlatLaf — including animated transitions |
+| **Portable** | Runs from any folder, all data lives next to the JAR |
 
 ---
 
-## 📦 Installation
+## Installation
 
-### Download a release *(recommended)*
+**Requires Java 11 or later** — [download from Adoptium](https://adoptium.net) if you need it.
 
-1. Go to [**Releases**](https://github.com/ahatem/qtranslate/releases/latest)
-2. Download `QTranslate-<version>.zip`
-3. Unzip anywhere — you get a `QTranslate/` folder
-4. Run `QTranslate.jar`
+1. Download `QTranslate-<version>.zip` from [**Releases**](https://github.com/ahatem/qtranslate/releases/latest)
+2. Unzip anywhere
+3. Run `QTranslate.jar`
 
 ```
 QTranslate/
-  ├── QTranslate.jar       ← double-click or: java -jar QTranslate.jar
-  └── plugins/
-        ├── bing-services-plugin.jar
-        └── google-services-plugin.jar
+  ├── QTranslate.jar                ← double-click, or: java -jar QTranslate.jar
+  ├── plugins/
+  │     ├── google-services-plugin.jar
+  │     └── bing-services-plugin.jar
+  └── languages/
+        ├── en-GB.toml
+        ├── ar-SA.toml
+        ├── de-DE.toml
+        ├── es-ES.toml
+        ├── fr-FR.toml
+        ├── ja-JP.toml
+        ├── pt-BR.toml
+        ├── ru-RU.toml
+        ├── tr-TR.toml
+        └── zh-CN.toml
 ```
 
->  **Requires Java 11 or later.** → [Download Temurin JDK](https://adoptium.net)
+Google and Bing plugins are included. Add your API keys in **Settings → Plugins → [plugin] → Configure**.
 
-### ❓ Getting "This application requires a Java Runtime Environment"?
+> **Getting "This application requires a Java Runtime Environment"?**
+> Java isn't installed or `JAVA_HOME` isn't set. This video covers the full process:
+> **▶ [How to Install Java JDK and Set JAVA_HOME](https://youtu.be/VTzzmqNwGzM)** *(first 7 minutes)*
 
-This means Java is not installed or not configured correctly on your machine. You need to install the Java JDK and set the `JAVA_HOME` environment variable so your system knows where to find it.
-
-This video walks you through the entire process — downloading, installing, and setting `JAVA_HOME`:
-
-**▶ [How to Install Java JDK and Set JAVA_HOME](https://youtu.be/VTzzmqNwGzM)**
-
-> **Note:** You only need the first 7 minutes — that covers everything required to run QTranslate.
-
-### Build from source
-
-See [**Building from Source**](wiki/Building-from-Source.md).
+**Build from source** → [Building from Source](wiki/Building-from-Source.md)
 
 ---
 
-## 🚀 Quick Start
+## Quick start
 
-1. **Launch** `QTranslate.jar`
-2. **Select text** anywhere on your screen
-3. Press **Ctrl+Q** to open the Quick Translate popup
-4. Press **Ctrl+E** to listen to the selected text
-5. Press **Ctrl+I** to OCR a screen region
+1. Launch `QTranslate.jar` — it starts in the system tray
+2. Select text anywhere on screen
+3. Press `Ctrl+Q` — Quick Translate popup opens with the result ready
+4. Press `Ctrl+E` — listen to the selected text
+5. Press `Ctrl+I` — draw a screen region to OCR and translate
 
-Open **Settings** (the gear icon or `Ctrl+,`) to configure:
-- Which services to use for translation, OCR, and TTS
-- Your API keys for Google or Bing services
-- Themes, fonts, and layout
+Open **Settings** (gear icon) to configure API keys, themes, hotkeys, and service presets.
 
 ---
 
-## 🔌 Plugins
+## Plugins
 
-QTranslate ships with two plugins out of the box:
+**Installing a plugin:** Settings → Plugins → Install Plugin → select `.jar` → Enable → Configure → assign in Services & Presets
 
-| Plugin | Services |
-|--------|----------|
-| **Google Services** | Translator · TTS · OCR · Spell Checker · Dictionary |
-| **Bing Services** | Translator · TTS · Spell Checker |
+**Full guide** → [Installing Plugins](wiki/Installing-Plugins.md)
 
-### Installing additional plugins
+### Community plugins
 
-1. **Settings → Plugins → Install Plugin…**
-2. Select a `.jar` file
-3. Enable the plugin and configure it
-4. Assign it in **Settings → Services & Presets**
+> Built a plugin? [Submit it here](https://github.com/ahatem/qtranslate/issues/new?template=plugin_submission.md) — quality plugins get listed and promoted to all QTranslate users.
 
-→ [Full installation guide](wiki/Installing-Plugins.md)
+| Plugin | Services | Author |
+|--------|----------|--------|
+| *(be the first)* | | |
 
 ---
 
-## 🧩 Community Plugins
+## Build a plugin
 
-> **Built a plugin?** Share it with the community by [opening a Plugin Submission issue](https://github.com/ahatem/qtranslate/issues/new?template=plugin_submission.md).
-> Quality plugins get listed here and promoted to all QTranslate users. It's a great way to get your work noticed.
-
-| Plugin | Type | Author | Description |
-|--------|------|--------|-------------|
-| *(be the first!)* | — | — | Open a submission issue to get listed |
-
----
-
-## 🏗️ Building a Plugin
-
-The plugin API is designed to be simple. A minimal translator plugin is ~50 lines of Kotlin. Plugins are loaded at runtime — users install your JAR through the UI, no restart required.
+A minimal translator is ~50 lines of Kotlin. No framework, no registration — implement a few interfaces, build a fat JAR, install it through the UI.
 
 ```kotlin
 class MyPlugin : Plugin<PluginSettings.None> {
@@ -180,66 +193,53 @@ class MyPlugin : Plugin<PluginSettings.None> {
 }
 ```
 
-### Learn from real examples
+The bundled Google and Bing plugins are fully open source in `plugins/` — they're the best real-world reference for auth, language mapping, error handling, and settings.
 
-The bundled plugins are fully open source and live in this repository under `plugins/`. They are the best reference you have — real implementations of every service type, handling auth, language mapping, chunking, error handling, and settings:
-
-| Source | What it demonstrates |
-|--------|---------------------|
-| [`plugins/google-services/`](plugins/google-services/src/main/kotlin) | Translator, TTS, OCR, Spell Checker, Dictionary — with `PluginSettings.Configurable` and `@field:Setting` for API key configuration |
-| [`plugins/bing-services/`](plugins/bing-services/src/main/kotlin) | Translator, TTS, Spell Checker — with token-based auth, request chunking, and `SupportedLanguages.Dynamic` |
-| [`plugins/common/`](plugins/common/src/main/kotlin) | Shared HTTP client, JSON parser, language mapper base class — reusable utilities your plugin can copy |
-
-→ [**Full Plugin Development Guide**](wiki/Creating-a-Plugin.md)
+**Full guide** → [Creating a Plugin](wiki/Creating-a-Plugin.md)
 
 ---
 
-## 🌍 Translating the Interface
+## Translate the interface
 
-QTranslate's UI can be translated into any language using a simple TOML file. Copy `en.toml`, rename it to your language code, translate the values, and you're done.
+QTranslate ships with 11 languages built in:
 
-→ [**Adding a Language**](wiki/Adding-a-Language.md)
+**Arabic · Chinese · English · French · German · Japanese · Portuguese · Russian · Spanish · Turkish**
+
+Want another language? Copy `languages/en.toml`, rename it to your language code, translate the values. No code needed.
+
+**Guide** → [Adding a Language](wiki/Adding-a-Language.md)
 
 ---
 
-## 🏛️ Architecture
+## Architecture
 
-QTranslate follows **Clean Architecture** with an **MVI** pattern for the UI layer. The codebase is split into focused modules:
+Clean Architecture + MVI. Nothing leaks between layers:
 
 ```
-:api        ← plugin interfaces (plugins only depend on this)
+:api        ← plugin interfaces — plugins only depend on this
 :core       ← business logic, use cases, MVI stores
 :ui-swing   ← Swing UI, Renderable<State> components
-:app        ← composition root, wires everything together
-:plugins/*  ← service implementations (Google, Bing, ...)
+:app        ← composition root
+:plugins/*  ← Google, Bing, community plugins
 ```
 
-→ [**Architecture Guide**](wiki/Architecture.md)
+**Guide** → [Architecture](wiki/Architecture.md)
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are welcome — bug fixes, features, translations, documentation, and plugins.
+Bug fixes, features, translations, docs, and plugins all welcome. Look for [`good first issue`](https://github.com/ahatem/qtranslate/labels/good%20first%20issue) for well-scoped starting points.
 
-**Good first issues:** look for the [`good first issue`](https://github.com/ahatem/qtranslate/labels/good%20first%20issue) label — these are well-scoped tasks that don't require deep knowledge of the codebase.
-
-→ [**Contributing Guide**](CONTRIBUTING.md)
+→ [Contributing Guide](CONTRIBUTING.md)
 
 ---
 
-## 📄 License
-
-QTranslate is released under the [**MIT License**](LICENSE). You are free to use, modify, and distribute it.
-
----
+[MIT License](LICENSE)
 
 <div align="center">
-
-**Built with** [Kotlin](https://kotlinlang.org) · [FlatLaf](https://www.formdev.com/flatlaf/) · [Ktor](https://ktor.io) · [Coroutines](https://kotlinlang.org/docs/coroutines-overview.html)
-
 <br>
-
-*If QTranslate is useful to you, consider giving it a ⭐ — it helps others find the project.*
-
+<sub>Built with Kotlin · FlatLaf · Ktor · Coroutines</sub>
+<br><br>
+<sub>Found it useful? A ⭐ helps other people find the project.</sub>
 </div>
