@@ -38,9 +38,7 @@ jobs:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
       - name: Build plugin JARs
-        run: |
-          ./gradlew :plugins:bing-services:shadowJar --no-daemon
-          ./gradlew :plugins:google-services:shadowJar --no-daemon
+        run: ./gradlew :plugins:bing-services:shadowJar :plugins:google-services:shadowJar :plugins:ai-services:shadowJar --no-daemon
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
@@ -59,6 +57,9 @@ jobs:
 
           cp plugins/google-services/build/libs/google-services-plugin.jar \
              dist/QTranslate/plugins/google-services-plugin.jar
+          
+          cp plugins/ai-services/build/libs/ai-services-plugin.jar \
+             dist/QTranslate/plugins/ai-services-plugin.jar
 
           if [ -d languages ]; then
             cp -R languages/. dist/QTranslate/languages/

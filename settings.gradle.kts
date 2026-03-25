@@ -21,5 +21,4 @@ include("app")
 include("plugins:common")
 include("plugins:google-services")
 include("plugins:bing-services")
-
-
+include("plugins:ai-services")

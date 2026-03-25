@@ -28,6 +28,7 @@ class KtorHttpClient(
         ignoreUnknownKeys = true
         isLenient = true
         coerceInputValues = true
+        explicitNulls = false
     },
     private val config: HttpClientConfig = HttpClientConfig()
 ) : HttpClient {
@@ -334,9 +335,11 @@ class KtorHttpClient(
                 ServiceError.RateLimitError("Rate limit exceeded for $url")
             )
 
-            else -> Err(
-                ServiceError.ServiceUnavailableError("HTTP ${response.status.value} for $url")
-            )
+            else -> {
+                val errorBody = runCatching { response.bodyAsText() }.getOrDefault("")
+                pluginContext.logger.error("HTTP ${response.status.value} for $url — $errorBody")
+                Err(ServiceError.ServiceUnavailableError("HTTP ${response.status.value} for $url\n$errorBody"))
+            }
         }
     }
 
@@ -354,9 +357,11 @@ class KtorHttpClient(
                 ServiceError.RateLimitError("Rate limit exceeded for $url")
             )
 
-            else -> Err(
-                ServiceError.ServiceUnavailableError("HTTP ${response.status.value} for $url")
-            )
+            else -> {
+                val errorBody = runCatching { response.bodyAsText() }.getOrDefault("")
+                pluginContext.logger.error("HTTP ${response.status.value} for $url — $errorBody")
+                Err(ServiceError.ServiceUnavailableError("HTTP ${response.status.value} for $url\n$errorBody"))
+            }
         }
     }
 
