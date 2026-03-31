@@ -1,1 +1,370 @@
+# ===================================================================
+# META SECTION
+# ===================================================================
+[meta]
+name = "Hungarian"
+native_name = "Magyar"
+locale = "hu-HU"
+version = "1.0.0"
+author = "QTranslate Team <ahatem925@gmail.com>"
+last_updated = "2026-03-31"
+rtl = false
 
+# ===================================================================
+# COMMON STRINGS
+# ===================================================================
+[common]
+ok = "OK"
+cancel = "Mégse"
+apply = "Alkalmaz"
+save = "Mentés"
+yes = "Igen"
+no = "Nem"
+close = "Bezárás"
+save_as = "Mentés másként…"
+submit = "Beküldés"
+search = "Keres…"
+copy = "Másol"
+copy_all = "Mindent másol"
+paste = "Beilleszt"
+cut = "Kivág"
+cut_all = "Mindent kivág"
+undo = "Visszavon"
+version = "Verzió %s"
+seconds = "másodperc"
+from = "Innen:"
+to = "ide:"
+listen = "Meghallgat"
+pin = "Kitűz"
+unpin = "Levesz"
+loading = "Betöltés…"
+none = "Nincs"
+error = "Hiba"
+browse = "Böngészés…"
+delete = "Töröl"
+rename = "Átnevez…"
+new = "Új…"
+configure = "Beállítás"
+
+# ===================================================================
+# MAIN APPLICATION WINDOW
+# ===================================================================
+[main_window]
+status_format = "%s használatban: %s → %s"
+no_translator = "Nincs fordító"
+
+[main_window_history_bar]
+backward_tooltip = "Menjen vissza a fordítási előzményekben"
+forward_tooltip = "Menjen előre a fordítási előzményekben"
+image_translate_tooltip = "Szöveg rögzítése és fordítása a képernyőről"
+
+[main_window_language_bar]
+clear_tooltip = "Törölje a bevitt szöveget"
+swap_languages_tooltip = "Fordítási irány váltása"
+translate_button = "Fordítás"
+
+[main_window_editor_context_menu]
+spelling_suggestions = "Helyesírási javaslatok"
+undo = "@common.undo"
+cut = "@common.cut"
+cut_all = "@common.cut_all"
+copy = "@common.copy"
+copy_all = "@common.copy_all"
+paste = "@common.paste"
+translate = "@main_window_language_bar.translate_button"
+listen = "@common.listen"
+spell_check = "Helyesírás-ellenőrzés"
+
+
+[main_window_main_menu]
+layout_presets = "Elrendezés előbeállítások"
+layout_preset_classic = "Klasszikus"
+layout_preset_side_by_side = "Oldalról oldalra"
+layout_preset_compact = "Kompakt"
+instant_translation = "Azonnali fordítás"
+show_extra_output = "Extra kimenet megjelenítése"
+spell_check = "Helyesírás-ellenőrzés"
+options_submenu = "Beállítások"
+show_history_bar = "Előzmények sáv megjelenítése"
+show_language_bar = "Nyelvsáv megjelenítése"
+show_services_panel = "Szolgáltatások panel megjelenítése"
+show_status_bar = "Állapotsor megjelenítése"
+settings = "Beállítások…"
+help_submenu = "Súgó"
+how_to_use = "Hogyan kell használni"
+contact_us = "Lépjen kapcsolatba velünk"
+auto_check_for_updates = "Frissítések automatikus ellenőrzése"
+check_for_updates = "Frissítések keresése"
+about_qtranslate = "QTranslate névjegye"
+exit = "Kilépés"
+
+[main_window_status_bar]
+ready_message = "Kész"
+notifications_tooltip = "Értesítések"
+notifications_empty_tooltip = "Nincs új értesítés"
+
+# ===================================================================
+# SYSTEM TRAY MENU
+# ===================================================================
+[system_tray_menu]
+show_application = "Mutassa a QTranslate-et"
+recognize_text = "Szöveg felismerése (OCR)"
+dictionary = "Szótár"
+history = "Előzmények"
+settings = "@main_window_main_menu.settings"
+enable_hotkeys = "Globális gyorsbillentyűk engedélyezése"
+exit = "@main_window_main_menu.exit"
+
+# ===================================================================
+# SETTINGS DIALOG (SHELL & NAVIGATION)
+# ===================================================================
+[settings_dialog]
+title = "Beállítások"
+unsaved_changes = "● Mentetlen módosítások"
+saving = "Mentés…"
+save_failed_title = "Mentés sikertelen"
+reset_defaults_button = "Vissza az alapértelmezettre"
+reset_confirmation_title = "Visszaállítás az alapértelmezett értékekre"
+reset_confirmation_message = "Visszaállít minden beállítást az alapértelmezett értékekre?\nEz a művelet nem vonható vissza!"
+
+[settings_dialog_sidebar]
+general = "Általános"
+appearance = "Megjelenés"
+services = "Szolgáltatások és előbeállítások"
+plugins = "Bővítmények"
+hotkeys = "Billentyűzet és gyorsgombok"
+translation = "Fordítás"
+window_layout = "Ablak és elrendezés"
+
+# ===================================================================
+# SETTINGS PAGES
+# ===================================================================
+
+[settings_general]
+startup_group = "Indítás"
+launch_on_startup = "Indítás a rendszer indulásakor"
+updates_group = "Frissítések"
+auto_check_updates = "Automatikusan ellenőrizze a frissítéseket"
+history_group = "Előzmények"
+enable_history = "Fordítási előzmények engedélyezése"
+clear_history_on_exit = "Előzmények törlése az alkalmazás bezárásakor"
+clear_history_hint = "A mentett fordítások kilépéskor véglegesen törlődnek, amikor ez be van kapcsolva."
+
+[settings_appearance]
+language_group = "Nyelv"
+interface_language = "Felület nyelve:"
+language_hint = "A változtatások azonnal érvénybe lépnek. Néhány felirat teljes frissítéséhez újraindítás lehet szükséges."
+theme_group = "Téma"
+theme_label = "Téma:"
+unified_title_bar = "Egységes címsor használata"
+scale_group = "UI méretezés"
+scale_label = "Méretezés:"
+scale_hint = "Indítsa újra az alkalmazást a méretváltoztatások teljes alkalmazásához."
+fonts_group = "Betűtípusok"
+ui_font = "UI betűtípus:"
+editor_font = "Szerkesztő betűtípus:"
+fallback_font = "Tartalék betűtípus:"
+fallback_hint = "A tartalék betűtípust azokhoz a karakterekhez használják, amelyeket a szerkesztő betűtípusa nem tud megjeleníteni."
+loading_fonts = "<Betűtípusok betöltése…>"
+font_preview_text = "A gyors barna róka átugrik a lusta kutya fölött — 大きな茶色の狐が怠け者の犬を飛び越えた"
+
+[settings_services]
+presets_group = "Aktív előbeállítás"
+current_preset = "Jelenlegi előbeállítás:"
+preset_hint = "Az előbeállítások lehetővé teszik, hogy különböző szolgáltatáskombinációkat mentsen el, és gyorsan váltson közöttük."
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+config_group = "Szolgáltatás konfiguráció"
+translator = "Fordító:"
+tts = "Szöveg-beszéd:"
+ocr = "OCR:"
+spell_checker = "Helyesírás-ellenőrző:"
+dictionary = "Szótár:"
+summarizer = "Összefoglaló:"
+rewriter = "Átfogalmaz:"
+# Dialogs
+new_preset_title = "Új előbeállítás"
+new_preset_prompt = "Adjon nevet az új előbeállításnak:"
+rename_preset_title = "Előbeállítás átnevezése"
+rename_preset_prompt = "Adja meg az új nevet:"
+delete_preset_title = "Előbeállítás törlése"
+delete_preset_confirm = "Törli a(z) \"%s\" előbeállítást?\nEz a művelet nem vonható vissza!"
+
+[settings_plugins]
+install_plugin = "Bővítmény telepítése…"
+empty_selection_hint = "Válasszon egy bővítményt a részletek megtekintéséhez"
+provided_services = "Kínált szolgáltatások"
+plugin_error_label = "Hiba"
+status_enabled = "Engedélyezve"
+status_disabled = "Letiltva"
+status_failed = "Sikertelen"
+status_verification = "Várakozás megerősítésre"
+# Actions
+btn_disable = "Letiltás"
+btn_enable = "Engedélyezés"
+btn_configure = "Konfigurálás…"
+btn_accept_update = "Frissítés elfogadása"
+btn_clean_install = "Tiszta telepítés"
+btn_uninstall = "Eltávolítás"
+tip_accept_update = "Tartsa meg a meglévő adatokat, és engedélyezze újra a bővítményt"
+tip_clean_install = "Az újbóli engedélyezés előtt törölje az összes bővítmény modul adatát"
+# Dialogs
+install_dialog_title = "Válassza ki a bővítmény JAR-fájlját"
+install_dialog_filter = "QTranslate bővítmény (*.jar)"
+install_success_title = "Bővítmény telepítve"
+install_success_msg = "A bővítmény sikeresen telepítve."
+install_fail_title = "Telepítés sikertelen"
+uninstall_confirm_title = "Bővítmény eltávolítása"
+uninstall_confirm_msg = "Törli a(z) \"%s\" bővítményt?\nA bővítmény összes adata véglegesen törlődik!"
+no_settings_msg = "Ennek a bővítménynek nincsenek konfigurálható beállításai."
+
+[settings_hotkeys]
+global_group = "Globális gyorsbillentyűk"
+enable_global = "Globális gyorsbillentyűk engedélyezése"
+assignments_group = "Gyorsbillentyű-hozzárendelések"
+column_action = "Művelet"
+column_hotkey = "Gyorsbillentyű"
+column_description = "Leírás"
+customization_hint = "A gyorsbillentyűk testreszabása egy későbbi frissítésben lesz elérhető."
+column_scope = "Hatókör"
+scope_global = "Globális"
+scope_local = "Helyi"
+# Default Actions
+action_show_main = "Főablak megjelenítése"
+action_quick_translate = "Gyors fordítás"
+action_listen = "Kijelölés meghallgatása"
+action_ocr = "OCR a képernyőről"
+action_replace = "A kiválasztás lecserélése fordításra (kísérleti)"
+action_cycle_language = "Célnyelv váltása"
+scope_toggle_hint = "Kattintson a Globális és a Helyi közötti váltáshoz"
+
+# Default Actions Descriptions
+desc_show_main = "Nyomja le kétszer a Ctrl billentyűt a főablak megjelenítéséhez"
+desc_quick_translate = "A kiválasztott szöveg fordítása egy felugró ablakban"
+desc_listen = "Olvasd fel a kiválasztott szöveget"
+desc_ocr = "Képernyőrészlet rögzítése és szöveg kinyerése"
+desc_replace = "A kiválasztott szöveget lefordítja, és visszamásolja a helyére (kísérleti)"
+desc_cycle = "Váltson az elérhető célnyelvek között anélkül, hogy megnyitná az ablakot"
+
+edit_hint = "Kattintson duplán egy sorra, vagy jelölje ki azt, majd kattintson a Szerkesztés gombra a hozzárendelés módosításához."
+edit_button = "Szerkesztés…"
+clear_button = "Tisztítás"
+reset_button = "Az összes alapértékre állítása"
+no_binding = "(nincs)"
+reset_confirmation = "Minden gyorsbillentyűt visszaállítson az alapértelmezett értékekre?"
+reset_title = "Gyorsbillentyűk visszaállítása"
+recorder_title = "Felvétel gyorsbillentyű"
+recorder_prompt = "Nyomja meg a hozzárendelni kívánt billentyűkombinációt:"
+double_ctrl = "Dupla Ctrl"
+recorder_waiting = "— nyomjon meg egy billentyűkombinációt —"
+recorder_hint = "Nyomja meg az Escape-et a megszakításhoz"
+
+
+[settings_translation]
+behavior_group = "Viselkedés"
+instant_translation = "Azonnali fordítás (gépelés közben fordít)"
+instant_hint = "Automatikusan lefordítja, miután abbahagyja a gépelést."
+spell_check_input = "Kapcsolja be a helyesírás-ellenőrzést a bevitelnél"
+extra_output_group = "Extra kimenet"
+extra_output_type = "Típus:"
+extra_output_hint = "Egy másodlagos eredmény panelt jelenít meg a fő fordítási kimenet alatt."
+extra_output_source = "Forrás:"
+source_use_translated = "Használja a lefordított szöveget"
+source_use_input = "Használja a bemeneti szöveget"
+remove_line_breaks = "Törölje a sortöréseket a bemenetből"
+remove_line_breaks_hint = "Hasznos PDF-ekből másoláskor, ahol minden sor új sorral ér véget"
+pinned_languages_group = "Nyelvi szűrő"
+pinned_languages_hint = "Válassza ki azokat a nyelveket, amelyek megjelenjenek a cél nyelv kiválasztójában. Ha mindet kihagyja, minden elérhető nyelv megjelenik."
+pinned_languages_clear = "Szűrő törlése (Mindet megjeleníti)"
+# Types
+type_none = "@common.none"
+type_backward = "Visszafordítás"
+type_summarize = "Összefoglalás"
+type_rewrite = "Átfogalmazás"
+# Summary length options (shown when type = Summarisation)
+summary_length = "Összefoglaló hossza:"
+summary_length_short = "Rövid (egy mondat)"
+summary_length_medium = "Közepes (néhány mondat)"
+summary_length_long = "Hosszú (részletes)"
+# Rewrite style options (shown when type = Átfogalmazás)
+rewrite_style = "Átfogalmazás stílusa:"
+rewrite_style_formal = "Hivatalos"
+rewrite_style_casual = "Közvetlen"
+rewrite_style_concise = "Tömör"
+rewrite_style_detailed = "Részletes"
+rewrite_style_simplified = "Egyszerű"
+
+[settings_window]
+layout_group = "Elrendezés"
+layout_preset = "Elrendezés előbeállítás:"
+toolbars_group = "Eszköztárak"
+show_history_bar = "Előzmények navigációs sávjának megjelenítése"
+show_language_bar = "Mutassa a nyelvválasztó sávot"
+show_services_panel = "Szolgáltatások panel megjelenítése"
+show_status_bar = "Mutassa az állapotsort"
+popup_group = "Gyorsfordítás felugró ablak"
+auto_size = "Állítsa a felugró ablak méretét a tartalomhoz"
+auto_position = "A felugró ablak automatikus elhelyezése a kurzor közelében"
+transparency = "Háttér átlátszóság:"
+# Close button
+close_behavior_group   = "Bezárás gomb viselkedése"
+close_button           = "Bezáráskor:"
+close_behavior_ask     = "Minden alkalommal rákérdez"
+close_behavior_minimize = "Minimalizálás a tálcára"
+close_behavior_exit    = "Kilépés az alkalmazásból"
+close_behavior_hint    = "Ez szabályozza, mi történik, amikor az X bezárás gombra kattint. Ezt a bezárás párbeszédablakából is beállíthatja."
+
+# ===================================================================
+# DYNAMIC PLUGIN CONFIGURATION
+# ===================================================================
+[plugin_config]
+title_format = "Konfigurálás — %s"
+required_fields_error_title = "Kötelező mezők"
+required_fields_error_msg = "Kérjük, töltse ki a szükséges mezőket:"
+
+# ===================================================================
+# OTHER DIALOGS
+# ===================================================================
+[about_dialog]
+title = "QTranslate névjegye"
+description = "Az eredeti QTranslate-et már nem fejlesztik tovább. Ez egy teljesen újratervezett változat — ugyanaz az alapelv, de bővítményalapú, így az alkalmazás mindig naprakész marad."
+
+[history_dialog]
+title = "Fordítási előzmények"
+
+[update_dialog]
+title = "Frissítés elérhető"
+header = "Elérhető a QTranslate új verziója!"
+# %1$s = új verziószám, %2$s = aktuális verziószám
+details_format = "A(z) %s verzió most elérhető (jelenleg %s van). Szeretné frissíteni?"
+release_notes_label = "Kiadási megjegyzések:"
+skip_button = "Kihagyom ezt a verziót"
+remind_later_button = "Emlékeztessen később"
+download_button = "Ugrás a letöltési oldalra"
+
+# ===================================================================
+# CLOSE DIALOG
+# ===================================================================
+[close_dialog]
+title           = "QTranslate bezárása"
+message         = "Mit szeretne tenni?"
+minimize_to_tray = "Minimalizálás a tálcára"
+exit            = "Kilépés"
+remember_choice = "Emlékezzen a választásomra"
+
+# ===================================================================
+# EXTRA OUTPUT PANEL
+# ===================================================================
+[extra_output]
+label_backward = "Fordítás visszafelé"
+label_summary = "Összefoglalás"
+label_rewrite = "Átfogalmazás"
+
+# ===================================================================
+# NOTIFICATIONS & ERRORS
+# ===================================================================
+[notifications]
+language_not_supported_format = "A(z) '%s' nyelvet a %s nem támogatja."
+tts_not_supported_format = "A(z) %s nem támogatja a szövegfelolvasást."
+unknown_error = "Ismeretlen hiba történt."
