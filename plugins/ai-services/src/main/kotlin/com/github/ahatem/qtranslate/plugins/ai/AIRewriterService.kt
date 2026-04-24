@@ -23,22 +23,29 @@ class AIRewriterService(
         val styleInstruction = when (request.style) {
             RewriteStyle.FORMAL -> "Rewrite in a formal, professional tone. Use precise vocabulary and complete sentences. Remove slang and colloquialisms."
             RewriteStyle.CASUAL -> "Rewrite in a natural, conversational tone. Use everyday language as if speaking to a friend."
-            RewriteStyle.CONCISE -> "Rewrite as briefly as possible. Remove all filler words, redundancy, and unnecessary detail. Every word must earn its place."
-            RewriteStyle.DETAILED -> "Rewrite in an expanded, thorough form. Add relevant context, elaborate on key points, and ensure nothing important is left ambiguous."
-            RewriteStyle.SIMPLIFIED -> "Rewrite using plain, simple language. Aim for a reading level suitable for a general audience. Avoid jargon and complex sentence structures."
+            RewriteStyle.CONCISE -> "Rewrite as briefly as possible. Remove all filler words, redundancy, and unnecessary detail."
+            RewriteStyle.DETAILED -> "Rewrite in an expanded, thorough form. Add relevant context and elaborate on key points."
+            RewriteStyle.SIMPLIFIED -> "Rewrite using plain, simple language suitable for a general audience. Avoid jargon."
         }
 
         val system = """
-            You are a professional writing assistant.
-            $styleInstruction
-            Output ONLY the rewritten text — no preamble, no labels, no quotes.
-            Preserve the original meaning faithfully.
-            Respond in the SAME LANGUAGE as the input text.
-            Preserve paragraph structure and line breaks.
-        """.trimIndent()
+        You are a professional writing assistant.
+        
+        TASK:
+        $styleInstruction
+        
+        RULES:
+        1. Respond in the EXACT SAME LANGUAGE as the source text.
+        2. Output ONLY the rewritten text. 
+        3. Do NOT include any preamble, labels, or introductory phrases (e.g., do not say "Here is the formal version:").
+        4. Preserve original paragraph structure and line breaks.
+        
+        The text to rewrite begins after the '---' delimiter below.
+        ---
+    """.trimIndent()
 
         return client.complete(system, request.text, jsonMode = false).map { rewritten ->
-            RewriteResponse(rewrittenText = rewritten.trim())
+            RewriteResponse(rewrittenText = rewritten.trim().removeSurrounding("\""))
         }
     }
 }
