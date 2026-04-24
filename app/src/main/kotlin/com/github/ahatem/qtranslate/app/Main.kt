@@ -5,7 +5,6 @@ import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.ui.swing.main.MainAppFrame
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
@@ -61,12 +60,10 @@ fun main() = runBlocking {
     )
     AppUiSetup.apply(initialConfig, deps.themeManager)
 
-    deps.appScope.launch {
-        logger.info("Loading plugins...")
-        runCatching { deps.pluginManager.loadAndProcessPlugins() }
-            .onSuccess { logger.info("Plugins loaded successfully") }
-            .onFailure { e -> logger.error("Failed to load plugins", e) }
-    }
+    logger.info("Loading plugins...")
+    runCatching { deps.pluginManager.loadAndProcessPlugins() }
+        .onSuccess { logger.info("Plugins loaded successfully") }
+        .onFailure { e -> logger.error("Failed to load plugins", e) }
 
     val savedLanguage = if (initialConfig.interfaceLanguage == LanguageCode.ENGLISH.tag) {
         OsLanguageDetector.detect(deps.localizationManager.availableLanguages)
