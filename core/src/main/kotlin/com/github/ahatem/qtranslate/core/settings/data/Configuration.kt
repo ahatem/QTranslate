@@ -216,6 +216,8 @@ data class Configuration(
     val clearHistoryOnExit: Boolean,
 
     // ---- UI — Main Window ----
+    val mainWindowSize: Size? = null,
+    val mainWindowPosition: Position? = null,
     val uiFontConfig: FontConfig,
     val uiScale: Int,
     val themeId: String,
