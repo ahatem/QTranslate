@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.plugins.ai
 
+import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.spellchecker.*
@@ -29,33 +30,40 @@ class AISpellCheckerService(
                 return@coroutineBinding Ok(SpellCheckResponse(request.text, emptyList())).bind()
             }
 
-            val languageHint = if (request.language.tag != "auto")
-                "The text is written in '${request.language.tag}'."
-            else
+            // Use displayName to avoid the "it" pronoun bug
+            val languageInstruction = if (request.language == LanguageCode.AUTO) {
                 "Detect the language of the text automatically."
+            } else {
+                "The text is written in ${request.language.displayName} (BCP-47: '${request.language.tag}'). Use grammar and spelling rules specific to this language."
+            }
 
             val system = """
-                You are a precise spell-checking and grammar assistant.
-                $languageHint
-                Analyse the user's text for spelling, grammar, style, and punctuation errors.
-                You MUST respond with a single valid JSON object and NOTHING else — no markdown, no prose.
-                Schema:
+            You are a precise spell-checking and grammar assistant.
+            
+            Instruction:
+            $languageInstruction
+            
+            Analyze the user's text for spelling, grammar, style, and punctuation errors.
+            You MUST respond with a single valid JSON object and NOTHING else. No markdown wrapping.
+            
+            Schema:
+            {
+              "corrected_text": "full text with corrections applied",
+              "corrections": [
                 {
-                  "corrected_text": "<full text with ALL corrections applied>",
-                  "corrections": [
-                    {
-                      "original":     "<incorrect span as it appears in the source text>",
-                      "corrected":    "<best replacement>",
-                      "start_index":  <0-based character offset in SOURCE text>,
-                      "end_index":    <exclusive end offset in SOURCE text>,
-                      "type":         "<SPELLING | GRAMMAR | STYLE | PUNCTUATION>",
-                      "message":      "<short explanation or null>"
-                    }
-                  ]
+                  "original": "incorrect span",
+                  "corrected": "replacement",
+                  "start_index": 0,
+                  "end_index": 5,
+                  "type": "SPELLING",
+                  "message": "explanation"
                 }
-                If no errors found: return empty array for corrections and the original text for corrected_text.
-                IMPORTANT: start_index and end_index must reference positions in the ORIGINAL input text.
-            """.trimIndent()
+              ]
+            }
+            
+            Note: If no errors are found, return an empty array for 'corrections' and the original text for 'corrected_text'.
+            IMPORTANT: 'start_index' and 'end_index' must reference the character offsets in the ORIGINAL input string.
+        """.trimIndent()
 
             val raw = client.complete(system, request.text, jsonMode = true).bind()
             parseSpellCheckResponse(raw, request.text).bind()
