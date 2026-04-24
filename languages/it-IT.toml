@@ -6,8 +6,8 @@ name = "Italian"
 native_name = "Italiano"
 locale = "it-IT"
 version = "1.0.0"
-author = "QTranslate Team <ahatem925@gmail.com>"
-last_updated = "2026-03-31"
+author = "bovirus <bovirus@gmail.com>"
+last_updated = "2026-04-24"
 rtl = false
 
 # ===================================================================
@@ -29,7 +29,7 @@ copy_all = "Copia tutto"
 paste = "Incolla"
 cut = "Taglia"
 cut_all = "Taglia tutto"
-undo = "Annulla operaziuone"
+undo = "Annulla operazione"
 version = "Versione %s"
 seconds = "secondi"
 from = "Da"
@@ -50,17 +50,17 @@ configure = "Configura"
 # MAIN APPLICATION WINDOW
 # ===================================================================
 [main_window]
-status_format = "Motore traduzione: %s - da %s a %s"
-no_translator = "nessuno"
+status_format = "Motore traduzione: %s - %s → %s"
+no_translator = "Nessuno traduttore"
 
 [main_window_history_bar]
-backward_tooltip = "Vai indietro nella crinologia traduzioni"
-forward_tooltip = "Vai avanti nella crinologia traduzioni"
+backward_tooltip = "Vai indietro nella cronologia traduzioni"
+forward_tooltip = "Vai avanti nella cronologia traduzioni"
 image_translate_tooltip = "Cattura e traduci il testo in un'area sullo schermo"
 
 [main_window_language_bar]
 clear_tooltip = "Cancella il testo inserito"
-swap_languages_tooltip = "Inverti direzione traslazione"
+swap_languages_tooltip = "Inverti direzione traduzione"
 translate_button = "Traduci"
 
 [main_window_editor_context_menu]
@@ -95,7 +95,7 @@ how_to_use = "Come usare il programma"
 contact_us = "Contattaci"
 auto_check_for_updates = "Controllo automatico aggiornamenti"
 check_for_updates = "Controlla aggiornamenti"
-about_qtranslate = "Infoi su QTranslate"
+about_qtranslate = "Info su QTranslate"
 exit = "Esci"
 
 [main_window_status_bar]
@@ -109,7 +109,7 @@ notifications_empty_tooltip = "Nessuna nuova notifica"
 [system_tray_menu]
 show_application = "Visualizza QTranslate"
 recognize_text = "Riconosci testo (OCR)"
-dictionary = "Diziuonario"
+dictionary = "Dizionario"
 history = "Cronologia"
 settings = "@main_window_main_menu.settings"
 enable_hotkeys = "Abilita tasti rapidi globali"
@@ -125,7 +125,7 @@ saving = "Salvataggio..."
 save_failed_title = "Salvataggio fallito"
 reset_defaults_button = "Ripristina predefiniti"
 reset_confirmation_title = "Ripristina predefiniti"
-reset_confirmation_message = "Vuoiu ripristinare tutte el impostazioni ai valori predefiniti?\nQuesta azione non potrà essere annullata."
+reset_confirmation_message = "Vuoi ripristinare tutte le impostazioni ai valori predefiniti?\nQuesta azione non potrà essere annullata."
 
 [settings_dialog_sidebar]
 general = "Generale"
@@ -164,8 +164,8 @@ fonts_group = "Font"
 ui_font = "Font IU:"
 editor_font = "Font editor:"
 fallback_font = "Font fallback:"
-fallback_hint = "La font di fallback viene usaata per i caratteri che il font dell'editor non può visualizzare."
-loading_fonts = "<Loading fonts...>"
+fallback_hint = "La font di fallback viene usata per i caratteri che il font dell'editor non può visualizzare."
+loading_fonts = "<Caricamento font...>"
 font_preview_text = "La veloce volpe marrone salta sopra il cane pigro — 大きな茶色の狐が怠け者の犬を飛び越えた"
 
 [settings_services]
@@ -187,14 +187,14 @@ rewriter = "riscrittura:"
 new_preset_title = "Nuovo profilo"
 new_preset_prompt = "Inserisci un nome per il nuovo profilo:"
 rename_preset_title = "Rinomina profilo"
-rename_preset_prompt = "Isnerisci nuovo nome:"
+rename_preset_prompt = "Inserisci nuovo nome:"
 delete_preset_title = "Elimina profilo"
 delete_preset_confirm = "Vuoi eliminare il profilo '%s'?\nQuesta azione non potrà essere annullata."
 
 [settings_plugins]
 install_plugin = "Installa plugin..."
 empty_selection_hint = "Seleziona un plugin per visualizzare i dettagli"
-provided_services = "Servizii forniti"
+provided_services = "Servizi forniti"
 plugin_error_label = "Errore"
 status_enabled = "Abilitato"
 status_disabled = "Disabilitato"
@@ -205,7 +205,7 @@ btn_disable = "Disabilita"
 btn_enable = "Abilita"
 btn_configure = "Configura..."
 btn_accept_update = "Accetta aggiornamento"
-btn_clean_install = "Instalalzione pulita"
+btn_clean_install = "Installazione pulita"
 btn_uninstall = "Disinstalla"
 tip_accept_update = "Mantieni i dati esistenti e riattiva il plugin"
 tip_clean_install = "Cancella tutti i dati del plugin prima di riattivarlo"
@@ -213,9 +213,9 @@ tip_clean_install = "Cancella tutti i dati del plugin prima di riattivarlo"
 install_dialog_title = "Seleziona JAR plugin"
 install_dialog_filter = "Plugin QTranslate (*.jar)"
 install_success_title = "Plugin installato"
-install_success_msg = "Plugin installato correttamnte."
+install_success_msg = "Plugin installato correttamente."
 install_fail_title = "Installazione fallita"
-uninstall_confirm_title = "Diisnstalla plugin"
+uninstall_confirm_title = "Disinstalla plugin"
 uninstall_confirm_msg = "Vuoi disinstallare il plugin '%s'?\nTutti i dati del plugin verranno eliminati definitivamente."
 no_settings_msg = "Questo plugin non ha impostazioni disponibili."
 
@@ -258,7 +258,7 @@ recorder_title = "Imposta tasto rapido"
 recorder_prompt = "Premi combinazione tasti da assegnare:"
 double_ctrl = "Doppio Ctrl"
 recorder_waiting = "— premi una combinazione tasti —"
-recorder_hint = "Premi Escape per annullare"
+recorder_hint = "Premi Esc per annullare"
 
 
 [settings_translation]
@@ -299,21 +299,21 @@ rewrite_style_simplified = "Semplificato"
 layout_group = "Layout"
 layout_preset = "Profilo layout:"
 toolbars_group = "Barre strumenti"
-show_history_bar = "Visualizza barra navigazioen cronologia"
+show_history_bar = "Visualizza barra navigazione cronologia"
 show_language_bar = "Visualizza barra selezione lingua"
 show_services_panel = "Visualizza pannello servizio"
 show_status_bar = "Visualizza barra di stato"
 popup_group = "Popup traduzione rapida"
 auto_size = "Ridimensionamento automatico popup in base al contenuto"
 auto_position = "Posizionamento automatico popup vicino al cursore"
-transparency = "Transparenza sfondo:"
+transparency = "Trasparenza sfondo:"
 # Close button
-close_behavior_group   = "Comportamento pulsante Chiudi"
+close_behavior_group   = "Comportamento pulsante 'Chiudi'"
 close_button           = "Quando chiudi:"
 close_behavior_ask     = "Chiedi ogni volta cosa fare"
 close_behavior_minimize = "Minimizza nella barra di sistema"
 close_behavior_exit    = "Esci dall'applicazione"
-close_behavior_hint    = "Controlla cosa succede quando fai clic sul pulsante ×. Puoi anche impostarlo dalla finestra di dialogo di chiusura stessa."
+close_behavior_hint    = "Controlla cosa succede quando fai clic sul pulsante 'X'. Puoi anche impostarlo dalla finestra di dialogo di chiusura stessa."
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION
@@ -321,7 +321,7 @@ close_behavior_hint    = "Controlla cosa succede quando fai clic sul pulsante ×
 [plugin_config]
 title_format = "Configura — %s"
 required_fields_error_title = "Campi richiesti"
-required_fields_error_msg = "Compila i campi richeisti:"
+required_fields_error_msg = "Compila i campi richiesti:"
 
 # ===================================================================
 # OTHER DIALOGS
@@ -335,13 +335,13 @@ title = "Cronologia traduzioni"
 
 [update_dialog]
 title = "Aggiornamento disponibile"
-header = "È disponibile una nuova versioen di QTranslate!"
+header = "È disponibile una nuova versione di QTranslate!"
 # %1$s = new version number, %2$s = current version number
-details_format = "È disponibile la versione %s (versioen attuale %s).\nVuoi aggiornare il programma?"
+details_format = "È disponibile la versione %s (versione attuale %s).\nVuoi aggiornare il programma?"
 release_notes_label = "Note versione:"
 skip_button = "Salta questa versione"
 remind_later_button = "Ricordamelo più avanti"
-download_button = "Vaia alla pagina download"
+download_button = "Vai alla pagina download"
 
 # ===================================================================
 # CLOSE DIALOG
