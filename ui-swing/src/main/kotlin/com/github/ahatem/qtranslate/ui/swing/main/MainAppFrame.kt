@@ -13,6 +13,8 @@ import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.CloseButtonBehavior
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.core.settings.data.Position
+import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
@@ -146,15 +148,25 @@ class MainAppFrame(
                 (AppConstants.MIN_WINDOW_WIDTH * scale).toInt(),
                 (AppConstants.MIN_WINDOW_HEIGHT * scale).toInt()
             )
-            preferredSize = Dimension(
-                (AppConstants.DEFAULT_WINDOW_WIDTH * scale).toInt(),
-                (AppConstants.DEFAULT_WINDOW_HEIGHT * scale).toInt()
-            )
+            val savedSize = config.mainWindowSize
+            preferredSize = if (savedSize != null) {
+                Dimension(savedSize.width, savedSize.height)
+            } else {
+                Dimension(
+                    (AppConstants.DEFAULT_WINDOW_WIDTH * scale).toInt(),
+                    (AppConstants.DEFAULT_WINDOW_HEIGHT * scale).toInt()
+                )
+            }
+
+            val savedPosition = config.mainWindowPosition
+            if (savedPosition != null) {
+                setLocation(savedPosition.x, savedPosition.y)
+            }
             iconImages = loadIcons()
 
             mainContentView.render(mainStore.state.value, settingsStore.state.value)
             pack()
-            setLocationRelativeTo(null)
+            if (config.mainWindowPosition == null) setLocationRelativeTo(null)
 
             setupWindowListeners()
             setupMenuBar()
@@ -596,16 +608,19 @@ class MainAppFrame(
     }
 
     private fun setupWindowListeners() {
+
         addWindowListener(object : WindowAdapter() {
             override fun windowOpened(e: WindowEvent?) {
                 mainContentView.requestFocusOnInput()
             }
 
             override fun windowClosing(e: WindowEvent?) {
+                saveWindowBounds()
                 handleCloseButton()
             }
 
             override fun windowIconified(e: WindowEvent?) {
+                saveWindowBounds()
                 isVisible = false
             }
 
@@ -621,6 +636,19 @@ class MainAppFrame(
                 exitProcess(0)
             }
         })
+    }
+
+    private fun saveWindowBounds() {
+        val s = size
+        val p = location
+        settingsStore.dispatch(
+            SettingsIntent.ToggleSetting {
+                it.copy(
+                    mainWindowSize     = Size(s.width, s.height),
+                    mainWindowPosition = Position(p.x.coerceAtLeast(0), p.y.coerceAtLeast(0))
+                )
+            }
+        )
     }
 
     /**
