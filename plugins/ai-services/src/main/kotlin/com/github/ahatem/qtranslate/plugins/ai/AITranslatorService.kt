@@ -11,6 +11,11 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
 import com.github.michaelbull.result.map
+import java.util.Locale
+
+val LanguageCode.displayName: String
+    get() = if (tag == "auto") "Auto-detect"
+    else Locale.forLanguageTag(tag).getDisplayLanguage(Locale.ENGLISH)
 
 class AITranslatorService(
     private val client: AIServiceClient,
@@ -33,11 +38,14 @@ class AITranslatorService(
         }
 
     private suspend fun translateDirect(request: TranslationRequest): Result<TranslationResponse, ServiceError> {
+        val source = request.sourceLanguage.displayName
+        val target = request.targetLanguage.displayName
+
         val system = """
             You are a professional translator.
-            Translate the user's text from ${request.sourceLanguage.tag} to ${request.targetLanguage.tag}.
+            Translate the user's text from $source to $target.
             Output ONLY the translated text — no labels, no explanations, no quotes.
-            Preserve the original formatting, line breaks, and punctuation style.
+            Preserve the original formatting and line breaks.
         """.trimIndent()
 
         return client.complete(system, request.text, jsonMode = false).map { translatedText ->
@@ -47,16 +55,23 @@ class AITranslatorService(
 
     private suspend fun translateWithAutoDetect(request: TranslationRequest): Result<TranslationResponse, ServiceError> =
         coroutineBinding {
+
+            val targetName = request.targetLanguage.displayName
+            val targetTag = request.targetLanguage.tag
+
             val system = """
                 You are a professional translator.
-                Detect the language of the user's text and translate it to ${request.targetLanguage.tag}.
-                You MUST respond with a valid JSON object and nothing else — no markdown fences, no prose.
+                Your task: Detect the source language and translate the text into $targetName (BCP-47 tag: '$targetTag').
+                
+                Strict Rule: You must output ONLY a valid JSON object. No markdown formatting.
+                
                 Schema:
                 {
-                  "translation": "<translated text>",
-                  "detected_language": "<BCP-47 tag of source language, e.g. en, fr, zh-Hans>"
+                  "translation": "translated text here",
+                  "detected_language": "BCP-47 tag of source"
                 }
-                Preserve original formatting and line breaks inside the translation value.
+                
+                Preserve formatting, line breaks, and punctuation.
             """.trimIndent()
 
             val raw = client.complete(system, request.text, jsonMode = true).bind()
