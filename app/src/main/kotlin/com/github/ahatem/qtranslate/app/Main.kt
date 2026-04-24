@@ -68,7 +68,11 @@ fun main() = runBlocking {
             .onFailure { e -> logger.error("Failed to load plugins", e) }
     }
 
-    val savedLanguage = LanguageCode(initialConfig.interfaceLanguage)
+    val savedLanguage = if (initialConfig.interfaceLanguage == LanguageCode.ENGLISH.tag) {
+        OsLanguageDetector.detect(deps.localizationManager.availableLanguages)
+    } else {
+        LanguageCode(initialConfig.interfaceLanguage)
+    }
     runCatching {
         deps.localizationManager.loadLanguage(savedLanguage)
         logger.info("Interface language loaded: ${initialConfig.interfaceLanguage}")
