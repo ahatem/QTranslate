@@ -2,8 +2,8 @@
 # META SECTION
 # ===================================================================
 [meta]
-name = "Italiano"
-native_name = "Italian"
+name = "Italian"
+native_name = "Italiano"
 locale = "it-IT"
 version = "1.0.0"
 author = "QTranslate Team <ahatem925@gmail.com>"
