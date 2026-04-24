@@ -13,6 +13,24 @@ import javax.swing.SwingUtilities
 
 fun main() = runBlocking {
 
+    var frame: MainAppFrame? = null
+
+    if (!SingleInstanceGuard.tryLock(onFocusRequested = {
+            SwingUtilities.invokeLater {
+                frame?.apply {
+                    isVisible = true
+                    toFront()
+                    requestFocus()
+                }
+            }
+        })) {
+        return@runBlocking
+    }
+
+    Runtime.getRuntime().addShutdownHook(Thread {
+        SingleInstanceGuard.release()
+    })
+
     AppUiSetup.setSystemProperties()
     AppUiSetup.setRenderingHints()
 
@@ -59,7 +77,7 @@ fun main() = runBlocking {
     }
 
     SwingUtilities.invokeLater {
-        MainAppFrame(
+        frame = MainAppFrame(
             mainStore        = deps.mainStore,
             settingsStore    = deps.settingsStore,
             iconManager      = deps.iconManager,
