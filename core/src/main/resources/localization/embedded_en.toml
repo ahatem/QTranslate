@@ -45,6 +45,7 @@ delete = "Delete"
 rename = "Rename..."
 new = "New..."
 configure = "Configure"
+auto_detect = "Auto-Detect"
 
 # ===================================================================
 # MAIN APPLICATION WINDOW
@@ -172,6 +173,7 @@ font_preview_text = "The quick brown fox jumps over the lazy dog — 大きな�
 presets_group = "Active Preset"
 current_preset = "Current Preset:"
 preset_hint = "Presets let you save different service combinations and switch between them quickly."
+default_preset_name = "Default"
 new_preset_btn = "@common.new"
 rename_preset_btn = "@common.rename"
 delete_preset_btn = "@common.delete"

@@ -145,6 +145,9 @@ data class ServicePreset(
     val selectedServices: Map<ServiceType, String?>
 ) {
     companion object {
+
+        const val DEFAULT_PRESET_NAME = "__default__" // internal sentinel, never shown to user
+
         private const val DEFAULT_TRANSLATOR    = "google-translator"
         private const val DEFAULT_TTS           = "google-tts"
         private const val DEFAULT_SPELL_CHECKER = "google-spell-checker"
@@ -152,7 +155,7 @@ data class ServicePreset(
         private const val DEFAULT_DICTIONARY    = "google-dictionary"
 
         @OptIn(ExperimentalUuidApi::class)
-        fun createDefault(name: String = "Default"): ServicePreset = ServicePreset(
+        fun createDefault(name: String = DEFAULT_PRESET_NAME): ServicePreset = ServicePreset(
             id = Uuid.random().toString(),
             name = name,
             selectedServices = mapOf(
