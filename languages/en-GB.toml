@@ -275,7 +275,7 @@ source_use_input = "Use input text"
 remove_line_breaks = "Remove line breaks from input"
 remove_line_breaks_hint = "Useful when copying from PDFs where each line ends with a newline"
 pinned_languages_group = "Language Filter"
-pinned_languages_hint = "Select languages to show in the target language picker. Leave all unchecked to show every available language."
+pinned_languages_hint = "Select languages to show in the target language picker.\nLeave all unchecked to show every available language."
 pinned_languages_clear = "Clear Filter (Show All)"
 # Types
 type_none = "@common.none"
