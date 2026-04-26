@@ -18,7 +18,9 @@ import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.onErr
 import com.github.michaelbull.result.onOk
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 class HandleTextToSpeechUseCase(
@@ -99,12 +101,24 @@ class HandleTextToSpeechUseCase(
                     }
 
                     is TTSAudio.StreamUrl -> {
-                        logger.warn("Streaming audio URLs are not yet supported")
-                        onStatusUpdate(
-                            "Streaming audio playback is not yet implemented.",
-                            NotificationType.WARNING,
-                            true
-                        )
+                        logger.info("TTS returned stream URL — downloading audio")
+                        onStatusUpdate("Downloading audio...", NotificationType.INFO, false)
+
+                        val bytes: ByteArray? = withContext(Dispatchers.IO) {
+                            runCatching {
+                                java.net.URI(audio.url).toURL().readBytes()
+                            }.getOrNull()
+                        }
+
+                        if (bytes == null || bytes.isEmpty()) {
+                            logger.error("Failed to download audio stream from ${audio.url}")
+                            onStatusUpdate("Failed to download audio stream.", NotificationType.ERROR, true)
+                        } else {
+                            logger.info("Stream downloaded — playing ${bytes.size} bytes (${audio.format})")
+                            onStatusUpdate("Playing audio...", NotificationType.INFO, false)
+                            audioPlayer.play(TTSAudio.Bytes(bytes, audio.format))
+                            onStatusUpdate("Audio playback complete.", NotificationType.SUCCESS, true)
+                        }
                     }
                 }
             }
