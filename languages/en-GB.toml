@@ -7,7 +7,7 @@ native_name = "English (UK)"
 locale = "en-GB"
 version = "1.0.0"
 author = "QTranslate Team <ahatem925@gmail.com>"
-last_updated = "2025-10-17"
+last_updated = "2026-04-26"
 rtl = false
 
 # ===================================================================
@@ -45,6 +45,7 @@ delete = "Delete"
 rename = "Rename..."
 new = "New..."
 configure = "Configure"
+auto_detect = "Auto-Detect"
 
 # ===================================================================
 # MAIN APPLICATION WINDOW
@@ -172,6 +173,7 @@ font_preview_text = "The quick brown fox jumps over the lazy dog — 大きな�
 presets_group = "Active Preset"
 current_preset = "Current Preset:"
 preset_hint = "Presets let you save different service combinations and switch between them quickly."
+default_preset_name = "Default"
 new_preset_btn = "@common.new"
 rename_preset_btn = "@common.rename"
 delete_preset_btn = "@common.delete"
@@ -294,6 +296,20 @@ rewrite_style_casual = "Casual"
 rewrite_style_concise = "Concise"
 rewrite_style_detailed = "Detailed"
 rewrite_style_simplified = "Simplified"
+# Translation Rules
+rules_group = "Translation Rules"
+rules_hint = "Automatically select a target language based on the detected source language.\nIf no rule matches, the manually selected target is used."
+rules_col_source = "Source Language"
+rules_col_target = "Target Language"
+rules_add_btn = "Add Rule"
+rules_remove_btn = "Remove Rule"
+rules_dialog_title = "Add Translation Rule"
+rules_dialog_source = "If source is:"
+rules_dialog_target = "Translate to:"
+rules_error_same_title = "Invalid Rule"
+rules_error_same = "Source and target languages must be different."
+rules_error_duplicate_title = "Duplicate Rule"
+rules_error_duplicate = "A rule for '%s' already exists."
 
 [settings_window]
 layout_group = "Layout"

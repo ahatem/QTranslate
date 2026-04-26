@@ -7,7 +7,7 @@ native_name = "Magyar"
 locale = "hu-HU"
 version = "1.0.0"
 author = "QTranslate Team <ahatem925@gmail.com>"
-last_updated = "2026-03-31"
+last_updated = "2026-04-26"
 rtl = false
 
 # ===================================================================
@@ -45,6 +45,7 @@ delete = "Töröl"
 rename = "Átnevez…"
 new = "Új…"
 configure = "Beállítás"
+auto_detect = "Automatikus felismerés"
 
 # ===================================================================
 # MAIN APPLICATION WINDOW
@@ -172,6 +173,7 @@ font_preview_text = "A gyors barna róka átugrik a lusta kutya fölött — 大
 presets_group = "Aktív előbeállítás"
 current_preset = "Jelenlegi előbeállítás:"
 preset_hint = "Az előbeállítások lehetővé teszik, hogy különböző szolgáltatáskombinációkat mentsen el, és gyorsan váltson közöttük."
+default_preset_name = "Alapértelmezett"
 new_preset_btn = "@common.new"
 rename_preset_btn = "@common.rename"
 delete_preset_btn = "@common.delete"
@@ -294,6 +296,20 @@ rewrite_style_casual = "Közvetlen"
 rewrite_style_concise = "Tömör"
 rewrite_style_detailed = "Részletes"
 rewrite_style_simplified = "Egyszerű"
+# Translation Rules
+rules_group = "Fordítási szabályok"
+rules_hint = "Automatikusan kiválasztja a célnyelvet az észlelt forrásnyelv alapján.\nHa egyetlen szabály sem egyezik, a manuálisan kiválasztott cél kerül felhasználásra."
+rules_col_source = "Forrásnyelv"
+rules_col_target = "Célnyelv"
+rules_add_btn = "Szabály hozzáadása"
+rules_remove_btn = "Szabály eltávolítása"
+rules_dialog_title = "Fordítási szabály hozzáadása"
+rules_dialog_source = "Ha a forrás:"
+rules_dialog_target = "Fordítás ide:"
+rules_error_same_title = "Érvénytelen szabály"
+rules_error_same = "A forrásnyelvnek és a célnyelvnek különbözőnek kell lennie."
+rules_error_duplicate_title = "Ismétlődő szabály"
+rules_error_duplicate = "Már létezik szabály '%s' számára."
 
 [settings_window]
 layout_group = "Elrendezés"
