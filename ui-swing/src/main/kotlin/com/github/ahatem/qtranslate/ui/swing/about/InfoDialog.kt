@@ -73,7 +73,7 @@ class InfoDialog(owner: Frame) : JDialog(owner, true) {
         titleLabel.text = state.appName
         versionLabel.text = state.versionText
         iconLabel.icon = state.icon
-        descriptionLabel.text = "<html><div style='text-align: center;'>${state.descriptionHtml}</div></html>"
+        descriptionLabel.text = "<html><div style='text-align: center;'>${state.descriptionHtml.replace("\n", "<br>")}</div></html>"
 
         if (state.websiteUrl.isNotBlank()) {
             linkLabel.text = "<html><a href=''>${state.websiteUrl}</a></html>"

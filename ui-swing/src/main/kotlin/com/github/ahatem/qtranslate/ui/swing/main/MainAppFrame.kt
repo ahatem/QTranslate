@@ -10,12 +10,7 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
-import com.github.ahatem.qtranslate.core.settings.data.Configuration
-import com.github.ahatem.qtranslate.core.settings.data.CloseButtonBehavior
-import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
-import com.github.ahatem.qtranslate.core.settings.data.Position
-import com.github.ahatem.qtranslate.core.settings.data.Size
-import com.github.ahatem.qtranslate.core.settings.data.TextSource
+import com.github.ahatem.qtranslate.core.settings.data.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.core.shared.AppConstants
@@ -644,7 +639,7 @@ class MainAppFrame(
         settingsStore.dispatch(
             SettingsIntent.ToggleSetting {
                 it.copy(
-                    mainWindowSize     = Size(s.width, s.height),
+                    mainWindowSize = Size(s.width, s.height),
                     mainWindowPosition = Position(p.x.coerceAtLeast(0), p.y.coerceAtLeast(0))
                 )
             }
@@ -663,46 +658,104 @@ class MainAppFrame(
     private fun handleCloseButton() {
         when (settingsStore.state.value.originalConfiguration.closeButtonBehavior) {
             CloseButtonBehavior.MINIMIZE_TO_TRAY -> isVisible = false
-            CloseButtonBehavior.EXIT             -> dispose()
-            CloseButtonBehavior.ASK              -> showCloseDialog()
+            CloseButtonBehavior.EXIT -> dispose()
+            CloseButtonBehavior.ASK -> showCloseDialog()
         }
     }
 
     private fun showCloseDialog() {
-        val rememberCheck = JCheckBox(localizer.getString("close_dialog.remember_choice"))
+        val dialog = JDialog(this, localizer.getString("close_dialog.title"), true)
+        dialog.defaultCloseOperation = JDialog.DISPOSE_ON_CLOSE
 
-        val panel = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            add(JLabel(localizer.getString("close_dialog.message")))
-            add(Box.createVerticalStrut(12))
+        val iconLabel = JLabel(UIManager.getIcon("OptionPane.questionIcon"))
+        val messageLabel = JLabel(localizer.getString("close_dialog.message")).apply {
+            font = font.deriveFont(Font.BOLD, font.size + 1f)
+        }
+
+        val rememberCheck = JCheckBox(localizer.getString("close_dialog.remember_choice")).apply {
+            isOpaque = false
+            font = font.deriveFont(font.size - 1f)
+            foreground = UIManager.getColor("Label.disabledForeground")
+        }
+
+        var result: CloseButtonBehavior? = null
+
+        val minimizeBtn = JButton(localizer.getString("close_dialog.minimize_to_tray")).apply {
+            maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
+            addActionListener {
+                result = CloseButtonBehavior.MINIMIZE_TO_TRAY
+                dialog.dispose()
+            }
+        }
+        val exitBtn = JButton(localizer.getString("close_dialog.exit")).apply {
+            maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
+            addActionListener {
+                result = CloseButtonBehavior.EXIT
+                dialog.dispose()
+            }
+        }
+        val cancelBtn = JButton(localizer.getString("common.cancel")).apply {
+            maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
+            addActionListener { dialog.dispose() }
+        }
+
+        val topPanel = JPanel(BorderLayout(16, 0)).apply {
+            isOpaque = false
+            border = BorderFactory.createEmptyBorder(20, 20, 12, 20)
+            add(iconLabel, BorderLayout.LINE_START)
+            add(messageLabel, BorderLayout.CENTER)
+        }
+
+        val checkPanel = JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)).apply {
+            isOpaque = false
+            border = BorderFactory.createEmptyBorder(0, 20, 12, 20)
             add(rememberCheck)
         }
 
-        val minimizeOption = localizer.getString("close_dialog.minimize_to_tray")
-        val exitOption     = localizer.getString("close_dialog.exit")
-        val cancelOption   = localizer.getString("common.cancel")
+        val btnPanel = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            isOpaque = false
+            border = BorderFactory.createEmptyBorder(0, 20, 20, 20)
+            add(minimizeBtn)
+            add(Box.createVerticalStrut(8))
+            add(exitBtn)
+            add(Box.createVerticalStrut(8))
+            add(cancelBtn)
+        }
 
-        val result = JOptionPane.showOptionDialog(
-            this,
-            panel,
-            localizer.getString("close_dialog.title"),
-            JOptionPane.DEFAULT_OPTION,
-            JOptionPane.QUESTION_MESSAGE,
-            null,
-            arrayOf(minimizeOption, exitOption, cancelOption),
-            minimizeOption  // default button
+        dialog.contentPane.apply {
+            layout = BorderLayout()
+            add(topPanel, BorderLayout.NORTH)
+            add(checkPanel, BorderLayout.CENTER)
+            add(btnPanel, BorderLayout.SOUTH)
+        }
+
+        dialog.rootPane.defaultButton = minimizeBtn
+
+        dialog.rootPane.registerKeyboardAction(
+            { dialog.dispose() },
+            KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+            JComponent.WHEN_IN_FOCUSED_WINDOW
         )
 
+        dialog.pack()
+        dialog.minimumSize = Dimension(320, dialog.height)
+        dialog.setLocationRelativeTo(this)
+        dialog.isVisible = true
+
         when (result) {
-            0 -> { // Minimize to tray
+            CloseButtonBehavior.MINIMIZE_TO_TRAY -> {
                 if (rememberCheck.isSelected) saveClosePreference(CloseButtonBehavior.MINIMIZE_TO_TRAY)
                 isVisible = false
             }
-            1 -> { // Exit
+
+            CloseButtonBehavior.EXIT -> {
                 if (rememberCheck.isSelected) saveClosePreference(CloseButtonBehavior.EXIT)
                 dispose()
             }
-            // 2 = Cancel, -1 = dialog dismissed — do nothing
+
+            CloseButtonBehavior.ASK -> {}
+            null -> {}
         }
     }
 

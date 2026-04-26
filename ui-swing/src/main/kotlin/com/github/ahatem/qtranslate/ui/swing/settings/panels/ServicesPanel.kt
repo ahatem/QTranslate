@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
+import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
@@ -89,7 +90,7 @@ class ServicesPanel(
 
             val combo = JComboBox<ServiceOption>().apply {
                 setRenderer { _, value, _, _, _ ->
-                    JLabel(value?.name ?: "None")
+                    JLabel(value?.name ?: localizationManager.getString("common.none"))
                 }
 
                 addActionListener {
@@ -189,7 +190,7 @@ class ServicesPanel(
         val c = state.workingConfiguration
         withoutTrigger {
             presetCombo.removeAllItems()
-            c.servicePresets.forEach { presetCombo.addItem(PresetInfo(it.id, it.name)) }
+            c.servicePresets.forEach { presetCombo.addItem(PresetInfo(it.id, localizedPresetName(it.name))) }
 
             val active = c.servicePresets.find { it.id == c.activeServicePresetId }
             active?.let { presetCombo.selectedItem = PresetInfo(it.id, it.name) }
@@ -265,6 +266,11 @@ class ServicesPanel(
         if (result == JOptionPane.YES_OPTION)
             store.dispatch(SettingsIntent.DeletePreset(selected.id))
     }
+
+    private fun localizedPresetName(name: String): String =
+        if (name == ServicePreset.DEFAULT_PRESET_NAME)
+            localizationManager.getString("settings_services.default_preset_name")
+        else name
 
     private data class PresetInfo(val id: String, val name: String)
     private data class ServiceOption(val id: String, val name: String)
