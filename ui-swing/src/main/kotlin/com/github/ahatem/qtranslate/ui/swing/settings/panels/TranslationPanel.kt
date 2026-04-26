@@ -280,7 +280,7 @@ class TranslationPanel(
             "en", "ar", "zh", "zh-TW", "hi", "es", "fr", "de", "ja", "ko",
             "pt", "ru", "it", "nl", "pl", "tr", "uk", "vi", "th", "fa",
             "he", "id", "ms", "sv", "da", "fi", "no", "cs", "ro", "hu",
-            "bg", "el", "sk", "hr", "ca", "sr"
+            "bg", "el", "sk", "hr", "ca", "sr", "bn-BD"
         )
     }
 }
