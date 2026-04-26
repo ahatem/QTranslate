@@ -15,7 +15,7 @@ object AppConstants {
      * Used by [com.github.ahatem.qtranslate.core.main.domain.usecase.CheckForUpdatesUseCase]
      * to compare against the latest release.
      */
-    const val APP_VERSION = "1.0.0"
+    const val APP_VERSION = "1.1.0"
 
     // ============================================================
     // Timing
