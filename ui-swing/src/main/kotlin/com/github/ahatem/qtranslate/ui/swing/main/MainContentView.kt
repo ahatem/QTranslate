@@ -34,6 +34,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFallbackFont
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFont
+import com.github.ahatem.qtranslate.ui.swing.shared.util.toImageData
 import java.awt.BorderLayout
 import javax.swing.JPanel
 
@@ -80,7 +81,8 @@ class MainContentView(
         onTranslateRequest = { text -> dispatch(MainIntent.Translate(text)) },
         onCorrectionApplied = { original, suggestion ->
             dispatch(MainIntent.ApplyCorrection(original, suggestion))
-        }
+        },
+        onImageDropped = { image -> dispatch(MainIntent.OcrAndTranslateImage(image.toImageData("png"))) },
     )
 
     private val outputTextPanel = OutputTextPanel(

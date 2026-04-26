@@ -9,6 +9,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.BorderLayout
 import java.awt.Point
+import java.awt.image.BufferedImage
 import javax.swing.*
 
 class InputTextPanel(
@@ -17,13 +18,15 @@ class InputTextPanel(
     private val onTextChanged: (String) -> Unit,
     private val onListen: (String) -> Unit,
     private val onTranslateRequest: (String) -> Unit,
-    private val onCorrectionApplied: (original: String, suggestion: String) -> Unit
+    private val onCorrectionApplied: (original: String, suggestion: String) -> Unit,
+    private val onImageDropped: ((BufferedImage) -> Unit)? = null,
 ) : JPanel(BorderLayout()), Renderable<InputTextState> {
 
     private val textPane = AdvancedTextPane(
         onTextChanged = onTextChanged,
         onListenRequest = onListen,
-        onTranslateRequest = onTranslateRequest
+        onTranslateRequest = onTranslateRequest,
+        onImageDropped = onImageDropped,
     )
     private val actionsPanel = TextActionsPanel(iconManager)
 
