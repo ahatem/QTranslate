@@ -227,6 +227,14 @@ Clean Architecture + MVI. Nothing leaks between layers:
 
 ---
 
+## Support
+
+If QTranslate saves you from Alt-Tabbing to Google Translate a dozen times a day, a coffee is always appreciated!
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ahmedhatem-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/ahmedhatem)
+
+---
+
 ## Contributing
 
 Bug fixes, features, translations, docs, and plugins all welcome. Look for [`good first issue`](https://github.com/ahatem/QTranslate/labels/good%20first%20issue) for well-scoped starting points.
