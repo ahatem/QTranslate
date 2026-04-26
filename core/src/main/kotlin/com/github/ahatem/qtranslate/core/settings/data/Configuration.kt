@@ -166,6 +166,13 @@ data class ServicePreset(
     }
 }
 
+
+@Serializable
+data class TranslationRule(
+    val sourceLanguage: String,
+    val targetLanguage: String
+)
+
 // -------------------------------------------------------------------------
 // Root configuration
 // -------------------------------------------------------------------------
@@ -199,6 +206,7 @@ data class Configuration(
      * Mohamed's request.
      */
     val isRemoveLineBreaksEnabled: Boolean = false,
+    val translationRules: List<TranslationRule> = emptyList(),
 
     // ---- Language Filtering ----
     /**
