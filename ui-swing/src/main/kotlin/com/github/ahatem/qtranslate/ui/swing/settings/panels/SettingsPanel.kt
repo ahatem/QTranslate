@@ -153,7 +153,8 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      * Adds a helper/description label below the current row in muted, smaller text.
      */
     protected fun addHint(text: String) {
-        val hint = JLabel("<html><i>$text</i></html>").apply {
+        val html = text.replace("\n", "<br>")
+        val hint = JLabel("<html><i>$html</i></html>").apply {
             foreground = UIManager.getColor("Label.disabledForeground")
             font = font.deriveFont(font.size - 1f)
         }

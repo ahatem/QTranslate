@@ -42,7 +42,7 @@ class LanguageTomlParser {
                 "=" in trimmed -> {
                     val parts = trimmed.split("=", limit = 2)
                     val key   = parts[0].trim()
-                    val value = parts[1].trim().removeSurrounding("\"")
+                    val value = processEscapes(parts[1].trim().removeSurrounding("\""))
 
                     if (currentPath.firstOrNull() == "meta") {
                         meta[key] = value
@@ -70,6 +70,13 @@ class LanguageTomlParser {
 
         return ParsedLanguageFile(resolveReferences(entries), metaData)
     }
+
+    private fun processEscapes(value: String): String =
+        value
+            .replace("\\n", "\n")
+            .replace("\\t", "\t")
+            .replace("\\\\", "\\")
+            .replace("\\\"", "\"")
 
     private fun resolveReferences(entries: Map<String, String>): Map<String, String> =
         entries.mapValues { (_, value) -> resolveReference(value, entries) }
