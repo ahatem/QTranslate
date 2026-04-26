@@ -3,9 +3,13 @@ package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isRTL
 import java.awt.*
+import java.awt.datatransfer.DataFlavor
 import java.awt.event.*
 import java.awt.font.FontRenderContext
 import java.awt.geom.AffineTransform
+import java.awt.image.BufferedImage
+import java.io.File
+import javax.imageio.ImageIO
 import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
@@ -373,10 +377,25 @@ class FontFallbackDocumentListener(
     }
 }
 
+private fun toBufferedImage(image: Image): BufferedImage {
+    if (image is BufferedImage) return image
+    val buffered = BufferedImage(image.getWidth(null), image.getHeight(null), BufferedImage.TYPE_INT_ARGB)
+    val g = buffered.createGraphics()
+    g.drawImage(image, 0, 0, null)
+    g.dispose()
+    return buffered
+}
+
+private fun File.isImageFile(): Boolean {
+    val ext = extension.lowercase()
+    return ext in setOf("png", "jpg", "jpeg", "bmp", "gif", "tiff", "tif", "webp")
+}
+
 class AdvancedTextPane(
     private val onTextChanged: (text: String) -> Unit,
     private val onTranslateRequest: (text: String) -> Unit,
     private val onListenRequest: (text: String) -> Unit,
+    private val onImageDropped: ((BufferedImage) -> Unit)? = null,
 ) : JTextPane() {
 
     private val undoManager by lazy { UndoManager() }
@@ -434,6 +453,7 @@ class AdvancedTextPane(
 
         setupKeyBindings()
         setupMouseListeners()
+        setupTransferHandler()
     }
 
 
@@ -563,6 +583,71 @@ class AdvancedTextPane(
         inputMap.put(redoAction.getValue(Action.ACCELERATOR_KEY) as KeyStroke, "redo")
 
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, InputEvent.CTRL_DOWN_MASK), "none")
+
+        if (onImageDropped != null) {
+            val pasteAction = createAction(
+                "PasteImageOrText",
+                KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.CTRL_DOWN_MASK)
+            ) {
+                val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+                val image = runCatching {
+                    if (clipboard.isDataFlavorAvailable(DataFlavor.imageFlavor))
+                        clipboard.getData(DataFlavor.imageFlavor) as? Image
+                    else null
+                }.getOrNull()
+                if (image != null) {
+                    onImageDropped.invoke(toBufferedImage(image))
+                } else {
+                    paste()
+                }
+            }
+            actionMap.put("paste-image-or-text", pasteAction)
+            inputMap.put(pasteAction.getValue(Action.ACCELERATOR_KEY) as KeyStroke, "paste-image-or-text")
+        }
+    }
+
+    private fun setupTransferHandler() {
+        if (onImageDropped == null) return
+        val original = transferHandler
+        transferHandler = object : TransferHandler() {
+            override fun canImport(support: TransferSupport): Boolean {
+                if (isEditable) {
+                    if (support.isDataFlavorSupported(DataFlavor.imageFlavor)) return true
+                    if (support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) return true
+                }
+                return original?.canImport(support) ?: false
+            }
+
+            override fun importData(support: TransferSupport): Boolean {
+                if (isEditable) {
+                    if (support.isDataFlavorSupported(DataFlavor.imageFlavor)) {
+                        val image = runCatching {
+                            support.transferable.getTransferData(DataFlavor.imageFlavor) as? java.awt.Image
+                        }.getOrNull()
+                        if (image != null) {
+                            onImageDropped.invoke(toBufferedImage(image))
+                            return true
+                        }
+                    }
+                    if (support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+                        @Suppress("UNCHECKED_CAST")
+                        val files = runCatching {
+                            support.transferable.getTransferData(DataFlavor.javaFileListFlavor) as? List<File>
+                        }.getOrNull()
+                        val imageFile = files?.firstOrNull { it.isImageFile() }
+                        if (imageFile != null) {
+                            val image = runCatching { ImageIO.read(imageFile) }.getOrNull()
+                            if (image != null) {
+                                onImageDropped.invoke(image)
+                                return true
+                            }
+                        }
+                    }
+                }
+                return original?.importData(support) ?: false
+            }
+        }
+        dropTarget?.isActive = true
     }
 
     private fun setupMouseListeners() {
@@ -653,7 +738,7 @@ class AdvancedTextPane(
 
     override fun updateUI() {
         super.updateUI()
-        putClientProperty(HONOR_DISPLAY_PROPERTIES, true);
+        putClientProperty(HONOR_DISPLAY_PROPERTIES, true)
     }
 
     override fun getScrollableTracksViewportWidth(): Boolean {
