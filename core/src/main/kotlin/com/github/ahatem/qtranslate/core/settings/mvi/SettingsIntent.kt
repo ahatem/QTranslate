@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.core.settings.mvi
 
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
 
@@ -103,4 +104,10 @@ sealed interface SettingsIntent : UiIntent {
      * Renames the preset identified by [presetId] to [newName] and immediately saves.
      */
     data class RenamePreset(val presetId: String, val newName: String) : SettingsIntent
+
+    /** Adds a new translation rule and immediately saves. */
+    data class AddTranslationRule(val rule: TranslationRule) : SettingsIntent
+
+    /** Removes an existing translation rule and immediately saves. */
+    data class RemoveTranslationRule(val rule: TranslationRule) : SettingsIntent
 }

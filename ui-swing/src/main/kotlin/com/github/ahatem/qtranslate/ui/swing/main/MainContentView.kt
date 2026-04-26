@@ -34,6 +34,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFallbackFont
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFont
+import com.github.ahatem.qtranslate.ui.swing.shared.util.toImageData
 import java.awt.BorderLayout
 import javax.swing.JPanel
 
@@ -64,6 +65,7 @@ class MainContentView(
 
     private val languageSelectionBar = LanguageSelectionBar(
         iconManager = iconManager,
+        localizer = localizer,
         onClear = { dispatch(MainIntent.UpdateInputText("")) },
         onSourceLanguageSelected = { lang -> dispatch(MainIntent.SelectSourceLanguage(lang)) },
         onSwap = { dispatch(MainIntent.SwapLanguages) },
@@ -79,7 +81,8 @@ class MainContentView(
         onTranslateRequest = { text -> dispatch(MainIntent.Translate(text)) },
         onCorrectionApplied = { original, suggestion ->
             dispatch(MainIntent.ApplyCorrection(original, suggestion))
-        }
+        },
+        onImageDropped = { image -> dispatch(MainIntent.OcrAndTranslateImage(image.toImageData("png"))) },
     )
 
     private val outputTextPanel = OutputTextPanel(
@@ -147,8 +150,8 @@ class MainContentView(
         val statusText = localizer.getString(
             "main_window.status_format",
             selectedTranslator?.name ?: localizer.getString("main_window.no_translator"),
-            mainState.sourceLanguage.getDisplayName(),
-            mainState.targetLanguage.getDisplayName()
+            mainState.sourceLanguage.getDisplayName(autoDetectLabel = localizer.getString("common.auto_detect")),
+            mainState.targetLanguage.getDisplayName(autoDetectLabel = localizer.getString("common.auto_detect"))
         )
 
         translationHistoryBar.render(
@@ -259,18 +262,18 @@ class MainContentView(
 
         extraOutputPanel.render(
             ExtraOutputState(
-                text               = mainState.extraOutputText,
-                isVisible          = config.extraOutputType != ExtraOutputType.None,
-                isLoading          = mainState.isLoading,
-                fontConfig         = config.scaledEditorFont,
+                text = mainState.extraOutputText,
+                isVisible = config.extraOutputType != ExtraOutputType.None,
+                isLoading = mainState.isLoading,
+                fontConfig = config.scaledEditorFont,
                 fallbackFontConfig = config.scaledEditorFallbackFont,
-                activeType         = config.extraOutputType,
-                summaryLength      = config.summaryLength,
-                rewriteStyle       = config.rewriteStyle,
+                activeType = config.extraOutputType,
+                summaryLength = config.summaryLength,
+                rewriteStyle = config.rewriteStyle,
 
                 labelBackward = localizer.getString("extra_output.label_backward"),
-                labelSummary  = localizer.getString("extra_output.label_summary"),
-                labelRewrite  = localizer.getString("extra_output.label_rewrite"),
+                labelSummary = localizer.getString("extra_output.label_summary"),
+                labelRewrite = localizer.getString("extra_output.label_rewrite"),
 
                 labelConfigure = localizer.getString("common.configure"),
 
@@ -288,21 +291,27 @@ class MainContentView(
                 ),
 
                 onTypeChanged = { type ->
-                    dispatchSettings(SettingsIntent.UpdateDraft(
-                        config.copy(extraOutputType = type)
-                    ))
+                    dispatchSettings(
+                        SettingsIntent.UpdateDraft(
+                            config.copy(extraOutputType = type)
+                        )
+                    )
                     dispatch(MainIntent.Translate())
                 },
                 onSummaryLengthChanged = { length ->
-                    dispatchSettings(SettingsIntent.UpdateDraft(
-                        config.copy(summaryLength = length)
-                    ))
+                    dispatchSettings(
+                        SettingsIntent.UpdateDraft(
+                            config.copy(summaryLength = length)
+                        )
+                    )
                     dispatch(MainIntent.Translate())
                 },
                 onRewriteStyleChanged = { style ->
-                    dispatchSettings(SettingsIntent.UpdateDraft(
-                        config.copy(rewriteStyle = style)
-                    ))
+                    dispatchSettings(
+                        SettingsIntent.UpdateDraft(
+                            config.copy(rewriteStyle = style)
+                        )
+                    )
                     dispatch(MainIntent.Translate())
                 },
 

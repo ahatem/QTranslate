@@ -3,8 +3,11 @@ package com.github.ahatem.qtranslate.core.localization
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import java.util.*
 
-fun LanguageCode.getDisplayName(uiLocale: Locale = Locale.getDefault()): String {
-    if (this == LanguageCode.AUTO) return "Auto-Detect"
+fun LanguageCode.getDisplayName(
+    uiLocale: Locale = Locale.getDefault(),
+    autoDetectLabel: String = "Auto-Detect"
+): String {
+    if (this == LanguageCode.AUTO) return autoDetectLabel
 
     return runCatching {
         val locale = Locale.forLanguageTag(tag)

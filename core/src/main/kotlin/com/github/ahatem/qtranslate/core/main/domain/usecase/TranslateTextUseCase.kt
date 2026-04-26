@@ -12,6 +12,7 @@ import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
@@ -31,6 +32,16 @@ import kotlinx.coroutines.flow.StateFlow
  *
  * If the architecture ever requires recreating use cases, move [translationJob] onto
  * the [MainStore] and pass it in as a parameter.
+ *
+ * ### Translation Rules
+ * When translation rules are configured, the use case resolves the correct target
+ * language before translating. If the source is Auto Detect, the detected language
+ * from the first translation response is used to check for a matching rule — if one
+ * is found, a second translation is performed with the correct target automatically.
+ * This second call only happens when:
+ * 1. Source is set to Auto Detect
+ * 2. A rule matches the detected language
+ * 3. The rule's target differs from the current target
  */
 class TranslateTextUseCase(
     private val scope: CoroutineScope,
@@ -77,10 +88,28 @@ class TranslateTextUseCase(
                 updateState { copy(isLoading = true, translatedText = "", extraOutputText = "") }
 
                 val currentState = getState()
+                val rules        = settingsState.value.translationRules
+                val isAutoDetect = currentState.sourceLanguage == LanguageCode.AUTO
+
+                // When source is explicitly set, we already know the language — apply
+                // the rule immediately without needing a first-pass translation.
+                val preResolvedTarget = if (!isAutoDetect) {
+                    val detectedOrSelected = currentState.detectedSourceLanguage
+                        ?: currentState.sourceLanguage
+                    resolveTargetFromRules(detectedOrSelected, rules)
+                } else null
+
+                val initialTarget = preResolvedTarget ?: currentState.targetLanguage
+
+                // Update UI immediately if rule changed the target before translating
+                if (preResolvedTarget != null && preResolvedTarget != currentState.targetLanguage) {
+                    updateState { copy(targetLanguage = preResolvedTarget) }
+                }
+
                 val request = TranslationRequest(
                     text           = textToTranslate,
                     sourceLanguage = currentState.sourceLanguage,
-                    targetLanguage = currentState.targetLanguage
+                    targetLanguage = initialTarget
                 )
 
                 logger.debug(
@@ -102,21 +131,50 @@ class TranslateTextUseCase(
                 result.fold(
                     success = { response ->
                         logger.info("Translation successful: '${response.translatedText.take(50)}...'")
-                        onStatusUpdate("Translation complete.", NotificationType.SUCCESS, true)
 
                         val detectedLanguage = response.detectedLanguage
-                            .takeIf { currentState.sourceLanguage == LanguageCode.AUTO }
+                            .takeIf { isAutoDetect }
+
+                        // Re-translate if Auto Detect revealed a rule match
+                        // Only triggers when:
+                        // 1. Source was Auto Detect
+                        // 2. A language was detected from the response
+                        // 3. A rule matches the detected language
+                        // 4. The rule target differs from what we just translated to
+                        if (isAutoDetect && detectedLanguage != null) {
+                            val ruleTarget = resolveTargetFromRules(detectedLanguage, rules)
+                            if (ruleTarget != null && ruleTarget != initialTarget) {
+                                logger.debug(
+                                    "Rule matched detected '${detectedLanguage.tag}' → " +
+                                            "re-translating to '${ruleTarget.tag}'"
+                                )
+                                handleReTranslation(
+                                    textToTranslate  = textToTranslate,
+                                    sourceLanguage   = currentState.sourceLanguage,
+                                    ruleTarget       = ruleTarget,
+                                    detectedLanguage = detectedLanguage,
+                                    currentState     = currentState,
+                                    translator       = translator,
+                                    updateState      = updateState,
+                                    onStatusUpdate   = onStatusUpdate
+                                )
+                                return@launch
+                            }
+                        }
+
+                        // ---- Normal path — no re-translation needed ----
+                        onStatusUpdate("Translation complete.", NotificationType.SUCCESS, true)
 
                         val (newHistory, newHistoryIndex) = buildHistory(
                             currentState, textToTranslate, response.translatedText, translator.id
                         )
 
                         val extraOutput = handleExtraOutput(
-                            targetText          = response.translatedText,
-                            sourceForBackward   = detectedLanguage ?: currentState.sourceLanguage,
-                            targetForBackward   = currentState.targetLanguage,
-                            translator          = translator,
-                            onStatusUpdate      = onStatusUpdate
+                            targetText        = response.translatedText,
+                            sourceForBackward = detectedLanguage ?: currentState.sourceLanguage,
+                            targetForBackward = initialTarget,
+                            translator        = translator,
+                            onStatusUpdate    = onStatusUpdate
                         )
 
                         updateState {
@@ -153,6 +211,89 @@ class TranslateTextUseCase(
 
         translationJob?.join()
     }
+
+    /**
+     * Performs a second translation when Auto Detect revealed a rule match.
+     * Updates state with the final result and correct target language.
+     */
+    private suspend fun handleReTranslation(
+        textToTranslate: String,
+        sourceLanguage: LanguageCode,
+        ruleTarget: LanguageCode,
+        detectedLanguage: LanguageCode,
+        currentState: MainState,
+        translator: Translator,
+        updateState: (MainState.() -> MainState) -> Unit,
+        onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit
+    ) {
+        val retryRequest = TranslationRequest(
+            text           = textToTranslate,
+            sourceLanguage = sourceLanguage,
+            targetLanguage = ruleTarget
+        )
+
+        val retryResult = withTimeoutOrNull(AppConstants.TRANSLATION_TIMEOUT_MS) {
+            translator.translate(retryRequest)
+        }
+
+        if (retryResult == null) {
+            logger.error("Re-translation timed out")
+            updateState { copy(isLoading = false) }
+            onStatusUpdate("Translation timed out. Please try again.", NotificationType.ERROR, true)
+            return
+        }
+
+        retryResult.fold(
+            success = { retryResponse ->
+                logger.info("Re-translation successful: '${retryResponse.translatedText.take(50)}...'")
+                onStatusUpdate("Translation complete.", NotificationType.SUCCESS, true)
+
+                val (newHistory, newHistoryIndex) = buildHistory(
+                    currentState, textToTranslate, retryResponse.translatedText, translator.id
+                )
+
+                val extraOutput = handleExtraOutput(
+                    targetText        = retryResponse.translatedText,
+                    sourceForBackward = detectedLanguage,
+                    targetForBackward = ruleTarget,
+                    translator        = translator,
+                    onStatusUpdate    = onStatusUpdate
+                )
+
+                updateState {
+                    copy(
+                        isLoading              = false,
+                        translatedText         = retryResponse.translatedText,
+                        detectedSourceLanguage = detectedLanguage,
+                        targetLanguage         = ruleTarget,
+                        history                = newHistory,
+                        historyIndex           = newHistoryIndex,
+                        extraOutputText        = extraOutput
+                    )
+                }
+
+                if (settingsState.value.isHistoryEnabled) {
+                    historyRepository.saveHistory(newHistory)
+                }
+            },
+            failure = { error ->
+                logger.error("Re-translation failed: ${error.message}", error.cause)
+                updateState { copy(isLoading = false) }
+                onStatusUpdate("Translation failed: ${error.message}", NotificationType.ERROR, true)
+            }
+        )
+    }
+
+    // -------------------------------------------------------------------------
+    // Rules
+    // -------------------------------------------------------------------------
+
+    private fun resolveTargetFromRules(
+        detectedSource: LanguageCode,
+        rules: List<TranslationRule>
+    ): LanguageCode? =
+        rules.firstOrNull { it.sourceLanguage == detectedSource.tag }
+            ?.let { LanguageCode(it.targetLanguage) }
 
     // -------------------------------------------------------------------------
     // History

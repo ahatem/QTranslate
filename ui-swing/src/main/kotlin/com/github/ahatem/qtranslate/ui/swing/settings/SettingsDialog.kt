@@ -176,6 +176,7 @@ class SettingsDialog(
             border = null
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+            verticalScrollBar.unitIncrement = 16
         }, BorderLayout.CENTER)
 
         contentArea.revalidate()

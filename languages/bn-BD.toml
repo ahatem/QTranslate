@@ -1,0 +1,386 @@
+# ===================================================================
+# META SECTION
+# ===================================================================
+[meta]
+name = "Bengali"
+native_name = "বাংলা"
+locale = "bn-BD"
+version = "1.0.0"
+author = "QTranslate Team <ahatem925@gmail.com>"
+last_updated = "2026-04-26"
+rtl = false
+
+# ===================================================================
+# COMMON STRINGS
+# ===================================================================
+[common]
+ok = "ঠিক আছে"
+cancel = "বাতিল"
+apply = "প্রয়োগ করুন"
+save = "সংরক্ষণ"
+yes = "হ্যাঁ"
+no = "না"
+close = "বন্ধ করুন"
+save_as = "হিসাবে সংরক্ষণ করুন..."
+submit = "জমা দিন"
+search = "খুঁজুন..."
+copy = "কপি"
+copy_all = "সব কপি করুন"
+paste = "পেস্ট"
+cut = "কাট"
+cut_all = "সব কাটুন"
+undo = "পূর্বাবস্থায় ফেরান"
+version = "ভার্সন %s"
+seconds = "সেকেন্ড"
+from = "থেকে"
+to = "প্রতি"
+listen = "শুনুন"
+pin = "পিন করুন"
+unpin = "পিন সরান"
+loading = "লোড হচ্ছে..."
+none = "কিছুই না"
+error = "ত্রুটি"
+browse = "ব্রাউজ করুন..."
+delete = "মুছে ফেলুন"
+rename = "পুনরায় নামকরণ..."
+new = "নতুন..."
+configure = "কনফিগার করুন"
+auto_detect = "স্বয়ংক্রিয় সনাক্তকরণ"
+
+# ===================================================================
+# MAIN APPLICATION WINDOW
+# ===================================================================
+[main_window]
+status_format = "%s ব্যবহার করে: %s → %s"
+no_translator = "কোন অনুবাদক নেই"
+
+[main_window_history_bar]
+backward_tooltip = "অনুবাদ ইতিহাসে পেছনে যান"
+forward_tooltip = "অনুবাদ ইতিহাসে সামনে যান"
+image_translate_tooltip = "স্ক্রিনের একটি অংশ থেকে লেখা ক্যাপচার এবং অনুবাদ করুন"
+
+[main_window_language_bar]
+clear_tooltip = "ইনপুট লেখা মুছুন"
+swap_languages_tooltip = "অনুবাদের ভাষা অদলবদল করুন"
+translate_button = "অনুবাদ"
+
+[main_window_editor_context_menu]
+spelling_suggestions = "বানান পরামর্শ"
+undo = "@common.undo"
+cut = "@common.cut"
+cut_all = "@common.cut_all"
+copy = "@common.copy"
+copy_all = "@common.copy_all"
+paste = "@common.paste"
+translate = "@main_window_language_bar.translate_button"
+listen = "@common.listen"
+spell_check = "বানান যাচাই"
+
+
+[main_window_main_menu]
+layout_presets = "লেআউট প্রিসেট"
+layout_preset_classic = "ক্লাসিক"
+layout_preset_side_by_side = "পাশাপাশি"
+layout_preset_compact = "কম্প্যাক্ট"
+instant_translation = "তাত্ক্ষণিক অনুবাদ"
+show_extra_output = "অতিরিক্ত আউটপুট দেখান"
+spell_check = "বানান যাচাইকরণ"
+options_submenu = "অপশন"
+show_history_bar = "ইতিহাস বার দেখান"
+show_language_bar = "ভাষা বার দেখান"
+show_services_panel = "সার্ভিস প্যানেল দেখান"
+show_status_bar = "স্ট্যাটাস বার দেখান"
+settings = "সেটিংস..."
+help_submenu = "সাহায্য"
+how_to_use = "কিভাবে ব্যবহার করবেন"
+contact_us = "আমাদের সাথে যোগাযোগ করুন"
+auto_check_for_updates = "স্বয়ংক্রিয়ভাবে আপডেট চেক করুন"
+check_for_updates = "আপডেট চেক করুন"
+about_qtranslate = "QTranslate সম্পর্কে"
+exit = "প্রস্থান"
+
+[main_window_status_bar]
+ready_message = "প্রস্তুত"
+notifications_tooltip = "নোটিফিকেশন"
+notifications_empty_tooltip = "নতুন কোন নোটিফিকেশন নেই"
+
+# ===================================================================
+# SYSTEM TRAY MENU
+# ===================================================================
+[system_tray_menu]
+show_application = "QTranslate দেখান"
+recognize_text = "লেখা শনাক্তকরণ (OCR)"
+dictionary = "অভিধান"
+history = "ইতিহাস"
+settings = "@main_window_main_menu.settings"
+enable_hotkeys = "গ্লোবাল হটকি সক্রিয় করুন"
+exit = "@main_window_main_menu.exit"
+
+# ===================================================================
+# SETTINGS DIALOG (SHELL & NAVIGATION)
+# ===================================================================
+[settings_dialog]
+title = "সেটিংস"
+unsaved_changes = "● অসংরক্ষিত পরিবর্তন"
+saving = "সংরক্ষণ করা হচ্ছে..."
+save_failed_title = "সংরক্ষণ ব্যর্থ হয়েছে"
+reset_defaults_button = "ডিফল্টে রিসেট করুন"
+reset_confirmation_title = "ডিফল্টে রিসেট করুন"
+reset_confirmation_message = "সব সেটিংস কি ডিফল্টে রিসেট করবেন?\nএটি আর ফিরিয়ে আনা যাবে না।"
+
+[settings_dialog_sidebar]
+general = "সাধারণ"
+appearance = "চেহারা (Appearance)"
+services = "সার্ভিস এবং প্রিসেট"
+plugins = "প্লাগইন"
+hotkeys = "কীবোর্ড এবং হটকি"
+translation = "অনুবাদ"
+window_layout = "উইন্ডো এবং লেআউট"
+
+# ===================================================================
+# SETTINGS PAGES
+# ===================================================================
+
+[settings_general]
+startup_group = "স্টার্টআপ"
+launch_on_startup = "সিস্টেম স্টার্টআপে চালু করুন"
+updates_group = "আপডেট"
+auto_check_updates = "স্বয়ংক্রিয়ভাবে আপডেটের জন্য চেক করুন"
+history_group = "ইতিহাস"
+enable_history = "অনুবাদ ইতিহাস সক্রিয় করুন"
+clear_history_on_exit = "অ্যাপ বন্ধ করার সময় ইতিহাস মুছে ফেলুন"
+clear_history_hint = "এটি চালু থাকলে অ্যাপ থেকে বের হওয়ার সময় সংরক্ষিত অনুবাদগুলো স্থায়ীভাবে মুছে যাবে।"
+
+[settings_appearance]
+language_group = "ভাষা"
+interface_language = "ইন্টারফেস ভাষা:"
+language_hint = "পরিবর্তনগুলো সাথে সাথে কার্যকর হবে। কিছু লেবেলের জন্য অ্যাপ রিস্টার্ট প্রয়োজন হতে পারে।"
+theme_group = "থিম"
+theme_label = "থিম:"
+unified_title_bar = "ইউনিফাইড টাইটেল বার ব্যবহার করুন"
+scale_group = "UI স্কেল"
+scale_label = "স্কেল:"
+scale_hint = "স্কেল পরিবর্তনগুলো পুরোপুরি কার্যকর করতে অ্যাপ্লিকেশনটি রিস্টার্ট করুন।"
+fonts_group = "ফন্ট"
+ui_font = "UI ফন্ট:"
+editor_font = "এডিটর ফন্ট:"
+fallback_font = "ফলব্যাক ফন্ট:"
+fallback_hint = "এডিটর ফন্ট যে অক্ষরগুলো দেখাতে পারে না, তার জন্য ফলব্যাক ফন্ট ব্যবহার করা হয়।"
+loading_fonts = "<ফন্ট লোড হচ্ছে...>"
+font_preview_text = "দ্রুত বাদামী শেয়াল অলস কুকুরের উপর দিয়ে লাফিয়ে যায়।"
+
+[settings_services]
+presets_group = "সক্রিয় প্রিসেট"
+current_preset = "বর্তমান প্রিসেট:"
+preset_hint = "প্রিসেট আপনাকে বিভিন্ন সার্ভিসের সংমিশ্রণ সংরক্ষণ করতে এবং দ্রুত সেগুলোর মধ্যে পরিবর্তন করতে সাহায্য করে।"
+default_preset_name = "ডিফল্ট"
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+config_group = "সার্ভিস কনফিগারেশন"
+translator = "অনুবাদ সরঞ্জাম:"
+tts = "টেক্সট-টু-স্পিচ:"
+ocr = "OCR (লেখা শনাক্তকরণ):"
+spell_checker = "বানান যাচাইকারী:"
+dictionary = "অভিধান:"
+summarizer = "সারসংক্ষেপকারী:"
+rewriter = "পুনরায় লেখক:"
+# Dialogs
+new_preset_title = "নতুন প্রিসেট"
+new_preset_prompt = "নতুন প্রিসেটের জন্য একটি নাম লিখুন:"
+rename_preset_title = "প্রিসেট পুনঃনামকরণ"
+rename_preset_prompt = "নতুন নাম লিখুন:"
+delete_preset_title = "প্রিসেট মুছে ফেলুন"
+delete_preset_confirm = "\"%s\" প্রিসেটটি কি মুছে ফেলবেন?\nএটি আর ফিরিয়ে আনা যাবে না।"
+
+[settings_plugins]
+install_plugin = "প্লাগইন ইনস্টল করুন..."
+empty_selection_hint = "বিস্তারিত দেখতে একটি প্লাগইন নির্বাচন করুন"
+provided_services = "প্রদত্ত সার্ভিসসমূহ"
+plugin_error_label = "ত্রুটি"
+status_enabled = "সক্রিয়"
+status_disabled = "নিষ্ক্রিয়"
+status_failed = "ব্যর্থ"
+status_verification = "যাচাইকরণের অপেক্ষায়"
+# Actions
+btn_disable = "নিষ্ক্রিয় করুন"
+btn_enable = "সক্রিয় করুন"
+btn_configure = "কনফিগার করুন..."
+btn_accept_update = "আপডেট গ্রহণ করুন"
+btn_clean_install = "ক্লিন ইনস্টল"
+btn_uninstall = "আনইনস্টল"
+tip_accept_update = "বিদ্যমান ডাটা রাখুন এবং প্লাগইনটি পুনরায় সক্রিয় করুন"
+tip_clean_install = "পুনরায় সক্রিয় করার আগে সমস্ত প্লাগইন ডাটা মুছে ফেলুন"
+# Dialogs
+install_dialog_title = "প্লাগইন JAR নির্বাচন করুন"
+install_dialog_filter = "QTranslate প্লাগইন (*.jar)"
+install_success_title = "প্লাগইন ইনস্টল করা হয়েছে"
+install_success_msg = "প্লাগইন সফলভাবে ইনস্টল করা হয়েছে।"
+install_fail_title = "ইনস্টলেশন ব্যর্থ হয়েছে"
+uninstall_confirm_title = "প্লাগইন আনইনস্টল করুন"
+uninstall_confirm_msg = "\"%s\" আনইনস্টল করবেন?\nসমস্ত প্লাগইন ডাটা স্থায়ীভাবে মুছে ফেলা হবে।"
+no_settings_msg = "এই প্লাগইনের জন্য কোনো কনফিগারযোগ্য সেটিংস নেই।"
+
+[settings_hotkeys]
+global_group = "গ্লোবাল হটকি"
+enable_global = "গ্লোবাল হটকি সক্রিয় করুন"
+assignments_group = "হটকি অ্যাসাইনমেন্ট"
+column_action = "অ্যাকশন"
+column_hotkey = "হটকি"
+column_description = "বিবরণ"
+customization_hint = "হটকি কাস্টমাইজেশন ভবিষ্যতে আপডেটে পাওয়া যাবে।"
+column_scope = "স্কোপ (Scope)"
+scope_global = "গ্লোবাল"
+scope_local = "লোকাল"
+# Default Actions
+action_show_main = "মূল উইন্ডো দেখান"
+action_quick_translate = "দ্রুত অনুবাদ"
+action_listen = "নির্বাচিত অংশ শুনুন"
+action_ocr = "স্ক্রিন থেকে OCR"
+action_replace = "অনুবাদ দিয়ে নির্বাচন প্রতিস্থাপন করুন (পরীক্ষামূলক)"
+action_cycle_language = "টার্গেট ভাষা পরিবর্তন (সাইকেল)"
+scope_toggle_hint = "গ্লোবাল এবং লোকাল এর মধ্যে পরিবর্তন করতে ক্লিক করুন"
+
+# Default Actions Descriptions
+desc_show_main = "মূল উইন্ডো দেখাতে 'Ctrl' কী দুইবার চাপুন"
+desc_quick_translate = "একটি পপআপে নির্বাচিত লেখা অনুবাদ করুন"
+desc_listen = "নির্বাচিত লেখাটি উচ্চস্বরে পড়ুন"
+desc_ocr = "স্ক্রিনের একটি অঞ্চল ক্যাপচার করুন এবং লেখা বের করুন"
+desc_replace = "নির্বাচিত লেখা অনুবাদ করে সেই স্থানেই পেস্ট করে (পরীক্ষামূলক)"
+desc_cycle = "উইন্ডো না খুলেই টার্গেট ভাষাগুলোর মধ্যে পরিবর্তন করুন"
+
+edit_hint = "পরিবর্তন করতে একটি সারিতে ডাবল-ক্লিক করুন বা সেটি নির্বাচন করে 'সম্পাদনা' ক্লিক করুন।"
+edit_button = "সম্পাদনা…"
+clear_button = "ক্লিয়ার"
+reset_button = "সব ডিফল্টে রিসেট করুন"
+no_binding = "(কিছু নেই)"
+reset_confirmation = "সব হটকি কি তাদের ডিফল্ট মানে রিসেট করবেন?"
+reset_title = "হটকি রিসেট করুন"
+recorder_title = "হটকি রেকর্ড করুন"
+recorder_prompt = "আপনি যে কী সংমিশ্রণটি অ্যাসাইন করতে চান তা চাপুন:"
+double_ctrl = "ডাবল Ctrl"
+recorder_waiting = "— একটি কী সংমিশ্রণ টিপুন —"
+recorder_hint = "বাতিল করতে 'Escape' চাপুন"
+
+
+[settings_translation]
+behavior_group = "আচরণ (Behavior)"
+instant_translation = "তাত্ক্ষণিক অনুবাদ (টাইপ করার সাথে সাথে)"
+instant_hint = "আপনি টাইপ করা বন্ধ করার সাথে সাথে স্বয়ংক্রিয়ভাবে অনুবাদ শুরু হয়।"
+spell_check_input = "ইনপুটে বানান যাচাই সক্রিয় করুন"
+extra_output_group = "অতিরিক্ত আউটপুট"
+extra_output_type = "ধরণ:"
+extra_output_hint = "মূল অনুবাদের নিচে একটি দ্বিতীয় ফলাফল প্যানেল দেখায়।"
+extra_output_source = "উৎস:"
+source_use_translated = "অনুবাদিত লেখা ব্যবহার করুন"
+source_use_input = "ইনপুট লেখা ব্যবহার করুন"
+remove_line_breaks = "ইনপুট থেকে লাইন ব্রেক সরান"
+remove_line_breaks_hint = "PDF থেকে কপি করার সময় কার্যকর, যেখানে প্রতিটি লাইনের শেষে নতুন লাইন থাকে।"
+pinned_languages_group = "ভাষা ফিল্টার"
+pinned_languages_hint = "টার্গেট ভাষা বাছাইকারীতে যে ভাষাগুলো দেখতে চান সেগুলো নির্বাচন করুন। সব ভাষা দেখতে চাইলে সব আনচেক রাখুন।"
+pinned_languages_clear = "ফিল্টার মুছুন (সব দেখান)"
+# Types
+type_none = "@common.none"
+type_backward = "বিপরীত অনুবাদ"
+type_summarize = "সারসংক্ষেপ"
+type_rewrite = "পুনরায় লেখা"
+# Summary length options (shown when type = Summarization)
+summary_length = "সারসংক্ষেপের দৈর্ঘ্য:"
+summary_length_short = "সংক্ষিপ্ত (এক বাক্য)"
+summary_length_medium = "মাঝারি (কয়েকটি বাক্য)"
+summary_length_long = "দীর্ঘ (বিস্তারিত)"
+# Rewrite style options (shown when type = Rewriting)
+rewrite_style = "লেখার ধরণ:"
+rewrite_style_formal = "প্রাতিষ্ঠানিক (Formal)"
+rewrite_style_casual = "অনানুষ্ঠানিক (Casual)"
+rewrite_style_concise = "সংক্ষিপ্ত"
+rewrite_style_detailed = "বিস্তারিত"
+rewrite_style_simplified = "সরলীকৃত"
+# Translation Rules
+rules_group = "অনুবাদ নিয়ম"
+rules_hint = "সনাক্তকৃত উৎস ভাষার উপর ভিত্তি করে স্বয়ংক্রিয়ভাবে একটি লক্ষ্য ভাষা নির্বাচন করে।\nকোনো নিয়ম মেলে না হলে, ম্যানুয়ালি নির্বাচিত লক্ষ্যটি ব্যবহৃত হয়।"
+rules_col_source = "উৎস ভাষা"
+rules_col_target = "লক্ষ্য ভাষা"
+rules_add_btn = "নিয়ম যোগ করুন"
+rules_remove_btn = "নিয়ম সরান"
+rules_dialog_title = "অনুবাদ নিয়ম যোগ করুন"
+rules_dialog_source = "উৎস যদি হয়:"
+rules_dialog_target = "অনুবাদ করুন:"
+rules_error_same_title = "অবৈধ নিয়ম"
+rules_error_same = "উৎস এবং লক্ষ্য ভাষা আলাদা হতে হবে।"
+rules_error_duplicate_title = "ডুপ্লিকেট নিয়ম"
+rules_error_duplicate = "'%s' এর জন্য একটি নিয়ম ইতিমধ্যেই বিদ্যমান।"
+
+[settings_window]
+layout_group = "লেআউট"
+layout_preset = "লেআউট প্রিসেট:"
+toolbars_group = "টুলবার"
+show_history_bar = "ইতিহাস নেভিগেশন বার দেখান"
+show_language_bar = "ভাষা নির্বাচক বার দেখান"
+show_services_panel = "সার্ভিস প্যানেল দেখান"
+show_status_bar = "স্ট্যাটাস বার দেখান"
+popup_group = "দ্রুত অনুবাদ পপআপ"
+auto_size = "কন্টেন্ট অনুযায়ী পপআপের আকার পরিবর্তন করুন"
+auto_position = "কার্সারের কাছে পপআপ পজিশন করুন"
+transparency = "ব্যাকগ্রাউন্ড স্বচ্ছতা:"
+# Close button
+close_behavior_group   = "বন্ধ করার বোতাম"
+close_button           = "বন্ধ করার সময়:"
+close_behavior_ask     = "প্রতিবার জিজ্ঞাসা করুন"
+close_behavior_minimize = "সিস্টেম ট্রে-তে মিনিমাইজ করুন"
+close_behavior_exit    = "অ্যাপ্লিকেশন থেকে প্রস্থান করুন"
+close_behavior_hint    = "আপনি যখন '×' বোতামে ক্লিক করেন তখন কী ঘটবে তা নিয়ন্ত্রণ করে। এটি ক্লোজ ডায়ালগ থেকেও সেট করা যায়।"
+
+# ===================================================================
+# DYNAMIC PLUGIN CONFIGURATION
+# ===================================================================
+[plugin_config]
+title_format = "কনফিগার — %s"
+required_fields_error_title = "প্রয়োজনীয় তথ্য"
+required_fields_error_msg = "অনুগ্রহ করে প্রয়োজনীয় ক্ষেত্রগুলো পূরণ করুন:"
+
+# ===================================================================
+# OTHER DIALOGS
+# ===================================================================
+[about_dialog]
+title = "QTranslate সম্পর্কে"
+description = "মূল QTranslate প্রকল্পটি পরিত্যক্ত হয়েছিল। এটি একটি সম্পূর্ণ নতুন সংস্করণ — একই ধারণা, তবে প্লাগইন-ভিত্তিক যাতে অ্যাপটি সর্বদা সচল থাকে।"
+
+[history_dialog]
+title = "অনুবাদ ইতিহাস"
+
+[update_dialog]
+title = "আপডেট উপলব্ধ"
+header = "QTranslate-এর একটি নতুন ভার্সন উপলব্ধ!"
+# %1$s = new version number, %2$s = current version number
+details_format = "ভার্সন %s এখন উপলব্ধ (আপনার কাছে %s আছে)। আপনি কি আপডেট করতে চান?"
+release_notes_label = "রিলিজ নোটস:"
+skip_button = "এই ভার্সনটি এড়িয়ে যান"
+remind_later_button = "পরে মনে করিয়ে দিন"
+download_button = "ডাউনলোড পেজে যান"
+
+# ===================================================================
+# CLOSE DIALOG
+# ===================================================================
+[close_dialog]
+title           = "QTranslate বন্ধ করুন"
+message         = "আপনি কি করতে চান?"
+minimize_to_tray = "ট্রে-তে মিনিমাইজ করুন"
+exit            = "প্রস্থান করুন"
+remember_choice = "আমার পছন্দ মনে রাখুন"
+
+# ===================================================================
+# EXTRA OUTPUT PANEL
+# ===================================================================
+[extra_output]
+label_backward = "বিপরীত অনুবাদ"
+label_summary = "সারসংক্ষেপ"
+label_rewrite = "পুনরায় লেখা"
+
+# ===================================================================
+# NOTIFICATIONS & ERRORS
+# ===================================================================
+[notifications]
+language_not_supported_format = "'%s' ভাষাটি %s দ্বারা সমর্থিত নয়।"
+tts_not_supported_format = "টেক্সট-টু-স্পিচ %s দ্বারা সমর্থিত নয়।"
+unknown_error = "একটি অজানা ত্রুটি ঘটেছে।"

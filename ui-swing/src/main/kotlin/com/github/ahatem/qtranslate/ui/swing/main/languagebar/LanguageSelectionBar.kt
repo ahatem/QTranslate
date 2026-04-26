@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.languagebar
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.GridBag
 import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
@@ -13,6 +14,7 @@ import javax.swing.JPanel
 
 class LanguageSelectionBar(
     private val iconManager: IconManager,
+    private val localizer: LocalizationManager,
     private val onClear: () -> Unit,
     private val onSourceLanguageSelected: (LanguageCode) -> Unit,
     private val onSwap: () -> Unit,
@@ -21,9 +23,15 @@ class LanguageSelectionBar(
 ) : JPanel(GridBagLayout()), Renderable<LanguageSelectionBarState> {
 
     private val clearButton = createButtonWithIcon(iconManager, "icons/lucide/trash.svg", 16)
-    private val sourceLanguageComboBox = LanguageComboBox { lang -> onSourceLanguageSelected(lang) }
+    private val sourceLanguageComboBox = LanguageComboBox(
+        onLanguageSelected = { lang -> onSourceLanguageSelected(lang) },
+        localizer = localizer
+    )
     private val swapButton = createButtonWithIcon(iconManager, "icons/lucide/swap.svg", 16)
-    private val targetLanguageComboBox = LanguageComboBox { lang -> onTargetLanguageSelected(lang) }
+    private val targetLanguageComboBox = LanguageComboBox(
+        onLanguageSelected = { lang -> onTargetLanguageSelected(lang) },
+        localizer = localizer
+    )
     private val translateButton = JButton()
 
     init {

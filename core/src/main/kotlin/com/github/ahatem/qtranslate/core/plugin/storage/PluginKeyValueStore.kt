@@ -22,6 +22,7 @@ class PluginKeyValueStore(private val appDataDirectory: File) {
 
     private val dataStores = mutableMapOf<String, DataStore<Preferences>>()
 
+    @Synchronized
     private fun getDataStore(pluginId: String): DataStore<Preferences> =
         dataStores.getOrPut(pluginId) {
             PreferenceDataStoreFactory.create(

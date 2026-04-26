@@ -141,6 +141,22 @@ class SettingsStore(
             is SettingsIntent.RenamePreset ->
                 presetManager.renamePreset(_state.value.workingConfiguration, intent.presetId, intent.newName)
                     .also { launchSave() }
+
+            is SettingsIntent.AddTranslationRule -> {
+                val updated = _state.value.workingConfiguration.copy(
+                    translationRules = _state.value.workingConfiguration.translationRules + intent.rule
+                )
+                applyWorkingUpdate(updated)
+                launchSave()
+            }
+
+            is SettingsIntent.RemoveTranslationRule -> {
+                val updated = _state.value.workingConfiguration.copy(
+                    translationRules = _state.value.workingConfiguration.translationRules - intent.rule
+                )
+                applyWorkingUpdate(updated)
+                launchSave()
+            }
         }
     }
 

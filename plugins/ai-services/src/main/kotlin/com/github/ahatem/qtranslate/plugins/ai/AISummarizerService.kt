@@ -27,15 +27,23 @@ class AISummarizerService(
         }
 
         val system = """
-            You are an expert at summarizing text clearly and accurately.
-            Summarize the user's text in the SAME LANGUAGE as the input.
-            $lengthInstruction
-            Output ONLY the summary — no preamble, no labels, no quotes.
-            Preserve the original meaning faithfully. Do not add opinions or external information.
-        """.trimIndent()
+        You are a professional editor. 
+        
+        TASK:
+        Summarize the text provided by the user. 
+        The summary MUST be written in the same language as the source text itself.
+        
+        CONSTRAINTS:
+        - $lengthInstruction
+        - Output ONLY the summarized text.
+        - Do not include any introductory text, labels, quotes, or conversational filler (e.g., do NOT say "Here is a summary").
+        
+        The user's text to be summarized starts after the '---' delimiter below.
+        ---
+    """.trimIndent()
 
         return client.complete(system, request.text, jsonMode = false).map { summary ->
-            SummarizeResponse(summary = summary.trim())
+            SummarizeResponse(summary = summary.trim().removeSurrounding("\""))
         }
     }
 }

@@ -7,7 +7,7 @@ native_name = "Español"
 locale = "es-ES"
 version = "1.0.0"
 author = "QTranslate Team <ahatem925@gmail.com>"
-last_updated = "2025-10-17"
+last_updated = "2026-04-26"
 rtl = false
 
 # ===================================================================
@@ -45,6 +45,7 @@ delete = "Eliminar"
 rename = "Renombrar..."
 new = "Nuevo..."
 configure = "Configurar"
+auto_detect = "Detectar automáticamente"
 
 # ===================================================================
 # MAIN APPLICATION WINDOW
@@ -172,6 +173,7 @@ font_preview_text = "El veloz murciélago hindú comía feliz cardillo y escabec
 presets_group = "Ajuste Activo"
 current_preset = "Ajuste actual:"
 preset_hint = "Los ajustes preestablecidos permiten guardar combinaciones de servicios y cambiar entre ellos rápidamente."
+default_preset_name = "Predeterminado"
 new_preset_btn = "@common.new"
 rename_preset_btn = "@common.rename"
 delete_preset_btn = "@common.delete"
@@ -294,6 +296,20 @@ rewrite_style_casual = "Informal"
 rewrite_style_concise = "Conciso"
 rewrite_style_detailed = "Detallado"
 rewrite_style_simplified = "Simplificado"
+# Translation Rules
+rules_group = "Reglas de traducción"
+rules_hint = "Selecciona automáticamente un idioma destino según el idioma fuente detectado.\nSi ninguna regla coincide, se usa el destino seleccionado manualmente."
+rules_col_source = "Idioma fuente"
+rules_col_target = "Idioma destino"
+rules_add_btn = "Agregar regla"
+rules_remove_btn = "Eliminar regla"
+rules_dialog_title = "Agregar regla de traducción"
+rules_dialog_source = "Si el fuente es:"
+rules_dialog_target = "Traducir a:"
+rules_error_same_title = "Regla no válida"
+rules_error_same = "Los idiomas fuente y destino deben ser diferentes."
+rules_error_duplicate_title = "Regla duplicada"
+rules_error_duplicate = "Ya existe una regla para '%s'."
 
 [settings_window]
 layout_group = "Diseño"

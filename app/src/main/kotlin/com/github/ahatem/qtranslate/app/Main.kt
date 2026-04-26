@@ -5,13 +5,30 @@ import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.ui.swing.main.MainAppFrame
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import javax.swing.SwingUtilities
 
 fun main() = runBlocking {
+
+    var frame: MainAppFrame? = null
+
+    if (!SingleInstanceGuard.tryLock(onFocusRequested = {
+            SwingUtilities.invokeLater {
+                frame?.apply {
+                    isVisible = true
+                    toFront()
+                    requestFocus()
+                }
+            }
+        })) {
+        return@runBlocking
+    }
+
+    Runtime.getRuntime().addShutdownHook(Thread {
+        SingleInstanceGuard.release()
+    })
 
     AppUiSetup.setSystemProperties()
     AppUiSetup.setRenderingHints()
@@ -43,14 +60,16 @@ fun main() = runBlocking {
     )
     AppUiSetup.apply(initialConfig, deps.themeManager)
 
-    deps.appScope.launch {
-        logger.info("Loading plugins...")
-        runCatching { deps.pluginManager.loadAndProcessPlugins() }
-            .onSuccess { logger.info("Plugins loaded successfully") }
-            .onFailure { e -> logger.error("Failed to load plugins", e) }
-    }
+    logger.info("Loading plugins...")
+    runCatching { deps.pluginManager.loadAndProcessPlugins() }
+        .onSuccess { logger.info("Plugins loaded successfully") }
+        .onFailure { e -> logger.error("Failed to load plugins", e) }
 
-    val savedLanguage = LanguageCode(initialConfig.interfaceLanguage)
+    val savedLanguage = if (initialConfig.interfaceLanguage == LanguageCode.ENGLISH.tag) {
+        OsLanguageDetector.detect(deps.localizationManager.availableLanguages)
+    } else {
+        LanguageCode(initialConfig.interfaceLanguage)
+    }
     runCatching {
         deps.localizationManager.loadLanguage(savedLanguage)
         logger.info("Interface language loaded: ${initialConfig.interfaceLanguage}")
@@ -59,7 +78,7 @@ fun main() = runBlocking {
     }
 
     SwingUtilities.invokeLater {
-        MainAppFrame(
+        frame = MainAppFrame(
             mainStore        = deps.mainStore,
             settingsStore    = deps.settingsStore,
             iconManager      = deps.iconManager,
