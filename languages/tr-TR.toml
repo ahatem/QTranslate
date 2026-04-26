@@ -7,7 +7,7 @@ native_name = "Türkçe"
 locale = "tr-TR"
 version = "1.0.0"
 author = "QTranslate Team <ahatem925@gmail.com>"
-last_updated = "2025-10-17"
+last_updated = "2026-04-26"
 rtl = false
 
 # ===================================================================
@@ -45,6 +45,7 @@ delete = "Sil"
 rename = "Yeniden Adlandır..."
 new = "Yeni..."
 configure = "Yapılandır"
+auto_detect = "Otomatik Algıla"
 
 # ===================================================================
 # MAIN APPLICATION WINDOW
@@ -172,6 +173,7 @@ font_preview_text = "Pijamalı hasta yağız şoföre çabucak güvendi. — 大
 presets_group = "Aktif Önayar"
 current_preset = "Geçerli Önayar:"
 preset_hint = "Önayarlar, farklı servis kombinasyonlarını kaydetmenize ve aralarında hızlıca geçiş yapmanıza olanak tanır."
+default_preset_name = "Varsayılan"
 new_preset_btn = "@common.new"
 rename_preset_btn = "@common.rename"
 delete_preset_btn = "@common.delete"
@@ -294,6 +296,20 @@ rewrite_style_casual = "Günlük"
 rewrite_style_concise = "Kısa ve Öz"
 rewrite_style_detailed = "Ayrıntılı"
 rewrite_style_simplified = "Basitleştirilmiş"
+# Translation Rules
+rules_group = "Çeviri Kuralları"
+rules_hint = "Algılanan kaynak dile göre otomatik olarak bir hedef dil seçer.\nHiçbir kural eşleşmezse, manuel olarak seçilen hedef kullanılır."
+rules_col_source = "Kaynak Dil"
+rules_col_target = "Hedef Dil"
+rules_add_btn = "Kural Ekle"
+rules_remove_btn = "Kuralı Kaldır"
+rules_dialog_title = "Çeviri Kuralı Ekle"
+rules_dialog_source = "Kaynak dil:"
+rules_dialog_target = "Şuna çevir:"
+rules_error_same_title = "Geçersiz Kural"
+rules_error_same = "Kaynak ve hedef diller farklı olmalıdır."
+rules_error_duplicate_title = "Yinelenen Kural"
+rules_error_duplicate = "'%s' için zaten bir kural var."
 
 [settings_window]
 layout_group = "Düzen"

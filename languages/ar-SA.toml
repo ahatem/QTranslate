@@ -7,7 +7,7 @@ native_name = "العربية"
 locale = "ar-SA"
 version = "1.0.0"
 author = "QTranslate Team <ahatem925@gmail.com>"
-last_updated = "2025-10-17"
+last_updated = "2026-04-26"
 rtl = true
 
 # ===================================================================
@@ -45,6 +45,7 @@ delete = "حذف"
 rename = "إعادة تسمية..."
 new = "جديد..."
 configure = "تكوين"
+auto_detect = "اكتشاف تلقائي"
 
 # ===================================================================
 # MAIN APPLICATION WINDOW
@@ -172,6 +173,7 @@ font_preview_text = "نص حكيم له سر قاطع وذو حظ على رأس 
 presets_group = "القالب النشط"
 current_preset = "القالب الحالي:"
 preset_hint = "تتيح لك القوالب حفظ مجموعات خدمات مختلفة والتبديل بينها بسرعة."
+default_preset_name = "افتراضي"
 new_preset_btn = "@common.new"
 rename_preset_btn = "@common.rename"
 delete_preset_btn = "@common.delete"
@@ -294,6 +296,20 @@ rewrite_style_casual = "ودي"
 rewrite_style_concise = "موجز"
 rewrite_style_detailed = "مفصل"
 rewrite_style_simplified = "مبسط"
+# Translation Rules
+rules_group = "قواعد الترجمة"
+rules_hint = "يختار تلقائيًا لغة الهدف بناءً على اللغة المصدر المكتشفة.\nإذا لم تتطابق أي قاعدة، يُستخدم الهدف المحدد يدويًا."
+rules_col_source = "اللغة المصدر"
+rules_col_target = "اللغة الهدف"
+rules_add_btn = "إضافة قاعدة"
+rules_remove_btn = "حذف القاعدة"
+rules_dialog_title = "إضافة قاعدة ترجمة"
+rules_dialog_source = "إذا كان المصدر:"
+rules_dialog_target = "ترجمة إلى:"
+rules_error_same_title = "قاعدة غير صالحة"
+rules_error_same = "يجب أن تكون لغة المصدر واللغة الهدف مختلفتين."
+rules_error_duplicate_title = "قاعدة مكررة"
+rules_error_duplicate = "توجد قاعدة لـ '%s' بالفعل."
 
 [settings_window]
 layout_group = "التخطيط"

@@ -7,7 +7,7 @@ native_name = "简体中文"
 locale = "zh-CN"
 version = "1.0.0"
 author = "QTranslate Team <ahatem925@gmail.com>"
-last_updated = "2025-10-17"
+last_updated = "2026-04-26"
 rtl = false
 
 # ===================================================================
@@ -45,6 +45,7 @@ delete = "删除"
 rename = "重命名..."
 new = "新建..."
 configure = "配置"
+auto_detect = "自动检测"
 
 # ===================================================================
 # MAIN APPLICATION WINDOW
@@ -172,6 +173,7 @@ font_preview_text = "中文测试：敏捷的棕色狐狸跳过了懒狗 — 大
 presets_group = "当前预设"
 current_preset = "当前预设："
 preset_hint = "通过预设，您可以保存不同的服务组合并快速切换。"
+default_preset_name = "默认"
 new_preset_btn = "@common.new"
 rename_preset_btn = "@common.rename"
 delete_preset_btn = "@common.delete"
@@ -294,6 +296,20 @@ rewrite_style_casual = "随意"
 rewrite_style_concise = "简练"
 rewrite_style_detailed = "详细"
 rewrite_style_simplified = "精简"
+# Translation Rules
+rules_group = "翻译规则"
+rules_hint = "根据检测到的源语言自动选择目标语言。\n如果没有匹配的规则，则使用手动选择的目标语言。"
+rules_col_source = "源语言"
+rules_col_target = "目标语言"
+rules_add_btn = "添加规则"
+rules_remove_btn = "删除规则"
+rules_dialog_title = "添加翻译规则"
+rules_dialog_source = "如果源语言是："
+rules_dialog_target = "翻译为："
+rules_error_same_title = "无效规则"
+rules_error_same = "源语言和目标语言必须不同。"
+rules_error_duplicate_title = "重复规则"
+rules_error_duplicate = "'%s' 的规则已存在。"
 
 [settings_window]
 layout_group = "布局"

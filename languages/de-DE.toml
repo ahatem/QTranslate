@@ -7,7 +7,7 @@ native_name = "Deutsch"
 locale = "de-DE"
 version = "1.0.0"
 author = "QTranslate Team <ahatem925@gmail.com>"
-last_updated = "2025-10-17"
+last_updated = "2026-04-26"
 rtl = false
 
 # ===================================================================
@@ -45,6 +45,7 @@ delete = "Löschen"
 rename = "Umbenennen..."
 new = "Neu..."
 configure = "Konfigurieren"
+auto_detect = "Automatisch erkennen"
 
 # ===================================================================
 # MAIN APPLICATION WINDOW
@@ -172,6 +173,7 @@ font_preview_text = "Franz jagt im komplett verwahrlosten Taxi quer durch Bayern
 presets_group = "Aktives Preset"
 current_preset = "Aktuelles Preset:"
 preset_hint = "Presets ermöglichen es, verschiedene Dienstkombinationen zu speichern und schnell zu wechseln."
+default_preset_name = "Standard"
 new_preset_btn = "@common.new"
 rename_preset_btn = "@common.rename"
 delete_preset_btn = "@common.delete"
@@ -294,6 +296,20 @@ rewrite_style_casual = "Locker"
 rewrite_style_concise = "Prägnant"
 rewrite_style_detailed = "Detailliert"
 rewrite_style_simplified = "Vereinfacht"
+# Translation Rules
+rules_group = "Übersetzungsregeln"
+rules_hint = "Wählt automatisch eine Zielsprache basierend auf der erkannten Quellsprache.\nWenn keine Regel übereinstimmt, wird das manuell gewählte Ziel verwendet."
+rules_col_source = "Quellsprache"
+rules_col_target = "Zielsprache"
+rules_add_btn = "Regel hinzufügen"
+rules_remove_btn = "Regel entfernen"
+rules_dialog_title = "Übersetzungsregel hinzufügen"
+rules_dialog_source = "Wenn Quelle ist:"
+rules_dialog_target = "Übersetzen nach:"
+rules_error_same_title = "Ungültige Regel"
+rules_error_same = "Quell- und Zielsprache müssen unterschiedlich sein."
+rules_error_duplicate_title = "Doppelte Regel"
+rules_error_duplicate = "Eine Regel für '%s' existiert bereits."
 
 [settings_window]
 layout_group = "Layout"

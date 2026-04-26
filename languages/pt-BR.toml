@@ -7,7 +7,7 @@ native_name = "Português (Brasil)"
 locale = "pt-BR"
 version = "1.0.0"
 author = "QTranslate Team <ahatem925@gmail.com>"
-last_updated = "2025-10-17"
+last_updated = "2026-04-26"
 rtl = false
 
 # ===================================================================
@@ -45,6 +45,7 @@ delete = "Excluir"
 rename = "Renomear..."
 new = "Novo..."
 configure = "Configurar"
+auto_detect = "Detectar automaticamente"
 
 # ===================================================================
 # MAIN APPLICATION WINDOW
@@ -172,6 +173,7 @@ font_preview_text = "Vê que belo dia de sol, a raposa rápida saltou sobre o c�
 presets_group = "Preset Ativo"
 current_preset = "Preset Atual:"
 preset_hint = "Presets permitem salvar diferentes combinações de serviços e alternar entre eles rapidamente."
+default_preset_name = "Padrão"
 new_preset_btn = "@common.new"
 rename_preset_btn = "@common.rename"
 delete_preset_btn = "@common.delete"
@@ -294,6 +296,20 @@ rewrite_style_casual = "Casual"
 rewrite_style_concise = "Conciso"
 rewrite_style_detailed = "Detalhado"
 rewrite_style_simplified = "Simplificado"
+# Translation Rules
+rules_group = "Regras de tradução"
+rules_hint = "Seleciona automaticamente um idioma de destino com base no idioma de origem detectado.\nSe nenhuma regra corresponder, o destino selecionado manualmente é usado."
+rules_col_source = "Idioma de origem"
+rules_col_target = "Idioma de destino"
+rules_add_btn = "Adicionar regra"
+rules_remove_btn = "Remover regra"
+rules_dialog_title = "Adicionar regra de tradução"
+rules_dialog_source = "Se a origem for:"
+rules_dialog_target = "Traduzir para:"
+rules_error_same_title = "Regra inválida"
+rules_error_same = "Os idiomas de origem e destino devem ser diferentes."
+rules_error_duplicate_title = "Regra duplicada"
+rules_error_duplicate = "Já existe uma regra para '%s'."
 
 [settings_window]
 layout_group = "Layout"

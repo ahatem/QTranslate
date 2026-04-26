@@ -7,7 +7,7 @@ native_name = "Italiano"
 locale = "it-IT"
 version = "1.0.0"
 author = "bovirus <bovirus@gmail.com>"
-last_updated = "2026-04-24"
+last_updated = "2026-04-26"
 rtl = false
 
 # ===================================================================
@@ -45,6 +45,7 @@ delete = "Elimina"
 rename = "Rinomina..."
 new = "Nuovo..."
 configure = "Configura"
+auto_detect = "Rilevamento automatico"
 
 # ===================================================================
 # MAIN APPLICATION WINDOW
@@ -172,6 +173,7 @@ font_preview_text = "La veloce volpe marrone salta sopra il cane pigro — 大�
 presets_group = "Profilo attivo"
 current_preset = "Profilo attuale:"
 preset_hint = "I profili  consentono di salvare diverse combinazioni di servizi e di passare rapidamente da uno all'altro."
+default_preset_name = "Predefinito"
 new_preset_btn = "@common.new"
 rename_preset_btn = "@common.rename"
 delete_preset_btn = "@common.delete"
@@ -294,6 +296,20 @@ rewrite_style_casual = "Casuale"
 rewrite_style_concise = "Conciso"
 rewrite_style_detailed = "Dettagliato"
 rewrite_style_simplified = "Semplificato"
+# Translation Rules
+rules_group = "Regole di traduzione"
+rules_hint = "Seleziona automaticamente una lingua di destinazione in base alla lingua sorgente rilevata.\nSe nessuna regola corrisponde, viene utilizzata la destinazione selezionata manualmente."
+rules_col_source = "Lingua sorgente"
+rules_col_target = "Lingua di destinazione"
+rules_add_btn = "Aggiungi regola"
+rules_remove_btn = "Rimuovi regola"
+rules_dialog_title = "Aggiungi regola di traduzione"
+rules_dialog_source = "Se la sorgente è:"
+rules_dialog_target = "Traduci in:"
+rules_error_same_title = "Regola non valida"
+rules_error_same = "Le lingue sorgente e di destinazione devono essere diverse."
+rules_error_duplicate_title = "Regola duplicata"
+rules_error_duplicate = "Esiste già una regola per '%s'."
 
 [settings_window]
 layout_group = "Layout"
