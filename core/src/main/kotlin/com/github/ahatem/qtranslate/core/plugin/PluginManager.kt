@@ -16,6 +16,7 @@ import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
 import com.github.ahatem.qtranslate.core.shared.notification.AppNotification
+import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
 import kotlinx.coroutines.Dispatchers
@@ -134,9 +135,8 @@ class PluginManager(
             loadResult.failed.forEach { error ->
                 notificationBus.post(
                     AppNotification(
-                        type         = com.github.ahatem.qtranslate.api.plugin.NotificationType.ERROR,
-                        title        = "Plugin failed to load",
-                        body         = "${error.pluginId}: ${error.message}",
+                        type           = com.github.ahatem.qtranslate.api.plugin.NotificationType.ERROR,
+                        code           = NotificationCode.Custom("Plugin failed to load", "${error.pluginId}: ${error.message}"),
                         sourcePluginId = error.pluginId
                     )
                 )
@@ -147,8 +147,7 @@ class PluginManager(
                 notificationBus.post(
                     AppNotification(
                         type           = com.github.ahatem.qtranslate.api.plugin.NotificationType.WARNING,
-                        title          = "Plugin update detected",
-                        body           = "${container.id}: JAR has changed — open Plugin Manager to verify.",
+                        code           = NotificationCode.Custom("Plugin update detected", "${container.id}: JAR has changed — open Plugin Manager to verify."),
                         sourcePluginId = container.id
                     )
                 )
@@ -158,17 +157,15 @@ class PluginManager(
             if (allPlugins.isEmpty()) {
                 notificationBus.post(
                     AppNotification(
-                        type  = com.github.ahatem.qtranslate.api.plugin.NotificationType.WARNING,
-                        title = "No plugins found",
-                        body  = "Drop plugin JARs into the plugins folder and restart, or install via Plugin Manager."
+                        type = com.github.ahatem.qtranslate.api.plugin.NotificationType.WARNING,
+                        code = NotificationCode.Custom("No plugins found", "Drop plugin JARs into the plugins folder and restart, or install via Plugin Manager.")
                     )
                 )
             } else if (enabled == 0) {
                 notificationBus.post(
                     AppNotification(
-                        type  = com.github.ahatem.qtranslate.api.plugin.NotificationType.WARNING,
-                        title = "No services active",
-                        body  = "All plugins are disabled or failed. Open Plugin Manager to enable them."
+                        type = com.github.ahatem.qtranslate.api.plugin.NotificationType.WARNING,
+                        code = NotificationCode.Custom("No services active", "All plugins are disabled or failed. Open Plugin Manager to enable them.")
                     )
                 )
             }

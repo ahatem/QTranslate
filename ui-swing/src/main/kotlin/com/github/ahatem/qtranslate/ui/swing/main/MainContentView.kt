@@ -44,6 +44,7 @@ class MainContentView(
     private val dispatch: (MainIntent) -> Unit,
     private val dispatchSettings: (SettingsIntent) -> Unit,
     private val onOpenSnippingTool: () -> Unit,
+    private val onNotificationsClicked: () -> Unit,
 ) : JPanel(BorderLayout()) {
 
     private val translationHistoryBar: TranslationHistoryBar = TranslationHistoryBar(
@@ -105,7 +106,7 @@ class MainContentView(
 
     val statusBar: StatusBar = StatusBar(
         iconManager = iconManager,
-        onNotificationsClicked = { TODO() },
+        onNotificationsClicked = { onNotificationsClicked() },
     )
 
     private val layoutManager = LayoutManager(

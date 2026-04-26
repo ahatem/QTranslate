@@ -45,6 +45,7 @@ delete = "Sil"
 rename = "Yeniden Adlandır..."
 new = "Yeni..."
 configure = "Yapılandır"
+clear_all = "Tümünü temizle"
 auto_detect = "Otomatik Algıla"
 
 # ===================================================================

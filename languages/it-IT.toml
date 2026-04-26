@@ -45,6 +45,7 @@ delete = "Elimina"
 rename = "Rinomina..."
 new = "Nuovo..."
 configure = "Configura"
+clear_all = "Cancella tutto"
 auto_detect = "Rilevamento automatico"
 
 # ===================================================================

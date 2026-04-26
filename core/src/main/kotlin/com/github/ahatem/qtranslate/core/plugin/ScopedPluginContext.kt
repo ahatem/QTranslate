@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
 import com.github.ahatem.qtranslate.core.shared.notification.AppNotification
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
+import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -52,9 +53,8 @@ internal class ScopedPluginContext(
     override suspend fun notify(title: String, body: String, type: NotificationType) {
         notificationBus.post(
             AppNotification(
-                title = title,
-                body = body,
                 type = type,
+                code = NotificationCode.Custom(title, body),
                 sourcePluginId = pluginId
             )
         )

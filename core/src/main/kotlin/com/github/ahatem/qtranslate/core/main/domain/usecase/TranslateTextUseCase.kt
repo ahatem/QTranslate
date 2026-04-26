@@ -195,7 +195,7 @@ class TranslateTextUseCase(
                     failure = { error ->
                         logger.error("Translation failed: ${error.message}", error.cause)
                         updateState { copy(isLoading = false) }
-                        onStatusUpdate("Translation failed: ${error.message}", NotificationType.ERROR, true)
+                        onStatusUpdate("Translation failed: ${error.message?.lines()?.firstOrNull()?.take(120)}", NotificationType.ERROR, true)
                     }
                 )
 
@@ -279,7 +279,7 @@ class TranslateTextUseCase(
             failure = { error ->
                 logger.error("Re-translation failed: ${error.message}", error.cause)
                 updateState { copy(isLoading = false) }
-                onStatusUpdate("Translation failed: ${error.message}", NotificationType.ERROR, true)
+                onStatusUpdate("Translation failed: ${error.message?.lines()?.firstOrNull()?.take(120)}", NotificationType.ERROR, true)
             }
         )
     }

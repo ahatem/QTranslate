@@ -4,7 +4,6 @@ import com.github.ahatem.qtranslate.api.plugin.NotificationType
 
 data class AppNotification(
     val type: NotificationType,
-    val title: String,
-    val body: String,
+    val code: NotificationCode,
     val sourcePluginId: String? = null
 )

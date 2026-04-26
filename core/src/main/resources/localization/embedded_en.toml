@@ -7,7 +7,7 @@ native_name = "English"
 locale = "en-US"
 version = "1.0.0"
 author = "QTranslate Team <ahatem925@gmail.com>"
-last_updated = "2025-10-17"
+last_updated = "2026-04-26"
 rtl = false
 
 # ===================================================================
@@ -45,6 +45,7 @@ delete = "Delete"
 rename = "Rename..."
 new = "New..."
 configure = "Configure"
+clear_all = "Clear All"
 auto_detect = "Auto-Detect"
 
 # ===================================================================
