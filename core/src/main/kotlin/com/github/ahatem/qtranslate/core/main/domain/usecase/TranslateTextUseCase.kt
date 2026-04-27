@@ -56,6 +56,11 @@ class TranslateTextUseCase(
     private val logger: Logger = loggerFactory.getLogger("TranslateTextUseCase")
     private var translationJob: Job? = null
 
+    fun cancel() {
+        translationJob?.cancel(CancellationException("Input cleared"))
+        translationJob = null
+    }
+
     // Stored so handleExtraOutput can access current input text for ExtraOutputSource.Input
     private var currentGetState: (() -> MainState)? = null
 
