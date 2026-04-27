@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.core.main.domain.usecase
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.ahatem.qtranslate.core.shared.notification.AppNotification
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
@@ -40,7 +41,7 @@ class CheckForUpdatesUseCase(
      * @param force If `true`, skips the [Configuration.autoCheckForUpdates] guard.
      */
     suspend operator fun invoke(
-        onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit,
+        onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit,
         force: Boolean = false
     ) {
         if (!force && !settingsState.value.autoCheckForUpdates) {
@@ -72,29 +73,20 @@ class CheckForUpdatesUseCase(
 
                     is UpdateCheckResult.AlreadyUpToDate -> {
                         logger.info("Already up to date (version: $currentVersion)")
-                        onStatusUpdate(
-                            "You are using the latest version ($currentVersion)",
-                            NotificationType.SUCCESS,
-                            true
-                        )
+                        onStatusUpdate(StatusCode.AlreadyUpToDate(currentVersion), NotificationType.SUCCESS, true)
                     }
                 }
             }
             .onErr { error ->
                 logger.error("Update check failed: ${error.message}", error.cause)
 
-                val userMessage = when (error) {
-                    is UpdaterError.NetworkError ->
-                        "Update check failed. Please check your internet connection and try again."
-
-                    is UpdaterError.ParseError ->
-                        "Update check failed. The server returned unexpected data. Please try again later."
-
-                    is UpdaterError.UnknownError ->
-                        "Update check failed. An unexpected error occurred. Please try again later."
+                val code = when (error) {
+                    is UpdaterError.NetworkError -> StatusCode.UpdateCheckNetworkError
+                    is UpdaterError.ParseError   -> StatusCode.UpdateCheckParseError
+                    is UpdaterError.UnknownError -> StatusCode.UpdateCheckUnknownError
                 }
 
-                onStatusUpdate(userMessage, NotificationType.ERROR, true)
+                onStatusUpdate(code, NotificationType.ERROR, true)
             }
     }
 }

@@ -14,6 +14,7 @@ import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.AppConstants
+import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.onErr
@@ -35,27 +36,27 @@ class HandleTextToSpeechUseCase(
         currentState: MainState,
         textSource: TextSource,
         textOverride: String?,
-        onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit
+        onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
     ) {
         val textToSynthesize = textOverride ?: getTextFromSource(currentState, textSource)
         val language = determineLanguage(currentState, textSource)
 
         if (textToSynthesize.isBlank()) {
             logger.debug("TTS skipped: text is blank")
-            onStatusUpdate("No text to speak.", NotificationType.WARNING, true)
+            onStatusUpdate(StatusCode.NoTextToSpeak, NotificationType.WARNING, true)
             return
         }
 
         if (language == null) {
             logger.warn("Cannot determine language for TTS")
-            onStatusUpdate("Cannot determine the language for the selected text.", NotificationType.WARNING, true)
+            onStatusUpdate(StatusCode.CannotDetermineLanguage, NotificationType.WARNING, true)
             return
         }
 
         val ttsService = activeServiceManager.getActiveService<TextToSpeech>(ServiceType.TTS)
         if (ttsService == null) {
             logger.warn("No TTS service available")
-            onStatusUpdate("No Text-to-Speech service is active.", NotificationType.WARNING, true)
+            onStatusUpdate(StatusCode.NoTtsServiceActive, NotificationType.WARNING, true)
             return
         }
 
@@ -67,16 +68,12 @@ class HandleTextToSpeechUseCase(
 
         if (!languageSupported) {
             logger.warn("TTS service '${ttsService.name}' does not support language: $language")
-            onStatusUpdate(
-                "The active TTS service (${ttsService.name}) does not support the selected language.",
-                NotificationType.WARNING,
-                true
-            )
+            onStatusUpdate(StatusCode.TtsLanguageNotSupported(ttsService.name), NotificationType.WARNING, true)
             return
         }
 
         logger.info("Starting TTS with '${ttsService.name}' for $textSource, language: $language")
-        onStatusUpdate("Converting text to speech...", NotificationType.INFO, false)
+        onStatusUpdate(StatusCode.ConvertingToSpeech, NotificationType.INFO, false)
 
         val request = TTSRequest.ByLanguage(text = textToSynthesize, language = language)
 
@@ -86,7 +83,7 @@ class HandleTextToSpeechUseCase(
 
         if (result == null) {
             logger.error("TTS timed out after ${AppConstants.TTS_TIMEOUT_MS}ms")
-            onStatusUpdate("Text-to-speech timed out. Please try again.", NotificationType.ERROR, true)
+            onStatusUpdate(StatusCode.TtsTimeout, NotificationType.ERROR, true)
             return
         }
 
@@ -95,14 +92,14 @@ class HandleTextToSpeechUseCase(
                 when (val audio = response.audio) {
                     is TTSAudio.Bytes -> {
                         logger.info("TTS successful — playing ${audio.data.size} bytes (${audio.format})")
-                        onStatusUpdate("Playing audio...", NotificationType.INFO, false)
+                        onStatusUpdate(StatusCode.PlayingAudio, NotificationType.INFO, false)
                         audioPlayer.play(audio)
-                        onStatusUpdate("Audio playback complete.", NotificationType.SUCCESS, true)
+                        onStatusUpdate(StatusCode.AudioPlaybackComplete, NotificationType.SUCCESS, true)
                     }
 
                     is TTSAudio.StreamUrl -> {
                         logger.info("TTS returned stream URL — downloading audio")
-                        onStatusUpdate("Downloading audio...", NotificationType.INFO, false)
+                        onStatusUpdate(StatusCode.DownloadingAudio, NotificationType.INFO, false)
 
                         val bytes: ByteArray? = withContext(Dispatchers.IO) {
                             runCatching {
@@ -112,12 +109,12 @@ class HandleTextToSpeechUseCase(
 
                         if (bytes == null || bytes.isEmpty()) {
                             logger.error("Failed to download audio stream from ${audio.url}")
-                            onStatusUpdate("Failed to download audio stream.", NotificationType.ERROR, true)
+                            onStatusUpdate(StatusCode.AudioDownloadFailed, NotificationType.ERROR, true)
                         } else {
                             logger.info("Stream downloaded — playing ${bytes.size} bytes (${audio.format})")
-                            onStatusUpdate("Playing audio...", NotificationType.INFO, false)
+                            onStatusUpdate(StatusCode.PlayingAudio, NotificationType.INFO, false)
                             audioPlayer.play(TTSAudio.Bytes(bytes, audio.format))
-                            onStatusUpdate("Audio playback complete.", NotificationType.SUCCESS, true)
+                            onStatusUpdate(StatusCode.AudioPlaybackComplete, NotificationType.SUCCESS, true)
                         }
                     }
                 }
@@ -125,7 +122,7 @@ class HandleTextToSpeechUseCase(
             .onErr { error ->
                 logger.error("TTS failed: ${error.message}", error.cause)
                 val summary = error.message?.lines()?.firstOrNull()?.take(120) ?: "Unknown error"
-                onStatusUpdate("Text-to-Speech failed: $summary", NotificationType.ERROR, true)
+                onStatusUpdate(StatusCode.TtsFailed(summary), NotificationType.ERROR, true)
             }
     }
 

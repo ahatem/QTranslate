@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.core.main.domain.usecase.*
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.AppConstants
+import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.shared.arch.Store
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
@@ -374,10 +375,10 @@ class MainStore(
     }
 
     private suspend fun updateStatusBar(
-        text: String,
+        code: StatusCode,
         type: NotificationType,
         isTemporary: Boolean
     ) {
-        _eventChannel.send(MainEvent.UpdateStatusBar(text, type, isTemporary))
+        _eventChannel.send(MainEvent.UpdateStatusBar(code, type, isTemporary))
     }
 }
