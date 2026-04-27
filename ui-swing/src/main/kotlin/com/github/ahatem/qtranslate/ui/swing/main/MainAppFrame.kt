@@ -643,7 +643,16 @@ class MainAppFrame(
             onShowDictionary = { /* TODO */ },
             onRecognizeText = { openSnippingTool() },
             onShowHistory = { showHistoryDialog() },
-            onShowSettings = { /* TODO */ },
+            onShowSettings = {
+                runOnUi {
+                    val dialog = createSettingsDialog()
+                    dialog.applyComponentOrientation(
+                        if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
+                        else ComponentOrientation.LEFT_TO_RIGHT
+                    )
+                    dialog.isVisible = true
+                }
+            },
             onToggleHotkeys = { enabled ->
                 settingsStore.dispatch(
                     SettingsIntent.ToggleSetting { it.copy(isGlobalHotkeysEnabled = enabled) }
