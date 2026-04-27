@@ -55,7 +55,7 @@ class RewriteUseCase(
             },
             failure = { error ->
                 logger.error("Rewrite failed: ${error.message}", error.cause)
-                onStatusUpdate("Rewrite failed: ${error.message}", NotificationType.ERROR, true)
+                onStatusUpdate("Rewrite failed: ${error.message?.lines()?.firstOrNull()?.take(120)}", NotificationType.ERROR, true)
                 ""
             }
         )

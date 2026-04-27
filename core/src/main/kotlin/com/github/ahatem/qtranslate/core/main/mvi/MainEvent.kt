@@ -23,6 +23,13 @@ sealed interface MainEvent : UiEvent {
      */
     data class PasteTranslation(val translatedText: String) : MainEvent
 
+    data class ShowUpdateDialog(
+        val newVersion: String,
+        val currentVersion: String,
+        val releaseNotes: String,
+        val downloadUrl: String?
+    ) : MainEvent
+
     data class UpdateStatusBar(
         val message: String,
         val type: NotificationType = NotificationType.INFO,

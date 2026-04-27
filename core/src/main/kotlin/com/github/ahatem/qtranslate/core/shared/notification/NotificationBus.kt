@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 class NotificationBus {
-    private val _notifications = MutableSharedFlow<AppNotification>(extraBufferCapacity = 5)
+    private val _notifications = MutableSharedFlow<AppNotification>(replay = 10, extraBufferCapacity = 5)
     val notifications = _notifications.asSharedFlow()
 
     suspend fun post(notification: AppNotification) {

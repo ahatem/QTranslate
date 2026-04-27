@@ -45,6 +45,7 @@ delete = "Töröl"
 rename = "Átnevez…"
 new = "Új…"
 configure = "Beállítás"
+clear_all = "Az összes törlése"
 auto_detect = "Automatikus felismerés"
 
 # ===================================================================

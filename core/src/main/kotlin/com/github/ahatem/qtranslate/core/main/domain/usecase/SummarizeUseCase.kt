@@ -55,7 +55,7 @@ class SummarizeUseCase(
             },
             failure = { error ->
                 logger.error("Summarize failed: ${error.message}", error.cause)
-                onStatusUpdate("Summarize failed: ${error.message}", NotificationType.ERROR, true)
+                onStatusUpdate("Summarize failed: ${error.message?.lines()?.firstOrNull()?.take(120)}", NotificationType.ERROR, true)
                 ""
             }
         )

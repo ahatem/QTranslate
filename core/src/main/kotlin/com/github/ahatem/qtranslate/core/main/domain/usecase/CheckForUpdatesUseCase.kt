@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.ahatem.qtranslate.core.shared.notification.AppNotification
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
+import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
 import com.github.ahatem.qtranslate.core.updater.Updater
 import com.github.ahatem.qtranslate.core.updater.UpdaterError
 import com.github.ahatem.qtranslate.core.updater.data.UpdateCheckResult
@@ -58,17 +59,14 @@ class CheckForUpdatesUseCase(
 
                         notificationBus.post(
                             AppNotification(
-                                title = "Update available",
-                                body = "Version ${info.releaseName} is now available for download.",
                                 type = NotificationType.INFO,
-                                sourcePluginId = null
+                                code = NotificationCode.UpdateAvailable(
+                                    newVersion = info.releaseName,
+                                    currentVersion = currentVersion,
+                                    releaseNotes = info.releaseNotes,
+                                    downloadUrl = info.downloadUrl
+                                )
                             )
-                        )
-
-                        onStatusUpdate(
-                            "Update available: ${info.releaseName}",
-                            NotificationType.INFO,
-                            true
                         )
                     }
 

@@ -71,7 +71,7 @@ class PerformSpellCheckUseCase(
             },
             failure = { error ->
                 logger.error("Spell check failed: ${error.message}", error.cause)
-                onStatusUpdate("Spell check failed: ${error.message}", NotificationType.WARNING, true)
+                onStatusUpdate("Spell check failed: ${error.message?.lines()?.firstOrNull()?.take(120)}", NotificationType.WARNING, true)
                 emptyList()
             }
         )

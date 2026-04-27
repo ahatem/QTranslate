@@ -15,8 +15,12 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
 import com.github.ahatem.qtranslate.ui.swing.about.InfoDialog
 import com.github.ahatem.qtranslate.ui.swing.about.InfoDialogState
+import com.github.ahatem.qtranslate.ui.swing.main.statusbar.NotificationPopover
+import com.github.ahatem.qtranslate.ui.swing.update.UpdateDialog
+import com.github.ahatem.qtranslate.ui.swing.update.UpdateDialogState
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
 import com.github.ahatem.qtranslate.ui.swing.main.menus.*
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBar
@@ -53,7 +57,16 @@ class MainAppFrame(
     private var trayIcon: TrayIcon? = null
 
     private val aboutDialog by lazy { InfoDialog(this) }
+    private val updateDialog by lazy { UpdateDialog(this) }
     private val loadingIndicator by lazy { LoadingIndicator(this) }
+
+    private val notificationPopover by lazy {
+        NotificationPopover(
+            emptyLabel = localizer.getString("main_window_status_bar.notifications_empty_tooltip"),
+            clearAllLabel = localizer.getString("common.clear_all"),
+            onCleared = { statusBarController.onPopoverCleared() },
+        )
+    }
 
     private val quickTranslateDialog by lazy {
         QuickTranslateDialog(
@@ -96,7 +109,8 @@ class MainAppFrame(
         localizer = localizer,
         dispatch = { mainStore.dispatch(it) },
         dispatchSettings = { settingsStore.dispatch(it) },
-        onOpenSnippingTool = { openSnippingTool() }
+        onOpenSnippingTool = { openSnippingTool() },
+        onNotificationsClicked = { notificationPopover.show(mainContentView.statusBar) }
     )
 
     private val globalKeyListener = MainGlobalKeyListener(
@@ -273,33 +287,49 @@ class MainAppFrame(
                 }
         }
 
-        // Status bar messages
+        // Status bar loading spinner
         appScope.launch(handler) {
-            mainStore.events
-                .filterIsInstance<MainEvent.UpdateStatusBar>()
-                .collect { event ->
+            mainStore.state
+                .map { it.isLoading }
+                .distinctUntilChanged()
+                .collect { loading ->
                     withContext(Dispatchers.Swing) {
+                        statusBarController.setLoading(loading)
+                    }
+                }
+        }
+
+        // Single collector for all MainEvents — avoids channel-race where two separate
+        // filterIsInstance collectors compete and one silently drops events it doesn't match.
+        appScope.launch(handler) {
+            mainStore.events.collect { event ->
+                when (event) {
+                    is MainEvent.UpdateStatusBar -> withContext(Dispatchers.Swing) {
                         statusBarController.handleEvent(event)
                     }
-                }
-        }
-
-        // Paste translation back — replaces selected text with the translation result
-        appScope.launch(handler) {
-            mainStore.events
-                .filterIsInstance<MainEvent.PasteTranslation>()
-                .collect { event ->
-                    if (event.translatedText.isNotBlank()) {
+                    is MainEvent.PasteTranslation -> if (event.translatedText.isNotBlank()) {
                         pasteTextToActiveApp(event.translatedText)
                     }
+                    is MainEvent.ShowUpdateDialog -> withContext(Dispatchers.Swing) {
+                        showUpdateDialog(NotificationCode.UpdateAvailable(
+                            newVersion = event.newVersion,
+                            currentVersion = event.currentVersion,
+                            releaseNotes = event.releaseNotes,
+                            downloadUrl = event.downloadUrl
+                        ))
+                    }
                 }
+            }
         }
 
-        // Plugin and system notifications — routed to the status bar
+        // Background/system notifications — UpdateAvailable → dialog; everything else → popover
         appScope.launch(handler) {
             notificationBus.notifications.collect { notification ->
                 withContext(Dispatchers.Swing) {
-                    statusBarController.handleNotification(notification)
+                    when (val code = notification.code) {
+                        is NotificationCode.UpdateAvailable -> showUpdateDialog(code)
+                        else -> statusBarController.addToPopover(notification)
+                    }
                 }
             }
         }
@@ -870,52 +900,103 @@ class MainAppFrame(
         runOnUi { aboutDialog.showDialog(state) }
     }
 
+    private fun showUpdateDialog(code: NotificationCode.UpdateAvailable) {
+        val state = UpdateDialogState(
+            title = localizer.getString("update_dialog.title"),
+            header = localizer.getString("update_dialog.header"),
+            details = localizer.getString("update_dialog.details_format", code.newVersion, code.currentVersion),
+            releaseNotes = code.releaseNotes,
+            skipButton = localizer.getString("update_dialog.skip_button"),
+            remindLaterButton = localizer.getString("update_dialog.remind_later_button"),
+            downloadButton = localizer.getString("update_dialog.download_button"),
+            downloadUrl = code.downloadUrl,
+            onSkip = {},
+            onRemindLater = {}
+        )
+        runOnUi { updateDialog.show(state) }
+    }
+
     inner class StatusBarController(
         private val statusBar: StatusBar,
         private val scope: CoroutineScope,
         private val defaultMessage: String,
     ) {
         private var clearMessageJob: Job? = null
+        private var currentMessage: String = defaultMessage
+        private var currentType: NotificationType = NotificationType.INFO
+        private var isLoading: Boolean = false
+        private var unreadCount: Int = 0
 
         init {
-            renderMessage(defaultMessage, NotificationType.INFO)
+            render()
         }
 
+        /** Called for transient action feedback ("Translating…", "Playing audio…"). */
         fun handleEvent(event: MainEvent.UpdateStatusBar) {
             clearMessageJob?.cancel()
-            renderMessage(event.message, event.type)
+            currentMessage = event.message
+            currentType = event.type
+            render()
             if (event.isTemporary) {
                 clearMessageJob = scope.launch {
                     delay(AppConstants.STATUS_MESSAGE_DURATION_MS)
-                    if (statusBar.text() == event.message) {
-                        renderMessage(defaultMessage, NotificationType.INFO)
+                    if (currentMessage == event.message) {
+                        currentMessage = defaultMessage
+                        currentType = NotificationType.INFO
+                        render()
                     }
                 }
             }
         }
 
-        fun handleNotification(notification: com.github.ahatem.qtranslate.core.shared.notification.AppNotification) {
-            clearMessageJob?.cancel()
-            renderMessage(notification.body, notification.type)
-            if (notification.type == NotificationType.INFO) {
-                clearMessageJob = scope.launch {
-                    delay(AppConstants.STATUS_MESSAGE_DURATION_MS)
-                    if (statusBar.text() == notification.body) {
-                        renderMessage(defaultMessage, NotificationType.INFO)
-                    }
-                }
-            }
+        /** Called for background/system events — adds to popover, updates bell badge. */
+        fun addToPopover(notification: com.github.ahatem.qtranslate.core.shared.notification.AppNotification) {
+            val message = resolveNotificationMessage(notification.code)
+            notificationPopover.addNotification(NotificationPopover.NotificationEntry(message, notification.type))
+            unreadCount++
+            render()
         }
 
-        private fun renderMessage(message: String, type: NotificationType) {
+        /** Reflects the main loading state (translation / OCR in progress). */
+        fun setLoading(loading: Boolean) {
+            if (isLoading == loading) return
+            isLoading = loading
+            render()
+        }
+
+        /** Called when the user clears all notifications. */
+        fun onPopoverCleared() {
+            unreadCount = 0
+            render()
+        }
+
+        private fun bellTooltip(): String {
+            val base = localizer.getString("main_window_status_bar.notifications_tooltip")
+            return if (unreadCount > 0) "$base ($unreadCount)" else base
+        }
+
+        private fun render() {
             statusBar.render(
                 StatusBarState(
-                    message = message,
-                    type = type,
-                    notificationTooltip = localizer.getString("main_window_status_bar.notifications_tooltip"),
+                    message = currentMessage,
+                    type = currentType,
+                    isLoading = isLoading,
+                    notificationTooltip = bellTooltip(),
                     isNotificationButtonEnabled = true
                 )
             )
         }
+
+        private fun resolveNotificationMessage(code: NotificationCode): String = when (code) {
+            is NotificationCode.LanguageNotSupported ->
+                localizer.getString("notifications.language_not_supported_format", code.lang, code.serviceId)
+            is NotificationCode.TtsNotSupported ->
+                localizer.getString("notifications.tts_not_supported_format", code.serviceId)
+            is NotificationCode.UnknownError ->
+                localizer.getString("notifications.unknown_error")
+            is NotificationCode.Custom -> if (code.title.isNotBlank()) "${code.title}: ${code.body}" else code.body
+            is NotificationCode.UpdateAvailable -> ""
+        }
+
     }
 }

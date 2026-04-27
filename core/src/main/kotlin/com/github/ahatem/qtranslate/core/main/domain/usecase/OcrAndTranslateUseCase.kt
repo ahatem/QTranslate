@@ -75,7 +75,7 @@ class OcrAndTranslateUseCase(
             },
             failure = { error ->
                 logger.error("OCR failed: ${error.message}", error.cause)
-                onStatusUpdate("Text recognition failed: ${error.message}", NotificationType.ERROR, true)
+                onStatusUpdate("Text recognition failed: ${error.message?.lines()?.firstOrNull()?.take(120)}", NotificationType.ERROR, true)
                 ""
             }
         )

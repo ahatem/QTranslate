@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.core.shared.arch.UiState
 data class StatusBarState(
     val message: String,
     val type: NotificationType,
+    val isLoading: Boolean = false,
     val notificationTooltip: String,
     val isNotificationButtonEnabled: Boolean
 ) : UiState

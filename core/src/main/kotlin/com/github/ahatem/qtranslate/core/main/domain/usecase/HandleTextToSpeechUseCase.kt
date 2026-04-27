@@ -124,7 +124,8 @@ class HandleTextToSpeechUseCase(
             }
             .onErr { error ->
                 logger.error("TTS failed: ${error.message}", error.cause)
-                onStatusUpdate("Text-to-Speech failed: ${error.message}", NotificationType.ERROR, true)
+                val summary = error.message?.lines()?.firstOrNull()?.take(120) ?: "Unknown error"
+                onStatusUpdate("Text-to-Speech failed: $summary", NotificationType.ERROR, true)
             }
     }
 

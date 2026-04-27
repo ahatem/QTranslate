@@ -45,6 +45,7 @@ delete = "Excluir"
 rename = "Renomear..."
 new = "Novo..."
 configure = "Configurar"
+clear_all = "Limpar tudo"
 auto_detect = "Detectar automaticamente"
 
 # ===================================================================
