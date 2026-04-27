@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.main
 import com.formdev.flatlaf.FlatLaf
 import com.formdev.flatlaf.extras.components.FlatButton
 import com.formdev.flatlaf.util.FontUtils
+import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.main.mvi.MainEvent
@@ -17,11 +18,17 @@ import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
+import com.github.ahatem.qtranslate.core.history.HistorySnapshot
+import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.ui.swing.about.InfoDialog
 import com.github.ahatem.qtranslate.ui.swing.about.InfoDialogState
+import com.github.ahatem.qtranslate.ui.swing.history.HistoryDialog
+import com.github.ahatem.qtranslate.ui.swing.history.HistoryDialogState
+import com.github.ahatem.qtranslate.ui.swing.history.HistoryEntryState
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.NotificationPopover
 import com.github.ahatem.qtranslate.ui.swing.update.UpdateDialog
 import com.github.ahatem.qtranslate.ui.swing.update.UpdateDialogState
+import java.text.SimpleDateFormat
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
 import com.github.ahatem.qtranslate.ui.swing.main.menus.*
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBar
@@ -59,6 +66,7 @@ class MainAppFrame(
 
     private val aboutDialog by lazy { InfoDialog(this) }
     private val updateDialog by lazy { UpdateDialog(this) }
+    private val historyDialog by lazy { HistoryDialog(this) }
     private val loadingIndicator by lazy { LoadingIndicator(this) }
 
     private val notificationPopover by lazy {
@@ -367,6 +375,20 @@ class MainAppFrame(
                     }
                 }
         }
+
+        // Re-render history dialog whenever history list changes (if dialog is open).
+        appScope.launch(handler) {
+            mainStore.state
+                .map { it.history }
+                .distinctUntilChanged()
+                .collect {
+                    withContext(Dispatchers.Swing) {
+                        if (historyDialog.isVisible) {
+                            historyDialog.render(buildHistoryDialogState())
+                        }
+                    }
+                }
+        }
     }
 
     /**
@@ -477,7 +499,7 @@ class MainAppFrame(
                 )
             },
             onShowDictionary = { /* TODO */ },
-            onShowHistory = { /* TODO */ },
+            onShowHistory = { showHistoryDialog() },
             onShowSettings = {
                 val dialog = createSettingsDialog()
                 dialog.applyComponentOrientation(
@@ -620,7 +642,7 @@ class MainAppFrame(
             onShowApplication = { runOnUi { showAndFocus() } },
             onShowDictionary = { /* TODO */ },
             onRecognizeText = { openSnippingTool() },
-            onShowHistory = { /* TODO */ },
+            onShowHistory = { showHistoryDialog() },
             onShowSettings = { /* TODO */ },
             onToggleHotkeys = { enabled ->
                 settingsStore.dispatch(
@@ -915,6 +937,50 @@ class MainAppFrame(
             onRemindLater = {}
         )
         runOnUi { updateDialog.show(state) }
+    }
+
+    private fun showHistoryDialog() {
+        historyDialog.render(buildHistoryDialogState())
+        historyDialog.isVisible = true
+        historyDialog.toFront()
+    }
+
+    private fun buildHistoryDialogState(): HistoryDialogState {
+        val fmt = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
+        val services = mainStore.state.value.availableServices
+        val entries = mainStore.state.value.history.reversed().map { snap ->
+            val serviceName = services.find { it.id == snap.translatorId }?.name ?: snap.translatorId
+
+            val sourceLanguage = LanguageCode(snap.sourceLanguage).getDisplayName(autoDetectLabel = localizer.getString("common.auto_detect"))
+            val targetLanguage = LanguageCode(snap.targetLanguage).getDisplayName(autoDetectLabel = localizer.getString("common.auto_detect"))
+
+            HistoryEntryState(
+                date = fmt.format(Date(snap.timestamp)),
+                sourceText = snap.inputText.take(80).let { if (snap.inputText.length > 80) "$it…" else it },
+                translatedText = snap.translatedText.take(80).let { if (snap.translatedText.length > 80) "$it…" else it },
+                languages = "$sourceLanguage → $targetLanguage",
+                service = serviceName,
+                snapshot = snap
+            )
+        }
+        return HistoryDialogState(
+            title = localizer.getString("history_dialog.title"),
+            columnDate = localizer.getString("history_dialog.column_date"),
+            columnSource = localizer.getString("history_dialog.column_source"),
+            columnTranslation = localizer.getString("history_dialog.column_translation"),
+            columnLanguages = localizer.getString("history_dialog.column_languages"),
+            columnService = localizer.getString("history_dialog.column_service"),
+            emptyMessage = localizer.getString("history_dialog.empty_message"),
+            clearAllLabel = localizer.getString("common.clear_all"),
+            closeLabel = localizer.getString("common.close"),
+            restoreTooltip = localizer.getString("history_dialog.restore_tooltip"),
+            entries = entries,
+            onEntrySelected = { snapshot ->
+                mainStore.dispatch(MainIntent.RestoreHistoryEntry(snapshot))
+                historyDialog.isVisible = false
+            },
+            onClearAll = { mainStore.dispatch(MainIntent.ClearHistory) }
+        )
     }
 
     inner class StatusBarController(

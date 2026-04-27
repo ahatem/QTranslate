@@ -349,6 +349,13 @@ description = "Оригинальный QTranslate был заброшен. Эт
 
 [history_dialog]
 title = "История переводов"
+column_date = "Дата и время"
+column_source = "Оригинал"
+column_translation = "Перевод"
+column_languages = "Языки"
+column_service = "Сервис"
+empty_message = "История переводов пуста."
+restore_tooltip = "Двойной щелчок для восстановления перевода"
 
 [update_dialog]
 title = "Доступно обновление"

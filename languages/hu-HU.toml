@@ -349,6 +349,13 @@ description = "Az eredeti QTranslate-et már nem fejlesztik tovább. Ez egy telj
 
 [history_dialog]
 title = "Fordítási előzmények"
+column_date = "Dátum és idő"
+column_source = "Forrás"
+column_translation = "Fordítás"
+column_languages = "Nyelvek"
+column_service = "Szolgáltatás"
+empty_message = "Még nincsenek fordítások az előzményekben."
+restore_tooltip = "Dupla kattintás a fordítás visszaállításához"
 
 [update_dialog]
 title = "Frissítés elérhető"

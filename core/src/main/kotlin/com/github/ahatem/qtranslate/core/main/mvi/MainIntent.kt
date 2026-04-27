@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.core.main.mvi
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.ImageData
+import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
 
@@ -68,6 +69,16 @@ sealed interface MainIntent : UiIntent {
      * Redoing past the last history entry clears the input — see [MainStore.handleRedo].
      */
     data object RedoTranslation : MainIntent
+
+    /**
+     * User selected a specific entry in the History dialog to restore.
+     * Restores [snapshot] into the editor and moves [MainState.historyIndex]
+     * to the matching position so undo/redo continues to work correctly.
+     */
+    data class RestoreHistoryEntry(val snapshot: HistorySnapshot) : MainIntent
+
+    /** User clicked "Clear All" in the History dialog. */
+    data object ClearHistory : MainIntent
 
     // ---- Application actions ----
 

@@ -349,6 +349,13 @@ description = "The original QTranslate was abandoned. This is a full rewrite —
 
 [history_dialog]
 title = "Translation History"
+column_date = "Date & Time"
+column_source = "Source"
+column_translation = "Translation"
+column_languages = "Languages"
+column_service = "Service"
+empty_message = "No translations in history yet."
+restore_tooltip = "Double-click to restore this translation"
 
 [update_dialog]
 title = "Update Available"

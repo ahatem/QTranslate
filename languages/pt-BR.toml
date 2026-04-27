@@ -349,6 +349,13 @@ description = "O QTranslate original foi abandonado. Esta é uma reescrita compl
 
 [history_dialog]
 title = "Histórico de Tradução"
+column_date = "Data e Hora"
+column_source = "Fonte"
+column_translation = "Tradução"
+column_languages = "Idiomas"
+column_service = "Serviço"
+empty_message = "Ainda não há traduções no histórico."
+restore_tooltip = "Clique duplo para restaurar esta tradução"
 
 [update_dialog]
 title = "Atualização Disponível"

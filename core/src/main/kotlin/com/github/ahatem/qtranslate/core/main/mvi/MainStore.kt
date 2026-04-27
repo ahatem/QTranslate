@@ -162,6 +162,8 @@ class MainStore(
             MainIntent.UndoTranslation -> handleUndo()
             MainIntent.RedoTranslation -> handleRedo()
             MainIntent.CycleTargetLanguage -> handleCycleTargetLanguage()
+            is MainIntent.RestoreHistoryEntry -> handleRestoreHistoryEntry(intent)
+            MainIntent.ClearHistory -> scope.launch { handleClearHistory() }
 
             // ---- Async operations — launched on scope ----
 
@@ -337,6 +339,29 @@ class MainStore(
                 )
             }
         }
+    }
+
+    private fun handleRestoreHistoryEntry(intent: MainIntent.RestoreHistoryEntry) {
+        val snapshot = intent.snapshot
+        val idx = _state.value.history.indexOf(snapshot)
+        _state.update {
+            it.copy(
+                inputText              = snapshot.inputText,
+                translatedText         = snapshot.translatedText,
+                sourceLanguage         = LanguageCode(snapshot.sourceLanguage),
+                targetLanguage         = LanguageCode(snapshot.targetLanguage),
+                historyIndex           = if (idx >= 0) idx + 1 else it.historyIndex,
+                isLoading              = false,
+                extraOutputText        = "",
+                detectedSourceLanguage = null,
+                spellCheckCorrections  = emptyList()
+            )
+        }
+    }
+
+    private suspend fun handleClearHistory() {
+        historyRepository.clearHistory()
+        _state.update { it.copy(history = emptyList(), historyIndex = 0) }
     }
 
     private suspend fun handleReplaceWithTranslation(selectedText: String) {
