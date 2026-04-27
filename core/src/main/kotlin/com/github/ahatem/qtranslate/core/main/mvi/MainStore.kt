@@ -94,12 +94,34 @@ class MainStore(
 
     @OptIn(FlowPreview::class)
     private fun observeInstantTranslation() {
+        // Immediately clear output when the user erases all input — no debounce.
+        scope.launch {
+            state.map { it.inputText }
+                .distinctUntilChanged()
+                .collect { text ->
+                    if (settingsState.value.isInstantTranslationEnabled && text.isBlank()) {
+                        translateTextUseCase.cancel()
+                        _state.update {
+                            it.copy(
+                                translatedText = "",
+                                extraOutputText = "",
+                                detectedSourceLanguage = null,
+                                isLoading = false
+                            )
+                        }
+                    }
+                }
+        }
+
+        // Debounced translation — only fires when there is enough text to translate.
         scope.launch {
             state.map { it.inputText }
                 .debounce(AppConstants.INSTANT_TRANSLATION_DEBOUNCE_MS)
                 .distinctUntilChanged()
                 .collect { text ->
-                    if (settingsState.value.isInstantTranslationEnabled && text.isNotBlank()) {
+                    if (settingsState.value.isInstantTranslationEnabled
+                        && text.length >= AppConstants.INSTANT_TRANSLATE_MIN_CHARS
+                    ) {
                         translateText()
                     }
                 }
