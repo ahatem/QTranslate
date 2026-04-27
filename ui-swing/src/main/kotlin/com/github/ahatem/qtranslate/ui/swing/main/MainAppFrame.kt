@@ -14,6 +14,7 @@ import com.github.ahatem.qtranslate.core.settings.data.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.core.shared.AppConstants
+import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
 import com.github.ahatem.qtranslate.ui.swing.about.InfoDialog
@@ -934,13 +935,14 @@ class MainAppFrame(
         /** Called for transient action feedback ("Translating…", "Playing audio…"). */
         fun handleEvent(event: MainEvent.UpdateStatusBar) {
             clearMessageJob?.cancel()
-            currentMessage = event.message
+            currentMessage = resolveStatusMessage(event.code)
             currentType = event.type
             render()
             if (event.isTemporary) {
+                val snapshot = currentMessage
                 clearMessageJob = scope.launch {
                     delay(AppConstants.STATUS_MESSAGE_DURATION_MS)
-                    if (currentMessage == event.message) {
+                    if (currentMessage == snapshot) {
                         currentMessage = defaultMessage
                         currentType = NotificationType.INFO
                         render()
@@ -985,6 +987,49 @@ class MainAppFrame(
                     isNotificationButtonEnabled = true
                 )
             )
+        }
+
+        private fun resolveStatusMessage(code: StatusCode): String = when (code) {
+            StatusCode.Translating                  -> localizer.getString("status_bar.translating")
+            StatusCode.TranslationComplete          -> localizer.getString("status_bar.translation_complete")
+            StatusCode.TranslationTimeout           -> localizer.getString("status_bar.translation_timeout")
+            is StatusCode.TranslationFailed         -> localizer.getString("status_bar.translation_failed", code.summary)
+            StatusCode.NoTranslatorActive           -> localizer.getString("status_bar.no_translator_active")
+            StatusCode.PerformingBackwardTranslation -> localizer.getString("status_bar.performing_backward_translation")
+            is StatusCode.UnexpectedError           -> localizer.getString("status_bar.unexpected_error", code.summary)
+            StatusCode.NoTextToSpeak                -> localizer.getString("status_bar.no_text_to_speak")
+            StatusCode.CannotDetermineLanguage      -> localizer.getString("status_bar.cannot_determine_language")
+            StatusCode.NoTtsServiceActive           -> localizer.getString("status_bar.no_tts_active")
+            is StatusCode.TtsLanguageNotSupported   -> localizer.getString("status_bar.tts_language_not_supported", code.serviceName)
+            StatusCode.ConvertingToSpeech           -> localizer.getString("status_bar.converting_to_speech")
+            StatusCode.TtsTimeout                   -> localizer.getString("status_bar.tts_timeout")
+            StatusCode.PlayingAudio                 -> localizer.getString("status_bar.playing_audio")
+            StatusCode.AudioPlaybackComplete        -> localizer.getString("status_bar.audio_playback_complete")
+            StatusCode.DownloadingAudio             -> localizer.getString("status_bar.downloading_audio")
+            StatusCode.AudioDownloadFailed          -> localizer.getString("status_bar.audio_download_failed")
+            is StatusCode.TtsFailed                 -> localizer.getString("status_bar.tts_failed", code.summary)
+            StatusCode.NoOcrServiceActive           -> localizer.getString("status_bar.no_ocr_active")
+            StatusCode.RecognizingText              -> localizer.getString("status_bar.recognizing_text")
+            StatusCode.OcrTimeout                   -> localizer.getString("status_bar.ocr_timeout")
+            StatusCode.NoTextInImage                -> localizer.getString("status_bar.no_text_in_image")
+            StatusCode.OcrComplete                  -> localizer.getString("status_bar.ocr_complete")
+            is StatusCode.OcrFailed                 -> localizer.getString("status_bar.ocr_failed", code.summary)
+            StatusCode.NoSummarizerActive           -> localizer.getString("status_bar.no_summarizer_active")
+            StatusCode.Summarizing                  -> localizer.getString("status_bar.summarizing")
+            StatusCode.SummarizeTimeout             -> localizer.getString("status_bar.summarize_timeout")
+            StatusCode.SummaryReady                 -> localizer.getString("status_bar.summary_ready")
+            is StatusCode.SummarizeFailed           -> localizer.getString("status_bar.summarize_failed", code.summary)
+            StatusCode.NoRewriterActive             -> localizer.getString("status_bar.no_rewriter_active")
+            StatusCode.Rewriting                    -> localizer.getString("status_bar.rewriting")
+            StatusCode.RewriteTimeout               -> localizer.getString("status_bar.rewrite_timeout")
+            StatusCode.RewriteReady                 -> localizer.getString("status_bar.rewrite_ready")
+            is StatusCode.RewriteFailed             -> localizer.getString("status_bar.rewrite_failed", code.summary)
+            StatusCode.SpellCheckTimeout            -> localizer.getString("status_bar.spell_check_timeout")
+            is StatusCode.SpellCheckFailed          -> localizer.getString("status_bar.spell_check_failed", code.summary)
+            is StatusCode.AlreadyUpToDate           -> localizer.getString("status_bar.already_up_to_date", code.version)
+            StatusCode.UpdateCheckNetworkError      -> localizer.getString("status_bar.update_check_network_error")
+            StatusCode.UpdateCheckParseError        -> localizer.getString("status_bar.update_check_parse_error")
+            StatusCode.UpdateCheckUnknownError      -> localizer.getString("status_bar.update_check_unknown_error")
         }
 
         private fun resolveNotificationMessage(code: NotificationCode): String = when (code) {

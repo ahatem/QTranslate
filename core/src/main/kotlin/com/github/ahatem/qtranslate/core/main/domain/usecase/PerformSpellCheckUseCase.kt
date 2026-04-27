@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckRequest
 import com.github.ahatem.qtranslate.api.spellchecker.SpellChecker
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
+import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.fold
@@ -35,7 +36,7 @@ class PerformSpellCheckUseCase(
     suspend operator fun invoke(
         currentState: MainState,
         text: String,
-        onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit
+        onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
     ): List<Correction> {
         if (text.isBlank()) {
             logger.debug("Spell check skipped: text is blank")
@@ -60,7 +61,7 @@ class PerformSpellCheckUseCase(
 
         if (result == null) {
             logger.warn("Spell check timed out after ${SPELL_CHECK_TIMEOUT_MS}ms")
-            onStatusUpdate("Spell check timed out.", NotificationType.WARNING, true)
+            onStatusUpdate(StatusCode.SpellCheckTimeout, NotificationType.WARNING, true)
             return emptyList()
         }
 
@@ -71,7 +72,8 @@ class PerformSpellCheckUseCase(
             },
             failure = { error ->
                 logger.error("Spell check failed: ${error.message}", error.cause)
-                onStatusUpdate("Spell check failed: ${error.message?.lines()?.firstOrNull()?.take(120)}", NotificationType.WARNING, true)
+                val summary = error.message?.lines()?.firstOrNull()?.take(120) ?: "Unknown error"
+                onStatusUpdate(StatusCode.SpellCheckFailed(summary), NotificationType.WARNING, true)
                 emptyList()
             }
         )

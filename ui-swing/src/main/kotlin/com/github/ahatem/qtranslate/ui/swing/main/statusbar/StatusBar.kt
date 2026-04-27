@@ -30,7 +30,7 @@ class StatusBar(
 
         val leftPanel = JPanel(BorderLayout(4, 0)).apply {
             isOpaque = false
-            add(spinner, BorderLayout.WEST)
+            add(spinner, BorderLayout.LINE_START)
             add(chip, BorderLayout.CENTER)
         }
 
@@ -38,7 +38,7 @@ class StatusBar(
             border = BorderFactory.createEmptyBorder(4, 8, 4, 8)
             isOpaque = false
             add(leftPanel, BorderLayout.CENTER)
-            add(notificationButton, BorderLayout.EAST)
+            add(notificationButton, BorderLayout.LINE_END)
         }
 
         add(contentPanel, BorderLayout.CENTER)
@@ -91,15 +91,18 @@ class StatusBar(
             val chipW = fm.stringWidth(currentText) + 16
             val chipY = (height - chipH) / 2
 
+            val isLtr = componentOrientation.isLeftToRight
+            val chipX = if (isLtr) 0 else width - chipW
+
             val color = typeColor()
 
             if (currentType != NotificationType.INFO) {
                 g2.color = Color(color.red, color.green, color.blue, 28)
-                g2.fill(RoundRectangle2D.Float(0f, chipY.toFloat(), chipW.toFloat(), chipH.toFloat(), chipH.toFloat(), chipH.toFloat()))
+                g2.fill(RoundRectangle2D.Float(chipX.toFloat(), chipY.toFloat(), chipW.toFloat(), chipH.toFloat(), chipH.toFloat(), chipH.toFloat()))
             }
 
             g2.color = color
-            g2.drawString(currentText, 8, chipY + fm.ascent + 3)
+            g2.drawString(currentText, chipX + 8, chipY + fm.ascent + 3)
             g2.dispose()
         }
 

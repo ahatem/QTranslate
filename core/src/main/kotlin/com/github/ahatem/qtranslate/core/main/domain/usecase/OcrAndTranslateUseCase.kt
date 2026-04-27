@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.api.ocr.OCRRequest
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
+import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.fold
@@ -32,17 +33,17 @@ class OcrAndTranslateUseCase(
     suspend operator fun invoke(
         image: ImageData,
         currentState: MainState,
-        onStatusUpdate: suspend (message: String, type: NotificationType, isTemporary: Boolean) -> Unit
+        onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
     ): String {
         val ocrService = activeServiceManager.getActiveService<OCR>(ServiceType.OCR)
         if (ocrService == null) {
             logger.warn("No OCR service available")
-            onStatusUpdate("No OCR (Text Recognition) service is active.", NotificationType.ERROR, true)
+            onStatusUpdate(StatusCode.NoOcrServiceActive, NotificationType.ERROR, true)
             return ""
         }
 
         logger.info("Starting OCR with '${ocrService.name}'")
-        onStatusUpdate("Recognizing text from image...", NotificationType.INFO, false)
+        onStatusUpdate(StatusCode.RecognizingText, NotificationType.INFO, false)
 
         val request = OCRRequest(image, language = currentState.sourceLanguage)
         logger.debug("OCR request: language=${currentState.sourceLanguage}")
@@ -53,11 +54,7 @@ class OcrAndTranslateUseCase(
 
         if (result == null) {
             logger.error("OCR timed out after ${OCR_TIMEOUT_MS}ms")
-            onStatusUpdate(
-                "OCR timed out. Please try again with a smaller image.",
-                NotificationType.ERROR,
-                true
-            )
+            onStatusUpdate(StatusCode.OcrTimeout, NotificationType.ERROR, true)
             return ""
         }
 
@@ -65,17 +62,18 @@ class OcrAndTranslateUseCase(
             success = { response ->
                 if (response.text.isBlank()) {
                     logger.warn("No text detected in image")
-                    onStatusUpdate("No text was found in the captured image.", NotificationType.WARNING, true)
+                    onStatusUpdate(StatusCode.NoTextInImage, NotificationType.WARNING, true)
                     ""
                 } else {
                     logger.info("OCR successful: detected ${response.text.length} characters")
-                    onStatusUpdate("Text recognized successfully!", NotificationType.SUCCESS, true)
+                    onStatusUpdate(StatusCode.OcrComplete, NotificationType.SUCCESS, true)
                     response.text
                 }
             },
             failure = { error ->
                 logger.error("OCR failed: ${error.message}", error.cause)
-                onStatusUpdate("Text recognition failed: ${error.message?.lines()?.firstOrNull()?.take(120)}", NotificationType.ERROR, true)
+                val summary = error.message?.lines()?.firstOrNull()?.take(120) ?: "Unknown error"
+                onStatusUpdate(StatusCode.OcrFailed(summary), NotificationType.ERROR, true)
                 ""
             }
         )
