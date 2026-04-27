@@ -349,6 +349,13 @@ description = "Das ursprüngliche QTranslate wurde eingestellt. Dies ist eine ko
 
 [history_dialog]
 title = "Übersetzungsverlauf"
+column_date = "Datum & Uhrzeit"
+column_source = "Quelle"
+column_translation = "Übersetzung"
+column_languages = "Sprachen"
+column_service = "Dienst"
+empty_message = "Noch keine Übersetzungen im Verlauf."
+restore_tooltip = "Doppelklick, um diese Übersetzung wiederherzustellen"
 
 [update_dialog]
 title = "Update verfügbar"

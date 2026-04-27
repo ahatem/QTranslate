@@ -349,6 +349,13 @@ description = "تم التخلي عن QTranslate الأصلي. هذه إعادة
 
 [history_dialog]
 title = "سجل الترجمة"
+column_date = "التاريخ والوقت"
+column_source = "النص الأصلي"
+column_translation = "الترجمة"
+column_languages = "اللغات"
+column_service = "الخدمة"
+empty_message = "لا توجد ترجمات في السجل بعد."
+restore_tooltip = "انقر مرتين لاستعادة هذه الترجمة"
 
 [update_dialog]
 title = "تحديث متاح"

@@ -349,6 +349,13 @@ description = "Orijinal QTranslate projesi durduruldu. Bu, eklenti tabanlı yap�
 
 [history_dialog]
 title = "Çeviri Geçmişi"
+column_date = "Tarih ve Saat"
+column_source = "Kaynak"
+column_translation = "Çeviri"
+column_languages = "Diller"
+column_service = "Hizmet"
+empty_message = "Geçmişte henüz çeviri yok."
+restore_tooltip = "Bu çeviriyi geri yüklemek için çift tıklayın"
 
 [update_dialog]
 title = "Güncelleme Mevcut"
