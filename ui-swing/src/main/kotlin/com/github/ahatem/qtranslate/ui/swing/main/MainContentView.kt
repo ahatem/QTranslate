@@ -236,7 +236,12 @@ class MainContentView(
                 if (loc > 0 && loc < splitPane.width - dictionaryPanel.minimumSize.width) {
                     splitPane.dividerLocation = loc
                 } else {
-                    splitPane.setDividerLocation(0.65)
+                    // setDividerLocation(double) requires the pane to have a real pixel width.
+                    // Defer via invokeLater so it fires after the layout pass — otherwise
+                    // splitPane.width is still 0 and the panel opens with the wrong size.
+                    javax.swing.SwingUtilities.invokeLater {
+                        splitPane.setDividerLocation(0.65)
+                    }
                 }
             } else {
                 savedDividerLocation = splitPane.dividerLocation
