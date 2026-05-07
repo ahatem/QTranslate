@@ -22,6 +22,8 @@ import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.ui.swing.about.InfoDialog
 import com.github.ahatem.qtranslate.ui.swing.about.InfoDialogState
+import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryDialog
+import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryDialogState
 import com.github.ahatem.qtranslate.ui.swing.history.HistoryDialog
 import com.github.ahatem.qtranslate.ui.swing.history.HistoryDialogState
 import com.github.ahatem.qtranslate.ui.swing.history.HistoryEntryState
@@ -67,6 +69,7 @@ class MainAppFrame(
     private val aboutDialog by lazy { InfoDialog(this) }
     private val updateDialog by lazy { UpdateDialog(this) }
     private val historyDialog by lazy { HistoryDialog(this) }
+    private val dictionaryDialog by lazy { DictionaryDialog(this) }
     private val loadingIndicator by lazy { LoadingIndicator(this) }
 
     private val notificationPopover by lazy {
@@ -376,6 +379,20 @@ class MainAppFrame(
                 }
         }
 
+        // Persist dictionary panel visibility whenever it changes.
+        appScope.launch(handler) {
+            mainStore.state
+                .map { it.isDictionaryPanelVisible }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { visible ->
+                    settingsStore.dispatch(
+                        SettingsIntent.ToggleSetting { it.copy(showDictionaryPanel = visible) }
+                    )
+                    settingsStore.dispatch(SettingsIntent.SaveChanges)
+                }
+        }
+
         // Re-render history dialog whenever history list changes (if dialog is open).
         appScope.launch(handler) {
             mainStore.state
@@ -385,6 +402,20 @@ class MainAppFrame(
                     withContext(Dispatchers.Swing) {
                         if (historyDialog.isVisible) {
                             historyDialog.render(buildHistoryDialogState())
+                        }
+                    }
+                }
+        }
+
+        // Re-render dictionary dialog when lookup state changes (if dialog is open).
+        appScope.launch(handler) {
+            mainStore.state
+                .map { Triple(it.dictionaryEntries, it.isDictionaryLoading, it.dictionaryFailed) }
+                .distinctUntilChanged()
+                .collect {
+                    withContext(Dispatchers.Swing) {
+                        if (dictionaryDialog.isVisible) {
+                            dictionaryDialog.render(buildDictionaryDialogState())
                         }
                     }
                 }
@@ -498,7 +529,7 @@ class MainAppFrame(
                     SettingsIntent.ToggleSetting { it.copy(extraOutputType = newType) }
                 )
             },
-            onShowDictionary = { /* TODO */ },
+            onShowDictionary = { showDictionaryDialog() },
             onShowHistory = { showHistoryDialog() },
             onShowSettings = {
                 val dialog = createSettingsDialog()
@@ -559,6 +590,7 @@ class MainAppFrame(
             extraOutput = localizer.getString("main_window_main_menu.show_extra_output"),
             viewOptions = localizer.getString("main_window_main_menu.options_submenu"),
             dictionary = localizer.getString("system_tray_menu.dictionary"),
+            isDictionaryPanelOpen = mainStore.state.value.isDictionaryPanelVisible,
             history = localizer.getString("system_tray_menu.history"),
             settings = localizer.getString("main_window_main_menu.settings"),
             help = localizer.getString("main_window_main_menu.help_submenu"),
@@ -640,7 +672,7 @@ class MainAppFrame(
 
         val actions = TrayMenuActions(
             onShowApplication = { runOnUi { showAndFocus() } },
-            onShowDictionary = { /* TODO */ },
+            onShowDictionary = { showDictionaryDialog() },
             onRecognizeText = { openSnippingTool() },
             onShowHistory = { showHistoryDialog() },
             onShowSettings = {
@@ -948,6 +980,72 @@ class MainAppFrame(
         runOnUi { updateDialog.show(state) }
     }
 
+    private fun showDictionaryDialog() {
+        val initialWord = mainStore.state.value.inputText.trim()
+            .takeIf { it.isNotBlank() && !it.contains(' ') } ?: ""
+
+        // Main window visible → toggle the inline panel.
+        if (isVisible) {
+            val wasVisible = mainStore.state.value.isDictionaryPanelVisible
+            mainStore.dispatch(MainIntent.ToggleDictionaryPanel)
+            if (!wasVisible) {
+                mainContentView.setDictionarySearchWord(initialWord)
+                if (initialWord.isNotBlank()) {
+                    mainStore.dispatch(MainIntent.LookupWord(initialWord))
+                }
+            }
+        } else {
+            dictionaryDialog.setSearchWord(initialWord)
+            dictionaryDialog.render(buildDictionaryDialogState())
+            if (initialWord.isNotBlank()) {
+                mainStore.dispatch(MainIntent.LookupWord(initialWord))
+            }
+            dictionaryDialog.isVisible = true
+            dictionaryDialog.toFront()
+        }
+    }
+
+    private fun buildDictionaryDialogState(): DictionaryDialogState {
+        val s = mainStore.state.value
+        val config = settingsStore.state.value.workingConfiguration
+        val availableDicts = s.getAvailableServicesFor(com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY)
+        val selectedDictId = config.getActivePreset()
+            ?.selectedServices?.get(com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY)
+
+        val resolvedLang = when {
+            s.sourceLanguage != LanguageCode.AUTO -> s.sourceLanguage
+            s.detectedSourceLanguage != null      -> s.detectedSourceLanguage!!
+            else                                  -> LanguageCode("en")
+        }
+
+        return DictionaryDialogState(
+            title                 = localizer.getString("dictionary_dialog.title"),
+            lookupButtonLabel     = localizer.getString("dictionary_dialog.lookup_button"),
+            closeLabel            = localizer.getString("common.close"),
+            hintMessage           = localizer.getString("dictionary_dialog.hint_message"),
+            notFoundMessage       = localizer.getString("dictionary_dialog.not_found_message", s.dictionaryWord),
+            loadingMessage        = localizer.getString("dictionary_dialog.loading_message"),
+            errorMessage          = localizer.getString("dictionary_dialog.error_message"),
+            synonymsLabel         = localizer.getString("dictionary_dialog.synonyms_label"),
+            isLoading             = s.isDictionaryLoading,
+            entries               = s.dictionaryEntries,
+            lookedUpWord          = s.dictionaryWord,
+            hasFailed             = s.dictionaryFailed,
+            availableDictionaries = availableDicts,
+            selectedDictionaryId  = selectedDictId,
+            onLookup = { word -> mainStore.dispatch(MainIntent.LookupWord(word, resolvedLang)) },
+            onDictionarySelected = { serviceId ->
+                settingsStore.dispatch(
+                    SettingsIntent.UpdateServiceInActivePreset(
+                        com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY, serviceId
+                    )
+                )
+                val currentWord = mainStore.state.value.dictionaryWord
+                if (currentWord.isNotBlank()) mainStore.dispatch(MainIntent.LookupWord(currentWord, resolvedLang))
+            }
+        )
+    }
+
     private fun showHistoryDialog() {
         historyDialog.render(buildHistoryDialogState())
         historyDialog.isVisible = true
@@ -1101,6 +1199,13 @@ class MainAppFrame(
             is StatusCode.RewriteFailed             -> localizer.getString("status_bar.rewrite_failed", code.summary)
             StatusCode.SpellCheckTimeout            -> localizer.getString("status_bar.spell_check_timeout")
             is StatusCode.SpellCheckFailed          -> localizer.getString("status_bar.spell_check_failed", code.summary)
+            StatusCode.NoWordToLookup               -> localizer.getString("status_bar.no_word_to_lookup")
+            StatusCode.NoDictionaryServiceActive    -> localizer.getString("status_bar.no_dictionary_active")
+            StatusCode.LookingUpWord                -> localizer.getString("status_bar.looking_up_word")
+            StatusCode.DictionaryReady              -> localizer.getString("status_bar.dictionary_ready")
+            is StatusCode.DictionaryNotFound        -> localizer.getString("status_bar.dictionary_not_found", code.word)
+            StatusCode.DictionaryTimeout            -> localizer.getString("status_bar.dictionary_timeout")
+            is StatusCode.DictionaryFailed          -> localizer.getString("status_bar.dictionary_failed", code.summary)
             is StatusCode.AlreadyUpToDate           -> localizer.getString("status_bar.already_up_to_date", code.version)
             StatusCode.UpdateCheckNetworkError      -> localizer.getString("status_bar.update_check_network_error")
             StatusCode.UpdateCheckParseError        -> localizer.getString("status_bar.update_check_parse_error")

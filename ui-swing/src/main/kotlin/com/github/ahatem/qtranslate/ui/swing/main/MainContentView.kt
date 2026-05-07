@@ -27,6 +27,8 @@ import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextPanel
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextState
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelector
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
+import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryPanel
+import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryPanelState
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBar
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.Action
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsState
@@ -36,7 +38,9 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFallbackFon
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFont
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toImageData
 import java.awt.BorderLayout
+import java.awt.Dimension
 import javax.swing.JPanel
+import javax.swing.UIManager
 
 class MainContentView(
     private val iconManager: IconManager,
@@ -45,7 +49,7 @@ class MainContentView(
     private val dispatchSettings: (SettingsIntent) -> Unit,
     private val onOpenSnippingTool: () -> Unit,
     private val onNotificationsClicked: () -> Unit,
-) : JPanel(BorderLayout()) {
+) : JPanel(BorderLayout(0, 0)) {
 
     private val translationHistoryBar: TranslationHistoryBar = TranslationHistoryBar(
         iconManager = iconManager,
@@ -84,30 +88,55 @@ class MainContentView(
             dispatch(MainIntent.ApplyCorrection(original, suggestion))
         },
         onImageDropped = { image -> dispatch(MainIntent.OcrAndTranslateImage(image.toImageData("png"))) },
+        onFindInDictionary = { word -> showDictionaryWithWord(word) },
     )
 
     private val outputTextPanel = OutputTextPanel(
         iconManager = iconManager,
+        localizationManager = localizer,
         onListen = { text -> dispatch(MainIntent.ListenToText(TextSource.Output, text)) },
         onTranslateRequest = { text ->
             dispatch(MainIntent.UpdateInputText(text))
             dispatch(MainIntent.Translate(text))
         },
+        onFindInDictionary = { word -> showDictionaryWithWord(word, currentTargetLanguage) },
     )
 
     private val extraOutputPanel = ExtraOutputPanel(
         iconManager = iconManager,
+        localizationManager = localizer,
         onListen = { text -> dispatch(MainIntent.ListenToText(TextSource.ExtraOutput, text)) },
         onTranslateRequest = { text ->
             dispatch(MainIntent.UpdateInputText(text))
             dispatch(MainIntent.Translate(text))
         },
+        onFindInDictionary = { word -> showDictionaryWithWord(word, currentExtraOutputLanguage) },
     )
 
     val statusBar: StatusBar = StatusBar(
         iconManager = iconManager,
         onNotificationsClicked = { onNotificationsClicked() },
     )
+
+    // Resolved at render time; captured by lambdas so every lookup uses the current language.
+    private var currentLookupLanguage: LanguageCode = LanguageCode("en")
+    private var currentTargetLanguage: LanguageCode = LanguageCode("en")
+    private var currentExtraOutputLanguage: LanguageCode = LanguageCode("en")
+
+    private val dictionaryPanel = DictionaryPanel(
+        onLookup = { word -> dispatch(MainIntent.LookupWord(word, currentLookupLanguage)) },
+        onServiceSelected = { serviceId ->
+            dispatchSettings(SettingsIntent.UpdateServiceInActivePreset(ServiceType.DICTIONARY, serviceId))
+            val word = lastDictionaryKey?.word ?: ""
+            if (word.isNotBlank()) dispatch(MainIntent.LookupWord(word, currentLookupLanguage))
+        },
+        onClose  = { dispatch(MainIntent.ToggleDictionaryPanel) },
+    ).apply {
+        minimumSize = Dimension(220, 0)
+    }
+
+    // Separate wrapper so LayoutManager.switchLayout()'s removeAll() never touches dictionaryPanel.
+    private val contentWrapper = JPanel(BorderLayout())
 
     private val layoutManager = LayoutManager(
         ComponentRegistry(
@@ -118,10 +147,37 @@ class MainContentView(
             outputPanel = outputTextPanel,
             extraOutputPanel = extraOutputPanel,
             statusBar = statusBar
-        ), this
+        ), contentWrapper
     )
 
+    private val splitPane = javax.swing.JSplitPane(
+        javax.swing.JSplitPane.HORIZONTAL_SPLIT, true, contentWrapper, dictionaryPanel
+    ).apply {
+        resizeWeight = 1.0   // main content gets all extra space when window is resized
+        dividerSize  = 0     // collapsed until panel is first shown
+        border       = null
+        dictionaryPanel.isVisible = false
+    }
+
+    private var savedDividerLocation: Int = -1
+
     private var lastState: Pair<MainState, SettingsState>? = null
+    private var lastDictionaryKey: DictionaryKey? = null
+
+    private data class DictionaryKey(
+        val isVisible: Boolean,
+        val isLoading: Boolean,
+        val entries: List<com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry>,
+        val word: String,
+        val hasFailed: Boolean,
+        val lookupLanguage: LanguageCode,
+        val selectedDictionaryId: String?,
+        val dictionaryCount: Int,
+    )
+
+    init {
+        add(splitPane, BorderLayout.CENTER)
+    }
 
     fun render(mainState: MainState, settingsState: SettingsState) {
         val config = settingsState.workingConfiguration
@@ -137,11 +193,91 @@ class MainContentView(
             layoutManager.updateVisibility(config)
         }
 
+        renderDictionaryPanel(mainState)
         renderComponents(mainState, config)
         lastState = mainState to settingsState
     }
 
+    private fun renderDictionaryPanel(mainState: MainState) {
+        // Resolve source language — never pass AUTO to the dictionary API.
+        val resolvedLang = when {
+            mainState.sourceLanguage != LanguageCode.AUTO -> mainState.sourceLanguage
+            mainState.detectedSourceLanguage != null      -> mainState.detectedSourceLanguage!!
+            else                                          -> LanguageCode("en")
+        }
+        currentLookupLanguage = resolvedLang
+
+        val availableDicts = mainState.getAvailableServicesFor(
+            com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY
+        )
+        val selectedDictId = lastState?.second?.workingConfiguration
+            ?.getActivePreset()?.selectedServices
+            ?.get(com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY)
+
+        val key = DictionaryKey(
+            isVisible         = mainState.isDictionaryPanelVisible,
+            isLoading         = mainState.isDictionaryLoading,
+            entries           = mainState.dictionaryEntries,
+            word              = mainState.dictionaryWord,
+            hasFailed         = mainState.dictionaryFailed,
+            lookupLanguage    = resolvedLang,
+            selectedDictionaryId = selectedDictId,
+            dictionaryCount   = availableDicts.size,
+        )
+        if (key == lastDictionaryKey) return
+        lastDictionaryKey = key
+
+        if (dictionaryPanel.isVisible != key.isVisible) {
+            if (key.isVisible) {
+                dictionaryPanel.isVisible = true
+                val dividerPx = UIManager.getInt("SplitPane.dividerSize").coerceAtLeast(4)
+                splitPane.dividerSize = dividerPx
+                val loc = if (savedDividerLocation > 0) savedDividerLocation else -1
+                if (loc > 0 && loc < splitPane.width - dictionaryPanel.minimumSize.width) {
+                    splitPane.dividerLocation = loc
+                } else {
+                    splitPane.setDividerLocation(0.65)
+                }
+            } else {
+                savedDividerLocation = splitPane.dividerLocation
+                dictionaryPanel.isVisible = false
+                splitPane.dividerSize = 0
+            }
+            revalidate()
+            repaint()
+        }
+        if (key.isVisible) {
+            dictionaryPanel.render(
+                DictionaryPanelState(
+                    title                 = localizer.getString("dictionary_dialog.title"),
+                    lookupButtonLabel     = localizer.getString("dictionary_dialog.lookup_button"),
+                    closeLabel            = localizer.getString("common.close"),
+                    hintMessage           = localizer.getString("dictionary_dialog.hint_message"),
+                    notFoundMessage       = localizer.getString("dictionary_dialog.not_found_message", key.word),
+                    loadingMessage        = localizer.getString("dictionary_dialog.loading_message"),
+                    errorMessage          = localizer.getString("dictionary_dialog.error_message"),
+                    synonymsLabel         = localizer.getString("dictionary_dialog.synonyms_label"),
+                    isLoading             = key.isLoading,
+                    entries               = key.entries,
+                    lookedUpWord          = key.word,
+                    hasFailed             = key.hasFailed,
+                    availableDictionaries = availableDicts,
+                    selectedDictionaryId  = key.selectedDictionaryId,
+                )
+            )
+        }
+    }
+
     private fun renderComponents(mainState: MainState, config: Configuration) {
+        currentTargetLanguage = mainState.targetLanguage
+
+        // BackwardTranslate output is in the source language; all other extra output types are in target.
+        currentExtraOutputLanguage = if (config.extraOutputType == ExtraOutputType.BackwardTranslate) {
+            currentLookupLanguage
+        } else {
+            mainState.targetLanguage
+        }
+
         val allLanguages = mainState.availableLanguages
 
         val activePreset = config.getActivePreset()
@@ -342,5 +478,17 @@ class MainContentView(
 
     fun requestFocusOnInput() {
         inputTextPanel.requestFocusInWindow()
+    }
+
+    fun setDictionarySearchWord(word: String) {
+        dictionaryPanel.setSearchWord(word)
+    }
+
+    private fun showDictionaryWithWord(word: String, language: LanguageCode = currentLookupLanguage) {
+        dictionaryPanel.setSearchWord(word)
+        if (!dictionaryPanel.isVisible) {
+            dispatch(MainIntent.ToggleDictionaryPanel)
+        }
+        dispatch(MainIntent.LookupWord(word, language))
     }
 }
