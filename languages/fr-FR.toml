@@ -243,6 +243,7 @@ action_listen = "Écouter la sélection"
 action_ocr = "OCR depuis l'écran"
 action_replace = "Remplacer la sélection par la traduction (expérimental)"
 action_cycle_language = "Changer la langue cible"
+action_show_dictionary = "Afficher le dictionnaire"
 scope_toggle_hint = "Cliquez pour basculer entre Global et Local"
 
 # Default Actions Descriptions

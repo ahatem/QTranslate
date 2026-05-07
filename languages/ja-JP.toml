@@ -243,6 +243,7 @@ action_listen = "選択範囲を読み上げ"
 action_ocr = "画面から OCR"
 action_replace = "選択範囲を翻訳で置換 (試験的)"
 action_cycle_language = "ターゲット言語を切り替え"
+action_show_dictionary = "辞書を表示"
 scope_toggle_hint = "クリックしてグローバルとローカルを切り替え"
 
 # Default Actions Descriptions

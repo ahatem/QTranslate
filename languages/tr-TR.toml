@@ -243,6 +243,7 @@ action_listen = "Seçileni Dinle"
 action_ocr = "Ekrandan OCR Yap"
 action_replace = "Seçileni Çeviri ile Değiştir (deneysel)"
 action_cycle_language = "Hedef Dili Değiştir"
+action_show_dictionary = "Sözlüğü Göster"
 scope_toggle_hint = "Küresel ve Yerel arasında geçiş yapmak için tıklayın"
 
 # Default Actions Descriptions

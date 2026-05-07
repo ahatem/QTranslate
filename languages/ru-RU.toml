@@ -243,6 +243,7 @@ action_listen = "Прослушать выделение"
 action_ocr = "OCR с экрана"
 action_replace = "Заменить выделение переводом (экспер.)"
 action_cycle_language = "Переключить целевой язык"
+action_show_dictionary = "Показать словарь"
 scope_toggle_hint = "Нажмите для переключения между Глобально и Локально"
 
 # Default Actions Descriptions

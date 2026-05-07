@@ -243,6 +243,7 @@ action_listen = "الاستماع للمحدد"
 action_ocr = "التعرف على النص من الشاشة"
 action_replace = "استبدال المحدد بالترجمة (تجريبي)"
 action_cycle_language = "تبديل لغة الهدف"
+action_show_dictionary = "فتح القاموس"
 scope_toggle_hint = "انقر للتبديل بين العالمي والمحلي"
 
 # Default Actions Descriptions

@@ -243,6 +243,7 @@ action_listen = "Listen to Selection"
 action_ocr = "OCR from Screen"
 action_replace = "Replace Selection with Translation (experimental)"
 action_cycle_language = "Cycle Target Language"
+action_show_dictionary = "Show Dictionary"
 scope_toggle_hint = "Click to toggle between Global and Local"
 
 # Default Actions Descriptions
