@@ -10,8 +10,9 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainState
  * This is stateless — no dependencies, pure logic applied to the current [MainState].
  *
  * ### Constraints
- * - Cannot swap if [MainState.sourceLanguage] is [LanguageCode.AUTO] — there is no
- *   specific language to swap to.
+ * - Cannot swap if [MainState.sourceLanguage] is [LanguageCode.AUTO] AND no language
+ *   has been detected yet — there is no concrete language to swap to.
+ *   If a [MainState.detectedSourceLanguage] is available it is used as the new target.
  * - Cannot swap if [MainState.translatedText] is blank — there is nothing to put in
  *   the input field.
  *
@@ -30,13 +31,19 @@ class SwapLanguagesUseCase {
         onStateUpdate: (MainState) -> Unit,
         onTranslateNeeded: () -> Unit
     ) {
-        if (currentState.sourceLanguage == LanguageCode.AUTO) return
+        // When source is AUTO, use the detected language as the new target (if known).
+        val effectiveSource = when {
+            currentState.sourceLanguage != LanguageCode.AUTO -> currentState.sourceLanguage
+            currentState.detectedSourceLanguage != null      -> currentState.detectedSourceLanguage!!
+            else                                             -> return
+        }
+
         if (currentState.translatedText.isBlank()) return
 
         onStateUpdate(
             currentState.copy(
                 sourceLanguage         = currentState.targetLanguage,
-                targetLanguage         = currentState.sourceLanguage,
+                targetLanguage         = effectiveSource,
                 inputText              = currentState.translatedText,
                 translatedText         = "",
                 extraOutputText        = "",

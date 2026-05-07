@@ -62,6 +62,16 @@ sealed class StatusCode {
     object SpellCheckTimeout : StatusCode()
     data class SpellCheckFailed(val summary: String) : StatusCode()
 
+    // ---- Dictionary ----
+
+    object NoWordToLookup : StatusCode()
+    object NoDictionaryServiceActive : StatusCode()
+    object LookingUpWord : StatusCode()
+    object DictionaryReady : StatusCode()
+    data class DictionaryNotFound(val word: String) : StatusCode()
+    object DictionaryTimeout : StatusCode()
+    data class DictionaryFailed(val summary: String) : StatusCode()
+
     // ---- Updates ----
 
     data class AlreadyUpToDate(val version: String) : StatusCode()

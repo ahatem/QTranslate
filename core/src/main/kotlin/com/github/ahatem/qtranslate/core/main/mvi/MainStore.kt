@@ -48,10 +48,13 @@ class MainStore(
     private val swapLanguagesUseCase: SwapLanguagesUseCase,
     private val ocrAndTranslateUseCase: OcrAndTranslateUseCase,
     private val summarizeUseCase: SummarizeUseCase,
-    private val rewriteUseCase: RewriteUseCase
+    private val rewriteUseCase: RewriteUseCase,
+    private val lookupWordUseCase: LookupWordUseCase
 ) : Store<MainState, MainIntent, MainEvent> {
 
-    private val _state = MutableStateFlow(MainState())
+    private val _state = MutableStateFlow(
+        MainState(isDictionaryPanelVisible = settingsState.value.showDictionaryPanel)
+    )
     override val state: StateFlow<MainState> = _state.asStateFlow()
 
     private val _eventChannel = Channel<MainEvent>(Channel.BUFFERED)
@@ -212,6 +215,12 @@ class MainStore(
             is MainIntent.ShowQuickTranslate -> scope.launch {
                 handleShowQuickTranslate(intent)
             }
+
+            is MainIntent.LookupWord -> scope.launch { handleLookupWord(intent) }
+
+            is MainIntent.ToggleDictionaryPanel -> _state.update {
+                it.copy(isDictionaryPanelVisible = !it.isDictionaryPanelVisible)
+            }
         }
     }
 
@@ -263,6 +272,15 @@ class MainStore(
             updateState = { transform -> _state.update(transform) },
             onStatusUpdate = ::updateStatusBar,
             textOverride = textOverride
+        )
+    }
+
+    private suspend fun handleLookupWord(intent: MainIntent.LookupWord) {
+        lookupWordUseCase(
+            word = intent.word,
+            language = intent.language,
+            updateState = { transform -> _state.update(transform) },
+            onStatusUpdate = ::updateStatusBar
         )
     }
 

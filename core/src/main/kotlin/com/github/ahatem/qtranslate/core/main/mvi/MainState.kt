@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.core.main.mvi
 
+import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
@@ -44,6 +45,11 @@ data class MainState(
     val availableLanguages: List<LanguageCode> = emptyList(),
     val history: List<HistorySnapshot> = emptyList(),
     val historyIndex: Int = 0,
+    val dictionaryEntries: List<DictionaryEntry> = emptyList(),
+    val isDictionaryLoading: Boolean = false,
+    val dictionaryWord: String = "",
+    val dictionaryFailed: Boolean = false,
+    val isDictionaryPanelVisible: Boolean = false,
     val spellCheckCorrections: List<Correction> = emptyList(),
     val isQuickTranslateDialogVisible: Boolean = false,
     val isQuickTranslateDialogPinned: Boolean = false,

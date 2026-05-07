@@ -227,6 +227,7 @@ data class Configuration(
     val clearHistoryOnExit: Boolean,
 
     // ---- UI — Main Window ----
+    val showDictionaryPanel: Boolean = false,
     val mainWindowSize: Size? = null,
     val mainWindowPosition: Position? = null,
     val uiFontConfig: FontConfig,
