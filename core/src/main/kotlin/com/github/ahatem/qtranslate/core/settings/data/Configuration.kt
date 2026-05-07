@@ -80,7 +80,8 @@ enum class HotkeyAction {
     OPEN_OCR,
     REPLACE_WITH_TRANSLATION,  // Rob #2 / Davide — translate and replace selected text
     CYCLE_TARGET_LANGUAGE,     // Yan #3 — cycle through available target languages
-    SHOW_DICTIONARY            // open floating dictionary popup
+    SHOW_DICTIONARY,           // open floating dictionary popup
+    TRANSLATE                  // trigger translation (default: Ctrl+Enter, LOCAL)
 }
 
 /**
@@ -147,6 +148,7 @@ data class HotkeyBinding(
             HotkeyBinding(HotkeyAction.REPLACE_WITH_TRANSLATION, keyCode = java.awt.event.KeyEvent.VK_T,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.GLOBAL),
             HotkeyBinding(HotkeyAction.CYCLE_TARGET_LANGUAGE,    keyCode = java.awt.event.KeyEvent.VK_L,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.LOCAL),
             HotkeyBinding(HotkeyAction.SHOW_DICTIONARY,          keyCode = java.awt.event.KeyEvent.VK_D,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.GLOBAL),
+            HotkeyBinding(HotkeyAction.TRANSLATE,                keyCode = java.awt.event.KeyEvent.VK_ENTER,            modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.LOCAL),
         )
     }
 }

@@ -253,6 +253,7 @@ action_ocr = "স্ক্রিন থেকে OCR"
 action_replace = "অনুবাদ দিয়ে নির্বাচন প্রতিস্থাপন করুন (পরীক্ষামূলক)"
 action_cycle_language = "টার্গেট ভাষা পরিবর্তন (সাইকেল)"
 action_show_dictionary = "অভিধান দেখান"
+action_translate = "অনুবাদ করুন"
 scope_toggle_hint = "গ্লোবাল এবং লোকাল এর মধ্যে পরিবর্তন করতে ক্লিক করুন"
 
 # Default Actions Descriptions

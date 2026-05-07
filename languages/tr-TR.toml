@@ -253,6 +253,7 @@ action_ocr = "Ekrandan OCR Yap"
 action_replace = "Seçileni Çeviri ile Değiştir (deneysel)"
 action_cycle_language = "Hedef Dili Değiştir"
 action_show_dictionary = "Sözlüğü Göster"
+action_translate = "Çevir"
 scope_toggle_hint = "Küresel ve Yerel arasında geçiş yapmak için tıklayın"
 
 # Default Actions Descriptions

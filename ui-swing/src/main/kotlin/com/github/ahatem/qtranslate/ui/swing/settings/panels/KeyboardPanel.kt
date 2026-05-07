@@ -31,7 +31,8 @@ class KeyboardPanel(
         HotkeyAction.OPEN_OCR,
         HotkeyAction.REPLACE_WITH_TRANSLATION,
         HotkeyAction.CYCLE_TARGET_LANGUAGE,
-        HotkeyAction.SHOW_DICTIONARY
+        HotkeyAction.SHOW_DICTIONARY,
+        HotkeyAction.TRANSLATE
     )
 
     private val nonEditableActions = setOf(HotkeyAction.SHOW_MAIN_WINDOW)
@@ -242,6 +243,7 @@ class KeyboardPanel(
         HotkeyAction.REPLACE_WITH_TRANSLATION -> localizationManager.getString("settings_hotkeys.action_replace")
         HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizationManager.getString("settings_hotkeys.action_cycle_language")
         HotkeyAction.SHOW_DICTIONARY          -> localizationManager.getString("settings_hotkeys.action_show_dictionary")
+        HotkeyAction.TRANSLATE                -> localizationManager.getString("settings_hotkeys.action_translate")
     }
 
     private fun scopeLabel(scope: HotkeyScope): String = when (scope) {

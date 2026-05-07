@@ -9,10 +9,14 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.BorderLayout
 import java.awt.Point
+import java.awt.event.ActionEvent
+import java.awt.event.KeyEvent
+import javax.swing.AbstractAction
 import javax.swing.JMenuItem
 import javax.swing.JPanel
 import javax.swing.JPopupMenu
 import javax.swing.JSeparator
+import javax.swing.KeyStroke
 
 class OutputTextPanel(
     iconManager: IconManager,
@@ -20,10 +24,11 @@ class OutputTextPanel(
     onListen: (text: String) -> Unit,
     onTranslateRequest: (text: String) -> Unit,
     private val onFindInDictionary: ((String) -> Unit)? = null,
+    private val onEscapePressed: (() -> Unit)? = null,
 ) : JPanel(BorderLayout()), Renderable<OutputTextState> {
 
     private val textPane = AdvancedTextPane(
-        onTextChanged = { /* Read-only */ },
+        onTextChanged = {},
         onListenRequest = onListen,
         onTranslateRequest = onTranslateRequest
     )
@@ -33,10 +38,19 @@ class OutputTextPanel(
     private var dictMenuItem: JMenuItem? = null
     private var dictMenuSeparator: JSeparator? = null
 
+    fun requestFocusOnText() = textPane.requestFocusInWindow()
+
     init {
         add(readOnlyPanel, BorderLayout.CENTER)
 
         textPane.hintText = localizationManager.getString("main_window_editor_context_menu.output_hint")
+
+        onEscapePressed?.let { handler ->
+            textPane.inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "escape-to-input")
+            textPane.actionMap.put("escape-to-input", object : AbstractAction() {
+                override fun actionPerformed(e: ActionEvent) = handler()
+            })
+        }
         textPane.getContextMenuLabel = { key ->
             localizationManager.getString("main_window_editor_context_menu.$key")
         }
@@ -55,7 +69,8 @@ class OutputTextPanel(
                 isLoading = state.isLoading,
                 fontConfig = state.fontConfig,
                 fallbackFontConfig = state.fallbackFontConfig,
-                actionsState = state.actionsState
+                actionsState = state.actionsState,
+                isEditable = state.isEditable
             )
         )
     }

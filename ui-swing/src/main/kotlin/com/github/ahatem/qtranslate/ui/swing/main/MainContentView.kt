@@ -39,7 +39,12 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFont
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toImageData
 import java.awt.BorderLayout
 import java.awt.Dimension
+import java.awt.event.InputEvent
+import java.awt.event.KeyEvent
+import javax.swing.AbstractAction
+import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.KeyStroke
 import javax.swing.UIManager
 
 class MainContentView(
@@ -100,6 +105,7 @@ class MainContentView(
             dispatch(MainIntent.Translate(text))
         },
         onFindInDictionary = { word -> showDictionaryWithWord(word, currentTargetLanguage) },
+        onEscapePressed = { inputTextPanel.requestFocusOnText() },
     )
 
     private val extraOutputPanel = ExtraOutputPanel(
@@ -111,6 +117,7 @@ class MainContentView(
             dispatch(MainIntent.Translate(text))
         },
         onFindInDictionary = { word -> showDictionaryWithWord(word, currentExtraOutputLanguage) },
+        onEscapePressed = { inputTextPanel.requestFocusOnText() },
     )
 
     val statusBar: StatusBar = StatusBar(
@@ -179,6 +186,17 @@ class MainContentView(
 
     init {
         add(splitPane, BorderLayout.CENTER)
+
+        // Direct panel focus shortcuts — work from anywhere in the window.
+        // Alt+1 → input, Alt+2 → output, Alt+3 → extra-output.
+        val im = getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+        val am = actionMap
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_1, InputEvent.ALT_DOWN_MASK), "focus-panel-input")
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_2, InputEvent.ALT_DOWN_MASK), "focus-panel-output")
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_3, InputEvent.ALT_DOWN_MASK), "focus-panel-extra")
+        am.put("focus-panel-input",  object : AbstractAction() { override fun actionPerformed(e: java.awt.event.ActionEvent) { inputTextPanel.requestFocusOnText() } })
+        am.put("focus-panel-output", object : AbstractAction() { override fun actionPerformed(e: java.awt.event.ActionEvent) { outputTextPanel.requestFocusOnText() } })
+        am.put("focus-panel-extra",  object : AbstractAction() { override fun actionPerformed(e: java.awt.event.ActionEvent) { extraOutputPanel.requestFocusOnText() } })
     }
 
     fun render(mainState: MainState, settingsState: SettingsState) {

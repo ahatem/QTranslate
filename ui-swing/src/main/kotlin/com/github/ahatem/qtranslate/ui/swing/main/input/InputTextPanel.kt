@@ -39,7 +39,7 @@ class InputTextPanel(
     private var currentState: InputTextState? = null
 
     init {
-        val scrollPane = JScrollPane(textPane)
+        val scrollPane = JScrollPane(textPane).apply { isFocusable = false }
 
         val actionsWrapper = JPanel(BorderLayout()).apply {
             border = BorderFactory.createEmptyBorder(0, 4, 0, 0)

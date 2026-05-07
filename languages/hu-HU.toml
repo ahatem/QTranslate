@@ -253,6 +253,7 @@ action_ocr = "OCR a képernyőről"
 action_replace = "A kiválasztás lecserélése fordításra (kísérleti)"
 action_cycle_language = "Célnyelv váltása"
 action_show_dictionary = "Szótár megjelenítése"
+action_translate = "Fordítás"
 scope_toggle_hint = "Kattintson a Globális és a Helyi közötti váltáshoz"
 
 # Default Actions Descriptions

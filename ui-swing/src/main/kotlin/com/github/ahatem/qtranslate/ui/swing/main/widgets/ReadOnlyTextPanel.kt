@@ -16,7 +16,8 @@ data class ReadOnlyTextPanelState(
     val isLoading: Boolean,
     val fontConfig: FontConfig,
     val fallbackFontConfig: FontConfig,
-    val actionsState: TextActionsState
+    val actionsState: TextActionsState,
+    val isEditable: Boolean = false
 ) : UiState
 
 class ReadOnlyTextPanel(
@@ -25,7 +26,7 @@ class ReadOnlyTextPanel(
 ) : JPanel(BorderLayout()), Renderable<ReadOnlyTextPanelState> {
 
     init {
-        val scrollPane = JScrollPane(textPane)
+        val scrollPane = JScrollPane(textPane).apply { isFocusable = false }
 
         val actionsWrapper = JPanel(BorderLayout()).apply {
             border = BorderFactory.createEmptyBorder(0, 4, 0, 0)
@@ -44,7 +45,7 @@ class ReadOnlyTextPanel(
         textPane.render(
             text = state.text,
             corrections = emptyList(),
-            isEditable = false
+            isEditable = state.isEditable
         )
 
         textPane.updateFontsAndRescanDocument(

@@ -16,6 +16,8 @@ import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.awt.Insets
 import java.awt.Point
+import java.awt.event.ActionEvent
+import java.awt.event.KeyEvent
 import javax.swing.*
 
 /**
@@ -30,10 +32,11 @@ class ExtraOutputPanel(
     onListen: (text: String) -> Unit,
     onTranslateRequest: (text: String) -> Unit,
     private val onFindInDictionary: ((String) -> Unit)? = null,
+    private val onEscapePressed: (() -> Unit)? = null,
 ) : JPanel(BorderLayout()), Renderable<ExtraOutputState> {
 
     private val textPane = AdvancedTextPane(
-        onTextChanged = { /* Read-only */ },
+        onTextChanged = {},
         onListenRequest = onListen,
         onTranslateRequest = onTranslateRequest
     )
@@ -76,11 +79,20 @@ class ExtraOutputPanel(
         add(gearPanel, BorderLayout.LINE_END)
     }
 
+    fun requestFocusOnText() = textPane.requestFocusInWindow()
+
     private var currentState: ExtraOutputState? = null
 
     init {
         add(headerBar, BorderLayout.NORTH)
         add(readOnlyPanel, BorderLayout.CENTER)
+
+        onEscapePressed?.let { handler ->
+            textPane.inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "escape-to-input")
+            textPane.actionMap.put("escape-to-input", object : AbstractAction() {
+                override fun actionPerformed(e: ActionEvent) = handler()
+            })
+        }
 
         backwardBtn.addActionListener {
             if (backwardBtn.isSelected)
@@ -136,7 +148,8 @@ class ExtraOutputPanel(
                 isLoading = state.isLoading,
                 fontConfig = state.fontConfig,
                 fallbackFontConfig = state.fallbackFontConfig,
-                actionsState = state.actionsState
+                actionsState = state.actionsState,
+                isEditable = state.isEditable
             )
         )
     }

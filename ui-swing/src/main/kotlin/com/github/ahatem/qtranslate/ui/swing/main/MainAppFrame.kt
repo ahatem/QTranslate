@@ -179,7 +179,8 @@ class MainAppFrame(
                 quickDictionaryPositionNearMouse = true   // hotkey — position near cursor
                 mainStore.dispatch(MainIntent.ShowQuickDictionary(selectedText, lang))
             }
-        }
+        },
+        onTranslate = { mainStore.dispatch(MainIntent.Translate()) }
     )
 
     private val statusBarController = StatusBarController(

@@ -253,6 +253,7 @@ action_ocr = "OCR vom Bildschirm"
 action_replace = "Auswahl durch Übersetzung ersetzen (exp.)"
 action_cycle_language = "Zielsprache wechseln"
 action_show_dictionary = "Wörterbuch anzeigen"
+action_translate = "Übersetzen"
 scope_toggle_hint = "Klicken, um zwischen Global und Lokal zu wechseln"
 
 # Default Actions Descriptions

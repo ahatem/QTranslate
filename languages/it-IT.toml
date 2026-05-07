@@ -253,6 +253,7 @@ action_ocr = "OCR da schermo"
 action_replace = "Sostituisci selezione con traduzione (sperimentale)"
 action_cycle_language = "Cambia lingua destinazione"
 action_show_dictionary = "Mostra dizionario"
+action_translate = "Traduci"
 scope_toggle_hint = "Fai clic per cambiare da globale a locale"
 
 # Default Actions Descriptions

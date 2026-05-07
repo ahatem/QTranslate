@@ -253,6 +253,7 @@ action_ocr = "OCR da Tela"
 action_replace = "Substituir Seleção pela Tradução (experimental)"
 action_cycle_language = "Alternar Idioma de Destino"
 action_show_dictionary = "Mostrar dicionário"
+action_translate = "Traduzir"
 scope_toggle_hint = "Clique para alternar entre Global e Local"
 
 # Default Actions Descriptions

@@ -338,7 +338,7 @@ class AdvancedTextPane(
         highlighter  = WavyUnderlineHighlighter()
         editorKit    = WrappingEditorKit()
         caret        = AdvancedCaret()
-        focusTraversalKeysEnabled = false
+        focusTraversalKeysEnabled = true
         margin = Insets(6, 6, 6, 6)
 
         document.addUndoableEditListener(undoManager)

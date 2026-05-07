@@ -253,6 +253,7 @@ action_ocr = "屏幕 OCR"
 action_replace = "用翻译替换选中文本 (实验性)"
 action_cycle_language = "循环切换目标语言"
 action_show_dictionary = "显示词典"
+action_translate = "翻译"
 scope_toggle_hint = "点击在全局和本地范围之间切换"
 
 # Default Actions Descriptions
