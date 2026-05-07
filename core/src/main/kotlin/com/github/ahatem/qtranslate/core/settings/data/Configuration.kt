@@ -84,6 +84,21 @@ enum class HotkeyAction {
 }
 
 /**
+ * Controls which word is used for automatic dictionary lookups when a
+ * single word is translated.
+ *
+ * [OFF]        — no automatic lookup; user searches manually.
+ * [TRANSLATED] — looks up the translated (target-language) word.
+ * [SOURCE]     — looks up the source (input) word.
+ */
+@Serializable
+enum class DictionaryAutoSource {
+    OFF,
+    TRANSLATED,
+    SOURCE
+}
+
+/**
  * Whether a hotkey fires globally (system-wide via jKeymaster) or
  * locally (only when QTranslate has focus, via Swing InputMap).
  *
@@ -230,6 +245,8 @@ data class Configuration(
 
     // ---- UI — Main Window ----
     val showDictionaryPanel: Boolean = false,
+    val dictionaryAutoSource: DictionaryAutoSource = DictionaryAutoSource.TRANSLATED,
+    val isDictionaryAutoPopupEnabled: Boolean = true,
     val mainWindowSize: Size? = null,
     val mainWindowPosition: Position? = null,
     val uiFontConfig: FontConfig,

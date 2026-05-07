@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.dictionary
 
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
+import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 import com.github.ahatem.qtranslate.core.settings.data.Position
 import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
@@ -23,9 +24,15 @@ data class QuickDictionaryDialogState(
     val selectedDictionaryId: String?,
     val config: QuickDictionaryConfig,
     val strings: QuickDictionaryStrings,
+    // Auto-source cycling (mirrors DictionaryPanel)
+    val autoSource: DictionaryAutoSource = DictionaryAutoSource.TRANSLATED,
+    val autoSourceOffLabel: String = "",
+    val autoSourceTranslatedLabel: String = "",
+    val autoSourceSourceLabel: String = "",
     // callbacks
     val onLookup: (word: String) -> Unit,
     val onDictionarySelected: (serviceId: String) -> Unit,
+    val onAutoSourceChanged: (DictionaryAutoSource) -> Unit = {},
     val onPinToggled: () -> Unit,
     val onClose: () -> Unit,
     val onSavePosition: (Position) -> Unit,
@@ -35,7 +42,9 @@ data class QuickDictionaryDialogState(
 data class QuickDictionaryConfig(
     val autoPositionEnabled: Boolean,
     val lastKnownSize: Size,
-    val lastKnownPosition: Position
+    val lastKnownPosition: Position,
+    /** When false, the dialog positions itself adjacent to the owner window instead of near the mouse cursor. */
+    val positionNearMouse: Boolean = true
 )
 
 data class QuickDictionaryStrings(

@@ -124,6 +124,7 @@ class MainContentView(
     private var currentExtraOutputLanguage: LanguageCode = LanguageCode("en")
 
     private val dictionaryPanel = DictionaryPanel(
+        iconManager = iconManager,
         onLookup = { word -> dispatch(MainIntent.LookupWord(word, currentLookupLanguage)) },
         onServiceSelected = { serviceId ->
             dispatchSettings(SettingsIntent.UpdateServiceInActivePreset(ServiceType.DICTIONARY, serviceId))
@@ -173,6 +174,7 @@ class MainContentView(
         val lookupLanguage: LanguageCode,
         val selectedDictionaryId: String?,
         val dictionaryCount: Int,
+        val autoSource: com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource,
     )
 
     init {
@@ -193,12 +195,12 @@ class MainContentView(
             layoutManager.updateVisibility(config)
         }
 
-        renderDictionaryPanel(mainState)
+        renderDictionaryPanel(mainState, config)
         renderComponents(mainState, config)
         lastState = mainState to settingsState
     }
 
-    private fun renderDictionaryPanel(mainState: MainState) {
+    private fun renderDictionaryPanel(mainState: MainState, config: Configuration) {
         // Resolve source language — never pass AUTO to the dictionary API.
         val resolvedLang = when {
             mainState.sourceLanguage != LanguageCode.AUTO -> mainState.sourceLanguage
@@ -223,6 +225,7 @@ class MainContentView(
             lookupLanguage    = resolvedLang,
             selectedDictionaryId = selectedDictId,
             dictionaryCount   = availableDicts.size,
+            autoSource        = config.dictionaryAutoSource,
         )
         if (key == lastDictionaryKey) return
         lastDictionaryKey = key
@@ -268,6 +271,15 @@ class MainContentView(
                     hasFailed             = key.hasFailed,
                     availableDictionaries = availableDicts,
                     selectedDictionaryId  = key.selectedDictionaryId,
+                    autoSource            = key.autoSource,
+                    autoSourceOffLabel        = localizer.getString("dictionary_dialog.auto_source_off"),
+                    autoSourceTranslatedLabel = localizer.getString("dictionary_dialog.auto_source_translated"),
+                    autoSourceSourceLabel     = localizer.getString("dictionary_dialog.auto_source_source"),
+                    onAutoSourceChanged   = { newSource ->
+                        dispatchSettings(
+                            SettingsIntent.ToggleSetting { it.copy(dictionaryAutoSource = newSource) }
+                        )
+                    },
                 )
             )
         }

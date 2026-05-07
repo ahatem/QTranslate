@@ -1,11 +1,16 @@
 package com.github.ahatem.qtranslate.ui.swing.dictionary
 
+import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
+import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
+import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import java.awt.BorderLayout
 import java.awt.Dimension
 import javax.swing.*
 
 class DictionaryPanel(
+    private val iconManager: IconManager,
     private val onLookup: (word: String) -> Unit,
     private val onServiceSelected: (serviceId: String) -> Unit,
     private val onClose: () -> Unit,
@@ -53,6 +58,20 @@ class DictionaryPanel(
 
     private var updatingFromState = false
 
+    // Icons for the auto-source cycling button
+    private val activeLinkIcon: FlatSVGIcon = (iconManager.getIcon("icons/lucide/link-2.svg", 13, 13) as FlatSVGIcon)
+        .applyForegroundColorFilter()
+    private val offUnlinkIcon: FlatSVGIcon = (iconManager.getIcon("icons/lucide/unlink.svg", 13, 13) as FlatSVGIcon)
+        .apply { colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") } }
+
+    // Cycling button: Off → Translated → Source → Off
+    private val autoSourceButton = JButton().apply {
+        putClientProperty("JButton.buttonType", "toolBarButton")
+        isFocusable = false
+        iconTextGap = 4
+    }
+    private var currentAutoSource: DictionaryAutoSource = DictionaryAutoSource.TRANSLATED
+
     init {
         val titleLabel = JLabel().apply { putClientProperty("FlatLaf.styleClass", "h4") }
         val closeButton = JButton().apply {
@@ -60,11 +79,19 @@ class DictionaryPanel(
             addActionListener { onClose() }
         }
 
+        val rightButtons = JPanel().apply {
+            isOpaque = false
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            add(autoSourceButton)
+            add(Box.createRigidArea(Dimension(4, 0)))
+            add(closeButton)
+        }
+
         val headerPanel = JPanel(BorderLayout(8, 0)).apply {
             isOpaque = false
             border = BorderFactory.createEmptyBorder(0, 0, 8, 0)
             add(titleLabel, BorderLayout.CENTER)
-            add(closeButton, BorderLayout.LINE_END)
+            add(rightButtons, BorderLayout.LINE_END)
             putClientProperty("titleLabel", titleLabel)
             putClientProperty("closeButton", closeButton)
         }
@@ -119,6 +146,18 @@ class DictionaryPanel(
                 onServiceSelected(selected.id)
             }
         }
+
+        autoSourceButton.addActionListener {
+            // Cycle: OFF → TRANSLATED → SOURCE → OFF
+            val next = when (currentAutoSource) {
+                DictionaryAutoSource.OFF        -> DictionaryAutoSource.TRANSLATED
+                DictionaryAutoSource.TRANSLATED -> DictionaryAutoSource.SOURCE
+                DictionaryAutoSource.SOURCE     -> DictionaryAutoSource.OFF
+            }
+            // Will be propagated back via render() after the store updates.
+            // Read from clientProperty so we always call the latest callback.
+            (getClientProperty("onAutoSourceChanged") as? (DictionaryAutoSource) -> Unit)?.invoke(next)
+        }
     }
 
     fun render(state: DictionaryPanelState) {
@@ -128,6 +167,27 @@ class DictionaryPanel(
             text = state.closeLabel
             toolTipText = state.closeLabel
         }
+
+        // Sync auto-source button — store callback in clientProperty so the
+        // ActionListener always calls the fresh lambda from the latest render.
+        putClientProperty("onAutoSourceChanged", state.onAutoSourceChanged)
+        if (currentAutoSource != state.autoSource) {
+            currentAutoSource = state.autoSource
+        }
+        val (autoLabel, autoTip) = when (state.autoSource) {
+            DictionaryAutoSource.OFF        -> state.autoSourceOffLabel        to state.autoSourceOffLabel
+            DictionaryAutoSource.TRANSLATED -> state.autoSourceTranslatedLabel to state.autoSourceTranslatedLabel
+            DictionaryAutoSource.SOURCE     -> state.autoSourceSourceLabel     to state.autoSourceSourceLabel
+        }
+        autoSourceButton.text = autoLabel
+        autoSourceButton.toolTipText = autoTip
+        // Dim the button when off, highlight when active
+        val isActive = state.autoSource != DictionaryAutoSource.OFF
+        autoSourceButton.icon = if (isActive) activeLinkIcon else offUnlinkIcon
+        autoSourceButton.foreground = if (isActive)
+            UIManager.getColor("Component.accentColor") ?: UIManager.getColor("Button.foreground")
+        else
+            UIManager.getColor("Label.disabledForeground")
 
         lookupButton.text = state.lookupButtonLabel
         loadingLabel.text = state.loadingMessage

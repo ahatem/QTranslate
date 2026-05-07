@@ -236,7 +236,7 @@ class MainStore(
                     )
                 }
                 if (intent.selectedText.isNotBlank()) {
-                    handleLookupWord(MainIntent.LookupWord(intent.selectedText))
+                    handleLookupWord(MainIntent.LookupWord(intent.selectedText, intent.language))
                 }
             }
 

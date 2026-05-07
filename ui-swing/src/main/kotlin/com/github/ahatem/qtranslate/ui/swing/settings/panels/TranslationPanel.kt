@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.rewriter.RewriteStyle
 import com.github.ahatem.qtranslate.api.summarizer.SummaryLength
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
@@ -63,6 +64,14 @@ class TranslationPanel(
         )
     }
 
+    private val dictAutoSources by lazy {
+        listOf(
+            DictionaryAutoSourceInfo(DictionaryAutoSource.OFF,        localizationManager.getString("settings_translation.dict_auto_source_off")),
+            DictionaryAutoSourceInfo(DictionaryAutoSource.TRANSLATED, localizationManager.getString("settings_translation.dict_auto_source_translated")),
+            DictionaryAutoSourceInfo(DictionaryAutoSource.SOURCE,     localizationManager.getString("settings_translation.dict_auto_source_source")),
+        )
+    }
+
     private val types by lazy {
         listOf(
             ExtraOutputTypeInfo(ExtraOutputType.None, localizationManager.getString("settings_translation.type_none")),
@@ -84,6 +93,8 @@ class TranslationPanel(
     private lateinit var instantCheck: JCheckBox
     private lateinit var spellCheck: JCheckBox
     private lateinit var removeLineBreaksCheck: JCheckBox
+    private lateinit var dictAutoSourceCombo: JComboBox<DictionaryAutoSourceInfo>
+    private lateinit var dictAutoPopupCheck: JCheckBox
     private lateinit var typeCombo: JComboBox<ExtraOutputTypeInfo>
     private lateinit var useTranslated: JRadioButton
     private lateinit var useInput: JRadioButton
@@ -320,6 +331,27 @@ class TranslationPanel(
                 add(removeRuleBtn)
             })
 
+        // ---- Dictionary Auto-Lookup ----
+        addSeparator(localizationManager.getString("settings_translation.dict_auto_lookup_group"))
+        addHint(localizationManager.getString("settings_translation.dict_auto_lookup_hint"))
+
+        dictAutoSourceCombo = JComboBox<DictionaryAutoSourceInfo>(dictAutoSources.toTypedArray()).apply {
+            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            addActionListener {
+                if (!isUpdatingFromState) {
+                    val src = (selectedItem as? DictionaryAutoSourceInfo)?.source ?: return@addActionListener
+                    applyDraft(store) { it.copy(dictionaryAutoSource = src) }
+                }
+            }
+        }
+        addRow(localizationManager.getString("settings_translation.dict_auto_lookup_source"), dictAutoSourceCombo)
+
+        dictAutoPopupCheck = addCheckbox(
+            text = localizationManager.getString("settings_translation.dict_auto_popup_enabled"),
+            selected = true,
+            onChange = { enabled -> applyDraft(store) { it.copy(isDictionaryAutoPopupEnabled = enabled) } }
+        )
+
         // ---- Pinned languages ----
         addSeparator(localizationManager.getString("settings_translation.pinned_languages_group"))
         addHint(localizationManager.getString("settings_translation.pinned_languages_hint"))
@@ -473,6 +505,11 @@ class TranslationPanel(
             }
             removeRuleBtn.isEnabled = rulesTable.selectedRow >= 0
 
+            dictAutoSourceCombo.selectedItem = dictAutoSources.find { it.source == c.dictionaryAutoSource }
+            dictAutoPopupCheck.isSelected = c.isDictionaryAutoPopupEnabled
+            // Disable the popup toggle when auto-lookup is Off entirely
+            dictAutoPopupCheck.isEnabled = c.dictionaryAutoSource != DictionaryAutoSource.OFF
+
             // Sync checkboxes — direct assignment, no selection model, no events fired
             // (isUpdatingFromState = true, so ActionListeners are all guarded)
             // Empty pinnedLanguages = no filter active = nothing checked
@@ -492,6 +529,7 @@ class TranslationPanel(
         return if (!name.isNullOrBlank() && name != code) name else code
     }
 
+    private data class DictionaryAutoSourceInfo(val source: DictionaryAutoSource, val displayName: String)
     private data class ExtraOutputTypeInfo(val type: ExtraOutputType, val displayName: String)
     private data class SummaryLengthInfo(val length: SummaryLength, val displayName: String)
     private data class RewriteStyleInfo(val style: RewriteStyle, val displayName: String)

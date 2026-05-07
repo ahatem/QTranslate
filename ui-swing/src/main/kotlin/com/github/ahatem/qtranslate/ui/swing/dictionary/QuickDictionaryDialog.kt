@@ -1,6 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.dictionary
 
+import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
+import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 import com.github.ahatem.qtranslate.core.settings.data.Position
 import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
@@ -57,6 +59,28 @@ class QuickDictionaryDialog(
     }
     private val pinButton = createButtonWithIcon(iconManager, "icons/lucide/pin.svg", 14)
     private val closeButton = createButtonWithIcon(iconManager, "icons/lucide/close.svg", 16)
+
+    // Auto-source cycling button — mirrors DictionaryPanel
+    private val activeLinkIcon: FlatSVGIcon =
+        (iconManager.getIcon("icons/lucide/link-2.svg", 13, 13) as FlatSVGIcon).applyForegroundColorFilter()
+    private val offUnlinkIcon: FlatSVGIcon =
+        (iconManager.getIcon("icons/lucide/unlink.svg", 13, 13) as FlatSVGIcon).apply {
+            colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") }
+        }
+    private val autoSourceButton = JButton().apply {
+        putClientProperty("JButton.buttonType", "toolBarButton")
+        isFocusable = false
+        iconTextGap = 4
+        addActionListener {
+            val state = currentState ?: return@addActionListener
+            val next = when (state.autoSource) {
+                DictionaryAutoSource.OFF        -> DictionaryAutoSource.TRANSLATED
+                DictionaryAutoSource.TRANSLATED -> DictionaryAutoSource.SOURCE
+                DictionaryAutoSource.SOURCE     -> DictionaryAutoSource.OFF
+            }
+            state.onAutoSourceChanged(next)
+        }
+    }
 
     // Service picker
     private var updatingFromState = false
@@ -198,6 +222,21 @@ class QuickDictionaryDialog(
         loadingLabel.text = state.strings.loadingMessage
         pinButton.toolTipText = if (state.isPinned) state.strings.unpinTooltip else state.strings.pinTooltip
         closeButton.toolTipText = state.strings.closeTooltip
+
+        // Sync auto-source cycling button
+        val autoLabel = when (state.autoSource) {
+            DictionaryAutoSource.OFF        -> state.autoSourceOffLabel
+            DictionaryAutoSource.TRANSLATED -> state.autoSourceTranslatedLabel
+            DictionaryAutoSource.SOURCE     -> state.autoSourceSourceLabel
+        }
+        autoSourceButton.text = autoLabel
+        autoSourceButton.toolTipText = autoLabel
+        val autoActive = state.autoSource != DictionaryAutoSource.OFF
+        autoSourceButton.icon = if (autoActive) activeLinkIcon else offUnlinkIcon
+        autoSourceButton.foreground = if (autoActive)
+            UIManager.getColor("Component.accentColor") ?: UIManager.getColor("Button.foreground")
+        else
+            UIManager.getColor("Label.disabledForeground")
 
         hintLabel.text = when {
             state.hasFailed -> state.strings.errorMessage
@@ -387,6 +426,8 @@ class QuickDictionaryDialog(
         val rightPanel = JPanel().apply {
             isOpaque = false
             layout = BoxLayout(this, BoxLayout.X_AXIS)
+            add(autoSourceButton)
+            add(Box.createRigidArea(Dimension(4, 0)))
             add(pinButton)
             add(Box.createRigidArea(Dimension(4, 0)))
             add(closeButton)
@@ -591,26 +632,44 @@ class QuickDictionaryDialog(
 
     private fun applyPosition(config: QuickDictionaryConfig) {
         if (wasManuallyMoved) return
-        if (config.autoPositionEnabled) {
-            val mouseLocation = MouseInfo.getPointerInfo()?.location ?: run {
-                setLocationRelativeTo(owner)
-                return
+        val screenBounds = graphicsConfiguration?.bounds ?: run {
+            setLocationRelativeTo(owner)
+            return
+        }
+        when {
+            !config.autoPositionEnabled -> {
+                location = config.lastKnownPosition.toPoint()
             }
-            val screenBounds = graphicsConfiguration?.bounds ?: run {
-                setLocationRelativeTo(owner)
-                return
+            !config.positionNearMouse -> {
+                // Auto-triggered from translation — position adjacent to the owner window
+                // so the popup doesn't appear wherever the mouse happens to be.
+                val ownerBounds = owner.bounds
+                var x = ownerBounds.x + ownerBounds.width + 8
+                var y = ownerBounds.y + (ownerBounds.height - height) / 2
+                // If no room to the right, try to the left.
+                if (x + width > screenBounds.x + screenBounds.width) {
+                    x = ownerBounds.x - width - 8
+                }
+                x = x.coerceIn(screenBounds.x, (screenBounds.x + screenBounds.width - width).coerceAtLeast(screenBounds.x))
+                y = y.coerceIn(screenBounds.y, (screenBounds.y + screenBounds.height - height).coerceAtLeast(screenBounds.y))
+                setLocation(x, y)
             }
-            val offsetX = 12
-            val offsetY = 12
-            var x = mouseLocation.x + offsetX
-            var y = mouseLocation.y + offsetY
-            if (x + width > screenBounds.x + screenBounds.width) x = mouseLocation.x - width - offsetX
-            if (y + height > screenBounds.y + screenBounds.height) y = mouseLocation.y - height - offsetY
-            x = x.coerceAtLeast(screenBounds.x)
-            y = y.coerceAtLeast(screenBounds.y)
-            setLocation(x, y)
-        } else {
-            location = config.lastKnownPosition.toPoint()
+            else -> {
+                // Near mouse cursor (default: hotkey trigger)
+                val mouseLocation = MouseInfo.getPointerInfo()?.location ?: run {
+                    setLocationRelativeTo(owner)
+                    return
+                }
+                val offsetX = 12
+                val offsetY = 12
+                var x = mouseLocation.x + offsetX
+                var y = mouseLocation.y + offsetY
+                if (x + width > screenBounds.x + screenBounds.width) x = mouseLocation.x - width - offsetX
+                if (y + height > screenBounds.y + screenBounds.height) y = mouseLocation.y - height - offsetY
+                x = x.coerceAtLeast(screenBounds.x)
+                y = y.coerceAtLeast(screenBounds.y)
+                setLocation(x, y)
+            }
         }
     }
 

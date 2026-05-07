@@ -88,6 +88,15 @@ class MainAppFrame(
         QuickDictionaryDialog(owner = this, iconManager = iconManager)
     }
 
+    /**
+     * Controls where the floating dictionary popup positions itself on first open.
+     * - `true`  → near the mouse cursor   (global hotkey trigger)
+     * - `false` → adjacent to the owner window (auto-lookup from translation)
+     * Set before dispatching [MainIntent.ShowQuickDictionary]; read in [buildQuickDictionaryDialogState].
+     */
+    @Volatile
+    private var quickDictionaryPositionNearMouse = true
+
     private val quickTranslateDialog by lazy {
         QuickTranslateDialog(
             owner = this,
@@ -155,7 +164,14 @@ class MainAppFrame(
         },
         onShowDictionary = { selectedText ->
             appScope.launch {
-                mainStore.dispatch(MainIntent.ShowQuickDictionary(selectedText))
+                val s = mainStore.state.value
+                val lang = when {
+                    s.sourceLanguage != LanguageCode.AUTO -> s.sourceLanguage
+                    s.detectedSourceLanguage != null      -> s.detectedSourceLanguage!!
+                    else                                  -> LanguageCode("en")
+                }
+                quickDictionaryPositionNearMouse = true   // hotkey — position near cursor
+                mainStore.dispatch(MainIntent.ShowQuickDictionary(selectedText, lang))
             }
         }
     )
@@ -398,25 +414,82 @@ class MainAppFrame(
                 }
         }
 
-        // Auto-lookup single translated words in the dictionary panel.
-        // Fires when: panel is visible, translation finishes, result is exactly one word,
-        // and it isn't already the currently displayed dictionary word.
+        // Auto-lookup single words in the dictionary panel and/or floating popup.
+        // Respects dictionaryAutoSource: OFF=nothing, TRANSLATED=output word, SOURCE=input word.
+        //
+        // Debounced so that fast typing in SOURCE mode (or rapid state churn) does not fire
+        // a new dictionary request on every keystroke — only after the user pauses.
+        // isLoading=true dismissal still fires immediately (before the debounce window)
+        // because it runs inside the collect block, not in the flow pipe itself.
+        @OptIn(kotlinx.coroutines.FlowPreview::class)
         appScope.launch(handler) {
             mainStore.state
-                .map { Triple(it.isDictionaryPanelVisible, it.isLoading, it.translatedText.trim()) }
+                .combine(settingsStore.state) { m, s -> m to s }
+                .map { (m, s) ->
+                    AutoLookupKey(
+                        panelVisible   = m.isDictionaryPanelVisible,
+                        isLoading      = m.isLoading,
+                        inputText      = m.inputText.trim(),
+                        translatedText = m.translatedText.trim(),
+                        targetLang     = m.targetLanguage,
+                        resolvedSourceLang = when {
+                            m.sourceLanguage != LanguageCode.AUTO -> m.sourceLanguage
+                            m.detectedSourceLanguage != null      -> m.detectedSourceLanguage!!
+                            else                                  -> LanguageCode("en")
+                        },
+                        autoSource     = s.workingConfiguration.dictionaryAutoSource,
+                        mainVisible    = isVisible,
+                        isQuickDictionaryVisible = m.isQuickDictionaryVisible,
+                        isQuickDictionaryPinned  = m.isQuickDictionaryPinned,
+                        isDictionaryAutoPopupEnabled = s.workingConfiguration.isDictionaryAutoPopupEnabled,
+                    )
+                }
                 .distinctUntilChanged()
-                .collect { (panelVisible, isLoading, translated) ->
-                    if (!panelVisible || isLoading || translated.isBlank()) return@collect
-                    // Single word: no internal whitespace and at least 2 chars.
-                    if (translated.contains(Regex("\\s"))) return@collect
-                    if (translated.length < 2) return@collect
-                    val current = mainStore.state.value.dictionaryWord
-                    if (translated.equals(current, ignoreCase = true)) return@collect
-                    val targetLang = mainStore.state.value.targetLanguage
-                    withContext(Dispatchers.Swing) {
-                        mainContentView.setDictionarySearchWord(translated)
+                .debounce(450)
+                .collect { key ->
+                    // When a new translation starts, dismiss any unpinned auto-triggered popup
+                    // so it doesn't show stale data while the user waits for results.
+                    if (key.isLoading) {
+                        if (key.isQuickDictionaryVisible && !key.isQuickDictionaryPinned) {
+                            mainStore.dispatch(MainIntent.HideQuickDictionary)
+                        }
+                        return@collect
                     }
-                    mainStore.dispatch(MainIntent.LookupWord(translated, targetLang))
+                    val autoSource = key.autoSource
+                    if (autoSource == com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource.OFF) return@collect
+
+                    val (word, lang) = when (autoSource) {
+                        com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource.TRANSLATED ->
+                            key.translatedText to key.targetLang
+                        com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource.SOURCE ->
+                            key.inputText to key.resolvedSourceLang
+                        else -> return@collect
+                    }
+
+                    // Word is no longer a single valid word — dismiss any unpinned auto popup
+                    if (word.isBlank() || word.contains(Regex("\\s")) || word.length < 2) {
+                        if (key.isQuickDictionaryVisible && !key.isQuickDictionaryPinned) {
+                            mainStore.dispatch(MainIntent.HideQuickDictionary)
+                        }
+                        return@collect
+                    }
+                    val current = mainStore.state.value.dictionaryWord
+                    if (word.equals(current, ignoreCase = true)) return@collect
+
+                    if (key.panelVisible) {
+                        // Panel is open — update it directly.
+                        withContext(Dispatchers.Swing) {
+                            mainContentView.setDictionarySearchWord(word)
+                        }
+                        mainStore.dispatch(MainIntent.LookupWord(word, lang))
+                    } else if (key.mainVisible && key.isDictionaryAutoPopupEnabled) {
+                        // Panel closed but main window visible — show floating popup.
+                        // Position near the owner window, not the mouse (the user is
+                        // looking at the main window, not wherever their cursor is).
+                        quickDictionaryPositionNearMouse = false
+                        mainStore.dispatch(MainIntent.ShowQuickDictionary(word, lang))
+                        // LookupWord is dispatched inside ShowQuickDictionary handler in the store.
+                    }
                 }
         }
 
@@ -1125,10 +1198,15 @@ class MainAppFrame(
             isPinned             = mainState.isQuickDictionaryPinned,
             availableDictionaries = availableDicts,
             selectedDictionaryId  = selectedDictId,
+            autoSource               = config.dictionaryAutoSource,
+            autoSourceOffLabel       = localizer.getString("dictionary_dialog.auto_source_off"),
+            autoSourceTranslatedLabel = localizer.getString("dictionary_dialog.auto_source_translated"),
+            autoSourceSourceLabel    = localizer.getString("dictionary_dialog.auto_source_source"),
             config = QuickDictionaryConfig(
                 autoPositionEnabled = config.isQuickDictionaryAutoPositionEnabled,
                 lastKnownSize       = config.quickDictionaryLastKnownSize,
-                lastKnownPosition   = config.quickDictionaryLastKnownPosition
+                lastKnownPosition   = config.quickDictionaryLastKnownPosition,
+                positionNearMouse   = quickDictionaryPositionNearMouse
             ),
             strings = QuickDictionaryStrings(
                 title            = localizer.getString("dictionary_dialog.title"),
@@ -1152,6 +1230,11 @@ class MainAppFrame(
                 )
                 val currentWord = mainStore.state.value.dictionaryWord
                 if (currentWord.isNotBlank()) mainStore.dispatch(MainIntent.LookupWord(currentWord, resolvedLang))
+            },
+            onAutoSourceChanged = { newSource ->
+                settingsStore.dispatch(
+                    SettingsIntent.ToggleSetting { it.copy(dictionaryAutoSource = newSource) }
+                )
             },
             onPinToggled = { mainStore.dispatch(MainIntent.ToggleQuickDictionaryPin) },
             onClose = { mainStore.dispatch(MainIntent.HideQuickDictionary) },
@@ -1347,3 +1430,18 @@ class MainAppFrame(
 
     }
 }
+
+/** Snapshot used to deduplicate auto-lookup triggers. */
+private data class AutoLookupKey(
+    val panelVisible: Boolean,
+    val isLoading: Boolean,
+    val inputText: String,
+    val translatedText: String,
+    val targetLang: LanguageCode,
+    val resolvedSourceLang: LanguageCode,
+    val autoSource: com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource,
+    val mainVisible: Boolean,
+    val isQuickDictionaryVisible: Boolean,
+    val isQuickDictionaryPinned: Boolean,
+    val isDictionaryAutoPopupEnabled: Boolean,
+)

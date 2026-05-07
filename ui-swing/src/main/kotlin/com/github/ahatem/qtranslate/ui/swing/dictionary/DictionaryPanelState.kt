@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.dictionary
 
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
+import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 
 data class DictionaryPanelState(
     val title: String,
@@ -18,4 +19,10 @@ data class DictionaryPanelState(
     val hasFailed: Boolean,
     val availableDictionaries: List<ServiceInfo> = emptyList(),
     val selectedDictionaryId: String? = null,
+    // Auto-source cycling
+    val autoSource: DictionaryAutoSource = DictionaryAutoSource.TRANSLATED,
+    val autoSourceOffLabel: String = "",
+    val autoSourceTranslatedLabel: String = "",
+    val autoSourceSourceLabel: String = "",
+    val onAutoSourceChanged: (DictionaryAutoSource) -> Unit = {},
 )

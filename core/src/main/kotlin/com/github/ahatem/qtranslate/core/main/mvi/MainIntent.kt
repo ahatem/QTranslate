@@ -120,10 +120,14 @@ sealed interface MainIntent : UiIntent {
     data object ToggleDictionaryPanel : MainIntent
 
     /**
-     * User triggered the floating dictionary popup (e.g. via global hotkey).
-     * @property selectedText The text that was selected at the time of the hotkey press.
+     * User triggered the floating dictionary popup (e.g. via global hotkey or auto-lookup).
+     * @property selectedText The text that was selected / resolved for lookup.
+     * @property language     The language to look the word up in. Defaults to English.
      */
-    data class ShowQuickDictionary(val selectedText: String) : MainIntent
+    data class ShowQuickDictionary(
+        val selectedText: String,
+        val language: LanguageCode = LanguageCode("en")
+    ) : MainIntent
 
     /** User dismissed the floating dictionary popup. */
     data object HideQuickDictionary : MainIntent

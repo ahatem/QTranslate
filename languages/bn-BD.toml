@@ -281,6 +281,14 @@ source_use_translated = "অনুবাদিত লেখা ব্যবহ�
 source_use_input = "ইনপুট লেখা ব্যবহার করুন"
 remove_line_breaks = "ইনপুট থেকে লাইন ব্রেক সরান"
 remove_line_breaks_hint = "PDF থেকে কপি করার সময় কার্যকর, যেখানে প্রতিটি লাইনের শেষে নতুন লাইন থাকে।"
+
+dict_auto_lookup_group = "Dictionary Auto-Lookup"
+dict_auto_lookup_source = "Auto-lookup source:"
+dict_auto_source_off = "Off"
+dict_auto_source_translated = "Translated text"
+dict_auto_source_source = "Source text"
+dict_auto_lookup_hint = "Automatically look up single words in the dictionary while translating."
+dict_auto_popup_enabled = "Show floating popup for single words"
 pinned_languages_group = "ভাষা ফিল্টার"
 pinned_languages_hint = "টার্গেট ভাষা বাছাইকারীতে যে ভাষাগুলো দেখতে চান সেগুলো নির্বাচন করুন। সব ভাষা দেখতে চাইলে সব আনচেক রাখুন।"
 pinned_languages_clear = "ফিল্টার মুছুন (সব দেখান)"
@@ -399,6 +407,10 @@ not_found_message = "\""%s"\" এর জন্য কোনো সংজ্ঞ�
 loading_message = "খোঁজা হচ্ছে…"
 error_message = "অনুসন্ধান ব্যর্থ হয়েছে। আবার চেষ্টা করুন।"
 synonyms_label = "প্রতিশব্দ"
+
+auto_source_off = "Auto: Off"
+auto_source_translated = "→ Translated"
+auto_source_source = "← Source"
 
 [update_dialog]
 title = "আপডেট উপলব্ধ"
