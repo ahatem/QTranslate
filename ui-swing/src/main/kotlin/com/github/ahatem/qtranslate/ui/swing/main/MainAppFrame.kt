@@ -398,6 +398,28 @@ class MainAppFrame(
                 }
         }
 
+        // Auto-lookup single translated words in the dictionary panel.
+        // Fires when: panel is visible, translation finishes, result is exactly one word,
+        // and it isn't already the currently displayed dictionary word.
+        appScope.launch(handler) {
+            mainStore.state
+                .map { Triple(it.isDictionaryPanelVisible, it.isLoading, it.translatedText.trim()) }
+                .distinctUntilChanged()
+                .collect { (panelVisible, isLoading, translated) ->
+                    if (!panelVisible || isLoading || translated.isBlank()) return@collect
+                    // Single word: no internal whitespace and at least 2 chars.
+                    if (translated.contains(Regex("\\s"))) return@collect
+                    if (translated.length < 2) return@collect
+                    val current = mainStore.state.value.dictionaryWord
+                    if (translated.equals(current, ignoreCase = true)) return@collect
+                    val targetLang = mainStore.state.value.targetLanguage
+                    withContext(Dispatchers.Swing) {
+                        mainContentView.setDictionarySearchWord(translated)
+                    }
+                    mainStore.dispatch(MainIntent.LookupWord(translated, targetLang))
+                }
+        }
+
         // Persist dictionary panel visibility whenever it changes.
         appScope.launch(handler) {
             mainStore.state
