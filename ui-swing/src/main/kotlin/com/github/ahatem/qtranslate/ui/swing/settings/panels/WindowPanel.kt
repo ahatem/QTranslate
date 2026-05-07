@@ -23,6 +23,7 @@ class WindowPanel(
     private lateinit var languageCheck: JCheckBox
     private lateinit var servicesCheck: JCheckBox
     private lateinit var statusCheck: JCheckBox
+    private lateinit var dictionaryPanelCheck: JCheckBox
     private lateinit var autoSizeCheck: JCheckBox
     private lateinit var autoPositionCheck: JCheckBox
     private lateinit var transparencySlider: JSlider
@@ -99,6 +100,13 @@ class WindowPanel(
             }
         }
 
+        dictionaryPanelCheck = addCheckbox(
+            localizationManager.getString("settings_window.show_dictionary_panel"),
+            false
+        ) { enabled ->
+            applyDraft(store) { it.copy(showDictionaryPanel = enabled) }
+        }
+
         addSeparator(localizationManager.getString("settings_window.popup_group"))
 
         autoSizeCheck = addCheckbox(
@@ -172,6 +180,7 @@ class WindowPanel(
             languageCheck.isSelected = c.toolbarVisibility.isLanguageBarVisible
             servicesCheck.isSelected = c.toolbarVisibility.isServicesPanelVisible
             statusCheck.isSelected = c.toolbarVisibility.isStatusBarVisible
+            dictionaryPanelCheck.isSelected = c.showDictionaryPanel
             autoSizeCheck.isSelected = c.isPopupAutoSizeEnabled
             autoPositionCheck.isSelected = c.isPopupAutoPositionEnabled
             transparencySlider.value = c.popupTransparencyPercentage

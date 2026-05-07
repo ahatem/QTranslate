@@ -37,7 +37,7 @@ class TrayMenuPopup(
         })
 
         add(JMenuItem(strings.dictionary).apply {
-            isEnabled = false // Feature not yet implemented
+            
             addActionListener { actions.onShowDictionary() }
         })
 

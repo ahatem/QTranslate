@@ -16,6 +16,7 @@ data class MenuStrings(
     val extraOutput: String,
     val viewOptions: String,
     val dictionary: String,
+    val isDictionaryPanelOpen: Boolean,
     val history: String,
     val settings: String,
     val help: String,
@@ -129,8 +130,8 @@ class MainMenuPopup(
         })
         add(ViewOptionsMenu(config, actions, strings, availableLayouts))
         add(JSeparator())
-        add(JMenuItem(strings.dictionary).apply {
-            isEnabled = false
+        add(JCheckBoxMenuItem(strings.dictionary).apply {
+            isSelected = strings.isDictionaryPanelOpen
             addActionListener { actions.onShowDictionary() }
         })
         add(JMenuItem(strings.history).apply {
