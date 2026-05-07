@@ -376,7 +376,7 @@ class MainContentView(
                 corrections = mainState.spellCheckCorrections,
                 fontConfig = config.scaledEditorFont,
                 fallbackFontConfig = config.scaledEditorFallbackFont,
-                isEditable = !mainState.isLoading,
+                isEditable = true,
                 isLoading = mainState.isLoading,
                 actionsState = inputActionsState
             )
