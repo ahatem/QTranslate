@@ -350,6 +350,7 @@ object HotkeyRecorderDialog {
             HotkeyAction.REPLACE_WITH_TRANSLATION -> localizer.getString("settings_hotkeys.action_replace")
             HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizer.getString("settings_hotkeys.action_cycle_language")
             HotkeyAction.SHOW_DICTIONARY          -> localizer.getString("settings_hotkeys.action_show_dictionary")
+            HotkeyAction.TRANSLATE                -> localizer.getString("settings_hotkeys.action_translate")
         }
 
         val promptLabel = JLabel(
