@@ -30,7 +30,8 @@ class KeyboardPanel(
         HotkeyAction.LISTEN_TO_TEXT,
         HotkeyAction.OPEN_OCR,
         HotkeyAction.REPLACE_WITH_TRANSLATION,
-        HotkeyAction.CYCLE_TARGET_LANGUAGE
+        HotkeyAction.CYCLE_TARGET_LANGUAGE,
+        HotkeyAction.SHOW_DICTIONARY
     )
 
     private val nonEditableActions = setOf(HotkeyAction.SHOW_MAIN_WINDOW)
@@ -240,6 +241,7 @@ class KeyboardPanel(
         HotkeyAction.OPEN_OCR                 -> localizationManager.getString("settings_hotkeys.action_ocr")
         HotkeyAction.REPLACE_WITH_TRANSLATION -> localizationManager.getString("settings_hotkeys.action_replace")
         HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizationManager.getString("settings_hotkeys.action_cycle_language")
+        HotkeyAction.SHOW_DICTIONARY          -> localizationManager.getString("settings_hotkeys.action_show_dictionary")
     }
 
     private fun scopeLabel(scope: HotkeyScope): String = when (scope) {
@@ -345,6 +347,7 @@ object HotkeyRecorderDialog {
             HotkeyAction.OPEN_OCR                 -> localizer.getString("settings_hotkeys.action_ocr")
             HotkeyAction.REPLACE_WITH_TRANSLATION -> localizer.getString("settings_hotkeys.action_replace")
             HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizer.getString("settings_hotkeys.action_cycle_language")
+            HotkeyAction.SHOW_DICTIONARY          -> localizer.getString("settings_hotkeys.action_show_dictionary")
         }
 
         val promptLabel = JLabel(

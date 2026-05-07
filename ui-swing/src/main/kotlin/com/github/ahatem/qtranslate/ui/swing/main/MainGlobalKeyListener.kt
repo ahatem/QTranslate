@@ -45,7 +45,8 @@ class MainGlobalKeyListener(
     private val onListenToText: (String) -> Unit,
     private val onOpenSnippingTool: () -> Unit,
     private val onReplaceWithTranslation: (String) -> Unit,
-    private val onCycleTargetLanguage: () -> Unit
+    private val onCycleTargetLanguage: () -> Unit,
+    private val onShowDictionary: (String) -> Unit = {}
 ) {
 
     private var provider: Provider? = null
@@ -156,6 +157,8 @@ class MainGlobalKeyListener(
                 scope.launch { handleSelectedText(onReplaceWithTranslation) }
             HotkeyAction.CYCLE_TARGET_LANGUAGE ->
                 onCycleTargetLanguage()
+            HotkeyAction.SHOW_DICTIONARY ->
+                scope.launch { handleSelectedText(onShowDictionary) }
         }
     }
 

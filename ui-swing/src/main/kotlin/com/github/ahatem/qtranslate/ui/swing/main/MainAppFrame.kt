@@ -24,6 +24,10 @@ import com.github.ahatem.qtranslate.ui.swing.about.InfoDialog
 import com.github.ahatem.qtranslate.ui.swing.about.InfoDialogState
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryDialog
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryDialogState
+import com.github.ahatem.qtranslate.ui.swing.dictionary.QuickDictionaryDialog
+import com.github.ahatem.qtranslate.ui.swing.dictionary.QuickDictionaryConfig
+import com.github.ahatem.qtranslate.ui.swing.dictionary.QuickDictionaryDialogState
+import com.github.ahatem.qtranslate.ui.swing.dictionary.QuickDictionaryStrings
 import com.github.ahatem.qtranslate.ui.swing.history.HistoryDialog
 import com.github.ahatem.qtranslate.ui.swing.history.HistoryDialogState
 import com.github.ahatem.qtranslate.ui.swing.history.HistoryEntryState
@@ -78,6 +82,10 @@ class MainAppFrame(
             clearAllLabel = localizer.getString("common.clear_all"),
             onCleared = { statusBarController.onPopoverCleared() },
         )
+    }
+
+    private val quickDictionaryDialog by lazy {
+        QuickDictionaryDialog(owner = this, iconManager = iconManager)
     }
 
     private val quickTranslateDialog by lazy {
@@ -144,6 +152,11 @@ class MainAppFrame(
         },
         onCycleTargetLanguage = {
             mainStore.dispatch(MainIntent.CycleTargetLanguage)
+        },
+        onShowDictionary = { selectedText ->
+            appScope.launch {
+                mainStore.dispatch(MainIntent.ShowQuickDictionary(selectedText))
+            }
         }
     )
 
@@ -275,6 +288,12 @@ class MainAppFrame(
                                 )
                                 quickTranslateDialog.render(dialogState)
                             }
+
+                            if (mainState.isQuickDictionaryVisible || quickDictionaryDialog.isVisible) {
+                                quickDictionaryDialog.render(
+                                    buildQuickDictionaryDialogState(mainState, settingsState.workingConfiguration)
+                                )
+                            }
                         } catch (e: Exception) {
                             System.err.println("Failed to render UI: ${e.message}")
                             e.printStackTrace()
@@ -390,6 +409,19 @@ class MainAppFrame(
                         SettingsIntent.ToggleSetting { it.copy(showDictionaryPanel = visible) }
                     )
                     settingsStore.dispatch(SettingsIntent.SaveChanges)
+                }
+        }
+
+        // Persist quick dictionary pin state when it changes.
+        appScope.launch(handler) {
+            mainStore.state
+                .map { it.isQuickDictionaryPinned }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { pinned ->
+                    settingsStore.dispatch(
+                        SettingsIntent.ToggleSetting { it.copy(isQuickDictionaryPinned = pinned) }
+                    )
                 }
         }
 
@@ -1042,6 +1074,74 @@ class MainAppFrame(
                 )
                 val currentWord = mainStore.state.value.dictionaryWord
                 if (currentWord.isNotBlank()) mainStore.dispatch(MainIntent.LookupWord(currentWord, resolvedLang))
+            }
+        )
+    }
+
+    private fun buildQuickDictionaryDialogState(
+        mainState: MainState,
+        config: Configuration
+    ): QuickDictionaryDialogState {
+        val availableDicts = mainState.getAvailableServicesFor(
+            com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY
+        )
+        val selectedDictId = config.getActivePreset()
+            ?.selectedServices?.get(com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY)
+
+        val resolvedLang = when {
+            mainState.sourceLanguage != LanguageCode.AUTO -> mainState.sourceLanguage
+            mainState.detectedSourceLanguage != null      -> mainState.detectedSourceLanguage!!
+            else                                          -> LanguageCode("en")
+        }
+
+        return QuickDictionaryDialogState(
+            isVisible            = mainState.isQuickDictionaryVisible,
+            isLoading            = mainState.isDictionaryLoading,
+            entries              = mainState.dictionaryEntries,
+            lookedUpWord         = mainState.dictionaryWord,
+            hasFailed            = mainState.dictionaryFailed,
+            isPinned             = mainState.isQuickDictionaryPinned,
+            availableDictionaries = availableDicts,
+            selectedDictionaryId  = selectedDictId,
+            config = QuickDictionaryConfig(
+                autoPositionEnabled = config.isQuickDictionaryAutoPositionEnabled,
+                lastKnownSize       = config.quickDictionaryLastKnownSize,
+                lastKnownPosition   = config.quickDictionaryLastKnownPosition
+            ),
+            strings = QuickDictionaryStrings(
+                title            = localizer.getString("dictionary_dialog.title"),
+                hintMessage      = localizer.getString("dictionary_dialog.hint_message"),
+                loadingMessage   = localizer.getString("dictionary_dialog.loading_message"),
+                notFoundMessage  = localizer.getString("dictionary_dialog.not_found_message", mainState.dictionaryWord),
+                errorMessage     = localizer.getString("dictionary_dialog.error_message"),
+                lookupButtonLabel = localizer.getString("dictionary_dialog.lookup_button"),
+                synonymsLabel    = localizer.getString("dictionary_dialog.synonyms_label"),
+                pinTooltip       = localizer.getString("common.pin"),
+                unpinTooltip     = localizer.getString("common.unpin"),
+                closeTooltip     = localizer.getString("common.close"),
+                servicePickerLabel = ""
+            ),
+            onLookup = { word -> mainStore.dispatch(MainIntent.LookupWord(word, resolvedLang)) },
+            onDictionarySelected = { serviceId ->
+                settingsStore.dispatch(
+                    SettingsIntent.UpdateServiceInActivePreset(
+                        com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY, serviceId
+                    )
+                )
+                val currentWord = mainStore.state.value.dictionaryWord
+                if (currentWord.isNotBlank()) mainStore.dispatch(MainIntent.LookupWord(currentWord, resolvedLang))
+            },
+            onPinToggled = { mainStore.dispatch(MainIntent.ToggleQuickDictionaryPin) },
+            onClose = { mainStore.dispatch(MainIntent.HideQuickDictionary) },
+            onSavePosition = { pos ->
+                settingsStore.dispatch(
+                    SettingsIntent.ToggleSetting { it.copy(quickDictionaryLastKnownPosition = pos) }
+                )
+            },
+            onSaveSize = { size ->
+                settingsStore.dispatch(
+                    SettingsIntent.ToggleSetting { it.copy(quickDictionaryLastKnownSize = size) }
+                )
             }
         )
     }
