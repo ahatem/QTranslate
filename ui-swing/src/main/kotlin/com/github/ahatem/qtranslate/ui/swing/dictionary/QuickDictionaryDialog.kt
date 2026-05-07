@@ -169,6 +169,10 @@ class QuickDictionaryDialog(
                 currentState = state
                 wasManuallyMoved = false
                 updateContent(state)
+                // Pre-fill search field with the word that triggered the popup.
+                if (state.lookedUpWord.isNotBlank()) {
+                    setSearchWord(state.lookedUpWord)
+                }
                 applySize(state.config)
                 applyPosition(state.config)
                 showDialog()

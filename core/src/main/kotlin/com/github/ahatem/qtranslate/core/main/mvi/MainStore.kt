@@ -226,7 +226,15 @@ class MainStore(
             }
 
             is MainIntent.ShowQuickDictionary -> scope.launch {
-                _state.update { it.copy(isQuickDictionaryVisible = true) }
+                // Pre-set dictionaryWord so the dialog's search field is already populated
+                // on the very first render — before handleLookupWord emits its own update.
+                _state.update {
+                    it.copy(
+                        isQuickDictionaryVisible = true,
+                        dictionaryWord   = if (intent.selectedText.isNotBlank()) intent.selectedText else it.dictionaryWord,
+                        isDictionaryLoading = intent.selectedText.isNotBlank()
+                    )
+                }
                 if (intent.selectedText.isNotBlank()) {
                     handleLookupWord(MainIntent.LookupWord(intent.selectedText))
                 }
