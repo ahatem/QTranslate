@@ -50,6 +50,9 @@ class InputTextPanel(
         add(scrollPane, BorderLayout.CENTER)
         add(actionsWrapper, BorderLayout.LINE_END)
 
+        textPane.hintText      = localizationManager.getString("main_window_editor_context_menu.input_hint")
+        textPane.showCharCount = true
+
         textPane.onBeforeContextMenuPopup = { menu, clickPosition ->
             customizeContextMenu(menu, clickPosition)
         }

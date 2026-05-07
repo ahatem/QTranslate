@@ -13,7 +13,11 @@ class WavyUnderlineHighlighter : DefaultHighlighter() {
         super.setDrawsLayeredHighlights(true)
     }
 
-    class WavyUnderlinePainter(private val color: Color) : LayerPainter() {
+    /**
+     * @param colorProvider Called on every paint to fetch the current theme color,
+     *   so the underline always matches the active look-and-feel.
+     */
+    class WavyUnderlinePainter(private val colorProvider: () -> Color) : LayerPainter() {
 
         companion object {
             private const val WAVE_AMPLITUDE = 2 // Height of the wave crest/trough
@@ -35,7 +39,7 @@ class WavyUnderlineHighlighter : DefaultHighlighter() {
             val g2d = g.create() as Graphics2D
 
             try {
-                g2d.color = this.color
+                g2d.color = colorProvider()
                 g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
 
                 val wavePath = createWavePath(area)
