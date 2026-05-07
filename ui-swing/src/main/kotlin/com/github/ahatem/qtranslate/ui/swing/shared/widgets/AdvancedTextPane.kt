@@ -415,6 +415,16 @@ class AdvancedTextPane(
 
     var onBeforeContextMenuPopup: ((menu: JPopupMenu, clickPosition: Point) -> Unit)? = null
 
+    /** Called just before the context menu appears; return a label for each key or null to keep the default. */
+    var getContextMenuLabel: ((key: String) -> String)? = null
+
+    private lateinit var ctxUndoItem: JMenuItem
+    private lateinit var ctxCutItem: JMenuItem
+    private lateinit var ctxCopyItem: JMenuItem
+    private lateinit var ctxPasteItem: JMenuItem
+    private lateinit var ctxTranslateItem: JMenuItem
+    private lateinit var ctxListenItem: JMenuItem
+
     private var isTextRtl = false
     private var lastRenderedText: String? = null
     private var lastRenderedCorrections: List<Correction> = emptyList()
@@ -669,25 +679,26 @@ class AdvancedTextPane(
         val undoAction = actionMap["undo"]
         val redoAction = actionMap["redo"]
 
-        val cutItem = JMenuItem("Cut").apply { addActionListener { cut() } }
-        val copyItem = JMenuItem("Copy").apply { addActionListener { copy() } }
-        val pasteItem = JMenuItem("Paste").apply { addActionListener { paste() } }
-        val translateItem = JMenuItem("Translate").apply {
+        ctxUndoItem    = JMenuItem(undoAction)
+        ctxCutItem     = JMenuItem("Cut").apply { addActionListener { cut() } }
+        ctxCopyItem    = JMenuItem("Copy").apply { addActionListener { copy() } }
+        ctxPasteItem   = JMenuItem("Paste").apply { addActionListener { paste() } }
+        ctxTranslateItem = JMenuItem("Translate").apply {
             addActionListener { onTranslateRequest(selectedText ?: text) }
         }
-        val listenItem = JMenuItem("Listen").apply {
+        ctxListenItem  = JMenuItem("Listen").apply {
             addActionListener { onListenRequest(selectedText ?: text) }
         }
 
-        menu.add(JMenuItem(undoAction))
+        menu.add(ctxUndoItem)
         menu.add(JMenuItem(redoAction))
         menu.addSeparator()
-        menu.add(cutItem)
-        menu.add(copyItem)
-        menu.add(pasteItem)
+        menu.add(ctxCutItem)
+        menu.add(ctxCopyItem)
+        menu.add(ctxPasteItem)
         menu.addSeparator()
-        menu.add(translateItem)
-        menu.add(listenItem)
+        menu.add(ctxTranslateItem)
+        menu.add(ctxListenItem)
 
         menu.addPopupMenuListener(object : PopupMenuListener {
             override fun popupMenuWillBecomeVisible(e: PopupMenuEvent?) {
@@ -697,12 +708,20 @@ class AdvancedTextPane(
                 undoAction.isEnabled = isEditable && undoManager.canUndo()
                 redoAction.isEnabled = isEditable && undoManager.canRedo()
 
-                cutItem.isEnabled = isEditable && hasSelection
-                copyItem.isEnabled = hasSelection
-                pasteItem.isEnabled = isEditable
+                ctxCutItem.isEnabled     = isEditable && hasSelection
+                ctxCopyItem.isEnabled    = hasSelection
+                ctxPasteItem.isEnabled   = isEditable
+                ctxTranslateItem.isEnabled = hasText
+                ctxListenItem.isEnabled  = hasText
 
-                translateItem.isEnabled = hasText
-                listenItem.isEnabled = hasText
+                getContextMenuLabel?.let { get ->
+                    get("undo")?.let      { ctxUndoItem.text      = it }
+                    get("cut")?.let       { ctxCutItem.text       = it }
+                    get("copy")?.let      { ctxCopyItem.text      = it }
+                    get("paste")?.let     { ctxPasteItem.text     = it }
+                    get("translate")?.let { ctxTranslateItem.text = it }
+                    get("listen")?.let    { ctxListenItem.text    = it }
+                }
             }
 
             override fun popupMenuWillBecomeInvisible(e: PopupMenuEvent?) {}

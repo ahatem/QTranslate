@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.main.output
 import com.formdev.flatlaf.extras.components.FlatButton
 import com.github.ahatem.qtranslate.api.rewriter.RewriteStyle
 import com.github.ahatem.qtranslate.api.summarizer.SummaryLength
+import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.ReadOnlyTextPanel
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.ReadOnlyTextPanelState
@@ -14,6 +15,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.awt.Insets
+import java.awt.Point
 import javax.swing.*
 
 /**
@@ -24,8 +26,10 @@ import javax.swing.*
  */
 class ExtraOutputPanel(
     private val iconManager: IconManager,
+    private val localizationManager: LocalizationManager,
     onListen: (text: String) -> Unit,
-    onTranslateRequest: (text: String) -> Unit
+    onTranslateRequest: (text: String) -> Unit,
+    private val onFindInDictionary: ((String) -> Unit)? = null,
 ) : JPanel(BorderLayout()), Renderable<ExtraOutputState> {
 
     private val textPane = AdvancedTextPane(
@@ -94,7 +98,19 @@ class ExtraOutputPanel(
             val state = currentState ?: return@addActionListener
             buildConfigPopup(state).show(gearBtn, 0, gearBtn.height)
         }
+
+        textPane.getContextMenuLabel = { key ->
+            localizationManager.getString("main_window_editor_context_menu.$key")
+        }
+        if (onFindInDictionary != null) {
+            textPane.onBeforeContextMenuPopup = { menu, clickPosition ->
+                addFindInDictionaryItem(menu, clickPosition)
+            }
+        }
     }
+
+    private var dictMenuItem: JMenuItem? = null
+    private var dictMenuSeparator: JSeparator? = null
 
     override fun render(state: ExtraOutputState) {
         isVisible = state.isVisible
@@ -149,6 +165,38 @@ class ExtraOutputPanel(
 
             else -> Unit
         }
+    }
+
+    private fun addFindInDictionaryItem(menu: JPopupMenu, clickPosition: Point) {
+        dictMenuItem?.let { menu.remove(it) }
+        dictMenuSeparator?.let { menu.remove(it) }
+        dictMenuItem = null
+        dictMenuSeparator = null
+
+        val clickOffset = textPane.viewToModel(clickPosition)
+        val word = (textPane.selectedText?.trim() ?: "")
+            .takeIf { it.isNotBlank() && !it.contains(' ') }
+            ?: wordAtOffset(clickOffset)
+        if (word.isNotEmpty()) {
+            val sep = JSeparator()
+            val item = JMenuItem(localizationManager.getString("main_window_editor_context_menu.find_in_dictionary")).apply {
+                addActionListener { onFindInDictionary?.invoke(word) }
+            }
+            dictMenuSeparator = sep
+            dictMenuItem = item
+            menu.add(sep)
+            menu.add(item)
+        }
+    }
+
+    private fun wordAtOffset(offset: Int): String {
+        val text = textPane.text ?: return ""
+        if (offset < 0 || offset >= text.length) return ""
+        var start = offset
+        var end = offset
+        while (start > 0 && text[start - 1].isLetterOrDigit()) start--
+        while (end < text.length && text[end].isLetterOrDigit()) end++
+        return text.substring(start, end)
     }
 
     private fun makeToggle() = JToggleButton().apply {
