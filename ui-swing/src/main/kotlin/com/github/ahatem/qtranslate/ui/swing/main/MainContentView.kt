@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
@@ -171,6 +172,7 @@ class MainContentView(
 
     private var lastState: Pair<MainState, SettingsState>? = null
     private var lastDictionaryKey: DictionaryKey? = null
+    private var currentTranslateKeyStroke: KeyStroke? = null
 
     private data class DictionaryKey(
         val isVisible: Boolean,
@@ -213,9 +215,26 @@ class MainContentView(
             layoutManager.updateVisibility(config)
         }
 
+        updateTranslateKeyStroke(config)
         renderDictionaryPanel(mainState, config)
         renderComponents(mainState, config)
         lastState = mainState to settingsState
+    }
+
+    /**
+     * Keeps the per-pane translate keystroke in sync with the user's configured binding.
+     * Binding lives on each AdvancedTextPane (WHEN_FOCUSED) so the pane can pass selected
+     * text to onTranslateRequest rather than always using the full input text.
+     */
+    private fun updateTranslateKeyStroke(config: Configuration) {
+        val binding = config.hotkeys.find { it.action == HotkeyAction.TRANSLATE }
+        val newStroke = binding?.takeIf { it.isEnabled }?.toKeyStroke()
+        if (newStroke == currentTranslateKeyStroke) return
+        val old = currentTranslateKeyStroke
+        currentTranslateKeyStroke = newStroke
+        inputTextPanel.setTranslateKeyStroke(old, newStroke)
+        outputTextPanel.setTranslateKeyStroke(old, newStroke)
+        extraOutputPanel.setTranslateKeyStroke(old, newStroke)
     }
 
     private fun renderDictionaryPanel(mainState: MainState, config: Configuration) {

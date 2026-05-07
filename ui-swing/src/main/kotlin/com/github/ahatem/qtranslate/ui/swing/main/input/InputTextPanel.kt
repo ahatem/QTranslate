@@ -78,6 +78,8 @@ class InputTextPanel(
     }
 
     fun requestFocusOnText() = textPane.requestFocusInWindow()
+    fun setTranslateKeyStroke(old: javax.swing.KeyStroke?, new: javax.swing.KeyStroke?) =
+        textPane.setTranslateKeyStroke(old, new)
 
     private fun customizeContextMenu(menu: JPopupMenu, clickPosition: Point) {
         spellingMenu?.let { menu.remove(it) }

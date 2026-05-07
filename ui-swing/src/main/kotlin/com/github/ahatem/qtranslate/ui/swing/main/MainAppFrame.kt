@@ -588,13 +588,17 @@ class MainAppFrame(
      * whenever bindings change (Dinar's per-action scope request).
      */
     private fun registerLocalHotkeys() {
-        rootPane.inputMap.clear()
+        // WHEN_ANCESTOR_OF_FOCUSED_COMPONENT fires whenever any descendant has focus,
+        // which is always the case (text pane, buttons, etc.).
+        // WHEN_FOCUSED would only fire if rootPane itself held focus — which never happens.
+        val inputMap = rootPane.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+        inputMap.clear()
         rootPane.actionMap.clear()
 
         globalKeyListener.getLocalBindings().forEach { binding ->
             val keyStroke = binding.toKeyStroke() ?: return@forEach
             val actionKey = "localHotkey_${binding.action.name}"
-            rootPane.inputMap.put(keyStroke, actionKey)
+            inputMap.put(keyStroke, actionKey)
             rootPane.actionMap.put(actionKey, object : AbstractAction() {
                 override fun actionPerformed(e: ActionEvent) {
                     globalKeyListener.dispatchAction(binding.action)

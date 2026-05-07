@@ -512,8 +512,18 @@ class AdvancedTextPane(
             if (undoManager.canRedo()) undoManager.redo()
         }
 
+        // Translate action — keystroke is set dynamically via setTranslateKeyStroke() so the
+        // user-configured binding is always used; selected text is preferred over full pane text.
+        val translateAction = object : AbstractAction("Translate") {
+            override fun actionPerformed(e: ActionEvent) {
+                val textToTranslate = selectedText?.takeIf { it.isNotBlank() } ?: text
+                if (textToTranslate.isNotBlank()) onTranslateRequest(textToTranslate)
+            }
+        }
+
         actionMap.put("undo", undoAction)
         actionMap.put("redo", redoAction)
+        actionMap.put("translate", translateAction)
         inputMap.put(undoAction.getValue(Action.ACCELERATOR_KEY) as KeyStroke, "undo")
         inputMap.put(redoAction.getValue(Action.ACCELERATOR_KEY) as KeyStroke, "redo")
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, InputEvent.CTRL_DOWN_MASK), "none")
@@ -534,6 +544,16 @@ class AdvancedTextPane(
             actionMap.put("paste-image-or-text", pasteAction)
             inputMap.put(pasteAction.getValue(Action.ACCELERATOR_KEY) as KeyStroke, "paste-image-or-text")
         }
+    }
+
+    /**
+     * Swaps the keyboard shortcut that triggers the translate action.
+     * Called by the owning panel whenever the user changes the binding in Settings.
+     * [old] is removed, [new] is registered — both may be null (no-op for that half).
+     */
+    fun setTranslateKeyStroke(old: KeyStroke?, new: KeyStroke?) {
+        old?.let { inputMap.remove(it) }
+        new?.let { inputMap.put(it, "translate") }
     }
 
     // -----------------------------------------------------------------------

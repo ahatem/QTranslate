@@ -80,6 +80,8 @@ class ExtraOutputPanel(
     }
 
     fun requestFocusOnText() = textPane.requestFocusInWindow()
+    fun setTranslateKeyStroke(old: javax.swing.KeyStroke?, new: javax.swing.KeyStroke?) =
+        textPane.setTranslateKeyStroke(old, new)
 
     private var currentState: ExtraOutputState? = null
 

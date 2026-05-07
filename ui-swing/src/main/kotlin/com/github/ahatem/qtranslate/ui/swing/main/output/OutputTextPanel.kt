@@ -39,6 +39,8 @@ class OutputTextPanel(
     private var dictMenuSeparator: JSeparator? = null
 
     fun requestFocusOnText() = textPane.requestFocusInWindow()
+    fun setTranslateKeyStroke(old: javax.swing.KeyStroke?, new: javax.swing.KeyStroke?) =
+        textPane.setTranslateKeyStroke(old, new)
 
     init {
         add(readOnlyPanel, BorderLayout.CENTER)
