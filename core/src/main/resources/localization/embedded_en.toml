@@ -80,6 +80,7 @@ listen = "@common.listen"
 spell_check = "Spell Check"
 find_in_dictionary = "Find in Dictionary"
 input_hint = "Enter text to translate..."
+output_hint = "Translation will appear here…"
 
 
 [main_window_main_menu]

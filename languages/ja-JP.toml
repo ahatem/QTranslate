@@ -80,6 +80,7 @@ listen = "@common.listen"
 spell_check = "スペルチェック"
 find_in_dictionary = "辞書で検索"
 input_hint = "Enter text to translate..."
+output_hint = "翻訳結果がここに表示されます…"
 
 
 [main_window_main_menu]

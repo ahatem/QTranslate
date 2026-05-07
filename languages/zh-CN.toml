@@ -80,6 +80,7 @@ listen = "@common.listen"
 spell_check = "拼写检查"
 find_in_dictionary = "在词典中查找"
 input_hint = "Enter text to translate..."
+output_hint = "翻译结果将在此处显示…"
 
 
 [main_window_main_menu]

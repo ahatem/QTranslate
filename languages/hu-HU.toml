@@ -80,6 +80,7 @@ listen = "@common.listen"
 spell_check = "Helyesírás-ellenőrzés"
 find_in_dictionary = "Keresés a szótárban"
 input_hint = "Enter text to translate..."
+output_hint = "A fordítás itt jelenik meg…"
 
 
 [main_window_main_menu]

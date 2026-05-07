@@ -80,6 +80,7 @@ listen = "@common.listen"
 spell_check = "বানান যাচাই"
 find_in_dictionary = "অভিধানে খুঁজুন"
 input_hint = "Enter text to translate..."
+output_hint = "অনুবাদের ফলাফল এখানে দেখাবে…"
 
 
 [main_window_main_menu]

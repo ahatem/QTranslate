@@ -80,6 +80,7 @@ listen = "@common.listen"
 spell_check = "Corrector ortográfico"
 find_in_dictionary = "Buscar en el diccionario"
 input_hint = "Enter text to translate..."
+output_hint = "La traducción aparecerá aquí…"
 
 
 [main_window_main_menu]

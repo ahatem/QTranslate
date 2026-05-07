@@ -80,6 +80,7 @@ listen = "@common.listen"
 spell_check = "Yazım Denetimi"
 find_in_dictionary = "Sözlükte bul"
 input_hint = "Enter text to translate..."
+output_hint = "Çeviri burada görünecek…"
 
 
 [main_window_main_menu]

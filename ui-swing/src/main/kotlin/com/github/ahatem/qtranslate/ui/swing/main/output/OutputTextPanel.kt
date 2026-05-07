@@ -36,6 +36,7 @@ class OutputTextPanel(
     init {
         add(readOnlyPanel, BorderLayout.CENTER)
 
+        textPane.hintText = localizationManager.getString("main_window_editor_context_menu.output_hint")
         textPane.getContextMenuLabel = { key ->
             localizationManager.getString("main_window_editor_context_menu.$key")
         }
