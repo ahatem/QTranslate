@@ -53,7 +53,10 @@ class MainStore(
 ) : Store<MainState, MainIntent, MainEvent> {
 
     private val _state = MutableStateFlow(
-        MainState(isDictionaryPanelVisible = settingsState.value.showDictionaryPanel)
+        MainState(
+            isDictionaryPanelVisible = settingsState.value.showDictionaryPanel,
+            isQuickDictionaryPinned  = settingsState.value.isQuickDictionaryPinned
+        )
     )
     override val state: StateFlow<MainState> = _state.asStateFlow()
 
@@ -220,6 +223,21 @@ class MainStore(
 
             is MainIntent.ToggleDictionaryPanel -> _state.update {
                 it.copy(isDictionaryPanelVisible = !it.isDictionaryPanelVisible)
+            }
+
+            is MainIntent.ShowQuickDictionary -> scope.launch {
+                _state.update { it.copy(isQuickDictionaryVisible = true) }
+                if (intent.selectedText.isNotBlank()) {
+                    handleLookupWord(MainIntent.LookupWord(intent.selectedText))
+                }
+            }
+
+            is MainIntent.HideQuickDictionary -> _state.update {
+                it.copy(isQuickDictionaryVisible = false)
+            }
+
+            is MainIntent.ToggleQuickDictionaryPin -> _state.update {
+                it.copy(isQuickDictionaryPinned = !it.isQuickDictionaryPinned)
             }
         }
     }

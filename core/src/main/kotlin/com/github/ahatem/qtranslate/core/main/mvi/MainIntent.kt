@@ -118,4 +118,16 @@ sealed interface MainIntent : UiIntent {
 
     /** User toggled the inline dictionary panel open or closed. */
     data object ToggleDictionaryPanel : MainIntent
+
+    /**
+     * User triggered the floating dictionary popup (e.g. via global hotkey).
+     * @property selectedText The text that was selected at the time of the hotkey press.
+     */
+    data class ShowQuickDictionary(val selectedText: String) : MainIntent
+
+    /** User dismissed the floating dictionary popup. */
+    data object HideQuickDictionary : MainIntent
+
+    /** User toggled the pin state of the floating dictionary popup. */
+    data object ToggleQuickDictionaryPin : MainIntent
 }
