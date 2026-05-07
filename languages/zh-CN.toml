@@ -409,8 +409,8 @@ error_message = "查询失败，请重试。"
 synonyms_label = "同义词"
 
 auto_source_off = "Auto: Off"
-auto_source_translated = "→ Translated"
-auto_source_source = "← Source"
+auto_source_translated = "Translated"
+auto_source_source = "Source"
 
 [update_dialog]
 title = "有可用更新"

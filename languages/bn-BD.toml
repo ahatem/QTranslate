@@ -409,8 +409,8 @@ error_message = "অনুসন্ধান ব্যর্থ হয়েছ�
 synonyms_label = "প্রতিশব্দ"
 
 auto_source_off = "Auto: Off"
-auto_source_translated = "→ Translated"
-auto_source_source = "← Source"
+auto_source_translated = "Translated"
+auto_source_source = "Source"
 
 [update_dialog]
 title = "আপডেট উপলব্ধ"

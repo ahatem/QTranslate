@@ -377,8 +377,8 @@ loading_message = "Looking up…"
 error_message = "Lookup failed. Please try again."
 synonyms_label = "Synonyms"
 auto_source_off = "Auto: Off"
-auto_source_translated = "→ Translated"
-auto_source_source = "← Source"
+auto_source_translated = "Translated"
+auto_source_source = "Source"
 
 [update_dialog]
 title = "Update Available"

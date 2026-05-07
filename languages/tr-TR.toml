@@ -409,8 +409,8 @@ error_message = "Arama başarısız. Tekrar deneyin."
 synonyms_label = "Eş anlamlılar"
 
 auto_source_off = "Auto: Off"
-auto_source_translated = "→ Translated"
-auto_source_source = "← Source"
+auto_source_translated = "Translated"
+auto_source_source = "Source"
 
 [update_dialog]
 title = "Güncelleme Mevcut"

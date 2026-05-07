@@ -409,8 +409,8 @@ error_message = "Поиск не удался. Попробуйте снова."
 synonyms_label = "Синонимы"
 
 auto_source_off = "Auto: Off"
-auto_source_translated = "→ Translated"
-auto_source_source = "← Source"
+auto_source_translated = "Translated"
+auto_source_source = "Source"
 
 [update_dialog]
 title = "Доступно обновление"

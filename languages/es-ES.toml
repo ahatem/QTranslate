@@ -409,8 +409,8 @@ error_message = "Búsqueda fallida. Inténtelo de nuevo."
 synonyms_label = "Sinónimos"
 
 auto_source_off = "Auto: Off"
-auto_source_translated = "→ Translated"
-auto_source_source = "← Source"
+auto_source_translated = "Translated"
+auto_source_source = "Source"
 
 [update_dialog]
 title = "Actualización Disponible"

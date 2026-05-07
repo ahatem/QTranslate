@@ -409,8 +409,8 @@ error_message = "検索に失敗しました。もう一度お試しください
 synonyms_label = "類義語"
 
 auto_source_off = "Auto: Off"
-auto_source_translated = "→ Translated"
-auto_source_source = "← Source"
+auto_source_translated = "Translated"
+auto_source_source = "Source"
 
 [update_dialog]
 title = "アップデートが利用可能"

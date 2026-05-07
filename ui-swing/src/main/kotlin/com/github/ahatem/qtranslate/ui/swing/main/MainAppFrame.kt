@@ -414,14 +414,18 @@ class MainAppFrame(
                 }
         }
 
-        // Auto-lookup single words in the dictionary panel and/or floating popup.
-        // Respects dictionaryAutoSource: OFF=nothing, TRANSLATED=output word, SOURCE=input word.
+        // Auto-lookup single words after a translation completes.
         //
-        // Debounced so that fast typing in SOURCE mode (or rapid state churn) does not fire
-        // a new dictionary request on every keystroke — only after the user pauses.
-        // isLoading=true dismissal still fires immediately (before the debounce window)
-        // because it runs inside the collect block, not in the flow pipe itself.
-        @OptIn(kotlinx.coroutines.FlowPreview::class)
+        // Uses scan() to observe (previous, current) pairs so we can detect the exact
+        // moment isLoading transitions true→false (= translation finished).  This is the
+        // ONLY moment a new auto-lookup is allowed to fire, which prevents the dictionary
+        // from reacting to every keystroke.
+        //
+        // Additional trigger: a relevant *setting* changed (autoSource cycling, panel
+        // opening) while we are already idle and a translated result is on screen.
+        //
+        // isLoading=true is also passed through so the collect block can dismiss a stale
+        // popup the instant a new translation starts.
         appScope.launch(handler) {
             mainStore.state
                 .combine(settingsStore.state) { m, s -> m to s }
@@ -444,11 +448,33 @@ class MainAppFrame(
                         isDictionaryAutoPopupEnabled = s.workingConfiguration.isDictionaryAutoPopupEnabled,
                     )
                 }
-                .distinctUntilChanged()
-                .debounce(450)
+                .scan(Pair<AutoLookupKey?, AutoLookupKey?>(null, null)) { (_, prev), curr -> prev to curr }
+                .filter { (prev, curr) ->
+                    when {
+                        curr == null -> false
+                        // Always pass isLoading=true so the collect block can dismiss stale popups.
+                        curr.isLoading -> true
+                        // Need a previous snapshot to detect transitions.
+                        prev == null -> false
+                        // Auto-lookup is disabled — nothing to do.
+                        curr.autoSource == com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource.OFF -> false
+                        else -> {
+                            // Primary trigger: translation just finished.
+                            val justFinishedLoading = prev.isLoading && !curr.isLoading
+                            // Secondary trigger: a setting changed while already idle and a
+                            // translation result is already on screen.
+                            val settingChangedIdle = curr.translatedText.isNotBlank() && (
+                                prev.autoSource != curr.autoSource ||
+                                prev.isDictionaryAutoPopupEnabled != curr.isDictionaryAutoPopupEnabled ||
+                                (!prev.panelVisible && curr.panelVisible)
+                            )
+                            justFinishedLoading || settingChangedIdle
+                        }
+                    }
+                }
+                .mapNotNull { it.second }
                 .collect { key ->
-                    // When a new translation starts, dismiss any unpinned auto-triggered popup
-                    // so it doesn't show stale data while the user waits for results.
+                    // Translation started — dismiss any unpinned auto-triggered popup.
                     if (key.isLoading) {
                         if (key.isQuickDictionaryVisible && !key.isQuickDictionaryPinned) {
                             mainStore.dispatch(MainIntent.HideQuickDictionary)
@@ -466,7 +492,7 @@ class MainAppFrame(
                         else -> return@collect
                     }
 
-                    // Word is no longer a single valid word — dismiss any unpinned auto popup
+                    // Word is not a single valid word — dismiss any unpinned auto popup.
                     if (word.isBlank() || word.contains(Regex("\\s")) || word.length < 2) {
                         if (key.isQuickDictionaryVisible && !key.isQuickDictionaryPinned) {
                             mainStore.dispatch(MainIntent.HideQuickDictionary)
@@ -484,11 +510,9 @@ class MainAppFrame(
                         mainStore.dispatch(MainIntent.LookupWord(word, lang))
                     } else if (key.mainVisible && key.isDictionaryAutoPopupEnabled) {
                         // Panel closed but main window visible — show floating popup.
-                        // Position near the owner window, not the mouse (the user is
-                        // looking at the main window, not wherever their cursor is).
+                        // Position near the owner window, not the mouse cursor.
                         quickDictionaryPositionNearMouse = false
                         mainStore.dispatch(MainIntent.ShowQuickDictionary(word, lang))
-                        // LookupWord is dispatched inside ShowQuickDictionary handler in the store.
                     }
                 }
         }

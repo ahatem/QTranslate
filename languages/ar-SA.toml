@@ -409,8 +409,8 @@ error_message = "فشل البحث. حاول مرة أخرى."
 synonyms_label = "مرادفات"
 
 auto_source_off = "Auto: Off"
-auto_source_translated = "→ Translated"
-auto_source_source = "← Source"
+auto_source_translated = "Translated"
+auto_source_source = "Source"
 
 [update_dialog]
 title = "تحديث متاح"
