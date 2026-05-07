@@ -57,6 +57,5 @@ data class QuickDictionaryStrings(
     val synonymsLabel: String,
     val pinTooltip: String,
     val unpinTooltip: String,
-    val closeTooltip: String,
-    val servicePickerLabel: String
+    val closeTooltip: String
 )

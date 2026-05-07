@@ -39,22 +39,10 @@ class DictionaryPanel(
         isVisible = false
     }
 
-    // Single-row horizontal chip strip with scroll.
-    private val wordChipsPanel = JPanel().apply {
-        layout = BoxLayout(this, BoxLayout.X_AXIS)
-        isOpaque = false
-        border = BorderFactory.createEmptyBorder(2, 0, 2, 0)
+    private val chips = DictionaryChipController { word ->
+        searchField.text = word
+        onLookup(word)
     }
-    private val wordChipsScroll = JScrollPane(wordChipsPanel).apply {
-        horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
-        verticalScrollBarPolicy   = JScrollPane.VERTICAL_SCROLLBAR_NEVER
-        border    = null
-        isOpaque  = false
-        viewport.isOpaque = false
-        isVisible = false
-    }
-    private var chipsGroup  = ButtonGroup()
-    private var chipButtons: List<JToggleButton> = emptyList()
 
     private var updatingFromState = false
 
@@ -119,7 +107,7 @@ class DictionaryPanel(
 
         val contentArea = JPanel(BorderLayout()).apply {
             isOpaque = false
-            add(wordChipsScroll, BorderLayout.NORTH)
+            add(chips.scrollPane, BorderLayout.NORTH)
             add(cardPanel, BorderLayout.CENTER)
         }
 
@@ -154,7 +142,6 @@ class DictionaryPanel(
                 DictionaryAutoSource.TRANSLATED -> DictionaryAutoSource.SOURCE
                 DictionaryAutoSource.SOURCE     -> DictionaryAutoSource.OFF
             }
-            // Will be propagated back via render() after the store updates.
             // Read from clientProperty so we always call the latest callback.
             (getClientProperty("onAutoSourceChanged") as? (DictionaryAutoSource) -> Unit)?.invoke(next)
         }
@@ -181,7 +168,6 @@ class DictionaryPanel(
         }
         autoSourceButton.text = autoLabel
         autoSourceButton.toolTipText = autoTip
-        // Dim the button when off, highlight when active
         val isActive = state.autoSource != DictionaryAutoSource.OFF
         autoSourceButton.icon = if (isActive) activeLinkIcon else offUnlinkIcon
         autoSourceButton.foreground = if (isActive)
@@ -200,15 +186,11 @@ class DictionaryPanel(
         }
 
         // Chip management — only act once a lookup has completed (not loading).
-        if (chipButtons.isNotEmpty() && !state.isLoading && state.lookedUpWord.isNotBlank()) {
+        if (chips.hasChips && !state.isLoading && state.lookedUpWord.isNotBlank()) {
             if (state.entries.isEmpty() && !state.hasFailed) {
-                // Word genuinely not found — drop its chip so it won't be revisited.
-                removeChipForWord(state.lookedUpWord)
+                chips.removeChipForWord(state.lookedUpWord)
             } else if (state.entries.isNotEmpty()) {
-                // Sync highlighted chip with whatever word is currently showing.
-                chipButtons.firstOrNull { it.text == state.lookedUpWord }
-                    ?.takeIf { !it.isSelected }
-                    ?.isSelected = true
+                chips.syncSelection(state.lookedUpWord)
             }
         }
 
@@ -245,7 +227,7 @@ class DictionaryPanel(
                 entries = state.entries,
                 synonymsLabel = state.synonymsLabel,
                 onSynonymClicked = { word ->
-                    clearChips()
+                    chips.clear()
                     searchField.text = word
                     onLookup(word)
                 }
@@ -255,93 +237,19 @@ class DictionaryPanel(
 
     fun setSearchWord(word: String) {
         searchField.text = word
-        if (!word.contains(Regex("[,\\s]"))) clearChips()
+        if (!word.contains(Regex("[,\\s]"))) chips.clear()
     }
-
-    // --- Multi-word chip logic ---
 
     private fun triggerLookup() {
         val input = searchField.text.trim()
         if (input.isBlank()) return
-        val words = parseWords(input)
+        val words = chips.parseWords(input)
         if (words.size > 1) {
-            setupChips(words)
+            chips.setup(words)
             onLookup(words.first())
         } else {
-            clearChips()
+            chips.clear()
             onLookup(input)
-        }
-    }
-
-    private fun parseWords(input: String): List<String> =
-        input.split(Regex("[,\\s]+"))
-            .map { it.trim() }
-            .filter { word ->
-                word.length >= 2 && word.all { it.isLetter() || it == '\'' || it == '-' }
-            }
-            .distinct()
-            .take(20)
-
-    private fun setupChips(words: List<String>) {
-        wordChipsPanel.removeAll()
-        chipsGroup  = ButtonGroup()
-        chipButtons = words.mapIndexed { index, word ->
-            JToggleButton(word).apply {
-                putClientProperty("JButton.buttonType", "toolBarButton")
-                isFocusable = false
-                isSelected   = index == 0
-                addActionListener {
-                    if (isSelected) {
-                        searchField.text = word
-                        onLookup(word)
-                    }
-                }
-            }.also { btn ->
-                chipsGroup.add(btn)
-                wordChipsPanel.add(btn)
-                // Gap between chips.
-                if (index < words.size - 1) wordChipsPanel.add(Box.createRigidArea(Dimension(4, 0)))
-            }
-        }
-        wordChipsScroll.isVisible = true
-        wordChipsPanel.revalidate()
-        wordChipsPanel.repaint()
-    }
-
-    private fun clearChips() {
-        if (chipButtons.isEmpty()) return
-        wordChipsPanel.removeAll()
-        chipsGroup  = ButtonGroup()
-        chipButtons = emptyList()
-        wordChipsScroll.isVisible = false
-        wordChipsPanel.revalidate()
-        wordChipsPanel.repaint()
-    }
-
-    private fun removeChipForWord(word: String) {
-        val index = chipButtons.indexOfFirst { it.text == word }
-        if (index < 0) return
-
-        val chip = chipButtons[index]
-        chipsGroup.remove(chip)
-
-        // Remove chip and its trailing gap if present (gap is the component after the button).
-        val compIndex = wordChipsPanel.components.indexOf(chip)
-        if (compIndex >= 0) {
-            // Remove gap first (if it follows this chip) so indices stay valid.
-            val nextComp = wordChipsPanel.components.getOrNull(compIndex + 1)
-            if (nextComp is Box.Filler) wordChipsPanel.remove(nextComp)
-            wordChipsPanel.remove(chip)
-        }
-
-        chipButtons = chipButtons - chip
-
-        when {
-            chipButtons.isEmpty() -> clearChips()
-            else -> {
-                wordChipsPanel.revalidate()
-                wordChipsPanel.repaint()
-            }
         }
     }
 }

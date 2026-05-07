@@ -112,21 +112,10 @@ class QuickDictionaryDialog(
     private val cardPanel = JPanel(CardLayout())
 
     // Word chips
-    private val wordChipsPanel = JPanel().apply {
-        layout = BoxLayout(this, BoxLayout.X_AXIS)
-        isOpaque = false
-        border = BorderFactory.createEmptyBorder(2, 0, 2, 0)
+    private val chips = DictionaryChipController { word ->
+        searchField.text = word
+        currentState?.onLookup?.invoke(word)
     }
-    private val wordChipsScroll = JScrollPane(wordChipsPanel).apply {
-        horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
-        verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_NEVER
-        border = null
-        isOpaque = false
-        viewport.isOpaque = false
-        isVisible = false
-    }
-    private var chipsGroup = ButtonGroup()
-    private var chipButtons: List<JToggleButton> = emptyList()
 
     // State
     private var isPinned = false
@@ -245,14 +234,12 @@ class QuickDictionaryDialog(
             else -> state.strings.hintMessage
         }
 
-        // Chip sync (same logic as DictionaryPanel)
-        if (chipButtons.isNotEmpty() && !state.isLoading && state.lookedUpWord.isNotBlank()) {
+        // Chip sync
+        if (chips.hasChips && !state.isLoading && state.lookedUpWord.isNotBlank()) {
             if (state.entries.isEmpty() && !state.hasFailed) {
-                removeChipForWord(state.lookedUpWord)
+                chips.removeChipForWord(state.lookedUpWord)
             } else if (state.entries.isNotEmpty()) {
-                chipButtons.firstOrNull { it.text == state.lookedUpWord }
-                    ?.takeIf { !it.isSelected }
-                    ?.isSelected = true
+                chips.syncSelection(state.lookedUpWord)
             }
         }
 
@@ -290,7 +277,7 @@ class QuickDictionaryDialog(
                 entries = state.entries,
                 synonymsLabel = state.strings.synonymsLabel,
                 onSynonymClicked = { word ->
-                    clearChips()
+                    chips.clear()
                     searchField.text = word
                     state.onLookup(word)
                 }
@@ -300,88 +287,19 @@ class QuickDictionaryDialog(
 
     fun setSearchWord(word: String) {
         searchField.text = word
-        if (!word.contains(Regex("[,\\s]"))) clearChips()
+        if (!word.contains(Regex("[,\\s]"))) chips.clear()
     }
-
-    // -----------------------------------------------------------------------
-    // Chip logic (duplicated from DictionaryPanel — both independent instances)
-    // -----------------------------------------------------------------------
 
     private fun triggerLookup() {
         val input = searchField.text.trim()
         if (input.isBlank()) return
-        val words = parseWords(input)
+        val words = chips.parseWords(input)
         if (words.size > 1) {
-            setupChips(words)
+            chips.setup(words)
             currentState?.onLookup?.invoke(words.first())
         } else {
-            clearChips()
+            chips.clear()
             currentState?.onLookup?.invoke(input)
-        }
-    }
-
-    private fun parseWords(input: String): List<String> =
-        input.split(Regex("[,\\s]+"))
-            .map { it.trim() }
-            .filter { word ->
-                word.length >= 2 && word.all { it.isLetter() || it == '\'' || it == '-' }
-            }
-            .distinct()
-            .take(20)
-
-    private fun setupChips(words: List<String>) {
-        wordChipsPanel.removeAll()
-        chipsGroup = ButtonGroup()
-        chipButtons = words.mapIndexed { index, word ->
-            JToggleButton(word).apply {
-                putClientProperty("JButton.buttonType", "toolBarButton")
-                isFocusable = false
-                isSelected = index == 0
-                addActionListener {
-                    if (isSelected) {
-                        searchField.text = word
-                        currentState?.onLookup?.invoke(word)
-                    }
-                }
-            }.also { btn ->
-                chipsGroup.add(btn)
-                wordChipsPanel.add(btn)
-                if (index < words.size - 1) wordChipsPanel.add(Box.createRigidArea(Dimension(4, 0)))
-            }
-        }
-        wordChipsScroll.isVisible = true
-        wordChipsPanel.revalidate()
-        wordChipsPanel.repaint()
-    }
-
-    private fun clearChips() {
-        if (chipButtons.isEmpty()) return
-        wordChipsPanel.removeAll()
-        chipsGroup = ButtonGroup()
-        chipButtons = emptyList()
-        wordChipsScroll.isVisible = false
-        wordChipsPanel.revalidate()
-        wordChipsPanel.repaint()
-    }
-
-    private fun removeChipForWord(word: String) {
-        val index = chipButtons.indexOfFirst { it.text == word }
-        if (index < 0) return
-        val chip = chipButtons[index]
-        chipsGroup.remove(chip)
-        val compIndex = wordChipsPanel.components.indexOf(chip)
-        if (compIndex >= 0) {
-            val nextComp = wordChipsPanel.components.getOrNull(compIndex + 1)
-            if (nextComp is Box.Filler) wordChipsPanel.remove(nextComp)
-            wordChipsPanel.remove(chip)
-        }
-        chipButtons = chipButtons - chip
-        when {
-            chipButtons.isEmpty() -> clearChips()
-            else -> {
-                wordChipsPanel.revalidate()
-                wordChipsPanel.repaint()
-            }
         }
     }
 
@@ -476,7 +394,7 @@ class QuickDictionaryDialog(
             add(createSearchPanel(), BorderLayout.NORTH)
             add(JPanel(BorderLayout()).apply {
                 isOpaque = false
-                add(wordChipsScroll, BorderLayout.NORTH)
+                add(chips.scrollPane, BorderLayout.NORTH)
                 add(cardPanel, BorderLayout.CENTER)
             }, BorderLayout.CENTER)
         }

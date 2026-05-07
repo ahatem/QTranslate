@@ -164,6 +164,11 @@ class MainAppFrame(
         },
         onShowDictionary = { selectedText ->
             appScope.launch {
+                // Toggle: Ctrl+D while popup is open → close it.
+                if (mainStore.state.value.isQuickDictionaryVisible) {
+                    mainStore.dispatch(MainIntent.HideQuickDictionary)
+                    return@launch
+                }
                 val s = mainStore.state.value
                 val lang = when {
                     s.sourceLanguage != LanguageCode.AUTO -> s.sourceLanguage
@@ -541,6 +546,7 @@ class MainAppFrame(
                     settingsStore.dispatch(
                         SettingsIntent.ToggleSetting { it.copy(isQuickDictionaryPinned = pinned) }
                     )
+                    settingsStore.dispatch(SettingsIntent.SaveChanges)
                 }
         }
 
@@ -1242,8 +1248,7 @@ class MainAppFrame(
                 synonymsLabel    = localizer.getString("dictionary_dialog.synonyms_label"),
                 pinTooltip       = localizer.getString("common.pin"),
                 unpinTooltip     = localizer.getString("common.unpin"),
-                closeTooltip     = localizer.getString("common.close"),
-                servicePickerLabel = ""
+                closeTooltip     = localizer.getString("common.close")
             ),
             onLookup = { word -> mainStore.dispatch(MainIntent.LookupWord(word, resolvedLang)) },
             onDictionarySelected = { serviceId ->
@@ -1259,6 +1264,7 @@ class MainAppFrame(
                 settingsStore.dispatch(
                     SettingsIntent.ToggleSetting { it.copy(dictionaryAutoSource = newSource) }
                 )
+                settingsStore.dispatch(SettingsIntent.SaveChanges)
             },
             onPinToggled = { mainStore.dispatch(MainIntent.ToggleQuickDictionaryPin) },
             onClose = { mainStore.dispatch(MainIntent.HideQuickDictionary) },
@@ -1266,11 +1272,13 @@ class MainAppFrame(
                 settingsStore.dispatch(
                     SettingsIntent.ToggleSetting { it.copy(quickDictionaryLastKnownPosition = pos) }
                 )
+                settingsStore.dispatch(SettingsIntent.SaveChanges)
             },
             onSaveSize = { size ->
                 settingsStore.dispatch(
                     SettingsIntent.ToggleSetting { it.copy(quickDictionaryLastKnownSize = size) }
                 )
+                settingsStore.dispatch(SettingsIntent.SaveChanges)
             }
         )
     }
