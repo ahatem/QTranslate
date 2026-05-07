@@ -1,4 +1,4 @@
-# ===================================================================
+﻿# ===================================================================
 # META SECTION
 # ===================================================================
 [meta]
@@ -76,6 +76,7 @@ paste = "@common.paste"
 translate = "@main_window_language_bar.translate_button"
 listen = "@common.listen"
 spell_check = "Проверка орфографии"
+find_in_dictionary = "Найти в словаре"
 
 
 [main_window_main_menu]
@@ -86,11 +87,13 @@ layout_preset_compact = "Компактный"
 instant_translation = "Мгновенный перевод"
 show_extra_output = "Показывать доп. результат"
 spell_check = "Проверка орфографии"
+find_in_dictionary = "Найти в словаре"
 options_submenu = "Опции"
 show_history_bar = "Показать панель истории"
 show_language_bar = "Показать панель выбора языка"
 show_services_panel = "Показать панель сервисов"
 show_status_bar = "Показать строку состояния"
+show_dictionary_panel = "Показать панель словаря"
 settings = "Настройки..."
 help_submenu = "Справка"
 how_to_use = "Как использовать"
@@ -320,6 +323,7 @@ show_history_bar = "Показывать панель навигации по и
 show_language_bar = "Показывать панель выбора языков"
 show_services_panel = "Показывать панель сервисов"
 show_status_bar = "Показывать строку состояния"
+show_dictionary_panel = "Показать панель словаря"
 popup_group = "Всплывающее окно быстрого перевода"
 auto_size = "Авторазмер окна по контенту"
 auto_position = "Позиционировать окно рядом с курсором"
@@ -347,6 +351,24 @@ required_fields_error_msg = "Пожалуйста, заполните обяза
 title = "О программе QTranslate"
 description = "Оригинальный QTranslate был заброшен. Это полная переработка — та же идея, но на основе плагинов, чтобы программа никогда не устаревала."
 
+# Dictionary
+no_word_to_lookup = "Пожалуйста, введите слово для поиска."
+no_dictionary_active = "Нет активного сервиса словаря."
+looking_up_word = "Поиск…"
+dictionary_ready = "Определение найдено."
+dictionary_not_found = "Определений для ""%s"" не найдено."
+dictionary_timeout = "Время поиска в словаре истекло."
+dictionary_failed = "Поиск в словаре не удался: %s"
+
+# Dictionary
+no_word_to_lookup = "Пожалуйста, введите слово для поиска."
+no_dictionary_active = "Нет активного сервиса словаря."
+looking_up_word = "Поиск…"
+dictionary_ready = "Определение найдено."
+dictionary_not_found = "Определений для ""%s"" не найдено."
+dictionary_timeout = "Время поиска в словаре истекло."
+dictionary_failed = "Поиск в словаре не удался: %s"
+
 [history_dialog]
 title = "История переводов"
 column_date = "Дата и время"
@@ -356,6 +378,26 @@ column_languages = "Языки"
 column_service = "Сервис"
 empty_message = "История переводов пуста."
 restore_tooltip = "Двойной щелчок для восстановления перевода"
+
+[dictionary_dialog]
+title = "Словарь"
+search_placeholder = "Введите слово…"
+lookup_button = "Найти"
+hint_message = "Введите слово выше для поиска."
+not_found_message = "Определений для ""%s"" не найдено."
+loading_message = "Поиск…"
+error_message = "Поиск не удался. Попробуйте снова."
+synonyms_label = "Синонимы"
+
+[dictionary_dialog]
+title = "Словарь"
+search_placeholder = "Введите слово…"
+lookup_button = "Найти"
+hint_message = "Введите слово выше для поиска."
+not_found_message = "Определений для ""%s"" не найдено."
+loading_message = "Поиск…"
+error_message = "Поиск не удался. Попробуйте снова."
+synonyms_label = "Синонимы"
 
 [update_dialog]
 title = "Доступно обновление"

@@ -1,4 +1,4 @@
-# ===================================================================
+﻿# ===================================================================
 # META SECTION
 # ===================================================================
 [meta]
@@ -76,6 +76,7 @@ paste = "@common.paste"
 translate = "@main_window_language_bar.translate_button"
 listen = "@common.listen"
 spell_check = "Spell Check"
+find_in_dictionary = "Find in Dictionary"
 
 
 [main_window_main_menu]
@@ -86,11 +87,13 @@ layout_preset_compact = "Compact"
 instant_translation = "Instant Translation"
 show_extra_output = "Show Extra Output"
 spell_check = "Spell Checking"
+find_in_dictionary = "Find in Dictionary"
 options_submenu = "Options"
 show_history_bar = "Show History Bar"
 show_language_bar = "Show Language Bar"
 show_services_panel = "Show Services Panel"
 show_status_bar = "Show Status Bar"
+show_dictionary_panel = "Show dictionary panel"
 settings = "Settings..."
 help_submenu = "Help"
 how_to_use = "How to Use"
@@ -320,6 +323,7 @@ show_history_bar = "Show history navigation bar"
 show_language_bar = "Show language selector bar"
 show_services_panel = "Show services panel"
 show_status_bar = "Show status bar"
+show_dictionary_panel = "Show dictionary panel"
 popup_group = "Quick Translate Popup"
 auto_size = "Auto-size popup to content"
 auto_position = "Auto-position popup near the cursor"
@@ -347,6 +351,24 @@ required_fields_error_msg = "Please fill in the required fields:"
 title = "About QTranslate"
 description = "The original QTranslate was abandoned. This is a full rewrite — same idea, plugin-driven so the app never goes stale."
 
+# Dictionary
+no_word_to_lookup = "Please enter a word to look up."
+no_dictionary_active = "No dictionary service is active."
+looking_up_word = "Looking up…"
+dictionary_ready = "Definition found."
+dictionary_not_found = "No definitions found for ""%s""."
+dictionary_timeout = "Dictionary lookup timed out."
+dictionary_failed = "Dictionary lookup failed: %s"
+
+# Dictionary
+no_word_to_lookup = "Please enter a word to look up."
+no_dictionary_active = "No dictionary service is active."
+looking_up_word = "Looking up…"
+dictionary_ready = "Definition found."
+dictionary_not_found = "No definitions found for ""%s""."
+dictionary_timeout = "Dictionary lookup timed out."
+dictionary_failed = "Dictionary lookup failed: %s"
+
 [history_dialog]
 title = "Translation History"
 column_date = "Date & Time"
@@ -356,6 +378,26 @@ column_languages = "Languages"
 column_service = "Service"
 empty_message = "No translations in history yet."
 restore_tooltip = "Double-click to restore this translation"
+
+[dictionary_dialog]
+title = "Dictionary"
+search_placeholder = "Enter a word…"
+lookup_button = "Look Up"
+hint_message = "Enter a word above to look it up."
+not_found_message = "No definitions found for ""%s""."
+loading_message = "Looking up…"
+error_message = "Lookup failed. Please try again."
+synonyms_label = "Synonyms"
+
+[dictionary_dialog]
+title = "Dictionary"
+search_placeholder = "Enter a word…"
+lookup_button = "Look Up"
+hint_message = "Enter a word above to look it up."
+not_found_message = "No definitions found for ""%s""."
+loading_message = "Looking up…"
+error_message = "Lookup failed. Please try again."
+synonyms_label = "Synonyms"
 
 [update_dialog]
 title = "Update Available"

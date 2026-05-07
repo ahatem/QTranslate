@@ -1,4 +1,4 @@
-# ===================================================================
+﻿# ===================================================================
 # META SECTION
 # ===================================================================
 [meta]
@@ -76,6 +76,7 @@ paste = "@common.paste"
 translate = "@main_window_language_bar.translate_button"
 listen = "@common.listen"
 spell_check = "বানান যাচাই"
+find_in_dictionary = "অভিধানে খুঁজুন"
 
 
 [main_window_main_menu]
@@ -86,11 +87,13 @@ layout_preset_compact = "কম্প্যাক্ট"
 instant_translation = "তাত্ক্ষণিক অনুবাদ"
 show_extra_output = "অতিরিক্ত আউটপুট দেখান"
 spell_check = "বানান যাচাইকরণ"
+find_in_dictionary = "অভিধানে খুঁজুন"
 options_submenu = "অপশন"
 show_history_bar = "ইতিহাস বার দেখান"
 show_language_bar = "ভাষা বার দেখান"
 show_services_panel = "সার্ভিস প্যানেল দেখান"
 show_status_bar = "স্ট্যাটাস বার দেখান"
+show_dictionary_panel = "অভিধান প্যানেল দেখান"
 settings = "সেটিংস..."
 help_submenu = "সাহায্য"
 how_to_use = "কিভাবে ব্যবহার করবেন"
@@ -320,6 +323,7 @@ show_history_bar = "ইতিহাস নেভিগেশন বার দে
 show_language_bar = "ভাষা নির্বাচক বার দেখান"
 show_services_panel = "সার্ভিস প্যানেল দেখান"
 show_status_bar = "স্ট্যাটাস বার দেখান"
+show_dictionary_panel = "অভিধান প্যানেল দেখান"
 popup_group = "দ্রুত অনুবাদ পপআপ"
 auto_size = "কন্টেন্ট অনুযায়ী পপআপের আকার পরিবর্তন করুন"
 auto_position = "কার্সারের কাছে পপআপ পজিশন করুন"
@@ -347,6 +351,24 @@ required_fields_error_msg = "অনুগ্রহ করে প্রয়ো�
 title = "QTranslate সম্পর্কে"
 description = "মূল QTranslate প্রকল্পটি পরিত্যক্ত হয়েছিল। এটি একটি সম্পূর্ণ নতুন সংস্করণ — একই ধারণা, তবে প্লাগইন-ভিত্তিক যাতে অ্যাপটি সর্বদা সচল থাকে।"
 
+# Dictionary
+no_word_to_lookup = "অনুগ্রহ করে একটি শব্দ খুঁজতে লিখুন।"
+no_dictionary_active = "কোনো অভিধান পরিষেবা সক্রিয় নেই।"
+looking_up_word = "খোঁজা হচ্ছে…"
+dictionary_ready = "সংজ্ঞা পাওয়া গেছে।"
+dictionary_not_found = "\""%s"\" এর জন্য কোনো সংজ্ঞা পাওয়া যায়নি।"
+dictionary_timeout = "অভিধান অনুসন্ধানের সময় শেষ হয়ে গেছে।"
+dictionary_failed = "অভিধান অনুসন্ধান ব্যর্থ হয়েছে: %s"
+
+# Dictionary
+no_word_to_lookup = "অনুগ্রহ করে একটি শব্দ খুঁজতে লিখুন।"
+no_dictionary_active = "কোনো অভিধান পরিষেবা সক্রিয় নেই।"
+looking_up_word = "খোঁজা হচ্ছে…"
+dictionary_ready = "সংজ্ঞা পাওয়া গেছে।"
+dictionary_not_found = "\""%s"\" এর জন্য কোনো সংজ্ঞা পাওয়া যায়নি।"
+dictionary_timeout = "অভিধান অনুসন্ধানের সময় শেষ হয়ে গেছে।"
+dictionary_failed = "অভিধান অনুসন্ধান ব্যর্থ হয়েছে: %s"
+
 [history_dialog]
 title = "অনুবাদ ইতিহাস"
 column_date = "তারিখ ও সময়"
@@ -356,6 +378,26 @@ column_languages = "ভাষা"
 column_service = "পরিষেবা"
 empty_message = "এখনো কোনো অনুবাদ ইতিহাসে নেই।"
 restore_tooltip = "এই অনুবাদটি পুনরুদ্ধার করতে দুবার ক্লিক করুন"
+
+[dictionary_dialog]
+title = "অভিধান"
+search_placeholder = "একটি শব্দ লিখুন…"
+lookup_button = "খুঁজুন"
+hint_message = "খুঁজতে উপরে একটি শব্দ লিখুন।"
+not_found_message = "\""%s"\" এর জন্য কোনো সংজ্ঞা পাওয়া যায়নি।"
+loading_message = "খোঁজা হচ্ছে…"
+error_message = "অনুসন্ধান ব্যর্থ হয়েছে। আবার চেষ্টা করুন।"
+synonyms_label = "প্রতিশব্দ"
+
+[dictionary_dialog]
+title = "অভিধান"
+search_placeholder = "একটি শব্দ লিখুন…"
+lookup_button = "খুঁজুন"
+hint_message = "খুঁজতে উপরে একটি শব্দ লিখুন।"
+not_found_message = "\""%s"\" এর জন্য কোনো সংজ্ঞা পাওয়া যায়নি।"
+loading_message = "খোঁজা হচ্ছে…"
+error_message = "অনুসন্ধান ব্যর্থ হয়েছে। আবার চেষ্টা করুন।"
+synonyms_label = "প্রতিশব্দ"
 
 [update_dialog]
 title = "আপডেট উপলব্ধ"

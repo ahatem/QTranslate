@@ -1,4 +1,4 @@
-# ===================================================================
+﻿# ===================================================================
 # META SECTION
 # ===================================================================
 [meta]
@@ -76,6 +76,7 @@ paste = "@common.paste"
 translate = "@main_window_language_bar.translate_button"
 listen = "@common.listen"
 spell_check = "تدقيق إملائي"
+find_in_dictionary = "ابحث في القاموس"
 
 
 [main_window_main_menu]
@@ -86,11 +87,13 @@ layout_preset_compact = "مدمج"
 instant_translation = "ترجمة فورية"
 show_extra_output = "إظهار مخرجات إضافية"
 spell_check = "التدقيق الإملائي"
+find_in_dictionary = "ابحث في القاموس"
 options_submenu = "خيارات"
 show_history_bar = "إظهار شريط السجل"
 show_language_bar = "إظهار شريط اللغة"
 show_services_panel = "إظهار لوحة الخدمات"
 show_status_bar = "إظهار شريط الحالة"
+show_dictionary_panel = "إظهار لوحة القاموس"
 settings = "الإعدادات..."
 help_submenu = "تعليمات"
 how_to_use = "كيفية الاستخدام"
@@ -320,6 +323,7 @@ show_history_bar = "إظهار شريط التنقل في السجل"
 show_language_bar = "إظهار شريط اختيار اللغة"
 show_services_panel = "إظهار لوحة الخدمات"
 show_status_bar = "إظهار شريط الحالة"
+show_dictionary_panel = "إظهار لوحة القاموس"
 popup_group = "نافذة الترجمة السريعة المنبثقة"
 auto_size = "تغيير حجم المنبثقة تلقائيًا حسب المحتوى"
 auto_position = "تحديد موقع المنبثقة تلقائيًا بالقرب من المؤشر"
@@ -347,6 +351,24 @@ required_fields_error_msg = "يرجى ملء الحقول المطلوبة:"
 title = "حول QTranslate"
 description = "تم التخلي عن QTranslate الأصلي. هذه إعادة كتابة كاملة — نفس الفكرة، تعتمد على الإضافات لكي لا يتوقف التطبيق عن العمل أبدًا."
 
+# Dictionary
+no_word_to_lookup = "الرجاء إدخال كلمة للبحث."
+no_dictionary_active = "لا توجد خدمة قاموس نشطة."
+looking_up_word = "جارٍ البحث…"
+dictionary_ready = "تم العثور على التعريف."
+dictionary_not_found = "لم يُعثر على تعريف لـ ""%s""."
+dictionary_timeout = "انتهت مهلة البحث في القاموس."
+dictionary_failed = "فشل البحث في القاموس: %s"
+
+# Dictionary
+no_word_to_lookup = "الرجاء إدخال كلمة للبحث."
+no_dictionary_active = "لا توجد خدمة قاموس نشطة."
+looking_up_word = "جارٍ البحث…"
+dictionary_ready = "تم العثور على التعريف."
+dictionary_not_found = "لم يُعثر على تعريف لـ ""%s""."
+dictionary_timeout = "انتهت مهلة البحث في القاموس."
+dictionary_failed = "فشل البحث في القاموس: %s"
+
 [history_dialog]
 title = "سجل الترجمة"
 column_date = "التاريخ والوقت"
@@ -356,6 +378,26 @@ column_languages = "اللغات"
 column_service = "الخدمة"
 empty_message = "لا توجد ترجمات في السجل بعد."
 restore_tooltip = "انقر مرتين لاستعادة هذه الترجمة"
+
+[dictionary_dialog]
+title = "القاموس"
+search_placeholder = "أدخل كلمة…"
+lookup_button = "بحث"
+hint_message = "أدخل كلمة أعلاه للبحث عنها."
+not_found_message = "لم يُعثر على تعاريف لـ ""%s""."
+loading_message = "جارٍ البحث…"
+error_message = "فشل البحث. حاول مرة أخرى."
+synonyms_label = "مرادفات"
+
+[dictionary_dialog]
+title = "القاموس"
+search_placeholder = "أدخل كلمة…"
+lookup_button = "بحث"
+hint_message = "أدخل كلمة أعلاه للبحث عنها."
+not_found_message = "لم يُعثر على تعاريف لـ ""%s""."
+loading_message = "جارٍ البحث…"
+error_message = "فشل البحث. حاول مرة أخرى."
+synonyms_label = "مرادفات"
 
 [update_dialog]
 title = "تحديث متاح"

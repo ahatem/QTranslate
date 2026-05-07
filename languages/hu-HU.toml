@@ -1,4 +1,4 @@
-# ===================================================================
+﻿# ===================================================================
 # META SECTION
 # ===================================================================
 [meta]
@@ -76,6 +76,7 @@ paste = "@common.paste"
 translate = "@main_window_language_bar.translate_button"
 listen = "@common.listen"
 spell_check = "Helyesírás-ellenőrzés"
+find_in_dictionary = "Keresés a szótárban"
 
 
 [main_window_main_menu]
@@ -86,11 +87,13 @@ layout_preset_compact = "Kompakt"
 instant_translation = "Azonnali fordítás"
 show_extra_output = "Extra kimenet megjelenítése"
 spell_check = "Helyesírás-ellenőrzés"
+find_in_dictionary = "Keresés a szótárban"
 options_submenu = "Beállítások"
 show_history_bar = "Előzmények sáv megjelenítése"
 show_language_bar = "Nyelvsáv megjelenítése"
 show_services_panel = "Szolgáltatások panel megjelenítése"
 show_status_bar = "Állapotsor megjelenítése"
+show_dictionary_panel = "Szótárpanel megjelenítése"
 settings = "Beállítások…"
 help_submenu = "Súgó"
 how_to_use = "Hogyan kell használni"
@@ -320,6 +323,7 @@ show_history_bar = "Előzmények navigációs sávjának megjelenítése"
 show_language_bar = "Mutassa a nyelvválasztó sávot"
 show_services_panel = "Szolgáltatások panel megjelenítése"
 show_status_bar = "Mutassa az állapotsort"
+show_dictionary_panel = "Szótárpanel megjelenítése"
 popup_group = "Gyorsfordítás felugró ablak"
 auto_size = "Állítsa a felugró ablak méretét a tartalomhoz"
 auto_position = "A felugró ablak automatikus elhelyezése a kurzor közelében"
@@ -347,6 +351,24 @@ required_fields_error_msg = "Kérjük, töltse ki a szükséges mezőket:"
 title = "QTranslate névjegye"
 description = "Az eredeti QTranslate-et már nem fejlesztik tovább. Ez egy teljesen újratervezett változat — ugyanaz az alapelv, de bővítményalapú, így az alkalmazás mindig naprakész marad."
 
+# Dictionary
+no_word_to_lookup = "Kérjük, adjon meg egy szót a kereséshez."
+no_dictionary_active = "Nincs aktív szótárszolgáltatás."
+looking_up_word = "Keresés…"
+dictionary_ready = "Meghatározás megtalálva."
+dictionary_not_found = "Nem találtunk meghatározást a következőre: ""%s""."
+dictionary_timeout = "A szótárkeresés túllépte az időkorlátot."
+dictionary_failed = "A szótárkeresés sikertelen: %s"
+
+# Dictionary
+no_word_to_lookup = "Kérjük, adjon meg egy szót a kereséshez."
+no_dictionary_active = "Nincs aktív szótárszolgáltatás."
+looking_up_word = "Keresés…"
+dictionary_ready = "Meghatározás megtalálva."
+dictionary_not_found = "Nem találtunk meghatározást a következőre: ""%s""."
+dictionary_timeout = "A szótárkeresés túllépte az időkorlátot."
+dictionary_failed = "A szótárkeresés sikertelen: %s"
+
 [history_dialog]
 title = "Fordítási előzmények"
 column_date = "Dátum és idő"
@@ -356,6 +378,26 @@ column_languages = "Nyelvek"
 column_service = "Szolgáltatás"
 empty_message = "Még nincsenek fordítások az előzményekben."
 restore_tooltip = "Dupla kattintás a fordítás visszaállításához"
+
+[dictionary_dialog]
+title = "Szótár"
+search_placeholder = "Írjon be egy szót…"
+lookup_button = "Keresés"
+hint_message = "Írjon be egy szót fent a kereséshez."
+not_found_message = "Nem találtunk meghatározást a következőre: ""%s""."
+loading_message = "Keresés…"
+error_message = "A keresés sikertelen. Kérjük, próbálja újra."
+synonyms_label = "Szinonimák"
+
+[dictionary_dialog]
+title = "Szótár"
+search_placeholder = "Írjon be egy szót…"
+lookup_button = "Keresés"
+hint_message = "Írjon be egy szót fent a kereséshez."
+not_found_message = "Nem találtunk meghatározást a következőre: ""%s""."
+loading_message = "Keresés…"
+error_message = "A keresés sikertelen. Kérjük, próbálja újra."
+synonyms_label = "Szinonimák"
 
 [update_dialog]
 title = "Frissítés elérhető"

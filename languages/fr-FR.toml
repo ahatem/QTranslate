@@ -1,4 +1,4 @@
-# ===================================================================
+﻿# ===================================================================
 # META SECTION
 # ===================================================================
 [meta]
@@ -76,6 +76,7 @@ paste = "@common.paste"
 translate = "@main_window_language_bar.translate_button"
 listen = "@common.listen"
 spell_check = "Vérification orthographique"
+find_in_dictionary = "Rechercher dans le dictionnaire"
 
 
 [main_window_main_menu]
@@ -86,11 +87,13 @@ layout_preset_compact = "Compact"
 instant_translation = "Traduction instantanée"
 show_extra_output = "Afficher les résultats secondaires"
 spell_check = "Vérification orthographique"
+find_in_dictionary = "Rechercher dans le dictionnaire"
 options_submenu = "Options"
 show_history_bar = "Afficher la barre d'historique"
 show_language_bar = "Afficher la barre de langue"
 show_services_panel = "Afficher le panneau des services"
 show_status_bar = "Afficher la barre d'état"
+show_dictionary_panel = "Afficher le panneau du dictionnaire"
 settings = "Paramètres..."
 help_submenu = "Aide"
 how_to_use = "Comment utiliser"
@@ -320,6 +323,7 @@ show_history_bar = "Afficher la barre de navigation d'historique"
 show_language_bar = "Afficher la barre de sélection de langue"
 show_services_panel = "Afficher le panneau des services"
 show_status_bar = "Afficher la barre d'état"
+show_dictionary_panel = "Afficher le panneau du dictionnaire"
 popup_group = "Fenêtre contextuelle de traduction rapide"
 auto_size = "Taille automatique selon le contenu"
 auto_position = "Position automatique près du curseur"
@@ -347,6 +351,24 @@ required_fields_error_msg = "Veuillez remplir les champs obligatoires :"
 title = "À propos de QTranslate"
 description = "Le QTranslate original a été abandonné. Voici une réécriture complète — même concept, basée sur des plugins pour que l'application soit toujours à jour."
 
+# Dictionary
+no_word_to_lookup = "Veuillez saisir un mot à rechercher."
+no_dictionary_active = "Aucun service de dictionnaire actif."
+looking_up_word = "Recherche en cours…"
+dictionary_ready = "Définition trouvée."
+dictionary_not_found = "Aucune définition trouvée pour ""%s""."
+dictionary_timeout = "La recherche dans le dictionnaire a expiré."
+dictionary_failed = "La recherche dans le dictionnaire a échoué : %s"
+
+# Dictionary
+no_word_to_lookup = "Veuillez saisir un mot à rechercher."
+no_dictionary_active = "Aucun service de dictionnaire actif."
+looking_up_word = "Recherche en cours…"
+dictionary_ready = "Définition trouvée."
+dictionary_not_found = "Aucune définition trouvée pour ""%s""."
+dictionary_timeout = "La recherche dans le dictionnaire a expiré."
+dictionary_failed = "La recherche dans le dictionnaire a échoué : %s"
+
 [history_dialog]
 title = "Historique des traductions"
 column_date = "Date et heure"
@@ -356,6 +378,26 @@ column_languages = "Langues"
 column_service = "Service"
 empty_message = "Aucune traduction dans l'historique pour l'instant."
 restore_tooltip = "Double-cliquez pour restaurer cette traduction"
+
+[dictionary_dialog]
+title = "Dictionnaire"
+search_placeholder = "Saisissez un mot…"
+lookup_button = "Rechercher"
+hint_message = "Saisissez un mot ci-dessus pour le rechercher."
+not_found_message = "Aucune définition trouvée pour ""%s""."
+loading_message = "Recherche en cours…"
+error_message = "Recherche échouée. Veuillez réessayer."
+synonyms_label = "Synonymes"
+
+[dictionary_dialog]
+title = "Dictionnaire"
+search_placeholder = "Saisissez un mot…"
+lookup_button = "Rechercher"
+hint_message = "Saisissez un mot ci-dessus pour le rechercher."
+not_found_message = "Aucune définition trouvée pour ""%s""."
+loading_message = "Recherche en cours…"
+error_message = "Recherche échouée. Veuillez réessayer."
+synonyms_label = "Synonymes"
 
 [update_dialog]
 title = "Mise à jour disponible"

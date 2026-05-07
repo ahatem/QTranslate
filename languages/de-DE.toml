@@ -1,4 +1,4 @@
-# ===================================================================
+﻿# ===================================================================
 # META SECTION
 # ===================================================================
 [meta]
@@ -76,6 +76,7 @@ paste = "@common.paste"
 translate = "@main_window_language_bar.translate_button"
 listen = "@common.listen"
 spell_check = "Rechtschreibprüfung"
+find_in_dictionary = "Im Wörterbuch suchen"
 
 
 [main_window_main_menu]
@@ -86,11 +87,13 @@ layout_preset_compact = "Kompakt"
 instant_translation = "Sofortübersetzung"
 show_extra_output = "Zusätzliche Ausgabe anzeigen"
 spell_check = "Rechtschreibprüfung"
+find_in_dictionary = "Im Wörterbuch suchen"
 options_submenu = "Optionen"
 show_history_bar = "Verlaufsleiste anzeigen"
 show_language_bar = "Sprachleiste anzeigen"
 show_services_panel = "Dienstepanel anzeigen"
 show_status_bar = "Statusleiste anzeigen"
+show_dictionary_panel = "Wörterbuchbereich anzeigen"
 settings = "Einstellungen..."
 help_submenu = "Hilfe"
 how_to_use = "Anleitung"
@@ -320,6 +323,7 @@ show_history_bar = "Verlaufsleiste anzeigen"
 show_language_bar = "Sprachauswahlleiste anzeigen"
 show_services_panel = "Dienstepanel anzeigen"
 show_status_bar = "Statusleiste anzeigen"
+show_dictionary_panel = "Wörterbuchbereich anzeigen"
 popup_group = "Schnellübersetzungs-Popup"
 auto_size = "Popup-Größe an Inhalt anpassen"
 auto_position = "Popup nahe dem Cursor positionieren"
@@ -347,6 +351,24 @@ required_fields_error_msg = "Bitte füllen Sie die Pflichtfelder aus:"
 title = "Über QTranslate"
 description = "Das ursprüngliche QTranslate wurde eingestellt. Dies ist eine komplette Neuentwicklung — gleiche Idee, plugin-basiert, damit die App nie veraltet."
 
+# Dictionary
+no_word_to_lookup = "Bitte geben Sie ein Wort zum Nachschlagen ein."
+no_dictionary_active = "Kein Wörterbuchdienst aktiv."
+looking_up_word = "Nachschlagen…"
+dictionary_ready = "Definition gefunden."
+dictionary_not_found = "Keine Definition für ""%s"" gefunden."
+dictionary_timeout = "Wörterbuchabfrage abgelaufen."
+dictionary_failed = "Wörterbuchabfrage fehlgeschlagen: %s"
+
+# Dictionary
+no_word_to_lookup = "Bitte geben Sie ein Wort zum Nachschlagen ein."
+no_dictionary_active = "Kein Wörterbuchdienst aktiv."
+looking_up_word = "Nachschlagen…"
+dictionary_ready = "Definition gefunden."
+dictionary_not_found = "Keine Definition für ""%s"" gefunden."
+dictionary_timeout = "Wörterbuchabfrage abgelaufen."
+dictionary_failed = "Wörterbuchabfrage fehlgeschlagen: %s"
+
 [history_dialog]
 title = "Übersetzungsverlauf"
 column_date = "Datum & Uhrzeit"
@@ -356,6 +378,26 @@ column_languages = "Sprachen"
 column_service = "Dienst"
 empty_message = "Noch keine Übersetzungen im Verlauf."
 restore_tooltip = "Doppelklick, um diese Übersetzung wiederherzustellen"
+
+[dictionary_dialog]
+title = "Wörterbuch"
+search_placeholder = "Wort eingeben…"
+lookup_button = "Nachschlagen"
+hint_message = "Geben Sie oben ein Wort ein, um es nachzuschlagen."
+not_found_message = "Keine Definition für ""%s"" gefunden."
+loading_message = "Nachschlagen…"
+error_message = "Suche fehlgeschlagen. Bitte erneut versuchen."
+synonyms_label = "Synonyme"
+
+[dictionary_dialog]
+title = "Wörterbuch"
+search_placeholder = "Wort eingeben…"
+lookup_button = "Nachschlagen"
+hint_message = "Geben Sie oben ein Wort ein, um es nachzuschlagen."
+not_found_message = "Keine Definition für ""%s"" gefunden."
+loading_message = "Nachschlagen…"
+error_message = "Suche fehlgeschlagen. Bitte erneut versuchen."
+synonyms_label = "Synonyme"
 
 [update_dialog]
 title = "Update verfügbar"

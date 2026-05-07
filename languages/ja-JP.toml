@@ -1,4 +1,4 @@
-# ===================================================================
+﻿# ===================================================================
 # META SECTION
 # ===================================================================
 [meta]
@@ -76,6 +76,7 @@ paste = "@common.paste"
 translate = "@main_window_language_bar.translate_button"
 listen = "@common.listen"
 spell_check = "スペルチェック"
+find_in_dictionary = "辞書で検索"
 
 
 [main_window_main_menu]
@@ -86,11 +87,13 @@ layout_preset_compact = "コンパクト"
 instant_translation = "即時翻訳"
 show_extra_output = "追加出力を表示"
 spell_check = "スペルチェック"
+find_in_dictionary = "辞書で検索"
 options_submenu = "オプション"
 show_history_bar = "履歴バーを表示"
 show_language_bar = "言語バーを表示"
 show_services_panel = "サービスパネルを表示"
 show_status_bar = "ステータスバーを表示"
+show_dictionary_panel = "辞書パネルを表示"
 settings = "設定..."
 help_submenu = "ヘルプ"
 how_to_use = "使い方"
@@ -320,6 +323,7 @@ show_history_bar = "履歴ナビゲーションバーを表示"
 show_language_bar = "言語選択バーを表示"
 show_services_panel = "サービスパネルを表示"
 show_status_bar = "ステータスバーを表示"
+show_dictionary_panel = "辞書パネルを表示"
 popup_group = "クイック翻訳ポップアップ"
 auto_size = "コンテンツに合わせてサイズを自動調整"
 auto_position = "カーソルの近くに自動配置"
@@ -347,6 +351,24 @@ required_fields_error_msg = "必須項目を入力してください:"
 title = "QTranslate について"
 description = "オリジナルの QTranslate は開発が終了しました。これはフルスクラッチによる再開発版です。プラグイン駆動により、アプリが古くなることはありません。"
 
+# Dictionary
+no_word_to_lookup = "検索する単語を入力してください。"
+no_dictionary_active = "アクティブな辞書サービスがありません。"
+looking_up_word = "検索中…"
+dictionary_ready = "定義が見つかりました。"
+dictionary_not_found = "\""%s"\" の定義が見つかりませんでした。"
+dictionary_timeout = "辞書検索がタイムアウトしました。"
+dictionary_failed = "辞書検索に失敗しました: %s"
+
+# Dictionary
+no_word_to_lookup = "検索する単語を入力してください。"
+no_dictionary_active = "アクティブな辞書サービスがありません。"
+looking_up_word = "検索中…"
+dictionary_ready = "定義が見つかりました。"
+dictionary_not_found = "\""%s"\" の定義が見つかりませんでした。"
+dictionary_timeout = "辞書検索がタイムアウトしました。"
+dictionary_failed = "辞書検索に失敗しました: %s"
+
 [history_dialog]
 title = "翻訳履歴"
 column_date = "日時"
@@ -356,6 +378,26 @@ column_languages = "言語"
 column_service = "サービス"
 empty_message = "翻訳履歴はまだありません。"
 restore_tooltip = "ダブルクリックでこの翻訳を復元"
+
+[dictionary_dialog]
+title = "辞書"
+search_placeholder = "単語を入力…"
+lookup_button = "検索"
+hint_message = "上に単語を入力して検索してください。"
+not_found_message = "\""%s"\" の定義が見つかりませんでした。"
+loading_message = "検索中…"
+error_message = "検索に失敗しました。もう一度お試しください。"
+synonyms_label = "類義語"
+
+[dictionary_dialog]
+title = "辞書"
+search_placeholder = "単語を入力…"
+lookup_button = "検索"
+hint_message = "上に単語を入力して検索してください。"
+not_found_message = "\""%s"\" の定義が見つかりませんでした。"
+loading_message = "検索中…"
+error_message = "検索に失敗しました。もう一度お試しください。"
+synonyms_label = "類義語"
 
 [update_dialog]
 title = "アップデートが利用可能"
