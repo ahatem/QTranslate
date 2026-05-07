@@ -111,6 +111,10 @@ exit = "প্রস্থান"
 ready_message = "প্রস্তুত"
 notifications_tooltip = "নোটিফিকেশন"
 notifications_empty_tooltip = "নতুন কোন নোটিফিকেশন নেই"
+error_detail_error = "ত্রুটি"
+error_detail_warning = "সতর্কতা"
+error_detail_copy = "কপি"
+error_detail_copied = "কপি হয়েছে!"
 
 # ===================================================================
 # SYSTEM TRAY MENU

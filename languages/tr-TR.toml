@@ -111,6 +111,10 @@ exit = "Çıkış"
 ready_message = "Hazır"
 notifications_tooltip = "Bildirimler"
 notifications_empty_tooltip = "Yeni bildirim yok"
+error_detail_error = "Hata"
+error_detail_warning = "Uyarı"
+error_detail_copy = "Kopyala"
+error_detail_copied = "Kopyalandı!"
 
 # ===================================================================
 # SYSTEM TRAY MENU

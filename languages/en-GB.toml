@@ -111,6 +111,10 @@ exit = "Exit"
 ready_message = "Ready"
 notifications_tooltip = "Notifications"
 notifications_empty_tooltip = "No new notifications"
+error_detail_error = "Error"
+error_detail_warning = "Warning"
+error_detail_copy = "Copy"
+error_detail_copied = "Copied!"
 
 # ===================================================================
 # SYSTEM TRAY MENU

@@ -111,6 +111,10 @@ exit = "Kilépés"
 ready_message = "Kész"
 notifications_tooltip = "Értesítések"
 notifications_empty_tooltip = "Nincs új értesítés"
+error_detail_error = "Hiba"
+error_detail_warning = "Figyelmeztetés"
+error_detail_copy = "Másolás"
+error_detail_copied = "Másolva!"
 
 # ===================================================================
 # SYSTEM TRAY MENU

@@ -31,6 +31,7 @@ import com.github.ahatem.qtranslate.ui.swing.dictionary.QuickDictionaryStrings
 import com.github.ahatem.qtranslate.ui.swing.history.HistoryDialog
 import com.github.ahatem.qtranslate.ui.swing.history.HistoryDialogState
 import com.github.ahatem.qtranslate.ui.swing.history.HistoryEntryState
+import com.github.ahatem.qtranslate.ui.swing.main.statusbar.ErrorDetailPopup
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.NotificationPopover
 import com.github.ahatem.qtranslate.ui.swing.update.UpdateDialog
 import com.github.ahatem.qtranslate.ui.swing.update.UpdateDialogState
@@ -1338,7 +1339,26 @@ class MainAppFrame(
         private var isLoading: Boolean = false
         private var unreadCount: Int = 0
 
+        // -----------------------------------------------------------------------
+        // Error-detail popup
+        // -----------------------------------------------------------------------
+
+        private val errorDetailPopup = ErrorDetailPopup(iconManager)
+
+        /** Message currently shown in the popup, null when popup is hidden. */
+        private var shownDetailMessage: String? = null
+
         init {
+            errorDetailPopup.errorLabel   = localizer.getString("main_window_status_bar.error_detail_error")
+            errorDetailPopup.warningLabel = localizer.getString("main_window_status_bar.error_detail_warning")
+            errorDetailPopup.copyLabel    = localizer.getString("main_window_status_bar.error_detail_copy")
+            errorDetailPopup.copiedLabel  = localizer.getString("main_window_status_bar.error_detail_copied")
+
+            statusBar.onErrorClicked = { message ->
+                shownDetailMessage = message
+                errorDetailPopup.show(message, currentType, statusBar)
+            }
+
             render()
         }
 
@@ -1388,6 +1408,14 @@ class MainAppFrame(
         }
 
         private fun render() {
+            // Auto-dismiss the detail popup when the displayed message changes or
+            // when the type is no longer an error/warning.
+            val isErrorOrWarning = currentType == NotificationType.ERROR || currentType == NotificationType.WARNING
+            if (errorDetailPopup.isVisible && (!isErrorOrWarning || shownDetailMessage != currentMessage)) {
+                errorDetailPopup.dismiss()
+                shownDetailMessage = null
+            }
+
             statusBar.render(
                 StatusBarState(
                     message = currentMessage,

@@ -111,6 +111,10 @@ exit = "Выход"
 ready_message = "Готово"
 notifications_tooltip = "Уведомления"
 notifications_empty_tooltip = "Нет новых уведомлений"
+error_detail_error = "Ошибка"
+error_detail_warning = "Предупреждение"
+error_detail_copy = "Копировать"
+error_detail_copied = "Скопировано!"
 
 # ===================================================================
 # SYSTEM TRAY MENU

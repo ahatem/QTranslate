@@ -111,6 +111,10 @@ exit = "終了"
 ready_message = "準備完了"
 notifications_tooltip = "通知"
 notifications_empty_tooltip = "新しい通知はありません"
+error_detail_error = "エラー"
+error_detail_warning = "警告"
+error_detail_copy = "コピー"
+error_detail_copied = "コピーしました！"
 
 # ===================================================================
 # SYSTEM TRAY MENU

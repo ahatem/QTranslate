@@ -111,6 +111,10 @@ exit = "خروج"
 ready_message = "جاهز"
 notifications_tooltip = "الإشعارات"
 notifications_empty_tooltip = "لا توجد إشعارات جديدة"
+error_detail_error = "خطأ"
+error_detail_warning = "تحذير"
+error_detail_copy = "نسخ"
+error_detail_copied = "تم النسخ!"
 
 # ===================================================================
 # SYSTEM TRAY MENU

@@ -111,6 +111,10 @@ exit = "退出"
 ready_message = "就绪"
 notifications_tooltip = "通知"
 notifications_empty_tooltip = "暂无新通知"
+error_detail_error = "错误"
+error_detail_warning = "警告"
+error_detail_copy = "复制"
+error_detail_copied = "已复制！"
 
 # ===================================================================
 # SYSTEM TRAY MENU
