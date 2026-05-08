@@ -280,9 +280,14 @@ class DynamicPluginSettingsDialog(
         block.add(Box.createVerticalStrut(4))
 
         // Input
+        // For multi-line / custom components the layout manager must determine their
+        // height freely — clamping their maximumSize here would collapse TextAreas to
+        // a single row and prevent CustomPanels from showing their content.
         comp.component.apply {
-            alignmentX  = Component.LEFT_ALIGNMENT
-            maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height.coerceAtLeast(28))
+            alignmentX = Component.LEFT_ALIGNMENT
+            if (setting !is TextAreaSetting && setting !is CustomPanelSetting) {
+                maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height.coerceAtLeast(28))
+            }
         }
         block.add(comp.component)
 
@@ -376,11 +381,15 @@ class DynamicPluginSettingsDialog(
                     lineWrap = true; wrapStyleWord = true
                 }
                 attachTextValidation(area, setting)
-                val scroll = JScrollPane(area).apply {
-                    val h = (setting.rows * 20).coerceAtLeast(80)
-                    preferredSize = Dimension(0, h)
-                    maximumSize   = Dimension(Int.MAX_VALUE, h)
-                }
+                val scroll = JScrollPane(area)
+                // JTextArea with lineWrap=true reports getWidth()=0 before the first layout
+                // pass, so its getPreferredSize() height is unreliable (often 1 row or zero).
+                // Compute the target height directly from font metrics — this is reliable even
+                // before the component is added to a container.
+                val fm     = area.getFontMetrics(area.font)
+                val lineH  = fm.height + fm.leading
+                val targetH = (lineH * setting.rows + 8).coerceAtLeast(60)
+                scroll.preferredSize = Dimension(300, targetH)
                 SettingComponent(placeholder, scroll) { area.text }
             }
 
@@ -611,21 +620,22 @@ class DynamicPluginSettingsDialog(
     }
 
     // =========================================================================
-    // Hint text area (wraps long strings, styled like a label)
+    // Hint label (wraps long strings via HTML, styled like a muted label)
     // =========================================================================
 
-    private fun buildHintArea(text: String): JTextArea = JTextArea(text).apply {
-        isEditable    = false
-        isOpaque      = false
-        isFocusable   = false
-        lineWrap      = true
-        wrapStyleWord = true
-        border        = null
-        foreground    = UIManager.getColor("Label.disabledForeground")
-        font          = font.deriveFont(font.size - 1f)
-        alignmentX    = Component.LEFT_ALIGNMENT
-        // Prevent the text area from influencing the dialog's preferred width
-        minimumSize   = Dimension(0, 0)
+    private fun buildHintArea(text: String): JLabel {
+        // Escape HTML special characters so raw description text renders correctly.
+        val escaped = text
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        return JLabel("<html>$escaped</html>").apply {
+            foreground = UIManager.getColor("Label.disabledForeground")
+            font       = font.deriveFont(font.size - 1f)
+            alignmentX = Component.LEFT_ALIGNMENT
+            // HTML JLabels reflow text when the layout manager sets their width,
+            // so they wrap correctly on dialog resize without collapsing to zero.
+        }
     }
 
     // =========================================================================
