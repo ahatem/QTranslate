@@ -173,9 +173,10 @@ class MainStore(
                 // Without this, the collect coroutine in observeInstantTranslation stays
                 // suspended at join() until the current translation finishes — the user's new
                 // text effectively waits in line behind the old result.
+                // Capture state once to avoid reading _state.value twice (TOCTOU race).
                 if (settingsState.value.isInstantTranslationEnabled && _state.value.isLoading) {
                     translateTextUseCase.cancel()
-                    _state.update { it.copy(isLoading = false) }
+                    _state.update { s -> s.copy(isLoading = false) }
                 }
             }
 

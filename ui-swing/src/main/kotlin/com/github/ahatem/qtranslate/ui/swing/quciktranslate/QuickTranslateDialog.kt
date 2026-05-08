@@ -200,7 +200,7 @@ class QuickTranslateDialog(
             )
         )
 
-        pinButton.toolTipText = if (state.isPinned) "Pinned — window will stay visible" else "Pin window"
+        pinButton.toolTipText = if (state.isPinned) state.strings.unpinTooltip else state.strings.pinTooltip
         listenButton.toolTipText = state.strings.listenTooltip
         copyButton.toolTipText = state.strings.copyTooltip
 

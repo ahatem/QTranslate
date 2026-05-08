@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main.selector
 
+import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import java.awt.Component
@@ -16,6 +17,7 @@ data class PresetSelectorState(
 
 class PresetSelector(
     private val iconManager: IconManager,
+    private val localizationManager: LocalizationManager,
     private val onPresetSelected: (presetId: String) -> Unit,
     private val onEditPreset: (presetId: String) -> Unit,
     private val onManagePresets: () -> Unit
@@ -30,7 +32,7 @@ class PresetSelector(
         presetComboBox.renderer = PresetRenderer()
 
         settingsButton = JButton(iconManager.getIcon("icons/lucide/settings.svg", 18, 18)).apply {
-            toolTipText = "Manage Service Presets"
+            toolTipText = localizationManager.getString("preset_selector.manage_tooltip")
             isFocusable = false
             putClientProperty("JButton.buttonType", "toolBarButton")
             margin = Insets(4, 8, 4, 8)
@@ -85,16 +87,16 @@ class PresetSelector(
         val activePreset = presetComboBox.selectedItem as? ServicePreset
 
         if (activePreset != null) {
-            popup.add(JMenuItem("Edit '${activePreset.name}'...")).addActionListener {
+            popup.add(
+                JMenuItem(localizationManager.getString("preset_selector.edit_preset", activePreset.name))
+            ).addActionListener {
                 onEditPreset(activePreset.id)
             }
         }
-        popup.add(JMenuItem("Manage Presets...")).addActionListener {
+        popup.add(
+            JMenuItem(localizationManager.getString("preset_selector.manage_presets"))
+        ).addActionListener {
             onManagePresets()
-        }
-
-        popup.add(JMenuItem("New Preset...")).addActionListener {
-            println("New Preset clicked!")
         }
 
         return popup

@@ -124,7 +124,7 @@ class WindowPanel(
             applyDraft(store) { it.copy(isPopupAutoPositionEnabled = enabled) }
         }
 
-        transparencySpinner = JSpinner(SpinnerNumberModel(5, 0, 50, 5)).apply {
+        transparencySpinner = JSpinner(SpinnerNumberModel(5, 10, 50, 5)).apply {
             addChangeListener {
                 if (!isUpdatingFromState) {
                     applyDraft(store) { it.copy(popupTransparencyPercentage = value as Int) }
@@ -140,7 +140,7 @@ class WindowPanel(
             }
         )
 
-        popupIdleSpinner = JSpinner(SpinnerNumberModel(3, 1, 60, 1)).apply {
+        popupIdleSpinner = JSpinner(SpinnerNumberModel(3, 2, 60, 1)).apply {
             addChangeListener {
                 if (!isUpdatingFromState) {
                     applyDraft(store) { it.copy(popupIdleTimeoutSeconds = value as Int) }
@@ -158,7 +158,7 @@ class WindowPanel(
 
         addSeparator(localizationManager.getString("settings_window.dict_popup_group"))
 
-        dictTransparencySpinner = JSpinner(SpinnerNumberModel(5, 0, 50, 5)).apply {
+        dictTransparencySpinner = JSpinner(SpinnerNumberModel(5, 10, 50, 5)).apply {
             addChangeListener {
                 if (!isUpdatingFromState) {
                     applyDraft(store) { it.copy(quickDictionaryTransparencyPercentage = value as Int) }
@@ -174,7 +174,7 @@ class WindowPanel(
             }
         )
 
-        dictIdleSpinner = JSpinner(SpinnerNumberModel(8, 1, 60, 1)).apply {
+        dictIdleSpinner = JSpinner(SpinnerNumberModel(8, 2, 60, 1)).apply {
             addChangeListener {
                 if (!isUpdatingFromState) {
                     applyDraft(store) { it.copy(quickDictionaryIdleTimeoutSeconds = value as Int) }

@@ -55,17 +55,19 @@ class MainGlobalKeyListener(
     private val sequenceListener = CustomSequenceListener()
     private val clipboardLock = AtomicBoolean(false)
     private val hotkeysEnabled = AtomicBoolean(true)
-    private var initialized = false
+    // AtomicBoolean.compareAndSet prevents double-initialization if initialize()
+    // is called concurrently (e.g. from two rapid lifecycle events).
+    private val initialized = AtomicBoolean(false)
 
     @Volatile private var bindings: List<HotkeyBinding> = HotkeyBinding.DEFAULTS
 
     fun initialize() {
-        if (initialized) return
+        if (!initialized.compareAndSet(false, true)) return
         try {
             initJKeyMaster()
             initJNativeHook()
-            initialized = true
         } catch (e: Exception) {
+            initialized.set(false)   // allow retry if initialization itself failed
             System.err.println("Hotkey initialization failed: ${e.message}")
             e.printStackTrace()
         }
@@ -73,7 +75,7 @@ class MainGlobalKeyListener(
 
     fun updateBindings(newBindings: List<HotkeyBinding>) {
         bindings = newBindings
-        if (!initialized) return
+        if (!initialized.get()) return
         try {
             provider?.reset()
             registerGlobalHotkeys()
@@ -83,7 +85,7 @@ class MainGlobalKeyListener(
     }
 
     fun setHotkeysEnabled(enabled: Boolean) {
-        if (!initialized) return
+        if (!initialized.get()) return
         if (hotkeysEnabled.getAndSet(enabled) == enabled) return
         if (enabled) enableHotkeys() else disableHotkeys()
     }
@@ -98,7 +100,7 @@ class MainGlobalKeyListener(
         bindings.filter { it.scope == HotkeyScope.LOCAL && it.isEnabled && it.hasBinding }
 
     fun shutdown() {
-        if (!initialized) return
+        if (!initialized.get()) return
         try {
             provider?.reset()
             provider?.stop()
@@ -111,7 +113,7 @@ class MainGlobalKeyListener(
         } catch (e: Exception) {
             System.err.println("Hotkey manager shutdown error: ${e.message}")
         } finally {
-            initialized = false
+            initialized.set(false)
         }
     }
 

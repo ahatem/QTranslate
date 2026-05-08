@@ -397,6 +397,12 @@ auto_source_off = "Auto: Off"
 auto_source_translated = "Translated"
 auto_source_source = "Source"
 
+[preset_selector]
+manage_tooltip  = "Manage Service Presets"
+# %s = preset name
+edit_preset     = "Edit '%s'..."
+manage_presets  = "Manage Presets..."
+
 [update_dialog]
 title = "Update Available"
 header = "A new version of QTranslate is available!"

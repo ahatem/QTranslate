@@ -8,17 +8,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 class LocalizationManager(
     private val appDataDirectory: File,
     private val parser: LanguageTomlParser,
     private val logger: Logger
 ) {
-    private val translationCache  = mutableMapOf<LanguageCode, Map<String, String>>()
-    private val languageMetaCache = mutableMapOf<LanguageCode, LocalizedLanguageMeta>()
+    // ConcurrentHashMap: written from Dispatchers.IO, read from EDT — no Mutex needed
+    // for reads since we only ever replace whole values (no partial updates).
+    private val translationCache  = ConcurrentHashMap<LanguageCode, Map<String, String>>()
+    private val languageMetaCache = ConcurrentHashMap<LanguageCode, LocalizedLanguageMeta>()
     private val embeddedFallback: Map<String, String>
 
-    private var activeTranslations: Map<String, String> = emptyMap()
+    // @Volatile ensures EDT always sees the latest reference written by IO dispatcher.
+    @Volatile private var activeTranslations: Map<String, String> = emptyMap()
 
     private val _activeLanguage = MutableStateFlow(LanguageCode.ENGLISH)
     val activeLanguageFlow: StateFlow<LanguageCode> = _activeLanguage.asStateFlow()
@@ -46,7 +50,7 @@ class LocalizationManager(
 
     suspend fun loadLanguage(languageCode: LanguageCode) {
         withContext(Dispatchers.IO) {
-            if (languageCode != LanguageCode.ENGLISH && LanguageCode.ENGLISH !in translationCache) {
+            if (languageCode != LanguageCode.ENGLISH && !translationCache.containsKey(LanguageCode.ENGLISH)) {
                 loadAndCacheLanguage(LanguageCode.ENGLISH)
             }
             loadAndCacheLanguage(languageCode)
@@ -85,7 +89,7 @@ class LocalizationManager(
     }
 
     private fun loadAndCacheLanguage(code: LanguageCode) {
-        if (code in translationCache) return
+        if (translationCache.containsKey(code)) return
         runCatching {
             val file = File(languagesDirectory, "${code.tag}.toml")
             if (!file.exists()) {

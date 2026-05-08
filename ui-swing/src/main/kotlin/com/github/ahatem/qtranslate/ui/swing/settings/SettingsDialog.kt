@@ -254,6 +254,8 @@ class SettingsDialog(
         scope.launch {
             settingsStore.state.collect { state ->
                 withContext(Dispatchers.Swing) {
+                    val baseTitle = localizationManager.getString("settings_dialog.title")
+                    title = if (state.isDirty) "● $baseTitle" else baseTitle
                     dirtyDot.isVisible = state.isDirty
                     applyButton.isEnabled = state.isDirty && !state.isSaving
 
