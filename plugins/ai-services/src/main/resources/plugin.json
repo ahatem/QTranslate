@@ -1,9 +1,9 @@
 {
   "id": "ai-plugin",
   "name": "AI Services",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "author": "Ahmed Hatem",
-  "description": "Provides Translation, Summarization, Rewriting, and Spell Checking via any OpenAI-compatible AI provider (Gemini, OpenAI, Mistral, Anthropic).",
+  "description": "Translation, Summarization, Rewriting, Spell Checking, Dictionary, and Vision OCR powered by any OpenAI-compatible endpoint. Defaults to OpenRouter (300+ models, one API key). Configurable base URL supports OpenAI, Gemini, Mistral, Ollama, and more.",
   "minApiVersion": "1.0.0",
   "icon": "assets/ai-icon.svg"
 }
