@@ -354,14 +354,16 @@ class PluginsPanel(
 
     private fun onConfigure(plugin: PluginState) {
         scope.launch {
-            val model = pluginManager.getPluginSettingsModel(plugin.manifest.id)
+            val model    = pluginManager.getPluginSettingsModel(plugin.manifest.id)
+            val instance = pluginManager.getPluginSettingsInstance(plugin.manifest.id)
             SwingUtilities.invokeLater {
                 if (model != null) {
                     DynamicPluginSettingsDialog(
-                        owner = SwingUtilities.getWindowAncestor(this@PluginsPanel),
-                        pluginName = plugin.manifest.name,
+                        owner               = SwingUtilities.getWindowAncestor(this@PluginsPanel),
+                        pluginName          = plugin.manifest.name,
                         localizationManager = localizationManager,
-                        settingsModel = model,
+                        settingsModel       = model,
+                        settingsInstance    = instance,
                         onSave = { map ->
                             scope.launch { pluginManager.applySettingsFromMap(plugin.manifest.id, map) }
                         }

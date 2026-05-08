@@ -234,6 +234,19 @@ class PluginManager(
     }
 
     /**
+     * Returns the live settings instance for [pluginId], cast to
+     * [com.github.ahatem.qtranslate.api.plugin.PluginSettings.Configurable], or `null`
+     * if the plugin has no configurable settings.
+     *
+     * Used by the settings dialog to invoke `@PluginAction`-annotated methods on the live
+     * settings object.
+     */
+    suspend fun getPluginSettingsInstance(pluginId: String): com.github.ahatem.qtranslate.api.plugin.PluginSettings.Configurable? {
+        val container = registry.mutex.withLock { registry.get(pluginId) } ?: return null
+        return container.plugin.getSettings() as? com.github.ahatem.qtranslate.api.plugin.PluginSettings.Configurable
+    }
+
+    /**
      * Applies [settingsMap] to the plugin identified by [pluginId].
      * On success, rebuilds the plugin's service list and updates flows.
      */

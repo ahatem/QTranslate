@@ -132,12 +132,18 @@ internal class PluginSettingsManager(
 
 /**
  * The UI-facing model for a plugin's settings panel.
- * Contains the class reference (for applying new settings) and the ordered schema list
- * (for rendering the panel).
+ *
+ * [schema] is the flat ordered list of all settings fields — kept for backward compatibility
+ * with any code that iterates all fields regardless of grouping.
+ *
+ * [groups] is the structured view used by the settings dialog to render named sections,
+ * action button strips, and conditional visibility. Always contains at least one group;
+ * plugins without `@SettingGroup` annotations get a single unnamed group that holds all fields.
  */
 data class PluginSettingsModel(
     val settingsClass: Class<*>,
-    val schema: List<SettingSchema>
+    val schema: List<SettingSchema>,
+    val groups: List<PluginSettingsGroup> = emptyList()
 ) {
     fun getSetting(propertyName: String): SettingSchema? =
         schema.find { it.propertyName == propertyName }
