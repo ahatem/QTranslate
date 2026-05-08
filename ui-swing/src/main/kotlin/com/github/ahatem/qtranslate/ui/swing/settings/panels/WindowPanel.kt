@@ -124,7 +124,7 @@ class WindowPanel(
             applyDraft(store) { it.copy(isPopupAutoPositionEnabled = enabled) }
         }
 
-        transparencySpinner = JSpinner(SpinnerNumberModel(5, 10, 50, 5)).apply {
+        transparencySpinner = JSpinner(SpinnerNumberModel(5, 5, 50, 5)).apply {
             addChangeListener {
                 if (!isUpdatingFromState) {
                     applyDraft(store) { it.copy(popupTransparencyPercentage = value as Int) }
@@ -158,7 +158,7 @@ class WindowPanel(
 
         addSeparator(localizationManager.getString("settings_window.dict_popup_group"))
 
-        dictTransparencySpinner = JSpinner(SpinnerNumberModel(5, 10, 50, 5)).apply {
+        dictTransparencySpinner = JSpinner(SpinnerNumberModel(5, 5, 50, 5)).apply {
             addChangeListener {
                 if (!isUpdatingFromState) {
                     applyDraft(store) { it.copy(quickDictionaryTransparencyPercentage = value as Int) }
