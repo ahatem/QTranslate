@@ -12,7 +12,6 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentResizer
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.*
 import java.awt.event.*
-import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.*
 import javax.swing.border.EmptyBorder
 import kotlin.math.abs
@@ -125,7 +124,6 @@ class QuickDictionaryDialog(
     private var currentState: QuickDictionaryDialogState? = null
 
     // Timers
-    private val fadeLock = AtomicBoolean(false)
     private var fadeTimer: Timer? = null
     private var idleHideTimer: Timer? = null
     private var resizeSaveTimer: Timer? = null
@@ -490,8 +488,11 @@ class QuickDictionaryDialog(
     }
 
     private fun fadeTo(targetOpacity: Float, durationMs: Int) {
-        if (fadeLock.get()) return
-        fadeLock.set(true)
+        // Always cancel any in-progress fade and restart — both callers run on EDT
+        // so there is no threading race to protect against. The old fadeLock guard
+        // was placed before fadeTimer?.stop(), which caused the fade-back-to-
+        // transparency to be silently dropped whenever a fade-to-opaque was still
+        // animating (e.g. quick mouse-in then mouse-out within 160 ms).
         fadeTimer?.stop()
         val start = opacity
         val steps = FADE_STEPS.coerceAtLeast(1)
@@ -502,10 +503,7 @@ class QuickDictionaryDialog(
             val t = step.toFloat() / steps
             val value = start + (targetOpacity - start) * t
             if (abs(opacity - value) > 0.01f) opacity = value
-            if (step >= steps) {
-                (it.source as Timer).stop()
-                fadeLock.set(false)
-            }
+            if (step >= steps) (it.source as Timer).stop()
         }.apply { isRepeats = true; start() }
     }
 
