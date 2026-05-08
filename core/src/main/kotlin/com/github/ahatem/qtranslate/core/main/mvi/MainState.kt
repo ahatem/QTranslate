@@ -56,7 +56,9 @@ data class MainState(
     val isQuickDictionaryVisible: Boolean = false,
     val isQuickDictionaryPinned: Boolean = false,
     /** True while a silent background translation for inline replace is running. */
-    val isReplacingSelection: Boolean = false
+    val isReplacingSelection: Boolean = false,
+    /** True while the [com.github.ahatem.qtranslate.core.audio.AudioPlayer] is actively playing TTS audio. */
+    val isTtsPlaying: Boolean = false
 ) : UiState {
 
     /** `true` when [sourceLanguage] is [LanguageCode.AUTO]. */

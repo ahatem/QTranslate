@@ -19,7 +19,8 @@ class LanguageSelectionBar(
     private val onSourceLanguageSelected: (LanguageCode) -> Unit,
     private val onSwap: () -> Unit,
     private val onTargetLanguageSelected: (LanguageCode) -> Unit,
-    private val onTranslate: () -> Unit
+    private val onTranslate: () -> Unit,
+    private val onCancel: () -> Unit = {}
 ) : JPanel(GridBagLayout()), Renderable<LanguageSelectionBarState> {
 
     private val clearButton = createButtonWithIcon(iconManager, "icons/lucide/trash.svg", 16)
@@ -34,10 +35,13 @@ class LanguageSelectionBar(
     )
     private val translateButton = JButton()
 
+    // Single listener that delegates to the correct callback depending on mode.
+    private var isInCancelMode = false
+
     init {
         clearButton.addActionListener { onClear() }
         swapButton.addActionListener { onSwap() }
-        translateButton.addActionListener { onTranslate() }
+        translateButton.addActionListener { if (isInCancelMode) onCancel() else onTranslate() }
 
         val grid = GridBag(this, horizontalGap = 4)
         grid.defaultFill(GridBagConstraints.BOTH)
@@ -59,9 +63,17 @@ class LanguageSelectionBar(
         swapButton.isEnabled = !state.isLoading && state.canSwap
         swapButton.toolTipText = state.strings.swapTooltip
 
-        translateButton.isEnabled = !state.isLoading
-        translateButton.text = state.strings.translateButtonText
-        translateButton.toolTipText = state.strings.translateButtonText
+        // While loading: morph the Translate button into a Cancel button.
+        // The single action listener checks isInCancelMode to route correctly.
+        isInCancelMode = state.isLoading
+        translateButton.isEnabled = true
+        if (state.isLoading) {
+            translateButton.text = state.strings.cancelButtonText
+            translateButton.toolTipText = state.strings.cancelButtonText
+        } else {
+            translateButton.text = state.strings.translateButtonText
+            translateButton.toolTipText = state.strings.translateButtonText
+        }
 
         sourceLanguageComboBox.render(
             availableLanguages = state.allSourceLanguages,

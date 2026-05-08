@@ -17,6 +17,7 @@ data class LanguageSelectionBarState(
 
 data class LanguageSelectionBarStrings(
     val translateButtonText: String,
+    val cancelButtonText: String,
     val clearTooltip: String,
     val swapTooltip: String
 )

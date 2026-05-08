@@ -32,6 +32,19 @@ class HandleTextToSpeechUseCase(
 ) {
     private val logger: Logger = loggerFactory.getLogger("HandleTextToSpeechUseCase")
 
+    /** Mirrors [AudioPlayer.isPlaying] — collected by [com.github.ahatem.qtranslate.core.main.mvi.MainStore]
+     *  to drive the listen/stop button toggle in the UI. */
+    val isPlaying: StateFlow<Boolean> = audioPlayer.isPlaying
+
+    /**
+     * Stops any audio currently playing. No-op if nothing is playing.
+     * Called when the user clicks the Stop button or dispatches [com.github.ahatem.qtranslate.core.main.mvi.MainIntent.StopTTS].
+     */
+    fun stop() {
+        logger.info("TTS stopped by user")
+        audioPlayer.stop()
+    }
+
     suspend operator fun invoke(
         currentState: MainState,
         textSource: TextSource,

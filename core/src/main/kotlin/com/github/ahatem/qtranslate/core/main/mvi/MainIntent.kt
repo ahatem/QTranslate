@@ -33,6 +33,19 @@ sealed interface MainIntent : UiIntent {
      */
     data class Translate(val text: String? = null) : MainIntent
 
+    /**
+     * User cancelled an in-flight translation.
+     * Clears [MainState.isLoading] and shows a brief status bar message.
+     * No-op if no translation is running.
+     */
+    data object CancelTranslation : MainIntent
+
+    /**
+     * User stopped TTS playback that is currently in progress.
+     * No-op if nothing is playing.
+     */
+    data object StopTTS : MainIntent
+
     /** User requested OCR on an image followed by translation of the detected text. */
     data class OcrAndTranslateImage(val image: ImageData) : MainIntent
 

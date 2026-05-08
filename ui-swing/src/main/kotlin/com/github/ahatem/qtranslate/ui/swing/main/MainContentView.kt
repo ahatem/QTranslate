@@ -81,7 +81,8 @@ class MainContentView(
         onSourceLanguageSelected = { lang -> dispatch(MainIntent.SelectSourceLanguage(lang)) },
         onSwap = { dispatch(MainIntent.SwapLanguages) },
         onTargetLanguageSelected = { lang -> dispatch(MainIntent.SelectTargetLanguage(lang)) },
-        onTranslate = { dispatch(MainIntent.Translate()) }
+        onTranslate = { dispatch(MainIntent.Translate()) },
+        onCancel = { dispatch(MainIntent.CancelTranslation) }
     )
 
     private val inputTextPanel = InputTextPanel(
@@ -181,6 +182,8 @@ class MainContentView(
     private var lastState: Pair<MainState, SettingsState>? = null
     private var lastDictionaryKey: DictionaryKey? = null
     private var currentTranslateKeyStroke: KeyStroke? = null
+    /** Tracks whether a translation is in-flight so the Escape binding knows when to cancel. */
+    private var isTranslating = false
 
     private data class DictionaryKey(
         val isVisible: Boolean,
@@ -207,6 +210,15 @@ class MainContentView(
         am.put("focus-panel-input",  object : AbstractAction() { override fun actionPerformed(e: java.awt.event.ActionEvent) { inputTextPanel.requestFocusOnText() } })
         am.put("focus-panel-output", object : AbstractAction() { override fun actionPerformed(e: java.awt.event.ActionEvent) { outputTextPanel.requestFocusOnText() } })
         am.put("focus-panel-extra",  object : AbstractAction() { override fun actionPerformed(e: java.awt.event.ActionEvent) { extraOutputPanel.requestFocusOnText() } })
+
+        // Escape cancels an in-flight translation — only fires when isTranslating is true
+        // so it doesn't interfere with dialogs or normal Escape usage in other contexts.
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "cancel-translation")
+        am.put("cancel-translation", object : AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent) {
+                if (isTranslating) dispatch(MainIntent.CancelTranslation)
+            }
+        })
     }
 
     fun render(mainState: MainState, settingsState: SettingsState) {
@@ -331,6 +343,7 @@ class MainContentView(
     }
 
     private fun renderComponents(mainState: MainState, config: Configuration) {
+        isTranslating = mainState.isLoading
         currentTargetLanguage = mainState.targetLanguage
 
         // BackwardTranslate output is in the source language; all other extra output types are in target.
@@ -387,13 +400,18 @@ class MainContentView(
                 selectedTargetLanguage = mainState.targetLanguage,
                 strings = LanguageSelectionBarStrings(
                     translateButtonText = localizer.getString("main_window_language_bar.translate_button"),
-                    clearTooltip = localizer.getString("main_window_language_bar.clear_tooltip"),
-                    swapTooltip = localizer.getString("main_window_language_bar.swap_languages_tooltip")
+                    cancelButtonText    = localizer.getString("main_window_language_bar.cancel_button"),
+                    clearTooltip        = localizer.getString("main_window_language_bar.clear_tooltip"),
+                    swapTooltip         = localizer.getString("main_window_language_bar.swap_languages_tooltip")
                 )
             )
         )
 
         val hasInputText = mainState.inputText.isNotBlank()
+        val isTtsPlaying = mainState.isTtsPlaying
+        val listenStopTooltip = if (isTtsPlaying)
+            localizer.getString("common.stop") else localizer.getString("main_window_editor_context_menu.listen")
+        val listenStopIcon = if (isTtsPlaying) "icons/lucide/close.svg" else "icons/lucide/volume.svg"
         val inputActionsState = TextActionsState(
             actions = listOf(
                 Action(
@@ -405,12 +423,15 @@ class MainContentView(
                     onClick = { mainState.inputText.copyToClipboard() }
                 ),
                 Action(
-                    id = "listen_input",
-                    iconPath = "icons/lucide/volume.svg",
-                    tooltip = localizer.getString("main_window_editor_context_menu.listen"),
-                    isEnabled = hasInputText && !mainState.isLoading,
+                    id = if (isTtsPlaying) "stop_tts_input" else "listen_input",
+                    iconPath = listenStopIcon,
+                    tooltip = listenStopTooltip,
+                    isEnabled = if (isTtsPlaying) true else hasInputText && !mainState.isLoading,
                     isVisible = true,
-                    onClick = { dispatch(MainIntent.ListenToText(textSource = TextSource.Input)) }
+                    onClick = {
+                        if (isTtsPlaying) dispatch(MainIntent.StopTTS)
+                        else dispatch(MainIntent.ListenToText(textSource = TextSource.Input))
+                    }
                 ),
             )
         )
@@ -447,12 +468,15 @@ class MainContentView(
                             onClick = { mainState.translatedText.copyToClipboard() }
                         ),
                         Action(
-                            id = "listen_output",
-                            iconPath = "icons/lucide/volume.svg",
-                            tooltip = localizer.getString("main_window_editor_context_menu.listen"),
-                            isEnabled = hasOutputText && !mainState.isLoading,
+                            id = if (isTtsPlaying) "stop_tts_output" else "listen_output",
+                            iconPath = listenStopIcon,
+                            tooltip = listenStopTooltip,
+                            isEnabled = if (isTtsPlaying) true else hasOutputText && !mainState.isLoading,
                             isVisible = true,
-                            onClick = { dispatch(MainIntent.ListenToText(textSource = TextSource.Output)) }
+                            onClick = {
+                                if (isTtsPlaying) dispatch(MainIntent.StopTTS)
+                                else dispatch(MainIntent.ListenToText(textSource = TextSource.Output))
+                            }
                         )
                     )
                 )
@@ -525,12 +549,15 @@ class MainContentView(
                             onClick = { mainState.extraOutputText.copyToClipboard() }
                         ),
                         Action(
-                            id = "listen_extra",
-                            iconPath = "icons/lucide/volume.svg",
-                            tooltip = localizer.getString("main_window_editor_context_menu.listen"),
-                            isEnabled = hasExtraText && !mainState.isLoading,
+                            id = if (isTtsPlaying) "stop_tts_extra" else "listen_extra",
+                            iconPath = listenStopIcon,
+                            tooltip = listenStopTooltip,
+                            isEnabled = if (isTtsPlaying) true else hasExtraText && !mainState.isLoading,
                             isVisible = true,
-                            onClick = { dispatch(MainIntent.ListenToText(textSource = TextSource.ExtraOutput)) }
+                            onClick = {
+                                if (isTtsPlaying) dispatch(MainIntent.StopTTS)
+                                else dispatch(MainIntent.ListenToText(textSource = TextSource.ExtraOutput))
+                            }
                         )
                     )
                 )

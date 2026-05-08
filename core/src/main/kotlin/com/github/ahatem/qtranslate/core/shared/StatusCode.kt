@@ -12,6 +12,7 @@ sealed class StatusCode {
 
     object Translating : StatusCode()
     object TranslationComplete : StatusCode()
+    object TranslationCancelled : StatusCode()
     object TranslationTimeout : StatusCode()
     data class TranslationFailed(val summary: String) : StatusCode()
     object NoTranslatorActive : StatusCode()
@@ -28,6 +29,7 @@ sealed class StatusCode {
     object TtsTimeout : StatusCode()
     object PlayingAudio : StatusCode()
     object AudioPlaybackComplete : StatusCode()
+    object TtsStopped : StatusCode()
     object DownloadingAudio : StatusCode()
     object AudioDownloadFailed : StatusCode()
     data class TtsFailed(val summary: String) : StatusCode()

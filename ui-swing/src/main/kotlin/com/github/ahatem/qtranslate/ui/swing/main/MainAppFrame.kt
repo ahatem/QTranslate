@@ -1447,6 +1447,7 @@ class MainAppFrame(
         private fun resolveStatusMessage(code: StatusCode): String = when (code) {
             StatusCode.Translating                  -> localizer.getString("status_bar.translating")
             StatusCode.TranslationComplete          -> localizer.getString("status_bar.translation_complete")
+            StatusCode.TranslationCancelled         -> localizer.getString("status_bar.translation_cancelled")
             StatusCode.TranslationTimeout           -> localizer.getString("status_bar.translation_timeout")
             is StatusCode.TranslationFailed         -> localizer.getString("status_bar.translation_failed", code.summary)
             StatusCode.NoTranslatorActive           -> localizer.getString("status_bar.no_translator_active")
@@ -1460,6 +1461,7 @@ class MainAppFrame(
             StatusCode.TtsTimeout                   -> localizer.getString("status_bar.tts_timeout")
             StatusCode.PlayingAudio                 -> localizer.getString("status_bar.playing_audio")
             StatusCode.AudioPlaybackComplete        -> localizer.getString("status_bar.audio_playback_complete")
+            StatusCode.TtsStopped                   -> localizer.getString("status_bar.tts_stopped")
             StatusCode.DownloadingAudio             -> localizer.getString("status_bar.downloading_audio")
             StatusCode.AudioDownloadFailed          -> localizer.getString("status_bar.audio_download_failed")
             is StatusCode.TtsFailed                 -> localizer.getString("status_bar.tts_failed", code.summary)

@@ -68,6 +68,7 @@ class MainStore(
         observeAvailableServices()
         observeInstantTranslation()
         observeSpellChecking()
+        observeTtsPlayback()
         checkForUpdates()
     }
 
@@ -131,6 +132,16 @@ class MainStore(
                         translateText()
                     }
                 }
+        }
+    }
+
+    /** Mirrors [HandleTextToSpeechUseCase.isPlaying] into [MainState.isTtsPlaying]
+     *  so the UI can reactively toggle listen ↔ stop buttons. */
+    private fun observeTtsPlayback() {
+        scope.launch {
+            handleTextToSpeechUseCase.isPlaying.collect { playing ->
+                _state.update { it.copy(isTtsPlaying = playing) }
+            }
         }
     }
 
@@ -212,6 +223,16 @@ class MainStore(
             }
 
             is MainIntent.Translate -> scope.launch { translateText(intent.text) }
+
+            MainIntent.CancelTranslation -> {
+                translateTextUseCase.cancel()
+                _state.update { it.copy(isLoading = false) }
+                scope.launch {
+                    updateStatusBar(StatusCode.TranslationCancelled, NotificationType.INFO, true)
+                }
+            }
+
+            MainIntent.StopTTS -> handleTextToSpeechUseCase.stop()
 
             is MainIntent.ReplaceWithTranslation -> scope.launch {
                 handleReplaceWithTranslation(intent.selectedText)
