@@ -375,6 +375,8 @@ required_fields_error_msg = "Please fill in the required fields:"
 [about_dialog]
 title = "About QTranslate"
 description = "The original QTranslate was abandoned. This is a full rewrite — same idea, plugin-driven so the app never goes stale."
+support_button = "Support this project ♥"
+donation_nudge = "You've translated a lot with QTranslate! If you find it useful, consider supporting the project (About → Support ♥)"
 
 [history_dialog]
 title = "Translation History"
@@ -474,6 +476,7 @@ recognizing_text = "Recognizing text from image..."
 ocr_timeout = "OCR timed out. Please try again with a smaller image."
 no_text_in_image = "No text was found in the captured image."
 ocr_complete = "Text recognized successfully!"
+ocr_text_copied = "Text recognized and copied to clipboard."
 ocr_failed = "Text recognition failed: %s"
 # Summarize
 no_summarizer_active = "No summarizer service is active. Install and configure a summarizer plugin."

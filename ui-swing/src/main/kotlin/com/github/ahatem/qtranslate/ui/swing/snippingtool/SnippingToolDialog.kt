@@ -5,16 +5,18 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
 import com.github.ahatem.qtranslate.ui.swing.shared.util.getVirtualScreenBounds
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toImageData
-import java.awt.BorderLayout
-import java.awt.Frame
-import java.awt.Robot
+import java.awt.*
+import java.awt.datatransfer.DataFlavor
+import java.awt.datatransfer.Transferable
+import java.awt.datatransfer.UnsupportedFlavorException
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import javax.swing.JComponent
-import javax.swing.JDialog
-import javax.swing.JFrame
-import javax.swing.KeyStroke
+import java.awt.image.BufferedImage
+import java.io.File
+import javax.imageio.ImageIO
+import javax.swing.*
+import javax.swing.filechooser.FileNameExtensionFilter
 
 class SnippingToolDialog(
     owner: Frame,
@@ -42,9 +44,24 @@ class SnippingToolDialog(
         }
 
         panel = ScreenCapturePanel(
-            onCapture = { capturedImage ->
+            onTranslate = { capturedImage ->
                 val imageData = capturedImage.toImageData("png")
                 dispatchOcrAndTranslate(imageData)
+            },
+            onCopyText = { capturedImage ->
+                val imageData = capturedImage.toImageData("png")
+                dispatchOcrAndCopyText(imageData)
+            },
+            onCopyImage = { capturedImage ->
+                copyImageToClipboard(capturedImage)
+                dispose()
+            },
+            onSaveImage = { capturedImage ->
+                saveImageToFile(capturedImage)
+                dispose()
+            },
+            onRecrop = {
+                controller.resetToIdle()
             },
             onCancel = {
                 dispose()
@@ -69,6 +86,41 @@ class SnippingToolDialog(
             it.toFront()
         }
         dispose()
+    }
+
+    private fun dispatchOcrAndCopyText(image: ImageData) {
+        mainStore.dispatch(MainIntent.OcrAndCopyText(image))
+        dispose()
+    }
+
+    private fun copyImageToClipboard(image: BufferedImage) {
+        val transferable = object : Transferable {
+            override fun getTransferDataFlavors() = arrayOf(DataFlavor.imageFlavor)
+            override fun isDataFlavorSupported(flavor: DataFlavor) = flavor == DataFlavor.imageFlavor
+            @Throws(UnsupportedFlavorException::class)
+            override fun getTransferData(flavor: DataFlavor): Any {
+                if (!isDataFlavorSupported(flavor)) throw UnsupportedFlavorException(flavor)
+                return image
+            }
+        }
+        runCatching {
+            Toolkit.getDefaultToolkit().systemClipboard.setContents(transferable, null)
+        }
+    }
+
+    private fun saveImageToFile(image: BufferedImage) {
+        val chooser = JFileChooser().apply {
+            dialogTitle = "Save Captured Image"
+            fileFilter = FileNameExtensionFilter("PNG Image (*.png)", "png")
+            selectedFile = File("screenshot.png")
+        }
+        if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+            var file = chooser.selectedFile
+            if (!file.name.endsWith(".png", ignoreCase = true)) {
+                file = File("${file.absolutePath}.png")
+            }
+            runCatching { ImageIO.write(image, "PNG", file) }
+        }
     }
 
     private fun setupListeners() {

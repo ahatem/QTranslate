@@ -287,7 +287,14 @@ data class Configuration(
     val isQuickDictionaryPinned: Boolean = false,
     val isQuickDictionaryAutoPositionEnabled: Boolean = true,
     val quickDictionaryIdleTimeoutSeconds: Int = 8,
-    val quickDictionaryTransparencyPercentage: Int = 5
+    val quickDictionaryTransparencyPercentage: Int = 5,
+
+    // ---- Donation nudge ----
+    /**
+     * Set to `true` the first time the one-time donation nudge is shown.
+     * Prevents the nudge from ever appearing again after it has been displayed once.
+     */
+    val donationNudgeShown: Boolean = false
 ) {
     fun getActivePreset(): ServicePreset? =
         servicePresets.find { it.id == activeServicePresetId }

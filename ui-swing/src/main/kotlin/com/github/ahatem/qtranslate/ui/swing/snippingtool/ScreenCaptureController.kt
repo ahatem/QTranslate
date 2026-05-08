@@ -25,6 +25,25 @@ class ScreenCaptureController(
         this.currentState = newState
     }
 
+    /**
+     * Resets to [CaptureMode.IDLE] so the user can draw a new selection
+     * without dismissing the overlay. Called when the user clicks "Re-crop".
+     */
+    fun resetToIdle() {
+        dragStartPoint = null
+        dragStartSelection = null
+        activeMouseAction = MouseAction.NONE
+        onStateChanged(
+            currentState.copy(
+                mode = CaptureMode.IDLE,
+                selection = null,
+                mouseAction = MouseAction.CROSSHAIR,
+                showButtons = false,
+                buttonsPosition = null
+            )
+        )
+    }
+
     override fun mousePressed(e: MouseEvent) {
         dragStartPoint = e.point
         val currentSelection = currentState.selection

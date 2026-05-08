@@ -41,6 +41,7 @@ sealed class StatusCode {
     object OcrTimeout : StatusCode()
     object NoTextInImage : StatusCode()
     object OcrComplete : StatusCode()
+    object OcrTextCopied : StatusCode()
     data class OcrFailed(val summary: String) : StatusCode()
 
     // ---- Summarize ----

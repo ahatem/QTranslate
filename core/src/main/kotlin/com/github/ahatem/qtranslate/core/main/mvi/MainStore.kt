@@ -246,6 +246,10 @@ class MainStore(
                 handleOcrAndTranslate(intent)
             }
 
+            is MainIntent.OcrAndCopyText -> scope.launch {
+                handleOcrAndCopyText(intent)
+            }
+
             is MainIntent.ShowQuickTranslate -> scope.launch {
                 handleShowQuickTranslate(intent)
             }
@@ -297,6 +301,22 @@ class MainStore(
         // Write extracted text into input then translate — same path as manual typing.
         _state.update { it.copy(inputText = extractedText) }
         translateText()
+    }
+
+    /**
+     * OCR-only path: extracts text from [intent.image] and emits [MainEvent.CopyToClipboard]
+     * so the UI layer can write it to the system clipboard.
+     * Does NOT translate — the user chose "Copy Text", not "Translate".
+     */
+    private suspend fun handleOcrAndCopyText(intent: MainIntent.OcrAndCopyText) {
+        val extractedText = ocrAndTranslateUseCase(
+            image = intent.image,
+            currentState = _state.value,
+            onStatusUpdate = ::updateStatusBar
+        )
+        if (extractedText.isBlank()) return
+        _eventChannel.send(MainEvent.CopyToClipboard(extractedText))
+        updateStatusBar(StatusCode.OcrTextCopied, NotificationType.INFO, true)
     }
 
     private suspend fun handleShowQuickTranslate(intent: MainIntent.ShowQuickTranslate) {

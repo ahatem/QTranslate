@@ -28,4 +28,10 @@ sealed interface MainEvent : UiEvent {
         val type: NotificationType = NotificationType.INFO,
         val isTemporary: Boolean = true
     ) : MainEvent
+
+    /**
+     * Instructs the UI to copy [text] to the system clipboard.
+     * Emitted after [MainIntent.OcrAndCopyText] successfully extracts text.
+     */
+    data class CopyToClipboard(val text: String) : MainEvent
 }

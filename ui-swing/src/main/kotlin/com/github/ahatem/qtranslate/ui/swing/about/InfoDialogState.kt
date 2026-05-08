@@ -10,5 +10,9 @@ data class InfoDialogState(
     val websiteUrl: String,
     val icon: Icon,
     val closeButtonText: String,
-    val isVisible: Boolean = false
+    val isVisible: Boolean = false,
+    /** URL opened when the user clicks the support button. Empty string = hide the button. */
+    val supportUrl: String = "",
+    /** Label for the "Support this project" button. */
+    val supportButtonText: String = ""
 )

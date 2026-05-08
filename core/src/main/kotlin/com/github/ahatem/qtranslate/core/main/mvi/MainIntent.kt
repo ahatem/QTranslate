@@ -50,6 +50,12 @@ sealed interface MainIntent : UiIntent {
     data class OcrAndTranslateImage(val image: ImageData) : MainIntent
 
     /**
+     * User requested OCR on an image to extract text and copy it to the clipboard —
+     * without triggering a translation. Emits [MainEvent.CopyToClipboard] on success.
+     */
+    data class OcrAndCopyText(val image: ImageData) : MainIntent
+
+    /**
      * User requested text-to-speech for a specific text panel.
      * @property textSource Which panel to read aloud.
      * @property text Optional text override. If `null`, uses the text from [textSource].

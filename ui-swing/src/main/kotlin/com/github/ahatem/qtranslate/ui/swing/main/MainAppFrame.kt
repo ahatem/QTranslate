@@ -374,8 +374,37 @@ class MainAppFrame(
                             releaseUrl = event.releaseUrl
                         ))
                     }
+                    is MainEvent.CopyToClipboard -> {
+                        runCatching {
+                            Toolkit.getDefaultToolkit().systemClipboard
+                                .setContents(StringSelection(event.text), null)
+                        }
+                    }
                 }
             }
+        }
+
+        // Donation nudge — track successful translations in-memory; show once at 500.
+        // Uses scan() to detect isLoading true→false transitions that produced output.
+        appScope.launch(handler) {
+            var translationCount = 0
+            mainStore.state
+                .scan(Pair<MainState?, MainState?>(null, null)) { (_, prev), curr -> prev to curr }
+                .filter { (prev, curr) ->
+                    prev != null && curr != null &&
+                    prev.isLoading && !curr.isLoading && curr.translatedText.isNotBlank()
+                }
+                .collect {
+                    translationCount++
+                    if (translationCount >= 500 &&
+                        !settingsStore.state.value.workingConfiguration.donationNudgeShown
+                    ) {
+                        settingsStore.dispatch(
+                            SettingsIntent.ToggleSetting { it.copy(donationNudgeShown = true) }
+                        )
+                        withContext(Dispatchers.Swing) { showDonationNudge() }
+                    }
+                }
         }
 
         // Background/system notifications — UpdateAvailable → dialog; everything else → popover
@@ -1129,10 +1158,26 @@ class MainAppFrame(
             descriptionHtml = localizer.getString("about_dialog.description"),
             websiteUrl = "https://github.com/ahatem/qtranslate",
             icon = iconManager.getIcon("icons/app/128.png", 32, 32),
-            closeButtonText = localizer.getString("common.close")
+            closeButtonText = localizer.getString("common.close"),
+            supportUrl = "https://buymeacoffee.com/ahmedhatem",
+            supportButtonText = localizer.getString("about_dialog.support_button")
         )
 
         runOnUi { aboutDialog.showDialog(state) }
+    }
+
+    /** Shows a one-time donation nudge in the notification popover. */
+    private fun showDonationNudge() {
+        val message = localizer.getString("about_dialog.donation_nudge")
+        statusBarController.addToPopover(
+            com.github.ahatem.qtranslate.core.shared.notification.AppNotification(
+                type = com.github.ahatem.qtranslate.api.plugin.NotificationType.INFO,
+                code = com.github.ahatem.qtranslate.core.shared.notification.NotificationCode.Custom(
+                    title = "",
+                    body = message
+                )
+            )
+        )
     }
 
     private fun showUpdateDialog(code: NotificationCode.UpdateAvailable) {
@@ -1470,6 +1515,7 @@ class MainAppFrame(
             StatusCode.OcrTimeout                   -> localizer.getString("status_bar.ocr_timeout")
             StatusCode.NoTextInImage                -> localizer.getString("status_bar.no_text_in_image")
             StatusCode.OcrComplete                  -> localizer.getString("status_bar.ocr_complete")
+            StatusCode.OcrTextCopied               -> localizer.getString("status_bar.ocr_text_copied")
             is StatusCode.OcrFailed                 -> localizer.getString("status_bar.ocr_failed", code.summary)
             StatusCode.NoSummarizerActive           -> localizer.getString("status_bar.no_summarizer_active")
             StatusCode.Summarizing                  -> localizer.getString("status_bar.summarizing")
