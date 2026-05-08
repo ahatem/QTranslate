@@ -89,9 +89,8 @@ class KeyboardPanel(
                 cellRenderer   = HotkeyColumnRenderer()
             }
             columnModel.getColumn(COL_SCOPE).apply {
-                preferredWidth = 90
+                preferredWidth = 130
                 minWidth       = 80
-                maxWidth       = 110
                 cellRenderer   = ScopeColumnRenderer()
             }
 
