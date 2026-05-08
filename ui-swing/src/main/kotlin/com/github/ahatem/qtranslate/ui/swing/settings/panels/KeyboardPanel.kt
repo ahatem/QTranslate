@@ -180,7 +180,15 @@ class KeyboardPanel(
 
     private fun onToggleScope(row: Int) {
         val action = actionOrder[row]
-        if (action in nonScopeToggleActions) return  // SHOW_MAIN_WINDOW is always GLOBAL
+        if (action == HotkeyAction.SHOW_MAIN_WINDOW) {
+            // For SHOW_MAIN_WINDOW the scope is locked to GLOBAL, but the cell
+            // acts as a "Double Ctrl" on/off toggle instead.
+            val current = store.state.value.workingConfiguration.hotkeys
+                .find { it.action == action } ?: return
+            saveBinding(current.copy(isDoubleCtrlEnabled = !current.isDoubleCtrlEnabled))
+            return
+        }
+        if (action in nonScopeToggleActions) return
         val current = store.state.value.workingConfiguration.hotkeys.find { it.action == action }
             ?: return
         val newScope = if (current.scope == HotkeyScope.GLOBAL) HotkeyScope.LOCAL else HotkeyScope.GLOBAL
@@ -299,8 +307,26 @@ class KeyboardPanel(
         ): Component {
             super.getTableCellRendererComponent(t, value, sel, focus, row, col)
             val action = actionOrder.getOrNull(row)
-            val label  = value as? String ?: ""
 
+            if (action == HotkeyAction.SHOW_MAIN_WINDOW) {
+                // Repurpose scope cell as a "Double Ctrl" on/off toggle.
+                val binding = store.state.value.workingConfiguration.hotkeys
+                    .find { it.action == action }
+                val enabled = binding?.isDoubleCtrlEnabled ?: true
+                text        = if (enabled)
+                    localizationManager.getString("settings_hotkeys.double_ctrl_on")
+                else
+                    localizationManager.getString("settings_hotkeys.double_ctrl_off")
+                foreground  = if (enabled)
+                    (UIManager.getColor("Component.accentColor") ?: UIManager.getColor("Table.foreground"))
+                else
+                    UIManager.getColor("Label.disabledForeground")
+                font        = font.deriveFont(Font.PLAIN)
+                toolTipText = localizationManager.getString("settings_hotkeys.double_ctrl_toggle_hint")
+                return this
+            }
+
+            val label = value as? String ?: ""
             if (action in nonScopeToggleActions) {
                 text        = label
                 foreground  = UIManager.getColor("Label.disabledForeground")

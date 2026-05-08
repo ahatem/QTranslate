@@ -124,6 +124,10 @@ enum class HotkeyScope {
  * Reconstruct: `KeyStroke.getKeyStroke(keyCode, modifiers)`
  *
  * [keyCode] = 0 means "no binding" (SHOW_MAIN_WINDOW uses double-Ctrl via JNativeHook).
+ *
+ * [isDoubleCtrlEnabled] only applies to [HotkeyAction.SHOW_MAIN_WINDOW].
+ * When false the double-tap Ctrl sequence is suppressed so other applications
+ * that react to Ctrl-key events are not accidentally triggered.
  */
 @Serializable
 data class HotkeyBinding(
@@ -131,7 +135,8 @@ data class HotkeyBinding(
     val keyCode: Int = 0,
     val modifiers: Int = 0,
     val isEnabled: Boolean = true,
-    val scope: HotkeyScope = HotkeyScope.GLOBAL
+    val scope: HotkeyScope = HotkeyScope.GLOBAL,
+    val isDoubleCtrlEnabled: Boolean = true   // SHOW_MAIN_WINDOW only
 ) {
     val hasBinding: Boolean get() = keyCode != 0
 
@@ -141,7 +146,7 @@ data class HotkeyBinding(
     companion object {
         val DEFAULTS: List<HotkeyBinding> = listOf(
             // SHOW_MAIN_WINDOW: double-Ctrl via JNativeHook — no KeyStroke, always GLOBAL
-            HotkeyBinding(HotkeyAction.SHOW_MAIN_WINDOW,         keyCode = 0,                                          modifiers = 0,                                         scope = HotkeyScope.GLOBAL),
+            HotkeyBinding(HotkeyAction.SHOW_MAIN_WINDOW,         keyCode = 0,                                          modifiers = 0,                                         scope = HotkeyScope.GLOBAL, isDoubleCtrlEnabled = true),
             HotkeyBinding(HotkeyAction.SHOW_QUICK_TRANSLATE,     keyCode = java.awt.event.KeyEvent.VK_Q,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.GLOBAL),
             HotkeyBinding(HotkeyAction.LISTEN_TO_TEXT,           keyCode = java.awt.event.KeyEvent.VK_E,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.GLOBAL),
             HotkeyBinding(HotkeyAction.OPEN_OCR,                 keyCode = java.awt.event.KeyEvent.VK_I,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.GLOBAL),

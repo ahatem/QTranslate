@@ -215,10 +215,10 @@ class MainGlobalKeyListener(
             if (!hotkeysEnabled.get()) return
             if (e.keyCode != NativeKeyEvent.VC_CONTROL) return
 
-            // Only fire if the binding exists and is explicitly enabled.
-            // If binding is missing from the list entirely, don't fire.
+            // Only fire if the binding exists, is enabled, AND the user
+            // has not opted out of the double-Ctrl mechanism specifically.
             val binding = bindings.find { it.action == HotkeyAction.SHOW_MAIN_WINDOW }
-            if (binding == null || !binding.isEnabled) return
+            if (binding == null || !binding.isEnabled || !binding.isDoubleCtrlEnabled) return
 
             val now = System.currentTimeMillis()
             if (now - lastCtrlTime < threshold) {
