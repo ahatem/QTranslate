@@ -65,7 +65,8 @@ class CheckForUpdatesUseCase(
                                     newVersion = info.releaseName,
                                     currentVersion = currentVersion,
                                     releaseNotes = info.releaseNotes,
-                                    downloadUrl = info.downloadUrl
+                                    downloadUrl = info.downloadUrl,
+                                    releaseUrl = info.releaseUrl
                                 )
                             )
                         )

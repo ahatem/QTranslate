@@ -27,6 +27,8 @@ dependencies {
 
     implementation(libs.jnativehook)
     implementation(libs.jkeymaster)
+
+    implementation(libs.commonmark)
 }
 val compileKotlin: KotlinCompile by tasks
 

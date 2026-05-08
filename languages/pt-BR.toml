@@ -438,7 +438,8 @@ details_format = "A versão %s está disponível (você tem a %s). Deseja atuali
 release_notes_label = "Notas da Versão:"
 skip_button = "Pular esta Versão"
 remind_later_button = "Lembrar mais tarde"
-download_button = "Ir para a Página de Download"
+download_button = "Baixar"
+view_on_github_button = "Ver no GitHub"
 
 # ===================================================================
 # CLOSE DIALOG

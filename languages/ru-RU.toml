@@ -438,7 +438,8 @@ details_format = "Версия %s уже доступна (у вас устан�
 release_notes_label = "Список изменений:"
 skip_button = "Пропустить эту версию"
 remind_later_button = "Напомнить позже"
-download_button = "Перейти к загрузке"
+download_button = "Скачать"
+view_on_github_button = "Открыть на GitHub"
 
 # ===================================================================
 # CLOSE DIALOG

@@ -19,7 +19,8 @@ sealed interface MainEvent : UiEvent {
         val newVersion: String,
         val currentVersion: String,
         val releaseNotes: String,
-        val downloadUrl: String?
+        val downloadUrl: String?,
+        val releaseUrl: String? = null
     ) : MainEvent
 
     data class UpdateStatusBar(

@@ -405,7 +405,8 @@ details_format = "Version %s is now available (you have %s). Would you like to u
 release_notes_label = "Release Notes:"
 skip_button = "Skip This Version"
 remind_later_button = "Remind Me Later"
-download_button = "Go to Download Page"
+download_button = "Download"
+view_on_github_button = "View on GitHub"
 
 # ===================================================================
 # CLOSE DIALOG

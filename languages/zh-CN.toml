@@ -438,7 +438,8 @@ details_format = "版本 %s 现已发布 (当前版本为 %s)。是否要更新�
 release_notes_label = "更新日志："
 skip_button = "跳过此版本"
 remind_later_button = "稍后提醒我"
-download_button = "前往下载页面"
+download_button = "下载"
+view_on_github_button = "在 GitHub 上查看"
 
 # ===================================================================
 # CLOSE DIALOG

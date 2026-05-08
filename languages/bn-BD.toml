@@ -438,7 +438,8 @@ details_format = "ভার্সন %s এখন উপলব্ধ (আপন�
 release_notes_label = "রিলিজ নোটস:"
 skip_button = "এই ভার্সনটি এড়িয়ে যান"
 remind_later_button = "পরে মনে করিয়ে দিন"
-download_button = "ডাউনলোড পেজে যান"
+download_button = "ডাউনলোড"
+view_on_github_button = "GitHub-এ দেখুন"
 
 # ===================================================================
 # CLOSE DIALOG

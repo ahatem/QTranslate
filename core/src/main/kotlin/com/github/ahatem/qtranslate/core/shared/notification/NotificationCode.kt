@@ -15,7 +15,8 @@ sealed class NotificationCode {
         val newVersion: String,
         val currentVersion: String,
         val releaseNotes: String,
-        val downloadUrl: String?
+        val downloadUrl: String?,
+        val releaseUrl: String? = null
     ) : NotificationCode()
 
     /** A service does not support the requested language. */

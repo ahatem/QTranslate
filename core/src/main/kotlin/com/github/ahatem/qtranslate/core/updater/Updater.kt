@@ -105,7 +105,8 @@ class Updater(
                     versionTag   = response.tagName,
                     releaseName  = response.name,
                     releaseNotes = response.releaseNotes,
-                    downloadUrl  = response.assets.firstOrNull()?.downloadUrl
+                    downloadUrl  = response.assets.firstOrNull()?.downloadUrl,
+                    releaseUrl   = response.htmlUrl.takeIf { it.isNotBlank() }
                 )
             )
         } catch (e: io.ktor.serialization.JsonConvertException) {

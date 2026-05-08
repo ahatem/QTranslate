@@ -438,7 +438,8 @@ details_format = "Sürüm %s şu an indirilebilir (sizdeki sürüm: %s). Güncel
 release_notes_label = "Sürüm Notları:"
 skip_button = "Bu Sürümü Atla"
 remind_later_button = "Daha Sonra Hatırlat"
-download_button = "İndirme Sayfasına Git"
+download_button = "İndir"
+view_on_github_button = "GitHub'da Görüntüle"
 
 # ===================================================================
 # CLOSE DIALOG

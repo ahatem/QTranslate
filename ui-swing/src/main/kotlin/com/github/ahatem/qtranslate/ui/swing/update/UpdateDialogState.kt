@@ -8,7 +8,9 @@ data class UpdateDialogState(
     val skipButton: String,
     val remindLaterButton: String,
     val downloadButton: String,
+    val viewOnGitHubButton: String,
     val downloadUrl: String?,
+    val releaseUrl: String?,
     val onSkip: () -> Unit,
     val onRemindLater: () -> Unit,
 )

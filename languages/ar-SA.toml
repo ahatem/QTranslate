@@ -438,7 +438,8 @@ details_format = "الإصدار %s متاح الآن (لديك %s). هل ترغ
 release_notes_label = "ملاحظات الإصدار:"
 skip_button = "تخطي هذا الإصدار"
 remind_later_button = "ذكرني لاحقًا"
-download_button = "الانتقال إلى صفحة التحميل"
+download_button = "تحميل"
+view_on_github_button = "عرض على GitHub"
 
 # ===================================================================
 # CLOSE DIALOG

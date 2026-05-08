@@ -438,7 +438,8 @@ details_format = "A(z) %s verzió most elérhető (jelenleg %s van). Szeretné f
 release_notes_label = "Kiadási megjegyzések:"
 skip_button = "Kihagyom ezt a verziót"
 remind_later_button = "Emlékeztessen később"
-download_button = "Ugrás a letöltési oldalra"
+download_button = "Letöltés"
+view_on_github_button = "Megtekintés GitHub-on"
 
 # ===================================================================
 # CLOSE DIALOG

@@ -14,12 +14,14 @@ package com.github.ahatem.qtranslate.core.updater.data
  *   in a changelog dialog.
  * @property downloadUrl Direct download URL for the release asset (e.g. the installer JAR),
  *   or `null` if the release has no attached assets.
+ * @property releaseUrl URL to the GitHub release page, suitable for a "View on GitHub" button.
  */
 data class VersionInfo(
     val versionTag: String,
     val releaseName: String,
     val releaseNotes: String,
-    val downloadUrl: String?
+    val downloadUrl: String?,
+    val releaseUrl: String? = null
 ) {
     /**
      * Returns `true` if this release is strictly newer than [currentVersion].

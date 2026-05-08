@@ -370,7 +370,8 @@ class MainAppFrame(
                             newVersion = event.newVersion,
                             currentVersion = event.currentVersion,
                             releaseNotes = event.releaseNotes,
-                            downloadUrl = event.downloadUrl
+                            downloadUrl = event.downloadUrl,
+                            releaseUrl = event.releaseUrl
                         ))
                     }
                 }
@@ -1143,7 +1144,9 @@ class MainAppFrame(
             skipButton = localizer.getString("update_dialog.skip_button"),
             remindLaterButton = localizer.getString("update_dialog.remind_later_button"),
             downloadButton = localizer.getString("update_dialog.download_button"),
+            viewOnGitHubButton = localizer.getString("update_dialog.view_on_github_button"),
             downloadUrl = code.downloadUrl,
+            releaseUrl = code.releaseUrl,
             onSkip = {},
             onRemindLater = {}
         )

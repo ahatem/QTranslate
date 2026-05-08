@@ -438,7 +438,8 @@ details_format = "バージョン %s が利用可能です (現在 %s)。更新�
 release_notes_label = "リリースノート:"
 skip_button = "このバージョンをスキップ"
 remind_later_button = "後で通知"
-download_button = "ダウンロード ページへ"
+download_button = "ダウンロード"
+view_on_github_button = "GitHubで表示"
 
 # ===================================================================
 # CLOSE DIALOG
