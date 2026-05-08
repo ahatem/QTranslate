@@ -79,6 +79,7 @@ translate = "@main_window_language_bar.translate_button"
 listen = "@common.listen"
 spell_check = "Vérification orthographique"
 find_in_dictionary = "Rechercher dans le dictionnaire"
+set_as_input = "Définir comme entrée"
 input_hint = "Enter text to translate..."
 output_hint = "La traduction apparaîtra ici…"
 

@@ -78,4 +78,4 @@ logs/
 local.properties
 
 
-old-core/
+old-core/.claude/

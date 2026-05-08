@@ -24,6 +24,7 @@ class OutputTextPanel(
     onListen: (text: String) -> Unit,
     onTranslateRequest: (text: String) -> Unit,
     private val onFindInDictionary: ((String) -> Unit)? = null,
+    private val onSetAsInput: ((String) -> Unit)? = null,
     private val onEscapePressed: (() -> Unit)? = null,
 ) : JPanel(BorderLayout()), Renderable<OutputTextState> {
 
@@ -37,6 +38,8 @@ class OutputTextPanel(
 
     private var dictMenuItem: JMenuItem? = null
     private var dictMenuSeparator: JSeparator? = null
+    private var setAsInputMenuItem: JMenuItem? = null
+    private var setAsInputSeparator: JSeparator? = null
 
     fun requestFocusOnText() = textPane.requestFocusInWindow()
     fun setTranslateKeyStroke(old: javax.swing.KeyStroke?, new: javax.swing.KeyStroke?) =
@@ -56,9 +59,10 @@ class OutputTextPanel(
         textPane.getContextMenuLabel = { key ->
             localizationManager.getString("main_window_editor_context_menu.$key")
         }
-        if (onFindInDictionary != null) {
+        if (onFindInDictionary != null || onSetAsInput != null) {
             textPane.onBeforeContextMenuPopup = { menu, clickPosition ->
-                addFindInDictionaryItem(menu, clickPosition)
+                if (onFindInDictionary != null) addFindInDictionaryItem(menu, clickPosition)
+                if (onSetAsInput != null) addSetAsInputItem(menu)
             }
         }
     }
@@ -97,6 +101,26 @@ class OutputTextPanel(
             menu.add(sep)
             menu.add(item)
         }
+    }
+
+    private fun addSetAsInputItem(menu: JPopupMenu) {
+        setAsInputMenuItem?.let { menu.remove(it) }
+        setAsInputSeparator?.let { menu.remove(it) }
+        setAsInputMenuItem = null
+        setAsInputSeparator = null
+
+        // Use selected text if available; fall back to entire pane content.
+        val text = (textPane.selectedText?.trim()?.takeIf { it.isNotBlank() }
+            ?: textPane.text?.trim()).takeIf { !it.isNullOrBlank() } ?: return
+
+        val sep = JSeparator()
+        val item = JMenuItem(localizationManager.getString("main_window_editor_context_menu.set_as_input")).apply {
+            addActionListener { onSetAsInput?.invoke(text) }
+        }
+        setAsInputSeparator = sep
+        setAsInputMenuItem = item
+        menu.add(sep)
+        menu.add(item)
     }
 
     private fun wordAtOffset(offset: Int): String {

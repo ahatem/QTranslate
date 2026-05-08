@@ -79,6 +79,7 @@ translate = "@main_window_language_bar.translate_button"
 listen = "@common.listen"
 spell_check = "تدقيق إملائي"
 find_in_dictionary = "ابحث في القاموس"
+set_as_input = "تعيين كإدخال"
 input_hint = "Enter text to translate..."
 output_hint = "ستظهر نتيجة الترجمة هنا…"
 

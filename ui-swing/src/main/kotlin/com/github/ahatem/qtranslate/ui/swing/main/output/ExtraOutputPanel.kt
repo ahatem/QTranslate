@@ -32,6 +32,7 @@ class ExtraOutputPanel(
     onListen: (text: String) -> Unit,
     onTranslateRequest: (text: String) -> Unit,
     private val onFindInDictionary: ((String) -> Unit)? = null,
+    private val onSetAsInput: ((String) -> Unit)? = null,
     private val onEscapePressed: (() -> Unit)? = null,
 ) : JPanel(BorderLayout()), Renderable<ExtraOutputState> {
 
@@ -116,15 +117,18 @@ class ExtraOutputPanel(
         textPane.getContextMenuLabel = { key ->
             localizationManager.getString("main_window_editor_context_menu.$key")
         }
-        if (onFindInDictionary != null) {
+        if (onFindInDictionary != null || onSetAsInput != null) {
             textPane.onBeforeContextMenuPopup = { menu, clickPosition ->
-                addFindInDictionaryItem(menu, clickPosition)
+                if (onFindInDictionary != null) addFindInDictionaryItem(menu, clickPosition)
+                if (onSetAsInput != null) addSetAsInputItem(menu)
             }
         }
     }
 
     private var dictMenuItem: JMenuItem? = null
     private var dictMenuSeparator: JSeparator? = null
+    private var setAsInputMenuItem: JMenuItem? = null
+    private var setAsInputSeparator: JSeparator? = null
 
     override fun render(state: ExtraOutputState) {
         isVisible = state.isVisible
@@ -202,6 +206,25 @@ class ExtraOutputPanel(
             menu.add(sep)
             menu.add(item)
         }
+    }
+
+    private fun addSetAsInputItem(menu: JPopupMenu) {
+        setAsInputMenuItem?.let { menu.remove(it) }
+        setAsInputSeparator?.let { menu.remove(it) }
+        setAsInputMenuItem = null
+        setAsInputSeparator = null
+
+        val text = (textPane.selectedText?.trim()?.takeIf { it.isNotBlank() }
+            ?: textPane.text?.trim()).takeIf { !it.isNullOrBlank() } ?: return
+
+        val sep = JSeparator()
+        val item = JMenuItem(localizationManager.getString("main_window_editor_context_menu.set_as_input")).apply {
+            addActionListener { onSetAsInput?.invoke(text) }
+        }
+        setAsInputSeparator = sep
+        setAsInputMenuItem = item
+        menu.add(sep)
+        menu.add(item)
     }
 
     private fun wordAtOffset(offset: Int): String {

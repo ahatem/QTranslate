@@ -106,6 +106,10 @@ class MainContentView(
             dispatch(MainIntent.Translate(text))
         },
         onFindInDictionary = { word -> showDictionaryWithWord(word, currentTargetLanguage) },
+        onSetAsInput = { text ->
+            dispatch(MainIntent.UpdateInputText(text))
+            inputTextPanel.requestFocusOnText()
+        },
         onEscapePressed = { inputTextPanel.requestFocusOnText() },
     )
 
@@ -118,6 +122,10 @@ class MainContentView(
             dispatch(MainIntent.Translate(text))
         },
         onFindInDictionary = { word -> showDictionaryWithWord(word, currentExtraOutputLanguage) },
+        onSetAsInput = { text ->
+            dispatch(MainIntent.UpdateInputText(text))
+            inputTextPanel.requestFocusOnText()
+        },
         onEscapePressed = { inputTextPanel.requestFocusOnText() },
     )
 
