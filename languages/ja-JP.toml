@@ -274,6 +274,7 @@ reset_title = "ホットキーをリセット"
 recorder_title = "ホットキーを記録"
 recorder_prompt = "割り当てるキーの組み合わせを押してください:"
 double_ctrl = "Ctrl 2回押し"
+show_main_tooltip = "Ctrl 2回押しは常に有効です。任意でここに追加のホットキーを設定できます。"
 recorder_waiting = "— キーを押してください —"
 recorder_hint = "Escape キーでキャンセル"
 

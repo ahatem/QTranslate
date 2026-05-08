@@ -274,6 +274,7 @@ reset_title = "Ripristina tasti rapidi"
 recorder_title = "Imposta tasto rapido"
 recorder_prompt = "Premi combinazione tasti da assegnare:"
 double_ctrl = "Doppio Ctrl"
+show_main_tooltip = "Doppio Ctrl è sempre attivo. Puoi aggiungere opzionalmente una scorciatoia extra qui."
 recorder_waiting = "— premi una combinazione tasti —"
 recorder_hint = "Premi Esc per annullare"
 

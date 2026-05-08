@@ -274,6 +274,7 @@ reset_title = "Reset Hotkeys"
 recorder_title = "Record Hotkey"
 recorder_prompt = "Press the key combination you want to assign to:"
 double_ctrl = "Double Ctrl"
+show_main_tooltip = "Double-tap Ctrl is always active. You can optionally add an extra hotkey here."
 recorder_waiting = "— press a key combination —"
 recorder_hint = "Press Escape to cancel"
 

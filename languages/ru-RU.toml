@@ -274,6 +274,7 @@ reset_title = "Сброс клавиш"
 recorder_title = "Запись клавиши"
 recorder_prompt = "Нажмите комбинацию клавиш для:"
 double_ctrl = "Double Ctrl"
+show_main_tooltip = "Двойной Ctrl всегда активен. Можно дополнительно добавить горячую клавишу."
 recorder_waiting = "— нажмите комбинацию клавиш —"
 recorder_hint = "Нажмите Escape для отмены"
 

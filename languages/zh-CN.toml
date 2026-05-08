@@ -274,6 +274,7 @@ reset_title = "重置热键"
 recorder_title = "录制热键"
 recorder_prompt = "按下您想要分配给以下操作的组合键："
 double_ctrl = "连按两次 Ctrl"
+show_main_tooltip = "连按两次 Ctrl 始终有效。您可以在此处选择性地添加额外的快捷键。"
 recorder_waiting = "— 请按下组合键 —"
 recorder_hint = "按 Escape 键取消"
 

@@ -274,6 +274,7 @@ reset_title = "Kısayolları Sıfırla"
 recorder_title = "Kısayol Kaydet"
 recorder_prompt = "Atamak istediğiniz tuş kombinasyonuna basın:"
 double_ctrl = "Çift Ctrl"
+show_main_tooltip = "Çift Ctrl her zaman aktiftir. İsteğe bağlı olarak buraya ek bir kısayol ekleyebilirsiniz."
 recorder_waiting = "— bir tuş kombinasyonuna basın —"
 recorder_hint = "İptal etmek için Escape tuşuna basın"
 

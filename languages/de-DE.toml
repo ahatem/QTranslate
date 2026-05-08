@@ -274,6 +274,7 @@ reset_title = "Hotkeys zurücksetzen"
 recorder_title = "Hotkey aufnehmen"
 recorder_prompt = "Drücken Sie die Tastenkombination für:"
 double_ctrl = "Doppel-Strg"
+show_main_tooltip = "Doppel-Strg ist immer aktiv. Optional können Sie hier eine zusätzliche Tastenkombination festlegen."
 recorder_waiting = "— Tastenkombination drücken —"
 recorder_hint = "Escape zum Abbrechen"
 

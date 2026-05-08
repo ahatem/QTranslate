@@ -274,6 +274,7 @@ reset_title = "إعادة تعيين الاختصارات"
 recorder_title = "تسجيل اختصار"
 recorder_prompt = "اضغط على مجموعة المفاتيح التي تريد تعيينها لـ:"
 double_ctrl = "نقر مزدوج Ctrl"
+show_main_tooltip = "نقر مزدوج Ctrl دائمًا نشط. يمكنك إضافة اختصار إضافي هنا إذا أردت."
 recorder_waiting = "— اضغط على مجموعة مفاتيح —"
 recorder_hint = "اضغط Escape للإلغاء"
 

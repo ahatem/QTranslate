@@ -274,6 +274,7 @@ reset_title = "Restablecer Atajos"
 recorder_title = "Grabar Atajo"
 recorder_prompt = "Pulse la combinación de teclas que desea asignar a:"
 double_ctrl = "Doble Ctrl"
+show_main_tooltip = "Doble Ctrl siempre está activo. Opcionalmente puedes añadir un atajo adicional aquí."
 recorder_waiting = "— pulse una combinación de teclas —"
 recorder_hint = "Pulse Escape para cancelar"
 

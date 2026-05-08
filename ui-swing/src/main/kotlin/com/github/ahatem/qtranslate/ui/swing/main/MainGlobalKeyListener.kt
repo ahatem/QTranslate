@@ -124,6 +124,10 @@ class MainGlobalKeyListener(
     /**
      * Registers only [HotkeyScope.GLOBAL] bindings with jKeymaster.
      * LOCAL bindings are handled by MainAppFrame via Swing InputMap.
+     *
+     * Each binding is wrapped in its own try-catch so a single failure
+     * (e.g. OS refuses to grant a reserved key combination) does not
+     * silently abort registration of the remaining bindings.
      */
     private fun registerGlobalHotkeys() {
         val p = provider ?: return
@@ -133,9 +137,16 @@ class MainGlobalKeyListener(
             .forEach { binding ->
                 val keyStroke = binding.toKeyStroke() ?: return@forEach
                 val action = binding.action
-                p.register(keyStroke) {
-                    if (!hotkeysEnabled.get()) return@register
-                    dispatchAction(action)
+                runCatching {
+                    p.register(keyStroke) {
+                        if (!hotkeysEnabled.get()) return@register
+                        dispatchAction(action)
+                    }
+                    println("[Hotkeys] Registered GLOBAL ${action.name}: $keyStroke")
+                }.onFailure { ex ->
+                    System.err.println(
+                        "[Hotkeys] Failed to register GLOBAL ${action.name} ($keyStroke): ${ex.message}"
+                    )
                 }
             }
     }

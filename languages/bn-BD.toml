@@ -274,6 +274,7 @@ reset_title = "হটকি রিসেট করুন"
 recorder_title = "হটকি রেকর্ড করুন"
 recorder_prompt = "আপনি যে কী সংমিশ্রণটি অ্যাসাইন করতে চান তা চাপুন:"
 double_ctrl = "ডাবল Ctrl"
+show_main_tooltip = "ডাবল-ট্যাপ Ctrl সবসময় সক্রিয়। আপনি এখানে একটি অতিরিক্ত হটকি যোগ করতে পারেন।"
 recorder_waiting = "— একটি কী সংমিশ্রণ টিপুন —"
 recorder_hint = "বাতিল করতে 'Escape' চাপুন"
 

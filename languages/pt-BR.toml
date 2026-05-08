@@ -274,6 +274,7 @@ reset_title = "Resetar Atalhos"
 recorder_title = "Gravar Atalho"
 recorder_prompt = "Pressione a combinação de teclas para:"
 double_ctrl = "Ctrl Duplo"
+show_main_tooltip = "Ctrl Duplo está sempre ativo. Opcionalmente, você pode adicionar um atalho extra aqui."
 recorder_waiting = "— pressione uma combinação de teclas —"
 recorder_hint = "Pressione Escape para cancelar"
 

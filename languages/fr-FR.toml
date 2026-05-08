@@ -274,6 +274,7 @@ reset_title = "Réinitialiser les raccourcis"
 recorder_title = "Enregistrer un raccourci"
 recorder_prompt = "Appuyez sur la combinaison de touches pour :"
 double_ctrl = "Double Ctrl"
+show_main_tooltip = "Double-Ctrl est toujours actif. Vous pouvez y ajouter un raccourci supplémentaire."
 recorder_waiting = "— appuyez sur une combinaison —"
 recorder_hint = "Appuyez sur Échap pour annuler"
 

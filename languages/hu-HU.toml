@@ -274,6 +274,7 @@ reset_title = "Gyorsbillentyűk visszaállítása"
 recorder_title = "Felvétel gyorsbillentyű"
 recorder_prompt = "Nyomja meg a hozzárendelni kívánt billentyűkombinációt:"
 double_ctrl = "Dupla Ctrl"
+show_main_tooltip = "A Dupla Ctrl mindig aktív. Opcionálisan megadhat itt egy extra gyorsbillentyűt."
 recorder_waiting = "— nyomjon meg egy billentyűkombinációt —"
 recorder_hint = "Nyomja meg az Escape-et a megszakításhoz"
 
