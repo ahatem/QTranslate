@@ -22,6 +22,14 @@ class DictionaryResultView : JScrollPane() {
         border = BorderFactory.createEmptyBorder(12, 16, 16, 16)
     }
 
+    // Cache the last rendered data. Both DictionaryPanel (embedded) and
+    // QuickDictionaryDialog use this view, and their parents call render()
+    // on every state emission even when the entries haven't changed.
+    // removeAll() + full rebuild causes the panel to flash blank for one
+    // frame before repainting — the equality guard prevents that entirely.
+    private var lastEntries: List<DictionaryEntry> = emptyList()
+    private var lastSynonymsLabel: String = ""
+
     init {
         setViewportView(content)
         border = null
@@ -35,6 +43,9 @@ class DictionaryResultView : JScrollPane() {
         synonymsLabel: String,
         onSynonymClicked: ((String) -> Unit)? = null
     ) {
+        if (entries == lastEntries && synonymsLabel == lastSynonymsLabel) return
+        lastEntries = entries
+        lastSynonymsLabel = synonymsLabel
         content.removeAll()
 
         if (entries.isEmpty()) {
