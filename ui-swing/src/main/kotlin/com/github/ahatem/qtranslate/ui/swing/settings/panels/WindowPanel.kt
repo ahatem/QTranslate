@@ -6,7 +6,6 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.core.settings.data.CloseButtonBehavior
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
 import java.awt.BorderLayout
-import java.awt.Dimension
 import javax.swing.*
 
 class WindowPanel(
@@ -26,11 +25,9 @@ class WindowPanel(
     private lateinit var dictionaryPanelCheck: JCheckBox
     private lateinit var autoSizeCheck: JCheckBox
     private lateinit var autoPositionCheck: JCheckBox
-    private lateinit var transparencySlider: JSlider
-    private lateinit var transparencyLabel: JLabel
+    private lateinit var transparencySpinner: JSpinner
     private lateinit var popupIdleSpinner: JSpinner
-    private lateinit var dictTransparencySlider: JSlider
-    private lateinit var dictTransparencyLabel: JLabel
+    private lateinit var dictTransparencySpinner: JSpinner
     private lateinit var dictIdleSpinner: JSpinner
     private lateinit var closeButtonCombo: JComboBox<CloseButtonBehaviorInfo>
 
@@ -127,29 +124,19 @@ class WindowPanel(
             applyDraft(store) { it.copy(isPopupAutoPositionEnabled = enabled) }
         }
 
-        transparencyLabel = JLabel("0%").apply {
-            preferredSize = Dimension(48, preferredSize.height)
-            horizontalAlignment = SwingConstants.RIGHT
-        }
-
-        transparencySlider = JSlider(0, 100, 0).apply {
-            majorTickSpacing = 25
-            minorTickSpacing = 5
-            paintTicks = true
+        transparencySpinner = JSpinner(SpinnerNumberModel(5, 0, 50, 5)).apply {
             addChangeListener {
-                transparencyLabel.text = "${value}%"
-                if (!valueIsAdjusting && !isUpdatingFromState) {
-                    applyDraft(store) { it.copy(popupTransparencyPercentage = value) }
+                if (!isUpdatingFromState) {
+                    applyDraft(store) { it.copy(popupTransparencyPercentage = value as Int) }
                 }
             }
         }
-
         addRow(
             localizationManager.getString("settings_window.transparency"),
-            JPanel(BorderLayout(8, 0)).apply {
+            JPanel(BorderLayout(4, 0)).apply {
                 isOpaque = false
-                add(transparencySlider, BorderLayout.CENTER)
-                add(transparencyLabel, BorderLayout.LINE_END)
+                add(transparencySpinner, BorderLayout.LINE_START)
+                add(JLabel("%"), BorderLayout.CENTER)
             }
         )
 
@@ -171,27 +158,19 @@ class WindowPanel(
 
         addSeparator(localizationManager.getString("settings_window.dict_popup_group"))
 
-        dictTransparencyLabel = JLabel("5%").apply {
-            preferredSize = Dimension(48, preferredSize.height)
-            horizontalAlignment = SwingConstants.RIGHT
-        }
-        dictTransparencySlider = JSlider(0, 100, 5).apply {
-            majorTickSpacing = 25
-            minorTickSpacing = 5
-            paintTicks = true
+        dictTransparencySpinner = JSpinner(SpinnerNumberModel(5, 0, 50, 5)).apply {
             addChangeListener {
-                dictTransparencyLabel.text = "${value}%"
-                if (!valueIsAdjusting && !isUpdatingFromState) {
-                    applyDraft(store) { it.copy(quickDictionaryTransparencyPercentage = value) }
+                if (!isUpdatingFromState) {
+                    applyDraft(store) { it.copy(quickDictionaryTransparencyPercentage = value as Int) }
                 }
             }
         }
         addRow(
             localizationManager.getString("settings_window.transparency"),
-            JPanel(BorderLayout(8, 0)).apply {
+            JPanel(BorderLayout(4, 0)).apply {
                 isOpaque = false
-                add(dictTransparencySlider, BorderLayout.CENTER)
-                add(dictTransparencyLabel, BorderLayout.LINE_END)
+                add(dictTransparencySpinner, BorderLayout.LINE_START)
+                add(JLabel("%"), BorderLayout.CENTER)
             }
         )
 
@@ -245,11 +224,9 @@ class WindowPanel(
             dictionaryPanelCheck.isSelected = c.showDictionaryPanel
             autoSizeCheck.isSelected = c.isPopupAutoSizeEnabled
             autoPositionCheck.isSelected = c.isPopupAutoPositionEnabled
-            transparencySlider.value = c.popupTransparencyPercentage
-            transparencyLabel.text = "${c.popupTransparencyPercentage}%"
+            transparencySpinner.value = c.popupTransparencyPercentage.coerceIn(0, 50)
             popupIdleSpinner.value = c.popupIdleTimeoutSeconds
-            dictTransparencySlider.value = c.quickDictionaryTransparencyPercentage
-            dictTransparencyLabel.text = "${c.quickDictionaryTransparencyPercentage}%"
+            dictTransparencySpinner.value = c.quickDictionaryTransparencyPercentage.coerceIn(0, 50)
             dictIdleSpinner.value = c.quickDictionaryIdleTimeoutSeconds
             closeButtonCombo.selectedItem = (0 until closeButtonCombo.itemCount)
                 .map { closeButtonCombo.getItemAt(it) }
