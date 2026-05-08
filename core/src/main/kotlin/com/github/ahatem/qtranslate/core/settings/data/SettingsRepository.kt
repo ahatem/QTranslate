@@ -62,7 +62,7 @@ class SettingsRepository(
         .map { preferences ->
             preferences[Keys.CONFIG_JSON]?.let { json ->
                 try {
-                    json.let { this.json.decodeFromString<Configuration>(it) }
+                    ConfigMigrator.migrate(this.json.decodeFromString<Configuration>(json), logger)
                 } catch (e: SerializationException) {
                     logger.error("Failed to deserialize configuration, using default", e)
                     Configuration.DEFAULT

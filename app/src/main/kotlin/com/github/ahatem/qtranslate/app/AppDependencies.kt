@@ -159,7 +159,7 @@ suspend fun buildDependencies(
 
     val localizationManager = LocalizationManager(
         appDataDirectory = appData,
-        parser           = LanguageTomlParser(),
+        parser           = LanguageTomlParser(logger = loggerFactory.getLogger("LanguageTomlParser")),
         logger           = loggerFactory.getLogger("LocalizationManager")
     )
 

@@ -206,23 +206,31 @@ data class TranslationRule(
 
 @Serializable
 data class Configuration(
+    // ---- Schema version — increment when a breaking change is made ----
+    /**
+     * Incremented whenever a breaking change requires a config migration.
+     * Old configs that predate this field deserialise as version 1 (the default).
+     * The [ConfigMigrator] upgrades older versions to the current schema.
+     */
+    val configVersion: Int = 1,
+
     // ---- Presets & Services ----
-    val servicePresets: List<ServicePreset>,
-    val activeServicePresetId: String?,
-    val disabledServices: Set<String>,
+    val servicePresets: List<ServicePreset> = emptyList(),
+    val activeServicePresetId: String? = null,
+    val disabledServices: Set<String> = emptySet(),
 
     // ---- Hotkeys ----
     val hotkeys: List<HotkeyBinding> = HotkeyBinding.DEFAULTS,
 
     // ---- General Behaviour ----
-    val launchOnSystemStartup: Boolean,
-    val autoCheckForUpdates: Boolean,
-    val isGlobalHotkeysEnabled: Boolean,
-    val interfaceLanguage: String,
-    val isInstantTranslationEnabled: Boolean,
-    val isSpellCheckingEnabled: Boolean,
-    val extraOutputType: ExtraOutputType,
-    val extraOutputSource: ExtraOutputSource,
+    val launchOnSystemStartup: Boolean = false,
+    val autoCheckForUpdates: Boolean = true,
+    val isGlobalHotkeysEnabled: Boolean = true,
+    val interfaceLanguage: String = "en",
+    val isInstantTranslationEnabled: Boolean = false,
+    val isSpellCheckingEnabled: Boolean = true,
+    val extraOutputType: ExtraOutputType = ExtraOutputType.None,
+    val extraOutputSource: ExtraOutputSource = ExtraOutputSource.Output,
     val summaryLength: SummaryLength = SummaryLength.MEDIUM,
     val rewriteStyle: RewriteStyle = RewriteStyle.FORMAL,
 
@@ -247,8 +255,8 @@ data class Configuration(
     val closeButtonBehavior: CloseButtonBehavior = CloseButtonBehavior.ASK,
 
     // ---- History ----
-    val isHistoryEnabled: Boolean,
-    val clearHistoryOnExit: Boolean,
+    val isHistoryEnabled: Boolean = true,
+    val clearHistoryOnExit: Boolean = false,
 
     // ---- UI — Main Window ----
     val showDictionaryPanel: Boolean = false,
@@ -256,22 +264,22 @@ data class Configuration(
     val isDictionaryAutoPopupEnabled: Boolean = true,
     val mainWindowSize: Size? = null,
     val mainWindowPosition: Position? = null,
-    val uiFontConfig: FontConfig,
-    val uiScale: Int,
-    val themeId: String,
-    val editorFontConfig: FontConfig,
-    val editorFallbackFontConfig: FontConfig,
-    val useUnifiedTitleBar: Boolean,
-    val layoutPresetId: String,
-    val toolbarVisibility: ToolbarVisibility,
+    val uiFontConfig: FontConfig = FontConfig(name = "Rubik", size = 13),
+    val uiScale: Int = 100,
+    val themeId: String = "builtin:hiberbee_dark",
+    val editorFontConfig: FontConfig = FontConfig(name = "Rubik", size = 15),
+    val editorFallbackFontConfig: FontConfig = FontConfig(name = "Rubik", size = 15),
+    val useUnifiedTitleBar: Boolean = true,
+    val layoutPresetId: String = "classic",
+    val toolbarVisibility: ToolbarVisibility = ToolbarVisibility.DEFAULT,
 
     // ---- UI — Quick Panel (Popup) ----
-    val isPopupAutoSizeEnabled: Boolean,
-    val isPopupAutoPositionEnabled: Boolean,
-    val popupTransparencyPercentage: Int,
+    val isPopupAutoSizeEnabled: Boolean = true,
+    val isPopupAutoPositionEnabled: Boolean = true,
+    val popupTransparencyPercentage: Int = 5,
     val popupIdleTimeoutSeconds: Int = 3,
-    val popupLastKnownSize: Size,
-    val popupLastKnownPosition: Position,
+    val popupLastKnownSize: Size = Size(width = 450, height = 250),
+    val popupLastKnownPosition: Position = Position(x = 0, y = 0),
 
     // ---- UI — Quick Dictionary Popup ----
     val quickDictionaryLastKnownSize: Size = Size(width = 420, height = 400),

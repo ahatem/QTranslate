@@ -388,7 +388,10 @@ class QuickTranslateDialog(
             return
         }
 
-        val screenBounds = graphicsConfiguration.bounds
+        // Use the monitor where the mouse cursor currently lives, not where the dialog
+        // happens to be placed — prevents wrong-monitor bounds on multi-monitor setups.
+        val gc = MouseInfo.getPointerInfo()?.device?.defaultConfiguration ?: graphicsConfiguration
+        val screenBounds = gc.bounds
         val maxWidth = (screenBounds.width * MAX_WIDTH_SCALE).toInt()
         val maxHeight = (screenBounds.height * MAX_HEIGHT_SCALE).toInt()
 
@@ -425,7 +428,10 @@ class QuickTranslateDialog(
                 return
             }
 
-            val screenBounds = graphicsConfiguration.bounds
+            // Derive screen bounds from the monitor the mouse is on, not the dialog's current
+            // monitor — ensures correct clamping on multi-monitor setups (A-10).
+            val gc = MouseInfo.getPointerInfo()?.device?.defaultConfiguration ?: graphicsConfiguration
+            val screenBounds = gc.bounds
             val dialogWidth = width
             val dialogHeight = height
             val offsetX = 10

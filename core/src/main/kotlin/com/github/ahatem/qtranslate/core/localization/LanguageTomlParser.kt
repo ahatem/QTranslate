@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.core.localization
 
+import com.github.ahatem.qtranslate.api.core.Logger
 import java.time.LocalDate
 
 /**
@@ -16,8 +17,11 @@ import java.time.LocalDate
  *
  * ### Special sections
  * - `[meta]` entries are parsed into [LocalizedLanguageMeta] rather than the entries map
+ *
+ * @param logger Optional logger. When provided, a [Logger.warn] is emitted whenever the
+ *   `@reference` depth limit is hit (indicating a likely circular reference in a TOML file).
  */
-class LanguageTomlParser {
+class LanguageTomlParser(private val logger: Logger? = null) {
 
     private companion object {
         /** Maximum number of `@reference` hops before giving up, preventing infinite loops. */
@@ -87,6 +91,13 @@ class LanguageTomlParser {
         while (result.startsWith("@") && depth < MAX_REFERENCE_DEPTH) {
             result = entries[result.removePrefix("@")] ?: break
             depth++
+        }
+        if (depth >= MAX_REFERENCE_DEPTH && result.startsWith("@")) {
+            logger?.warn(
+                "TOML reference depth limit ($MAX_REFERENCE_DEPTH) reached while resolving '$value'. " +
+                "This usually indicates a circular reference in the localization file. " +
+                "Returning the unresolved reference as-is."
+            )
         }
         return result
     }
