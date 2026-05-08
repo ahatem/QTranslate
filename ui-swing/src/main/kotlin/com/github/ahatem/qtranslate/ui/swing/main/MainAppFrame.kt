@@ -52,6 +52,7 @@ import kotlinx.coroutines.swing.Swing
 import java.awt.*
 import java.awt.datatransfer.StringSelection
 import java.awt.event.*
+import java.net.URI
 import java.util.*
 import javax.imageio.ImageIO
 import javax.swing.*
@@ -702,9 +703,9 @@ class MainAppFrame(
                 )
                 dialog.isVisible = true
             },
-            onShowHowToUse = { /* TODO */ },
+            onShowHowToUse = { openUrl("https://github.com/ahatem/QTranslate/wiki") },
             onShowAboutQTranslate = { onShowAboutDialog() },
-            onContactUs = { /* TODO */ },
+            onContactUs = { openUrl("https://github.com/ahatem/QTranslate/issues/new") },
             onToggleAutoCheckForUpdates = { enabled ->
                 settingsStore.dispatch(
                     SettingsIntent.ToggleSetting { it.copy(autoCheckForUpdates = enabled) }
@@ -1111,6 +1112,11 @@ class MainAppFrame(
                 exitProcess(0)
             }
         })
+    }
+
+    private fun openUrl(url: String) {
+        if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) return
+        runCatching { Desktop.getDesktop().browse(URI(url)) }
     }
 
     private fun onShowAboutDialog() {
