@@ -127,6 +127,7 @@ class QuickDictionaryDialog(
     private var fadeTimer: Timer? = null
     private var idleHideTimer: Timer? = null
     private var resizeSaveTimer: Timer? = null
+    private var mouseExitDebounceTimer: Timer? = null
 
     // Mouse over detection
     private var awtMouseListener: AWTEventListener? = null
@@ -515,25 +516,35 @@ class QuickDictionaryDialog(
         if (awtMouseListener != null) return
         awtMouseListener = AWTEventListener { ev ->
             val me = ev as? MouseEvent ?: return@AWTEventListener
-            if (me.id != MouseEvent.MOUSE_MOVED && me.id != MouseEvent.MOUSE_ENTERED && me.id != MouseEvent.MOUSE_EXITED) return@AWTEventListener
+            if (me.id != MouseEvent.MOUSE_MOVED &&
+                me.id != MouseEvent.MOUSE_ENTERED &&
+                me.id != MouseEvent.MOUSE_EXITED) return@AWTEventListener
             SwingUtilities.invokeLater {
+                if (!isVisible) return@invokeLater
                 val p = MouseInfo.getPointerInfo()?.location ?: return@invokeLater
-                val cp = Point(p)
-                SwingUtilities.convertPointFromScreen(cp, contentPane)
-                val over = contentPane.contains(cp)
-                if (over != isMouseOver) {
-                    isMouseOver = over
-                    if (isMouseOver) {
-                        stopIdleHide()
-                        fadeTo(1f, FADE_MS)
-                    } else {
-                        if (!isPinned) {
+                // Use dialog screen bounds directly — more reliable than coordinate conversion
+                // and avoids edge-case oscillation from rounding in convertPointFromScreen.
+                val over = bounds.contains(p)
+                if (over == isMouseOver) return@invokeLater  // no state change — do nothing
+
+                isMouseOver = over
+                if (over) {
+                    // Mouse entered: cancel any pending exit-debounce, stop idle, fade to full opacity.
+                    mouseExitDebounceTimer?.stop()
+                    stopIdleHide()
+                    fadeTo(1f, FADE_MS)
+                } else {
+                    // Mouse exited: debounce before fading so that brief exits at the window
+                    // border (mouse wiggle) don't cause flickering. If the mouse comes back
+                    // within the debounce window the timer is cancelled by the enter-branch above.
+                    mouseExitDebounceTimer?.stop()
+                    mouseExitDebounceTimer = Timer(120) {
+                        if (!isMouseOver && !isPinned) {
                             applyTransparency()
                             startIdleHide()
                         }
-                    }
-                } else {
-                    if (isMouseOver && !isPinned) startIdleHide()
+                        (it.source as Timer).stop()
+                    }.apply { isRepeats = false; start() }
                 }
             }
         }
@@ -544,6 +555,8 @@ class QuickDictionaryDialog(
     }
 
     private fun uninstallAwtMouseListener() {
+        mouseExitDebounceTimer?.stop()
+        mouseExitDebounceTimer = null
         awtMouseListener?.let {
             Toolkit.getDefaultToolkit().removeAWTEventListener(it)
             awtMouseListener = null
