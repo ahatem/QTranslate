@@ -10,12 +10,11 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.map
 
 class AISummarizerService(
-    private val client: AIServiceClient,
-    private val settings: () -> AISettings
+    private val client: AIServiceClient
 ) : Summarizer {
 
     override val id: String = "ai-summarizer"
-    override val name: String get() = "${settings().provider} Summarizer"
+    override val name: String = "AI Summarizer"
     override val version: String = "1.0.0"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.All
 
@@ -42,7 +41,7 @@ class AISummarizerService(
         ---
     """.trimIndent()
 
-        return client.complete(system, request.text, jsonMode = false).map { summary ->
+        return client.complete(system, request.text).map { summary ->
             SummarizeResponse(summary = summary.trim().removeSurrounding("\""))
         }
     }

@@ -10,12 +10,11 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.map
 
 class AIRewriterService(
-    private val client: AIServiceClient,
-    private val settings: () -> AISettings
+    private val client: AIServiceClient
 ) : Rewriter {
 
     override val id: String = "ai-rewriter"
-    override val name: String get() = "${settings().provider} Rewriter"
+    override val name: String = "AI Rewriter"
     override val version: String = "1.0.0"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.All
 
@@ -44,7 +43,7 @@ class AIRewriterService(
         ---
     """.trimIndent()
 
-        return client.complete(system, request.text, jsonMode = false).map { rewritten ->
+        return client.complete(system, request.text).map { rewritten ->
             RewriteResponse(rewrittenText = rewritten.trim().removeSurrounding("\""))
         }
     }

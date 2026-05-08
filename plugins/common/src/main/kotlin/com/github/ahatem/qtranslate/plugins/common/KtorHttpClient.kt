@@ -335,6 +335,18 @@ class KtorHttpClient(
                 ServiceError.RateLimitError("Rate limit exceeded for $url")
             )
 
+            HttpStatusCode.PaymentRequired -> {
+                val errorBody = runCatching { response.bodyAsText() }.getOrDefault("")
+                pluginContext.logger.error("HTTP 402 (Payment Required) for $url — $errorBody")
+                Err(
+                    ServiceError.AuthenticationError(
+                        "Insufficient credits. " +
+                        "If you are using OpenRouter, visit openrouter.ai/settings/credits to top up, " +
+                        "or switch to a free model (append :free to the model name, e.g. google/gemini-flash-1.5-8b:free)."
+                    )
+                )
+            }
+
             else -> {
                 val errorBody = runCatching { response.bodyAsText() }.getOrDefault("")
                 pluginContext.logger.error("HTTP ${response.status.value} for $url — $errorBody")

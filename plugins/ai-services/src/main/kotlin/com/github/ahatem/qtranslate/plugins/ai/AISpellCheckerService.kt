@@ -13,12 +13,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 class AISpellCheckerService(
-    private val client: AIServiceClient,
-    private val settings: () -> AISettings
+    private val client: AIServiceClient
 ) : SpellChecker {
 
     override val id: String = "ai-spell-checker"
-    override val name: String get() = "${settings().provider} Spell Checker"
+    override val name: String = "AI Spell Checker"
     override val version: String = "1.0.0"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.All
 
@@ -65,7 +64,7 @@ class AISpellCheckerService(
             IMPORTANT: 'start_index' and 'end_index' must reference the character offsets in the ORIGINAL input string.
         """.trimIndent()
 
-            val raw = client.complete(system, request.text, jsonMode = true).bind()
+            val raw = client.complete(system, request.text).bind()
             parseSpellCheckResponse(raw, request.text).bind()
         }
 
