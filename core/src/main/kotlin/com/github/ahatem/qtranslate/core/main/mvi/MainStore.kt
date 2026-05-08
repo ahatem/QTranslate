@@ -168,6 +168,15 @@ class MainStore(
                     intent.text.replace("\n", " ").replace("\r", "").replace("  ", " ").trim()
                 else intent.text
                 _state.update { it.copy(inputText = cleaned, detectedSourceLanguage = null) }
+                // With instant translate enabled, cancel any in-flight translation immediately
+                // so the loading indicator clears and the debounce can queue the next request.
+                // Without this, the collect coroutine in observeInstantTranslation stays
+                // suspended at join() until the current translation finishes — the user's new
+                // text effectively waits in line behind the old result.
+                if (settingsState.value.isInstantTranslationEnabled && _state.value.isLoading) {
+                    translateTextUseCase.cancel()
+                    _state.update { it.copy(isLoading = false) }
+                }
             }
 
             is MainIntent.SelectSourceLanguage ->
