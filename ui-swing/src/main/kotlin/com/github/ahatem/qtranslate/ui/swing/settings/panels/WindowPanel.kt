@@ -28,6 +28,10 @@ class WindowPanel(
     private lateinit var autoPositionCheck: JCheckBox
     private lateinit var transparencySlider: JSlider
     private lateinit var transparencyLabel: JLabel
+    private lateinit var popupIdleSpinner: JSpinner
+    private lateinit var dictTransparencySlider: JSlider
+    private lateinit var dictTransparencyLabel: JLabel
+    private lateinit var dictIdleSpinner: JSpinner
     private lateinit var closeButtonCombo: JComboBox<CloseButtonBehaviorInfo>
 
     init { buildUI() }
@@ -149,6 +153,64 @@ class WindowPanel(
             }
         )
 
+        popupIdleSpinner = JSpinner(SpinnerNumberModel(3, 1, 60, 1)).apply {
+            addChangeListener {
+                if (!isUpdatingFromState) {
+                    applyDraft(store) { it.copy(popupIdleTimeoutSeconds = value as Int) }
+                }
+            }
+        }
+        addRow(
+            localizationManager.getString("settings_window.popup_idle_timeout"),
+            JPanel(BorderLayout(8, 0)).apply {
+                isOpaque = false
+                add(popupIdleSpinner, BorderLayout.LINE_START)
+                add(JLabel(localizationManager.getString("settings_window.seconds_unit")), BorderLayout.CENTER)
+            }
+        )
+
+        addSeparator(localizationManager.getString("settings_window.dict_popup_group"))
+
+        dictTransparencyLabel = JLabel("5%").apply {
+            preferredSize = Dimension(48, preferredSize.height)
+            horizontalAlignment = SwingConstants.RIGHT
+        }
+        dictTransparencySlider = JSlider(0, 100, 5).apply {
+            majorTickSpacing = 25
+            minorTickSpacing = 5
+            paintTicks = true
+            addChangeListener {
+                dictTransparencyLabel.text = "${value}%"
+                if (!valueIsAdjusting && !isUpdatingFromState) {
+                    applyDraft(store) { it.copy(quickDictionaryTransparencyPercentage = value) }
+                }
+            }
+        }
+        addRow(
+            localizationManager.getString("settings_window.transparency"),
+            JPanel(BorderLayout(8, 0)).apply {
+                isOpaque = false
+                add(dictTransparencySlider, BorderLayout.CENTER)
+                add(dictTransparencyLabel, BorderLayout.LINE_END)
+            }
+        )
+
+        dictIdleSpinner = JSpinner(SpinnerNumberModel(8, 1, 60, 1)).apply {
+            addChangeListener {
+                if (!isUpdatingFromState) {
+                    applyDraft(store) { it.copy(quickDictionaryIdleTimeoutSeconds = value as Int) }
+                }
+            }
+        }
+        addRow(
+            localizationManager.getString("settings_window.popup_idle_timeout"),
+            JPanel(BorderLayout(8, 0)).apply {
+                isOpaque = false
+                add(dictIdleSpinner, BorderLayout.LINE_START)
+                add(JLabel(localizationManager.getString("settings_window.seconds_unit")), BorderLayout.CENTER)
+            }
+        )
+
         addSeparator(localizationManager.getString("settings_window.close_behavior_group"))
 
         val behaviorOptions = listOf(
@@ -185,6 +247,10 @@ class WindowPanel(
             autoPositionCheck.isSelected = c.isPopupAutoPositionEnabled
             transparencySlider.value = c.popupTransparencyPercentage
             transparencyLabel.text = "${c.popupTransparencyPercentage}%"
+            popupIdleSpinner.value = c.popupIdleTimeoutSeconds
+            dictTransparencySlider.value = c.quickDictionaryTransparencyPercentage
+            dictTransparencyLabel.text = "${c.quickDictionaryTransparencyPercentage}%"
+            dictIdleSpinner.value = c.quickDictionaryIdleTimeoutSeconds
             closeButtonCombo.selectedItem = (0 until closeButtonCombo.itemCount)
                 .map { closeButtonCombo.getItemAt(it) }
                 .find { it.behavior == c.closeButtonBehavior }

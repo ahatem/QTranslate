@@ -35,6 +35,7 @@ data class DialogConfig(
     val autoSizeEnabled: Boolean,
     val autoPositionEnabled: Boolean,
     val transparencyPercentage: Int,
+    val idleTimeoutSeconds: Int = 3,
     val lastKnownSize: Size,
     val lastKnownPosition: Position
 )

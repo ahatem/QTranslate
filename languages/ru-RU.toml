@@ -351,6 +351,9 @@ popup_group = "Всплывающее окно быстрого перевода
 auto_size = "Авторазмер окна по контенту"
 auto_position = "Позиционировать окно рядом с курсором"
 transparency = "Прозрачность фона:"
+popup_idle_timeout = "Скрыть после простоя:"
+seconds_unit = "сек"
+dict_popup_group = "Всплывающий словарь"
 # Close button
 close_behavior_group   = "Кнопка закрытия"
 close_button           = "При закрытии:"

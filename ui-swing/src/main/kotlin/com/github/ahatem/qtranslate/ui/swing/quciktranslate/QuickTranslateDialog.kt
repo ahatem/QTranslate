@@ -92,7 +92,6 @@ class QuickTranslateDialog(
 
     // idle/auto-hide manager (single timer)
     private var idleHideTimer: Timer? = null
-    private var idleHideDelayMs = IDLE_HIDE_MS_DEFAULT
 
     // flags
     private var isDragging = false
@@ -139,12 +138,6 @@ class QuickTranslateDialog(
         mainPanel.add(textScrollPane, BorderLayout.CENTER)
 
         setupWindowBehavior(topPanel)
-
-        idleHideTimer = Timer(idleHideDelayMs) {
-            if (!isPinned) hideDialog()
-            (it.source as Timer).stop()
-        }.apply { isRepeats = false }
-
         updatePinButtonStyle(isPinned)
     }
 
@@ -320,7 +313,8 @@ class QuickTranslateDialog(
     }
 
     private fun startIdleHide() {
-        // restart single idle timer
+        // restart single idle timer — reads live config each call so changes take effect immediately
+        val idleHideDelayMs = (currentConfig?.idleTimeoutSeconds ?: 3) * 1000
         idleHideTimer?.stop()
         idleHideTimer = Timer(idleHideDelayMs) { event ->
             if (!isPinned) fadeTo(0f, FADE_MS) // fade out visually

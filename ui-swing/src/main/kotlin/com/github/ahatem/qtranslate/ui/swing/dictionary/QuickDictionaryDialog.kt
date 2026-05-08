@@ -411,6 +411,7 @@ class QuickDictionaryDialog(
             stopIdleHide()
             fadeTo(1f, FADE_MS)
         } else {
+            applyTransparency()
             startIdleHide()
         }
     }
@@ -441,8 +442,16 @@ class QuickDictionaryDialog(
     // Show / hide / fade
     // -----------------------------------------------------------------------
 
+    private fun applyTransparency() {
+        val pct = currentState?.config?.transparencyPercentage ?: 0
+        val target = (100f - pct) / 100f
+        fadeTo(target, FADE_MS)
+    }
+
     private fun showDialog() {
-        opacity = 1f
+        // set initial opacity from config before making visible (no animation on first show)
+        val pct = currentState?.config?.transparencyPercentage ?: 0
+        opacity = (100f - pct) / 100f
         isVisible = true
         focusableWindowState = true
         installAwtMouseListener()
@@ -463,7 +472,8 @@ class QuickDictionaryDialog(
 
     private fun startIdleHide() {
         idleHideTimer?.stop()
-        idleHideTimer = Timer(IDLE_HIDE_MS) { event ->
+        val idleMs = (currentState?.config?.idleTimeoutSeconds ?: 8) * 1000
+        idleHideTimer = Timer(idleMs) { event ->
             if (!isPinned) {
                 fadeTo(0f, FADE_MS)
                 Timer(FADE_MS + 20) {
@@ -519,7 +529,10 @@ class QuickDictionaryDialog(
                         stopIdleHide()
                         fadeTo(1f, FADE_MS)
                     } else {
-                        if (!isPinned) startIdleHide()
+                        if (!isPinned) {
+                            applyTransparency()
+                            startIdleHide()
+                        }
                     }
                 } else {
                     if (isMouseOver && !isPinned) startIdleHide()

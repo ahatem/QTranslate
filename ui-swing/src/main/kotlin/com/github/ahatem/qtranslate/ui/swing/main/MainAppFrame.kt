@@ -1082,6 +1082,7 @@ class MainAppFrame(
                 autoSizeEnabled = config.isPopupAutoSizeEnabled,
                 autoPositionEnabled = config.isPopupAutoPositionEnabled,
                 transparencyPercentage = config.popupTransparencyPercentage,
+                idleTimeoutSeconds = config.popupIdleTimeoutSeconds,
                 lastKnownSize = config.popupLastKnownSize,
                 lastKnownPosition = config.popupLastKnownPosition
             ),
@@ -1239,10 +1240,12 @@ class MainAppFrame(
             autoSourceTranslatedLabel = localizer.getString("dictionary_dialog.auto_source_translated"),
             autoSourceSourceLabel    = localizer.getString("dictionary_dialog.auto_source_source"),
             config = QuickDictionaryConfig(
-                autoPositionEnabled = config.isQuickDictionaryAutoPositionEnabled,
-                lastKnownSize       = config.quickDictionaryLastKnownSize,
-                lastKnownPosition   = config.quickDictionaryLastKnownPosition,
-                positionNearMouse   = quickDictionaryPositionNearMouse
+                autoPositionEnabled  = config.isQuickDictionaryAutoPositionEnabled,
+                lastKnownSize        = config.quickDictionaryLastKnownSize,
+                lastKnownPosition    = config.quickDictionaryLastKnownPosition,
+                positionNearMouse    = quickDictionaryPositionNearMouse,
+                idleTimeoutSeconds   = config.quickDictionaryIdleTimeoutSeconds,
+                transparencyPercentage = config.quickDictionaryTransparencyPercentage
             ),
             strings = QuickDictionaryStrings(
                 title            = localizer.getString("dictionary_dialog.title"),

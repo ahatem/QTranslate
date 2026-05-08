@@ -44,7 +44,9 @@ data class QuickDictionaryConfig(
     val lastKnownSize: Size,
     val lastKnownPosition: Position,
     /** When false, the dialog positions itself adjacent to the owner window instead of near the mouse cursor. */
-    val positionNearMouse: Boolean = true
+    val positionNearMouse: Boolean = true,
+    val idleTimeoutSeconds: Int = 8,
+    val transparencyPercentage: Int = 5
 )
 
 data class QuickDictionaryStrings(

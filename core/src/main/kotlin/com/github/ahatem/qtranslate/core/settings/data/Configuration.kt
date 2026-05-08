@@ -269,6 +269,7 @@ data class Configuration(
     val isPopupAutoSizeEnabled: Boolean,
     val isPopupAutoPositionEnabled: Boolean,
     val popupTransparencyPercentage: Int,
+    val popupIdleTimeoutSeconds: Int = 3,
     val popupLastKnownSize: Size,
     val popupLastKnownPosition: Position,
 
@@ -276,7 +277,9 @@ data class Configuration(
     val quickDictionaryLastKnownSize: Size = Size(width = 420, height = 400),
     val quickDictionaryLastKnownPosition: Position = Position(x = 0, y = 0),
     val isQuickDictionaryPinned: Boolean = false,
-    val isQuickDictionaryAutoPositionEnabled: Boolean = true
+    val isQuickDictionaryAutoPositionEnabled: Boolean = true,
+    val quickDictionaryIdleTimeoutSeconds: Int = 8,
+    val quickDictionaryTransparencyPercentage: Int = 5
 ) {
     fun getActivePreset(): ServicePreset? =
         servicePresets.find { it.id == activeServicePresetId }
