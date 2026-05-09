@@ -4,8 +4,9 @@ import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
-import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import java.awt.BorderLayout
+import java.awt.CardLayout
+import java.awt.Color
 import java.awt.Dimension
 import javax.swing.*
 
@@ -16,17 +17,15 @@ class DictionaryPanel(
     private val onClose: () -> Unit,
 ) : JPanel(BorderLayout()) {
 
+    private var isInitialized = false
+
     private val searchField = JTextField()
     private val lookupButton = JButton()
 
-    private val hintLabel = JLabel("", SwingConstants.CENTER).apply {
-        foreground = UIManager.getColor("Label.disabledForeground")
-    }
-    private val loadingLabel = JLabel("", SwingConstants.CENTER).apply {
-        foreground = UIManager.getColor("Label.disabledForeground")
-    }
+    private val hintLabel = JLabel("", SwingConstants.CENTER)
+    private val loadingLabel = JLabel("", SwingConstants.CENTER)
     private val resultView = DictionaryResultView()
-    private val cardPanel = JPanel(java.awt.CardLayout())
+    private val cardPanel = JPanel(CardLayout())
 
     private val serviceCombo = JComboBox<ServiceInfo>().apply {
         putClientProperty("JComboBox.isTableCellEditor", true)
@@ -46,13 +45,11 @@ class DictionaryPanel(
 
     private var updatingFromState = false
 
-    // Icons for the auto-source cycling button
-    private val activeLinkIcon: FlatSVGIcon = (iconManager.getIcon("icons/lucide/link-2.svg", 13, 13) as FlatSVGIcon)
-        .applyForegroundColorFilter()
-    private val offUnlinkIcon: FlatSVGIcon = (iconManager.getIcon("icons/lucide/unlink.svg", 13, 13) as FlatSVGIcon)
-        .apply { colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") } }
+    private val activeLinkIconBase: FlatSVGIcon =
+        iconManager.getIcon("icons/lucide/link-2.svg", 13, 13) as FlatSVGIcon
+    private val offUnlinkIconBase: FlatSVGIcon =
+        iconManager.getIcon("icons/lucide/unlink.svg", 13, 13) as FlatSVGIcon
 
-    // Cycling button: Off → Translated → Source → Off
     private val autoSourceButton = JButton().apply {
         putClientProperty("JButton.buttonType", "toolBarButton")
         isFocusable = false
@@ -111,15 +108,7 @@ class DictionaryPanel(
             add(cardPanel, BorderLayout.CENTER)
         }
 
-        border = BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(
-                0, 1, 0, 0,
-                UIManager.getColor("Component.borderColor")
-                    ?: UIManager.getColor("Separator.foreground")
-            ),
-            BorderFactory.createEmptyBorder(12, 12, 12, 12)
-        )
-
+        // Build border — defer to refreshBorder() to avoid duplication
         add(topPanel, BorderLayout.NORTH)
         add(contentArea, BorderLayout.CENTER)
 
@@ -136,15 +125,70 @@ class DictionaryPanel(
         }
 
         autoSourceButton.addActionListener {
-            // Cycle: OFF → TRANSLATED → SOURCE → OFF
             val next = when (currentAutoSource) {
-                DictionaryAutoSource.OFF        -> DictionaryAutoSource.TRANSLATED
+                DictionaryAutoSource.OFF -> DictionaryAutoSource.TRANSLATED
                 DictionaryAutoSource.TRANSLATED -> DictionaryAutoSource.SOURCE
-                DictionaryAutoSource.SOURCE     -> DictionaryAutoSource.OFF
+                DictionaryAutoSource.SOURCE -> DictionaryAutoSource.OFF
             }
-            // Read from clientProperty so we always call the latest callback.
             (getClientProperty("onAutoSourceChanged") as? (DictionaryAutoSource) -> Unit)?.invoke(next)
         }
+
+        // Apply initial styling
+        isInitialized = true
+        refreshAllColors()
+    }
+
+    override fun updateUI() {
+        super.updateUI()
+
+        if (!isInitialized) return
+
+        refreshAllColors()
+
+    }
+
+    private fun refreshAllColors() {
+        refreshBorder()
+        refreshLabelColors()
+        refreshIcons()
+    }
+
+    private fun refreshBorder() {
+        val borderColor = UIManager.getColor("Component.borderColor")
+            ?: UIManager.getColor("Panel.background")?.darker()
+            ?: Color.GRAY
+
+        border = BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 1, 0, 0, borderColor),
+            BorderFactory.createEmptyBorder(12, 12, 12, 12)
+        )
+    }
+
+    private fun refreshLabelColors() {
+        val disabledColor = UIManager.getColor("Label.disabledForeground")
+            ?: UIManager.getColor("Label.foreground")?.let {
+                Color(it.red, it.green, it.blue, 128)
+            }
+            ?: Color.GRAY
+
+        hintLabel.foreground = disabledColor
+        loadingLabel.foreground = disabledColor
+    }
+
+    private fun refreshIcons() {
+        val accentColor = UIManager.getColor("Component.accentColor")
+            ?: UIManager.getColor("Actions.Blue")
+            ?: Color(0x2675BF)
+
+        val disabledColor = UIManager.getColor("Label.disabledForeground")
+            ?: UIManager.getColor("Label.foreground")?.let {
+                Color(it.red, it.green, it.blue, 128)
+            }
+            ?: Color.GRAY
+
+        // Recreate icons with current theme colors
+        activeLinkIconBase.colorFilter = FlatSVGIcon.ColorFilter { accentColor }
+        offUnlinkIconBase.colorFilter = FlatSVGIcon.ColorFilter { disabledColor }
     }
 
     fun render(state: DictionaryPanelState) {
@@ -155,25 +199,28 @@ class DictionaryPanel(
             toolTipText = state.closeLabel
         }
 
-        // Sync auto-source button — store callback in clientProperty so the
-        // ActionListener always calls the fresh lambda from the latest render.
+        // Sync auto-source button
         putClientProperty("onAutoSourceChanged", state.onAutoSourceChanged)
         if (currentAutoSource != state.autoSource) {
             currentAutoSource = state.autoSource
         }
         val (autoLabel, autoTip) = when (state.autoSource) {
-            DictionaryAutoSource.OFF        -> state.autoSourceOffLabel        to state.autoSourceOffLabel
+            DictionaryAutoSource.OFF -> state.autoSourceOffLabel to state.autoSourceOffLabel
             DictionaryAutoSource.TRANSLATED -> state.autoSourceTranslatedLabel to state.autoSourceTranslatedLabel
-            DictionaryAutoSource.SOURCE     -> state.autoSourceSourceLabel     to state.autoSourceSourceLabel
+            DictionaryAutoSource.SOURCE -> state.autoSourceSourceLabel to state.autoSourceSourceLabel
         }
         autoSourceButton.text = autoLabel
         autoSourceButton.toolTipText = autoTip
+
         val isActive = state.autoSource != DictionaryAutoSource.OFF
-        autoSourceButton.icon = if (isActive) activeLinkIcon else offUnlinkIcon
-        autoSourceButton.foreground = if (isActive)
-            UIManager.getColor("Component.accentColor") ?: UIManager.getColor("Button.foreground")
-        else
-            UIManager.getColor("Label.disabledForeground")
+        val accentColor = UIManager.getColor("Component.accentColor")
+            ?: UIManager.getColor("Actions.Blue")
+            ?: Color(0x2675BF)
+        val disabledColor = UIManager.getColor("Label.disabledForeground")
+            ?: Color.GRAY
+
+        autoSourceButton.icon = if (isActive) activeLinkIconBase else offUnlinkIconBase
+        autoSourceButton.foreground = if (isActive) accentColor else disabledColor
 
         lookupButton.text = state.lookupButtonLabel
         loadingLabel.text = state.loadingMessage
@@ -182,10 +229,11 @@ class DictionaryPanel(
             state.hasFailed -> state.errorMessage
             state.lookedUpWord.isNotBlank() && !state.isLoading && state.entries.isEmpty() ->
                 state.notFoundMessage
+
             else -> state.hintMessage
         }
 
-        // Chip management — only act once a lookup has completed (not loading).
+        // Chip management
         if (chips.hasChips && !state.isLoading && state.lookedUpWord.isNotBlank()) {
             if (state.entries.isEmpty() && !state.hasFailed) {
                 chips.removeChipForWord(state.lookedUpWord)
@@ -194,7 +242,7 @@ class DictionaryPanel(
             }
         }
 
-        // Service picker.
+        // Service picker
         updatingFromState = true
         try {
             val dicts = state.availableDictionaries
@@ -220,7 +268,7 @@ class DictionaryPanel(
             state.entries.isNotEmpty() -> "results"
             else -> "hint"
         }
-        (cardPanel.layout as java.awt.CardLayout).show(cardPanel, card)
+        (cardPanel.layout as CardLayout).show(cardPanel, card)
 
         if (state.entries.isNotEmpty()) {
             resultView.render(
