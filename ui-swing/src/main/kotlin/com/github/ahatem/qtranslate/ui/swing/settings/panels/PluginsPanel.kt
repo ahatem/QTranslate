@@ -244,7 +244,7 @@ class PluginsPanel(
         if (plugin.manifest.description.isNotBlank()) {
             g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
                 .insets(14, 0, 0, 0)
-                .add(JSeparator())
+                .add(buildDivider())
 
             // Non-editable JTextArea styled as a label — wraps automatically
             // because infoPanel tracks viewport width.
@@ -266,7 +266,7 @@ class PluginsPanel(
         if (plugin.services.isNotEmpty()) {
             g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
                 .insets(14, 0, 0, 0)
-                .add(JSeparator())
+                .add(buildDivider())
 
             val serviceLabel = JLabel(localizationManager.getString("settings_plugins.section_services")).apply {
                 font       = font.deriveFont(Font.BOLD)
@@ -275,8 +275,9 @@ class PluginsPanel(
             g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
                 .insets(10, 0, 6, 0).add(serviceLabel)
 
-            // Chips wrap naturally inside a FlowLayout — no fixed width needed
-            val chips = JPanel(FlowLayout(FlowLayout.LEADING, 6, 4)).apply {
+            // WrapLayout correctly reports multi-row preferred height, so GridBagLayout
+            // allocates the right vertical space when chips wrap to a second line.
+            val chips = JPanel(WrapLayout(FlowLayout.LEADING, 6, 4)).apply {
                 isOpaque = false
                 plugin.services.forEach { svc ->
                     add(buildServiceChip(svc.name, svc.type?.readableName(localizationManager)))
@@ -292,7 +293,7 @@ class PluginsPanel(
 
             g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
                 .insets(14, 0, 0, 0)
-                .add(JSeparator())
+                .add(buildDivider())
 
             val errLabel = JLabel(localizationManager.getString("settings_plugins.plugin_error_label")).apply {
                 font       = font.deriveFont(Font.BOLD)
@@ -410,6 +411,27 @@ class PluginsPanel(
     }
 
     // ── Widget builders ───────────────────────────────────────────────────────
+
+    /**
+     * A theme-aware 1 px horizontal divider that never collapses.
+     *
+     * [JSeparator] can report a preferred height of 0 in some LAF configurations,
+     * causing GridBagLayout to squish it to invisible. This component reads its
+     * color from [UIManager] at paint time (so it's always correct after a theme
+     * switch) and has an explicit minimum size of 1 px so it never disappears.
+     */
+    private fun buildDivider(): JComponent = object : JComponent() {
+        init {
+            preferredSize = Dimension(0, 1)
+            minimumSize   = Dimension(0, 1)
+        }
+        override fun paintComponent(g: Graphics) {
+            g.color = UIManager.getColor("Separator.foreground")
+                ?: UIManager.getColor("Component.borderColor")
+                ?: Color.GRAY
+            g.fillRect(0, 0, width, 1)
+        }
+    }
 
     private fun buildStatusBadge(status: PluginStatus): JLabel {
         val (text, bg) = when (status) {
@@ -568,6 +590,70 @@ class PluginsPanel(
                 add(nameLabel,  BorderLayout.CENTER)
                 add(dotWrapper, BorderLayout.LINE_END)
             }
+        }
+    }
+}
+
+// ── WrapLayout ────────────────────────────────────────────────────────────────
+
+/**
+ * A [FlowLayout] subclass that correctly reports [preferredLayoutSize] when items
+ * wrap to multiple rows.
+ *
+ * Standard [FlowLayout.preferredLayoutSize] always returns a single-row height,
+ * so its containing [GridBagLayout] row never grows tall enough to show wrapped
+ * items — they simply disappear below the allocated space.
+ *
+ * This class recalculates preferred height by simulating the actual row breaks
+ * for the current container width, matching what the layout engine will actually
+ * produce at paint time.
+ */
+private class WrapLayout(
+    align: Int = LEADING,
+    hgap: Int  = 5,
+    vgap: Int  = 5
+) : FlowLayout(align, hgap, vgap) {
+
+    override fun preferredLayoutSize(target: Container): Dimension =
+        computeSize(target, preferred = true)
+
+    override fun minimumLayoutSize(target: Container): Dimension =
+        computeSize(target, preferred = false).also { it.width -= (hgap + 1) }
+
+    private fun computeSize(target: Container, preferred: Boolean): Dimension {
+        synchronized(target.treeLock) {
+            // Use the actual current width if available; fall back to "infinite"
+            // on the very first pass (before the component has been sized).
+            val containerWidth = target.size.width.takeIf { it > 0 } ?: Int.MAX_VALUE
+            val insets = target.insets
+            val horizontalInsets = insets.left + insets.right + hgap * 2
+            val maxRowWidth = containerWidth - horizontalInsets
+
+            var rowWidth  = 0
+            var rowHeight = 0
+            var totalWidth  = 0
+            var totalHeight = insets.top + insets.bottom + vgap * 2
+
+            for (i in 0 until target.componentCount) {
+                val m = target.getComponent(i)
+                if (!m.isVisible) continue
+                val d = if (preferred) m.preferredSize else m.minimumSize
+                // Would this component exceed the row limit?
+                if (rowWidth > 0 && rowWidth + hgap + d.width > maxRowWidth) {
+                    totalWidth   = maxOf(totalWidth, rowWidth)
+                    totalHeight += rowHeight + vgap
+                    rowWidth  = 0
+                    rowHeight = 0
+                }
+                if (rowWidth > 0) rowWidth += hgap
+                rowWidth  += d.width
+                rowHeight  = maxOf(rowHeight, d.height)
+            }
+            // Flush the last row
+            totalWidth   = maxOf(totalWidth, rowWidth)
+            totalHeight += rowHeight
+
+            return Dimension(totalWidth + horizontalInsets, totalHeight)
         }
     }
 }

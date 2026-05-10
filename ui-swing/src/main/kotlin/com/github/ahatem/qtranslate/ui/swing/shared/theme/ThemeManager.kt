@@ -61,6 +61,7 @@ class ThemeManager(
 
     private var currentTheme: Theme? = null
 
+    /** Emergency fallback IDs — used only when a configured theme ID cannot be found. */
     val defaultDarkThemeId  = "builtin:darcula"
     val defaultLightThemeId = "builtin:intellij"
 
@@ -275,6 +276,12 @@ class ThemeManager(
             isLinuxOs() -> "custom:resharper_light"
             else        -> "builtin:flat_light"
         }
+
+        private val os: String = System.getProperty("os.name", "").lowercase()
+
+        fun isMacOs():   Boolean = os.contains("mac")
+        fun isLinuxOs(): Boolean = os.contains("linux") || os.contains("nix") || os.contains("nux")
+        fun isWindowsOs(): Boolean = os.contains("win")
 
         fun isSystemInDarkMode(): Boolean = try {
             when {
