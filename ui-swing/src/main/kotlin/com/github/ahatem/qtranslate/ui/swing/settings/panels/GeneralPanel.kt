@@ -15,21 +15,23 @@ class GeneralPanel(private val store: SettingsStore, private val localizationMan
     init { buildUI() }
 
     private fun buildUI() {
-        addSeparator(localizationManager.getString("settings_general.startup_group"))
+        // ── Startup & Updates (merged — two closely related checkboxes, not two separate sections)
+        addSeparator(localizationManager.getString("settings_general.startup_updates_group"))
+
         launchCheckbox = addCheckbox(
             text = localizationManager.getString("settings_general.launch_on_startup"),
             selected = false,
             onChange = { enabled -> applyDraft(store) { it.copy(launchOnSystemStartup = enabled) } }
         )
-
-        addSeparator(localizationManager.getString("settings_general.updates_group"))
         updatesCheckbox = addCheckbox(
             text = localizationManager.getString("settings_general.auto_check_updates"),
             selected = false,
             onChange = { enabled -> applyDraft(store) { it.copy(autoCheckForUpdates = enabled) } }
         )
 
+        // ── History
         addSeparator(localizationManager.getString("settings_general.history_group"))
+
         historyCheckbox = addCheckbox(
             text = localizationManager.getString("settings_general.enable_history"),
             selected = false,

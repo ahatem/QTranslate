@@ -56,6 +56,7 @@ class DynamicPluginSettingsDialog(
     private val components  = mutableMapOf<String, SettingComponent>()
     private val saveButton  = JButton(localizationManager.getString("common.save"))
     private var rowIndex    = 0
+    private var buttonBar: JPanel? = null
 
     init {
         layout = BorderLayout()
@@ -81,10 +82,15 @@ class DynamicPluginSettingsDialog(
             viewport.isOpaque = false
         }
 
-        val buttonBar = buildButtonBar()
+        buttonBar = buildButtonBar()
 
         add(scroll, BorderLayout.CENTER)
         add(buttonBar, BorderLayout.SOUTH)
+
+        // Keep button-bar top-border in sync with the active theme
+        UIManager.addPropertyChangeListener { evt ->
+            if (evt.propertyName == "lookAndFeel") SwingUtilities.invokeLater { updateButtonBarBorder() }
+        }
 
         // Keyboard shortcuts
         rootPane.defaultButton = saveButton
@@ -175,45 +181,57 @@ class DynamicPluginSettingsDialog(
     }
 
     // =========================================================================
-    // Group header
+    // Group header — same visual pattern as SettingsPanel.addSeparator
     // =========================================================================
 
+    /**
+     * Renders a bold title + extending horizontal separator line, painted at the
+     * vertical center of the label in the active theme color. Mirrors the logic
+     * in [SettingsPanel.buildSeparatorRow] so plugin settings feel visually
+     * consistent with the rest of the settings dialog.
+     */
     private fun buildGroupHeader(group: PluginSettingsGroup): JPanel {
-        val panel = JPanel().apply {
-            layout    = BoxLayout(this, BoxLayout.Y_AXIS)
-            isOpaque  = false
-            alignmentX = Component.LEFT_ALIGNMENT
-        }
-
-        // Separator line + bold title (same style as SettingsPanel.addSeparator)
-        val titlePanel = JPanel(BorderLayout(8, 0)).apply {
+        val container = JPanel().apply {
+            layout     = BoxLayout(this, BoxLayout.Y_AXIS)
             isOpaque   = false
             alignmentX = Component.LEFT_ALIGNMENT
         }
 
-        val accent = JPanel().apply {
-            preferredSize = Dimension(3, 16)
-            minimumSize   = Dimension(3, 16)
-            background    = UIManager.getColor("Component.accentColor")
-                ?: UIManager.getColor("Button.default.background")
-                ?: Color(80, 120, 220)
-            isOpaque = true
-        }
-
-        val titleLabel = JLabel(group.title).apply {
-            font = font.deriveFont(Font.BOLD, font.size + 1f)
-        }
-
-        titlePanel.add(accent, BorderLayout.LINE_START)
-        titlePanel.add(titleLabel, BorderLayout.CENTER)
-        panel.add(titlePanel)
+        container.add(buildSeparatorRow(group.title, gap = 10))
 
         if (group.description.isNotBlank()) {
-            panel.add(Box.createVerticalStrut(3))
-            panel.add(buildHintArea(group.description))
+            container.add(Box.createVerticalStrut(4))
+            container.add(buildHintArea(group.description))
         }
 
-        return panel
+        return container
+    }
+
+    /**
+     * A [FlowLayout] panel that draws a horizontal line from the end of [title]
+     * to its right edge, at the exact vertical center of the title label — read
+     * after layout so the position is pixel-perfect regardless of font or L&F.
+     * Color is read at paint time, making it fully theme-aware.
+     */
+    private fun buildSeparatorRow(title: String, gap: Int = 10): JPanel {
+        val label = JLabel(title).apply {
+            font = font.deriveFont(Font.BOLD)
+            alignmentX = Component.LEFT_ALIGNMENT
+        }
+        return object : JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)) {
+            init { isOpaque = false; add(label) }
+
+            override fun paintComponent(g: Graphics) {
+                super.paintComponent(g)
+                val centerY = label.y + label.height / 2
+                val startX  = label.x + label.width + gap
+                if (startX >= width) return
+                g.color = UIManager.getColor("Separator.foreground")
+                    ?: UIManager.getColor("Component.borderColor")
+                    ?: Color.GRAY
+                g.drawLine(startX, centerY, width, centerY)
+            }
+        }.apply { alignmentX = Component.LEFT_ALIGNMENT }
     }
 
     // =========================================================================
@@ -651,12 +669,15 @@ class DynamicPluginSettingsDialog(
         }
 
         return JPanel(FlowLayout(FlowLayout.TRAILING, 8, 8)).apply {
-            border = BorderFactory.createMatteBorder(
-                1, 0, 0, 0, UIManager.getColor("Component.borderColor") ?: Color.GRAY
-            )
             add(saveButton)
             add(cancelButton)
-        }
+        }.also { updateButtonBarBorder(it) }
+    }
+
+    private fun updateButtonBarBorder(bar: JPanel? = buttonBar) {
+        bar?.border = BorderFactory.createMatteBorder(
+            1, 0, 0, 0, UIManager.getColor("Component.borderColor") ?: Color.GRAY
+        )
     }
 
     private fun onSaveClicked() {

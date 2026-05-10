@@ -124,8 +124,9 @@ class AppearancePanel(
         addHint(localizationManager.getString("settings_appearance.fallback_hint"))
 
         fontPreview = JLabel(localizationManager.getString("settings_appearance.font_preview_text")).apply {
+            // themeAwareBorder() reads the color at paint time — adapts to theme changes.
             border = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor") ?: Color.GRAY),
+                themeAwareBorder(),
                 BorderFactory.createEmptyBorder(10, 10, 10, 10)
             )
         }
