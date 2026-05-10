@@ -1,9 +1,9 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.core.settings.data.CloseButtonBehavior
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
-import com.github.ahatem.qtranslate.core.settings.data.CloseButtonBehavior
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
 import java.awt.BorderLayout
 import javax.swing.*
@@ -14,7 +14,7 @@ class WindowPanel(
 ) : SettingsPanel() {
 
     private val layouts = LayoutManager.getAvailableLayouts().map {
-        LayoutInfo(it.id, localizationManager.getString(it.localizeId))
+        LayoutInfo(it.id, localizationManager.getString("main_window_main_menu.${it.localizeId}"))
     }
 
     private lateinit var layoutCombo: JComboBox<LayoutInfo>
@@ -31,7 +31,9 @@ class WindowPanel(
     private lateinit var dictIdleSpinner: JSpinner
     private lateinit var closeButtonCombo: JComboBox<CloseButtonBehaviorInfo>
 
-    init { buildUI() }
+    init {
+        buildUI()
+    }
 
     private fun buildUI() {
 
@@ -188,9 +190,18 @@ class WindowPanel(
         addSeparator(localizationManager.getString("settings_window.close_behavior_group"))
 
         val behaviorOptions = listOf(
-            CloseButtonBehaviorInfo(CloseButtonBehavior.ASK,              localizationManager.getString("settings_window.close_behavior_ask")),
-            CloseButtonBehaviorInfo(CloseButtonBehavior.MINIMIZE_TO_TRAY, localizationManager.getString("settings_window.close_behavior_minimize")),
-            CloseButtonBehaviorInfo(CloseButtonBehavior.EXIT,             localizationManager.getString("settings_window.close_behavior_exit"))
+            CloseButtonBehaviorInfo(
+                CloseButtonBehavior.ASK,
+                localizationManager.getString("settings_window.close_behavior_ask")
+            ),
+            CloseButtonBehaviorInfo(
+                CloseButtonBehavior.MINIMIZE_TO_TRAY,
+                localizationManager.getString("settings_window.close_behavior_minimize")
+            ),
+            CloseButtonBehaviorInfo(
+                CloseButtonBehavior.EXIT,
+                localizationManager.getString("settings_window.close_behavior_exit")
+            )
         )
 
         closeButtonCombo = JComboBox(behaviorOptions.toTypedArray()).apply {

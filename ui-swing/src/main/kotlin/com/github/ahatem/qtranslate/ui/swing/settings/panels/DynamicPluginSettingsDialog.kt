@@ -53,9 +53,9 @@ class DynamicPluginSettingsDialog(
         val getValue: () -> String
     )
 
-    private val components  = mutableMapOf<String, SettingComponent>()
-    private val saveButton  = JButton(localizationManager.getString("common.save"))
-    private var rowIndex    = 0
+    private val components = mutableMapOf<String, SettingComponent>()
+    private val saveButton = JButton(localizationManager.getString("common.save"))
+    private var rowIndex = 0
     private var buttonBar: JPanel? = null
 
     init {
@@ -77,7 +77,7 @@ class DynamicPluginSettingsDialog(
 
         val scroll = JScrollPane(formPanel).apply {
             border = null
-            verticalScrollBarPolicy   = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+            verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             viewport.isOpaque = false
         }
@@ -104,7 +104,7 @@ class DynamicPluginSettingsDialog(
         SwingUtilities.invokeLater { updateVisibility() }
 
         defaultCloseOperation = DISPOSE_ON_CLOSE
-        minimumSize   = Dimension(520, 320)
+        minimumSize = Dimension(520, 320)
         preferredSize = Dimension(640, 500)
         pack()
         setLocationRelativeTo(owner)
@@ -119,7 +119,7 @@ class DynamicPluginSettingsDialog(
             override fun getPreferredScrollableViewportSize(): Dimension = preferredSize
             override fun getScrollableUnitIncrement(r: Rectangle, o: Int, d: Int) = 16
             override fun getScrollableBlockIncrement(r: Rectangle, o: Int, d: Int) = 64
-            override fun getScrollableTracksViewportWidth()  = true
+            override fun getScrollableTracksViewportWidth() = true
             override fun getScrollableTracksViewportHeight() = false
         }.apply {
             border = BorderFactory.createEmptyBorder(16, 16, 8, 16)
@@ -147,7 +147,7 @@ class DynamicPluginSettingsDialog(
         var i = 0
         while (i < fields.size) {
             val current = fields[i]
-            val next    = fields.getOrNull(i + 1)
+            val next = fields.getOrNull(i + 1)
 
             if (isCompact(current) && next != null && isCompact(next)) {
                 // Place two compact fields side-by-side
@@ -170,11 +170,11 @@ class DynamicPluginSettingsDialog(
     ) {
         val inset = if (topInset >= 0) topInset else if (rowIndex == 0) 0 else 14
         val c = GridBagConstraints().apply {
-            gridx   = 0; gridy = rowIndex
+            gridx = 0; gridy = rowIndex
             weightx = 1.0
-            fill    = GridBagConstraints.HORIZONTAL
-            anchor  = GridBagConstraints.FIRST_LINE_START
-            insets  = Insets(inset, 0, 0, 0)
+            fill = GridBagConstraints.HORIZONTAL
+            anchor = GridBagConstraints.FIRST_LINE_START
+            insets = Insets(inset, 0, 0, 0)
         }
         panel.add(component, c)
         rowIndex++
@@ -192,8 +192,8 @@ class DynamicPluginSettingsDialog(
      */
     private fun buildGroupHeader(group: PluginSettingsGroup): JPanel {
         val container = JPanel().apply {
-            layout     = BoxLayout(this, BoxLayout.Y_AXIS)
-            isOpaque   = false
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            isOpaque = false
             alignmentX = Component.LEFT_ALIGNMENT
         }
 
@@ -219,16 +219,18 @@ class DynamicPluginSettingsDialog(
             alignmentX = Component.LEFT_ALIGNMENT
         }
         return object : JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)) {
-            init { isOpaque = false; add(label) }
+            init {
+                isOpaque = false; add(label)
+            }
 
             override fun paintComponent(g: Graphics) {
                 super.paintComponent(g)
                 val centerY = label.y + label.height / 2
-                val startX  = label.x + label.width + gap
+                val startX = label.x + label.width + gap
                 if (startX >= width) return
                 g.color = UIManager.getColor("Separator.foreground")
                     ?: UIManager.getColor("Component.borderColor")
-                    ?: Color.GRAY
+                            ?: Color.GRAY
                 g.drawLine(startX, centerY, width, centerY)
             }
         }.apply { alignmentX = Component.LEFT_ALIGNMENT }
@@ -240,7 +242,7 @@ class DynamicPluginSettingsDialog(
 
     private fun buildActionStrip(actions: List<PluginActionSchema>): JPanel {
         val strip = JPanel(FlowLayout(FlowLayout.LEADING, 6, 0)).apply {
-            isOpaque   = false
+            isOpaque = false
             alignmentX = Component.LEFT_ALIGNMENT
         }
         actions.sortedBy { it.order }.forEach { action ->
@@ -287,70 +289,52 @@ class DynamicPluginSettingsDialog(
         val comp = buildComponent(setting)
         components[setting.propertyName] = comp
 
-        val block = JPanel().apply {
-            layout     = BoxLayout(this, BoxLayout.Y_AXIS)
-            isOpaque   = false
-            alignmentX = Component.LEFT_ALIGNMENT
+        // GridBagLayout is more predictable than BoxLayout for form rows:
+        // fill=HORIZONTAL gives each sub-row the full cell width at its natural
+        // preferred height, with no maximumSize clamping needed.
+        val block = JPanel(GridBagLayout()).apply { isOpaque = false }
+        var subRow = 0
+        fun addSubRow(c: JComponent, topInset: Int) {
+            block.add(c, GridBagConstraints().apply {
+                gridx = 0; gridy = subRow++
+                weightx = 1.0
+                fill = GridBagConstraints.HORIZONTAL
+                anchor = GridBagConstraints.FIRST_LINE_START
+                insets = Insets(topInset, 0, 0, 0)
+            })
         }
 
-        // Label row: bold name + optional required asterisk + optional inline action button
-        block.add(buildLabelRow(setting, comp))
-        block.add(Box.createVerticalStrut(4))
+        // Label row
+        addSubRow(buildLabelRow(setting, comp), 0)
 
-        // Input
-        // For multi-line / custom components the layout manager must determine their
-        // height freely — clamping their maximumSize here would collapse TextAreas to
-        // a single row and prevent CustomPanels from showing their content.
-        comp.component.apply {
-            alignmentX = Component.LEFT_ALIGNMENT
-            if (setting !is TextAreaSetting && setting !is CustomPanelSetting) {
-                maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height.coerceAtLeast(28))
-            }
-        }
-        block.add(comp.component)
+        // Input widget — every component gets fill=HORIZONTAL so it spans
+        // the full width; preferred height comes from the component itself.
+        addSubRow(comp.component, 4)
 
-        // Character counter (when maxLength is set)
+        // Character counter (only when maxLength is set)
         val maxLength = maxLengthOf(setting)
-        if (maxLength > 0) {
-            val counter = buildCharCounter(comp, maxLength, setting)
-            block.add(Box.createVerticalStrut(2))
-            block.add(counter)
-        }
+        if (maxLength > 0) addSubRow(buildCharCounter(comp, maxLength, setting), 2)
 
         // Description / hint
-        if (setting.description.isNotBlank()) {
-            block.add(Box.createVerticalStrut(3))
-            block.add(buildHintArea(setting.description))
-        }
+        if (setting.description.isNotBlank()) addSubRow(buildHintArea(setting.description), 3)
 
-        // Wrap in a JPanel so we can toggle visibility for showIf
-        val outer = JPanel(BorderLayout()).apply {
-            isOpaque   = false
-            alignmentX = Component.LEFT_ALIGNMENT
-            add(block, BorderLayout.CENTER)
-        }
-        // Update SettingComponent to carry the outer block reference
-        components[setting.propertyName] = comp.copy(fieldBlock = outer)
-
-        return outer
+        // block itself is the showIf-toggle target
+        components[setting.propertyName] = comp.copy(fieldBlock = block)
+        return block
     }
 
     private fun buildLabelRow(setting: SettingSchema, comp: SettingComponent): JPanel {
         val row = JPanel(BorderLayout(8, 0)).apply {
-            isOpaque   = false
-            alignmentX = Component.LEFT_ALIGNMENT
-            maximumSize = Dimension(Int.MAX_VALUE, 24)
+            isOpaque = false
         }
 
         val requiredSuffix = if (setting.isRequired) " <font color='red'>*</font>" else ""
-        val label = JLabel("<html><b>${setting.label}$requiredSuffix</b></html>").apply {
-            alignmentX = Component.LEFT_ALIGNMENT
-        }
+        val label = JLabel("<html><b>${setting.label}$requiredSuffix</b></html>")
         row.add(label, BorderLayout.LINE_START)
 
         // Inline action button (from Setting.actionMethod)
         val actionMethod = actionMethodOf(setting)
-        val actionLabel  = actionLabelOf(setting)
+        val actionLabel = actionLabelOf(setting)
         if (actionMethod.isNotBlank() && settingsInstance != null) {
             val actionSchema = PluginActionSchema(actionMethod, actionLabel.ifBlank { "Run" }, "", 0, "")
             val btn = JButton(actionSchema.label).apply {
@@ -365,7 +349,7 @@ class DynamicPluginSettingsDialog(
 
     private fun buildSideBySideRow(a: SettingSchema, b: SettingSchema): JPanel {
         val row = JPanel(GridLayout(1, 2, 16, 0)).apply {
-            isOpaque   = false
+            isOpaque = false
             alignmentX = Component.LEFT_ALIGNMENT
         }
         row.add(buildFieldBlock(a))
@@ -395,19 +379,19 @@ class DynamicPluginSettingsDialog(
             }
 
             is TextAreaSetting -> {
-                val area = JTextArea(setting.currentValue, setting.rows, 0).apply {
-                    lineWrap = true; wrapStyleWord = true
+                val rows = setting.rows.coerceAtLeast(3)
+                val area = JTextArea(setting.currentValue, rows, 0).apply {
+                    lineWrap = true
+                    wrapStyleWord = true
                 }
                 attachTextValidation(area, setting)
-                val scroll = JScrollPane(area)
-                // JTextArea with lineWrap=true reports getWidth()=0 before the first layout
-                // pass, so its getPreferredSize() height is unreliable (often 1 row or zero).
-                // Compute the target height directly from font metrics — this is reliable even
-                // before the component is added to a container.
-                val fm     = area.getFontMetrics(area.font)
-                val lineH  = fm.height + fm.leading
-                val targetH = (lineH * setting.rows + 8).coerceAtLeast(60)
+                val scroll = JScrollPane(area).apply {
+                    horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+                }
+                val fm = area.getFontMetrics(area.font)
+                val targetH = (fm.height * rows + 8).coerceAtLeast(60)
                 scroll.preferredSize = Dimension(300, targetH)
+                scroll.minimumSize = Dimension(0, targetH)
                 SettingComponent(placeholder, scroll) { area.text }
             }
 
@@ -436,14 +420,14 @@ class DynamicPluginSettingsDialog(
             }
 
             is SliderSetting -> {
-                val scale  = if (setting.step > 0) (1.0 / setting.step).roundToInt().coerceAtLeast(1) else 100
+                val scale = if (setting.step > 0) (1.0 / setting.step).roundToInt().coerceAtLeast(1) else 100
                 val intMin = (setting.minValue * scale).roundToInt()
                 val intMax = (setting.maxValue * scale).roundToInt()
                 val intVal = ((setting.currentValue.toDoubleOrNull() ?: setting.minValue) * scale)
                     .roundToInt().coerceIn(intMin, intMax)
 
                 val slider = JSlider(intMin, intMax, intVal).apply {
-                    paintTicks  = false
+                    paintTicks = false
                     paintLabels = false
                 }
                 val decimalPlaces = if (setting.step >= 1.0) 0 else {
@@ -475,9 +459,9 @@ class DynamicPluginSettingsDialog(
 
             is DropdownSetting -> {
                 val cb = JComboBox(setting.options.toTypedArray()).apply {
-                    selectedItem  = setting.currentValue
+                    selectedItem = setting.currentValue
                     preferredSize = null
-                    maximumSize   = Dimension(Int.MAX_VALUE, preferredSize?.height ?: 28)
+                    maximumSize = Dimension(Int.MAX_VALUE, preferredSize?.height ?: 28)
                     // Limit display width so combo doesn't bloat the dialog
                     prototypeDisplayValue = "X".repeat(35)
                 }
@@ -489,13 +473,13 @@ class DynamicPluginSettingsDialog(
 
             is FilePathSetting, is DirectoryPathSetting -> {
                 val isDir = setting is DirectoryPathSetting
-                val tf  = JTextField(setting.currentValue)
+                val tf = JTextField(setting.currentValue)
                 attachTextValidation(tf, setting)
                 val btn = JButton(localizationManager.getString("common.browse")).apply {
                     addActionListener {
                         val chooser = JFileChooser().apply {
                             fileSelectionMode = if (isDir) JFileChooser.DIRECTORIES_ONLY
-                                                else JFileChooser.FILES_ONLY
+                            else JFileChooser.FILES_ONLY
                             if (!isDir && setting is FilePathSetting) {
                                 isMultiSelectionEnabled = setting.allowMultiple
                                 if (setting.fileExtensions.isNotEmpty())
@@ -546,8 +530,8 @@ class DynamicPluginSettingsDialog(
 
     private fun attachTextValidation(comp: JTextComponent, setting: SettingSchema) {
         comp.document.addDocumentListener(object : DocumentListener {
-            override fun insertUpdate(e: DocumentEvent?)  = onAnyFieldChanged()
-            override fun removeUpdate(e: DocumentEvent?)  = onAnyFieldChanged()
+            override fun insertUpdate(e: DocumentEvent?) = onAnyFieldChanged()
+            override fun removeUpdate(e: DocumentEvent?) = onAnyFieldChanged()
             override fun changedUpdate(e: DocumentEvent?) = onAnyFieldChanged()
         })
     }
@@ -560,7 +544,7 @@ class DynamicPluginSettingsDialog(
     private fun updateVisibility() {
         val currentValues = components.mapValues { it.value.getValue() }
         settingsModel.schema.forEach { setting ->
-            val rule    = setting.showIf ?: return@forEach
+            val rule = setting.showIf ?: return@forEach
             val visible = currentValues[rule.propertyName] == rule.requiredValue
             components[setting.propertyName]?.fieldBlock?.isVisible = visible
         }
@@ -612,13 +596,14 @@ class DynamicPluginSettingsDialog(
         setting: SettingSchema
     ): JLabel {
         val label = JLabel("0 / $maxLength").apply {
-            font       = font.deriveFont(font.size - 1f)
+            font = font.deriveFont(font.size - 1f)
             foreground = UIManager.getColor("Label.disabledForeground")
             alignmentX = Component.LEFT_ALIGNMENT
         }
+
         fun update() {
             val len = comp.getValue().length
-            label.text       = "$len / $maxLength"
+            label.text = "$len / $maxLength"
             label.foreground = if (len > maxLength)
                 UIManager.getColor("Actions.Red") ?: Color.RED
             else
@@ -628,8 +613,8 @@ class DynamicPluginSettingsDialog(
         val inputComp = firstInputComponent(comp.component)
         if (inputComp is JTextComponent) {
             inputComp.document.addDocumentListener(object : DocumentListener {
-                override fun insertUpdate(e: DocumentEvent?)  = update()
-                override fun removeUpdate(e: DocumentEvent?)  = update()
+                override fun insertUpdate(e: DocumentEvent?) = update()
+                override fun removeUpdate(e: DocumentEvent?) = update()
                 override fun changedUpdate(e: DocumentEvent?) = update()
             })
         }
@@ -649,7 +634,7 @@ class DynamicPluginSettingsDialog(
             .replace(">", "&gt;")
         return JLabel("<html>$escaped</html>").apply {
             foreground = UIManager.getColor("Label.disabledForeground")
-            font       = font.deriveFont(font.size - 1f)
+            font = font.deriveFont(font.size - 1f)
             alignmentX = Component.LEFT_ALIGNMENT
             // HTML JLabels reflow text when the layout manager sets their width,
             // so they wrap correctly on dialog resize without collapsing to zero.
@@ -681,7 +666,7 @@ class DynamicPluginSettingsDialog(
     }
 
     private fun onSaveClicked() {
-        val values  = components.mapValues { it.value.getValue() }
+        val values = components.mapValues { it.value.getValue() }
         val missing = settingsModel.schema.filter { s ->
             s.isRequired && values[s.propertyName].isNullOrBlank()
         }
@@ -718,10 +703,10 @@ class DynamicPluginSettingsDialog(
     // =========================================================================
 
     private fun maxLengthOf(setting: SettingSchema) = when (setting) {
-        is TextSetting     -> setting.maxLength
+        is TextSetting -> setting.maxLength
         is PasswordSetting -> setting.maxLength
         is TextAreaSetting -> setting.maxLength
-        else               -> 0
+        else -> 0
     }
 
     // The schema types don't carry actionMethod/actionLabel directly
@@ -733,16 +718,16 @@ class DynamicPluginSettingsDialog(
     private fun actionLabelOf(setting: SettingSchema): String = ""
 
     private fun firstInputComponent(comp: JComponent?): JComponent? = when {
-        comp == null          -> null
-        comp is JTextField    -> comp
+        comp == null -> null
+        comp is JTextField -> comp
         comp is JPasswordField -> comp
-        comp is JSpinner      -> comp
-        comp is JCheckBox     -> comp
-        comp is JComboBox<*>  -> comp
-        comp is JScrollPane   -> comp
-        comp is JSlider       -> comp
-        comp is JPanel        -> comp.components.filterIsInstance<JComponent>().firstOrNull { it !is JLabel }
-        else                  -> comp
+        comp is JSpinner -> comp
+        comp is JCheckBox -> comp
+        comp is JComboBox<*> -> comp
+        comp is JScrollPane -> comp
+        comp is JSlider -> comp
+        comp is JPanel -> comp.components.filterIsInstance<JComponent>().firstOrNull { it !is JLabel }
+        else -> comp
     }
 
     private fun firstFocusable(comp: JComponent): Component? =

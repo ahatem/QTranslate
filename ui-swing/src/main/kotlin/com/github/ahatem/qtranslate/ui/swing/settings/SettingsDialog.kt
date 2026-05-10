@@ -51,6 +51,7 @@ class SettingsDialog(
     )
 
     /** SVG resource paths keyed by localized nav label. */
+    // @formatter:off
     private val sidebarIconPaths: Map<String, String> = mapOf(
         localizationManager.getString("settings_dialog_sidebar.general")       to "icons/lucide/sliders-horizontal.svg",
         localizationManager.getString("settings_dialog_sidebar.appearance")    to "icons/lucide/palette.svg",
@@ -58,9 +59,10 @@ class SettingsDialog(
         localizationManager.getString("settings_dialog_sidebar.plugins")       to "icons/lucide/package.svg",
         localizationManager.getString("settings_dialog_sidebar.hotkeys")       to "icons/lucide/keyboard.svg",
         localizationManager.getString("settings_dialog_sidebar.translation")   to "icons/lucide/languages.svg",
-        localizationManager.getString("settings_dialog_sidebar.languages")     to "icons/lucide/book-open.svg",
+        localizationManager.getString("settings_dialog_sidebar.languages")     to "icons/lucide/globe.svg",
         localizationManager.getString("settings_dialog_sidebar.window_layout") to "icons/lucide/layout-dashboard.svg"
     )
+    // @formatter:on
 
     /**
      * Theme-aware sidebar icons: 14 × 14 [FlatSVGIcon] with a [FlatSVGIcon.ColorFilter]
@@ -71,7 +73,8 @@ class SettingsDialog(
         sidebarIconPaths.mapNotNull { (name, path) ->
             runCatching {
                 val icon = FlatSVGIcon(path, 14, 14, javaClass.classLoader)
-                icon.colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") ?: Color.GRAY }
+                icon.colorFilter =
+                    FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") ?: Color.GRAY }
                 name to (icon as Icon)
             }.getOrNull()
         }.toMap()
@@ -86,56 +89,21 @@ class SettingsDialog(
         font = font.deriveFont(Font.BOLD, font.size + 3f)
     }
 
-    /**
-     * Amber pill badge shown when there are unsaved changes.
-     *
-     * Background: amber (`Actions.Yellow` in FlatLaf, fallback to amber-500).
-     * Text: dark stone — always readable on the amber background regardless of theme.
-     * The color expressions are plain and intentional (no confusing bit-tricks).
-     */
-    private val dirtyPill = object : JComponent() {
-        private val pillText = localizationManager.getString("settings_dialog.unsaved_changes")
-
-        init { isOpaque = false; isVisible = false }
-
-        override fun getPreferredSize(): Dimension {
-            val fm = getFontMetrics(font.deriveFont(Font.BOLD, font.size - 1f))
-            return Dimension(fm.stringWidth(pillText) + 24, fm.height + 10)
-        }
-
-        override fun paintComponent(g: Graphics) {
-            val g2 = g as Graphics2D
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-
-            // Amber background — conventional "attention / unsaved changes" color
-            g2.color = UIManager.getColor("Actions.Yellow") ?: Color(245, 158, 11)
-            g2.fillRoundRect(0, 0, width, height, height, height)
-
-            // Dark text — always readable on amber regardless of light/dark theme
-            g2.font = font.deriveFont(Font.BOLD, font.size - 1f)
-            g2.color = Color(30, 26, 23)
-            val fm = g2.fontMetrics
-            g2.drawString(pillText,
-                (width - fm.stringWidth(pillText)) / 2,
-                (height + fm.ascent - fm.descent) / 2)
-        }
-    }
-
-    private val panelCache       = mutableMapOf<String, JPanel>()
+    private val panelCache = mutableMapOf<String, JPanel>()
     private var currentPanelName: String? = null
 
-    private lateinit var okButton:      JButton
-    private lateinit var applyButton:   JButton
+    private lateinit var okButton: JButton
+    private lateinit var applyButton: JButton
 
     // ── Panels that own theme-sensitive borders (refreshed in updateBorders) ──
-    private var sidebarPanel: JPanel   = JPanel()
-    private var headerStrip:  JPanel   = JPanel()
+    private var sidebarPanel: JPanel = JPanel()
+    private var headerStrip: JPanel = JPanel()
     private var buttonBarPanel: JPanel = JPanel()
 
     // ─────────────────────────────────────────────────────────────────────────
 
     init {
-        title  = localizationManager.getString("settings_dialog.title")
+        title = localizationManager.getString("settings_dialog.title")
         layout = BorderLayout()
 
         tree = buildTree()
@@ -144,19 +112,18 @@ class SettingsDialog(
 
         // ── Header strip ─────────────────────────────────────────────────────
         headerStrip = JPanel(BorderLayout(12, 0)).apply {
-            add(panelTitle,  BorderLayout.LINE_START)
-            add(dirtyPill,   BorderLayout.LINE_END)
+            add(panelTitle, BorderLayout.LINE_START)
         }
         contentArea.add(headerStrip, BorderLayout.NORTH)
 
         val mainPanel = JPanel(BorderLayout()).apply {
             add(sidebarPanel, BorderLayout.LINE_START)
-            add(contentArea,  BorderLayout.CENTER)
+            add(contentArea, BorderLayout.CENTER)
         }
 
         buttonBarPanel = buildButtonBar()
 
-        add(mainPanel,      BorderLayout.CENTER)
+        add(mainPanel, BorderLayout.CENTER)
         add(buttonBarPanel, BorderLayout.SOUTH)
 
         // Apply borders based on current theme, then keep them fresh on theme changes
@@ -178,7 +145,7 @@ class SettingsDialog(
 
         observeState()
 
-        minimumSize   = Dimension(860, 580)
+        minimumSize = Dimension(860, 580)
         preferredSize = Dimension(1020, 700)
         pack()
         setLocationRelativeTo(owner)
@@ -214,7 +181,7 @@ class SettingsDialog(
         navItems.forEach { root.add(DefaultMutableTreeNode(it)) }
 
         return JTree(DefaultTreeModel(root)).apply {
-            isRootVisible    = false
+            isRootVisible = false
             showsRootHandles = false
             selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
 
@@ -226,20 +193,23 @@ class SettingsDialog(
             )
 
             cellRenderer = object : DefaultTreeCellRenderer() {
-                init { leafIcon = null; closedIcon = null; openIcon = null }
+                init {
+                    leafIcon = null; closedIcon = null; openIcon = null
+                }
 
                 override fun getTreeCellRendererComponent(
                     tree: JTree, value: Any, sel: Boolean,
                     expanded: Boolean, leaf: Boolean, row: Int, hasFocus: Boolean
                 ): Component {
                     super.getTreeCellRendererComponent(
-                        tree, value, sel, expanded, leaf, row, hasFocus)
+                        tree, value, sel, expanded, leaf, row, hasFocus
+                    )
 
                     val name = (value as? DefaultMutableTreeNode)?.userObject as? String ?: ""
-                    text        = name
-                    icon        = sidebarIcons[name]
+                    text = name
+                    icon = sidebarIcons[name]
                     iconTextGap = 8
-                    border      = BorderFactory.createEmptyBorder(0, 8, 0, 8)
+                    border = BorderFactory.createEmptyBorder(0, 8, 0, 8)
 
                     if (!sel) foreground = UIManager.getColor("Label.foreground")
                     return this
@@ -258,15 +228,12 @@ class SettingsDialog(
         val treeScroll = JScrollPane(tree).apply {
             border = null
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-            verticalScrollBarPolicy   = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+            verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
         }
 
         return JPanel(BorderLayout()).apply {
-            // Compact width: "Window Layout" (~84px text + 14px icon + gaps + padding) fits at 175px
-            minimumSize   = Dimension(175, 0)
-            preferredSize = Dimension(175, 0)
-            maximumSize   = Dimension(175, Int.MAX_VALUE)
-            // Right border applied by updateBorders()
+            minimumSize = Dimension(160, 0)
+            // Let preferred width be driven by the tree's widest row
             add(treeScroll, BorderLayout.CENTER)
         }
     }
@@ -275,15 +242,15 @@ class SettingsDialog(
 
     private fun showPanel(name: String) {
         currentPanelName = name
-        panelTitle.text  = name
+        panelTitle.text = name
 
         val panel = panelCache.getOrPut(name) { createPanel(name) }
 
         contentArea.components.filterIsInstance<JScrollPane>().forEach { contentArea.remove(it) }
         contentArea.add(JScrollPane(panel).apply {
-            border                          = null
-            horizontalScrollBarPolicy       = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-            verticalScrollBarPolicy         = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+            border = null
+            horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+            verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
             verticalScrollBar.unitIncrement = 16
         }, BorderLayout.CENTER)
 
@@ -338,7 +305,7 @@ class SettingsDialog(
             addActionListener { cancelAndClose() }
         }
         applyButton = JButton(localizationManager.getString("common.apply")).apply {
-            mnemonic  = KeyEvent.VK_A
+            mnemonic = KeyEvent.VK_A
             isEnabled = false
             addActionListener { settingsStore.dispatch(SettingsIntent.SaveChanges) }
         }
@@ -370,9 +337,6 @@ class SettingsDialog(
                     val baseTitle = localizationManager.getString("settings_dialog.title")
                     title = if (state.isDirty) "● $baseTitle" else baseTitle
 
-                    dirtyPill.isVisible = state.isDirty
-                    dirtyPill.repaint()
-
                     applyButton.isEnabled = state.isDirty && !state.isSaving
 
                     currentPanelName?.let { name ->
@@ -390,10 +354,12 @@ class SettingsDialog(
     // ── Actions ───────────────────────────────────────────────────────────────
 
     private fun onOk() {
-        if (!settingsStore.state.value.isDirty) { dispose(); return }
+        if (!settingsStore.state.value.isDirty) {
+            dispose(); return
+        }
 
         okButton.isEnabled = false
-        okButton.text      = localizationManager.getString("settings_dialog.saving")
+        okButton.text = localizationManager.getString("settings_dialog.saving")
         settingsStore.dispatch(SettingsIntent.SaveChanges)
 
         scope.launch {
@@ -406,7 +372,7 @@ class SettingsDialog(
                     dispose()
                 } else {
                     okButton.isEnabled = true
-                    okButton.text      = localizationManager.getString("common.ok")
+                    okButton.text = localizationManager.getString("common.ok")
                     JOptionPane.showMessageDialog(
                         this@SettingsDialog,
                         event.message,

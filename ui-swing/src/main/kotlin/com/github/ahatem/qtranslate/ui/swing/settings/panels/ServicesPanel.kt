@@ -23,8 +23,8 @@ class ServicesPanel(
 ) : SettingsPanel() {
 
     private lateinit var presetCombo: JComboBox<PresetInfo>
-    private lateinit var renameBtn:   JButton
-    private lateinit var deleteBtn:   JButton
+    private lateinit var renameBtn: JButton
+    private lateinit var deleteBtn: JButton
     private val serviceComboBoxes = mutableMapOf<ServiceType, JComboBox<ServiceOption>>()
 
     init {
@@ -51,9 +51,9 @@ class ServicesPanel(
 
         val newBtn = JButton(localizationManager.getString("settings_services.new_preset_btn"))
             .apply { addActionListener { onNew() } }
-        renameBtn  = JButton(localizationManager.getString("settings_services.rename_preset_btn"))
+        renameBtn = JButton(localizationManager.getString("settings_services.rename_preset_btn"))
             .apply { addActionListener { onRename() } }
-        deleteBtn  = JButton(localizationManager.getString("settings_services.delete_preset_btn"))
+        deleteBtn = JButton(localizationManager.getString("settings_services.delete_preset_btn"))
             .apply { addActionListener { onDelete() } }
 
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
@@ -88,7 +88,7 @@ class ServicesPanel(
     }
 
     private fun buildServiceCard(type: ServiceType, combo: JComboBox<ServiceOption>): JPanel {
-        val icon  = serviceIcon(type)
+        val icon = serviceIcon(type)
         val label = serviceLabel(type)
 
         val header = JPanel(FlowLayout(FlowLayout.LEADING, 5, 0)).apply {
@@ -96,14 +96,14 @@ class ServicesPanel(
             if (icon != null) add(JLabel(icon))
             add(JLabel(label).apply {
                 foreground = UIManager.getColor("Label.disabledForeground")
-                font       = font.deriveFont(font.size - 1f)
+                font = font.deriveFont(font.size - 1f)
             })
         }
 
         return JPanel(BorderLayout(0, 5)).apply {
             isOpaque = false
             add(header, BorderLayout.NORTH)
-            add(combo,  BorderLayout.CENTER)
+            add(combo, BorderLayout.CENTER)
         }
     }
 
@@ -127,13 +127,13 @@ class ServicesPanel(
      */
     private fun serviceIcon(type: ServiceType): Icon? {
         val path = when (type) {
-            ServiceType.TRANSLATOR    -> "icons/lucide/languages.svg"
-            ServiceType.TTS           -> "icons/lucide/volume.svg"
-            ServiceType.OCR           -> "icons/lucide/scan-text.svg"
+            ServiceType.TRANSLATOR -> "icons/lucide/languages.svg"
+            ServiceType.TTS -> "icons/lucide/volume.svg"
+            ServiceType.OCR -> "icons/lucide/scan-text.svg"
             ServiceType.SPELL_CHECKER -> "icons/lucide/check.svg"
-            ServiceType.DICTIONARY    -> "icons/lucide/book-open.svg"
-            ServiceType.SUMMARIZER    -> "icons/lucide/text-align-start.svg"
-            ServiceType.REWRITER      -> "icons/lucide/pen-line.svg"
+            ServiceType.DICTIONARY -> "icons/lucide/book-open.svg"
+            ServiceType.SUMMARIZER -> "icons/lucide/text-align-start.svg"
+            ServiceType.REWRITER -> "icons/lucide/pen-line.svg"
         }
         return runCatching {
             val icon = FlatSVGIcon(path, 14, 14, javaClass.classLoader)
@@ -143,13 +143,13 @@ class ServicesPanel(
     }
 
     private fun serviceLabel(type: ServiceType): String = when (type) {
-        ServiceType.TRANSLATOR    -> localizationManager.getString("settings_services.translator")
-        ServiceType.TTS           -> localizationManager.getString("settings_services.tts")
-        ServiceType.OCR           -> localizationManager.getString("settings_services.ocr")
+        ServiceType.TRANSLATOR -> localizationManager.getString("settings_services.translator")
+        ServiceType.TTS -> localizationManager.getString("settings_services.tts")
+        ServiceType.OCR -> localizationManager.getString("settings_services.ocr")
         ServiceType.SPELL_CHECKER -> localizationManager.getString("settings_services.spell_checker")
-        ServiceType.DICTIONARY    -> localizationManager.getString("settings_services.dictionary")
-        ServiceType.SUMMARIZER    -> localizationManager.getString("settings_services.summarizer")
-        ServiceType.REWRITER      -> localizationManager.getString("settings_services.rewriter")
+        ServiceType.DICTIONARY -> localizationManager.getString("settings_services.dictionary")
+        ServiceType.SUMMARIZER -> localizationManager.getString("settings_services.summarizer")
+        ServiceType.REWRITER -> localizationManager.getString("settings_services.rewriter")
     }
 
     // ── Plugin observation ────────────────────────────────────────────────────
@@ -173,14 +173,18 @@ class ServicesPanel(
     }
 
     private fun populateCombos(servicesByType: Map<ServiceType, List<Service>>) {
-        serviceComboBoxes.forEach { (type, combo) ->
-            val current = combo.selectedItem as? ServiceOption
-            combo.removeAllItems()
-            combo.addItem(null) // "None" option
-            servicesByType[type]?.forEach { service -> combo.addItem(ServiceOption(service.id, service.name)) }
-            if (current != null) {
-                for (i in 0 until combo.itemCount) {
-                    if (combo.getItemAt(i)?.id == current.id) { combo.selectedIndex = i; break }
+        withoutTrigger {
+            serviceComboBoxes.forEach { (type, combo) ->
+                val current = combo.selectedItem as? ServiceOption
+                combo.removeAllItems()
+                combo.addItem(null) // "None" option
+                servicesByType[type]?.forEach { service -> combo.addItem(ServiceOption(service.id, service.name)) }
+                if (current != null) {
+                    for (i in 0 until combo.itemCount) {
+                        if (combo.getItemAt(i)?.id == current.id) {
+                            combo.selectedIndex = i; break
+                        }
+                    }
                 }
             }
         }
@@ -205,7 +209,9 @@ class ServicesPanel(
                 serviceComboBoxes.forEach { (type, combo) ->
                     val selectedId = preset.selectedServices[type]
                     for (i in 0 until combo.itemCount) {
-                        if (combo.getItemAt(i)?.id == selectedId) { combo.selectedIndex = i; break }
+                        if (combo.getItemAt(i)?.id == selectedId) {
+                            combo.selectedIndex = i; break
+                        }
                     }
                 }
             }
@@ -226,7 +232,7 @@ class ServicesPanel(
 
     private fun onRename() {
         val selected = presetCombo.selectedItem as? PresetInfo ?: return
-        val newName  = JOptionPane.showInputDialog(
+        val newName = JOptionPane.showInputDialog(
             this,
             localizationManager.getString("settings_services.rename_preset_prompt"),
             localizationManager.getString("settings_services.rename_preset_title"),
