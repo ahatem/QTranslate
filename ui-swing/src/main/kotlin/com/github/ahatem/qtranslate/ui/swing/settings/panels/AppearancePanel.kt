@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.core.settings.data.FontConfig
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
+import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager.Companion.OS_DEFAULT_THEME_ID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,15 +23,10 @@ class AppearancePanel(
     private val scope: CoroutineScope
 ) : SettingsPanel() {
 
-    /** Sentinel item that represents "follow the OS dark/light preference". */
-    private val osDefaultItem = ThemeInfo(
-        id          = ThemeManager.OS_DEFAULT_THEME_ID,
-        displayName = localizationManager.getString("settings_appearance.theme_os_default"),
-        isDark      = false
-    )
-
-    private val themes = listOf(osDefaultItem) + themeManager.getAvailableThemes().map {
-        ThemeInfo(it.id, it.name, it.isDark)
+    private val themes: List<ThemeInfo> = buildList {
+        // Synthetic sentinel: follows OS dark/light preference at apply time
+        add(ThemeInfo(OS_DEFAULT_THEME_ID, localizationManager.getString("settings_appearance.theme_os_default"), false))
+        addAll(themeManager.getAvailableThemes().map { ThemeInfo(it.id, it.name, it.isDark) })
     }
 
     private lateinit var languageCombo:     JComboBox<LanguageInfo>

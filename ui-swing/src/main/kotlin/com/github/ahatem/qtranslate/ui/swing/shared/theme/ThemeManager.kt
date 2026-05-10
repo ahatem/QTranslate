@@ -243,30 +243,42 @@ class ThemeManager(
     }
 
     companion object {
+        /** Sentinel theme ID that resolves to the OS-preferred dark/light theme at apply time. */
         const val OS_DEFAULT_THEME_ID = "os_default"
 
-        val currentOs: String by lazy {
-            val os = System.getProperty("os.name").lowercase()
-            when {
-                os.contains("win") -> "win"
-                os.contains("mac") -> "mac"
-                else -> "linux"
-            }
+        private val os: String = System.getProperty("os.name", "").lowercase()
+
+        fun isMacOs():     Boolean = os.contains("mac")
+        fun isLinuxOs():   Boolean = os.contains("linux") || os.contains("nix") || os.contains("nux")
+        fun isWindowsOs(): Boolean = os.contains("win")
+
+        /**
+         * Platform-aware dark theme default:
+         * - macOS   → `mac_dark`  (native macOS look)
+         * - Linux   → `resharper_dark` (clean, professional)
+         * - Windows → `flat_dark`  (minimal, neutral)
+         */
+        fun platformDefaultDarkThemeId(): String = when {
+            isMacOs()   -> "builtin:mac_dark"
+            isLinuxOs() -> "custom:resharper_dark"
+            else        -> "builtin:flat_dark"
         }
 
-        fun platformDefaultDarkThemeId(): String = when (currentOs) {
-            "mac" -> "builtin:mac_dark"
-            else  -> "builtin:darcula"
-        }
-
-        fun platformDefaultLightThemeId(): String = when (currentOs) {
-            "mac" -> "builtin:mac_light"
-            else  -> "builtin:intellij"
+        /**
+         * Platform-aware light theme default:
+         * - macOS   → `mac_light`
+         * - Linux   → `resharper_light`
+         * - Windows → `flat_light`
+         */
+        fun platformDefaultLightThemeId(): String = when {
+            isMacOs()   -> "builtin:mac_light"
+            isLinuxOs() -> "custom:resharper_light"
+            else        -> "builtin:flat_light"
         }
 
         fun isSystemInDarkMode(): Boolean = try {
             when {
-                System.getProperty("os.name").lowercase().contains("win") -> {
+                isWindowsOs() -> {
                     // Read Windows registry
                     val proc = ProcessBuilder(
                         "reg", "query",
@@ -277,13 +289,13 @@ class ThemeManager(
                     !proc.inputStream.bufferedReader().readText().contains("0x1")
                 }
 
-                System.getProperty("os.name").lowercase().contains("mac") -> {
+                isMacOs() -> {
                     val proc = ProcessBuilder("defaults", "read", "-g", "AppleInterfaceStyle")
                         .redirectErrorStream(true).start()
                     proc.inputStream.bufferedReader().readText().trim() == "Dark"
                 }
 
-                else -> false // Linux skipped for simplicity
+                else -> false // Linux: dark-mode detection skipped for simplicity
             }
         } catch (_: Exception) {
             false

@@ -117,23 +117,28 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
     /**
      * Adds a lightweight sub-section label that visually subordinates to [addSeparator].
      *
-     * Uses the same title + extending line pattern as [addSeparator] but with smaller,
-     * muted text and tighter spacing — creating a clear two-level visual hierarchy:
+     * Intentionally different from [addSeparator] — no extending line, just muted
+     * text — so the two levels of hierarchy are immediately distinguishable:
      *
-     *   `Section ─────────────`   ← addSeparator (bold, normal foreground, 22px top)
-     *   `sub-section ─────────`   ← addSubSeparator (bold-smaller, muted, 12px top)
+     *   `Section ──────────────`   ← addSeparator  (bold, full line, prominent)
+     *   `  Sub-section`            ← addSubSeparator (muted label, indented, no line)
      */
     protected fun addSubSeparator(title: String) {
+        val label = JLabel(title).apply {
+            font       = font.deriveFont(Font.BOLD, font.size - 0.5f)
+            foreground = UIManager.getColor("Label.disabledForeground")
+        }
         gb.nextRow()
             .spanLine()
             .weightX(1.0)
             .fill(GridBagConstraints.HORIZONTAL)
-            .insets(12, 0, 3, 0)
-            .add(buildSeparatorRow(title, bold = true, muted = true, gap = 8))
+            .insets(14, 4, 2, 0)
+            .add(label)
     }
 
     /**
-     * Shared factory for separator rows used by both [addSeparator] and [addSubSeparator].
+     * Shared factory for separator rows used by [addSeparator] and any subclass that
+     * needs a consistent section header inside a nested panel (e.g. a detail pane).
      *
      * Returns a [JPanel] that:
      * - Renders [title] as a [JLabel] (bold / muted per params) using [FlowLayout.LEADING].
