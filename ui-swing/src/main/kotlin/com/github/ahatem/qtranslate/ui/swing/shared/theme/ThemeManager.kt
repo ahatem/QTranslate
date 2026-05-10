@@ -277,12 +277,6 @@ class ThemeManager(
             else        -> "builtin:flat_light"
         }
 
-        private val os: String = System.getProperty("os.name", "").lowercase()
-
-        fun isMacOs():   Boolean = os.contains("mac")
-        fun isLinuxOs(): Boolean = os.contains("linux") || os.contains("nix") || os.contains("nux")
-        fun isWindowsOs(): Boolean = os.contains("win")
-
         fun isSystemInDarkMode(): Boolean = try {
             when {
                 isWindowsOs() -> {

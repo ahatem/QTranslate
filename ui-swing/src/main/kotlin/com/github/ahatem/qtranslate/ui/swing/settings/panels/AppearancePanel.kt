@@ -273,7 +273,7 @@ class AppearancePanel(
                     break
                 }
             }
-            themeCombo.selectedItem  = themes.find { it.id == c.themeId } ?: osDefaultItem
+            themeCombo.selectedItem  = themes.find { it.id == c.themeId }
             titleBarCheck.isSelected = c.useUnifiedTitleBar
             scaleSpinner.value       = c.uiScale
             uiFontSize.value         = c.uiFontConfig.size
