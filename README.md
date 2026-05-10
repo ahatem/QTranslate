@@ -45,8 +45,8 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 <table>
 <tr>
 <td align="center" width="50%">
-<img src="docs/images/screenshot-settings.png" alt="Settings dialog" width="340"><br>
-<sub><b>Settings — Services &amp; Presets</b> — configure engines, presets, and API keys</sub>
+<img src="docs/images/screenshot-main-dark.png" alt="Main window — dark theme" width="340"><br>
+<sub><b>Main window</b> — translate, summarize, rewrite, spell check, browse history</sub>
 </td>
 <td align="center" width="50%">
 <img src="docs/images/screenshot-rtl.png" alt="RTL layout — Arabic" width="340"><br>
@@ -59,8 +59,8 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 <sub><b>Compact layout, light theme</b> — tabbed view, fits any workflow</sub>
 </td>
 <td align="center" width="50%">
-<img src="docs/images/screenshot-compact-2.png" alt="Compact layout — dark theme" width="340"><br>
-<sub><b>Compact layout, dark theme</b> — 30+ themes via FlatLaf, with animated transitions</sub>
+<img src="docs/images/screenshot-settings.png" alt="Settings — Services and Presets" width="340"><br>
+<sub><b>Settings — Services &amp; Presets</b> — configure engines, presets, and API keys</sub>
 </td>
 </tr>
 </table>
@@ -81,6 +81,7 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 | **Summarize** | Get a condensed version of long text, configurable length |
 | **Rewrite** | Rewrite in a different style: Formal, Casual, Concise, Detailed, or Simplified |
 | **Translation history** | Full undo/redo through every past translation |
+| **Translation rules** | Auto-correct source text before translating — fix common mistakes, expand abbreviations, normalize input |
 
 ### Input
 
