@@ -1,13 +1,11 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.theme
 
-import com.formdev.flatlaf.FlatDarculaLaf
 import com.formdev.flatlaf.FlatDarkLaf
 import com.formdev.flatlaf.FlatLaf
 import com.formdev.flatlaf.IntelliJTheme
 import com.formdev.flatlaf.extras.FlatAnimatedLafChange
 import com.github.ahatem.qtranslate.api.core.Logger
 import java.io.File
-import java.util.Locale.getDefault
 
 class ThemeManager(
     appDataDirectory: File,
@@ -63,7 +61,7 @@ class ThemeManager(
 
     private var currentTheme: Theme? = null
 
-    val defaultDarkThemeId  = "builtin:darcula"
+    val defaultDarkThemeId = "builtin:darcula"
     val defaultLightThemeId = "builtin:intellij"
 
     val systemDefaultThemeId: String
@@ -79,7 +77,7 @@ class ThemeManager(
 
     fun getAvailableThemes(): List<Theme> = allThemes
 
-    fun getDarkThemes():  List<Theme> = allThemes.filter { it.isDark }
+    fun getDarkThemes(): List<Theme> = allThemes.filter { it.isDark }
     fun getLightThemes(): List<Theme> = allThemes.filter { !it.isDark }
 
     fun getCurrentTheme(): Theme? = currentTheme
@@ -119,7 +117,11 @@ class ThemeManager(
         logger.info("Applying theme: ${theme.name}  (${theme.id})")
 
         val snapshot = if (animate) {
-            try { FlatAnimatedLafChange.showSnapshot() } catch (e: Exception) { null }
+            try {
+                FlatAnimatedLafChange.showSnapshot()
+            } catch (_: Exception) {
+                null
+            }
         } else null
 
         try {
@@ -197,7 +199,7 @@ class ThemeManager(
         val laf = IntelliJTheme.createLaf(file.inputStream())
 
         Theme(
-            id   = "external:${file.nameWithoutExtension.lowercase().replace(" ", "_")}",
+            id = "external:${file.nameWithoutExtension.lowercase().replace(" ", "_")}",
             name = laf.name ?: baseName,
             isDark = laf.isDark,
             apply = {
@@ -232,7 +234,10 @@ class ThemeManager(
 
     private fun safeHideAnimation(snapshot: Any?) {
         if (snapshot == null) return
-        try { FlatAnimatedLafChange.hideSnapshotWithAnimation() } catch (_: Exception) {}
+        try {
+            FlatAnimatedLafChange.hideSnapshotWithAnimation()
+        } catch (_: Exception) {
+        }
     }
 
     companion object {
@@ -240,19 +245,25 @@ class ThemeManager(
             when {
                 System.getProperty("os.name").lowercase().contains("win") -> {
                     // Read Windows registry
-                    val proc = ProcessBuilder("reg", "query",
+                    val proc = ProcessBuilder(
+                        "reg", "query",
                         "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-                        "/v", "AppsUseLightTheme")
+                        "/v", "AppsUseLightTheme"
+                    )
                         .redirectErrorStream(true).start()
                     !proc.inputStream.bufferedReader().readText().contains("0x1")
                 }
+
                 System.getProperty("os.name").lowercase().contains("mac") -> {
                     val proc = ProcessBuilder("defaults", "read", "-g", "AppleInterfaceStyle")
                         .redirectErrorStream(true).start()
                     proc.inputStream.bufferedReader().readText().trim() == "Dark"
                 }
+
                 else -> false // Linux skipped for simplicity
             }
-        } catch (_: Exception) { false }
+        } catch (_: Exception) {
+            false
+        }
     }
 }
