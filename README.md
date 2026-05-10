@@ -46,7 +46,7 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 <tr>
 <td align="center" width="50%">
 <img src="docs/images/screenshot-settings.png" alt="Settings dialog" width="340"><br>
-<sub><b>Settings</b> — two-column service grid, 30+ themes, keyboard shortcut chip badges</sub>
+<sub><b>Settings — Services &amp; Presets</b> — configure engines, presets, and API keys</sub>
 </td>
 <td align="center" width="50%">
 <img src="docs/images/screenshot-rtl.png" alt="RTL layout — Arabic" width="340"><br>
@@ -55,12 +55,12 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 </tr>
 <tr>
 <td align="center" width="50%">
-<img src="docs/images/screenshot-compact.png" alt="Compact layout" width="340"><br>
-<sub><b>Compact layout</b> — tabbed view with extra output, fits any workflow</sub>
+<img src="docs/images/screenshot-compact.png" alt="Compact layout — light theme" width="340"><br>
+<sub><b>Compact layout, light theme</b> — tabbed view, fits any workflow</sub>
 </td>
 <td align="center" width="50%">
-<img src="docs/images/screenshot-compact-2.png" alt="Compact layout — light theme" width="340"><br>
-<sub><b>Light theme</b> — fully themeable with FlatLaf, dark and light</sub>
+<img src="docs/images/screenshot-compact-2.png" alt="Compact layout — dark theme" width="340"><br>
+<sub><b>Compact layout, dark theme</b> — 30+ themes via FlatLaf, with animated transitions</sub>
 </td>
 </tr>
 </table>
