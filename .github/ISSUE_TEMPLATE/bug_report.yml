@@ -1,0 +1,101 @@
+name: Bug report
+description: Something is broken or behaving unexpectedly
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug. Please fill in as much detail as you can — it helps us reproduce and fix it faster.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear description of what went wrong.
+      placeholder: "When I do X, Y happens instead of Z."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact steps needed to trigger the bug.
+      placeholder: |
+        1. Open QTranslate
+        2. Select some text
+        3. Press Ctrl+Q
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      placeholder: What you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      placeholder: What actually happened.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: QTranslate version
+      placeholder: "e.g. 1.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: java
+    attributes:
+      label: Java version
+      description: Run `java -version` in a terminal and paste the output.
+      placeholder: "e.g. OpenJDK 17.0.10"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - Windows (other)
+        - macOS 14 (Sonoma)
+        - macOS 13 (Ventura)
+        - macOS (other)
+        - Linux (Ubuntu/Debian)
+        - Linux (Fedora/RHEL)
+        - Linux (Arch)
+        - Linux (other)
+    validations:
+      required: true
+
+  - type: input
+    id: plugins
+    attributes:
+      label: Installed plugins (if relevant)
+      placeholder: "e.g. Google Services v1.2.0, AI Services v2.0.0"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste any relevant log output. Run QTranslate from a terminal to see logs.
+      render: text
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Drag and drop screenshots here if they help illustrate the problem.

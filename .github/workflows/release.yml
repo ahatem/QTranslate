@@ -65,6 +65,11 @@ jobs:
             cp -R languages/. dist/QTranslate/languages/
           fi
 
+          mkdir -p dist/QTranslate/themes
+          if [ -d themes ]; then
+            cp -R themes/. dist/QTranslate/themes/
+          fi
+
           cd dist
           zip -r "../QTranslate-${VERSION}.zip" QTranslate/
 
@@ -77,14 +82,44 @@ jobs:
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
 
           if [ -z "$PREV_TAG" ]; then
-            LOG=$(git log --pretty=format:"- %s" HEAD)
+            RANGE="HEAD"
           else
-            LOG=$(git log --pretty=format:"- %s" "$PREV_TAG"..HEAD)
+            RANGE="$PREV_TAG..HEAD"
+          fi
+
+          # Categorize commits by Conventional Commit type
+          FEATURES=$(git log --pretty=format:"%s" $RANGE | grep -E "^feat(\(.+\))?:" | sed 's/^feat[^:]*: /- /' || true)
+          FIXES=$(git log --pretty=format:"%s" $RANGE | grep -E "^fix(\(.+\))?:" | sed 's/^fix[^:]*: /- /' || true)
+          REFACTORS=$(git log --pretty=format:"%s" $RANGE | grep -E "^refactor(\(.+\))?:" | sed 's/^refactor[^:]*: /- /' || true)
+          DOCS=$(git log --pretty=format:"%s" $RANGE | grep -E "^docs(\(.+\))?:" | sed 's/^docs[^:]*: /- /' || true)
+          CHORES=$(git log --pretty=format:"%s" $RANGE | grep -E "^(chore|ci|build)(\(.+\))?:" | sed 's/^[^:]*: /- /' || true)
+          OTHER=$(git log --pretty=format:"%s" $RANGE | grep -vE "^(feat|fix|refactor|docs|chore|ci|build)(\(.+\))?:" | sed 's/^/- /' || true)
+
+          # Build categorized log
+          LOG=""
+          [ -n "$FEATURES" ]  && LOG="${LOG}### New features\n${FEATURES}\n\n"
+          [ -n "$FIXES" ]     && LOG="${LOG}### Bug fixes\n${FIXES}\n\n"
+          [ -n "$REFACTORS" ] && LOG="${LOG}### Improvements\n${REFACTORS}\n\n"
+          [ -n "$DOCS" ]      && LOG="${LOG}### Documentation\n${DOCS}\n\n"
+          [ -n "$CHORES" ]    && LOG="${LOG}### Maintenance\n${CHORES}\n\n"
+          [ -n "$OTHER" ]     && LOG="${LOG}### Other\n${OTHER}\n\n"
+
+          # Fall back to flat log if no conventional commits found
+          if [ -z "$LOG" ]; then
+            LOG=$(git log --pretty=format:"- %s" $RANGE)
           fi
 
           echo "log<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$LOG" >> "$GITHUB_OUTPUT"
+          printf "%b" "$LOG" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Generate SHA-256 checksum
+        id: checksum
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sha256sum "QTranslate-${VERSION}.zip" > "SHA256SUMS.txt"
+          echo "Built checksum:"
+          cat SHA256SUMS.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -106,9 +141,19 @@ jobs:
             3. Run `QTranslate.jar` inside it
             4. The `plugins/` folder already contains the bundled plugins
             5. The `languages/` folder already contains the bundled language files
+            6. The `themes/` folder contains additional community themes (drop more `.theme.json` files here to add themes)
 
             > **Requires Java 17 or later.** [Download Java](https://adoptium.net)
 
-          files: QTranslate-${{ steps.version.outputs.version }}.zip
+            ## Verification
+
+            Verify the integrity of your download using the `SHA256SUMS.txt` file:
+            ```
+            sha256sum -c SHA256SUMS.txt
+            ```
+
+          files: |
+            QTranslate-${{ steps.version.outputs.version }}.zip
+            SHA256SUMS.txt
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc') }}
           draft: false

@@ -1,0 +1,88 @@
+name: Plugin submission
+description: Submit your plugin to be listed in the QTranslate community plugins table
+title: "[Plugin] "
+labels: [plugin-submission]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for building a QTranslate plugin! Fill in the details below and we'll add it to the community plugins table.
+
+        **Before submitting**, make sure your repo has:
+        - The `qtranslate-plugin` GitHub topic set (repo Settings → Topics)
+        - A `qtranslate-plugin.json` file at the repo root
+        - A downloadable JAR attached to a GitHub Release
+
+        → [Plugin publishing guide](https://github.com/ahatem/qtranslate/wiki/Creating-a-Plugin#publishing-on-github)
+
+  - type: input
+    id: repo_url
+    attributes:
+      label: Repository URL
+      description: The full GitHub URL of your plugin repository.
+      placeholder: "https://github.com/your-username/qtranslate-my-plugin"
+    validations:
+      required: true
+
+  - type: input
+    id: plugin_name
+    attributes:
+      label: Plugin name
+      placeholder: "e.g. DeepL Translator"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: service_types
+    attributes:
+      label: Service types provided
+      description: Check all that apply.
+      options:
+        - label: Translator
+        - label: Text-to-Speech (TTS)
+        - label: OCR
+        - label: Spell Checker
+        - label: Dictionary
+        - label: Summarizer
+        - label: Rewriter
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: One or two sentences — what does your plugin do and which API/service does it wrap?
+      placeholder: "Adds DeepL translation support using the free/pro DeepL API."
+    validations:
+      required: true
+
+  - type: input
+    id: qtranslate_version
+    attributes:
+      label: Minimum QTranslate version
+      description: The oldest QTranslate version your plugin works with.
+      placeholder: "e.g. 1.2.0"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: The repo has the `qtranslate-plugin` GitHub topic
+          required: true
+        - label: A `qtranslate-plugin.json` file is at the repo root
+          required: true
+        - label: A downloadable `.jar` is attached to a GitHub Release
+          required: true
+        - label: The plugin works with the current QTranslate release
+          required: true
+        - label: The repository has a README with setup instructions
+          required: true
+        - label: I built this plugin myself or have permission to submit it
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        By submitting this issue you agree the plugin may be listed publicly in the QTranslate community table, and removed at the maintainer's discretion if it becomes unmaintained or violates these guidelines.

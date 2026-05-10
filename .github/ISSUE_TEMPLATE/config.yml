@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question / General discussion
+    url: https://github.com/ahatem/qtranslate/discussions
+    about: Use GitHub Discussions for questions, ideas, and show-and-tell.
+  - name: Plugin publishing guide
+    url: https://github.com/ahatem/qtranslate/wiki/Creating-a-Plugin#publishing-on-github
+    about: Learn how to publish your plugin and get it listed in the marketplace.

@@ -130,10 +130,11 @@ class MyPlugin : Plugin<PluginSettings.None> {
         MyTranslatorService()
     )
 
-    override fun onInitialize(context: PluginContext) {
+    override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> {
         // context.logger  — write to the app log
-        // context.scope   — coroutine scope tied to plugin lifecycle
-        // context.storeValue / getValue — persistent storage, survives restarts
+        // context.scope   — coroutine scope tied to plugin lifecycle; cancelled on disable
+        // context.storeValue / getValue — persistent key-value storage, survives restarts
+        return Ok(Unit)
     }
 }
 ```
@@ -142,18 +143,62 @@ class MyPlugin : Plugin<PluginSettings.None> {
 
 ```kotlin
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
-import com.github.ahatem.qtranslate.api.plugin.Setting
+import com.github.ahatem.qtranslate.api.settings.*
 
+@SettingGroups(
+    SettingGroup(key = "auth",     title = "Authentication",  order = 10),
+    SettingGroup(key = "advanced", title = "Advanced Options", order = 20,
+                 collapsible = true, defaultCollapsed = true)
+)
 class MySettings : PluginSettings.Configurable() {
+
     @field:Setting(
         label       = "API Key",
         description = "Your key from example.com/developers",
-        isRequired  = true
+        type        = SettingType.PASSWORD,
+        isRequired  = true,
+        group       = "auth",
+        order       = 10
     )
     var apiKey: String = ""
 
-    @field:Setting(label = "Region")
+    @field:Setting(
+        label        = "Region",
+        type         = SettingType.DROPDOWN,
+        options      = "us-east,us-west,eu-central",
+        defaultValue = "us-east",
+        group        = "auth",
+        order        = 20
+    )
     var region: String = "us-east"
+
+    @field:Setting(
+        label        = "Request timeout (s)",
+        type         = SettingType.SLIDER,
+        minValue     = 5.0,
+        maxValue     = 60.0,
+        step         = 5.0,
+        defaultValue = "30",
+        group        = "advanced",
+        order        = 10
+    )
+    var timeoutSeconds: Double = 30.0
+
+    @field:Setting(
+        label        = "Enable response cache",
+        type         = SettingType.BOOLEAN,
+        defaultValue = "false",
+        group        = "advanced",
+        order        = 20
+    )
+    var cacheEnabled: Boolean = false
+
+    @PluginAction(label = "Test Connection", group = "auth", tooltip = "Verifies the API key is valid.")
+    suspend fun testConnection(): String? {
+        if (apiKey.isBlank()) return "No API key configured."
+        // Make a lightweight test request here
+        return "Connected successfully."
+    }
 }
 
 class MyPlugin : Plugin<MySettings> {
@@ -165,10 +210,33 @@ class MyPlugin : Plugin<MySettings> {
 
     override fun getSettings() = settings
     override fun getServices() = listOf(MyTranslatorService(settings))
+
+    override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> {
+        return Ok(Unit)
+    }
 }
 ```
 
 `@field:Setting` on a `var` property is enough — QTranslate builds the settings dialog automatically. No UI code needed.
+
+**Setting types** (`SettingType`):
+
+| Type | Renders as |
+|------|-----------|
+| `TEXT` | Single-line text field (default) |
+| `PASSWORD` | Masked text field |
+| `TEXTAREA` | Multi-line text area |
+| `BOOLEAN` | Checkbox |
+| `DROPDOWN` | Drop-down from `options` list |
+| `NUMBER` | Numeric spinner |
+| `SLIDER` | Slider with `minValue`/`maxValue`/`step` |
+| `FILE_PATH` | Text field + file chooser button |
+
+**Grouping** — add `@SettingGroups(...)` to the settings class and reference the group `key` in each `@field:Setting`. Groups with `collapsible = true` can be collapsed by the user.
+
+**Actions** — annotate a `suspend fun methodName(): String?` in your settings class with `@PluginAction`. QTranslate renders it as a button in the group's action strip. Return a non-null string to show a result message.
+
+**Conditional visibility** — use `showIf = "propertyName=value"` to show a field only when another field has a specific value.
 
 ---
 
@@ -372,6 +440,112 @@ import com.github.michaelbull.result.Result  // for the return type
 
 ---
 
-## Share your plugin
+## Publishing on GitHub
 
-Once it works: [submit to the community list](https://github.com/ahatem/qtranslate/issues/new?template=plugin_submission.md) — it gets added to the README and wiki.
+Once your plugin works, publishing it on GitHub makes it discoverable in QTranslate's built-in marketplace.
+
+### Step 1 — Create a public GitHub repository
+
+Any name works, but `qtranslate-{plugin-id}` is the convention:
+
+```
+github.com/your-username/qtranslate-my-plugin
+```
+
+### Step 2 — Add the `qtranslate-plugin` topic
+
+In your repo's **Settings → Topics**, add `qtranslate-plugin`. This is what the QTranslate marketplace uses to discover plugins — without this tag, your plugin won't appear.
+
+### Step 3 — Add `qtranslate-plugin.json` to your repo root
+
+This file provides the metadata shown in the marketplace:
+
+```json
+{
+  "id":            "com.example.my-plugin",
+  "name":          "My Plugin",
+  "version":       "1.0.0",
+  "author":        "your-github-username",
+  "description":   "One-sentence description shown in the marketplace.",
+  "serviceTypes":  ["TRANSLATOR"],
+  "minApiVersion": "1.0.0",
+  "sha256":        "abc123...",
+  "icon":          "assets/icon.svg"
+}
+```
+
+**Notes:**
+- `id` must match the `id` in your `Plugin` class and `plugin.json` exactly
+- `serviceTypes`: one or more of `TRANSLATOR` `TTS` `OCR` `SPELL_CHECKER` `DICTIONARY` `SUMMARIZER` `REWRITER`
+- `sha256`: optional but strongly recommended — the SHA-256 hash of the release JAR. Users see a warning if it is absent. Generate it with `sha256sum my-plugin.jar` (Linux/macOS) or `certutil -hashfile my-plugin.jar SHA256` (Windows).
+- `icon`: path to an SVG inside your repo (not your JAR). Used as the marketplace thumbnail.
+
+### Step 4 — Create a GitHub Release with the JAR as an asset
+
+The marketplace downloads the **first `.jar` file** found in your latest release's assets. Name it `{plugin-id}.jar` so the filename is predictable.
+
+Here is a full `release.yml` GitHub Actions workflow you can paste into `.github/workflows/release.yml`:
+
+```yaml
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build fat JAR
+        run: ./gradlew shadowJar --no-daemon
+        env:
+          PLUGIN_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Compute SHA-256
+        id: sha256
+        run: |
+          JAR=$(ls build/libs/my-plugin-*.jar | head -1)
+          echo "hash=$(sha256sum $JAR | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "jar=$JAR" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: My Plugin ${{ steps.version.outputs.version }}
+          body: |
+            SHA-256: `${{ steps.sha256.outputs.hash }}`
+          files: ${{ steps.sha256.outputs.jar }}
+```
+
+> **Tip:** After each release, copy the computed `sha256` value into `qtranslate-plugin.json` and commit it so the marketplace can verify the download.
+
+### Step 5 — Add README badges (optional)
+
+```markdown
+[![Latest Release](https://img.shields.io/github/v/release/your-username/qtranslate-my-plugin?style=flat-square)](https://github.com/your-username/qtranslate-my-plugin/releases/latest)
+[![QTranslate Plugin](https://img.shields.io/badge/QTranslate-plugin-4A90D9?style=flat-square)](https://github.com/ahatem/qtranslate)
+[![License](https://img.shields.io/github/license/your-username/qtranslate-my-plugin?style=flat-square)](LICENSE)
+```
+
+---
+
+Your plugin will appear in QTranslate's marketplace automatically once it has the `qtranslate-plugin` topic. Users can browse, install, and update it without leaving the app.

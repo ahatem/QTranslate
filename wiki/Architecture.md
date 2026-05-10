@@ -72,15 +72,46 @@ Business logic lives in use cases, not stores. Each use case does one thing:
 `PluginManager` orchestrates:
 - `PluginLoader` — scans the `plugins/` directory, validates manifests
 - `PluginRegistry` — thread-safe in-memory store of loaded plugins
-- `PluginLifecycleHandler` — calls `onInitialize`, `onEnable`, `onDisable`, `onShutdown`
+- `PluginLifecycleHandler` — calls `initialize`, `onEnable`, `onDisable`, `shutdown`
 - `PluginInstaller` — copies JARs, handles install/uninstall/verification
-- `PluginSettingsManager` — reflects `@field:Setting` annotations to build settings UI
+- `PluginSettingsManager` — reflects `@field:Setting`, `@SettingGroup`, and `@PluginAction` annotations to build the settings UI dynamically
+
+### Plugin settings annotation system
+
+Settings panels are generated entirely from annotations on the plugin's `PluginSettings.Configurable` subclass — no UI code required from plugin authors:
+
+- `@field:Setting` — marks a `var` property as a settings field; declares label, type, order, validation, conditional visibility (`showIf`)
+- `@SettingGroups` / `@SettingGroup` (class-level) — organize fields into collapsible named sections
+- `@PluginAction` (method-level) — renders a button that invokes a `suspend fun(): String?` on the settings instance; result is shown as a message (useful for "Test Connection")
+- `SettingType` — `TEXT`, `PASSWORD`, `TEXTAREA`, `BOOLEAN`, `DROPDOWN`, `NUMBER`, `SLIDER`, `FILE_PATH`
+
+`DynamicPluginSettingsDialog` uses reflection to walk the settings class at runtime and build a `JPanel` from the discovered fields and actions.
 
 ### Settings
 
 `SettingsRepository` persists configuration to DataStore. `SettingsStore` holds a working copy (draft) that can be edited without committing — Apply saves it, Cancel discards it.
 
 `ActiveServiceManager` resolves "which service should I use?" from the current preset and live service registry.
+
+`ConfigMigrator` handles version-to-version migration of the persisted `Configuration`. When the app loads a config file written by an older version, `ConfigMigrator` upgrades it field-by-field (adding new fields with defaults, renaming changed fields) before handing it to `SettingsRepository`. This ensures zero data loss when new settings are introduced.
+
+### Localization
+
+`LocalizationManager` loads TOML locale files from the `languages/` directory next to the JAR. It holds all string tables in `ConcurrentHashMap`s for thread-safe access. On language switch, it reloads the active locale table and emits an event that triggers a full UI re-render.
+
+The English fallback is embedded in the JAR at `core/src/main/resources/localization/embedded_en.toml` — so the app always has strings even if the `languages/` folder is missing.
+
+---
+
+### Theme system
+
+`ThemeManager` (in `:ui-swing`) manages all themes:
+
+- **Built-in themes** — 31 themes (17 custom `.theme.json` files embedded in the JAR + 14 FlatLaf IntelliJ themes bundled at compile time). Always available regardless of the external `themes/` folder.
+- **External themes** — scanned from `File(appDataDirectory, "themes")` at startup and on `reload()`. Any `.theme.json` file found there is loaded with `IntelliJTheme.createLaf()` and added to the available list. The `themes/` folder ships in the release zip alongside `languages/` and `plugins/`.
+- **OS Default** — a sentinel theme ID (`"os_default"`) that resolves to the platform-preferred dark or light theme at apply time, using OS-specific detection (Windows registry, `defaults read` on macOS).
+- **Platform defaults** — macOS → `mac_dark`/`mac_light`; Linux → `resharper_dark`/`resharper_light`; Windows → `flat_dark`/`flat_light`.
+- **Animated transitions** — uses `FlatAnimatedLafChange.showSnapshot()` / `hideSnapshotWithAnimation()` to cross-fade between themes without a visible flash.
 
 ---
 

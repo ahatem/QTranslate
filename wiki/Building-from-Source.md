@@ -8,11 +8,13 @@ This guide walks you through compiling QTranslate from source and running it loc
 
 | Tool | Version | Notes |
 |------|---------|-------|
-| Java | 11+ | [Temurin](https://adoptium.net) recommended |
+| Java | 11+ (to run) | [Temurin](https://adoptium.net) recommended |
 | Git | any | |
 | IntelliJ IDEA | 2023+ | Optional but recommended |
 
 You do not need to install Gradle — the project includes a Gradle wrapper (`./gradlew`).
+
+> **To build from source**, the Gradle build uses `jvmToolchain(21)` for compilation. Gradle will automatically download and use Java 21 via its toolchain provisioning — you do not need to install it manually. The compiled JAR targets Java 11 bytecode, so the final `QTranslate.jar` runs on any Java 11 or later installation.
 
 ---
 
@@ -75,8 +77,9 @@ java -jar app/build/libs/app.jar
 Each plugin is a separate Gradle subproject under `plugins/`:
 
 ```bash
-./gradlew :plugins:google-services:jar
-./gradlew :plugins:bing-services:jar
+./gradlew :plugins:google-services:shadowJar
+./gradlew :plugins:bing-services:shadowJar
+./gradlew :plugins:ai-services:shadowJar
 ```
 
 The plugin JARs are written to `plugins/<name>/build/libs/`. Install them through the QTranslate UI as described in [Installing Plugins](Installing-Plugins.md).
@@ -92,9 +95,10 @@ qtranslate/
   ui-swing/      ← Swing UI components
   app/           ← composition root, main entry point
   plugins/
-    common/      ← shared utilities for plugin authors
+    common/      ← shared HTTP client, language mapper, JSON utilities
     google-services/
     bing-services/
+    ai-services/ ← OpenRouter-based translator, summarizer, rewriter, OCR, dictionary
   buildSrc/      ← shared Gradle convention plugins
 ```
 

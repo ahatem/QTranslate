@@ -16,7 +16,7 @@
 
 <br>
 
-<img src="docs/images/screenshot-main-dark.png" alt="QTranslate main window" width="720">
+<img src="docs/images/screenshot-extra-output.png" alt="QTranslate — backward translation and Quick Dictionary" width="720">
 
 </div>
 
@@ -33,38 +33,33 @@ This is a full rewrite in Kotlin with one core design change: **everything is a 
 Select text anywhere → press `Ctrl+Q` → translation appears instantly. That's the core of it.
 
 <div align="center">
-<img src="docs/images/screenshot-quick-translate.png" alt="Quick Translate popup" width="500">
-<br><sub>Quick Translate — select text in any app, press Ctrl+Q</sub>
+<table>
+<tr>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-quick-translate.png" alt="Quick Translate popup" width="340"><br>
+<sub><b>Quick Translate</b> — select text in any app, press <kbd>Ctrl+Q</kbd></sub>
+</td>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-settings.png" alt="Settings dialog" width="340"><br>
+<sub><b>Settings</b> — two-column service grid, 30+ themes, keyboard shortcut chip badges</sub>
+</td>
+</tr>
+<tr>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-rtl.png" alt="RTL layout — Arabic" width="340"><br>
+<sub><b>RTL support</b> — full layout mirroring for Arabic, Hebrew, Farsi, and more</sub>
+</td>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-compact.png" alt="Compact layout" width="340"><br>
+<sub><b>Compact layout</b> — tabbed view with extra output, fits any workflow</sub>
+</td>
+</tr>
+</table>
 </div>
 
 <br>
 
 For longer work: open the main window, type or paste, translate. Switch engines in one click. Run OCR on a screenshot. Listen to pronunciation. Check spelling. Browse history. All from the keyboard, all without opening a browser.
-
-<div align="center">
-<table>
-<tr>
-<td align="center" width="50%">
-<img src="docs/images/screenshot-extra-output.png" alt="Extra output panel" width="340"><br>
-<sub><b>Extra output panel</b> — backward translation, summary, or rewrite alongside the main result</sub>
-</td>
-<td align="center" width="50%">
-<img src="docs/images/screenshot-rtl.png" alt="RTL layout" width="340"><br>
-<sub><b>RTL support</b> — full layout mirroring for Arabic, Hebrew, Farsi</sub>
-</td>
-</tr>
-<tr>
-<td align="center" width="50%">
-<img src="docs/images/screenshot-light.png" alt="Light theme" width="340"><br>
-<sub><b>Light theme</b> — fully themeable with FlatLaf, dark and light</sub>
-</td>
-<td align="center" width="50%">
-<img src="docs/images/screenshot-plugins.png" alt="Plugin manager" width="340"><br>
-<sub><b>Plugin manager</b> — install, configure, enable, disable at runtime</sub>
-</td>
-</tr>
-</table>
-</div>
 
 ---
 
@@ -86,7 +81,7 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 
 | | |
 |---|---|
-| **Screen OCR** | Draw a rectangle anywhere on screen, extract the text, translate it |
+| **Screen OCR** | Draw a rectangle anywhere on screen — translate, copy text, copy image, or save; re-crop without closing |
 | **Spell checking** | Live underlines as you type, click a suggestion to apply |
 | **Remove line breaks** | Strips newlines from pasted text so PDF content translates as sentences |
 | **Language filter** | Pin 3–4 target languages so the picker isn't overwhelming |
@@ -100,6 +95,7 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 | **Service presets** | Save different engine combinations for different contexts |
 | **Google Services** | Translator, TTS, OCR, Spell Checker, Dictionary — included |
 | **Bing Services** | Translator, TTS, Spell Checker — included |
+| **AI Services** | Translator, Summarizer, Rewriter, Spell Checker, Dictionary, Vision OCR — via [OpenRouter](https://openrouter.ai) (300+ models, one API key) — included |
 
 ### Interface
 
@@ -108,7 +104,7 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 | **Three layouts** | Classic (stacked), Side-by-side, Compact (tabbed) |
 | **Global hotkeys** | Every action is bindable, configurable as global or app-local |
 | **RTL support** | Full layout mirroring for Arabic, Hebrew, Farsi, and more |
-| **15+ themes** | Dark and light, via FlatLaf — including animated transitions |
+| **30+ themes** | Dark and light via FlatLaf, with animated transitions — drop any IntelliJ `.theme.json` into the `themes/` folder to add more |
 | **Portable** | Runs from any folder, all data lives next to the JAR |
 
 ---
@@ -123,24 +119,21 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 
 ```
 QTranslate/
-  ├── QTranslate.jar                ← double-click, or: java -jar QTranslate.jar
+  ├── QTranslate.jar                  ← double-click, or: java -jar QTranslate.jar
   ├── plugins/
   │     ├── google-services-plugin.jar
-  │     └── bing-services-plugin.jar
+  │     ├── bing-services-plugin.jar
+  │     └── ai-services-plugin.jar
+  ├── themes/
+  │     └── kokedera.theme.json       ← community theme included; drop more .theme.json files here
   └── languages/
-        ├── en-GB.toml
         ├── ar-SA.toml
+        ├── zh-CN.toml
         ├── de-DE.toml
-        ├── es-ES.toml
-        ├── fr-FR.toml
-        ├── ja-JP.toml
-        ├── pt-BR.toml
-        ├── ru-RU.toml
-        ├── tr-TR.toml
-        └── zh-CN.toml
+        └── ...
 ```
 
-Google and Bing plugins are included. Add your API keys in **Settings → Plugins → [plugin] → Configure**.
+Google, Bing, and AI plugins are included. Add your API keys in **Settings → Plugins → [plugin] → Configure**.
 
 > **Getting "This application requires a Java Runtime Environment"?**
 > Java isn't installed or `JAVA_HOME` isn't set. This video covers the full process:
@@ -155,8 +148,9 @@ Google and Bing plugins are included. Add your API keys in **Settings → Plugin
 1. Launch `QTranslate.jar` — it starts in the system tray
 2. Select text anywhere on screen
 3. Press `Ctrl+Q` — Quick Translate popup opens with the result ready
-4. Press `Ctrl+E` — listen to the selected text
-5. Press `Ctrl+I` — draw a screen region to OCR and translate
+4. Press `Ctrl+D` — open the Dictionary for the selected word
+5. Press `Ctrl+E` — listen to the selected text
+6. Press `Ctrl+I` — draw a screen region to OCR and translate
 
 Open **Settings** (gear icon) to configure API keys, themes, hotkeys, and service presets.
 
@@ -170,11 +164,12 @@ Open **Settings** (gear icon) to configure API keys, themes, hotkeys, and servic
 
 ### Community plugins
 
-> Built a plugin? [Submit it here](https://github.com/ahatem/QTranslate/issues/new?template=plugin_submission.md) — quality plugins get listed and promoted to all QTranslate users.
+> **Built a plugin?** Publish it on GitHub with the `qtranslate-plugin` topic and a `qtranslate-plugin.json` in your repo — it will appear automatically in QTranslate's built-in marketplace.
+> → [Plugin publishing guide](wiki/Creating-a-Plugin.md#publishing-on-github)
 
 | Plugin | Services | Author |
 |--------|----------|--------|
-| *(be the first)* | | |
+| *(be the first — it's 50 lines of Kotlin)* | | |
 
 ---
 
@@ -193,7 +188,7 @@ class MyPlugin : Plugin<PluginSettings.None> {
 }
 ```
 
-The bundled Google and Bing plugins are fully open source in `plugins/` — they're the best real-world reference for auth, language mapping, error handling, and settings.
+The bundled Google, Bing, and AI plugins are fully open source in `plugins/` — they're the best real-world reference for auth, language mapping, error handling, and settings.
 
 **Full guide** → [Creating a Plugin](wiki/Creating-a-Plugin.md)
 
@@ -201,9 +196,9 @@ The bundled Google and Bing plugins are fully open source in `plugins/` — they
 
 ## Translate the interface
 
-QTranslate ships with 11 languages built in:
+QTranslate ships with 13 languages built in:
 
-**Arabic · Chinese · English · French · German · Japanese · Portuguese · Russian · Spanish · Turkish**
+**Arabic · Bengali · Chinese · English · French · German · Hungarian · Italian · Japanese · Portuguese · Russian · Spanish · Turkish**
 
 Want another language? Copy `languages/en.toml`, rename it to your language code, translate the values. No code needed.
 
@@ -216,11 +211,12 @@ Want another language? Copy `languages/en.toml`, rename it to your language code
 Clean Architecture + MVI. Nothing leaks between layers:
 
 ```
-:api        ← plugin interfaces — plugins only depend on this
-:core       ← business logic, use cases, MVI stores
-:ui-swing   ← Swing UI, Renderable<State> components
-:app        ← composition root
-:plugins/*  ← Google, Bing, community plugins
+:api          ← plugin interfaces — plugins only depend on this
+:core         ← business logic, use cases, MVI stores
+:ui-swing     ← Swing UI, Renderable<State> components
+:app          ← composition root
+:plugins/*    ← Google, Bing, AI, community plugins
+:plugins/common ← shared HTTP client, JSON, language utilities
 ```
 
 **Guide** → [Architecture](wiki/Architecture.md)
