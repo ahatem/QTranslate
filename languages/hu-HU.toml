@@ -171,6 +171,7 @@ interface_language = "Felület nyelve:"
 language_hint = "A változtatások azonnal érvénybe lépnek. Néhány felirat teljes frissítéséhez újraindítás lehet szükséges."
 theme_group = "Téma"
 theme_label = "Téma:"
+theme_os_default = "OS Default (follows system)"
 unified_title_bar = "Egységes címsor használata"
 scale_group = "UI méretezés"
 scale_label = "Méretezés:"
@@ -375,6 +376,8 @@ required_fields_error_msg = "Kérjük, töltse ki a szükséges mezőket:"
 # OTHER DIALOGS
 # ===================================================================
 [about_dialog]
+support_button = "Support this project ♥"
+donation_nudge = "You've translated a lot with QTranslate! If you find it useful, consider supporting the project (About → Support ♥)"
 title = "QTranslate névjegye"
 description = "Az eredeti QTranslate-et már nem fejlesztik tovább. Ez egy teljesen újratervezett változat — ugyanaz az alapelv, de bővítményalapú, így az alkalmazás mindig naprakész marad."
 
@@ -468,6 +471,7 @@ tts_not_supported_format = "A(z) %s nem támogatja a szövegfelolvasást."
 unknown_error = "Ismeretlen hiba történt."
 
 [status_bar]
+ocr_text_copied = "Text recognized and copied to clipboard."
 translating = "Fordítás folyamatban..."
 translation_complete = "A fordítás kész."
 translation_timeout = "A fordítás időtúllépés miatt megszakadt. Kérjük, próbálja újra."

@@ -171,6 +171,7 @@ interface_language = "ইন্টারফেস ভাষা:"
 language_hint = "পরিবর্তনগুলো সাথে সাথে কার্যকর হবে। কিছু লেবেলের জন্য অ্যাপ রিস্টার্ট প্রয়োজন হতে পারে।"
 theme_group = "থিম"
 theme_label = "থিম:"
+theme_os_default = "OS Default (follows system)"
 unified_title_bar = "ইউনিফাইড টাইটেল বার ব্যবহার করুন"
 scale_group = "UI স্কেল"
 scale_label = "স্কেল:"
@@ -375,6 +376,8 @@ required_fields_error_msg = "অনুগ্রহ করে প্রয়ো�
 # OTHER DIALOGS
 # ===================================================================
 [about_dialog]
+support_button = "Support this project ♥"
+donation_nudge = "You've translated a lot with QTranslate! If you find it useful, consider supporting the project (About → Support ♥)"
 title = "QTranslate সম্পর্কে"
 description = "মূল QTranslate প্রকল্পটি পরিত্যক্ত হয়েছিল। এটি একটি সম্পূর্ণ নতুন সংস্করণ — একই ধারণা, তবে প্লাগইন-ভিত্তিক যাতে অ্যাপটি সর্বদা সচল থাকে।"
 
@@ -468,6 +471,7 @@ tts_not_supported_format = "টেক্সট-টু-স্পিচ %s দ্�
 unknown_error = "একটি অজানা ত্রুটি ঘটেছে।"
 
 [status_bar]
+ocr_text_copied = "Text recognized and copied to clipboard."
 translating = "অনুবাদ হচ্ছে..."
 translation_complete = "অনুবাদ সম্পন্ন।"
 translation_timeout = "অনুবাদের সময়সীমা শেষ। আবার চেষ্টা করুন।"

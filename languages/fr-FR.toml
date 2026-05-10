@@ -171,6 +171,7 @@ interface_language = "Langue de l'interface :"
 language_hint = "Les changements s'appliquent immédiatement. Certains éléments peuvent nécessiter un redémarrage."
 theme_group = "Thème"
 theme_label = "Thème :"
+theme_os_default = "OS Default (follows system)"
 unified_title_bar = "Utiliser la barre de titre unifiée"
 scale_group = "Échelle de l'UI"
 scale_label = "Échelle :"
@@ -375,6 +376,8 @@ required_fields_error_msg = "Veuillez remplir les champs obligatoires :"
 # OTHER DIALOGS
 # ===================================================================
 [about_dialog]
+support_button = "Support this project ♥"
+donation_nudge = "You've translated a lot with QTranslate! If you find it useful, consider supporting the project (About → Support ♥)"
 title = "À propos de QTranslate"
 description = "Le QTranslate original a été abandonné. Voici une réécriture complète — même concept, basée sur des plugins pour que l'application soit toujours à jour."
 
@@ -468,6 +471,7 @@ tts_not_supported_format = "La synthèse vocale n'est pas prise en charge par %s
 unknown_error = "Une erreur inconnue est survenue."
 
 [status_bar]
+ocr_text_copied = "Text recognized and copied to clipboard."
 translating = "Traduction en cours..."
 translation_complete = "Traduction terminée."
 translation_timeout = "La traduction a expiré. Veuillez réessayer."

@@ -22,7 +22,14 @@ class AppearancePanel(
     private val scope: CoroutineScope
 ) : SettingsPanel() {
 
-    private val themes = themeManager.getAvailableThemes().map {
+    /** Sentinel item that represents "follow the OS dark/light preference". */
+    private val osDefaultItem = ThemeInfo(
+        id          = ThemeManager.OS_DEFAULT_THEME_ID,
+        displayName = localizationManager.getString("settings_appearance.theme_os_default"),
+        isDark      = false
+    )
+
+    private val themes = listOf(osDefaultItem) + themeManager.getAvailableThemes().map {
         ThemeInfo(it.id, it.name, it.isDark)
     }
 
@@ -269,7 +276,7 @@ class AppearancePanel(
                     break
                 }
             }
-            themeCombo.selectedItem  = themes.find { it.id == c.themeId }
+            themeCombo.selectedItem  = themes.find { it.id == c.themeId } ?: osDefaultItem
             titleBarCheck.isSelected = c.useUnifiedTitleBar
             scaleSpinner.value       = c.uiScale
             uiFontSize.value         = c.uiFontConfig.size

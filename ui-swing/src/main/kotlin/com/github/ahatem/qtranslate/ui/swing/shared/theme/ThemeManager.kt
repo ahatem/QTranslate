@@ -61,11 +61,11 @@ class ThemeManager(
 
     private var currentTheme: Theme? = null
 
-    val defaultDarkThemeId = "builtin:darcula"
+    val defaultDarkThemeId  = "builtin:darcula"
     val defaultLightThemeId = "builtin:intellij"
 
     val systemDefaultThemeId: String
-        get() = if (isSystemInDarkMode()) defaultDarkThemeId else defaultLightThemeId
+        get() = if (isSystemInDarkMode()) platformDefaultDarkThemeId() else platformDefaultLightThemeId()
 
     init {
         reload()
@@ -83,28 +83,30 @@ class ThemeManager(
     fun getCurrentTheme(): Theme? = currentTheme
 
     fun findThemeById(id: String?): Theme {
+        val resolvedId = if (id == OS_DEFAULT_THEME_ID) systemDefaultThemeId else id
+
         // Fast path – cache hit
-        if (id != null && themeCache.containsKey(id)) return themeCache[id]!!
+        if (resolvedId != null && themeCache.containsKey(resolvedId)) return themeCache[resolvedId]!!
 
         // Slow path – linear search
-        val theme = allThemes.find { it.id == id }
+        val theme = allThemes.find { it.id == resolvedId }
         if (theme != null) {
-            themeCache[id!!] = theme
+            themeCache[resolvedId!!] = theme
             return theme
         }
 
         // Fallback chain
-        logger.warn("Theme not found: '$id' – using fallback")
+        logger.warn("Theme not found: '$resolvedId' – using fallback")
         return findThemeById(
             when {
-                id != null && id.contains("light", ignoreCase = true) -> defaultLightThemeId
+                resolvedId != null && resolvedId.contains("light", ignoreCase = true) -> defaultLightThemeId
                 else -> defaultDarkThemeId
             }
         )
     }
 
     fun themeExists(id: String): Boolean =
-        themeCache.containsKey(id) || allThemes.any { it.id == id }
+        id == OS_DEFAULT_THEME_ID || themeCache.containsKey(id) || allThemes.any { it.id == id }
 
     // ── Apply (runtime) ─────────────────────────────────────────────────────
 
@@ -241,6 +243,27 @@ class ThemeManager(
     }
 
     companion object {
+        const val OS_DEFAULT_THEME_ID = "os_default"
+
+        val currentOs: String by lazy {
+            val os = System.getProperty("os.name").lowercase()
+            when {
+                os.contains("win") -> "win"
+                os.contains("mac") -> "mac"
+                else -> "linux"
+            }
+        }
+
+        fun platformDefaultDarkThemeId(): String = when (currentOs) {
+            "mac" -> "builtin:mac_dark"
+            else  -> "builtin:darcula"
+        }
+
+        fun platformDefaultLightThemeId(): String = when (currentOs) {
+            "mac" -> "builtin:mac_light"
+            else  -> "builtin:intellij"
+        }
+
         fun isSystemInDarkMode(): Boolean = try {
             when {
                 System.getProperty("os.name").lowercase().contains("win") -> {

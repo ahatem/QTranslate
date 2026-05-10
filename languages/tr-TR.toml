@@ -171,6 +171,7 @@ interface_language = "Arayüz Dili:"
 language_hint = "Değişiklikler anında uygulanır. Bazı etiketlerin tamamen güncellenmesi için yeniden başlatma gerekebilir."
 theme_group = "Tema"
 theme_label = "Tema:"
+theme_os_default = "OS Default (follows system)"
 unified_title_bar = "Birleşik başlık çubuğunu kullan"
 scale_group = "Arayüz Ölçeği"
 scale_label = "Ölçek:"
@@ -375,6 +376,8 @@ required_fields_error_msg = "Lütfen gerekli alanları doldurun:"
 # OTHER DIALOGS
 # ===================================================================
 [about_dialog]
+support_button = "Support this project ♥"
+donation_nudge = "You've translated a lot with QTranslate! If you find it useful, consider supporting the project (About → Support ♥)"
 title = "QTranslate Hakkında"
 description = "Orijinal QTranslate projesi durduruldu. Bu, eklenti tabanlı yapısıyla uygulamanın asla eskimeyeceği tam bir yeniden yazımdır."
 
@@ -468,6 +471,7 @@ tts_not_supported_format = "Metinden sese özelliği %s tarafından desteklenmiy
 unknown_error = "Bilinmeyen bir hata oluştu."
 
 [status_bar]
+ocr_text_copied = "Text recognized and copied to clipboard."
 translating = "Çevriliyor..."
 translation_complete = "Çeviri tamamlandı."
 translation_timeout = "Çeviri zaman aşımına uğradı. Lütfen tekrar deneyin."

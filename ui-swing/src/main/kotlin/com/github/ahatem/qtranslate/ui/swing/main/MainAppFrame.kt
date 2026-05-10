@@ -285,6 +285,24 @@ class MainAppFrame(
                 }
         }
 
+        // OS dark/light mode watcher — polls every 10 s; re-applies theme when "os_default" is active
+        appScope.launch(handler) {
+            var lastDarkMode = ThemeManager.isSystemInDarkMode()
+            while (true) {
+                delay(10_000L)
+                val isDark = ThemeManager.isSystemInDarkMode()
+                if (isDark != lastDarkMode) {
+                    lastDarkMode = isDark
+                    val savedThemeId = settingsStore.state.value.originalConfiguration.themeId
+                    if (savedThemeId == ThemeManager.OS_DEFAULT_THEME_ID) {
+                        withContext(Dispatchers.Swing) {
+                            themeManager.applySystemTheme()
+                        }
+                    }
+                }
+            }
+        }
+
         // Main content and QuickTranslate dialog rendering
         appScope.launch(handler) {
             mainStore.state.combine(settingsStore.state) { m, s -> m to s }

@@ -171,6 +171,7 @@ interface_language = "Язык интерфейса:"
 language_hint = "Изменения применяются немедленно. Для полного обновления некоторых элементов может потребоваться перезапуск."
 theme_group = "Тема"
 theme_label = "Тема:"
+theme_os_default = "OS Default (follows system)"
 unified_title_bar = "Использовать единый заголовок окна"
 scale_group = "Масштаб интерфейса"
 scale_label = "Масштаб:"
@@ -375,6 +376,8 @@ required_fields_error_msg = "Пожалуйста, заполните обяза
 # OTHER DIALOGS
 # ===================================================================
 [about_dialog]
+support_button = "Support this project ♥"
+donation_nudge = "You've translated a lot with QTranslate! If you find it useful, consider supporting the project (About → Support ♥)"
 title = "О программе QTranslate"
 description = "Оригинальный QTranslate был заброшен. Это полная переработка — та же идея, но на основе плагинов, чтобы программа никогда не устаревала."
 
@@ -468,6 +471,7 @@ tts_not_supported_format = "Синтез речи (TTS) не поддержив�
 unknown_error = "Произошла неизвестная ошибка."
 
 [status_bar]
+ocr_text_copied = "Text recognized and copied to clipboard."
 translating = "Перевод..."
 translation_complete = "Перевод выполнен."
 translation_timeout = "Время перевода истекло. Попробуйте снова."

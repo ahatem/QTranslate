@@ -171,6 +171,7 @@ interface_language = "インターフェース言語:"
 language_hint = "変更はすぐに適用されます。一部のラベルの更新には再起動が必要な場合があります。"
 theme_group = "テーマ"
 theme_label = "テーマ:"
+theme_os_default = "OS Default (follows system)"
 unified_title_bar = "統合タイトルバーを使用する"
 scale_group = "UI スケール"
 scale_label = "スケール:"
@@ -375,6 +376,8 @@ required_fields_error_msg = "必須項目を入力してください:"
 # OTHER DIALOGS
 # ===================================================================
 [about_dialog]
+support_button = "Support this project ♥"
+donation_nudge = "You've translated a lot with QTranslate! If you find it useful, consider supporting the project (About → Support ♥)"
 title = "QTranslate について"
 description = "オリジナルの QTranslate は開発が終了しました。これはフルスクラッチによる再開発版です。プラグイン駆動により、アプリが古くなることはありません。"
 
@@ -468,6 +471,7 @@ tts_not_supported_format = "音声合成は %s でサポートされていませ
 unknown_error = "不明なエラーが発生しました。"
 
 [status_bar]
+ocr_text_copied = "Text recognized and copied to clipboard."
 translating = "翻訳中..."
 translation_complete = "翻訳完了。"
 translation_timeout = "翻訳がタイムアウトしました。もう一度お試しください。"

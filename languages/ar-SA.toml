@@ -171,6 +171,7 @@ interface_language = "لغة الواجهة:"
 language_hint = "يتم تطبيق التغييرات فورًا. قد تتطلب بعض العناوين إعادة تشغيل التطبيق للتحديث بالكامل."
 theme_group = "السمة"
 theme_label = "السمة:"
+theme_os_default = "OS Default (follows system)"
 unified_title_bar = "استخدام شريط عنوان موحد"
 scale_group = "مقياس الواجهة"
 scale_label = "المقياس:"
@@ -375,6 +376,8 @@ required_fields_error_msg = "يرجى ملء الحقول المطلوبة:"
 # OTHER DIALOGS
 # ===================================================================
 [about_dialog]
+support_button = "Support this project ♥"
+donation_nudge = "You've translated a lot with QTranslate! If you find it useful, consider supporting the project (About → Support ♥)"
 title = "حول QTranslate"
 description = "تم التخلي عن QTranslate الأصلي. هذه إعادة كتابة كاملة — نفس الفكرة، تعتمد على الإضافات لكي لا يتوقف التطبيق عن العمل أبدًا."
 
@@ -468,6 +471,7 @@ tts_not_supported_format = "نطق النص غير مدعوم من قبل %s."
 unknown_error = "حدث خطأ غير معروف."
 
 [status_bar]
+ocr_text_copied = "Text recognized and copied to clipboard."
 translating = "جاري الترجمة..."
 translation_complete = "اكتملت الترجمة."
 translation_timeout = "انتهت مهلة الترجمة. يرجى المحاولة مجدداً."

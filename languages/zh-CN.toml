@@ -171,6 +171,7 @@ interface_language = "界面语言："
 language_hint = "更改将立即生效。某些标签可能需要重启程序才能完全更新。"
 theme_group = "主题"
 theme_label = "主题："
+theme_os_default = "OS Default (follows system)"
 unified_title_bar = "使用统一标题栏"
 scale_group = "界面缩放"
 scale_label = "比例："
@@ -375,6 +376,8 @@ required_fields_error_msg = "请填写必填字段："
 # OTHER DIALOGS
 # ===================================================================
 [about_dialog]
+support_button = "Support this project ♥"
+donation_nudge = "You've translated a lot with QTranslate! If you find it useful, consider supporting the project (About → Support ♥)"
 title = "关于 QTranslate"
 description = "原版 QTranslate 已停止维护。这是一个完全重写的版本 —— 理念相同，且由插件驱动，确保应用永不过时。"
 
@@ -468,6 +471,7 @@ tts_not_supported_format = "%s 不支持语音合成 (TTS)。"
 unknown_error = "发生了未知错误。"
 
 [status_bar]
+ocr_text_copied = "Text recognized and copied to clipboard."
 translating = "正在翻译..."
 translation_complete = "翻译完成。"
 translation_timeout = "翻译超时。请重试。"
