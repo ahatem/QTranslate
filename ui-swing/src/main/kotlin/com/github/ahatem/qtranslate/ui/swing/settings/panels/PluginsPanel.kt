@@ -218,7 +218,9 @@ class PluginsPanel(
         val headerIcon: Icon = if (pluginIconPath != null && serviceId != null)
             iconManager.getIcon(serviceId, pluginIconPath, 24, 24)
         else
-            iconManager.getIcon("icons/lucide/package.svg", 24, 24)
+            FlatSVGIcon("icons/lucide/package.svg", 24, 24, javaClass.classLoader).apply {
+                colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.foreground") }
+            }
 
         val nameLabel = JLabel(plugin.manifest.name).apply {
             font = font.deriveFont(Font.BOLD, font.size + 2f)
@@ -560,7 +562,9 @@ class PluginsPanel(
                 plugin.services.firstOrNull()?.id?.let { svc ->
                     iconManager.getIcon(svc, path, 15, 15)
                 }
-            } ?: iconManager.getIcon("icons/lucide/package.svg", 15, 15)
+            } ?: FlatSVGIcon("icons/lucide/package.svg", 15, 15, javaClass.classLoader).apply {
+                colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.foreground") }
+            }
 
             val nameLabel = JLabel(plugin.manifest.name, icon, SwingConstants.LEADING).apply {
                 font        = font.deriveFont(Font.BOLD)

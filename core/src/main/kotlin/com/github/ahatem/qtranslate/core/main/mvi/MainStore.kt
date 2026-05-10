@@ -410,8 +410,8 @@ class MainStore(
                 targetLanguage         = LanguageCode(snapshot.targetLanguage),
                 historyIndex           = newIndex,
                 isLoading              = false,
-                extraOutputText        = "",
-                detectedSourceLanguage = null,
+                extraOutputText        = snapshot.extraOutputText,
+                detectedSourceLanguage = snapshot.detectedSourceLanguage?.let { tag -> LanguageCode(tag) },
                 spellCheckCorrections  = emptyList()
             )
         }
@@ -450,8 +450,8 @@ class MainStore(
                     targetLanguage         = LanguageCode(snapshot.targetLanguage),
                     historyIndex           = newIndex,
                     isLoading              = false,
-                    extraOutputText        = "",
-                    detectedSourceLanguage = null,
+                    extraOutputText        = snapshot.extraOutputText,
+                    detectedSourceLanguage = snapshot.detectedSourceLanguage?.let { tag -> LanguageCode(tag) },
                     spellCheckCorrections  = emptyList()
                 )
             }
@@ -469,8 +469,8 @@ class MainStore(
                 targetLanguage         = LanguageCode(snapshot.targetLanguage),
                 historyIndex           = if (idx >= 0) idx + 1 else it.historyIndex,
                 isLoading              = false,
-                extraOutputText        = "",
-                detectedSourceLanguage = null,
+                extraOutputText        = snapshot.extraOutputText,
+                detectedSourceLanguage = snapshot.detectedSourceLanguage?.let { tag -> LanguageCode(tag) },
                 spellCheckCorrections  = emptyList()
             )
         }

@@ -172,7 +172,8 @@ class TranslateTextUseCase(
                         onStatusUpdate(StatusCode.TranslationComplete, NotificationType.SUCCESS, true)
 
                         val (newHistory, newHistoryIndex) = buildHistory(
-                            currentState, textToTranslate, response.translatedText, translator.id
+                            currentState, textToTranslate, response.translatedText, translator.id,
+                            detectedSourceLanguage = detectedLanguage?.tag
                         )
 
                         val extraOutput = handleExtraOutput(
@@ -183,19 +184,23 @@ class TranslateTextUseCase(
                             onStatusUpdate    = onStatusUpdate
                         )
 
+                        val finalHistory = patchExtraOutput(
+                            newHistory, extraOutput, settingsState.value.extraOutputType.name
+                        )
+
                         updateState {
                             copy(
                                 isLoading              = false,
                                 translatedText         = response.translatedText,
                                 detectedSourceLanguage = detectedLanguage,
-                                history                = newHistory,
+                                history                = finalHistory,
                                 historyIndex           = newHistoryIndex,
                                 extraOutputText        = extraOutput
                             )
                         }
 
                         if (settingsState.value.isHistoryEnabled) {
-                            historyRepository.saveHistory(newHistory)
+                            historyRepository.saveHistory(finalHistory)
                         }
                     },
                     failure = { error ->
@@ -257,7 +262,8 @@ class TranslateTextUseCase(
                 onStatusUpdate(StatusCode.TranslationComplete, NotificationType.SUCCESS, true)
 
                 val (newHistory, newHistoryIndex) = buildHistory(
-                    currentState, textToTranslate, retryResponse.translatedText, translator.id
+                    currentState, textToTranslate, retryResponse.translatedText, translator.id,
+                    detectedSourceLanguage = detectedLanguage.tag
                 )
 
                 val extraOutput = handleExtraOutput(
@@ -268,20 +274,24 @@ class TranslateTextUseCase(
                     onStatusUpdate    = onStatusUpdate
                 )
 
+                val finalHistory = patchExtraOutput(
+                    newHistory, extraOutput, settingsState.value.extraOutputType.name
+                )
+
                 updateState {
                     copy(
                         isLoading              = false,
                         translatedText         = retryResponse.translatedText,
                         detectedSourceLanguage = detectedLanguage,
                         targetLanguage         = ruleTarget,
-                        history                = newHistory,
+                        history                = finalHistory,
                         historyIndex           = newHistoryIndex,
                         extraOutputText        = extraOutput
                     )
                 }
 
                 if (settingsState.value.isHistoryEnabled) {
-                    historyRepository.saveHistory(newHistory)
+                    historyRepository.saveHistory(finalHistory)
                 }
             },
             failure = { error ->
@@ -312,18 +322,20 @@ class TranslateTextUseCase(
         currentState: MainState,
         inputText: String,
         translatedText: String,
-        translatorId: String
+        translatorId: String,
+        detectedSourceLanguage: String? = null
     ): Pair<List<HistorySnapshot>, Int> {
         if (!settingsState.value.isHistoryEnabled) {
             return currentState.history to currentState.historyIndex
         }
 
         val snapshot = HistorySnapshot(
-            inputText      = inputText,
-            translatedText = translatedText,
-            sourceLanguage = currentState.sourceLanguage.tag,
-            targetLanguage = currentState.targetLanguage.tag,
-            translatorId   = translatorId
+            inputText              = inputText,
+            translatedText         = translatedText,
+            sourceLanguage         = currentState.sourceLanguage.tag,
+            targetLanguage         = currentState.targetLanguage.tag,
+            translatorId           = translatorId,
+            detectedSourceLanguage = detectedSourceLanguage
         )
 
         // Truncate any "future" entries that were undone before this new translation,
@@ -333,6 +345,20 @@ class TranslateTextUseCase(
 
         logger.debug("History: ${updated.size}/${AppConstants.MAX_HISTORY_ENTRIES} entries")
         return updated to updated.size
+    }
+
+    /** Patches the last snapshot in [history] with the resolved extra output. */
+    private fun patchExtraOutput(
+        history: List<HistorySnapshot>,
+        extraOutputText: String,
+        extraOutputType: String
+    ): List<HistorySnapshot> {
+        if (history.isEmpty() || (extraOutputText.isEmpty() && extraOutputType == "None")) return history
+        val patched = history.last().copy(
+            extraOutputText = extraOutputText,
+            extraOutputType = extraOutputType
+        )
+        return history.dropLast(1) + patched
     }
 
     // -------------------------------------------------------------------------
@@ -395,15 +421,18 @@ class TranslateTextUseCase(
 
         return if (result == null) {
             logger.error("Backward translation timed out")
+            onStatusUpdate(StatusCode.TranslationComplete, NotificationType.SUCCESS, true)
             "Backward translation timed out."
         } else {
             result.fold(
                 success = { response ->
                     logger.debug("Backward translation successful")
+                    onStatusUpdate(StatusCode.TranslationComplete, NotificationType.SUCCESS, true)
                     response.translatedText
                 },
                 failure = { error ->
                     logger.error("Backward translation failed: ${error.message}", error.cause)
+                    onStatusUpdate(StatusCode.TranslationComplete, NotificationType.SUCCESS, true)
                     "Backward translation failed: ${error.message}"
                 }
             )
