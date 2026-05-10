@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [1.2.0] — 2026-05-10
+
 ### Added
 - **Quick Dictionary** — global `Ctrl+D` hotkey, floating panel with auto-lookup on selected text
 - **Translation history** dialog — view, restore, and clear past translations
@@ -96,6 +100,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-[Unreleased]: https://github.com/ahatem/QTranslate/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/ahatem/QTranslate/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/ahatem/QTranslate/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ahatem/QTranslate/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/ahatem/QTranslate/releases/tag/v1.0.0
