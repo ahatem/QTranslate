@@ -33,33 +33,38 @@ This is a full rewrite in Kotlin with one core design change: **everything is a 
 Select text anywhere → press `Ctrl+Q` → translation appears instantly. That's the core of it.
 
 <div align="center">
-<table>
-<tr>
-<td align="center" width="50%">
-<img src="docs/images/screenshot-quick-translate.png" alt="Quick Translate popup" width="340"><br>
-<sub><b>Quick Translate</b> — select text in any app, press <kbd>Ctrl+Q</kbd></sub>
-</td>
-<td align="center" width="50%">
-<img src="docs/images/screenshot-settings.png" alt="Settings dialog" width="340"><br>
-<sub><b>Settings</b> — two-column service grid, 30+ themes, keyboard shortcut chip badges</sub>
-</td>
-</tr>
-<tr>
-<td align="center" width="50%">
-<img src="docs/images/screenshot-rtl.png" alt="RTL layout — Arabic" width="340"><br>
-<sub><b>RTL support</b> — full layout mirroring for Arabic, Hebrew, Farsi, and more</sub>
-</td>
-<td align="center" width="50%">
-<img src="docs/images/screenshot-compact.png" alt="Compact layout" width="340"><br>
-<sub><b>Compact layout</b> — tabbed view with extra output, fits any workflow</sub>
-</td>
-</tr>
-</table>
+<img src="docs/images/screenshot-quick-translate.png" alt="Quick Translate popup" width="500">
+<br><sub>Quick Translate — select text in any app, press <kbd>Ctrl+Q</kbd></sub>
 </div>
 
 <br>
 
 For longer work: open the main window, type or paste, translate. Switch engines in one click. Run OCR on a screenshot. Listen to pronunciation. Check spelling. Browse history. All from the keyboard, all without opening a browser.
+
+<div align="center">
+<table>
+<tr>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-settings.png" alt="Settings dialog" width="340"><br>
+<sub><b>Settings</b> — two-column service grid, 30+ themes, keyboard shortcut chip badges</sub>
+</td>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-rtl.png" alt="RTL layout — Arabic" width="340"><br>
+<sub><b>RTL support</b> — full layout mirroring for Arabic, Hebrew, Farsi, and more</sub>
+</td>
+</tr>
+<tr>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-compact.png" alt="Compact layout" width="340"><br>
+<sub><b>Compact layout</b> — tabbed view with extra output, fits any workflow</sub>
+</td>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-compact-2.png" alt="Compact layout — light theme" width="340"><br>
+<sub><b>Light theme</b> — fully themeable with FlatLaf, dark and light</sub>
+</td>
+</tr>
+</table>
+</div>
 
 ---
 
