@@ -38,9 +38,10 @@ object AppDataDirectory {
      * Returns the resolved app data directory, creating it if it does not exist.
      */
     fun resolve(): File {
-        // Debug override — set -DappData="C:\path\to\data" in your run config.
-        // Never set in production; falls through to the normal resolution below.
-        System.getProperty("appData")?.let { return File(it).also { f -> f.mkdirs() } }
+        System.getProperty("appData")?.let {
+            val file = File(it)
+            return file.also { f -> f.mkdirs() }
+        }
 
         val jarDir = jarLocation()
         if (jarDir != null && jarDir.canWrite()) {
