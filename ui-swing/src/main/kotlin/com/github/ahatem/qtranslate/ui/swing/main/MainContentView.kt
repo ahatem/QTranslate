@@ -643,6 +643,23 @@ class MainContentView(
         extraOutputPanel.requestFocusOnText()
     }
 
+    /**
+     * Returns the text-pane components in focus-traversal order: Input → Output → Extra.
+     * Extra is included only when its panel is currently visible (i.e. an extra output type is active).
+     * Used by the frame-level [TextPaneCycleFocusPolicy] to build the Tab/Shift+Tab cycle.
+     */
+    fun orderedTextPanes(): List<JComponent> = buildList {
+        add(inputTextPanel.textPaneComponent)
+        add(outputTextPanel.textPaneComponent)
+        if (extraOutputPanel.isVisible) add(extraOutputPanel.textPaneComponent)
+    }
+
+    /**
+     * Selects the Compact layout tab at [index] so the pane it contains becomes visible before
+     * the framework calls [Component.requestFocusInWindow] on it.  No-op for Classic / Side-by-Side.
+     */
+    fun ensureCompactTabVisible(index: Int) = layoutManager.selectCompactTab(index)
+
     fun setDictionarySearchWord(word: String) {
         dictionaryPanel.setSearchWord(word)
     }

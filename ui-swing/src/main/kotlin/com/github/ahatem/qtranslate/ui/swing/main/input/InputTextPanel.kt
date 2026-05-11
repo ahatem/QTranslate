@@ -81,6 +81,9 @@ class InputTextPanel(
     fun setTranslateKeyStroke(old: javax.swing.KeyStroke?, new: javax.swing.KeyStroke?) =
         textPane.setTranslateKeyStroke(old, new)
 
+    /** The underlying text component — exposed for the frame-level focus traversal policy. */
+    val textPaneComponent: JComponent get() = textPane
+
     private fun customizeContextMenu(menu: JPopupMenu, clickPosition: Point) {
         spellingMenu?.let { menu.remove(it) }
         spellingMenuSeparator?.let { menu.remove(it) }

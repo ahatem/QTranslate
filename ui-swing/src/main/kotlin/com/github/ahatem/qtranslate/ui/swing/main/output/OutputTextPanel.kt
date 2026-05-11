@@ -12,6 +12,7 @@ import java.awt.Point
 import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
 import javax.swing.AbstractAction
+import javax.swing.JComponent
 import javax.swing.JMenuItem
 import javax.swing.JPanel
 import javax.swing.JPopupMenu
@@ -44,6 +45,9 @@ class OutputTextPanel(
     fun requestFocusOnText() = textPane.requestFocusInWindow()
     fun setTranslateKeyStroke(old: javax.swing.KeyStroke?, new: javax.swing.KeyStroke?) =
         textPane.setTranslateKeyStroke(old, new)
+
+    /** The underlying text component — exposed for the frame-level focus traversal policy. */
+    val textPaneComponent: JComponent get() = textPane
 
     init {
         add(readOnlyPanel, BorderLayout.CENTER)

@@ -227,6 +227,11 @@ class MainAppFrame(
             pack()
             if (config.mainWindowPosition == null) setLocationRelativeTo(null)
 
+            // Enforce Input → Output → Extra (→ Input) Tab cycle across all layouts.
+            // In Compact layout the policy also switches tabs so hidden panes become
+            // visible before Swing calls requestFocusInWindow() on them.
+            focusTraversalPolicy = TextPaneCycleFocusPolicy(mainContentView)
+
             setupWindowListeners()
             setupMenuBar()
             setupTrayMenu()
@@ -1581,6 +1586,54 @@ class MainAppFrame(
         }
 
     }
+}
+
+/**
+ * Custom focus-traversal policy for the main application window.
+ *
+ * When Tab/Shift+Tab is pressed inside any of the three text panes (input, output, extra),
+ * focus moves directly to the next/previous pane in the cycle — skipping toolbar buttons,
+ * scrollbars, and other intermediate components.  For Compact (tabbed) layout the policy
+ * also selects the target tab so the pane is visible before Swing calls requestFocusInWindow().
+ *
+ * When Tab is pressed from any component that is NOT one of the managed text panes the
+ * standard [LayoutFocusTraversalPolicy] takes over, preserving normal keyboard navigation
+ * for dialogs, settings panels, and anything else displayed in the same window.
+ */
+private class TextPaneCycleFocusPolicy(
+    private val contentView: MainContentView,
+    private val fallback: FocusTraversalPolicy = LayoutFocusTraversalPolicy()
+) : FocusTraversalPolicy() {
+
+    /** All visible text panes in traversal order. Re-evaluated on every Tab press. */
+    private fun panes(): List<JComponent> = contentView.orderedTextPanes()
+
+    override fun getComponentAfter(aContainer: Container, aComponent: Component): Component {
+        val all = panes()
+        val idx = all.indexOfFirst { it === aComponent }
+        if (idx < 0) return fallback.getComponentAfter(aContainer, aComponent)
+        val nextIdx = (idx + 1) % all.size
+        contentView.ensureCompactTabVisible(nextIdx)
+        return all[nextIdx]
+    }
+
+    override fun getComponentBefore(aContainer: Container, aComponent: Component): Component {
+        val all = panes()
+        val idx = all.indexOfFirst { it === aComponent }
+        if (idx < 0) return fallback.getComponentBefore(aContainer, aComponent)
+        val prevIdx = (idx - 1 + all.size) % all.size
+        contentView.ensureCompactTabVisible(prevIdx)
+        return all[prevIdx]
+    }
+
+    override fun getFirstComponent(aContainer: Container): Component =
+        panes().firstOrNull() ?: fallback.getFirstComponent(aContainer)
+
+    override fun getLastComponent(aContainer: Container): Component =
+        panes().lastOrNull() ?: fallback.getLastComponent(aContainer)
+
+    override fun getDefaultComponent(aContainer: Container): Component =
+        panes().firstOrNull() ?: fallback.getDefaultComponent(aContainer)
 }
 
 /** Snapshot used to deduplicate auto-lookup triggers. */

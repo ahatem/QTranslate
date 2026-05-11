@@ -338,7 +338,20 @@ class AdvancedTextPane(
         highlighter  = WavyUnderlineHighlighter()
         editorKit    = WrappingEditorKit()
         caret        = AdvancedCaret()
+        // Enable Swing's built-in focus traversal so plain Tab / Shift+Tab are consumed by
+        // the KeyboardFocusManager and routed through TextPaneCycleFocusPolicy.
+        // By default the JDK also includes Ctrl+Tab / Shift+Ctrl+Tab in the traversal sets,
+        // which prevents those keystrokes from reaching the InputMap binding that inserts a
+        // literal tab character.  Override both sets to contain only the unmodified Tab strokes.
         focusTraversalKeysEnabled = true
+        setFocusTraversalKeys(
+            java.awt.KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS,
+            setOf(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, 0))
+        )
+        setFocusTraversalKeys(
+            java.awt.KeyboardFocusManager.BACKWARD_TRAVERSAL_KEYS,
+            setOf(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, InputEvent.SHIFT_DOWN_MASK))
+        )
         margin = Insets(6, 6, 6, 6)
 
         document.addUndoableEditListener(undoManager)
