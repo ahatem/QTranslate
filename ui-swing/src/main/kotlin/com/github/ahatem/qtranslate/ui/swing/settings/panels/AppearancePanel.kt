@@ -27,6 +27,7 @@ class AppearancePanel(
 
     private lateinit var languageCombo:     JComboBox<LanguageInfo>
     private lateinit var themeCombo:        JComboBox<ThemeItem>
+    private lateinit var syncWithOsCheck:   JCheckBox
     private lateinit var titleBarCheck:     JCheckBox
     private lateinit var scaleSpinner:      JSpinner
     private lateinit var uiFontCombo:       JComboBox<String>
@@ -70,7 +71,17 @@ class AppearancePanel(
                 }
             }
         }
+
         addRow(localizationManager.getString("settings_appearance.theme_label"), themeCombo)
+
+        syncWithOsCheck = addCheckbox(
+            text     = localizationManager.getString("settings_appearance.theme_sync_os"),
+            selected = false,
+            onChange = { synced ->
+                themeCombo.isEnabled = !synced
+                applyDraft(store) { it.copy(themeId = if (synced) OS_DEFAULT_THEME_ID else (themeCombo.selectedItem as? ThemeItem.Entry)?.id ?: it.themeId) }
+            }
+        )
 
         titleBarCheck = addCheckbox(
             text     = localizationManager.getString("settings_appearance.unified_title_bar"),
@@ -180,7 +191,6 @@ class AppearancePanel(
             .map { ThemeItem.Entry(it.id, it.name, it.isDark) }
 
         return buildList {
-            add(ThemeItem.Entry(OS_DEFAULT_THEME_ID, localizationManager.getString("settings_appearance.theme_os_default"), false))
             add(ThemeItem.Header(localizationManager.getString("settings_appearance.theme_group_light")))
             addAll(light)
             add(ThemeItem.Header(localizationManager.getString("settings_appearance.theme_group_dark")))
@@ -209,14 +219,15 @@ class AppearancePanel(
                     text = item.label
                     font = font.deriveFont(Font.BOLD, font.size - 1f)
                     foreground = UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
-                    border = BorderFactory.createEmptyBorder(if (index == 0) 4 else 10, 6, 2, 4)
+                    border = BorderFactory.createEmptyBorder(if (index <= 1) 4 else 10, 6, 2, 4)
                     background = list?.background ?: background
                     isOpaque = true
                 }
                 is ThemeItem.Entry -> {
                     super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
                     text = item.displayName
-                    border = BorderFactory.createEmptyBorder(3, 14, 3, 4)
+                    // index < 0 = closed button cell — no extra padding so the combo height stays normal
+                    if (index >= 0) border = BorderFactory.createEmptyBorder(2, 12, 2, 4)
                 }
                 else -> super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
             }
@@ -313,7 +324,12 @@ class AppearancePanel(
                     break
                 }
             }
-            themeCombo.selectedItem  = groupedItems.filterIsInstance<ThemeItem.Entry>().find { it.id == c.themeId }
+            val isSynced = c.themeId == OS_DEFAULT_THEME_ID
+            syncWithOsCheck.isSelected = isSynced
+            themeCombo.isEnabled = !isSynced
+            if (!isSynced) {
+                themeCombo.selectedItem = groupedItems.filterIsInstance<ThemeItem.Entry>().find { it.id == c.themeId }
+            }
             titleBarCheck.isSelected = c.useUnifiedTitleBar
             scaleSpinner.value       = c.uiScale
             uiFontSize.value         = c.uiFontConfig.size
