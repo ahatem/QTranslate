@@ -81,7 +81,10 @@ enum class HotkeyAction {
     REPLACE_WITH_TRANSLATION,  // Rob #2 / Davide — translate and replace selected text
     CYCLE_TARGET_LANGUAGE,     // Yan #3 — cycle through available target languages
     SHOW_DICTIONARY,           // open floating dictionary popup
-    TRANSLATE                  // trigger translation (default: Ctrl+Enter, LOCAL)
+    TRANSLATE,                 // trigger translation (default: Ctrl+Enter, LOCAL)
+    FOCUS_INPUT,               // move keyboard focus to the input text pane (default: Alt+1, LOCAL)
+    FOCUS_OUTPUT,              // move keyboard focus to the output text pane (default: Alt+2, LOCAL)
+    FOCUS_EXTRA_OUTPUT         // move keyboard focus to the extra-output pane (default: Alt+3, LOCAL)
 }
 
 /**
@@ -154,6 +157,9 @@ data class HotkeyBinding(
             HotkeyBinding(HotkeyAction.CYCLE_TARGET_LANGUAGE,    keyCode = java.awt.event.KeyEvent.VK_L,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.LOCAL),
             HotkeyBinding(HotkeyAction.SHOW_DICTIONARY,          keyCode = java.awt.event.KeyEvent.VK_D,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.GLOBAL),
             HotkeyBinding(HotkeyAction.TRANSLATE,                keyCode = java.awt.event.KeyEvent.VK_ENTER,            modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.LOCAL),
+            HotkeyBinding(HotkeyAction.FOCUS_INPUT,              keyCode = java.awt.event.KeyEvent.VK_1,                modifiers = java.awt.event.InputEvent.ALT_DOWN_MASK,   scope = HotkeyScope.LOCAL),
+            HotkeyBinding(HotkeyAction.FOCUS_OUTPUT,             keyCode = java.awt.event.KeyEvent.VK_2,                modifiers = java.awt.event.InputEvent.ALT_DOWN_MASK,   scope = HotkeyScope.LOCAL),
+            HotkeyBinding(HotkeyAction.FOCUS_EXTRA_OUTPUT,       keyCode = java.awt.event.KeyEvent.VK_3,                modifiers = java.awt.event.InputEvent.ALT_DOWN_MASK,   scope = HotkeyScope.LOCAL),
         )
     }
 }

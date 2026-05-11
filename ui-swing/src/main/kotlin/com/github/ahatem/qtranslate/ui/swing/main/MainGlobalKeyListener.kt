@@ -175,6 +175,11 @@ class MainGlobalKeyListener(
                 scope.launch { handleSelectedText(onShowDictionary) }
             HotkeyAction.TRANSLATE ->
                 onTranslate()
+            // Focus actions are LOCAL-scope only — handled by MainContentView's InputMap.
+            // Nothing to do here; the branch is required for exhaustive when.
+            HotkeyAction.FOCUS_INPUT,
+            HotkeyAction.FOCUS_OUTPUT,
+            HotkeyAction.FOCUS_EXTRA_OUTPUT -> Unit
         }
     }
 

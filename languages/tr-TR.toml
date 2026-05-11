@@ -267,6 +267,9 @@ action_replace = "Seçileni Çeviri ile Değiştir (deneysel)"
 action_cycle_language = "Hedef Dili Değiştir"
 action_show_dictionary = "Sözlüğü Göster"
 action_translate = "Çevir"
+action_focus_input = "Focus Input Pane"
+action_focus_output = "Focus Output Pane"
+action_focus_extra_output = "Focus Extra Output Pane"
 scope_toggle_hint = "Küresel ve Yerel arasında geçiş yapmak için tıklayın"
 
 # Default Actions Descriptions
@@ -537,3 +540,8 @@ dictionary_ready = "Tanım bulundu."
 dictionary_not_found = "\""%s"\" için tanım bulunamadı."
 dictionary_timeout = "Sözlük araması zaman aşımına uğradı."
 dictionary_failed = "Sözlük araması başarısız oldu: %s"
+
+[layout_compact]
+tab_input_tooltip = "Source text (%s)"
+tab_output_tooltip = "Translation (%s)"
+tab_extra_tooltip = "Extra output (%s)"

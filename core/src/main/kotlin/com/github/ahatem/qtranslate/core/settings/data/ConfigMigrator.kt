@@ -17,7 +17,7 @@ import com.github.ahatem.qtranslate.api.core.Logger
 object ConfigMigrator {
 
     /** Must match the default value of [Configuration.configVersion]. */
-    private const val CURRENT_VERSION = 1
+    private const val CURRENT_VERSION = 2
 
     /**
      * Applies all pending migrations to [config] in order and returns the result.
@@ -43,12 +43,18 @@ object ConfigMigrator {
 
     private fun applyMigration(config: Configuration, logger: Logger): Configuration =
         when (config.configVersion) {
-            // v1 is the initial schema — nothing to migrate yet.
-            // Future example:
-            //   1 -> {
-            //       logger.info("ConfigMigrator: migrating v1 → v2")
-            //       config.copy(configVersion = 2, newField = computedDefault)
-            //   }
+            1 -> {
+                // v1 → v2: inject default bindings for any HotkeyActions that were added after the
+                // user's config was first saved (FOCUS_INPUT, FOCUS_OUTPUT, FOCUS_EXTRA_OUTPUT).
+                // This is safe to run repeatedly — it only adds bindings that are missing.
+                logger.info("ConfigMigrator: migrating v1 → v2 — patching missing hotkey defaults")
+                val existingActions = config.hotkeys.map { it.action }.toSet()
+                val missingDefaults = HotkeyBinding.DEFAULTS.filter { it.action !in existingActions }
+                config.copy(
+                    configVersion = 2,
+                    hotkeys = config.hotkeys + missingDefaults
+                )
+            }
             else -> {
                 logger.warn("ConfigMigrator: unknown configVersion ${config.configVersion} — returning unchanged")
                 config

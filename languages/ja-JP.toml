@@ -267,6 +267,9 @@ action_replace = "選択範囲を翻訳で置換 (試験的)"
 action_cycle_language = "ターゲット言語を切り替え"
 action_show_dictionary = "辞書を表示"
 action_translate = "翻訳"
+action_focus_input = "Focus Input Pane"
+action_focus_output = "Focus Output Pane"
+action_focus_extra_output = "Focus Extra Output Pane"
 scope_toggle_hint = "クリックしてグローバルとローカルを切り替え"
 
 # Default Actions Descriptions
@@ -536,3 +539,8 @@ dictionary_ready = "定義が見つかりました。"
 dictionary_not_found = "\"%s\" の定義が見つかりませんでした。"
 dictionary_timeout = "辞書検索がタイムアウトしました。"
 dictionary_failed = "辞書検索に失敗しました: %s"
+
+[layout_compact]
+tab_input_tooltip = "Source text (%s)"
+tab_output_tooltip = "Translation (%s)"
+tab_extra_tooltip = "Extra output (%s)"

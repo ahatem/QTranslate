@@ -267,6 +267,9 @@ action_replace = "Заменить выделение переводом (экс
 action_cycle_language = "Переключить целевой язык"
 action_show_dictionary = "Показать словарь"
 action_translate = "Перевести"
+action_focus_input = "Focus Input Pane"
+action_focus_output = "Focus Output Pane"
+action_focus_extra_output = "Focus Extra Output Pane"
 scope_toggle_hint = "Нажмите для переключения между Глобально и Локально"
 
 # Default Actions Descriptions
@@ -537,3 +540,8 @@ dictionary_ready = "Определение найдено."
 dictionary_not_found = "Определений для \"%s\" не найдено."
 dictionary_timeout = "Время поиска в словаре истекло."
 dictionary_failed = "Поиск в словаре не удался: %s"
+
+[layout_compact]
+tab_input_tooltip = "Source text (%s)"
+tab_output_tooltip = "Translation (%s)"
+tab_extra_tooltip = "Extra output (%s)"

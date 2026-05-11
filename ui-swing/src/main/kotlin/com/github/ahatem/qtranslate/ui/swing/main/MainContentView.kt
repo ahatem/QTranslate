@@ -206,19 +206,17 @@ class MainContentView(
     init {
         add(splitPane, BorderLayout.CENTER)
 
-        // Direct panel focus shortcuts — work from anywhere in the window.
-        // Alt+1 → input, Alt+2 → output, Alt+3 → extra-output.
-        val im = getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+        // Focus shortcuts — keystrokes are user-configurable (default Alt+1/2/3).
+        // The actual keystroke bindings are applied dynamically via updateFocusKeyStrokes()
+        // so they always reflect the current settings without restarting.
         val am = actionMap
-        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_1, InputEvent.ALT_DOWN_MASK), "focus-panel-input")
-        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_2, InputEvent.ALT_DOWN_MASK), "focus-panel-output")
-        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_3, InputEvent.ALT_DOWN_MASK), "focus-panel-extra")
         am.put("focus-panel-input",  object : AbstractAction() { override fun actionPerformed(e: java.awt.event.ActionEvent) { inputTextPanel.requestFocusOnText() } })
         am.put("focus-panel-output", object : AbstractAction() { override fun actionPerformed(e: java.awt.event.ActionEvent) { outputTextPanel.requestFocusOnText() } })
         am.put("focus-panel-extra",  object : AbstractAction() { override fun actionPerformed(e: java.awt.event.ActionEvent) { extraOutputPanel.requestFocusOnText() } })
 
         // Escape cancels an in-flight translation — only fires when isTranslating is true
         // so it doesn't interfere with dialogs or normal Escape usage in other contexts.
+        val im = getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
         im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "cancel-translation")
         am.put("cancel-translation", object : AbstractAction() {
             override fun actionPerformed(e: java.awt.event.ActionEvent) {
@@ -242,6 +240,7 @@ class MainContentView(
         }
 
         updateTranslateKeyStroke(config)
+        updateFocusKeyStrokes(config)
         renderDictionaryPanel(mainState, config)
         renderComponents(mainState, config)
         lastState = mainState to settingsState
@@ -261,6 +260,48 @@ class MainContentView(
         inputTextPanel.setTranslateKeyStroke(old, newStroke)
         outputTextPanel.setTranslateKeyStroke(old, newStroke)
         extraOutputPanel.setTranslateKeyStroke(old, newStroke)
+    }
+
+    /**
+     * Updates the Compact layout's JTabbedPane shortcuts + tab tooltips (1-D/E) to reflect
+     * the user's configured bindings. No-op for Classic/Side-by-Side layouts.
+     *
+     * Note: Classic/Side-by-Side focus shortcuts are handled by MainAppFrame.registerLocalHotkeys()
+     * which registers them on the rootPane's WHEN_ANCESTOR_OF_FOCUSED_COMPONENT InputMap and
+     * routes them to [switchToAndFocusInput], [switchToAndFocusOutput], [switchToAndFocusExtraOutput].
+     */
+    private fun updateFocusKeyStrokes(config: Configuration) {
+        fun resolveStroke(action: HotkeyAction): KeyStroke? =
+            config.hotkeys.find { it.action == action }?.takeIf { it.isEnabled }?.toKeyStroke()
+
+        val newInput  = resolveStroke(HotkeyAction.FOCUS_INPUT)
+        val newOutput = resolveStroke(HotkeyAction.FOCUS_OUTPUT)
+        val newExtra  = resolveStroke(HotkeyAction.FOCUS_EXTRA_OUTPUT)
+
+        // Compact layout (1-D/E): bind on the JTabbedPane so switching tabs + focusing the text
+        // pane works even when the hidden tabs don't respond to WHEN_IN_FOCUSED_WINDOW.
+        // Tab tooltips display the shortcut so the binding is discoverable.
+        layoutManager.updateCompactShortcuts(
+            strokes  = Triple(newInput, newOutput, newExtra),
+            tooltips = Triple(
+                localizer.getString("layout_compact.tab_input_tooltip",  keystrokeLabel(newInput)),
+                localizer.getString("layout_compact.tab_output_tooltip", keystrokeLabel(newOutput)),
+                localizer.getString("layout_compact.tab_extra_tooltip",  keystrokeLabel(newExtra))
+            ),
+            actions  = Triple(
+                { inputTextPanel.requestFocusOnText() },
+                { outputTextPanel.requestFocusOnText() },
+                { extraOutputPanel.requestFocusOnText() }
+            )
+        )
+    }
+
+    /** Returns a human-readable label for [ks], e.g. "Alt+1", or "" when null. */
+    private fun keystrokeLabel(ks: KeyStroke?): String {
+        ks ?: return ""
+        val mods = java.awt.event.InputEvent.getModifiersExText(ks.modifiers)
+        val key  = java.awt.event.KeyEvent.getKeyText(ks.keyCode)
+        return if (mods.isEmpty()) key else "$mods+$key"
     }
 
     private fun renderDictionaryPanel(mainState: MainState, config: Configuration) {
@@ -573,6 +614,33 @@ class MainContentView(
 
     fun requestFocusOnInput() {
         inputTextPanel.requestFocusInWindow()
+    }
+
+    /**
+     * Switches to the Input tab (if in Compact layout) then moves focus into the input text pane.
+     * Used by MainAppFrame.registerLocalHotkeys() for the FOCUS_INPUT LOCAL hotkey.
+     */
+    fun switchToAndFocusInput() {
+        layoutManager.selectCompactTab(0)
+        inputTextPanel.requestFocusOnText()
+    }
+
+    /**
+     * Switches to the Output tab (if in Compact layout) then moves focus into the output text pane.
+     * Used by MainAppFrame.registerLocalHotkeys() for the FOCUS_OUTPUT LOCAL hotkey.
+     */
+    fun switchToAndFocusOutput() {
+        layoutManager.selectCompactTab(1)
+        outputTextPanel.requestFocusOnText()
+    }
+
+    /**
+     * Switches to the Extra Output tab (if in Compact layout) then moves focus into the extra pane.
+     * Used by MainAppFrame.registerLocalHotkeys() for the FOCUS_EXTRA_OUTPUT LOCAL hotkey.
+     */
+    fun switchToAndFocusExtraOutput() {
+        layoutManager.selectCompactTab(2)
+        extraOutputPanel.requestFocusOnText()
     }
 
     fun setDictionarySearchWord(word: String) {

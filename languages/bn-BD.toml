@@ -267,6 +267,9 @@ action_replace = "অনুবাদ দিয়ে নির্বাচন �
 action_cycle_language = "টার্গেট ভাষা পরিবর্তন (সাইকেল)"
 action_show_dictionary = "অভিধান দেখান"
 action_translate = "অনুবাদ করুন"
+action_focus_input = "Focus Input Pane"
+action_focus_output = "Focus Output Pane"
+action_focus_extra_output = "Focus Extra Output Pane"
 scope_toggle_hint = "গ্লোবাল এবং লোকাল এর মধ্যে পরিবর্তন করতে ক্লিক করুন"
 
 # Default Actions Descriptions
@@ -538,3 +541,8 @@ dictionary_ready = "সংজ্ঞা পাওয়া গেছে।"
 dictionary_not_found = "\"%s\" এর জন্য কোনো সংজ্ঞা পাওয়া যায়নি।"
 dictionary_timeout = "অভিধান অনুসন্ধানের সময় শেষ হয়ে গেছে।"
 dictionary_failed = "অভিধান অনুসন্ধান ব্যর্থ হয়েছে: %s"
+
+[layout_compact]
+tab_input_tooltip = "Source text (%s)"
+tab_output_tooltip = "Translation (%s)"
+tab_extra_tooltip = "Extra output (%s)"

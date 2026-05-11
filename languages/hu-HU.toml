@@ -267,6 +267,9 @@ action_replace = "A kiválasztás lecserélése fordításra (kísérleti)"
 action_cycle_language = "Célnyelv váltása"
 action_show_dictionary = "Szótár megjelenítése"
 action_translate = "Fordítás"
+action_focus_input = "Focus Input Pane"
+action_focus_output = "Focus Output Pane"
+action_focus_extra_output = "Focus Extra Output Pane"
 scope_toggle_hint = "Kattintson a Globális és a Helyi közötti váltáshoz"
 
 # Default Actions Descriptions
@@ -536,3 +539,8 @@ dictionary_ready = "Meghatározás megtalálva."
 dictionary_not_found = "Nem találtunk meghatározást a következőre: \"%s\"."
 dictionary_timeout = "A szótárkeresés túllépte az időkorlátot."
 dictionary_failed = "A szótárkeresés sikertelen: %s"
+
+[layout_compact]
+tab_input_tooltip = "Source text (%s)"
+tab_output_tooltip = "Translation (%s)"
+tab_extra_tooltip = "Extra output (%s)"

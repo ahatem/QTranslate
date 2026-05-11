@@ -33,7 +33,10 @@ class KeyboardPanel(
         HotkeyAction.REPLACE_WITH_TRANSLATION,
         HotkeyAction.CYCLE_TARGET_LANGUAGE,
         HotkeyAction.SHOW_DICTIONARY,
-        HotkeyAction.TRANSLATE
+        HotkeyAction.TRANSLATE,
+        HotkeyAction.FOCUS_INPUT,
+        HotkeyAction.FOCUS_OUTPUT,
+        HotkeyAction.FOCUS_EXTRA_OUTPUT
     )
 
     // SHOW_MAIN_WINDOW can now have a custom keystroke — only its scope is locked to GLOBAL.
@@ -252,6 +255,9 @@ class KeyboardPanel(
         HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizationManager.getString("settings_hotkeys.action_cycle_language")
         HotkeyAction.SHOW_DICTIONARY          -> localizationManager.getString("settings_hotkeys.action_show_dictionary")
         HotkeyAction.TRANSLATE                -> localizationManager.getString("settings_hotkeys.action_translate")
+        HotkeyAction.FOCUS_INPUT              -> localizationManager.getString("settings_hotkeys.action_focus_input")
+        HotkeyAction.FOCUS_OUTPUT             -> localizationManager.getString("settings_hotkeys.action_focus_output")
+        HotkeyAction.FOCUS_EXTRA_OUTPUT       -> localizationManager.getString("settings_hotkeys.action_focus_extra_output")
     }
 
     private fun scopeLabel(scope: HotkeyScope): String = when (scope) {
@@ -448,6 +454,9 @@ object HotkeyRecorderDialog {
             HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizer.getString("settings_hotkeys.action_cycle_language")
             HotkeyAction.SHOW_DICTIONARY          -> localizer.getString("settings_hotkeys.action_show_dictionary")
             HotkeyAction.TRANSLATE                -> localizer.getString("settings_hotkeys.action_translate")
+            HotkeyAction.FOCUS_INPUT              -> localizer.getString("settings_hotkeys.action_focus_input")
+            HotkeyAction.FOCUS_OUTPUT             -> localizer.getString("settings_hotkeys.action_focus_output")
+            HotkeyAction.FOCUS_EXTRA_OUTPUT       -> localizer.getString("settings_hotkeys.action_focus_extra_output")
         }
 
         val promptLabel = JLabel(

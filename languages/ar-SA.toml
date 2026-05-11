@@ -267,6 +267,9 @@ action_replace = "استبدال المحدد بالترجمة (تجريبي)"
 action_cycle_language = "تبديل لغة الهدف"
 action_show_dictionary = "فتح القاموس"
 action_translate = "ترجمة"
+action_focus_input = "Focus Input Pane"
+action_focus_output = "Focus Output Pane"
+action_focus_extra_output = "Focus Extra Output Pane"
 scope_toggle_hint = "انقر للتبديل بين العالمي والمحلي"
 
 # Default Actions Descriptions
@@ -538,3 +541,8 @@ dictionary_ready = "تم العثور على التعريف."
 dictionary_not_found = "لم يُعثر على تعريف لـ \"%s\"."
 dictionary_timeout = "انتهت مهلة البحث في القاموس."
 dictionary_failed = "فشل البحث في القاموس: %s"
+
+[layout_compact]
+tab_input_tooltip = "Source text (%s)"
+tab_output_tooltip = "Translation (%s)"
+tab_extra_tooltip = "Extra output (%s)"

@@ -267,6 +267,9 @@ action_replace = "Substituir Seleção pela Tradução (experimental)"
 action_cycle_language = "Alternar Idioma de Destino"
 action_show_dictionary = "Mostrar dicionário"
 action_translate = "Traduzir"
+action_focus_input = "Focus Input Pane"
+action_focus_output = "Focus Output Pane"
+action_focus_extra_output = "Focus Extra Output Pane"
 scope_toggle_hint = "Clique para alternar entre Global e Local"
 
 # Default Actions Descriptions
@@ -537,3 +540,8 @@ dictionary_ready = "Definição encontrada."
 dictionary_not_found = "Nenhuma definição encontrada para \"%s\"."
 dictionary_timeout = "A pesquisa no dicionário expirou."
 dictionary_failed = "A pesquisa no dicionário falhou: %s"
+
+[layout_compact]
+tab_input_tooltip = "Source text (%s)"
+tab_output_tooltip = "Translation (%s)"
+tab_extra_tooltip = "Extra output (%s)"

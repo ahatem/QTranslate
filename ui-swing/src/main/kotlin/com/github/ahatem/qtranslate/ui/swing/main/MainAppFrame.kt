@@ -651,7 +651,15 @@ class MainAppFrame(
             inputMap.put(keyStroke, actionKey)
             rootPane.actionMap.put(actionKey, object : AbstractAction() {
                 override fun actionPerformed(e: ActionEvent) {
-                    globalKeyListener.dispatchAction(binding.action)
+                    // FOCUS_* are LOCAL-only and require layout-aware handling (Compact layout must
+                    // switch tabs before focusing). Route them directly to MainContentView rather
+                    // than through globalKeyListener.dispatchAction(), which would do nothing.
+                    when (binding.action) {
+                        HotkeyAction.FOCUS_INPUT        -> mainContentView.switchToAndFocusInput()
+                        HotkeyAction.FOCUS_OUTPUT       -> mainContentView.switchToAndFocusOutput()
+                        HotkeyAction.FOCUS_EXTRA_OUTPUT -> mainContentView.switchToAndFocusExtraOutput()
+                        else -> globalKeyListener.dispatchAction(binding.action)
+                    }
                 }
             })
         }

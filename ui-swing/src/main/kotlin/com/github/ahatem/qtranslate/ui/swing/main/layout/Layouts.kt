@@ -267,9 +267,10 @@ object CompactLayout : LayoutStrategy {
         val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
 
         val tabs = JTabbedPane().apply {
-            addTab("Input", components.inputPanel)
+            addTab("Input",  components.inputPanel)
             addTab("Output", components.outputPanel)
-            setupKeyboardShortcuts(this)
+            // Shortcuts and tooltips are applied dynamically via LayoutManager.updateCompactShortcuts()
+            // so they always reflect the user's configured bindings.
         }
 
         val contentPanel = JPanel(BorderLayout(0, UISpacing.V_GAP)).apply {
@@ -293,23 +294,5 @@ object CompactLayout : LayoutStrategy {
         return ArrangedLayout(root, refs)
     }
 
-    private fun setupKeyboardShortcuts(tabs: JTabbedPane) {
-        tabs.actionMap.put("tab1", createTabSwitchAction(tabs, 0))
-        tabs.actionMap.put("tab2", createTabSwitchAction(tabs, 1))
-        tabs.inputMap.put(
-            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_1, java.awt.event.InputEvent.ALT_DOWN_MASK),
-            "tab1"
-        )
-        tabs.inputMap.put(
-            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_2, java.awt.event.InputEvent.ALT_DOWN_MASK),
-            "tab2"
-        )
-    }
-
-    private fun createTabSwitchAction(tabs: JTabbedPane, index: Int) = object : AbstractAction() {
-        override fun actionPerformed(e: java.awt.event.ActionEvent) {
-            if (index < tabs.tabCount && tabs.isEnabledAt(index)) tabs.selectedIndex = index
-        }
-    }
 }
 
