@@ -287,6 +287,7 @@ reset_button = "Сбросить все"
 no_binding = "(нет)"
 reset_confirmation = "Сбросить все горячие клавиши до значений по умолчанию?"
 reset_title = "Сброс клавиш"
+recorder_subtitle = "Shortcut for"
 recorder_title = "Запись клавиши"
 recorder_prompt = "Нажмите комбинацию клавиш для:"
 double_ctrl = "Double Ctrl"
@@ -294,8 +295,11 @@ show_main_tooltip = "Двойной Ctrl всегда активен. Можно
 double_ctrl_on = "⊕ Двойной Ctrl"
 double_ctrl_off = "⊖ Двойной Ctrl"
 double_ctrl_toggle_hint = "Нажмите, чтобы включить / отключить триггер двойного Ctrl. Полезно, если двойной Ctrl мешает другим приложениям."
-recorder_waiting = "— нажмите комбинацию клавиш —"
-recorder_hint = "Нажмите Escape для отмены"
+recorder_waiting = "— press a key combination —"
+recorder_hint = "Press a key combination, then click OK · Esc to cancel"
+recorder_modifier_hint = "Now press a letter, number or function key"
+recorder_hint_confirm = "Press another combination to change · Esc to clear"
+recorder_invalid_key = "This key cannot be used as a shortcut"
 
 
 [settings_translation]

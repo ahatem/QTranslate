@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.formdev.flatlaf.FlatClientProperties
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
@@ -16,7 +17,11 @@ import javax.swing.table.TableCellRenderer
 
 class KeyboardPanel(
     private val store: SettingsStore,
-    private val localizationManager: LocalizationManager
+    private val localizationManager: LocalizationManager,
+    /** Called just before the hotkey recorder dialog opens to prevent accidental triggers. */
+    private val pauseGlobalHotkeys:  (() -> Unit)? = null,
+    /** Called after the recorder dialog closes to restore the previous enabled state. */
+    private val resumeGlobalHotkeys: (() -> Unit)? = null,
 ) : SettingsPanel() {
 
     private lateinit var enableCheck: JCheckBox
@@ -161,10 +166,12 @@ class KeyboardPanel(
             .hotkeys.find { it.action == action }
 
         val result = HotkeyRecorderDialog.show(
-            owner      = SwingUtilities.getWindowAncestor(this),
-            action     = action,
-            current    = current,
-            localizer  = localizationManager
+            owner               = SwingUtilities.getWindowAncestor(this),
+            action              = action,
+            current             = current,
+            localizer           = localizationManager,
+            pauseGlobalHotkeys  = pauseGlobalHotkeys,
+            resumeGlobalHotkeys = resumeGlobalHotkeys,
         ) ?: return
 
         saveBinding(result)
@@ -300,16 +307,24 @@ class KeyboardPanel(
             }
         }
 
-        /** Builds a centered row of key chips. */
+        /**
+         * Builds a row of key chips, vertically and horizontally centered in the table cell.
+         * Uses a GridBagLayout outer panel so the inner FlowLayout strip sits in the middle
+         * of the fixed-height (34 px) row rather than being pinned to the top.
+         */
         private fun chipRow(
             tokens: List<String>,
             bg: Color,
             muted: Boolean,
             tooltip: String? = null
-        ): JPanel = JPanel(FlowLayout(FlowLayout.CENTER, 4, 0)).apply {
+        ): JPanel = JPanel(GridBagLayout()).apply {
             background  = bg
             toolTipText = tooltip
-            tokens.forEach { add(KeyChip(it, muted)) }
+            val inner = JPanel(FlowLayout(FlowLayout.CENTER, 4, 0)).apply {
+                isOpaque = false
+                tokens.forEach { add(KeyChip(it, muted)) }
+            }
+            add(inner)   // default GridBagConstraints: anchor = CENTER, no fill
         }
 
         /** Splits a binding into individual displayable key tokens. */
@@ -324,26 +339,31 @@ class KeyboardPanel(
 
     /**
      * A single keyboard key rendered as a rounded-rectangle badge.
-     * Matches the visual style of key chips in modern IDEs and OS preference panes.
+     *
+     * Extends [JLabel] so all text is drawn by Swing's own text pipeline (correct
+     * ClearType / LCD hints, FlatLaf rendering context) instead of a raw
+     * [Graphics2D.drawString] call, which skips those hints and renders poorly.
+     * The rounded background is painted in [paintComponent] *before* calling super,
+     * so the label's text lands on top of it.
      */
-    private inner class KeyChip(private val label: String, private val muted: Boolean) : JComponent() {
-        private val hPad = 8
-        private val vPad = 3
-        private val arc  = 6
+    private inner class KeyChip(label: String, private val muted: Boolean) : JLabel(label) {
+        private val arc = 6
 
-        init { isOpaque = false }
-
-        override fun getPreferredSize(): Dimension {
-            val fm = getFontMetrics(chipFont())
-            return Dimension(fm.stringWidth(label) + hPad * 2, fm.height + vPad * 2)
+        init {
+            isOpaque          = false
+            horizontalAlignment = CENTER
+            font      = Font(Font.MONOSPACED, if (muted) Font.ITALIC else Font.PLAIN,
+                             this@KeyboardPanel.font.size - 1)
+            foreground = if (muted) UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
+                         else       UIManager.getColor("Label.foreground")          ?: Color.BLACK
+            border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
         }
 
         override fun paintComponent(g: Graphics) {
-            val g2 = g as Graphics2D
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
-
             if (!muted) {
+                val g2 = g as Graphics2D
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
                 val chipBg     = UIManager.getColor("Button.background")     ?: Color(235, 235, 235)
                 val chipBorder = UIManager.getColor("Component.borderColor") ?: Color(180, 180, 180)
                 g2.color = chipBg
@@ -352,19 +372,8 @@ class KeyboardPanel(
                 g2.stroke = BasicStroke(1f)
                 g2.drawRoundRect(0, 0, width - 1, height - 1, arc, arc)
             }
-
-            val fg = if (muted) UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
-                     else       UIManager.getColor("Label.foreground")          ?: Color.BLACK
-            g2.color = fg
-            g2.font  = chipFont()
-            val fm   = g2.fontMetrics
-            g2.drawString(label,
-                (width - fm.stringWidth(label)) / 2,
-                (height + fm.ascent - fm.descent) / 2)
+            super.paintComponent(g)   // Swing text pipeline handles the label text
         }
-
-        private fun chipFont() = Font(Font.MONOSPACED, if (muted) Font.ITALIC else Font.PLAIN,
-            this@KeyboardPanel.font.size - 1)
     }
 
     private inner class ScopeColumnRenderer : DefaultTableCellRenderer() {
@@ -428,22 +437,51 @@ class KeyboardPanel(
 
 object HotkeyRecorderDialog {
 
+    /**
+     * Key codes that are never valid as the main key in a shortcut.
+     * Modifier keys themselves are handled separately (they update the live preview).
+     * Lock keys, system keys, and VK_UNDEFINED are rejected outright.
+     */
+    private val UNUSABLE_MAIN_KEYS = setOf(
+        KeyEvent.VK_UNDEFINED,
+        KeyEvent.VK_CAPS_LOCK, KeyEvent.VK_NUM_LOCK, KeyEvent.VK_SCROLL_LOCK,
+        KeyEvent.VK_PRINTSCREEN, KeyEvent.VK_PAUSE, KeyEvent.VK_CANCEL,
+        KeyEvent.VK_WINDOWS, KeyEvent.VK_CONTEXT_MENU
+    )
+
+    /** Keys treated as pure modifiers — they update the live combo preview, not the main key. */
+    private val MODIFIER_KEYS = setOf(
+        KeyEvent.VK_CONTROL, KeyEvent.VK_SHIFT,
+        KeyEvent.VK_ALT, KeyEvent.VK_ALT_GRAPH, KeyEvent.VK_META
+    )
+
     fun show(
         owner: Window?,
         action: HotkeyAction,
         current: HotkeyBinding?,
-        localizer: LocalizationManager
+        localizer: LocalizationManager,
+        pauseGlobalHotkeys:  (() -> Unit)? = null,
+        resumeGlobalHotkeys: (() -> Unit)? = null,
     ): HotkeyBinding? {
 
+        // ── mutable recorder state ──────────────────────────────────────────
         var capturedKeyCode   = current?.keyCode   ?: 0
         var capturedModifiers = current?.modifiers  ?: 0
+        /** True once the user has pressed (and released or committed) a full combo. */
+        var isCaptureDone     = current?.hasBinding == true
+        /** Modifier mask from live key events before the main key is pressed. */
+        var liveModifiers     = 0
+        var isErrorState      = false
+        var errorKeyCode      = 0
 
+        // ── dialog ──────────────────────────────────────────────────────────
         val dialog = JDialog(
             owner,
             localizer.getString("settings_hotkeys.recorder_title"),
             Dialog.ModalityType.APPLICATION_MODAL
         )
         dialog.defaultCloseOperation = JDialog.DISPOSE_ON_CLOSE
+        dialog.isResizable = false
 
         val actionName = when (action) {
             HotkeyAction.SHOW_MAIN_WINDOW         -> localizer.getString("settings_hotkeys.action_show_main")
@@ -459,74 +497,249 @@ object HotkeyRecorderDialog {
             HotkeyAction.FOCUS_EXTRA_OUTPUT       -> localizer.getString("settings_hotkeys.action_focus_extra_output")
         }
 
-        val promptLabel = JLabel(
-            "<html><center>${localizer.getString("settings_hotkeys.recorder_prompt")}<br><b>$actionName</b></center></html>",
-            SwingConstants.CENTER
-        ).apply {
-            border     = BorderFactory.createEmptyBorder(20, 24, 16, 24)
-            alignmentX = Component.CENTER_ALIGNMENT
+        // ── colours ──────────────────────────────────────────────────────────
+        val mutedFg   = UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
+        val normalFg  = UIManager.getColor("Label.foreground")          ?: Color.BLACK
+        val errorFg   = UIManager.getColor("Actions.Red")               ?: Color(200, 60, 60)
+        val successFg = UIManager.getColor("Component.accentColor")     ?: Color(50, 150, 80)
+
+        // ── fonts ─────────────────────────────────────────────────────────────
+        val baseFont        = UIManager.getFont("TextField.font") ?: dialog.font
+        val captureFont     = baseFont.deriveFont(Font.PLAIN,  baseFont.size + 2f)
+        val placeholderFont = baseFont.deriveFont(Font.ITALIC, baseFont.size + 2f)
+
+        // ── widgets ─────────────────────────────────────────────────────────
+        // Muted label above the field — same pattern as IntelliJ's "Keyboard Shortcut" dialog.
+        val actionLabel = JLabel(actionName).apply {
+            foreground = mutedFg
         }
 
-        val inputField = JTextField(
-            if (current?.hasBinding == true) KeyboardPanel.formatBinding(current) else ""
-        ).apply {
-            font                = font.deriveFont(Font.BOLD, font.size + 4f)
-            horizontalAlignment = JTextField.CENTER
-            border = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor") ?: Color.GRAY),
-                BorderFactory.createEmptyBorder(10, 16, 10, 16)
-            )
+        /**
+         * The main capture field.  isEditable=false so keystrokes aren't inserted as characters;
+         * isFocusable=true so it receives key events.  Text is left-aligned and always normal
+         * foreground — only the [hintLabel] below changes colour to indicate state.
+         * Background is pinned to TextField.background so FlatLaf keeps the active-field look.
+         */
+        val inputField = JTextField().apply {
+            isEditable          = false
+            isFocusable         = true
+            font                = captureFont
+            horizontalAlignment = JTextField.LEADING   // left-aligned, like IntelliJ
+            foreground          = normalFg
+            UIManager.getColor("TextField.background")?.let { background = it }
         }
 
-        val hintLabel = JLabel(
-            localizer.getString("settings_hotkeys.recorder_hint"),
-            SwingConstants.CENTER
-        ).apply {
-            font       = font.deriveFont(Font.ITALIC, font.size - 1f)
-            foreground = UIManager.getColor("Label.disabledForeground")
-            border     = BorderFactory.createEmptyBorder(6, 24, 0, 24)
-            alignmentX = Component.CENTER_ALIGNMENT
+        /**
+         * "+" button to the right of the field — opens a menu of special keys that cannot be
+         * typed directly (Enter would confirm the dialog, Escape would close it, Tab moves
+         * focus, etc.).  Same concept as IntelliJ's "+" next to its shortcut field.
+         */
+        data class SpecialKey(val name: String, val keyCode: Int, val mods: Int = 0)
+        val specialKeys = listOf(
+            SpecialKey("Enter",     KeyEvent.VK_ENTER),
+            SpecialKey("Escape",    KeyEvent.VK_ESCAPE),
+            SpecialKey("Tab",       KeyEvent.VK_TAB),
+            SpecialKey("Backspace", KeyEvent.VK_BACK_SPACE),
+            SpecialKey("Delete",    KeyEvent.VK_DELETE),
+            SpecialKey("Space",     KeyEvent.VK_SPACE),
+            SpecialKey("Insert",    KeyEvent.VK_INSERT),
+            null,  // separator
+            SpecialKey("Home",      KeyEvent.VK_HOME),
+            SpecialKey("End",       KeyEvent.VK_END),
+            SpecialKey("Page Up",   KeyEvent.VK_PAGE_UP),
+            SpecialKey("Page Down", KeyEvent.VK_PAGE_DOWN),
+            SpecialKey("↑",         KeyEvent.VK_UP),
+            SpecialKey("↓",         KeyEvent.VK_DOWN),
+            SpecialKey("←",         KeyEvent.VK_LEFT),
+            SpecialKey("→",         KeyEvent.VK_RIGHT),
+            null,
+            SpecialKey("F1",  KeyEvent.VK_F1),
+            SpecialKey("F2",  KeyEvent.VK_F2),
+            SpecialKey("F3",  KeyEvent.VK_F3),
+            SpecialKey("F4",  KeyEvent.VK_F4),
+            SpecialKey("F5",  KeyEvent.VK_F5),
+            SpecialKey("F6",  KeyEvent.VK_F6),
+            SpecialKey("F7",  KeyEvent.VK_F7),
+            SpecialKey("F8",  KeyEvent.VK_F8),
+            SpecialKey("F9",  KeyEvent.VK_F9),
+            SpecialKey("F10", KeyEvent.VK_F10),
+            SpecialKey("F11", KeyEvent.VK_F11),
+            SpecialKey("F12", KeyEvent.VK_F12),
+        )
+
+        // FlatLaf embeds this button inside the field's border via TEXT_FIELD_TRAILING_COMPONENT.
+        val specialKeysBtn = JButton("+").apply {
+            isFocusable = false
+            cursor      = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+            toolTipText = "Set a special key"
+            putClientProperty("FlatLaf.style",
+                "arc: 0; margin: 2,6,2,6; borderWidth: 0; innerFocusWidth: 0; " +
+                "background: null")
         }
 
-        val okButton     = JButton(localizer.getString("common.ok")).apply { isEnabled = current?.hasBinding ?: false }
+        val hintLabel = JLabel("").apply {
+            font = font.deriveFont(font.size - 1f)
+        }
+
+        val okButton     = JButton(localizer.getString("common.ok"))
         val cancelButton = JButton(localizer.getString("common.cancel"))
-
         var confirmed = false
         okButton.addActionListener     { confirmed = true;  dialog.dispose() }
-        cancelButton.addActionListener { confirmed = false; dialog.dispose() }
+        cancelButton.addActionListener { dialog.dispose() }
         dialog.rootPane.defaultButton = okButton
 
+        // ── helpers ──────────────────────────────────────────────────────────
+        /** Formats a key combo as "Ctrl + Alt + T".  keyCode < 0 renders "?" for live preview. */
+        fun formatCombo(mods: Int, keyCode: Int): String = buildList {
+            if (mods and InputEvent.CTRL_DOWN_MASK  != 0) add("Ctrl")
+            if (mods and InputEvent.ALT_DOWN_MASK   != 0) add("Alt")
+            if (mods and InputEvent.SHIFT_DOWN_MASK != 0) add("Shift")
+            if (mods and InputEvent.META_DOWN_MASK  != 0) add("⌘")
+            add(if (keyCode < 0) "?" else KeyEvent.getKeyText(keyCode))
+        }.joinToString(" + ")
+
+        // ── updateUI ─────────────────────────────────────────────────────────
+        // The input field always shows plain normal text — only hintLabel changes colour.
+        fun updateUI() {
+            when {
+                isErrorState -> {
+                    inputField.font = captureFont
+                    inputField.text = KeyEvent.getKeyText(errorKeyCode)
+                    hintLabel.text       = "⚠  ${localizer.getString("settings_hotkeys.recorder_invalid_key")}"
+                    hintLabel.foreground = errorFg
+                    okButton.isEnabled   = false
+                }
+                isCaptureDone && capturedKeyCode != 0 -> {
+                    inputField.font = captureFont
+                    inputField.text = formatCombo(capturedModifiers, capturedKeyCode)
+                    hintLabel.text       = localizer.getString("settings_hotkeys.recorder_hint_confirm")
+                    hintLabel.foreground = successFg
+                    okButton.isEnabled   = true
+                }
+                liveModifiers != 0 -> {
+                    inputField.font = captureFont
+                    inputField.text = formatCombo(liveModifiers, -1)
+                    hintLabel.text       = localizer.getString("settings_hotkeys.recorder_modifier_hint")
+                    hintLabel.foreground = mutedFg
+                    okButton.isEnabled   = false
+                }
+                else -> {
+                    if (current?.hasBinding == true) {
+                        inputField.font = captureFont
+                        inputField.text = formatCombo(current.modifiers, current.keyCode)
+                    } else {
+                        inputField.font = placeholderFont
+                        inputField.text = localizer.getString("settings_hotkeys.recorder_waiting")
+                    }
+                    hintLabel.text       = localizer.getString("settings_hotkeys.recorder_hint")
+                    hintLabel.foreground = mutedFg
+                    okButton.isEnabled   = current?.hasBinding == true
+                }
+            }
+        }
+
+        // Embed the "+" button inside the field border — FlatLaf trailing component.
+        inputField.putClientProperty(
+            FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, specialKeysBtn
+        )
+
+        // ── special-key popup ─────────────────────────────────────────────────
+        specialKeysBtn.addActionListener {
+            val menu = JPopupMenu()
+            for (sk in specialKeys) {
+                if (sk == null) { menu.addSeparator(); continue }
+                menu.add(JMenuItem("Set ${sk.name}").apply {
+                    addActionListener {
+                        capturedKeyCode   = sk.keyCode
+                        capturedModifiers = sk.mods
+                        liveModifiers     = 0
+                        isCaptureDone     = true
+                        isErrorState      = false
+                        updateUI()
+                        inputField.requestFocusInWindow()
+                    }
+                })
+            }
+            menu.show(specialKeysBtn, 0, specialKeysBtn.height)
+        }
+
+        // ── key handling ─────────────────────────────────────────────────────
         inputField.addKeyListener(object : KeyAdapter() {
             override fun keyPressed(e: KeyEvent) {
                 e.consume()
+                isErrorState = false
 
-                if (e.keyCode == KeyEvent.VK_ESCAPE) {
-                    confirmed = false
-                    dialog.dispose()
-                    return
+                when {
+                    e.keyCode == KeyEvent.VK_ESCAPE -> {
+                        if (isCaptureDone) {
+                            // First Esc: clear captured combo, return to waiting state
+                            isCaptureDone     = false
+                            capturedKeyCode   = 0
+                            capturedModifiers = 0
+                            liveModifiers     = 0
+                            updateUI()
+                        } else {
+                            // Second Esc (or Esc from waiting): close dialog
+                            dialog.dispose()
+                        }
+                        return
+                    }
+
+                    e.keyCode in MODIFIER_KEYS -> {
+                        // Only modifier held — update live preview, don't capture yet
+                        liveModifiers = e.modifiersEx
+                        updateUI()
+                        return
+                    }
+
+                    e.keyCode in UNUSABLE_MAIN_KEYS -> {
+                        // Rejected key — show in red, disable OK
+                        errorKeyCode       = e.keyCode
+                        isErrorState       = true
+                        okButton.isEnabled = false
+                        updateUI()
+                        return
+                    }
+
+                    else -> {
+                        // Valid main key — capture the full combination
+                        capturedKeyCode   = e.keyCode
+                        capturedModifiers = e.modifiersEx
+                        liveModifiers     = 0
+                        isCaptureDone     = true
+                        updateUI()
+                    }
                 }
+            }
 
-                if (e.keyCode in setOf(
-                        KeyEvent.VK_CONTROL, KeyEvent.VK_SHIFT,
-                        KeyEvent.VK_ALT, KeyEvent.VK_META, KeyEvent.VK_ALT_GRAPH
-                    )) return
-
-                capturedKeyCode   = e.keyCode
-                capturedModifiers = e.modifiersEx
-
-                val preview = HotkeyBinding(action = action, keyCode = capturedKeyCode, modifiers = capturedModifiers)
-                inputField.text    = KeyboardPanel.formatBinding(preview)
-                okButton.isEnabled = true
+            override fun keyReleased(e: KeyEvent) {
+                e.consume()
+                // Update live modifier display only while no main key is captured
+                if (!isCaptureDone && e.keyCode in MODIFIER_KEYS) {
+                    liveModifiers = e.modifiersEx
+                    if (!isErrorState) updateUI()
+                }
             }
 
             override fun keyTyped(e: KeyEvent) { e.consume() }
         })
 
-        val mainPanel = JPanel(BorderLayout(0, 0)).apply {
-            border = BorderFactory.createEmptyBorder(0, 12, 0, 12)
-            add(promptLabel, BorderLayout.NORTH)
-            add(inputField,  BorderLayout.CENTER)
-            add(hintLabel,   BorderLayout.SOUTH)
+        // ── layout ───────────────────────────────────────────────────────────
+        updateUI()
+
+        // IntelliJ layout: muted action name → field (with embedded "+") → hint, left-aligned.
+        val mainPanel = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            border = BorderFactory.createEmptyBorder(14, 14, 6, 14)
+            isOpaque = false
+            actionLabel.alignmentX = Component.LEFT_ALIGNMENT
+            inputField.alignmentX  = Component.LEFT_ALIGNMENT
+            hintLabel.alignmentX   = Component.LEFT_ALIGNMENT
+            add(actionLabel)
+            add(Box.createVerticalStrut(8))
+            add(inputField)
+            add(Box.createVerticalStrut(6))
+            add(hintLabel)
         }
 
         dialog.contentPane.add(mainPanel, BorderLayout.CENTER)
@@ -539,9 +752,14 @@ object HotkeyRecorderDialog {
         })
 
         dialog.pack()
-        dialog.minimumSize = Dimension(340, dialog.preferredSize.height)
+        dialog.minimumSize = Dimension(360, dialog.preferredSize.height)
         dialog.setLocationRelativeTo(owner)
-        dialog.isVisible = true
+
+        // Disable global hotkeys while the dialog is open so a shortcut being recorded
+        // (e.g. Ctrl+D for dictionary) doesn't also fire its currently assigned action.
+        pauseGlobalHotkeys?.invoke()
+        dialog.isVisible = true   // ← blocks on EDT until the dialog is closed
+        resumeGlobalHotkeys?.invoke()
 
         if (!confirmed) return null
 

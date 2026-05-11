@@ -287,6 +287,7 @@ reset_button = "সব ডিফল্টে রিসেট করুন"
 no_binding = "(কিছু নেই)"
 reset_confirmation = "সব হটকি কি তাদের ডিফল্ট মানে রিসেট করবেন?"
 reset_title = "হটকি রিসেট করুন"
+recorder_subtitle = "Shortcut for"
 recorder_title = "হটকি রেকর্ড করুন"
 recorder_prompt = "আপনি যে কী সংমিশ্রণটি অ্যাসাইন করতে চান তা চাপুন:"
 double_ctrl = "ডাবল Ctrl"
@@ -294,8 +295,11 @@ show_main_tooltip = "ডাবল-ট্যাপ Ctrl সবসময় সক
 double_ctrl_on = "⊕ ডাবল Ctrl"
 double_ctrl_off = "⊖ ডাবল Ctrl"
 double_ctrl_toggle_hint = "ডাবল-ট্যাপ Ctrl ট্রিগার চালু/বন্ধ করতে ক্লিক করুন। অন্য অ্যাপে বাধা দিলে কাজে আসবে।"
-recorder_waiting = "— একটি কী সংমিশ্রণ টিপুন —"
-recorder_hint = "বাতিল করতে 'Escape' চাপুন"
+recorder_waiting = "— press a key combination —"
+recorder_hint = "Press a key combination, then click OK · Esc to cancel"
+recorder_modifier_hint = "Now press a letter, number or function key"
+recorder_hint_confirm = "Press another combination to change · Esc to clear"
+recorder_invalid_key = "This key cannot be used as a shortcut"
 
 
 [settings_translation]

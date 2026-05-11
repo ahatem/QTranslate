@@ -133,7 +133,13 @@ class MainAppFrame(
         iconManager = iconManager,
         themeManager = themeManager,
         localizationManager = localizer,
-        availableLanguages = { mainStore.state.value.availableLanguages }
+        availableLanguages = { mainStore.state.value.availableLanguages },
+        pauseGlobalHotkeys  = { globalKeyListener.setHotkeysEnabled(false) },
+        resumeGlobalHotkeys = {
+            globalKeyListener.setHotkeysEnabled(
+                settingsStore.state.value.workingConfiguration.isGlobalHotkeysEnabled
+            )
+        },
     )
 
     private val mainContentView: MainContentView = MainContentView(

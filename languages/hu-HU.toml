@@ -287,6 +287,7 @@ reset_button = "Az összes alapértékre állítása"
 no_binding = "(nincs)"
 reset_confirmation = "Minden gyorsbillentyűt visszaállítson az alapértelmezett értékekre?"
 reset_title = "Gyorsbillentyűk visszaállítása"
+recorder_subtitle = "Shortcut for"
 recorder_title = "Felvétel gyorsbillentyű"
 recorder_prompt = "Nyomja meg a hozzárendelni kívánt billentyűkombinációt:"
 double_ctrl = "Dupla Ctrl"
@@ -294,8 +295,11 @@ show_main_tooltip = "A Dupla Ctrl mindig aktív. Opcionálisan megadhat itt egy 
 double_ctrl_on = "⊕ Dupla Ctrl be"
 double_ctrl_off = "⊖ Dupla Ctrl ki"
 double_ctrl_toggle_hint = "Kattints a dupla Ctrl aktiválásához / kikapcsolásához. Hasznos, ha a dupla Ctrl más alkalmazásokba is beleszól."
-recorder_waiting = "— nyomjon meg egy billentyűkombinációt —"
-recorder_hint = "Nyomja meg az Escape-et a megszakításhoz"
+recorder_waiting = "— press a key combination —"
+recorder_hint = "Press a key combination, then click OK · Esc to cancel"
+recorder_modifier_hint = "Now press a letter, number or function key"
+recorder_hint_confirm = "Press another combination to change · Esc to clear"
+recorder_invalid_key = "This key cannot be used as a shortcut"
 
 
 [settings_translation]

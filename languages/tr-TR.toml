@@ -287,6 +287,7 @@ reset_button = "Tümünü Varsayılana Sıfırla"
 no_binding = "(yok)"
 reset_confirmation = "Tüm kısayollar varsayılan değerlerine sıfırlansın mı?"
 reset_title = "Kısayolları Sıfırla"
+recorder_subtitle = "Shortcut for"
 recorder_title = "Kısayol Kaydet"
 recorder_prompt = "Atamak istediğiniz tuş kombinasyonuna basın:"
 double_ctrl = "Çift Ctrl"
@@ -294,8 +295,11 @@ show_main_tooltip = "Çift Ctrl her zaman aktiftir. İsteğe bağlı olarak bura
 double_ctrl_on = "⊕ Çift Ctrl"
 double_ctrl_off = "⊖ Çift Ctrl"
 double_ctrl_toggle_hint = "Çift Ctrl tetikleyicisini etkinleştirmek / devre dışı bırakmak için tıklayın. Diğer uygulamalarla çakışıyorsa kullanışlıdır."
-recorder_waiting = "— bir tuş kombinasyonuna basın —"
-recorder_hint = "İptal etmek için Escape tuşuna basın"
+recorder_waiting = "— press a key combination —"
+recorder_hint = "Press a key combination, then click OK · Esc to cancel"
+recorder_modifier_hint = "Now press a letter, number or function key"
+recorder_hint_confirm = "Press another combination to change · Esc to clear"
+recorder_invalid_key = "This key cannot be used as a shortcut"
 
 
 [settings_translation]

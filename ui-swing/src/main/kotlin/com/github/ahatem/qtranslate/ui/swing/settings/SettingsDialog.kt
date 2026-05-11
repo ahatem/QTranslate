@@ -39,7 +39,11 @@ class SettingsDialog(
      * Evaluated lazily so [GeneralPanel] always gets the latest list when
      * it renders — not whatever was available when the dialog was constructed.
      */
-    private val availableLanguages: () -> List<com.github.ahatem.qtranslate.api.language.LanguageCode> = { emptyList() }
+    private val availableLanguages: () -> List<com.github.ahatem.qtranslate.api.language.LanguageCode> = { emptyList() },
+    /** Invoked just before the hotkey recorder opens; should disable global hotkeys. */
+    private val pauseGlobalHotkeys:  (() -> Unit)? = null,
+    /** Invoked after the recorder closes; should restore the global hotkey state. */
+    private val resumeGlobalHotkeys: (() -> Unit)? = null,
 ) : JDialog(owner, "Settings", true) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -285,7 +289,7 @@ class SettingsDialog(
             PluginsPanel(iconManager, pluginManager, localizationManager, scope)
 
         localizationManager.getString("settings_dialog_sidebar.hotkeys") ->
-            KeyboardPanel(settingsStore, localizationManager)
+            KeyboardPanel(settingsStore, localizationManager, pauseGlobalHotkeys, resumeGlobalHotkeys)
 
         localizationManager.getString("settings_dialog_sidebar.translation") ->
             TranslationPanel(settingsStore, localizationManager)

@@ -287,6 +287,7 @@ reset_button = "Resetar Todos"
 no_binding = "(nenhum)"
 reset_confirmation = "Resetar todos os atalhos para os valores padrão?"
 reset_title = "Resetar Atalhos"
+recorder_subtitle = "Shortcut for"
 recorder_title = "Gravar Atalho"
 recorder_prompt = "Pressione a combinação de teclas para:"
 double_ctrl = "Ctrl Duplo"
@@ -294,8 +295,11 @@ show_main_tooltip = "Ctrl Duplo está sempre ativo. Opcionalmente, você pode ad
 double_ctrl_on = "⊕ Ctrl Duplo"
 double_ctrl_off = "⊖ Ctrl Duplo"
 double_ctrl_toggle_hint = "Clique para ativar / desativar o gatilho de Ctrl duplo. Útil se o Ctrl duplo interferir com outros aplicativos."
-recorder_waiting = "— pressione uma combinação de teclas —"
-recorder_hint = "Pressione Escape para cancelar"
+recorder_waiting = "— press a key combination —"
+recorder_hint = "Press a key combination, then click OK · Esc to cancel"
+recorder_modifier_hint = "Now press a letter, number or function key"
+recorder_hint_confirm = "Press another combination to change · Esc to clear"
+recorder_invalid_key = "This key cannot be used as a shortcut"
 
 
 [settings_translation]

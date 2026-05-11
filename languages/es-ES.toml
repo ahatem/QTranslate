@@ -287,6 +287,7 @@ reset_button = "Restablecer todos"
 no_binding = "(ninguno)"
 reset_confirmation = "¿Restablecer todos los atajos a sus valores por defecto?"
 reset_title = "Restablecer Atajos"
+recorder_subtitle = "Shortcut for"
 recorder_title = "Grabar Atajo"
 recorder_prompt = "Pulse la combinación de teclas que desea asignar a:"
 double_ctrl = "Doble Ctrl"
@@ -294,8 +295,11 @@ show_main_tooltip = "Doble Ctrl siempre está activo. Opcionalmente puedes añad
 double_ctrl_on = "⊕ Ctrl doble"
 double_ctrl_off = "⊖ Ctrl doble"
 double_ctrl_toggle_hint = "Haz clic para activar / desactivar el disparador de doble Ctrl. Útil si interfiere con otras aplicaciones."
-recorder_waiting = "— pulse una combinación de teclas —"
-recorder_hint = "Pulse Escape para cancelar"
+recorder_waiting = "— press a key combination —"
+recorder_hint = "Press a key combination, then click OK · Esc to cancel"
+recorder_modifier_hint = "Now press a letter, number or function key"
+recorder_hint_confirm = "Press another combination to change · Esc to clear"
+recorder_invalid_key = "This key cannot be used as a shortcut"
 
 
 [settings_translation]
