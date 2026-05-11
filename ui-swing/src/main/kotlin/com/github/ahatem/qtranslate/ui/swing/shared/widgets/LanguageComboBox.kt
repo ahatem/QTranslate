@@ -82,7 +82,13 @@ class LanguageComboBox(
                 currentLanguages = availableLanguages
             }
 
-            this.selectedItem = selectedLanguage
+            // Only update the selection when the language is actually present in the current model.
+            // If the model is still empty (plugins not yet loaded) or the language was filtered out
+            // by pinnedLanguages, leave the current selection untouched so we don't silently
+            // display the wrong language or trigger a spurious onLanguageSelected callback.
+            if (selectedLanguage != null && selectedLanguage in availableLanguages) {
+                this.selectedItem = selectedLanguage
+            }
             this.isEnabled = isEnabled
             isRendering = false
         }

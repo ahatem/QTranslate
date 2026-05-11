@@ -160,6 +160,9 @@ window_layout = "النافذة والتخطيط"
 # ===================================================================
 
 [settings_general]
+default_language_group = "Default Language"
+default_target_language = "Default Target Language:"
+default_target_language_hint = "The target language selected when the app starts. Your choice is remembered automatically after you change it in the main window."
 startup_updates_group = "بدء التشغيل والتحديثات"
 startup_group = "بدء التشغيل"
 launch_on_startup = "التشغيل عند بدء تشغيل النظام"

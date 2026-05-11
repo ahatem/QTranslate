@@ -132,7 +132,8 @@ class MainAppFrame(
         pluginManager = pluginManager,
         iconManager = iconManager,
         themeManager = themeManager,
-        localizationManager = localizer
+        localizationManager = localizer,
+        availableLanguages = { mainStore.state.value.availableLanguages }
     )
 
     private val mainContentView: MainContentView = MainContentView(

@@ -78,9 +78,15 @@ class MainContentView(
         iconManager = iconManager,
         localizer = localizer,
         onClear = { dispatch(MainIntent.UpdateInputText("")) },
-        onSourceLanguageSelected = { lang -> dispatch(MainIntent.SelectSourceLanguage(lang)) },
+        onSourceLanguageSelected = { lang ->
+            dispatch(MainIntent.SelectSourceLanguage(lang))
+            dispatchSettings(SettingsIntent.ToggleSetting { it.copy(preferredSourceLanguage = lang.tag) })
+        },
         onSwap = { dispatch(MainIntent.SwapLanguages) },
-        onTargetLanguageSelected = { lang -> dispatch(MainIntent.SelectTargetLanguage(lang)) },
+        onTargetLanguageSelected = { lang ->
+            dispatch(MainIntent.SelectTargetLanguage(lang))
+            dispatchSettings(SettingsIntent.ToggleSetting { it.copy(preferredTargetLanguage = lang.tag) })
+        },
         onTranslate = { dispatch(MainIntent.Translate()) },
         onCancel = { dispatch(MainIntent.CancelTranslation) }
     )

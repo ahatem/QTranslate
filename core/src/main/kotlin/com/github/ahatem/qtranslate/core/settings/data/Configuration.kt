@@ -243,6 +243,20 @@ data class Configuration(
     val isRemoveLineBreaksEnabled: Boolean = false,
     val translationRules: List<TranslationRule> = emptyList(),
 
+    // ---- Language Preferences ----
+    /**
+     * The language tag ("en", "fr", "ar", …) last selected as the target language.
+     * Restored on startup so the app remembers the user's preferred language across sessions.
+     * Defaults to "en" (English) so new users see a sensible translation immediately.
+     */
+    val preferredTargetLanguage: String = "en",
+
+    /**
+     * The language tag last selected as the source language, or "auto" for auto-detect.
+     * Restored on startup.
+     */
+    val preferredSourceLanguage: String = "auto",
+
     // ---- Language Filtering ----
     /**
      * When non-empty, only these language codes appear in the target language picker.

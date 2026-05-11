@@ -160,6 +160,9 @@ window_layout = "窗口与布局"
 # ===================================================================
 
 [settings_general]
+default_language_group = "Default Language"
+default_target_language = "Default Target Language:"
+default_target_language_hint = "The target language selected when the app starts. Your choice is remembered automatically after you change it in the main window."
 startup_updates_group = "启动与更新"
 startup_group = "启动"
 launch_on_startup = "开机自启动"

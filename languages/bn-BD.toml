@@ -160,6 +160,9 @@ window_layout = "উইন্ডো এবং লেআউট"
 # ===================================================================
 
 [settings_general]
+default_language_group = "Default Language"
+default_target_language = "Default Target Language:"
+default_target_language_hint = "The target language selected when the app starts. Your choice is remembered automatically after you change it in the main window."
 startup_updates_group = "স্টার্টআপ ও আপডেট"
 startup_group = "স্টার্টআপ"
 launch_on_startup = "সিস্টেম স্টার্টআপে চালু করুন"

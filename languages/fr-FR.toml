@@ -160,6 +160,9 @@ window_layout = "Fenêtre & Mise en page"
 # ===================================================================
 
 [settings_general]
+default_language_group = "Default Language"
+default_target_language = "Default Target Language:"
+default_target_language_hint = "The target language selected when the app starts. Your choice is remembered automatically after you change it in the main window."
 startup_updates_group = "Démarrage et mises à jour"
 startup_group = "Démarrage"
 launch_on_startup = "Lancer au démarrage du système"

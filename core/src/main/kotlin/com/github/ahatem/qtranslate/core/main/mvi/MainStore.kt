@@ -55,7 +55,9 @@ class MainStore(
     private val _state = MutableStateFlow(
         MainState(
             isDictionaryPanelVisible = settingsState.value.showDictionaryPanel,
-            isQuickDictionaryPinned  = settingsState.value.isQuickDictionaryPinned
+            isQuickDictionaryPinned  = settingsState.value.isQuickDictionaryPinned,
+            targetLanguage           = LanguageCode(settingsState.value.preferredTargetLanguage),
+            sourceLanguage           = LanguageCode(settingsState.value.preferredSourceLanguage)
         )
     )
     override val state: StateFlow<MainState> = _state.asStateFlow()
@@ -86,13 +88,30 @@ class MainStore(
     private fun observeAvailableServices() {
         scope.launch {
             selectActiveServiceUseCase.observe().collect { selection ->
-                _state.update {
-                    it.copy(
-                        availableServices = selection.availableServices,
-                        availableLanguages = selection.availableLanguages.sortedWith(
-                            compareBy<LanguageCode> { lc -> lc.tag != "auto" }
-                                .thenBy { lc -> lc.getDisplayName() }
-                        )
+                _state.update { current ->
+                    val sortedLanguages = selection.availableLanguages.sortedWith(
+                        compareBy<LanguageCode> { lc -> lc.tag != "auto" }
+                            .thenBy { lc -> lc.getDisplayName() }
+                    )
+
+                    // If the previously selected target language is not available in the new
+                    // list (e.g. because pinnedLanguages hides it, or the translator doesn't
+                    // support it), fall back to the saved preference then to the first available
+                    // non-auto language so the user is never silently translated to the wrong language.
+                    val targetLang = when {
+                        current.targetLanguage in sortedLanguages -> current.targetLanguage
+                        else -> {
+                            val preferred = LanguageCode(settingsState.value.preferredTargetLanguage)
+                            sortedLanguages.firstOrNull { it == preferred }
+                                ?: sortedLanguages.firstOrNull { it.tag != "auto" }
+                                ?: current.targetLanguage
+                        }
+                    }
+
+                    current.copy(
+                        availableServices  = selection.availableServices,
+                        availableLanguages = sortedLanguages,
+                        targetLanguage     = targetLang
                     )
                 }
             }

@@ -33,7 +33,13 @@ class SettingsDialog(
     private val pluginManager: PluginManager,
     private val iconManager: IconManager,
     private val themeManager: ThemeManager,
-    private val localizationManager: LocalizationManager
+    private val localizationManager: LocalizationManager,
+    /**
+     * Snapshot of languages currently supported by the active translator.
+     * Evaluated lazily so [GeneralPanel] always gets the latest list when
+     * it renders — not whatever was available when the dialog was constructed.
+     */
+    private val availableLanguages: () -> List<com.github.ahatem.qtranslate.api.language.LanguageCode> = { emptyList() }
 ) : JDialog(owner, "Settings", true) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -267,7 +273,7 @@ class SettingsDialog(
 
     private fun createPanel(name: String): JPanel = when (name) {
         localizationManager.getString("settings_dialog_sidebar.general") ->
-            GeneralPanel(settingsStore, localizationManager)
+            GeneralPanel(settingsStore, localizationManager, availableLanguages)
 
         localizationManager.getString("settings_dialog_sidebar.appearance") ->
             AppearancePanel(settingsStore, themeManager, localizationManager, scope)
