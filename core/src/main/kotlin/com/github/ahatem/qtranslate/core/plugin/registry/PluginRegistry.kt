@@ -102,6 +102,7 @@ internal class PluginRegistry {
         containers.values
             .filter { it.status == PluginStatus.ENABLED }
             .flatMap { it.services }
+            .sortedBy { it.id }
             .associateBy { it.id }
 
     // -------------------------------------------------------------------------
