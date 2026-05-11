@@ -528,7 +528,19 @@ class AdvancedTextPane(
         inputMap.put(redoAction.getValue(Action.ACCELERATOR_KEY) as KeyStroke, "redo")
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, InputEvent.CTRL_DOWN_MASK), "none")
 
+        // Explicitly wire standard text shortcuts in the component-level WHEN_FOCUSED InputMap.
+        // Although these are already in the LAF's parent InputMap, setting the EditorKit
+        // (WrappingEditorKit) triggers a UI reinstall whose InputMap parent chain can be
+        // momentarily incomplete on some JVM/LAF combinations, causing the shortcuts to
+        // silently fail.  Wiring them here makes the binding deterministic regardless of
+        // reinstallation order.
+        // CutAction and PasteAction are self-guarding: they no-op when isEditable = false.
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_DOWN_MASK), "copy-to-clipboard")
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, InputEvent.CTRL_DOWN_MASK), "select-all")
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_X, InputEvent.CTRL_DOWN_MASK), "cut-to-clipboard")
+
         if (onImageDropped != null) {
+            // Input pane: Ctrl+V tries to paste an image first, falls back to text paste.
             val pasteAction = createAction(
                 "PasteImageOrText",
                 KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.CTRL_DOWN_MASK)
@@ -543,6 +555,10 @@ class AdvancedTextPane(
             }
             actionMap.put("paste-image-or-text", pasteAction)
             inputMap.put(pasteAction.getValue(Action.ACCELERATOR_KEY) as KeyStroke, "paste-image-or-text")
+        } else {
+            // Output / read-only panes: wire plain text paste so it is always available
+            // through the component-level InputMap (PasteAction is a no-op when !isEditable).
+            inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.CTRL_DOWN_MASK), "paste-from-clipboard")
         }
     }
 
@@ -562,8 +578,18 @@ class AdvancedTextPane(
 
     private fun setupTransferHandler() {
         if (onImageDropped == null) return
+        // Capture the default JTextPane TransferHandler BEFORE replacing it.
+        // It handles all text export operations (copy / cut / drag-out).  Our custom
+        // handler only adds image-import support; for everything else it must delegate
+        // back to the original, otherwise Ctrl+C / Ctrl+X silently do nothing because
+        // the base TransferHandler.createTransferable() returns null.
         val original = transferHandler
         transferHandler = object : TransferHandler() {
+
+            // ----------------------------------------------------------------
+            // Import — image first, then fall through to the original handler
+            // ----------------------------------------------------------------
+
             override fun canImport(support: TransferSupport): Boolean {
                 if (isEditable) {
                     if (support.isDataFlavorSupported(DataFlavor.imageFlavor)) return true
@@ -594,6 +620,26 @@ class AdvancedTextPane(
                 }
                 return original?.importData(support) ?: false
             }
+
+            // ----------------------------------------------------------------
+            // Export (Ctrl+C, Ctrl+X, drag-out) — delegate to original handler
+            // so the selected text is correctly placed on the clipboard / drag.
+            // createTransferable / exportDone are protected in TransferHandler and
+            // cannot be called on an external instance.  Delegating through the two
+            // public entry-points (exportToClipboard + exportAsDrag) avoids the
+            // visibility restriction entirely while achieving the same result.
+            // ----------------------------------------------------------------
+
+            override fun getSourceActions(c: JComponent?): Int =
+                original?.getSourceActions(c) ?: NONE
+
+            override fun exportToClipboard(comp: JComponent?, clip: java.awt.datatransfer.Clipboard?, action: Int) {
+                original?.exportToClipboard(comp, clip, action)
+            }
+
+            override fun exportAsDrag(comp: JComponent?, e: InputEvent?, action: Int) {
+                original?.exportAsDrag(comp, e, action)
+            }
         }
         dropTarget?.isActive = true
     }
@@ -604,7 +650,13 @@ class AdvancedTextPane(
 
     private fun setupMouseListeners() {
         addMouseListener(object : MouseAdapter() {
-            override fun mousePressed(e: MouseEvent)  = showPopup(e)
+            override fun mousePressed(e: MouseEvent) {
+                // Explicitly claim focus on left-click so Ctrl+C and other keyboard
+                // shortcuts work immediately after clicking a read-only output pane,
+                // without requiring the user to Tab into it first.
+                if (SwingUtilities.isLeftMouseButton(e)) requestFocusInWindow()
+                showPopup(e)
+            }
             override fun mouseReleased(e: MouseEvent) = showPopup(e)
             private fun showPopup(e: MouseEvent) {
                 if (e.isPopupTrigger) {
@@ -680,6 +732,10 @@ class AdvancedTextPane(
         super.setEditable(editable)
         // Keep the text cursor even when non-editable so the output feels like a text area.
         cursor = Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR)
+        // Some LAF/platform combinations drop focusability when isEditable = false.
+        // Forcing it true ensures keyboard shortcuts (Ctrl+C, Ctrl+A, …) continue to work
+        // in read-only output panes.
+        isFocusable = true
     }
 
     override fun updateUI() {
