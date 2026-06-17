@@ -1,0 +1,552 @@
+# ===================================================================
+# PHẦN META
+# ===================================================================
+[meta]
+name = "Tiếng Việt"
+native_name = "Vietnamese"
+locale = "vi-Vn"
+version = "1.0.0"
+author = "Vũ Anh Vũ <vuanhvu11982@gmail.com>"
+last_updated = "2026-04-26"
+rtl = false
+
+# ===================================================================
+# CHUỖI CHUNG
+# ===================================================================
+[common]
+ok = "Đồng ý"
+cancel = "Hủy"
+apply = "Áp dụng"
+save = "Lưu"
+yes = "Có"
+no = "Không"
+close = "Đóng"
+save_as = "Lưu thành..."
+submit = "Gửi"
+search = "Tìm kiếm..."
+copy = "Sao chép"
+copy_all = "Sao chép tất cả"
+paste = "Dán"
+cut = "Cắt"
+cut_all = "Cắt tất cả"
+undo = "Hoàn tác"
+redo = "Làm lại"
+version = "Phiên bản %s"
+seconds = "giây"
+from = "Từ"
+to = "đến"
+listen = "Nghe"
+stop = "Dừng"
+pin = "Ghim"
+unpin = "Bỏ ghim"
+loading = "Đang tải..."
+none = "Không có"
+error = "Lỗi"
+browse = "Duyệt..."
+delete = "Xóa"
+rename = "Đổi tên..."
+new = "Mới..."
+configure = "Cấu hình"
+clear_all = "Xóa tất cả"
+auto_detect = "Tự động nhận dạng"
+
+# ===================================================================
+# CỬA SỔ ỨNG DỤNG CHÍNH
+# ===================================================================
+[main_window]
+status_format = "Đang sử dụng %s: %s → %s"
+no_translator = "Không có bộ dịch"
+
+[main_window_history_bar]
+backward_tooltip = "Quay lại trong lịch sử dịch"
+forward_tooltip = "Tiến tới trong lịch sử dịch"
+image_translate_tooltip = "Chụp và dịch văn bản từ một khu vực trên màn hình"
+
+[main_window_language_bar]
+clear_tooltip = "Xóa văn bản nhập"
+swap_languages_tooltip = "Đổi hướng dịch"
+translate_button = "Dịch"
+cancel_button = "Hủy"
+
+[main_window_editor_context_menu]
+spelling_suggestions = "Gợi ý chính tả"
+undo = "@common.undo"
+redo = "@common.redo"
+cut = "@common.cut"
+cut_all = "@common.cut_all"
+copy = "@common.copy"
+copy_all = "@common.copy_all"
+paste = "@common.paste"
+translate = "@main_window_language_bar.translate_button"
+listen = "@common.listen"
+spell_check = "Kiểm tra chính tả"
+find_in_dictionary = "Tìm trong từ điển"
+set_as_input = "Đặt làm đầu vào"
+input_hint = "Nhập văn bản để dịch..."
+output_hint = "Bản dịch sẽ xuất hiện ở đây…"
+
+[main_window_main_menu]
+layout_presets = "Các mẫu bố cục"
+layout_preset_classic = "Cổ điển"
+layout_preset_side_by_side = "Song song"
+layout_preset_compact = "Gọn"
+instant_translation = "Dịch tức thì"
+show_extra_output = "Hiển thị kết quả bổ sung"
+spell_check = "Kiểm tra chính tả"
+find_in_dictionary = "Tìm trong từ điển"
+input_hint = "Nhập văn bản để dịch..."
+options_submenu = "Tùy chọn"
+show_history_bar = "Hiển thị thanh lịch sử"
+show_language_bar = "Hiển thị thanh ngôn ngữ"
+show_services_panel = "Hiển thị bảng dịch vụ"
+show_status_bar = "Hiển thị thanh trạng thái"
+show_dictionary_panel = "Hiển thị bảng từ điển"
+settings = "Cài đặt..."
+help_submenu = "Trợ giúp"
+how_to_use = "Cách sử dụng"
+contact_us = "Liên hệ chúng tôi"
+auto_check_for_updates = "Tự động kiểm tra Cập nhật"
+check_for_updates = "Kiểm tra Cập nhật"
+about_qtranslate = "Giới thiệu về QTranslate"
+exit = "Thoát"
+
+[main_window_status_bar]
+ready_message = "Sẵn sàng"
+notifications_tooltip = "Thông báo"
+notifications_empty_tooltip = "Không có thông báo mới"
+error_detail_error = "Lỗi"
+error_detail_warning = "Cảnh báo"
+error_detail_copy = "Sao chép"
+error_detail_copied = "Đã sao chép!"
+
+# ===================================================================
+# MENU KHAY HỆ THỐNG
+# ===================================================================
+[system_tray_menu]
+show_application = "Hiển thị QTranslate"
+recognize_text = "Nhận dạng Văn bản (OCR)"
+dictionary = "Từ điển"
+history = "Lịch sử"
+settings = "@main_window_main_menu.settings"
+enable_hotkeys = "Bật Phím tắt Toàn hệ thống"
+exit = "@main_window_main_menu.exit"
+
+# ===================================================================
+# HỘP THOẠI CÀI ĐẶT (GIAO DIỆN & ĐIỀU HƯỚNG)
+# ===================================================================
+[settings_dialog]
+title = "Cài đặt"
+unsaved_changes = "● Thay đổi chưa lưu"
+saving = "Đang lưu..."
+save_failed_title = "Lưu thất bại"
+reset_defaults_button = "Đặt lại về Mặc định"
+reset_confirmation_title = "Đặt lại về Mặc định"
+reset_confirmation_message = "Đặt lại tất cả cài đặt về mặc định?
+Hành động này không thể hoàn tác."
+search_placeholder = "Lọc cài đặt..."
+
+[settings_dialog_sidebar]
+general = "Chung"
+appearance = "Giao diện"
+services = "Dịch vụ & Cài đặt sẵn"
+plugins = "Tiện ích"
+hotkeys = "Bàn phím & Phím tắt"
+translation = "Dịch thuật"
+languages = "Ngôn ngữ"
+window_layout = "Cửa sổ & Bố cục"
+
+# ===================================================================
+# TRANG CÀI ĐẶT
+# ===================================================================
+
+[settings_general]
+default_language_group = "Ngôn ngữ Mặc định"
+default_target_language = "Ngôn ngữ đích Mặc định:"
+default_target_language_hint = "Ngôn ngữ đích được chọn khi ứng dụng khởi động. Lựa chọn của bạn sẽ được ghi nhớ tự động sau khi bạn thay đổi trong cửa sổ chính." 
+startup_updates_group = "Khởi động & Cập nhật"
+startup_group = "Khởi động"
+launch_on_startup = "Khởi chạy khi hệ thống khởi động"
+updates_group = "Cập nhật"
+auto_check_updates = "Tự động kiểm tra cập nhật"
+history_group = "Lịch sử"
+enable_history = "Bật lịch sử dịch"
+clear_history_on_exit = "Xóa lịch sử khi đóng ứng dụng"
+clear_history_hint = "Các bản dịch đã lưu sẽ bị xóa vĩnh viễn khi thoát nếu tùy chọn này được bật."
+
+[settings_appearance]
+language_group = "Ngôn ngữ"
+interface_language = "Ngôn ngữ giao diện:"
+language_hint = "Thay đổi sẽ được áp dụng ngay lập tức. Một số nhãn có thể yêu cầu khởi động lại để cập nhật hoàn toàn."
+theme_group = "Giao diện"
+theme_label = "Giao diện:"
+theme_sync_os = "Đồng bộ với hệ điều hành (theo chế độ sáng/tối của hệ thống)"
+theme_group_light = "Giao diện sáng"
+theme_group_dark = "Giao diện tối"
+theme_group_installed = "Giao diện đã cài đặt"
+unified_title_bar = "Sử dụng thanh tiêu đề thống nhất"
+scale_group = "Tỷ lệ giao diện"
+scale_label = "Tỷ lệ:"
+scale_hint = "Khởi động lại ứng dụng để áp dụng đầy đủ các thay đổi về tỷ lệ."
+fonts_group = "Phông chữ"
+ui_font = "Phông chữ giao diện:"
+editor_font = "Phông chữ trình soạn thảo:"
+fallback_font = "Phông chữ dự phòng:"
+fallback_hint = "Phông chữ dự phòng được sử dụng cho các ký tự mà phông chữ trình soạn thảo không hiển thị được."
+loading_fonts = "<Đang tải phông chữ...>"
+font_preview_text = "Con cáo nâu nhanh nhẹn nhảy qua con chó lười biếng — 大きな茶色の狐が怠け者の犬を飛び越えた"
+
+[settings_services]
+presets_group = "Cấu hình sẵn có đang dùng"
+current_preset = "Cấu hình hiện tại:"
+preset_hint = "Các cấu hình sẵn có cho phép bạn lưu các kết hợp dịch vụ khác nhau và chuyển đổi nhanh chóng giữa chúng."
+default_preset_name = "Mặc định"
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+config_group = "Cấu hình dịch vụ"
+translator = "Dịch giả:"
+tts = "Chuyển văn bản thành giọng nói:"
+ocr = "Nhận dạng ký tự quang học (OCR):"
+spell_checker = "Trình kiểm tra chính tả:"
+dictionary = "Từ điển:"
+summarizer = "Tóm tắt:"
+rewriter = "Trình viết lại:" 
+# Hộp thoại
+new_preset_title = "Cài đặt mới"
+new_preset_prompt = "Nhập tên cho cài đặt mới:"
+rename_preset_title = "Đổi tên cài đặt"
+rename_preset_prompt = "Nhập tên mới:"
+delete_preset_title = "Xóa cài đặt"
+delete_preset_confirm = "Xóa cài đặt \"%s\"?
+Hành động này không thể hoàn tác."
+
+[settings_plugins]
+install_plugin = "Cài đặt Plugin..."
+browse_on_github = "Duyệt plugin trên GitHub ↗"
+empty_selection_hint = "Chọn một plugin để xem chi tiết"
+provided_services = "Dịch vụ được cung cấp"
+section_about = "Giới thiệu"
+section_services = "Dịch vụ được cung cấp"
+plugin_error_label = "Lỗi"
+status_enabled = "Đã bật"
+status_disabled = "Đã tắt"
+status_failed = "Thất bại"
+status_verification = "Chờ xác minh"
+# Hành động
+btn_disable = "Tắt"
+btn_enable = "Bật"
+btn_configure = "Cấu hình..."
+btn_accept_update = "Chấp nhận cập nhật"
+btn_clean_install = "Cài đặt sạch"
+btn_uninstall = "Gỡ cài đặt"
+tip_accept_update = "Giữ dữ liệu hiện có và bật lại plugin"
+tip_clean_install = "Xóa tất cả dữ liệu plugin trước khi bật lại"
+# Hộp thoại
+install_dialog_title = "Chọn JAR plugin"
+install_dialog_filter = "Plugin QTranslate (* .jar)"
+install_success_title = "Đã cài đặt plugin"
+install_success_msg = "Plugin đã được cài đặt thành công."
+install_fail_title = "Cài đặt không thành công"
+uninstall_confirm_title = "Gỡ cài đặt plugin"
+uninstall_confirm_msg = "Gỡ cài đặt \"%s\"?\nTất cả dữ liệu plugin sẽ bị xóa vĩnh viễn."
+no_settings_msg = "Plugin này không có cài đặt có thể định cấu hình."
+
+[settings_hotkeys]
+global_group = "Phím nóng toàn cầu"
+enable_global = "Bật phím nóng toàn cầu"
+assignments_group = "Nhiệm vụ phím nóng"
+column_action = "Hành động"
+column_hotkey = "Phím nóng"
+column_description = "Mô tả"
+customization_hint = "Tùy chỉnh phím nóng sẽ có sẵn trong bản cập nhật trong tương lai."
+column_scope = "Phạm vi"
+scope_global = "Toàn cầu"
+scope_local = "Địa phương"
+# Hành động mặc định
+action_show_main = "Hiển thị cửa sổ chính"
+action_quick_translate = "Dịch nhanh"
+action_listen = "Nghe Lựa Chọn"
+action_ocr = "OCR từ Màn Hình"
+action_replace = "Thay Thế Lựa Chọn bằng Bản Dịch (thử nghiệm)"
+action_cycle_language = "Chuyển Ngôn Ngữ Mục Tiêu"
+action_show_dictionary = "Hiển Thị Từ Điển"
+action_translate = "Dịch"
+action_focus_input = "Tập Trung Ô Nhập"
+action_focus_output = "Tập Trung Ô Xuất"
+action_focus_extra_output = "Tập Trung Ô Xuất Bổ Sung"
+scope_toggle_hint = "Nhấn để chuyển đổi giữa Toàn Cục và Cục Bộ"
+
+# Mô Tả Các Hành Động Mặc Định
+desc_show_main = "Nhấn đúp Ctrl để hiển thị cửa sổ chính"
+desc_quick_translate = "Dịch văn bản đã chọn trong cửa sổ bật lên"
+desc_listen = "Đọc to văn bản đã chọn"
+desc_ocr = "Chụp một vùng màn hình và trích xuất văn bản"
+desc_replace = "Dịch văn bản đã chọn và dán lại tại chỗ (thử nghiệm)"
+desc_cycle = "Chuyển qua các ngôn ngữ mục tiêu có sẵn mà không mở cửa sổ"
+
+edit_hint = "Nhấn đúp vào một hàng hoặc chọn nó và nhấn Chỉnh sửa để thay đổi phím tắt."
+edit_button = "Chỉnh sửa…"
+clear_button = "Xóa"
+reset_button = "Đặt lại tất cả về mặc định"
+no_binding = "(không có)"
+reset_confirmation = "Đặt lại tất cả các phím nóng về giá trị mặc định?"
+reset_title = "Đặt lại phím nóng"
+recorder_subtitle = "Phím tắt cho"
+recorder_title = "Ghi phím nóng"
+recorder_prompt = "Nhấn tổ hợp phím mà bạn muốn gán cho:"
+double_ctrl = "Nhấn Ctrl hai lần"
+show_main_tooltip = "Nhấn Ctrl hai lần luôn được kích hoạt. Bạn có thể tùy chọn thêm phím nóng khác ở đây."
+double_ctrl_on = "⊕ Nhấn Ctrl hai lần"
+double_ctrl_off = "⊖ Nhấn Ctrl hai lần"
+double_ctrl_toggle_hint = "Nhấp để bật / tắt kích hoạt nhấn Ctrl hai lần. Hữu ích nếu nhấn Ctrl hai lần gây xung đột với các ứng dụng khác."
+recorder_waiting = "— nhấn một tổ hợp phím —"
+recorder_hint = "Nhấn một tổ hợp phím, sau đó nhấp OK · Esc để hủy"
+recorder_modifier_hint = "Bây giờ nhấn một chữ cái, số hoặc phím chức năng"
+recorder_hint_confirm = "Nhấn một tổ hợp khác để thay đổi · Esc để xóa"
+recorder_invalid_key = "Phím này không thể dùng làm phím tắt"
+behavior_group = "Hành vi"
+instant_translation = "Dịch ngay lập tức (dịch khi bạn gõ)"
+instant_hint = "Kích hoạt dịch tự động sau khi bạn ngừng gõ."
+spell_check_input = "Bật kiểm tra chính tả trên đầu vào"
+extra_output_group = "Kết quả bổ sung"
+extra_output_type = "Loại:"
+extra_output_hint = "Hiển thị bảng kết quả phụ dưới kết quả chính của bản dịch."
+extra_output_source = "Nguồn:"
+source_use_translated = "Sử dụng văn bản đã dịch"
+source_use_input = "Sử dụng văn bản đầu vào"
+remove_line_breaks = "Xóa xuống dòng khỏi đầu vào"
+remove_line_breaks_hint = "Hữu ích khi sao chép từ PDF mà mỗi dòng kết thúc bằng dấu xuống dòng"
+
+dict_auto_lookup_group = "Tra từ điển tự động"
+dict_auto_lookup_source = "Nguồn tra tự động:"
+dict_auto_source_off = "Tắt"
+dict_auto_source_translated = "Văn bản đã dịch"
+dict_auto_source_source = "Văn bản nguồn"
+dict_auto_lookup_hint = "Tự động tra cứu từ đơn trong từ điển khi đang dịch."
+dict_auto_popup_enabled = "Hiển thị popup nổi cho từng từ"
+pinned_languages_group = "Bộ lọc Ngôn ngữ"
+pinned_languages_hint = "Chọn các ngôn ngữ để hiển thị trong trình chọn ngôn ngữ đích.
+Bỏ chọn tất cả để hiển thị mọi ngôn ngữ có sẵn."
+pinned_languages_clear = "Xóa Bộ lọc (Hiển thị Tất cả)"
+# Loại
+type_none = "@common.none"
+type_backward = "Dịch ngược"
+type_summarize = "Tóm tắt"
+type_rewrite = "Viết lại"
+# Tùy chọn độ dài bản tóm tắt (hiển thị khi type = Tóm tắt)
+summary_length = "Độ dài bản tóm tắt:"
+summary_length_short = "Ngắn (một câu)"
+summary_length_medium = "Trung bình (vài câu)"
+summary_length_long = "Dài (chi tiết)"
+# Tùy chọn phong cách viết lại (hiển thị khi type = Viết lại)
+rewrite_style = "Phong cách viết lại:"
+rewrite_style_formal = "Trang trọng"
+rewrite_style_casual = "Thân mật"
+rewrite_style_concise = "Ngắn gọn"
+rewrite_style_detailed = "Chi tiết"
+rewrite_style_simplified = "Đơn giản hóa"
+# Quy tắc dịch
+rules_group = "Quy tắc Dịch"
+rules_hint = "Tự động chọn ngôn ngữ đích dựa trên ngôn ngữ nguồn được phát hiện.
+Nếu không có quy tắc nào phù hợp, ngôn ngữ đích được chọn thủ công sẽ được sử dụng." 
+rules_col_source = "Ngôn ngữ nguồn" 
+rules_col_target = "Ngôn ngữ đích" 
+rules_add_btn = "Thêm quy tắc" 
+rules_remove_btn = "Xóa quy tắc" 
+rules_dialog_title = "Thêm quy tắc dịch" 
+rules_dialog_source = "Nếu nguồn là:" 
+rules_dialog_target = "Dịch sang:" 
+rules_error_same_title = "Quy tắc không hợp lệ" 
+rules_error_same = "Ngôn ngữ nguồn và ngôn ngữ đích phải khác nhau." 
+rules_error_duplicate_title = "Quy tắc trùng lặp" 
+rules_error_duplicate = "Đã tồn tại quy tắc cho '%s'." 
+
+[settings_languages] 
+pinned_languages_group = "Ngôn ngữ đã ghim" 
+pinned_languages_hint = "Chọn các ngôn ngữ để hiển thị trong bộ chọn ngôn ngữ đích. Bỏ chọn tất cả để hiển thị tất cả các ngôn ngữ có sẵn." 
+pinned_languages_clear = "Xóa lựa chọn (Hiển thị tất cả)" 
+rules_group = "Quy tắc dịch"
+rules_hint = "Tự động chọn ngôn ngữ đích dựa trên ngôn ngữ nguồn được phát hiện. Nếu không có quy tắc nào phù hợp, ngôn ngữ đích được chọn thủ công sẽ được sử dụng."
+rules_col_source = "Ngôn ngữ nguồn"
+rules_col_target = "Ngôn ngữ đích"
+rules_add_btn = "Thêm Quy tắc"
+rules_remove_btn = "Xóa Quy tắc"
+rules_dialog_title = "Thêm Quy tắc Dịch"
+rules_dialog_source = "Nếu nguồn là:"
+rules_dialog_target = "Dịch sang:"
+rules_error_same_title = "Quy tắc Không hợp lệ"
+rules_error_same = "Ngôn ngữ nguồn và đích phải khác nhau."
+rules_error_duplicate_title = "Quy tắc Trùng lặp"
+rules_error_duplicate = "Quy tắc cho '%s' đã tồn tại."
+dict_auto_lookup_group = "Tự động tra từ điển"
+dict_auto_lookup_source = "Nguồn tra tự động:"
+dict_auto_source_off = "Tắt"
+dict_auto_source_translated = "Văn bản đã dịch"
+dict_auto_source_source = "Văn bản nguồn"
+dict_auto_lookup_hint = "Tự động tra từ đơn trong từ điển khi dịch."
+dict_auto_popup_enabled = "Hiển thị popup nổi cho từ đơn"
+[settings_window]
+layout_group = "Bố cục"
+layout_preset = "Bố cục mặc định:"
+toolbars_group = "Thanh công cụ"
+show_history_bar = "Hiển thị thanh điều hướng lịch sử"
+show_language_bar = "Hiển thị thanh chọn ngôn ngữ"
+show_services_panel = "Hiển thị bảng dịch vụ"
+show_status_bar = "Hiển thị thanh trạng thái"
+show_dictionary_panel = "Hiển thị bảng từ điển"
+popup_group = "Cửa sổ bật lên"
+translation_popup_sub = "Bật lên Dịch"
+dict_popup_sub = "Bật lên Từ điển"
+popup_idle_hint = "Cửa sổ bật lên sẽ mờ đi sau số giây nhàn rỗi này. Di chuyển chuột qua nó để đặt lại hẹn giờ."
+auto_size = "Tự động điều chỉnh kích thước cửa sổ theo nội dung"
+auto_position = "Tự động đặt cửa sổ gần con trỏ"
+transparency = "Độ trong suốt nền:"
+popup_idle_timeout = "Ẩn sau khi nhàn rỗi:"
+seconds_unit = "giây"
+dict_popup_group = "Bật lên Từ điển"
+# Nút đóng
+close_behavior_group   = "Hành vi nút Đóng"
+close_button           = "Khi đóng:"
+close_behavior_ask     = "Hỏi mỗi lần"
+close_behavior_minimize = "Thu nhỏ vào khay"
+close_behavior_exit    = "Thoát ứng dụng"
+close_behavior_hint    = "Điều khiển những gì xảy ra khi bạn nhấn nút ×. Bạn cũng có thể thiết lập điều này từ hộp thoại đóng chính nó."
+
+# ===================================================================
+# CẤU HÌNH PLUGIN ĐỘNG
+# ===================================================================
+[plugin_config]
+title_format = "Cấu hình — %s"
+required_fields_error_title = "Các trường bắt buộc"
+required_fields_error_msg = "Vui lòng điền vào các trường bắt buộc:"
+
+# ===================================================================
+# CÁC HỘP THOẠI KHÁC
+# ===================================================================
+[about_dialog]
+support_button = "Hỗ trợ dự án này ♥"
+donation_nudge = "Bạn đã dịch rất nhiều với QTranslate! Nếu bạn thấy nó hữu ích, hãy cân nhắc hỗ trợ dự án (Giới thiệu → Hỗ trợ ♥)"
+title = "Giới thiệu về QTranslate"
+description = "QTranslate gốc đã bị bỏ rơi. Đây là một bản viết lại hoàn toàn — cùng ý tưởng, dựa trên plugin nên ứng dụng không bao giờ lỗi thời."
+
+[history_dialog]
+title = "Lịch Sử Dịch"
+column_date = "Ngày & Giờ"
+column_source = "Nguồn"
+column_translation = "Bản Dịch"
+column_languages = "Ngôn Ngữ"
+column_service = "Dịch Vụ"
+empty_message = "Chưa có bản dịch nào trong lịch sử."
+restore_tooltip = "Nhấp đúp để khôi phục bản dịch này"
+
+[dictionary_dialog]
+title = "Từ Điển"
+search_placeholder = "Nhập một từ…"
+lookup_button = "Tra Cứu"
+hint_message = "Nhập một từ ở trên để tra cứu."
+not_found_message = "Không tìm thấy định nghĩa cho "%s"."
+loading_message = "Đang tra cứu…"
+error_message = "Tra cứu thất bại. Vui lòng thử lại."
+synonyms_label = "Từ Đồng Nghĩa"
+auto_source_off = "Tự động: Tắt"
+auto_source_translated = "Đã Dịch"
+auto_source_source = "Nguồn"
+
+[preset_selector]
+manage_tooltip  = "Quản Lý Tiền Thiết Lập Dịch Vụ"
+edit_preset     = "Chỉnh sửa '%s'..."
+manage_presets  = "Quản Lý Các Thiết Lập..."
+[update_dialog]
+title = "Cập nhật có sẵn"
+header = "Một phiên bản mới của QTranslate đã có sẵn!"
+# %1$s = số phiên bản mới, %2$s = số phiên bản hiện tại
+details_format = "Phiên bản %s hiện có sẵn (bạn đang có %s). Bạn có muốn cập nhật không?"
+release_notes_label = "Ghi chú phát hành:"
+skip_button = "Bỏ qua phiên bản này"
+remind_later_button = "Nhắc tôi sau"
+download_button = "Tải về"
+view_on_github_button = "Xem trên GitHub"
+
+# ===================================================================
+# CLOSE DIALOG
+# ===================================================================
+[close_dialog]
+title           = "Đóng QTranslate"
+message         = "Bạn muốn làm gì?"
+minimize_to_tray = "Thu nhỏ vào khay"
+exit            = "Thoát"
+remember_choice = "Ghi nhớ lựa chọn của tôi"
+
+# ===================================================================
+# EXTRA OUTPUT PANEL
+# ===================================================================
+[extra_output]
+label_backward = "Dịch ngược"
+label_summary = "Tóm tắt"
+label_rewrite = "Viết lại"
+
+# ===================================================================
+# THÔNG BÁO & LỖI
+# ===================================================================
+[Thông báo]
+language_not_supported_format = "Ngôn ngữ '%s' không được %s hỗ trợ."
+tts_not_supported_format = "Chuyển văn bản thành giọng nói không được %s hỗ trợ."
+unknown_error = "Đã xảy ra lỗi không xác định."
+
+[status_bar]
+ocr_text_copied = "Văn bản được nhận dạng và sao chép vào khay nhớ tạm".
+translating = "Đang dịch..."
+translation_complete = "Bản dịch hoàn tất."
+translation_cancelled = "Bản dịch bị hủy".
+translation_timeout = "Bản dịch đã hết thời gian chờ. Vui lòng thử lại."
+translation_failed = "Dịch không thành công: %s"
+no_translator_active = "Không có dịch vụ phiên dịch nào đang hoạt động."
+performing_backward_translation = "Thực hiện dịch ngược..."
+unexpected_error = "Lỗi không mong muốn: %s"
+no_text_to_speak = "Không có văn bản để nói."
+cannot_determine_language = "Không thể xác định ngôn ngữ của văn bản đã chọn."
+no_tts_active = "Không có dịch vụ Chuyển văn bản thành giọng nói (TTS) nào đang hoạt động."
+tts_language_not_supported = "Dịch vụ TTS đang hoạt động (%s) không hỗ trợ ngôn ngữ đã chọn."
+converting_to_speech = "Đang chuyển văn bản thành giọng nói..."
+tts_timeout = "Chuyển văn bản thành giọng nói bị hết thời gian. Vui lòng thử lại."
+playing_audio = "Đang phát âm thanh..."
+audio_playback_complete = "Phát âm thanh hoàn tất."
+tts_stopped = "Đã dừng âm thanh."
+downloading_audio = "Đang tải âm thanh xuống..."
+audio_download_failed = "Tải luồng âm thanh thất bại."
+tts_failed = "Chuyển văn bản thành giọng nói thất bại: %s"
+no_ocr_active = "Không có dịch vụ OCR (Nhận dạng văn bản) nào đang hoạt động."
+recognizing_text = "Đang nhận dạng văn bản từ hình ảnh..."
+ocr_timeout = "Nhận dạng văn bản bị hết thời gian. Vui lòng thử lại với hình ảnh nhỏ hơn."
+no_text_in_image = "Không tìm thấy văn bản trong hình ảnh chụp."
+ocr_complete = "Nhận dạng văn bản thành công!"
+ocr_failed = "Nhận dạng văn bản thất bại: %s"
+no_summarizer_active = "Không có dịch vụ tóm tắt nào đang hoạt động. Cài đặt và cấu hình plugin tóm tắt."
+summarizing = "Đang tóm tắt..."
+summarize_timeout = "Tóm tắt hết thời gian chờ."
+summary_ready = "Bản tóm tắt đã sẵn sàng."
+summarize_failed = "Tóm tắt thất bại: %s"
+no_rewriter_active = "Không có dịch vụ viết lại nào đang hoạt động. Cài đặt và cấu hình plugin viết lại."
+rewriting = "Đang viết lại..."
+rewrite_timeout = "Viết lại hết thời gian chờ."
+rewrite_ready = "Bản viết lại đã sẵn sàng."
+rewrite_failed = "Viết lại thất bại: %s"
+spell_check_timeout = "Kiểm tra chính tả hết thời gian chờ."
+spell_check_failed = "Kiểm tra chính tả thất bại: %s"
+already_up_to_date = "Bạn đang sử dụng phiên bản mới nhất (%s)."
+update_check_network_error = "Kiểm tra cập nhật thất bại. Vui lòng kiểm tra kết nối internet và thử lại."
+update_check_parse_error = "Kiểm tra cập nhật thất bại. Máy chủ trả về dữ liệu không mong đợi. Vui lòng thử lại sau."
+update_check_unknown_error = "Kiểm tra cập nhật thất bại. Đã xảy ra lỗi không mong đợi. Vui lòng thử lại sau."
+# Từ điển
+no_word_to_lookup = "Vui lòng nhập một từ để tra cứu."
+no_dictionary_active = "Không có dịch vụ từ điển nào đang hoạt động."
+looking_up_word = "Đang tra cứu…"
+dictionary_ready = "Đã tìm thấy định nghĩa."
+dictionary_not_found = "Không tìm thấy định nghĩa cho \"%s\"."
+dictionary_timeout = "Tra cứu từ điển bị hết thời gian chờ."
+dictionary_failed = "Tra cứu từ điển thất bại: %s"
+
+[layout_compact]
+tab_input_tooltip = "Văn bản gốc (%s)"
+tab_output_tooltip = "Bản dịch (%s)"
+tab_extra_tooltip = "Kết quả bổ sung (%s)"
