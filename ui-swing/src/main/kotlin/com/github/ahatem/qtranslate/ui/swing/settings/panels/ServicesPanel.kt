@@ -5,6 +5,8 @@ import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
+import com.github.ahatem.qtranslate.core.settings.data.isServiceTypeEnabled
+import com.github.ahatem.qtranslate.core.settings.data.withServiceTypeEnabled
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
@@ -26,6 +28,7 @@ class ServicesPanel(
     private lateinit var renameBtn: JButton
     private lateinit var deleteBtn: JButton
     private val serviceComboBoxes = mutableMapOf<ServiceType, JComboBox<ServiceOption>>()
+    private val serviceEnabledChecks = mutableMapOf<ServiceType, JCheckBox>()
 
     init {
         buildUI()
@@ -90,6 +93,15 @@ class ServicesPanel(
     private fun buildServiceCard(type: ServiceType, combo: JComboBox<ServiceOption>): JPanel {
         val icon = serviceIcon(type)
         val label = serviceLabel(type)
+        val enabledCheck = JCheckBox(localizationManager.getString("settings_plugins.status_enabled"), true).apply {
+            isOpaque = false
+            addActionListener {
+                if (!isUpdatingFromState) {
+                    applyDraft(store) { it.withServiceTypeEnabled(type, isSelected) }
+                }
+            }
+        }
+        serviceEnabledChecks[type] = enabledCheck
 
         val header = JPanel(FlowLayout(FlowLayout.LEADING, 5, 0)).apply {
             isOpaque = false
@@ -98,6 +110,7 @@ class ServicesPanel(
                 foreground = UIManager.getColor("Label.disabledForeground")
                 font = font.deriveFont(font.size - 1f)
             })
+            add(enabledCheck)
         }
 
         return JPanel(BorderLayout(0, 5)).apply {
@@ -204,6 +217,12 @@ class ServicesPanel(
             val hasPreset = active != null
             renameBtn.isEnabled = hasPreset
             deleteBtn.isEnabled = hasPreset && c.servicePresets.size > 1
+
+            ServiceType.entries.forEach { type ->
+                val enabled = c.isServiceTypeEnabled(type)
+                serviceEnabledChecks[type]?.isSelected = enabled
+                serviceComboBoxes[type]?.isEnabled = enabled
+            }
 
             active?.let { preset ->
                 serviceComboBoxes.forEach { (type, combo) ->

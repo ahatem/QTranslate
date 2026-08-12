@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceSelectionState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.isServiceDisabled
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.ahatem.qtranslate.core.shared.util.mapServiceToType
@@ -59,12 +60,16 @@ class SelectActiveServiceUseCase(
     fun observe(): Flow<ServiceSelectionState> =
         combine(activeServices, settingsState, dynamicLanguageCache) { services, config, langCache ->
             val availableServices = services.values
-                .filterNot { it.id in config.disabledServices }
+                .filterNot { service ->
+                    val type = mapServiceToType(service) ?: return@filterNot false
+                    config.isServiceDisabled(service.id, type)
+                }
                 .mapNotNull { toServiceInfo(it) }
 
             val activePreset = config.getActivePreset() ?: config.servicePresets.firstOrNull()
             val selectedTranslatorId = activePreset?.selectedServices?.get(ServiceType.TRANSLATOR)
-            val translator = services[selectedTranslatorId] as? Translator
+            val translator = (services[selectedTranslatorId] as? Translator)
+                ?.takeUnless { config.isServiceDisabled(it.id, ServiceType.TRANSLATOR) }
 
             val languages = if (translator != null) {
                 resolveLanguages(translator, langCache)
@@ -86,6 +91,7 @@ class SelectActiveServiceUseCase(
     suspend fun getLanguagesFor(serviceId: String?): List<LanguageCode> {
         if (serviceId == null) return emptyList()
         val translator = activeServices.value[serviceId] as? Translator ?: return emptyList()
+        if (settingsState.value.isServiceDisabled(translator.id, ServiceType.TRANSLATOR)) return emptyList()
         return resolveLanguagesSuspending(translator)
     }
 

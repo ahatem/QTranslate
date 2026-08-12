@@ -2,6 +2,23 @@ package com.github.ahatem.qtranslate.core.settings.data
 
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 
+private const val DISABLED_SERVICE_TYPE_PREFIX = "type:"
+
+fun ServiceType.disabledServiceKey(): String = "$DISABLED_SERVICE_TYPE_PREFIX$name"
+
+fun Configuration.isServiceTypeEnabled(serviceType: ServiceType): Boolean =
+    serviceType.disabledServiceKey() !in disabledServices
+
+fun Configuration.withServiceTypeEnabled(serviceType: ServiceType, enabled: Boolean): Configuration {
+    val key = serviceType.disabledServiceKey()
+    return copy(
+        disabledServices = if (enabled) disabledServices - key else disabledServices + key
+    )
+}
+
+fun Configuration.isServiceDisabled(serviceId: String, serviceType: ServiceType): Boolean =
+    serviceId in disabledServices || !isServiceTypeEnabled(serviceType)
+
 /**
  * Extension functions for working with [Configuration] immutably.
  *
