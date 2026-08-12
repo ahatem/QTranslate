@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
+import com.github.ahatem.qtranslate.core.document.DocumentTranslationProgress
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
@@ -58,7 +59,9 @@ data class MainState(
     /** True while a silent background translation for inline replace is running. */
     val isReplacingSelection: Boolean = false,
     /** True while the [com.github.ahatem.qtranslate.core.audio.AudioPlayer] is actively playing TTS audio. */
-    val isTtsPlaying: Boolean = false
+    val isTtsPlaying: Boolean = false,
+    /** Progress for an active document translation, or null when idle. */
+    val documentTranslationProgress: DocumentTranslationProgress? = null
 ) : UiState {
 
     /** `true` when [sourceLanguage] is [LanguageCode.AUTO]. */

@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.serialization.json.Json
 import java.io.File
+import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 
 /**
  * All wired-up application dependencies, produced by [buildDependencies]
@@ -240,7 +241,8 @@ suspend fun buildDependencies(
         ocrAndTranslateUseCase     = OcrAndTranslateUseCase(activeServiceManager, loggerFactory),
         summarizeUseCase           = summarizeUseCase,
         rewriteUseCase             = rewriteUseCase,
-        lookupWordUseCase          = lookupWordUseCase
+        lookupWordUseCase          = lookupWordUseCase,
+        documentTranslationUseCase = DocumentTranslationUseCase(activeServiceManager, loggerFactory)
     )
 
     return AppDependencies(

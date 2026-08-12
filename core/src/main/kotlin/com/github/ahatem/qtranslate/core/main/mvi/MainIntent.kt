@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
+import java.io.File
 
 /**
  * All user actions that can be dispatched to [MainStore].
@@ -103,6 +104,12 @@ sealed interface MainIntent : UiIntent {
 
     /** User requested a check for application updates. */
     data object CheckForUpdates : MainIntent
+
+    /** Translate a supported document using the active translator and language pair. */
+    data class TranslateDocument(val inputFile: File, val outputFile: File) : MainIntent
+
+    /** Cancel the active document translation and remove its partial output. */
+    data object CancelDocumentTranslation : MainIntent
 
     // ---- Quick translate popup ----
 

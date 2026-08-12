@@ -20,4 +20,9 @@ dependencies {
 
     implementation(libs.kotlinxCoroutinesSwing)
 
+    implementation(libs.poi.ooxml)
+    implementation(libs.pdfbox)
+
+    testImplementation(kotlin("test"))
+
 }

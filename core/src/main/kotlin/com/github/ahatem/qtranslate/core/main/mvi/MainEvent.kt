@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.core.main.mvi
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.shared.arch.UiEvent
+import java.io.File
 
 /**
  * One-shot events emitted by [MainStore] to be consumed exactly once by the UI.
@@ -34,4 +35,8 @@ sealed interface MainEvent : UiEvent {
      * Emitted after [MainIntent.OcrAndCopyText] successfully extracts text.
      */
     data class CopyToClipboard(val text: String) : MainEvent
+
+    data class DocumentTranslationCompleted(val outputFile: File) : MainEvent
+
+    data class DocumentTranslationFailed(val message: String) : MainEvent
 }

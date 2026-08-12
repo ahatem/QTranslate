@@ -18,6 +18,7 @@ data class MenuStrings(
     val dictionary: String,
     val isDictionaryPanelOpen: Boolean,
     val history: String,
+    val translateDocument: String,
     val settings: String,
     val help: String,
     val howToUse: String,
@@ -39,6 +40,7 @@ data class MenuActions(
     val onToggleExtraOutput: (Boolean) -> Unit,
     val onShowDictionary: () -> Unit,
     val onShowHistory: () -> Unit,
+    val onTranslateDocument: () -> Unit,
     val onShowSettings: () -> Unit,
 
     val onShowHowToUse: () -> Unit,
@@ -136,6 +138,9 @@ class MainMenuPopup(
         })
         add(JMenuItem(strings.history).apply {
             addActionListener { actions.onShowHistory() }
+        })
+        add(JMenuItem(strings.translateDocument).apply {
+            addActionListener { actions.onTranslateDocument() }
         })
         add(JMenuItem(strings.settings).apply {
             addActionListener { actions.onShowSettings() }
