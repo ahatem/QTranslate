@@ -20,7 +20,7 @@ object GoogleLanguageMapper : LanguageMapper {
         LanguageCode.ARMENIAN, LanguageCode.AZERBAIJANI, LanguageCode.BASQUE,
         LanguageCode.BELARUSIAN, LanguageCode.BENGALI, LanguageCode.BOSNIAN,
         LanguageCode.BULGARIAN, LanguageCode.BURMESE, LanguageCode.CATALAN,
-        LanguageCode.CZECH, LanguageCode.DANISH, LanguageCode.DUTCH,
+        LanguageCode.CROATIAN, LanguageCode.CZECH, LanguageCode.DANISH, LanguageCode.DUTCH,
         LanguageCode.ESTONIAN, LanguageCode.FARSI, LanguageCode.FINNISH, LanguageCode.GREEK,
         LanguageCode.HEBREW, LanguageCode.HUNGARIAN, LanguageCode.ICELANDIC,
         LanguageCode.INDONESIAN, LanguageCode.IRISH, LanguageCode.KHMER,
