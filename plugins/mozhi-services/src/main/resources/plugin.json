@@ -1,0 +1,8 @@
+{
+  "id": "mozhi-services",
+  "name": "Mozhi Services",
+  "version": "1.0.0",
+  "author": "QTranslate",
+  "description": "Translation through a public or self-hosted Mozhi instance.",
+  "minApiVersion": "1.0.0"
+}
