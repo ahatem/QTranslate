@@ -101,7 +101,7 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 | **Service presets** | Save different engine combinations for different contexts |
 | **Google Services** | Translator, TTS, OCR, Spell Checker, Dictionary — included |
 | **Bing Services** | Translator, TTS, Spell Checker — included |
-| **AI Services** | Translator, Summarizer, Rewriter, Spell Checker, Dictionary, Vision OCR — via [OpenRouter](https://openrouter.ai) (300+ models, one API key) — included |
+| **AI Services** | Translator, Summarizer, Rewriter, Spell Checker, Dictionary, Vision OCR — via [OpenRouter](https://openrouter.ai) (300+ models, one API key) — included. [Setup guide](wiki/AI-Services.md) |
 
 ### Interface
 

@@ -62,17 +62,17 @@ data class AISettings(
 
     @field:Setting(
         label       = "Model",
-        description = "Model identifier. OpenRouter examples: google/gemini-flash-1.5-8b · openai/gpt-4o · " +
-                "anthropic/claude-3-5-sonnet · mistralai/mistral-small. " +
-                "Direct provider examples: gpt-4o · gemini-2.5-flash · mistral-small-latest. " +
-                "Append :free to use a free-tier model on OpenRouter, e.g. google/gemini-flash-1.5-8b:free.",
+        description = "Exact model slug for your provider. For OpenRouter, use openrouter/free to " +
+                "automatically select an available free model, or copy a current slug from openrouter.ai/models. " +
+                "A 404 usually means that the model slug was renamed or removed. " +
+                "Direct provider examples: gpt-4o · gemini-2.5-flash · mistral-small-latest.",
         type         = SettingType.TEXT,
-        defaultValue = "google/gemini-flash-1.5-8b",
+        defaultValue = "openrouter/free",
         isRequired   = true,
         group        = "model",
         order        = 10
     )
-    var model: String = "google/gemini-flash-1.5-8b",
+    var model: String = "openrouter/free",
 
     @field:Setting(
         label       = "Temperature",
