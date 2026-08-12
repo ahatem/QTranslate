@@ -669,6 +669,14 @@ object HotkeyRecorderDialog {
                 e.consume()
                 isErrorState = false
 
+                val resolvedKeyCode = when {
+                    e.keyCode != KeyEvent.VK_UNDEFINED -> e.keyCode
+                    e.extendedKeyCode != KeyEvent.VK_UNDEFINED -> e.extendedKeyCode
+                    e.keyChar != KeyEvent.CHAR_UNDEFINED && !Character.isISOControl(e.keyChar) ->
+                        KeyEvent.getExtendedKeyCodeForChar(e.keyChar.code)
+                    else -> KeyEvent.VK_UNDEFINED
+                }
+
                 when {
                     e.keyCode == KeyEvent.VK_ESCAPE -> {
                         if (isCaptureDone) {
@@ -692,9 +700,9 @@ object HotkeyRecorderDialog {
                         return
                     }
 
-                    e.keyCode in UNUSABLE_MAIN_KEYS -> {
+                    resolvedKeyCode in UNUSABLE_MAIN_KEYS -> {
                         // Rejected key — show in red, disable OK
-                        errorKeyCode       = e.keyCode
+                        errorKeyCode       = resolvedKeyCode
                         isErrorState       = true
                         okButton.isEnabled = false
                         updateUI()
@@ -703,7 +711,7 @@ object HotkeyRecorderDialog {
 
                     else -> {
                         // Valid main key — capture the full combination
-                        capturedKeyCode   = e.keyCode
+                        capturedKeyCode   = resolvedKeyCode
                         capturedModifiers = e.modifiersEx
                         liveModifiers     = 0
                         isCaptureDone     = true
