@@ -14,8 +14,10 @@ import kotlinx.coroutines.launch
 import java.awt.Robot
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
+import java.awt.datatransfer.StringSelection
 import java.awt.event.KeyEvent
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.UUID
 
 /**
  * Manages global and local hotkey registration.
@@ -240,25 +242,38 @@ class MainGlobalKeyListener(
         try {
             val clipboard = Toolkit.getDefaultToolkit().systemClipboard
             val original  = runCatching { clipboard.getContents(null) }.getOrNull()
-            val originalText = original?.let {
-                runCatching { it.getTransferData(DataFlavor.stringFlavor).toString() }.getOrNull()
-            }
 
-            var text: String? = null
-            repeat(2) {
-                simulateCopy()
-                delay(50)
-                text = runCatching {
-                    if (clipboard.isDataFlavorAvailable(DataFlavor.stringFlavor))
-                        clipboard.getData(DataFlavor.stringFlavor).toString().trim()
-                    else null
-                }.getOrNull()
-                if (!text.isNullOrEmpty()) return@repeat
-            }
+            try {
+                // Global hotkey callbacks can arrive while Ctrl/Cmd is still physically held.
+                // Give the originating key sequence time to finish before synthesizing Copy.
+                delay(80)
 
-            if (text.isNullOrEmpty()) text = originalText ?: ""
-            callback(text)
-            original?.let { runCatching { clipboard.setContents(it, null) } }
+                var text: String? = null
+                for (backoffMs in longArrayOf(50, 90, 140)) {
+                    val sentinel = "qtranslate-copy-${UUID.randomUUID()}"
+                    runCatching { clipboard.setContents(StringSelection(sentinel), null) }
+
+                    simulateCopy()
+                    delay(backoffMs)
+
+                    val candidate = runCatching {
+                        if (clipboard.isDataFlavorAvailable(DataFlavor.stringFlavor)) {
+                            clipboard.getData(DataFlavor.stringFlavor).toString().trim()
+                        } else {
+                            null
+                        }
+                    }.getOrNull()
+
+                    if (!candidate.isNullOrEmpty() && candidate != sentinel) {
+                        text = candidate
+                        break
+                    }
+                }
+
+                callback(text.orEmpty())
+            } finally {
+                original?.let { runCatching { clipboard.setContents(it, null) } }
+            }
         } finally {
             clipboardLock.set(false)
         }
@@ -268,10 +283,16 @@ class MainGlobalKeyListener(
         runCatching {
             val robot = Robot()
             robot.autoDelay = 20
-            robot.keyPress(KeyEvent.VK_CONTROL)
+            val copyModifier = if (System.getProperty("os.name").startsWith("Mac", ignoreCase = true)) {
+                KeyEvent.VK_META
+            } else {
+                KeyEvent.VK_CONTROL
+            }
+            robot.keyPress(copyModifier)
             robot.keyPress(KeyEvent.VK_C)
             robot.keyRelease(KeyEvent.VK_C)
-            robot.keyRelease(KeyEvent.VK_CONTROL)
+            robot.keyRelease(copyModifier)
+            robot.waitForIdle()
         }.onFailure { System.err.println("Copy simulation failed: ${it.message}") }
     }
 }
