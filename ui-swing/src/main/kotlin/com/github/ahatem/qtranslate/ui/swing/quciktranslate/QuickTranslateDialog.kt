@@ -340,6 +340,14 @@ class QuickTranslateDialog(
         if (awtMouseListener != null) return
         awtMouseListener = AWTEventListener { ev ->
             val me = ev as? MouseEvent ?: return@AWTEventListener
+            if (me.id == MouseEvent.MOUSE_PRESSED) {
+                if (!isPinned && isVisible) {
+                    val clickPoint = Point(me.locationOnScreen)
+                    SwingUtilities.convertPointFromScreen(clickPoint, contentPane)
+                    if (!contentPane.contains(clickPoint)) onDismiss()
+                }
+                return@AWTEventListener
+            }
             if (me.id != MouseEvent.MOUSE_MOVED && me.id != MouseEvent.MOUSE_ENTERED && me.id != MouseEvent.MOUSE_EXITED) return@AWTEventListener
             SwingUtilities.invokeLater {
                 val p = MouseInfo.getPointerInfo()?.location ?: return@invokeLater
