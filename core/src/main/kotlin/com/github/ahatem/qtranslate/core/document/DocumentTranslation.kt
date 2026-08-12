@@ -2,6 +2,8 @@ package com.github.ahatem.qtranslate.core.document
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.api.translator.BatchTranslationRequest
+import com.github.ahatem.qtranslate.api.translator.BatchTranslator
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
@@ -181,16 +183,16 @@ class DocumentTranslationUseCase(
     ) {
         request.inputFile.inputStream().use { input ->
             XWPFDocument(input).use { document ->
-                val runs = buildList {
-                    addRuns(document.paragraphs, document.tables)
-                    document.headerList.forEach { addRuns(it.paragraphs, it.tables) }
-                    document.footerList.forEach { addRuns(it.paragraphs, it.tables) }
-                }.filter { it.text().isNotBlank() }
+                val paragraphs = buildList {
+                    addParagraphs(document.paragraphs, document.tables)
+                    document.headerList.forEach { addParagraphs(it.paragraphs, it.tables) }
+                    document.footerList.forEach { addParagraphs(it.paragraphs, it.tables) }
+                }.filter { paragraphText(it).isNotBlank() }
 
                 translateIndexed(
-                    runs.indices.toList(),
-                    { runs[it].text() },
-                    { index, value -> runs[index].setText(value, 0) },
+                    paragraphs,
+                    ::paragraphText,
+                    ::replaceParagraphText,
                     request,
                     translator,
                     onProgress
@@ -235,15 +237,66 @@ class DocumentTranslationUseCase(
         onProgress: (DocumentTranslationProgress) -> Unit
     ) {
         onProgress(DocumentTranslationProgress(0, items.size))
-        items.forEachIndexed { position, item ->
-            coroutineContext.ensureActive()
-            val source = getText(item)
-            if (source.isNotBlank()) {
-                val translated = translateSegment(source, request, translator)
-                setText(item, translated)
+        val segments = items.map { it to getText(it) }.filter { it.second.isNotBlank() }
+        val batchTranslator = translator.getCapability(BatchTranslator::class.java)
+        if (batchTranslator == null) {
+            segments.forEachIndexed { position, (item, source) ->
+                coroutineContext.ensureActive()
+                setText(item, translateSegment(source, request, translator))
+                onProgress(DocumentTranslationProgress(position + 1, segments.size, source.take(80)))
             }
-            onProgress(DocumentTranslationProgress(position + 1, items.size, source.take(80)))
+            return
         }
+
+        var completed = 0
+        segments.chunkedFor(batchTranslator).forEach { batch ->
+            coroutineContext.ensureActive()
+            val translated = translateBatch(batch.map { it.second }, request, batchTranslator)
+            batch.zip(translated).forEach { (segment, value) ->
+                val (item, source) = segment
+                setText(item, value)
+                completed++
+                onProgress(DocumentTranslationProgress(completed, segments.size, source.take(80)))
+            }
+        }
+    }
+
+    private fun <T> List<Pair<T, String>>.chunkedFor(translator: BatchTranslator): List<List<Pair<T, String>>> {
+        val batches = mutableListOf<MutableList<Pair<T, String>>>()
+        val maxItems = translator.maxBatchSize.coerceAtLeast(1)
+        val maxCharacters = translator.maxBatchCharacters.coerceAtLeast(1)
+        for (segment in this) {
+            val current = batches.lastOrNull()
+            val fits = current != null &&
+                current.size < maxItems &&
+                current.sumOf { it.second.length } + segment.second.length <= maxCharacters
+            if (fits) current.add(segment) else batches += mutableListOf(segment)
+        }
+        return batches
+    }
+
+    private suspend fun translateBatch(
+        texts: List<String>,
+        request: DocumentTranslationRequest,
+        translator: BatchTranslator
+    ): List<String> {
+        val result = withTimeoutOrNull(AppConstants.TRANSLATION_TIMEOUT_MS) {
+            translator.translateBatch(
+                BatchTranslationRequest(texts, request.sourceLanguage, request.targetLanguage)
+            )
+        } ?: throw DocumentTranslationException("Translation timed out while processing the document.")
+
+        return result.fold(
+            success = { response ->
+                if (response.translations.size != texts.size) {
+                    throw DocumentTranslationException(
+                        "${translator.name} returned ${response.translations.size} translations for ${texts.size} segments."
+                    )
+                }
+                response.translations.map { it.translatedText }
+            },
+            failure = { throw DocumentTranslationException(it.message, it) }
+        )
     }
 
     private suspend fun translateSegment(
@@ -261,13 +314,49 @@ class DocumentTranslationUseCase(
         )
     }
 
-    private fun MutableList<XWPFRun>.addRuns(paragraphs: List<XWPFParagraph>, tables: List<XWPFTable>) {
-        paragraphs.forEach { addAll(it.runs) }
+    private fun MutableList<XWPFParagraph>.addParagraphs(
+        paragraphs: List<XWPFParagraph>,
+        tables: List<XWPFTable>
+    ) {
+        addAll(paragraphs)
         tables.forEach { table ->
             table.rows.flatMap { it.tableCells }.forEach { cell ->
-                addRuns(cell.paragraphs, cell.tables)
+                addParagraphs(cell.paragraphs, cell.tables)
             }
         }
+    }
+
+    private fun paragraphText(paragraph: XWPFParagraph): String =
+        paragraph.runs.joinToString(separator = "") { it.text() }
+
+    /** Reuses the original runs and XML nodes so formatting and embedded content remain in place. */
+    private fun replaceParagraphText(paragraph: XWPFParagraph, translated: String) {
+        val textRuns = paragraph.runs.filter { it.text().isNotEmpty() }
+        if (textRuns.isEmpty()) return
+        val originalLength = textRuns.sumOf { it.text().length }.coerceAtLeast(1)
+        var originalOffset = 0
+        var translatedOffset = 0
+
+        textRuns.forEachIndexed { index, run ->
+            originalOffset += run.text().length
+            val end = if (index == textRuns.lastIndex) {
+                translated.length
+            } else {
+                (translated.length.toLong() * originalOffset / originalLength).toInt()
+            }.coerceIn(translatedOffset, translated.length)
+            replaceRunText(run, translated.substring(translatedOffset, end))
+            translatedOffset = end
+        }
+    }
+
+    private fun replaceRunText(run: XWPFRun, text: String) {
+        val textNodes = run.ctr.tList
+        if (textNodes.isEmpty()) {
+            run.setText(text)
+            return
+        }
+        run.setText(text, 0)
+        textNodes.drop(1).forEach { it.stringValue = "" }
     }
 
     private data class ProtectedMarkup(val text: String, val tokens: List<Pair<String, String>>) {

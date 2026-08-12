@@ -7,6 +7,9 @@ import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.translator.TranslationResponse
 import com.github.ahatem.qtranslate.api.translator.Translator
+import com.github.ahatem.qtranslate.api.translator.BatchTranslationRequest
+import com.github.ahatem.qtranslate.api.translator.BatchTranslationResponse
+import com.github.ahatem.qtranslate.api.translator.BatchTranslator
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
@@ -15,9 +18,15 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import org.apache.poi.util.Units
+import org.apache.poi.xwpf.usermodel.BreakType
+import org.apache.poi.xwpf.usermodel.Document
 import org.apache.poi.xwpf.usermodel.XWPFDocument
+import org.apache.poi.wp.usermodel.HeaderFooterType
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.file.Files
+import java.util.Base64
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -79,6 +88,64 @@ class DocumentTranslationUseCaseTest {
     }
 
     @Test
+    fun `docx translation preserves structure and translates paragraphs with context`() = runBlocking {
+        val input = File(directory, "styled.docx")
+        XWPFDocument().use { document ->
+            document.createParagraph().apply {
+                createRun().apply { isBold = true; setText("Hello ") }
+                createRun().apply { isItalic = true; color = "336699"; setText("world") }
+            }
+            document.createTable(1, 1).getRow(0).getCell(0).apply {
+                paragraphs.first().createRun().setText("Table text")
+            }
+            document.createParagraph().createRun().apply {
+                addPicture(
+                    ByteArrayInputStream(Base64.getDecoder().decode(pixelPng)),
+                    Document.PICTURE_TYPE_PNG,
+                    "pixel.png",
+                    Units.toEMU(1.0),
+                    Units.toEMU(1.0)
+                )
+                addBreak(BreakType.PAGE)
+            }
+            document.createHeader(HeaderFooterType.DEFAULT).createParagraph().createRun().setText("Header text")
+            document.createFooter(HeaderFooterType.DEFAULT).createParagraph().createRun().setText("Footer text")
+            input.outputStream().use(document::write)
+        }
+        val output = File(directory, "translated.docx")
+        val translator = FakeBatchTranslator()
+
+        useCase(translator).invoke(request(input, output)) { }
+
+        XWPFDocument(output.inputStream()).use { translated ->
+            val paragraph = translated.paragraphs.first()
+            assertEquals("[Hello world]", paragraph.text)
+            assertTrue(paragraph.runs.first().isBold)
+            assertTrue(paragraph.runs.last().isItalic)
+            assertEquals("336699", paragraph.runs.last().color)
+            assertEquals("[Table text]", translated.tables.single().getRow(0).getCell(0).text)
+            assertEquals("[Header text]", translated.headerList.single().text.trim())
+            assertEquals("[Footer text]", translated.footerList.single().text.trim())
+            assertEquals(1, translated.allPictures.size)
+            assertEquals(1, translated.paragraphs.last().runs.single().ctr.sizeOfBrArray())
+        }
+        assertTrue(translator.requests.flatten().contains("Hello world"))
+        assertTrue(translator.requests.none { batch -> batch.any { it == "Hello " || it == "world" } })
+    }
+
+    @Test
+    fun `document translation uses provider batch limits and preserves order`() = runBlocking {
+        val input = File(directory, "source.txt").apply { writeText("One\nTwo\nThree") }
+        val output = File(directory, "translated.txt")
+        val translator = FakeBatchTranslator(maxBatchSize = 2)
+
+        useCase(translator).invoke(request(input, output)) { }
+
+        assertEquals("[One]\n[Two]\n[Three]", output.readText())
+        assertEquals(listOf(listOf("One", "Two"), listOf("Three")), translator.requests)
+    }
+
+    @Test
     fun `provider failure leaves an existing output untouched`() = runBlocking {
         val input = File(directory, "source.txt").apply { writeText("First\nSecond") }
         val output = File(directory, "translated.txt").apply { writeText("previous") }
@@ -124,10 +191,35 @@ class DocumentTranslationUseCaseTest {
         }
     }
 
+    private class FakeBatchTranslator(
+        override val maxBatchSize: Int = 50
+    ) : BatchTranslator {
+        override val id = "test-batch-translator"
+        override val name = "Test Batch Translator"
+        override val version = "1.0.0"
+        override val supportedLanguages = SupportedLanguages.All
+        val requests = mutableListOf<List<String>>()
+
+        override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> =
+            Ok(TranslationResponse("[${request.text}]"))
+
+        override suspend fun translateBatch(
+            request: BatchTranslationRequest
+        ): Result<BatchTranslationResponse, ServiceError> {
+            requests += request.texts
+            return Ok(BatchTranslationResponse(request.texts.map { TranslationResponse("[$it]") }))
+        }
+    }
+
     private object NoOpLogger : Logger {
         override fun debug(message: String) = Unit
         override fun info(message: String) = Unit
         override fun warn(message: String) = Unit
         override fun error(message: String, error: Throwable?) = Unit
+    }
+
+    private companion object {
+        const val pixelPng =
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
     }
 }
