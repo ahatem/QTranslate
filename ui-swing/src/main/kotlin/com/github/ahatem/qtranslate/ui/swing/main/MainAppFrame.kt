@@ -85,6 +85,7 @@ class MainAppFrame(
             owner = this,
             strings = DocumentTranslationStrings(
                 title = localizer.getString("document_translation.title"),
+                subtitle = localizer.getString("document_translation.subtitle"),
                 inputFile = localizer.getString("document_translation.input_file"),
                 outputFile = localizer.getString("document_translation.output_file"),
                 browse = localizer.getString("common.browse"),
@@ -92,14 +93,20 @@ class MainAppFrame(
                 cancel = localizer.getString("common.cancel"),
                 close = localizer.getString("common.close"),
                 ready = localizer.getString("document_translation.ready"),
-                pdfNotice = localizer.getString("document_translation.pdf_notice"),
+                pdfMode = localizer.getString("document_translation.pdf_mode"),
+                layoutAware = localizer.getString("document_translation.layout_aware"),
+                layoutAwareDescription = localizer.getString("document_translation.layout_aware_description"),
+                textOnly = localizer.getString("document_translation.text_only"),
+                textOnlyDescription = localizer.getString("document_translation.text_only_description"),
                 chooseInput = localizer.getString("document_translation.choose_input"),
                 chooseOutput = localizer.getString("document_translation.choose_output"),
+                preparing = localizer.getString("document_translation.preparing"),
+                translating = localizer.getString("document_translation.translating"),
                 completed = localizer.getString("document_translation.completed"),
                 errorTitle = localizer.getString("document_translation.error_title")
             ),
-            onStart = { input, output ->
-                mainStore.dispatch(MainIntent.TranslateDocument(input, output))
+            onStart = { input, output, pdfMode ->
+                mainStore.dispatch(MainIntent.TranslateDocument(input, output, pdfMode))
             },
             onCancel = { mainStore.dispatch(MainIntent.CancelDocumentTranslation) }
         )

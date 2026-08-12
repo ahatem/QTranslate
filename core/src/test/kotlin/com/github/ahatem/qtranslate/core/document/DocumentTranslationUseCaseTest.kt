@@ -18,6 +18,11 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import org.apache.pdfbox.pdmodel.PDDocument
+import org.apache.pdfbox.pdmodel.PDPage
+import org.apache.pdfbox.pdmodel.PDPageContentStream
+import org.apache.pdfbox.pdmodel.font.PDType1Font
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts
 import org.apache.poi.util.Units
 import org.apache.poi.xwpf.usermodel.BreakType
 import org.apache.poi.xwpf.usermodel.Document
@@ -143,6 +148,29 @@ class DocumentTranslationUseCaseTest {
 
         assertEquals("[One]\n[Two]\n[Three]", output.readText())
         assertEquals(listOf(listOf("One", "Two"), listOf("Three")), translator.requests)
+    }
+
+    @Test
+    fun `PDF text-only mode writes translated UTF-8 text with page separators`() = runBlocking {
+        val input = File(directory, "source.pdf")
+        PDDocument().use { document ->
+            listOf("First page", "Second page").forEach { text ->
+                val page = PDPage().also(document::addPage)
+                PDPageContentStream(document, page).use { content ->
+                    content.beginText()
+                    content.setFont(PDType1Font(Standard14Fonts.FontName.HELVETICA), 12f)
+                    content.newLineAtOffset(72f, 720f)
+                    content.showText(text)
+                    content.endText()
+                }
+            }
+            document.save(input)
+        }
+        val output = File(directory, "translated.txt")
+
+        useCase().invoke(request(input, output).copy(pdfMode = PdfTranslationMode.TEXT_ONLY)) { }
+
+        assertEquals("[First page]\n\u000C\n[Second page]", output.readText())
     }
 
     @Test

@@ -44,11 +44,17 @@ enum class DocumentFormat(val extensions: Set<String>) {
     }
 }
 
+enum class PdfTranslationMode {
+    TEXT_ONLY,
+    LAYOUT_AWARE
+}
+
 data class DocumentTranslationRequest(
     val inputFile: File,
     val outputFile: File,
     val sourceLanguage: LanguageCode,
-    val targetLanguage: LanguageCode
+    val targetLanguage: LanguageCode,
+    val pdfMode: PdfTranslationMode = PdfTranslationMode.LAYOUT_AWARE
 )
 
 data class DocumentTranslationProgress(
@@ -114,10 +120,16 @@ class DocumentTranslationUseCase(
         if (request.inputFile.canonicalFile == request.outputFile.canonicalFile) {
             throw DocumentTranslationException("Choose a different output file to keep the original unchanged.")
         }
-        if (DocumentFormat.from(request.inputFile) == DocumentFormat.PDF &&
-            request.outputFile.extension.lowercase() != "docx"
-        ) {
-            throw DocumentTranslationException("PDF translations must be saved as DOCX.")
+        if (DocumentFormat.from(request.inputFile) == DocumentFormat.PDF) {
+            val expectedExtension = when (request.pdfMode) {
+                PdfTranslationMode.TEXT_ONLY -> "txt"
+                PdfTranslationMode.LAYOUT_AWARE -> "docx"
+            }
+            if (request.outputFile.extension.lowercase() != expectedExtension) {
+                throw DocumentTranslationException(
+                    "${request.pdfMode.displayName} PDF translations must be saved as ${expectedExtension.uppercase()}."
+                )
+            }
         }
     }
 
@@ -218,12 +230,18 @@ class DocumentTranslationUseCase(
             val indexes = pages.indices.filter { pages[it].isNotBlank() }
             translateIndexed(indexes, pages::get, { index, value -> pages[index] = value }, request, translator, onProgress)
 
-            XWPFDocument().use { document ->
-                pages.forEachIndexed { index, text ->
-                    text.lines().forEach { line -> document.createParagraph().createRun().setText(line) }
-                    if (index < pages.lastIndex) document.createParagraph().createRun().addBreak(BreakType.PAGE)
+            when (request.pdfMode) {
+                PdfTranslationMode.TEXT_ONLY -> output.writeText(
+                    pages.joinToString("\n\u000C\n"),
+                    StandardCharsets.UTF_8
+                )
+                PdfTranslationMode.LAYOUT_AWARE -> XWPFDocument().use { document ->
+                    pages.forEachIndexed { index, text ->
+                        text.lines().forEach { line -> document.createParagraph().createRun().setText(line) }
+                        if (index < pages.lastIndex) document.createParagraph().createRun().addBreak(BreakType.PAGE)
+                    }
+                    output.outputStream().use(document::write)
                 }
-                output.outputStream().use(document::write)
             }
         }
     }
@@ -392,3 +410,9 @@ class DocumentTranslationUseCase(
         val markup = Regex("<[^>]+>|\\{\\\\[^}]+}")
     }
 }
+
+private val PdfTranslationMode.displayName: String
+    get() = when (this) {
+        PdfTranslationMode.TEXT_ONLY -> "Text-only"
+        PdfTranslationMode.LAYOUT_AWARE -> "Layout-aware"
+    }

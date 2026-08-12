@@ -330,7 +330,8 @@ class MainStore(
                         inputFile = intent.inputFile,
                         outputFile = intent.outputFile,
                         sourceLanguage = state.sourceLanguage,
-                        targetLanguage = state.targetLanguage
+                        targetLanguage = state.targetLanguage,
+                        pdfMode = intent.pdfMode
                     )
                 ) { progress ->
                     if (generation == documentTranslationGeneration) {
