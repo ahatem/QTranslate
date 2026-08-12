@@ -1,0 +1,8 @@
+{
+  "id": "deepl-services",
+  "name": "DeepL Services",
+  "version": "1.0.0",
+  "author": "QTranslate",
+  "description": "High-quality translation through the official DeepL API Free or Pro endpoint.",
+  "minApiVersion": "1.0.0"
+}
