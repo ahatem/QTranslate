@@ -111,6 +111,27 @@ class DeepLTranslatorServiceTest {
     }
 
     @Test
+    fun `maps web HTTP rate limit to actionable guidance`() = runBlocking {
+        val client = ScriptedHttpClient(mutableListOf(Err(
+            ServiceError.RateLimitError("generic HTTP error", retryAfterSeconds = 30)
+        )))
+        val service = createService(client, DeepLSettings(), {})
+
+        service.translate(request).fold(
+            success = { fail("Expected rate limit error") },
+            failure = {
+                val error = assertIs<ServiceError.RateLimitError>(it)
+                assertEquals(
+                    "DeepL free endpoint is rate-limited. Add an API key for official access or try again later.",
+                    error.message
+                )
+                assertEquals(30, error.retryAfterSeconds)
+            }
+        )
+        Unit
+    }
+
+    @Test
     fun `splits long web input without dropping source text`() = runBlocking {
         val source = "word ".repeat(1_300)
         val client = EchoWebHttpClient()

@@ -16,6 +16,7 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
 import com.github.michaelbull.result.fold
+import com.github.michaelbull.result.mapError
 import com.github.michaelbull.result.toResultOr
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
@@ -135,14 +136,14 @@ internal class DeepLTranslatorService(
                     )),
                     body = body,
                     queryParams = mapOf("method" to "LMT_handle_texts")
-                ).bind()
+                ).mapError(::mapWebHttpError).bind()
                 lastWebRequestAtNanos = System.nanoTime()
 
                 val response = webParser.parse(responseBody).bind()
                 response.error?.let { error ->
                     if (error.code in WEB_RATE_LIMIT_CODES || error.message.contains("too many requests", true)) {
                         Err(ServiceError.RateLimitError(
-                            "DeepL's free endpoint is rate limited. Wait a while or add an API key."
+                            FREE_RATE_LIMIT_MESSAGE
                         )).bind<String>()
                     }
                     Err(ServiceError.ServiceUnavailableError(
@@ -167,6 +168,15 @@ internal class DeepLTranslatorService(
                 )
             }
         }
+
+    private fun mapWebHttpError(error: ServiceError): ServiceError = when (error) {
+        is ServiceError.RateLimitError -> ServiceError.RateLimitError(
+            message = FREE_RATE_LIMIT_MESSAGE,
+            retryAfterSeconds = error.retryAfterSeconds,
+            cause = error.cause
+        )
+        else -> error
+    }
 
     private fun splitForWeb(text: String): List<String> {
         if (text.length <= MAX_WEB_CHARACTERS) return listOf(text)
@@ -225,6 +235,8 @@ internal class DeepLTranslatorService(
 
     companion object {
         private const val WEB_ENDPOINT = "https://www2.deepl.com/jsonrpc"
+        private const val FREE_RATE_LIMIT_MESSAGE =
+            "DeepL free endpoint is rate-limited. Add an API key for official access or try again later."
         private const val MAX_WEB_CHARACTERS = 5_000
         private val WEB_RATE_LIMIT_CODES = setOf(1_042_911, 1_042_912)
         private val json = Json { ignoreUnknownKeys = true }
