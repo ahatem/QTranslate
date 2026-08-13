@@ -18,11 +18,16 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import org.apache.pdfbox.Loader
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
 import org.apache.pdfbox.pdmodel.font.PDType1Font
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts
+import org.apache.pdfbox.pdmodel.graphics.image.JPEGFactory
+import org.apache.pdfbox.rendering.ImageType
+import org.apache.pdfbox.rendering.PDFRenderer
+import org.apache.pdfbox.text.PDFTextStripper
 import org.apache.poi.util.Units
 import org.apache.poi.xwpf.usermodel.BreakType
 import org.apache.poi.xwpf.usermodel.Document
@@ -30,6 +35,8 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument
 import org.apache.poi.wp.usermodel.HeaderFooterType
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.awt.Color
+import java.awt.image.BufferedImage
 import java.nio.file.Files
 import java.util.Base64
 import kotlin.test.AfterTest
@@ -171,6 +178,55 @@ class DocumentTranslationUseCaseTest {
         useCase().invoke(request(input, output).copy(pdfMode = PdfTranslationMode.TEXT_ONLY)) { }
 
         assertEquals("[First page]\n\u000C\n[Second page]", output.readText())
+    }
+
+    @Test
+    fun `PDF appearance mode keeps PDF pages and rasterizes translated result`() = runBlocking {
+        val input = File(directory, "source.pdf")
+        PDDocument().use { document ->
+            val page = PDPage().also(document::addPage)
+            PDPageContentStream(document, page).use { content ->
+                content.beginText()
+                content.setFont(PDType1Font(Standard14Fonts.FontName.HELVETICA), 12f)
+                content.newLineAtOffset(72f, 720f)
+                content.showText("Hello world")
+                content.endText()
+            }
+            document.save(input)
+        }
+        val output = File(directory, "translated.pdf")
+
+        useCase().invoke(request(input, output)) { }
+
+        Loader.loadPDF(output).use { translated ->
+            assertEquals(1, translated.numberOfPages)
+            assertEquals(612f, translated.getPage(0).mediaBox.width, 1f)
+            assertTrue(PDFTextStripper().getText(translated).isBlank())
+            val rendered = PDFRenderer(translated).renderImageWithDPI(0, 72f, ImageType.RGB)
+            val translatedRegionContainsInk = (55..95).any { y ->
+                (55..220).any { x -> Color(rendered.getRGB(x, y)).run { red < 245 || green < 245 || blue < 245 } }
+            }
+            assertTrue(translatedRegionContainsInk)
+        }
+    }
+
+    @Test
+    fun `image-only PDF asks for OCR`() = runBlocking {
+        val input = File(directory, "scan.pdf")
+        PDDocument().use { document ->
+            val page = PDPage().also(document::addPage)
+            val scan = BufferedImage(20, 20, BufferedImage.TYPE_INT_RGB)
+            PDPageContentStream(document, page).use { content ->
+                content.drawImage(JPEGFactory.createFromImage(document, scan), 0f, 0f, 100f, 100f)
+            }
+            document.save(input)
+        }
+
+        val error = assertFailsWith<DocumentTranslationException> {
+            useCase().invoke(request(input, File(directory, "translated.pdf"))) { }
+        }
+
+        assertTrue(error.message.orEmpty().contains("OCR"))
     }
 
     @Test

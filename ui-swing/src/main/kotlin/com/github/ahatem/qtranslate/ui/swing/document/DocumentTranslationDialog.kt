@@ -1,31 +1,38 @@
 package com.github.ahatem.qtranslate.ui.swing.document
 
 import com.formdev.flatlaf.FlatClientProperties
-import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.github.ahatem.qtranslate.core.document.DocumentFormat
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationProgress
 import com.github.ahatem.qtranslate.core.document.PdfTranslationMode
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import net.miginfocom.swing.MigLayout
+import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Dimension
 import java.awt.Window
+import java.awt.event.KeyEvent
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
+import java.beans.PropertyChangeListener
 import java.io.File
-import javax.swing.ButtonGroup
+import javax.swing.BorderFactory
 import javax.swing.JButton
+import javax.swing.JComboBox
+import javax.swing.JComponent
 import javax.swing.JDialog
 import javax.swing.JFileChooser
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JProgressBar
-import javax.swing.JTextField
-import javax.swing.JToggleButton
+import javax.swing.KeyStroke
 import javax.swing.SwingConstants
+import javax.swing.SwingUtilities
 import javax.swing.UIManager
+import javax.swing.border.MatteBorder
 import javax.swing.filechooser.FileNameExtensionFilter
 
 data class DocumentTranslationStrings(
     val title: String,
-    val subtitle: String,
     val inputFile: String,
     val outputFile: String,
     val browse: String,
@@ -43,176 +50,191 @@ data class DocumentTranslationStrings(
     val preparing: String,
     val translating: String,
     val completed: String,
-    val errorTitle: String
+    val cancelled: String
 )
 
 class DocumentTranslationDialog(
     owner: Window,
+    private val iconManager: IconManager,
     private val strings: DocumentTranslationStrings,
     private val onStart: (File, File, PdfTranslationMode) -> Unit,
     private val onCancel: () -> Unit
 ) : JDialog(owner, strings.title, ModalityType.MODELESS) {
-    private val inputField = fileField()
-    private val outputField = fileField()
+    private enum class ViewState { READY, TRANSLATING, COMPLETED, FAILED, CANCELLED }
+
+    private val inputName = JLabel(strings.chooseInput)
+    private val inputPath = secondaryLabel()
+    private val outputName = JLabel(strings.chooseOutput)
+    private val outputPath = secondaryLabel()
     private val inputButton = filePickerButton(strings.chooseInput)
-    private val outputButton = filePickerButton(strings.chooseOutput)
-    private val layoutAwareButton = modeButton(strings.layoutAware, selected = true)
-    private val textOnlyButton = modeButton(strings.textOnly)
-    private val pdfDescription = JLabel(strings.layoutAwareDescription)
-    private val pdfOptionsPanel = createPdfOptionsPanel()
+    private val outputButton = filePickerButton(strings.chooseOutput).apply { isEnabled = false }
+    private val pdfModeCombo = JComboBox(arrayOf(strings.layoutAware, strings.textOnly))
+    private val pdfDescription = secondaryLabel(strings.layoutAwareDescription)
+    private val pdfOptionsPanel = createPdfOptionsPanel().apply { isVisible = false }
     private val progressBar = JProgressBar(0, 100).apply {
-        isStringPainted = false
         value = 0
-        preferredSize = Dimension(100, 8)
+        preferredSize = Dimension(100, 6)
     }
     private val statusLabel = JLabel(strings.ready)
     private val progressLabel = JLabel("0%").apply { horizontalAlignment = SwingConstants.TRAILING }
     private val primaryButton = JButton(strings.translate).apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "default")
+        isEnabled = false
     }
     private val cancelButton = JButton(strings.close)
-    private var running = false
+    private val filePanels = mutableListOf<JPanel>()
+    private val contentPanel = createContentPanel()
+    private val actionBar = createActionBar()
+    private val lookAndFeelListener = PropertyChangeListener { event ->
+        if (event.propertyName == "lookAndFeel") SwingUtilities.invokeLater(::updateTheme)
+    }
+
+    private var inputFile: File? = null
+    private var outputFile: File? = null
+    private var viewState = ViewState.READY
 
     init {
         defaultCloseOperation = DO_NOTHING_ON_CLOSE
-        minimumSize = Dimension(680, 480)
-        preferredSize = Dimension(720, 500)
         isResizable = false
-        contentPane = createContent()
-        rootPane.defaultButton = primaryButton
-
-        inputField.putClientProperty(FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, inputButton)
-        outputField.putClientProperty(FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, outputButton)
-        ButtonGroup().apply {
-            add(layoutAwareButton)
-            add(textOnlyButton)
+        contentPane = JPanel(BorderLayout()).apply {
+            add(contentPanel, BorderLayout.CENTER)
+            add(actionBar, BorderLayout.SOUTH)
         }
+        rootPane.defaultButton = primaryButton
+        rootPane.registerKeyboardAction(
+            { cancelOrClose() },
+            KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+            JComponent.WHEN_IN_FOCUSED_WINDOW
+        )
 
         inputButton.addActionListener { chooseInput() }
         outputButton.addActionListener { chooseOutput() }
-        layoutAwareButton.addActionListener { selectPdfMode(PdfTranslationMode.LAYOUT_AWARE) }
-        textOnlyButton.addActionListener { selectPdfMode(PdfTranslationMode.TEXT_ONLY) }
-        primaryButton.addActionListener { startTranslation() }
-        cancelButton.addActionListener {
-            if (running) {
-                onCancel()
-                setRunning(false)
-            } else {
-                isVisible = false
-            }
+        pdfModeCombo.addActionListener {
+            inputFile?.let(::updateSuggestedOutput)
+            updatePdfDescription()
         }
-        addWindowListener(object : java.awt.event.WindowAdapter() {
-            override fun windowClosing(event: java.awt.event.WindowEvent) {
-                if (running) onCancel()
-                setRunning(false)
-                isVisible = false
-            }
+        primaryButton.addActionListener { startTranslation() }
+        cancelButton.addActionListener { cancelOrClose() }
+        addWindowListener(object : WindowAdapter() {
+            override fun windowClosing(event: WindowEvent) = cancelOrClose()
         })
+        UIManager.addPropertyChangeListener(lookAndFeelListener)
+
+        updateTheme()
         pack()
+        minimumSize = Dimension(560, height)
+        size = Dimension(600, height)
         setLocationRelativeTo(owner)
     }
 
     fun open() {
-        setRunning(false)
-        setStatus(strings.ready)
         progressBar.value = 0
         progressLabel.text = "0%"
+        showState(ViewState.READY, strings.ready)
         isVisible = true
         toFront()
     }
 
     fun updateProgress(progress: DocumentTranslationProgress) {
-        if (!running) setRunning(true)
         progressBar.value = progress.percent
         progressLabel.text = "${progress.percent}%"
-        statusLabel.text = strings.translating.format(progress.completedSegments, progress.totalSegments)
-        statusLabel.toolTipText = progress.currentText.takeIf(String::isNotBlank)
+        showState(
+            ViewState.TRANSLATING,
+            strings.translating.format(progress.completedSegments, progress.totalSegments),
+            progress.currentText.takeIf(String::isNotBlank)
+        )
     }
 
     fun complete(output: File) {
-        setRunning(false)
         progressBar.value = 100
         progressLabel.text = "100%"
-        setStatus(strings.completed.format(output.name))
-        statusLabel.toolTipText = output.absolutePath
+        showState(ViewState.COMPLETED, strings.completed.format(output.name), output.absolutePath)
     }
 
     fun fail(message: String) {
-        setRunning(false)
-        setStatus(message, error = true)
-        statusLabel.toolTipText = message
+        showState(ViewState.FAILED, message, message)
     }
 
-    private fun createContent() = JPanel(
-        MigLayout("fill, insets 24 28 20 28, wrap 1", "[grow,fill]", "[]20[]14[]14[]18[]push[]")
+    override fun dispose() {
+        UIManager.removePropertyChangeListener(lookAndFeelListener)
+        super.dispose()
+    }
+
+    private fun createContentPanel() = JPanel(
+        MigLayout("fillx, insets 16, wrap 1", "[grow,fill]", "[]12[]12[]12[]")
     ).apply {
-        add(createHeader())
-        add(labeledField(strings.inputFile, inputField))
-        add(labeledField(strings.outputFile, outputField))
+        add(fileSection(strings.inputFile, inputName, inputPath, inputButton))
+        add(fileSection(strings.outputFile, outputName, outputPath, outputButton))
         add(pdfOptionsPanel)
         add(createProgressPanel())
-        add(createActions(), "alignx right")
     }
 
-    private fun createHeader() = JPanel(MigLayout("insets 0, fillx", "[]14[grow,fill]", "[]")).apply {
+    private fun fileSection(
+        title: String,
+        nameLabel: JLabel,
+        pathLabel: JLabel,
+        button: JButton
+    ) = JPanel(MigLayout("insets 0, fillx", "[grow,fill]8[96!]", "[]5[]")).apply {
         isOpaque = false
-        add(JLabel(themedIcon("icons/lucide/file-scan.svg", 34)))
-        add(JPanel(MigLayout("insets 0, wrap 1", "[grow,fill]", "[]2[]")).apply {
-            isOpaque = false
-            add(JLabel(strings.title).apply {
-                putClientProperty(FlatClientProperties.STYLE_CLASS, "h2")
-            })
-            add(JLabel(strings.subtitle).apply {
-                foreground = UIManager.getColor("Label.disabledForeground")
-            })
-        })
+        add(JLabel(title), "cell 0 0 2 1")
+        add(JPanel(MigLayout("insets 7 8 7 10, fillx, wrap 1", "[grow,fill]", "[]2[]")).also(filePanels::add).apply {
+            add(nameLabel, "cell 0 0")
+            add(pathLabel, "cell 0 1")
+        }, "cell 0 1")
+        add(button, "cell 1 1, w 96!, h 32!")
     }
 
-    private fun labeledField(label: String, field: JTextField) =
-        JPanel(MigLayout("insets 0, fillx, wrap 1", "[grow,fill]", "[]5[]")).apply {
-            isOpaque = false
-            add(JLabel(label))
-            add(field, "h 38!")
-        }
-
-    private fun createPdfOptionsPanel() =
-        JPanel(MigLayout("insets 0, fillx, wrap 1", "[grow,fill]", "[]5[]5[]")).apply {
-            isOpaque = false
-            isVisible = false
-            add(JLabel(strings.pdfMode))
-            add(JPanel(MigLayout("insets 0, gap 4", "[]0[]", "[]")).apply {
-                isOpaque = false
-                add(layoutAwareButton)
-                add(textOnlyButton)
-            })
-            add(pdfDescription.apply { foreground = UIManager.getColor("Label.disabledForeground") })
-        }
-
-    private fun createProgressPanel() =
-        JPanel(MigLayout("insets 0, fillx, wrap 2", "[grow,fill][60!,right]", "[]7[]")).apply {
-            isOpaque = false
-            add(statusLabel)
-            add(progressLabel)
-            add(progressBar, "span 2, growx")
-        }
-
-    private fun createActions() = JPanel(MigLayout("insets 0", "[]8[]", "[]")).apply {
+    private fun createPdfOptionsPanel() = JPanel(
+        MigLayout("insets 0, fillx", "[110!][grow,fill]", "[]6[]")
+    ).apply {
         isOpaque = false
-        add(cancelButton, "w 96!, h 34!")
-        add(primaryButton, "w 120!, h 34!")
+        add(JLabel(strings.pdfMode), "cell 0 0")
+        add(pdfModeCombo, "cell 1 0, h 32!")
+        add(pdfDescription, "cell 1 1")
+    }
+
+    private fun createProgressPanel() = JPanel(
+        MigLayout("insets 0, fillx", "[grow,fill][48!,right]", "[]7[]")
+    ).apply {
+        isOpaque = false
+        preferredSize = Dimension(100, 50)
+        add(statusLabel, "cell 0 0")
+        add(progressLabel, "cell 1 0")
+        add(progressBar, "cell 0 1 2 1, growx")
+    }
+
+    private fun createActionBar() = JPanel(MigLayout("insets 10 12 10 12", "[grow][]8[]", "[]")).apply {
+        add(cancelButton, "cell 1 0, w 92!, h 32!")
+        add(primaryButton, "cell 2 0, w 112!, h 32!")
     }
 
     private fun startTranslation() {
-        if (running) return
-        val input = inputField.text.takeIf(String::isNotBlank)?.let(::File)
-        val output = outputField.text.takeIf(String::isNotBlank)?.let(::File)
-        if (input == null || output == null) {
-            setStatus(strings.chooseInput, error = true)
+        if (viewState == ViewState.TRANSLATING) return
+        val input = inputFile
+        val output = outputFile
+        if (input == null) {
+            showState(ViewState.FAILED, strings.chooseInput)
             return
         }
-        setRunning(true)
-        setStatus(strings.preparing)
+        if (output == null) {
+            showState(ViewState.FAILED, strings.chooseOutput)
+            return
+        }
+        progressBar.value = 0
+        progressLabel.text = "0%"
+        showState(ViewState.TRANSLATING, strings.preparing)
         onStart(input, output, selectedPdfMode())
+    }
+
+    private fun cancelOrClose() {
+        if (viewState == ViewState.TRANSLATING) {
+            onCancel()
+            progressBar.value = 0
+            progressLabel.text = "0%"
+            showState(ViewState.CANCELLED, strings.cancelled)
+        } else {
+            isVisible = false
+        }
     }
 
     private fun chooseInput() {
@@ -221,94 +243,113 @@ class DocumentTranslationDialog(
             fileFilter = FileNameExtensionFilter("DOCX, PDF, TXT, SRT, VTT", "docx", "pdf", "txt", "srt", "vtt")
         }
         if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return
-        val input = chooser.selectedFile
-        inputField.text = input.absolutePath
-        pdfOptionsPanel.isVisible = DocumentFormat.from(input) == DocumentFormat.PDF
-        updateSuggestedOutput(input)
-        setStatus(strings.ready)
+        inputFile = chooser.selectedFile
+        inputName.text = chooser.selectedFile.name
+        inputPath.text = chooser.selectedFile.parentFile?.absolutePath.orEmpty()
+        inputPath.toolTipText = chooser.selectedFile.absolutePath
+        pdfOptionsPanel.isVisible = DocumentFormat.from(chooser.selectedFile) == DocumentFormat.PDF
+        updateSuggestedOutput(chooser.selectedFile)
+        outputButton.isEnabled = true
+        showState(ViewState.READY, strings.ready)
+        resizeToContent()
     }
 
     private fun chooseOutput() {
-        val input = inputField.text.takeIf(String::isNotBlank)?.let(::File)
-        if (input == null) {
-            setStatus(strings.chooseInput, error = true)
+        val input = inputFile ?: run {
+            showState(ViewState.FAILED, strings.chooseInput)
             return
         }
         val extension = outputExtension(input)
         val chooser = JFileChooser(input.parentFile).apply {
             dialogTitle = strings.chooseOutput
-            selectedFile = File(outputField.text)
+            selectedFile = outputFile
             fileFilter = FileNameExtensionFilter(extension.uppercase(), extension)
         }
         if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return
-        outputField.text = chooser.selectedFile.withExtension(extension).absolutePath
-        setStatus(strings.ready)
-    }
-
-    private fun selectPdfMode(mode: PdfTranslationMode) {
-        pdfDescription.text = when (mode) {
-            PdfTranslationMode.LAYOUT_AWARE -> strings.layoutAwareDescription
-            PdfTranslationMode.TEXT_ONLY -> strings.textOnlyDescription
-        }
-        inputField.text.takeIf(String::isNotBlank)?.let(::File)?.let(::updateSuggestedOutput)
+        setOutput(chooser.selectedFile.withExtension(extension))
+        showState(ViewState.READY, strings.ready)
     }
 
     private fun updateSuggestedOutput(input: File) {
         val extension = outputExtension(input)
-        outputField.text = File(input.parentFile, "${input.nameWithoutExtension}.translated.$extension").absolutePath
+        setOutput(File(input.parentFile, "${input.nameWithoutExtension}.translated.$extension"))
+    }
+
+    private fun setOutput(file: File) {
+        outputFile = file
+        outputName.text = file.name
+        outputPath.text = file.parentFile?.absolutePath.orEmpty()
+        outputPath.toolTipText = file.absolutePath
+    }
+
+    private fun updatePdfDescription() {
+        pdfDescription.text = when (selectedPdfMode()) {
+            PdfTranslationMode.LAYOUT_AWARE -> strings.layoutAwareDescription
+            PdfTranslationMode.TEXT_ONLY -> strings.textOnlyDescription
+        }
     }
 
     private fun outputExtension(input: File): String = when {
         DocumentFormat.from(input) != DocumentFormat.PDF -> input.extension.lowercase()
         selectedPdfMode() == PdfTranslationMode.TEXT_ONLY -> "txt"
-        else -> "docx"
+        else -> "pdf"
     }
 
     private fun selectedPdfMode(): PdfTranslationMode =
-        if (textOnlyButton.isSelected) PdfTranslationMode.TEXT_ONLY else PdfTranslationMode.LAYOUT_AWARE
+        if (pdfModeCombo.selectedIndex == 1) PdfTranslationMode.TEXT_ONLY else PdfTranslationMode.LAYOUT_AWARE
 
-    private fun setRunning(value: Boolean) {
-        running = value
-        inputField.isEnabled = !value
-        outputField.isEnabled = !value
-        inputButton.isEnabled = !value
-        outputButton.isEnabled = !value
-        layoutAwareButton.isEnabled = !value
-        textOnlyButton.isEnabled = !value
-        primaryButton.isEnabled = !value
-        cancelButton.text = if (value) strings.cancel else strings.close
-    }
-
-    private fun setStatus(message: String, error: Boolean = false) {
+    private fun showState(state: ViewState, message: String, tooltip: String? = null) {
+        viewState = state
+        val running = state == ViewState.TRANSLATING
+        inputButton.isEnabled = !running
+        outputButton.isEnabled = !running && inputFile != null
+        pdfModeCombo.isEnabled = !running
+        primaryButton.isEnabled = !running && inputFile != null && outputFile != null
+        cancelButton.text = if (running) strings.cancel else strings.close
         statusLabel.text = message
-        statusLabel.foreground = if (error) {
-            UIManager.getColor("Actions.Red") ?: Color(190, 45, 45)
-        } else {
-            UIManager.getColor("Label.foreground")
+        statusLabel.toolTipText = tooltip
+        statusLabel.foreground = when (state) {
+            ViewState.FAILED -> UIManager.getColor("Actions.Red") ?: Color(190, 45, 45)
+            ViewState.COMPLETED -> UIManager.getColor("Actions.Green") ?: Color(35, 135, 70)
+            else -> UIManager.getColor("Label.foreground")
         }
-        if (!error) statusLabel.toolTipText = null
     }
 
-    private fun fileField() = JTextField().apply {
-        isEditable = false
-        putClientProperty(FlatClientProperties.STYLE, "arc: 8")
+    private fun updateTheme() {
+        val borderColor = UIManager.getColor("Component.borderColor") ?: Color.GRAY
+        actionBar.border = MatteBorder(1, 0, 0, 0, borderColor)
+        filePanels.forEach { panel ->
+            panel.border = BorderFactory.createCompoundBorder(
+                MatteBorder(1, 1, 1, 1, borderColor),
+                BorderFactory.createEmptyBorder(0, 0, 0, 0)
+            )
+        }
+        inputPath.foreground = UIManager.getColor("Label.disabledForeground")
+        outputPath.foreground = UIManager.getColor("Label.disabledForeground")
+        pdfDescription.foreground = UIManager.getColor("Label.disabledForeground")
+        showState(viewState, statusLabel.text, statusLabel.toolTipText)
+        revalidate()
+        repaint()
     }
 
-    private fun filePickerButton(tooltip: String) = JButton(themedIcon("icons/lucide/file-scan.svg", 16)).apply {
+    private fun secondaryLabel(text: String = "") = JLabel(text).apply {
+        foreground = UIManager.getColor("Label.disabledForeground")
+        putClientProperty(FlatClientProperties.STYLE, "font: -1")
+    }
+
+    private fun filePickerButton(tooltip: String) = JButton(
+        strings.browse,
+        iconManager.getIcon("icons/lucide/file-scan.svg", 16, 16)
+    ).apply {
         toolTipText = tooltip
         accessibleContext.accessibleName = tooltip
-        putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
     }
 
-    private fun modeButton(label: String, selected: Boolean = false) = JToggleButton(label, selected).apply {
-        putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
-        putClientProperty(FlatClientProperties.STYLE, "arc: 8; margin: 6,14,6,14")
-    }
-
-    private fun themedIcon(path: String, size: Int) = FlatSVGIcon(path, size, size, javaClass.classLoader).apply {
-        colorFilter = FlatSVGIcon.ColorFilter {
-            UIManager.getColor("Label.foreground") ?: Color.DARK_GRAY
-        }
+    private fun resizeToContent() {
+        val currentLocation = location
+        pack()
+        size = Dimension(600, height)
+        location = currentLocation
     }
 
     private fun File.withExtension(extension: String): File =

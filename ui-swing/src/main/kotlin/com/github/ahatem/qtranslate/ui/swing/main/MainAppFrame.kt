@@ -83,9 +83,9 @@ class MainAppFrame(
     private val documentTranslationDialog by lazy {
         DocumentTranslationDialog(
             owner = this,
+            iconManager = iconManager,
             strings = DocumentTranslationStrings(
                 title = localizer.getString("document_translation.title"),
-                subtitle = localizer.getString("document_translation.subtitle"),
                 inputFile = localizer.getString("document_translation.input_file"),
                 outputFile = localizer.getString("document_translation.output_file"),
                 browse = localizer.getString("common.browse"),
@@ -103,7 +103,7 @@ class MainAppFrame(
                 preparing = localizer.getString("document_translation.preparing"),
                 translating = localizer.getString("document_translation.translating"),
                 completed = localizer.getString("document_translation.completed"),
-                errorTitle = localizer.getString("document_translation.error_title")
+                cancelled = localizer.getString("document_translation.cancelled")
             ),
             onStart = { input, output, pdfMode ->
                 mainStore.dispatch(MainIntent.TranslateDocument(input, output, pdfMode))

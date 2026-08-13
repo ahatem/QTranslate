@@ -16,18 +16,36 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.apache.pdfbox.Loader
+import org.apache.pdfbox.pdmodel.PDDocument
+import org.apache.pdfbox.pdmodel.PDPage
+import org.apache.pdfbox.pdmodel.PDPageContentStream
+import org.apache.pdfbox.pdmodel.common.PDRectangle
+import org.apache.pdfbox.pdmodel.graphics.image.JPEGFactory
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject
+import org.apache.pdfbox.rendering.ImageType
+import org.apache.pdfbox.rendering.PDFRenderer
 import org.apache.pdfbox.text.PDFTextStripper
-import org.apache.poi.xwpf.usermodel.BreakType
+import org.apache.pdfbox.text.TextPosition
 import org.apache.poi.xwpf.usermodel.XWPFDocument
 import org.apache.poi.xwpf.usermodel.XWPFParagraph
 import org.apache.poi.xwpf.usermodel.XWPFRun
 import org.apache.poi.xwpf.usermodel.XWPFTable
+import java.awt.Color
+import java.awt.Font
+import java.awt.Rectangle
+import java.awt.RenderingHints
+import java.awt.font.TextLayout
+import java.awt.image.BufferedImage
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.text.Bidi
 import kotlin.coroutines.coroutineContext
+import kotlin.math.ceil
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 enum class DocumentFormat(val extensions: Set<String>) {
     DOCX(setOf("docx")),
@@ -123,7 +141,7 @@ class DocumentTranslationUseCase(
         if (DocumentFormat.from(request.inputFile) == DocumentFormat.PDF) {
             val expectedExtension = when (request.pdfMode) {
                 PdfTranslationMode.TEXT_ONLY -> "txt"
-                PdfTranslationMode.LAYOUT_AWARE -> "docx"
+                PdfTranslationMode.LAYOUT_AWARE -> "pdf"
             }
             if (request.outputFile.extension.lowercase() != expectedExtension) {
                 throw DocumentTranslationException(
@@ -221,29 +239,166 @@ class DocumentTranslationUseCase(
         onProgress: (DocumentTranslationProgress) -> Unit
     ) {
         Loader.loadPDF(request.inputFile).use { pdf ->
-            val stripper = PDFTextStripper().apply { sortByPosition = true }
-            val pages = (1..pdf.numberOfPages).map { page ->
-                stripper.startPage = page
-                stripper.endPage = page
-                stripper.getText(pdf).trimEnd()
-            }.toMutableList()
-            val indexes = pages.indices.filter { pages[it].isNotBlank() }
-            translateIndexed(indexes, pages::get, { index, value -> pages[index] = value }, request, translator, onProgress)
-
             when (request.pdfMode) {
-                PdfTranslationMode.TEXT_ONLY -> output.writeText(
-                    pages.joinToString("\n\u000C\n"),
-                    StandardCharsets.UTF_8
+                PdfTranslationMode.TEXT_ONLY -> translatePdfTextOnly(pdf, request, output, translator, onProgress)
+                PdfTranslationMode.LAYOUT_AWARE -> translatePdfWithPageAppearance(
+                    pdf,
+                    request,
+                    output,
+                    translator,
+                    onProgress
                 )
-                PdfTranslationMode.LAYOUT_AWARE -> XWPFDocument().use { document ->
-                    pages.forEachIndexed { index, text ->
-                        text.lines().forEach { line -> document.createParagraph().createRun().setText(line) }
-                        if (index < pages.lastIndex) document.createParagraph().createRun().addBreak(BreakType.PAGE)
-                    }
-                    output.outputStream().use(document::write)
-                }
             }
         }
+    }
+
+    private suspend fun translatePdfTextOnly(
+        pdf: PDDocument,
+        request: DocumentTranslationRequest,
+        output: File,
+        translator: Translator,
+        onProgress: (DocumentTranslationProgress) -> Unit
+    ) {
+        val stripper = PDFTextStripper().apply { sortByPosition = true }
+        val pages = (1..pdf.numberOfPages).map { page ->
+            stripper.startPage = page
+            stripper.endPage = page
+            stripper.getText(pdf).trimEnd()
+        }.toMutableList()
+        requirePdfText(pdf, pages)
+        val indexes = pages.indices.filter { pages[it].isNotBlank() }
+        translateIndexed(indexes, pages::get, { index, value -> pages[index] = value }, request, translator, onProgress)
+        output.writeText(pages.joinToString("\n\u000C\n"), StandardCharsets.UTF_8)
+    }
+
+    private suspend fun translatePdfWithPageAppearance(
+        pdf: PDDocument,
+        request: DocumentTranslationRequest,
+        output: File,
+        translator: Translator,
+        onProgress: (DocumentTranslationProgress) -> Unit
+    ) {
+        val blocksByPage = (0 until pdf.numberOfPages).map { pageIndex ->
+            PositionedTextStripper(pageIndex + 1).extract(pdf)
+        }
+        requirePdfText(pdf, blocksByPage.map { blocks -> blocks.joinToString(" ") { it.sourceText } })
+        val blocks = blocksByPage.flatten()
+        translateIndexed(
+            blocks,
+            PdfTextBlock::sourceText,
+            { block, translated -> block.translatedText = translated },
+            request,
+            translator,
+            onProgress
+        )
+
+        val renderer = PDFRenderer(pdf)
+        PDDocument().use { translatedPdf ->
+            translatedPdf.documentInformation.title = pdf.documentInformation.title
+            translatedPdf.documentInformation.author = pdf.documentInformation.author
+            translatedPdf.documentInformation.subject = pdf.documentInformation.subject
+            translatedPdf.documentInformation.keywords = pdf.documentInformation.keywords
+
+            blocksByPage.forEachIndexed { pageIndex, pageBlocks ->
+                coroutineContext.ensureActive()
+                val image = renderer.renderImageWithDPI(pageIndex, PDF_RENDER_DPI, ImageType.RGB)
+                paintTranslatedBlocks(image, pageBlocks)
+
+                val widthPoints = image.width * PDF_POINTS_PER_INCH / PDF_RENDER_DPI
+                val heightPoints = image.height * PDF_POINTS_PER_INCH / PDF_RENDER_DPI
+                val outputPage = PDPage(PDRectangle(widthPoints, heightPoints))
+                translatedPdf.addPage(outputPage)
+                val pageImage = JPEGFactory.createFromImage(translatedPdf, image, PDF_JPEG_QUALITY, PDF_RENDER_DPI.toInt())
+                PDPageContentStream(translatedPdf, outputPage).use { content ->
+                    content.drawImage(pageImage, 0f, 0f, widthPoints, heightPoints)
+                }
+            }
+            translatedPdf.save(output)
+        }
+    }
+
+    private fun requirePdfText(pdf: PDDocument, pageTexts: List<String>) {
+        if (pageTexts.any(String::isNotBlank)) return
+        val containsImages = pdf.pages.any { page ->
+            page.resources.xObjectNames.any { name ->
+                runCatching { page.resources.getXObject(name) is PDImageXObject }.getOrDefault(false)
+            }
+        }
+        val message = if (containsImages) {
+            "This PDF appears to contain scanned pages without selectable text. Run OCR before translating it."
+        } else {
+            "No selectable text was found in this PDF. Run OCR before translating it."
+        }
+        throw DocumentTranslationException(message)
+    }
+
+    private fun paintTranslatedBlocks(image: BufferedImage, blocks: List<PdfTextBlock>) {
+        val scale = PDF_RENDER_DPI / PDF_POINTS_PER_INCH
+        val graphics = image.createGraphics()
+        try {
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+            graphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON)
+
+            blocks.forEach { block ->
+                val bounds = block.pixelBounds(scale, image)
+                if (bounds.width < 2 || bounds.height < 2 || block.translatedText.isBlank()) return@forEach
+                val background = sampleBackground(image, bounds)
+                graphics.color = background
+                graphics.fillRect(bounds.x, bounds.y, bounds.width, bounds.height)
+                graphics.color = contrastingTextColor(background)
+                drawFittedText(graphics, block.translatedText, bounds)
+            }
+        } finally {
+            graphics.dispose()
+        }
+    }
+
+    private fun drawFittedText(graphics: java.awt.Graphics2D, text: String, bounds: Rectangle) {
+        val cleanText = text.replace(Regex("\\s+"), " ").trim()
+        if (cleanText.isEmpty()) return
+        val context = graphics.fontRenderContext
+        val minimumSize = max(8f, bounds.height * 0.45f)
+        var size = max(minimumSize, bounds.height * 0.82f)
+        var font = Font(Font.SANS_SERIF, Font.PLAIN, ceil(size.toDouble()).toInt())
+        var layout = TextLayout(cleanText, font, context)
+        while (layout.advance > bounds.width && size > minimumSize) {
+            size = max(minimumSize, size - 1f)
+            font = font.deriveFont(size)
+            layout = TextLayout(cleanText, font, context)
+        }
+
+        val oldClip = graphics.clip
+        graphics.clip(bounds)
+        val isRtl = Bidi(cleanText, Bidi.DIRECTION_DEFAULT_LEFT_TO_RIGHT).isRightToLeft
+        val x = if (isRtl) bounds.maxX.toFloat() - layout.advance else bounds.x.toFloat()
+        val baseline = bounds.y + ((bounds.height - layout.bounds.height) / 2f - layout.bounds.y).toFloat()
+        layout.draw(graphics, x, baseline)
+        graphics.clip = oldClip
+    }
+
+    private fun sampleBackground(image: BufferedImage, bounds: Rectangle): Color {
+        val samples = buildList {
+            val left = (bounds.x - 2).coerceAtLeast(0)
+            val right = (bounds.x + bounds.width + 1).coerceAtMost(image.width - 1)
+            val top = (bounds.y - 2).coerceAtLeast(0)
+            val bottom = (bounds.y + bounds.height + 1).coerceAtMost(image.height - 1)
+            for (x in left..right step max(1, (right - left) / 12)) {
+                add(Color(image.getRGB(x, top)))
+                add(Color(image.getRGB(x, bottom)))
+            }
+            for (y in top..bottom step max(1, (bottom - top) / 6)) {
+                add(Color(image.getRGB(left, y)))
+                add(Color(image.getRGB(right, y)))
+            }
+        }
+        fun median(channel: (Color) -> Int): Int = samples.map(channel).sorted()[samples.size / 2]
+        return Color(median(Color::getRed), median(Color::getGreen), median(Color::getBlue))
+    }
+
+    private fun contrastingTextColor(background: Color): Color {
+        val luminance = 0.2126 * background.red + 0.7152 * background.green + 0.0722 * background.blue
+        return if (luminance < 110) Color.WHITE else Color(28, 28, 28)
     }
 
     private suspend fun <T> translateIndexed(
@@ -404,7 +559,61 @@ class DocumentTranslationUseCase(
         }
     }
 
+    private data class PdfTextBlock(
+        val sourceText: String,
+        val x: Float,
+        val top: Float,
+        val width: Float,
+        val height: Float,
+        var translatedText: String = sourceText
+    ) {
+        fun pixelBounds(scale: Float, image: BufferedImage): Rectangle {
+            val padding = max(2, scale.roundToInt())
+            val left = (x * scale).roundToInt().minus(padding).coerceIn(0, image.width - 1)
+            val y = (top * scale).roundToInt().minus(padding).coerceIn(0, image.height - 1)
+            val right = ((x + width) * scale).roundToInt().plus(padding).coerceIn(left + 1, image.width)
+            val bottom = ((top + height) * scale).roundToInt().plus(padding).coerceIn(y + 1, image.height)
+            return Rectangle(left, y, right - left, bottom - y)
+        }
+    }
+
+    private class PositionedTextStripper(private val pageNumber: Int) : PDFTextStripper() {
+        private val blocks = mutableListOf<PdfTextBlock>()
+
+        init {
+            sortByPosition = true
+            startPage = pageNumber
+            endPage = pageNumber
+        }
+
+        fun extract(document: PDDocument): List<PdfTextBlock> {
+            getText(document)
+            return blocks.toList()
+        }
+
+        override fun writeString(text: String, textPositions: List<TextPosition>) {
+            val cleanText = text.replace(Regex("\\s+"), " ").trim()
+            val positions = textPositions.filter { it.unicode.isNotBlank() }
+            if (cleanText.isEmpty() || positions.isEmpty()) return
+
+            val left = positions.minOf(TextPosition::getXDirAdj)
+            val right = positions.maxOf { it.xDirAdj + it.widthDirAdj }
+            val top = positions.minOf { it.yDirAdj - it.heightDir }
+            val bottom = positions.maxOf(TextPosition::getYDirAdj)
+            blocks += PdfTextBlock(
+                sourceText = cleanText,
+                x = left,
+                top = top,
+                width = (right - left).coerceAtLeast(1f),
+                height = (bottom - top).coerceAtLeast(1f)
+            )
+        }
+    }
+
     private companion object {
+        const val PDF_RENDER_DPI = 144f
+        const val PDF_POINTS_PER_INCH = 72f
+        const val PDF_JPEG_QUALITY = 0.94f
         val srtTimestamp = Regex("\\d{2}:\\d{2}:\\d{2},\\d{3}\\s+-->\\s+\\d{2}:\\d{2}:\\d{2},\\d{3}")
         val vttTimestamp = Regex("(?:\\d{2}:)?\\d{2}:\\d{2}\\.\\d{3}\\s+-->\\s+(?:\\d{2}:)?\\d{2}:\\d{2}\\.\\d{3}")
         val markup = Regex("<[^>]+>|\\{\\\\[^}]+}")
@@ -414,5 +623,5 @@ class DocumentTranslationUseCase(
 private val PdfTranslationMode.displayName: String
     get() = when (this) {
         PdfTranslationMode.TEXT_ONLY -> "Text-only"
-        PdfTranslationMode.LAYOUT_AWARE -> "Layout-aware"
+        PdfTranslationMode.LAYOUT_AWARE -> "Best-effort appearance"
     }
