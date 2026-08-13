@@ -16,6 +16,7 @@ import org.jsoup.Jsoup
 internal class WikipediaService(private val client: WikimediaClient) : Dictionary {
     override val id = "wikimedia-wikipedia"
     override val name = "Wikipedia"
+    override val iconPath = "assets/wikipedia.svg"
     override val version = "1.0.0"
     override val supportedLanguages = SupportedLanguages.Specific(WikimediaLanguages.supported)
 

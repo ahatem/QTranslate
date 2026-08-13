@@ -15,6 +15,7 @@ import com.github.michaelbull.result.coroutines.coroutineBinding
 internal class WiktionaryService(private val client: WikimediaClient) : Dictionary {
     override val id = "wikimedia-wiktionary"
     override val name = "Wiktionary"
+    override val iconPath = "assets/wiktionary.svg"
     override val version = "1.0.0"
     override val supportedLanguages = SupportedLanguages.Specific(WikimediaLanguages.supported)
 
