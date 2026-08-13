@@ -32,7 +32,6 @@ jobs:
 
       - name: Run tests
         run: ./gradlew test --no-daemon
-        continue-on-error: true
 
       - name: Upload test reports
         if: always()
@@ -42,4 +41,44 @@ jobs:
           path: |
             **/build/reports/tests/
             **/build/test-results/
+          retention-days: 7
+
+  release-variants:
+    name: Release variant (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: app-only
+            task: assembleAppOnly
+          - variant: minimal
+            task: assembleMinimal
+          - variant: full
+            task: assembleFull
+          - variant: plugins
+            task: assembleIndividualPlugins
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Build ${{ matrix.variant }}
+        run: ./gradlew ${{ matrix.task }} -PreleaseVersion=ci --no-daemon
+
+      - name: Upload ${{ matrix.variant }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: qtranslate-${{ matrix.variant }}
+          path: build/release/
+          if-no-files-found: error
           retention-days: 7

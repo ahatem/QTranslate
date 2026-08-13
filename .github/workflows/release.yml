@@ -32,51 +32,10 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Build app JAR
-        run: ./gradlew :app:shadowJar --no-daemon
+      - name: Build release variants
+        run: ./gradlew assembleReleaseVariants -PreleaseVersion=${{ steps.version.outputs.version }} --no-daemon
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
-
-      - name: Build plugin JARs
-        run: ./gradlew :plugins:bing-services:shadowJar :plugins:google-services:shadowJar :plugins:ai-services:shadowJar :plugins:deepl-services:shadowJar --no-daemon
-        env:
-          APP_VERSION: ${{ steps.version.outputs.version }}
-
-      - name: Assemble release zip
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
-          mkdir -p dist/QTranslate/plugins
-          mkdir -p dist/QTranslate/languages
-
-          cp app/build/libs/QTranslate.jar \
-             dist/QTranslate/QTranslate.jar
-
-          cp plugins/bing-services/build/libs/bing-services-plugin.jar \
-             dist/QTranslate/plugins/bing-services-plugin.jar
-
-          cp plugins/google-services/build/libs/google-services-plugin.jar \
-             dist/QTranslate/plugins/google-services-plugin.jar
-          
-          cp plugins/ai-services/build/libs/ai-services-plugin.jar \
-             dist/QTranslate/plugins/ai-services-plugin.jar
-          cp plugins/deepl-services/build/libs/deepl-services-plugin.jar \
-             dist/QTranslate/plugins/deepl-services-plugin.jar
-
-          if [ -d languages ]; then
-            cp -R languages/. dist/QTranslate/languages/
-          fi
-
-          mkdir -p dist/QTranslate/themes
-          if [ -d themes ]; then
-            cp -R themes/. dist/QTranslate/themes/
-          fi
-
-          cd dist
-          zip -r "../QTranslate-${VERSION}.zip" QTranslate/
-
-          echo "Built: QTranslate-${VERSION}.zip"
-          ls -lh "../QTranslate-${VERSION}.zip"
 
       - name: Generate changelog
         id: changelog
@@ -115,14 +74,6 @@ jobs:
           printf "%b" "$LOG" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Generate SHA-256 checksum
-        id: checksum
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sha256sum "QTranslate-${VERSION}.zip" > "SHA256SUMS.txt"
-          echo "Built checksum:"
-          cat SHA256SUMS.txt
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -136,14 +87,12 @@ jobs:
 
             **Full changelog:** https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md
 
-            ## Installation
+            ## Downloads
 
-            1. Download `QTranslate-${{ steps.version.outputs.version }}.zip`
-            2. Extract it — you'll get a `QTranslate/` folder
-            3. Run `QTranslate.jar` inside it
-            4. The `plugins/` folder already contains the bundled plugins
-            5. The `languages/` folder already contains the bundled language files
-            6. The `themes/` folder contains additional community themes (drop more `.theme.json` files here to add themes)
+            - **Minimal:** QTranslate with Google, Bing, and Mozhi
+            - **Full:** QTranslate with every bundled plugin
+            - **App only:** QTranslate without plugins
+            - **Individual plugins:** independently versioned plugin JARs
 
             > **Requires Java 17 or later.** [Download Java](https://adoptium.net)
 
@@ -155,7 +104,11 @@ jobs:
             ```
 
           files: |
-            QTranslate-${{ steps.version.outputs.version }}.zip
-            SHA256SUMS.txt
+            build/release/QTranslate-App-${{ steps.version.outputs.version }}.jar
+            build/release/QTranslate-Minimal-${{ steps.version.outputs.version }}.zip
+            build/release/QTranslate-Full-${{ steps.version.outputs.version }}.zip
+            build/release/plugins/*.jar
+            build/release/release-metadata.json
+            build/release/SHA256SUMS.txt
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc') }}
           draft: false
