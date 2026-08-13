@@ -36,6 +36,12 @@ enum class CloseButtonBehavior {
     EXIT
 }
 
+@Serializable
+enum class ServiceSelectorStyle { CLASSIC, ENHANCED }
+
+@Serializable
+enum class ServiceSelectorAppearance { ICONS_ONLY, ICONS_AND_TEXT, TEXT_ONLY }
+
 // -------------------------------------------------------------------------
 // UI layout types
 // -------------------------------------------------------------------------
@@ -292,6 +298,8 @@ data class Configuration(
     val useUnifiedTitleBar: Boolean = true,
     val layoutPresetId: String = "classic",
     val toolbarVisibility: ToolbarVisibility = ToolbarVisibility.DEFAULT,
+    val serviceSelectorStyle: ServiceSelectorStyle = ServiceSelectorStyle.CLASSIC,
+    val serviceSelectorAppearance: ServiceSelectorAppearance = ServiceSelectorAppearance.ICONS_AND_TEXT,
 
     // ---- UI — Quick Panel (Popup) ----
     val isPopupAutoSizeEnabled: Boolean = true,

@@ -44,6 +44,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBar
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBarState
 import com.github.ahatem.qtranslate.ui.swing.quciktranslate.*
 import com.github.ahatem.qtranslate.ui.swing.settings.SettingsDialog
+import com.github.ahatem.qtranslate.ui.swing.settings.panels.DynamicPluginSettingsDialog
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.*
@@ -184,8 +185,32 @@ class MainAppFrame(
         dispatch = { mainStore.dispatch(it) },
         dispatchSettings = { settingsStore.dispatch(it) },
         onOpenSnippingTool = { openSnippingTool() },
-        onNotificationsClicked = { notificationPopover.show(mainContentView.statusBar) }
+        onNotificationsClicked = { notificationPopover.show(mainContentView.statusBar) },
+        onConfigureService = { serviceId -> openPluginConfiguration(serviceId) }
     )
+
+    private fun openPluginConfiguration(serviceId: String) {
+        val plugin = pluginManager.plugins.value.find { state -> state.services.any { it.id == serviceId } }
+            ?: return
+        appScope.launch {
+            val model = pluginManager.getPluginSettingsModel(plugin.id)
+            val instance = pluginManager.getPluginSettingsInstance(plugin.id)
+            withContext(Dispatchers.Swing) {
+                if (model == null) {
+                    JOptionPane.showMessageDialog(this@MainAppFrame, "This service has no configurable settings.", plugin.manifest.name, JOptionPane.INFORMATION_MESSAGE)
+                    return@withContext
+                }
+                DynamicPluginSettingsDialog(
+                    owner = this@MainAppFrame,
+                    pluginName = plugin.manifest.name,
+                    localizationManager = localizer,
+                    settingsModel = model,
+                    settingsInstance = instance,
+                    onSave = { values -> appScope.launch { pluginManager.applySettingsFromMap(plugin.id, values) } }
+                ).isVisible = true
+            }
+        }
+    }
 
     private val globalKeyListener = MainGlobalKeyListener(
         scope = appScope,

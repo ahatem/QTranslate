@@ -55,6 +55,7 @@ class MainContentView(
     private val dispatchSettings: (SettingsIntent) -> Unit,
     private val onOpenSnippingTool: () -> Unit,
     private val onNotificationsClicked: () -> Unit,
+    private val onConfigureService: (String) -> Unit,
 ) : JPanel(BorderLayout(0, 0)) {
 
     private val translationHistoryBar: TranslationHistoryBar = TranslationHistoryBar(
@@ -66,12 +67,13 @@ class MainContentView(
 
     private val translatorSelector = TranslatorSelector(
         iconManager = iconManager,
-        onTranslatorSelected = { serviceId ->
+        onServiceSelected = { type, serviceId ->
             dispatchSettings(
-                SettingsIntent.UpdateServiceInActivePreset(ServiceType.TRANSLATOR, serviceId)
+                SettingsIntent.UpdateServiceInActivePreset(type, serviceId)
             )
-            dispatch(MainIntent.Translate())
-        }
+            if (type == ServiceType.TRANSLATOR) dispatch(MainIntent.Translate())
+        },
+        onConfigureService = onConfigureService
     )
 
     private val languageSelectionBar = LanguageSelectionBar(
@@ -431,7 +433,11 @@ class MainContentView(
             TranslatorSelectorState(
                 availableTranslators = mainState.getAvailableServicesFor(ServiceType.TRANSLATOR),
                 selectedTranslatorId = selectedTranslatorId,
-                isLoading = mainState.isLoading
+                isLoading = mainState.isLoading,
+                availableServices = mainState.availableServices,
+                selectedServices = activePreset?.selectedServices.orEmpty(),
+                style = config.serviceSelectorStyle,
+                appearance = config.serviceSelectorAppearance
             )
         )
 
