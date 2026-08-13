@@ -94,7 +94,7 @@ jobs:
             - **App only:** QTranslate without plugins
             - **Individual plugins:** independently versioned plugin JARs
 
-            > **Requires Java 17 or later.** [Download Java](https://adoptium.net)
+            > **Requires Java 11 or later.** [Download Java](https://adoptium.net)
 
             ## Verification
 
