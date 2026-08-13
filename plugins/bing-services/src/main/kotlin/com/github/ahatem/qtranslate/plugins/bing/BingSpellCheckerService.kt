@@ -26,6 +26,7 @@ class BingSpellCheckerService(
     override val id: String = "bing-spell-checker"
     override val name: String = "Bing Spell Checker"
     override val version: String = "1.0.0"
+    override val iconPath: String = "assets/bing-translate-icon.svg"
 
     override val supportedLanguages: SupportedLanguages
         get() = SupportedLanguages.Specific(languageMapper.spellCheckLanguageCodes.toSet())

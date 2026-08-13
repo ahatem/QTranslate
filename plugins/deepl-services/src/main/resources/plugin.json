@@ -4,5 +4,6 @@
   "version": "1.1.0",
   "author": "QTranslate",
   "description": "DeepL translation with automatic official API or free web fallback. The free endpoint may stop working without notice.",
-  "minApiVersion": "1.0.0"
+  "minApiVersion": "1.0.0",
+  "icon": "assets/deepl.svg"
 }

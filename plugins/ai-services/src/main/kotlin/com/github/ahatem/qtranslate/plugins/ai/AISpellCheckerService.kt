@@ -19,6 +19,7 @@ class AISpellCheckerService(
     override val id: String = "ai-spell-checker"
     override val name: String = "AI Spell Checker"
     override val version: String = "1.0.0"
+    override val iconPath: String = "assets/ai-icon.svg"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.All
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }

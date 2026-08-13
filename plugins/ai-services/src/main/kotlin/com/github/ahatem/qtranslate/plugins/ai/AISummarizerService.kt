@@ -16,6 +16,7 @@ class AISummarizerService(
     override val id: String = "ai-summarizer"
     override val name: String = "AI Summarizer"
     override val version: String = "1.0.0"
+    override val iconPath: String = "assets/ai-icon.svg"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.All
 
     override suspend fun summarize(request: SummarizeRequest): Result<SummarizeResponse, ServiceError> {

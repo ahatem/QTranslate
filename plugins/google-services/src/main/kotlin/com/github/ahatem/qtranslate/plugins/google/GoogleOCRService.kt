@@ -28,6 +28,7 @@ class GoogleOCRService(
     override val id: String = "google-ocr"
     override val name: String = "Google OCR"
     override val version: String = "1.0.0"
+    override val iconPath: String = "assets/google-translate-icon.svg"
 
     private val parser = createJsonParser<VisionResponse>(pluginContext)
 

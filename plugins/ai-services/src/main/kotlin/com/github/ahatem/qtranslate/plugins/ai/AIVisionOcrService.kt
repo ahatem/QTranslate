@@ -40,6 +40,7 @@ class AIVisionOcrService(
     override val id: String = "ai-ocr"
     override val name: String = "AI Vision OCR"
     override val version: String = "1.0.0"
+    override val iconPath: String = "assets/ai-icon.svg"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.All
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }

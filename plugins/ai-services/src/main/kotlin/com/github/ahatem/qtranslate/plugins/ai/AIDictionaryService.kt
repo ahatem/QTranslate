@@ -19,6 +19,7 @@ class AIDictionaryService(
     override val id: String = "ai-dictionary"
     override val name: String = "AI Dictionary"
     override val version: String = "1.0.0"
+    override val iconPath: String = "assets/ai-icon.svg"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.All
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }

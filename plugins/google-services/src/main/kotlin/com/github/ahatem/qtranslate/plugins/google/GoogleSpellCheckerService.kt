@@ -31,6 +31,7 @@ class GoogleSpellCheckerService(
     override val id: String = "google-spell-checker"
     override val name: String = "Google Spell Checker"
     override val version: String = "1.0.0"
+    override val iconPath: String = "assets/google-translate-icon.svg"
 
     private val parser = createJsonParser<TranslateResponse>(pluginContext)
 

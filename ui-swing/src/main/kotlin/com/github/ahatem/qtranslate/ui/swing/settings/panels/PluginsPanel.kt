@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
+import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
@@ -22,7 +23,6 @@ import java.awt.datatransfer.DataFlavor
 import java.io.File
 import java.net.URI
 import javax.swing.*
-import javax.swing.border.MatteBorder
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.filechooser.FileNameExtensionFilter
@@ -95,7 +95,7 @@ class PluginsPanel(
         // PluginsPanel overrides the SettingsPanel GridBag layout
         removeAll()
         layout = BorderLayout()
-        border = BorderFactory.createEmptyBorder()
+        border = BorderFactory.createEmptyBorder(10, 8, 8, 10)
 
         searchField.apply {
             putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT,
@@ -169,7 +169,15 @@ class PluginsPanel(
         val dropHint = JLabel(localizationManager.getString("settings_plugins.drop_hint"), SwingConstants.CENTER).apply {
             foreground = UIManager.getColor("Label.disabledForeground")
             font = font.deriveFont(font.size - 1f)
-            border = BorderFactory.createEmptyBorder(5, 5, 5, 5)
+            icon = themedAppIcon("icons/lucide/package.svg", 13)
+            iconTextGap = 6
+            border = BorderFactory.createCompoundBorder(
+                BorderFactory.createDashedBorder(
+                    UIManager.getColor("Component.borderColor") ?: Color.GRAY,
+                    1f, 4f, 3f, true
+                ),
+                BorderFactory.createEmptyBorder(6, 5, 6, 5)
+            )
             transferHandler = dropHandler
         }
         val leftBottom = JPanel(BorderLayout(0, 6)).apply {
@@ -232,10 +240,7 @@ class PluginsPanel(
     }
 
     private fun refreshActionBarBorder() {
-        actionBar.border = BorderFactory.createCompoundBorder(
-            MatteBorder(1, 0, 0, 0, UIManager.getColor("Component.borderColor") ?: Color.GRAY),
-            BorderFactory.createEmptyBorder(10, 16, 12, 16)
-        )
+        actionBar.border = BorderFactory.createEmptyBorder(10, 16, 4, 16)
     }
 
     private fun refreshPluginRows() {
@@ -476,7 +481,7 @@ class PluginsPanel(
                 layout = BoxLayout(this, BoxLayout.Y_AXIS)
                 isOpaque = false
                 plugin.services.forEach { svc ->
-                    add(buildServiceLine(svc.name, svc.type?.readableName(localizationManager)))
+                    add(buildServiceLine(svc))
                 }
             }
             g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
@@ -653,17 +658,37 @@ class PluginsPanel(
         }
     }
 
-    private fun buildServiceLine(name: String, typeName: String?): JComponent = JPanel(BorderLayout(8, 0)).apply {
+    private fun buildServiceLine(service: Service): JComponent = JPanel(BorderLayout(8, 0)).apply {
         isOpaque = false
         alignmentX = Component.LEFT_ALIGNMENT
         maximumSize = Dimension(Int.MAX_VALUE, 27)
         border = BorderFactory.createEmptyBorder(3, 0, 3, 0)
-        add(JLabel(name).apply { font = font.deriveFont(Font.BOLD, font.size - 0.5f) }, BorderLayout.CENTER)
-        if (typeName != null && typeName != name) add(JLabel(typeName).apply {
+        val serviceIcon = service.iconPath?.let { iconManager.getIcon(service.id, it, 15, 15) }
+            ?: service.type?.let(::capabilityIcon)
+            ?: themedAppIcon("icons/lucide/package.svg", 15)
+        add(JLabel(service.name, serviceIcon, SwingConstants.LEADING).apply {
+            font = font.deriveFont(Font.BOLD, font.size - 0.5f)
+            iconTextGap = 7
+        }, BorderLayout.CENTER)
+        val typeName = service.type?.readableName(localizationManager)
+        if (typeName != null && typeName != service.name) add(JLabel(typeName).apply {
             foreground = UIManager.getColor("Label.disabledForeground")
             font = font.deriveFont(font.size - 1f)
         }, BorderLayout.LINE_END)
     }
+
+    private fun capabilityIcon(type: ServiceType): Icon = themedAppIcon(
+        when (type) {
+            ServiceType.TRANSLATOR -> "icons/lucide/languages.svg"
+            ServiceType.TTS -> "icons/lucide/volume.svg"
+            ServiceType.OCR -> "icons/lucide/scan-text.svg"
+            ServiceType.SPELL_CHECKER -> "icons/lucide/check.svg"
+            ServiceType.DICTIONARY -> "icons/lucide/book-open.svg"
+            ServiceType.SUMMARIZER -> "icons/lucide/text-align-start.svg"
+            ServiceType.REWRITER -> "icons/lucide/pen-line.svg"
+        },
+        15
+    )
 
     private fun buildMetadataItem(label: String, value: String, tooltip: String? = null): JComponent = JPanel(BorderLayout(0, 2)).apply {
         isOpaque = false

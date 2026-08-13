@@ -4,5 +4,6 @@
   "version": "1.0.0",
   "author": "QTranslate",
   "description": "Offline translation through a local or self-hosted LibreTranslate server.",
-  "minApiVersion": "1.1.0"
+  "minApiVersion": "1.1.0",
+  "icon": "assets/libretranslate.svg"
 }

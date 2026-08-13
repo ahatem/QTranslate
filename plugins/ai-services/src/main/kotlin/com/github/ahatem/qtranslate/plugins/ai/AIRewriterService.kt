@@ -16,6 +16,7 @@ class AIRewriterService(
     override val id: String = "ai-rewriter"
     override val name: String = "AI Rewriter"
     override val version: String = "1.0.0"
+    override val iconPath: String = "assets/ai-icon.svg"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.All
 
     override suspend fun rewrite(request: RewriteRequest): Result<RewriteResponse, ServiceError> {

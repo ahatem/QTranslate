@@ -27,6 +27,7 @@ class GoogleDictionaryService(
     override val id: String = "google-dictionary"
     override val name: String = "Google Dictionary"
     override val version: String = "1.0.0"
+    override val iconPath: String = "assets/google-translate-icon.svg"
 
     private val parser = createJsonParser<TranslateResponse>(pluginContext)
 
