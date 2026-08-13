@@ -1,4 +1,4 @@
-version = "1.0.0"  // only bump when the API interface changes
+version = "1.1.0"  // only bump when the API interface changes
 
 plugins {
     id("buildsrc.convention.kotlin-jvm")
@@ -8,6 +8,7 @@ plugins {
 dependencies {
     api(libs.kotlinxCoroutines)
     api(libs.bundles.result)
+    testImplementation(kotlin("test"))
 }
 
 publishing {

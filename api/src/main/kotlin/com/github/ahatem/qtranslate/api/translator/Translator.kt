@@ -29,6 +29,67 @@ interface Translator : Service {
 }
 
 /**
+ * Optional translator capability for providers that can process multiple independent
+ * text segments in one request. The core discovers this through
+ * [Service.getCapability] and falls back to [Translator.translate] when absent.
+ *
+ * Implementations must preserve input order and return exactly one response per input.
+ * Empty strings are intentionally rejected so result indexes always map unambiguously.
+ */
+interface BatchTranslator : Translator {
+    /** Maximum items accepted by one provider request. */
+    val maxBatchSize: Int
+        get() = 50
+
+    /** Conservative character limit for one provider request. */
+    val maxBatchCharacters: Int
+        get() = 100_000
+
+    /**
+     * Translates the ordered text segments in [request] as one provider operation.
+     *
+     * @return one translation for every input segment in the same order, or a service error.
+     */
+    suspend fun translateBatch(
+        request: BatchTranslationRequest
+    ): Result<BatchTranslationResponse, ServiceError>
+}
+
+/**
+ * Parameters for an ordered batch translation operation.
+ *
+ * @param texts non-blank independent segments whose order must be preserved.
+ * @param sourceLanguage source language, or [LanguageCode.AUTO] for provider detection.
+ * @param targetLanguage target language; must not be [LanguageCode.AUTO].
+ */
+data class BatchTranslationRequest(
+    val texts: List<String>,
+    val sourceLanguage: LanguageCode,
+    val targetLanguage: LanguageCode
+) {
+    init {
+        require(texts.isNotEmpty()) { "Batch translation request must contain at least one text." }
+        require(texts.none(String::isBlank)) { "Batch translation request texts must not be blank." }
+        require(targetLanguage != LanguageCode.AUTO) {
+            "Target language must be a specific language, not AUTO."
+        }
+    }
+}
+
+/**
+ * Result of a batch translation operation.
+ *
+ * [translations] must contain one item for every requested segment in the same order.
+ */
+data class BatchTranslationResponse(
+    val translations: List<TranslationResponse>
+) {
+    init {
+        require(translations.isNotEmpty()) { "Batch translation response must not be empty." }
+    }
+}
+
+/**
  * Parameters for a translation operation.
  *
  * @param text           The source text to translate. Must not be blank.

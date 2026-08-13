@@ -56,7 +56,7 @@ object ApiVersion {
     const val MAJOR = 1
 
     /** The minor version. Incrementing this signals new backwards-compatible features. */
-    const val MINOR = 0
+    const val MINOR = 1
 
     /** The patch version. Incrementing this signals backwards-compatible bug fixes. */
     const val PATCH = 0
