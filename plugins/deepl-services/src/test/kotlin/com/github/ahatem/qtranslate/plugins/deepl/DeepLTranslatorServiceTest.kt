@@ -41,13 +41,14 @@ class DeepLTranslatorServiceTest {
             success = {
                 assertEquals("Bonjour", it.translatedText)
                 assertEquals(LanguageCode.ENGLISH, it.detectedLanguage)
-                assertEquals(listOf("Salut"), it.alternatives)
+                assertEquals(emptyList(), it.alternatives)
             },
             failure = { fail(it.message) }
         )
-        assertEquals(listOf("https://www2.deepl.com/jsonrpc"), client.urls)
+        assertEquals(listOf("https://oneshot-free.www.deepl.com/v1/translate"), client.urls)
         assertEquals(DeepLMode.FREE_WEB, modes.last())
-        assertTrue(client.bodies.single().contains("\"source_lang_user_selected\":\"auto\""))
+        assertTrue(client.bodies.single().contains("\"target_lang\":\"fr\""))
+        assertEquals("None", client.headers.single()["Authorization"])
     }
 
     @Test
@@ -91,13 +92,13 @@ class DeepLTranslatorServiceTest {
 
         assertEquals(3, client.urls.size)
         assertEquals(1, client.urls.count { it.contains("api.deepl.com") })
-        assertEquals(2, client.urls.count { it.contains("www2.deepl.com") })
+        assertEquals(2, client.urls.count { it.contains("oneshot-free.www.deepl.com") })
         assertEquals(1, context.notifications.size)
         assertEquals(DeepLMode.FREE_WEB_AFTER_REJECTION, modes.last())
     }
 
     @Test
-    fun `maps web JSON rate limit to a retryable error`() = runBlocking {
+    fun `maps embedded free endpoint rate limit to actionable guidance`() = runBlocking {
         val client = ScriptedHttpClient(mutableListOf(Ok(
             """{"error":{"code":1042911,"message":"Too many requests"}}"""
         )))
@@ -105,7 +106,13 @@ class DeepLTranslatorServiceTest {
 
         service.translate(request).fold(
             success = { fail("Expected rate limit error") },
-            failure = { assertIs<ServiceError.RateLimitError>(it) }
+            failure = {
+                val error = assertIs<ServiceError.RateLimitError>(it)
+                assertEquals(
+                    "DeepL free endpoint is rate-limited. Add an API key for official access or try again later.",
+                    error.message
+                )
+            }
         )
         Unit
     }
@@ -157,15 +164,15 @@ class DeepLTranslatorServiceTest {
         settings = { settings },
         onModeChanged = onModeChanged,
         minimumWebRequestIntervalMillis = 0,
-        nowMillis = { 1_700_000_000_000 },
-        nextRequestId = { 123_000 }
+        rateLimitBackoffMillis = 0,
+        maxWebRetries = 0
     )
 
     private companion object {
         const val OFFICIAL_SUCCESS =
             """{"translations":[{"text":"Bonjour officiel","detected_source_language":"EN"}]}"""
         const val WEB_SUCCESS =
-            """{"result":{"texts":[{"text":"Bonjour","alternatives":[{"text":"Salut"}]}],"lang":"EN"}}"""
+            """{"translations":[{"text":"Bonjour","detected_source_language":"EN"}]}"""
     }
 }
 
@@ -217,12 +224,12 @@ private class EchoWebHttpClient : HttpClient {
         queryParams: Map<String, Any?>
     ): Result<String, ServiceError> {
         requestCount++
-        val request = Json.decodeFromString<DeepLWebRequest>(body.orEmpty())
-        return Ok(Json.encodeToString(DeepLWebResponse(
-            result = DeepLWebResult(
-                texts = listOf(DeepLWebTranslation(text = request.params.texts.single().text)),
-                lang = "EN"
-            )
+        val request = Json.decodeFromString<DeepLTranslateRequest>(body.orEmpty())
+        return Ok(Json.encodeToString(DeepLTranslateResponse(
+            translations = listOf(DeepLTranslation(
+                text = request.text.single(),
+                detectedSourceLanguage = "EN"
+            ))
         )))
     }
 }

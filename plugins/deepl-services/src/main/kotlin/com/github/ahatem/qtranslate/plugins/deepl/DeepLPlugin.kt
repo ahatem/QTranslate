@@ -5,14 +5,19 @@ import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.api.settings.PluginAction
 import com.github.ahatem.qtranslate.api.settings.Setting
 import com.github.ahatem.qtranslate.api.settings.SettingType
+import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.fold
 import java.awt.BorderLayout
 import javax.swing.JLabel
 import javax.swing.JPanel
+import kotlinx.coroutines.runBlocking
 
 class DeepLPlugin : Plugin<DeepLSettings> {
     private lateinit var context: PluginContext
@@ -25,8 +30,9 @@ class DeepLPlugin : Plugin<DeepLSettings> {
         settings = DeepLSettings(
             apiKey = context.getValue(KEY_API_KEY).orEmpty()
         )
-        settings.updateMode(if (settings.apiKey.isBlank()) DeepLMode.FREE_WEB else DeepLMode.OFFICIAL)
         httpClient = KtorHttpClient(context)
+        settings.updateMode(if (settings.apiKey.isBlank()) DeepLMode.FREE_WEB else DeepLMode.OFFICIAL)
+        settings.attach(context) { httpClient }
         return Ok(Unit)
     }
 
@@ -45,6 +51,7 @@ class DeepLPlugin : Plugin<DeepLSettings> {
         if (apiKey.isBlank()) context.deleteValue(KEY_API_KEY) else context.storeValue(KEY_API_KEY, apiKey)
         this.settings = settings.copy(apiKey = apiKey).also {
             it.updateMode(if (apiKey.isBlank()) DeepLMode.FREE_WEB else DeepLMode.OFFICIAL)
+            it.attach(context) { httpClient }
         }
         return Ok(Unit)
     }
@@ -84,6 +91,13 @@ data class DeepLSettings(
     var modePanel: String = ""
 ) : PluginSettings.Configurable() {
     private var mode: DeepLMode = if (apiKey.isBlank()) DeepLMode.FREE_WEB else DeepLMode.OFFICIAL
+    @Transient private var context: PluginContext? = null
+    @Transient private var clientProvider: (() -> KtorHttpClient)? = null
+
+    internal fun attach(context: PluginContext, clientProvider: () -> KtorHttpClient) {
+        this.context = context
+        this.clientProvider = clientProvider
+    }
 
     internal fun baseUrl(): String =
         if (apiKey.endsWith(":fx", ignoreCase = true)) "https://api-free.deepl.com" else "https://api.deepl.com"
@@ -94,6 +108,24 @@ data class DeepLSettings(
 
     internal fun updateMode(mode: DeepLMode) {
         this.mode = mode
+    }
+
+    @PluginAction(
+        label = "Test Connection",
+        order = 30,
+        tooltip = "Tests the saved API key or the free endpoint."
+    )
+    fun testConnection(): String = runBlocking {
+        val context = context ?: return@runBlocking "DeepL is not initialized."
+        val client = clientProvider?.invoke() ?: return@runBlocking "DeepL is not initialized."
+        DeepLTranslatorService(context, client, { this@DeepLSettings }, minimumWebRequestIntervalMillis = 0)
+            .translate(TranslationRequest("hello", LanguageCode.ENGLISH, LanguageCode.FRENCH))
+            .fold(
+                success = {
+                    "Connected successfully using ${if (apiKey.isBlank()) "the free endpoint" else "the official API"}."
+                },
+                failure = { "Connection failed: ${it.message}" }
+            )
     }
 
     @Suppress("unused")

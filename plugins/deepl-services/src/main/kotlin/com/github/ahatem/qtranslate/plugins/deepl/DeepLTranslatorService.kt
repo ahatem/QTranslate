@@ -10,9 +10,7 @@ import com.github.ahatem.qtranslate.api.translator.TranslationResponse
 import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.HttpClient
-import com.github.ahatem.qtranslate.plugins.common.createJsonParser
 import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
 import com.github.michaelbull.result.fold
@@ -21,25 +19,24 @@ import com.github.michaelbull.result.toResultOr
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.Json
-import kotlin.random.Random
 
 internal class DeepLTranslatorService(
     private val context: PluginContext,
     private val httpClient: HttpClient,
     private val settings: () -> DeepLSettings,
     private val onModeChanged: (DeepLMode) -> Unit = {},
-    private val minimumWebRequestIntervalMillis: Long = 750,
-    private val nowMillis: () -> Long = System::currentTimeMillis,
-    private val nextRequestId: () -> Long = { Random.nextLong(100_000, 1_000_000) * 1_000 }
+    private val minimumWebRequestIntervalMillis: Long = 2_000,
+    private val rateLimitBackoffMillis: Long = 10_000,
+    private val maxWebRetries: Int = 1
 ) : Translator {
     override val id = "deepl-services-translator"
     override val name = "DeepL"
     override val version = "1.1.0"
+    override val iconPath = "assets/deepl.svg"
     override val supportedLanguages = SupportedLanguages.Specific(SUPPORTED_LANGUAGES)
 
-    private val officialParser = createJsonParser<DeepLTranslateResponse>(context)
-    private val webParser = createJsonParser<DeepLWebResponse>(context)
+    private val responseParser =
+        com.github.ahatem.qtranslate.plugins.common.createJsonParser<DeepLTranslateResponse>(context)
     private val webRequestMutex = Mutex()
     private var lastWebRequestAtNanos = 0L
     private var rejectedApiKey: String? = null
@@ -88,7 +85,7 @@ internal class DeepLTranslatorService(
             headers = ApiConfig().createJsonHeaders(settings.authHeaders()),
             body = json.encodeToString(requestBody)
         ).bind()
-        val translation = officialParser.parse(responseText).bind().translations.firstOrNull()
+        val translation = responseParser.parse(responseText).bind().translations.firstOrNull()
             .toResultOr { ServiceError.InvalidResponseError("DeepL returned no translation.") }
             .bind()
 
@@ -115,56 +112,31 @@ internal class DeepLTranslatorService(
     ): Result<TranslationResponse, ServiceError> = webRequestMutex.withLock {
             coroutineBinding {
                 paceWebRequest()
-                val id = nextRequestId()
-                val body = json.encodeToString(DeepLWebRequest(
-                    id = id,
-                    params = DeepLWebParams(
-                        lang = DeepLWebLanguage(
-                            sourceLanguage = if (request.sourceLanguage == LanguageCode.AUTO) "auto" else toWebCode(request.sourceLanguage),
-                            targetLanguage = toWebCode(request.targetLanguage)
-                        ),
-                        texts = listOf(DeepLWebText(request.text)),
-                        timestamp = webTimestamp(request.text)
-                    )
-                )).withMethodSpacing(id)
+                val body = json.encodeToString(DeepLTranslateRequest(
+                    text = listOf(request.text),
+                    targetLanguage = toWebCode(request.targetLanguage),
+                    sourceLanguage = request.sourceLanguage
+                        .takeUnless { it == LanguageCode.AUTO }
+                        ?.let(::toWebCode)
+                ))
 
-                val responseBody = httpClient.post(
-                    url = WEB_ENDPOINT,
-                    headers = ApiConfig().createJsonHeaders(mapOf(
-                        "Origin" to "https://www.deepl.com",
-                        "Referer" to "https://www.deepl.com/"
-                    )),
-                    body = body,
-                    queryParams = mapOf("method" to "LMT_handle_texts")
-                ).mapError(::mapWebHttpError).bind()
+                val responseBody = postWeb(body).bind()
                 lastWebRequestAtNanos = System.nanoTime()
 
-                val response = webParser.parse(responseBody).bind()
-                response.error?.let { error ->
-                    if (error.code in WEB_RATE_LIMIT_CODES || error.message.contains("too many requests", true)) {
-                        Err(ServiceError.RateLimitError(
-                            FREE_RATE_LIMIT_MESSAGE
-                        )).bind<String>()
-                    }
-                    Err(ServiceError.ServiceUnavailableError(
-                        "DeepL's free endpoint returned error ${error.code}: ${error.message}. " +
-                            "The unofficial endpoint may have changed."
-                    )).bind<String>()
+                if (responseBody.contains("Too many requests", ignoreCase = true) ||
+                    responseBody.contains("\"code\":1042911")) {
+                    Err(ServiceError.RateLimitError(FREE_RATE_LIMIT_MESSAGE)).bind<String>()
                 }
 
-                val result = response.result
-                    .toResultOr { ServiceError.InvalidResponseError(
-                        "DeepL's free endpoint returned an invalid response. It may have changed."
-                    ) }.bind()
-                val translation = result.texts.firstOrNull { it.text.isNotBlank() }
+                val translation = responseParser.parse(responseBody).bind().translations
+                    .firstOrNull { it.text.isNotBlank() }
                     .toResultOr { ServiceError.InvalidResponseError(
                         "DeepL's free endpoint returned no translated text. It may have changed."
                     ) }.bind()
 
                 TranslationResponse(
                     translatedText = translation.text,
-                    detectedLanguage = result.lang?.let(::fromDeepLCode),
-                    alternatives = translation.alternatives.mapNotNull { it.text.takeIf(String::isNotBlank) }
+                    detectedLanguage = translation.detectedSourceLanguage?.let(::fromDeepLCode)
                 )
             }
         }
@@ -176,6 +148,26 @@ internal class DeepLTranslatorService(
             cause = error.cause
         )
         else -> error
+    }
+
+    private suspend fun postWeb(body: String): Result<String, ServiceError> {
+        val headers = ApiConfig().createJsonHeaders(mapOf(
+            "Authorization" to "None",
+            "Accept" to "application/json"
+        ))
+        var attempt = 0
+        while (true) {
+            val result = httpClient.post(WEB_ENDPOINT, headers, body)
+            val rateLimit = result.fold(
+                success = { null },
+                failure = { it as? ServiceError.RateLimitError }
+            )
+            if (rateLimit == null || attempt >= maxWebRetries) return result.mapError(::mapWebHttpError)
+
+            val retryAfterMillis = rateLimit.retryAfterSeconds?.times(1_000L) ?: 0L
+            delay(maxOf(rateLimitBackoffMillis, retryAfterMillis))
+            attempt++
+        }
     }
 
     private fun splitForWeb(text: String): List<String> {
@@ -204,17 +196,6 @@ internal class DeepLTranslatorService(
         if (remainingMillis > 0) delay(remainingMillis)
     }
 
-    private fun webTimestamp(text: String): Long {
-        val iCount = text.count { it == 'i' } + 1
-        val now = nowMillis()
-        return if (iCount == 1) now else now - (now % iCount) + iCount
-    }
-
-    private fun String.withMethodSpacing(id: Long): String = when {
-        (id + 5) % 29L == 0L || (id + 3) % 13L == 0L -> replaceFirst("\"method\":", "\"method\" : ")
-        else -> replaceFirst("\"method\":", "\"method\": ")
-    }
-
     private fun toDeepLCode(language: LanguageCode): String = when (language) {
         LanguageCode.CHINESE_SIMPLIFIED -> "ZH-HANS"
         LanguageCode.CHINESE_TRADITIONAL -> "ZH-HANT"
@@ -222,8 +203,8 @@ internal class DeepLTranslatorService(
     }
 
     private fun toWebCode(language: LanguageCode): String = when (language) {
-        LanguageCode.CHINESE_SIMPLIFIED, LanguageCode.CHINESE_TRADITIONAL -> "ZH"
-        else -> language.tag.substringBefore('-').uppercase()
+        LanguageCode.CHINESE_SIMPLIFIED, LanguageCode.CHINESE_TRADITIONAL -> "zh"
+        else -> language.tag.substringBefore('-').lowercase()
     }
 
     private fun fromDeepLCode(code: String): LanguageCode = when (code.uppercase()) {
@@ -234,12 +215,11 @@ internal class DeepLTranslatorService(
     }
 
     companion object {
-        private const val WEB_ENDPOINT = "https://www2.deepl.com/jsonrpc"
+        private const val WEB_ENDPOINT = "https://oneshot-free.www.deepl.com/v1/translate"
         private const val FREE_RATE_LIMIT_MESSAGE =
             "DeepL free endpoint is rate-limited. Add an API key for official access or try again later."
         private const val MAX_WEB_CHARACTERS = 5_000
-        private val WEB_RATE_LIMIT_CODES = setOf(1_042_911, 1_042_912)
-        private val json = Json { ignoreUnknownKeys = true }
+        private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
         private val SUPPORTED_LANGUAGES = setOf(
             LanguageCode.AUTO, LanguageCode.ARABIC, LanguageCode.BULGARIAN,
