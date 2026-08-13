@@ -8,9 +8,11 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.settings.Setting
 import com.github.ahatem.qtranslate.api.settings.SettingType
 import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
-import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import java.awt.BorderLayout
+import javax.swing.JLabel
+import javax.swing.JPanel
 
 class DeepLPlugin : Plugin<DeepLSettings> {
     private lateinit var context: PluginContext
@@ -21,29 +23,29 @@ class DeepLPlugin : Plugin<DeepLSettings> {
     override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> {
         this.context = context
         settings = DeepLSettings(
-            apiKey = context.getValue(KEY_API_KEY).orEmpty(),
-            apiTier = context.getValue(KEY_API_TIER) ?: TIER_FREE
+            apiKey = context.getValue(KEY_API_KEY).orEmpty()
         )
+        settings.updateMode(if (settings.apiKey.isBlank()) DeepLMode.FREE_WEB else DeepLMode.OFFICIAL)
         httpClient = KtorHttpClient(context)
         return Ok(Unit)
     }
 
     override suspend fun onEnable(): Result<Unit, ServiceError> {
-        services = listOf(DeepLTranslatorService(context, httpClient) { settings })
+        services = listOf(DeepLTranslatorService(
+            context = context,
+            httpClient = httpClient,
+            settings = { settings },
+            onModeChanged = settings::updateMode
+        ))
         return Ok(Unit)
     }
 
     override suspend fun onSettingsChanged(settings: DeepLSettings): Result<Unit, ServiceError> {
-        if (settings.apiKey.isBlank()) {
-            return Err(ServiceError.ValidationError("DeepL API key must not be empty."))
+        val apiKey = settings.apiKey.trim()
+        if (apiKey.isBlank()) context.deleteValue(KEY_API_KEY) else context.storeValue(KEY_API_KEY, apiKey)
+        this.settings = settings.copy(apiKey = apiKey).also {
+            it.updateMode(if (apiKey.isBlank()) DeepLMode.FREE_WEB else DeepLMode.OFFICIAL)
         }
-        if (settings.apiTier !in setOf(TIER_FREE, TIER_PRO)) {
-            return Err(ServiceError.ValidationError("DeepL API tier must be Free or Pro."))
-        }
-
-        context.storeValue(KEY_API_KEY, settings.apiKey.trim())
-        context.storeValue(KEY_API_TIER, settings.apiTier)
-        this.settings = settings.copy(apiKey = settings.apiKey.trim())
         return Ok(Unit)
     }
 
@@ -60,37 +62,56 @@ class DeepLPlugin : Plugin<DeepLSettings> {
 
     private companion object {
         const val KEY_API_KEY = "apiKey"
-        const val KEY_API_TIER = "apiTier"
     }
 }
 
 data class DeepLSettings(
     @field:Setting(
         label = "API Key",
-        description = "Create an API key in your DeepL account. The API Free and DeepL Translator subscriptions use different credentials.",
+        description = "Optional. Add a DeepL API key to use the official API; leave blank to use the free web endpoint.",
         type = SettingType.PASSWORD,
-        isRequired = true,
         order = 10
     )
     var apiKey: String = "",
 
     @field:Setting(
-        label = "API Tier",
-        description = "Choose Free for keys ending in :fx; choose Pro for paid DeepL API plans.",
-        type = SettingType.DROPDOWN,
-        options = "Free,Pro",
-        defaultValue = "Free",
+        label = "Current mode",
+        description = "The mode changes automatically when the API key is saved.",
+        type = SettingType.CUSTOM_PANEL,
+        actionMethod = "createModePanel",
         order = 20
     )
-    var apiTier: String = TIER_FREE
+    var modePanel: String = ""
 ) : PluginSettings.Configurable() {
+    private var mode: DeepLMode = if (apiKey.isBlank()) DeepLMode.FREE_WEB else DeepLMode.OFFICIAL
+
     internal fun baseUrl(): String =
-        if (apiTier == TIER_PRO) "https://api.deepl.com" else "https://api-free.deepl.com"
+        if (apiKey.endsWith(":fx", ignoreCase = true)) "https://api-free.deepl.com" else "https://api.deepl.com"
 
     internal fun authHeaders(): Map<String, String> = mapOf(
         "Authorization" to "DeepL-Auth-Key $apiKey"
     )
+
+    internal fun updateMode(mode: DeepLMode) {
+        this.mode = mode
+    }
+
+    @Suppress("unused")
+    private fun createModePanel(): JPanel = JPanel(BorderLayout()).apply {
+        isOpaque = false
+        add(JLabel(mode.html), BorderLayout.CENTER)
+    }
 }
 
-private const val TIER_FREE = "Free"
-private const val TIER_PRO = "Pro"
+internal enum class DeepLMode(val html: String) {
+    OFFICIAL("<html><b>Using official API</b></html>"),
+    FREE_WEB(
+        "<html><b>Using free web endpoint</b><br>" +
+            "<font color='#888888'>Free endpoint - may be slow or stop working. " +
+            "Add an API key for official access.</font></html>"
+    ),
+    FREE_WEB_AFTER_REJECTION(
+        "<html><b>Using free web endpoint</b><br>" +
+            "<font color='#888888'>The saved API key was rejected. Update it to restore official access.</font></html>"
+    )
+}
