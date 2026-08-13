@@ -16,6 +16,7 @@ internal class ReversoTranslatorService(
     override val id = "reverso-services-translation"
     override val name = "Reverso Translation"
     override val version = "1.0.0"
+    override val iconPath = "assets/reverso.png"
     override val supportedLanguages = ReversoLanguageMapper.supportedLanguages
 
     override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> {

@@ -19,6 +19,7 @@ internal class ReversoDictionaryService(
     override val id = "reverso-services-dictionary"
     override val name = "Reverso Dictionary"
     override val version = "1.0.0"
+    override val iconPath = "assets/reverso.png"
     override val supportedLanguages = ReversoLanguageMapper.supportedLanguages
 
     override suspend fun lookup(request: DictionaryRequest): Result<DictionaryResponse, ServiceError> {
