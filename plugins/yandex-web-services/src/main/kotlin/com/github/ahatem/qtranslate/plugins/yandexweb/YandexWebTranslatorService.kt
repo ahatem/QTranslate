@@ -14,6 +14,7 @@ internal class YandexWebTranslatorService(private val client: YandexWebClient) :
     override val id = "yandex-web-translator"
     override val name = "Yandex Web (Unofficial)"
     override val version = "1.0.0"
+    override val iconPath = "assets/yandex.svg"
     override val supportedLanguages = SupportedLanguages.Specific(YandexWebLanguageMapper.supportedLanguages)
 
     override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> {

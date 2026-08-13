@@ -70,6 +70,24 @@ class YandexWebTranslatorServiceTest {
     }
 
     @Test
+    fun `falls back to Mozhi Yandex when the direct endpoint changes`() = runBlocking {
+        val transport = FakeHttpClient(
+            result = Ok("<html>blocked</html>"),
+            getResult = Ok("""{"translated-text":"مرحبا بالعالم","source_language":"en"}""")
+        )
+
+        val response = service(transport).translate(
+            TranslationRequest("Hello world", LanguageCode.AUTO, LanguageCode.ARABIC)
+        ).getOrThrow { IllegalStateException(it.message, it.cause) }
+
+        assertEquals("مرحبا بالعالم", response.translatedText)
+        assertEquals(LanguageCode.ENGLISH, response.detectedLanguage)
+        assertTrue(transport.lastGetUrl.orEmpty().endsWith("/api/translate"))
+        assertEquals("yandex", transport.lastQueryParams["engine"])
+        assertEquals("ar", transport.lastQueryParams["to"])
+    }
+
+    @Test
     fun `rejects unsupported languages before making a request`() = runBlocking {
         val transport = FakeHttpClient(Ok("[]"))
 
@@ -115,15 +133,22 @@ class YandexWebTranslatorServiceTest {
         YandexWebTranslatorService(YandexWebClient(httpClient, minimumIntervalMillis = 0))
 
     private class FakeHttpClient(
-        private val result: Result<String, ServiceError>
+        private val result: Result<String, ServiceError>,
+        private val getResult: Result<String, ServiceError> = result
     ) : HttpClient {
         var lastBody: String? = null
+        var lastGetUrl: String? = null
+        var lastQueryParams: Map<String, Any?> = emptyMap()
 
         override suspend fun get(
             url: String,
             headers: Map<String, String>,
             queryParams: Map<String, Any?>
-        ): Result<String, ServiceError> = result
+        ): Result<String, ServiceError> {
+            lastGetUrl = url
+            lastQueryParams = queryParams
+            return getResult
+        }
 
         override suspend fun post(
             url: String,

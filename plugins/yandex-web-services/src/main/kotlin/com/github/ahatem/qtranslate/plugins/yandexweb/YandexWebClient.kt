@@ -29,7 +29,7 @@ internal class YandexWebClient(
             if (lastRequestStartedAt != 0L && remainingDelay > 0) wait(remainingDelay)
             lastRequestStartedAt = clockMillis()
 
-            httpClient.post(
+            val direct = httpClient.post(
                 url = ENDPOINT,
                 headers = HEADERS,
                 body = formBody(text, targetLanguage)
@@ -37,7 +37,57 @@ internal class YandexWebClient(
                 success = ::parseResponse,
                 failure = { Err(mapTransportError(it)) }
             )
+            var directError: ServiceError? = null
+            direct.fold(
+                success = { return@withLock Ok(it) },
+                failure = { directError = it }
+            )
+            val error = requireNotNull(directError)
+            if (error !is ServiceError.InvalidResponseError && error !is ServiceError.ServiceUnavailableError) {
+                return@withLock Err(error)
+            }
+            translateViaMozhi(text, targetLanguage).fold(
+                success = { Ok(it) },
+                failure = { Err(error) }
+            )
         }
+
+    private suspend fun translateViaMozhi(
+        text: String,
+        targetLanguage: String
+    ): Result<YandexWebResponse, ServiceError> {
+        for (endpoint in MOZHI_FALLBACKS) {
+            val response = httpClient.get(
+                url = "$endpoint/api/translate",
+                queryParams = mapOf(
+                    "engine" to "yandex",
+                    "from" to "auto",
+                    "to" to targetLanguage,
+                    "text" to text
+                )
+            ).fold(
+                success = { body ->
+                    runCatching { json.decodeFromString<MozhiYandexResponse>(body) }.fold(
+                        onSuccess = { parsed ->
+                            if (parsed.translatedText.isNotBlank()) {
+                                Ok(YandexWebResponse(parsed.translatedText, parsed.sourceLanguage, targetLanguage))
+                            } else {
+                                Err(endpointChangedError())
+                            }
+                        },
+                        onFailure = { Err(endpointChangedError(it)) }
+                    )
+                },
+                failure = { Err(it) }
+            )
+            var translated: YandexWebResponse? = null
+            response.fold(success = { translated = it }, failure = {})
+            translated?.let { return Ok(it) }
+        }
+        return Err(ServiceError.ServiceUnavailableError(
+            "Yandex Web and its privacy-preserving fallback instances are unavailable. Try again later."
+        ))
+    }
 
     private fun parseResponse(body: String): Result<YandexWebResponse, ServiceError> =
         runCatching { json.decodeFromString<List<YandexWebResponse>>(body).firstOrNull() }
@@ -92,6 +142,10 @@ internal class YandexWebClient(
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 " +
                 "YaBrowser/26.3.0.0 Safari/537.36"
+        )
+        val MOZHI_FALLBACKS = listOf(
+            "https://mozhi.adminforge.de",
+            "https://mozhi.pussthecat.org"
         )
     }
 }
