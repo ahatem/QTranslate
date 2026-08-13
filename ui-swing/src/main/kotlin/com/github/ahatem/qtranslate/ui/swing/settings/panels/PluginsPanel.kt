@@ -9,6 +9,7 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.util.type
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
+import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import com.github.ahatem.qtranslate.ui.swing.shared.util.GridBag
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.CoroutineScope
@@ -100,7 +101,7 @@ class PluginsPanel(
             putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT,
                 localizationManager.getString("settings_plugins.search_placeholder"))
             putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON,
-                appIcon("icons/lucide/search.svg", 15))
+                themedAppIcon("icons/lucide/search.svg", 15))
             document.addDocumentListener(object : DocumentListener {
                 override fun insertUpdate(e: DocumentEvent?) = refreshPluginRows()
                 override fun removeUpdate(e: DocumentEvent?) = refreshPluginRows()
@@ -132,12 +133,14 @@ class PluginsPanel(
         }
         pluginRows.apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            background = UIManager.getColor("List.background")
+            background = UIManager.getColor("Panel.background")
+            border = BorderFactory.createEmptyBorder(2, 6, 2, 6)
         }
 
         val dropHandler = PluginJarTransferHandler()
         val listScroll = JScrollPane(pluginRows).apply {
             border = null
+            viewportBorder = null
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             verticalScrollBar.unitIncrement = 16
             transferHandler = dropHandler
@@ -146,7 +149,7 @@ class PluginsPanel(
 
         val installBtn = JButton(
             localizationManager.getString("settings_plugins.install_plugin"),
-            appIcon("icons/lucide/package.svg", 16)
+            themedAppIcon("icons/lucide/package.svg", 16)
         ).apply { addActionListener { onInstall() } }
 
         val browseLink = JLabel(
@@ -166,10 +169,7 @@ class PluginsPanel(
         val dropHint = JLabel(localizationManager.getString("settings_plugins.drop_hint"), SwingConstants.CENTER).apply {
             foreground = UIManager.getColor("Label.disabledForeground")
             font = font.deriveFont(font.size - 1f)
-            border = BorderFactory.createCompoundBorder(
-                BorderFactory.createDashedBorder(UIManager.getColor("Component.borderColor"), 1f, 4f, 3f, true),
-                BorderFactory.createEmptyBorder(7, 5, 7, 5)
-            )
+            border = BorderFactory.createEmptyBorder(5, 5, 5, 5)
             transferHandler = dropHandler
         }
         val leftBottom = JPanel(BorderLayout(0, 6)).apply {
@@ -181,9 +181,9 @@ class PluginsPanel(
         }
 
         leftPanel = JPanel(BorderLayout()).apply {
-            preferredSize = Dimension(330, 0)
-            minimumSize   = Dimension(280, 0)
-            maximumSize   = Dimension(360, Int.MAX_VALUE)
+            preferredSize = Dimension(320, 0)
+            minimumSize   = Dimension(270, 0)
+            maximumSize   = Dimension(350, Int.MAX_VALUE)
             add(listHeader, BorderLayout.NORTH)
             add(listScroll, BorderLayout.CENTER)
             add(leftBottom, BorderLayout.SOUTH)
@@ -196,6 +196,7 @@ class PluginsPanel(
         // Placeholder empty content — replaced by rebuildDetail()
         detailScroll = JScrollPane().apply {
             border = null
+            viewportBorder = null
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             verticalScrollBar.unitIncrement = 16
         }
@@ -226,7 +227,7 @@ class PluginsPanel(
     // ── Theme helpers ─────────────────────────────────────────────────────────
 
     private fun refreshLeftBorder() {
-        leftPanel.border = MatteBorder(0, 0, 0, 1, UIManager.getColor("Component.borderColor") ?: Color.GRAY)
+        leftPanel.border = BorderFactory.createEmptyBorder(0, 0, 0, 10)
         leftPanel.revalidate()
     }
 
@@ -256,7 +257,10 @@ class PluginsPanel(
                 border = BorderFactory.createEmptyBorder(30, 12, 12, 12)
             })
         } else {
-            visiblePlugins.forEach { pluginRows.add(buildPluginRow(it)) }
+            visiblePlugins.forEach {
+                pluginRows.add(buildPluginRow(it))
+                pluginRows.add(Box.createVerticalStrut(3))
+            }
             pluginRows.add(Box.createVerticalGlue())
         }
         resultCount.text = localizationManager.getString("settings_plugins.result_count")
@@ -279,15 +283,23 @@ class PluginsPanel(
 
     private fun buildPluginRow(plugin: PluginState): JComponent {
         val selected = plugin.id == selectedPlugin?.id
-        val row = JPanel(BorderLayout(8, 0)).apply {
-            maximumSize = Dimension(Int.MAX_VALUE, 66)
-            preferredSize = Dimension(300, 66)
-            isOpaque = true
-            background = if (selected) UIManager.getColor("List.selectionBackground") else UIManager.getColor("List.background")
-            border = BorderFactory.createCompoundBorder(
-                MatteBorder(0, 0, 1, 0, UIManager.getColor("Separator.foreground") ?: Color.GRAY),
-                BorderFactory.createEmptyBorder(8, 10, 8, 8)
-            )
+        val row = object : JPanel(BorderLayout(8, 0)) {
+            override fun paintComponent(graphics: Graphics) {
+                if (selected) {
+                    val g2 = graphics.create() as Graphics2D
+                    g2.color = UIManager.getColor("List.selectionBackground")
+                        ?: UIManager.getColor("Component.focusColor")
+                        ?: Color(0x3D5A80)
+                    g2.fillRoundRect(0, 0, width, height, 8, 8)
+                    g2.dispose()
+                }
+                super.paintComponent(graphics)
+            }
+        }.apply {
+            maximumSize = Dimension(Int.MAX_VALUE, 62)
+            preferredSize = Dimension(290, 62)
+            isOpaque = false
+            border = BorderFactory.createEmptyBorder(7, 9, 7, 7)
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             addMouseListener(object : MouseAdapter() {
                 override fun mousePressed(e: MouseEvent) {
@@ -299,7 +311,7 @@ class PluginsPanel(
         val foreground = if (selected) UIManager.getColor("List.selectionForeground") else UIManager.getColor("Label.foreground")
         val serviceId = plugin.services.firstOrNull()?.id
         val icon = plugin.manifest.icon?.let { path -> serviceId?.let { iconManager.getIcon(it, path, 24, 24) } }
-            ?: appIcon("icons/lucide/package.svg", 24)
+            ?: themedAppIcon("icons/lucide/package.svg", 24)
         val categories = PluginPanelModel.categories(plugin).joinToString(" · ") { categoryName(it) }
         val text = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -330,7 +342,7 @@ class PluginsPanel(
                         }
                     }
                 })
-                add(JButton(appIcon("icons/lucide/settings.svg", 15)).apply {
+                add(JButton(themedAppIcon("icons/lucide/settings.svg", 15)).apply {
                     putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
                     toolTipText = localizationManager.getString("settings_plugins.btn_configure")
                     addActionListener { onConfigure(plugin) }
@@ -357,7 +369,8 @@ class PluginsPanel(
         }
     )
 
-    private fun appIcon(path: String, size: Int): Icon = iconManager.getIcon(path, size, size)
+    private fun themedAppIcon(path: String, size: Int): Icon =
+        FlatSVGIcon(path, size, size, javaClass.classLoader).applyForegroundColorFilter()
 
     // ── Detail rebuild ────────────────────────────────────────────────────────
 
@@ -388,9 +401,7 @@ class PluginsPanel(
         val headerIcon: Icon = if (pluginIconPath != null && serviceId != null)
             iconManager.getIcon(serviceId, pluginIconPath, 24, 24)
         else
-            FlatSVGIcon("icons/lucide/package.svg", 24, 24, javaClass.classLoader).apply {
-                colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.foreground") }
-            }
+            themedAppIcon("icons/lucide/package.svg", 24)
 
         val nameLabel = JLabel(plugin.manifest.name).apply {
             font = font.deriveFont(Font.BOLD, font.size + 2f)
@@ -461,16 +472,15 @@ class PluginsPanel(
             g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
                 .insets(10, 0, 6, 0).add(serviceLabel)
 
-            // WrapLayout correctly reports multi-row preferred height, so GridBagLayout
-            // allocates the right vertical space when chips wrap to a second line.
-            val chips = JPanel(WrapLayout(FlowLayout.LEADING, 6, 4)).apply {
+            val services = JPanel().apply {
+                layout = BoxLayout(this, BoxLayout.Y_AXIS)
                 isOpaque = false
                 plugin.services.forEach { svc ->
-                    add(buildServiceChip(svc.name, svc.type?.readableName(localizationManager)))
+                    add(buildServiceLine(svc.name, svc.type?.readableName(localizationManager)))
                 }
             }
             g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
-                .insets(0, 0, 0, 0).add(chips)
+                .insets(0, 0, 0, 0).add(services)
         }
 
         // ─ Error ──────────────────────────────────────────────────────────────
@@ -643,15 +653,16 @@ class PluginsPanel(
         }
     }
 
-    private fun buildServiceChip(name: String, typeName: String?): JLabel {
-        val text = if (typeName != null && typeName != name) "$name ($typeName)" else name
-        return JLabel(text).apply {
-            font   = font.deriveFont(font.size - 1f)
-            border = BorderFactory.createCompoundBorder(
-                themeAwareBorder(),
-                BorderFactory.createEmptyBorder(2, 8, 2, 8)
-            )
-        }
+    private fun buildServiceLine(name: String, typeName: String?): JComponent = JPanel(BorderLayout(8, 0)).apply {
+        isOpaque = false
+        alignmentX = Component.LEFT_ALIGNMENT
+        maximumSize = Dimension(Int.MAX_VALUE, 27)
+        border = BorderFactory.createEmptyBorder(3, 0, 3, 0)
+        add(JLabel(name).apply { font = font.deriveFont(Font.BOLD, font.size - 0.5f) }, BorderLayout.CENTER)
+        if (typeName != null && typeName != name) add(JLabel(typeName).apply {
+            foreground = UIManager.getColor("Label.disabledForeground")
+            font = font.deriveFont(font.size - 1f)
+        }, BorderLayout.LINE_END)
     }
 
     private fun buildMetadataItem(label: String, value: String, tooltip: String? = null): JComponent = JPanel(BorderLayout(0, 2)).apply {
