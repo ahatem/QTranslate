@@ -55,7 +55,7 @@ jobs:
           - variant: minimal
             task: assembleMinimal
           - variant: full
-            task: assembleFull
+            task: validateReleaseSizes
           - variant: plugins
             task: assembleIndividualPlugins
 

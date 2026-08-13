@@ -9,14 +9,15 @@ plugins {
 
 data class BundledPlugin(
     val projectPath: String,
-    val archiveFile: File,
+    val thinArchiveFile: Provider<RegularFile>,
+    val standaloneArchiveFile: Provider<RegularFile>,
     val id: String,
     val name: String,
     val version: String,
     val minApiVersion: String,
 ) {
     val releaseFileName = "$id-$version.jar"
-    val bundledFileName = archiveFile.name
+    val bundledFileName = "${projectPath.substringAfterLast(':')}-plugin.jar"
 }
 
 val releaseVersion = providers.gradleProperty("releaseVersion")
@@ -39,7 +40,8 @@ val bundledPlugins = subprojects
         val manifest = JsonSlurper().parse(manifestFile) as Map<String, Any?>
         BundledPlugin(
             projectPath = pluginProject.path,
-            archiveFile = pluginProject.layout.buildDirectory.file("libs/${pluginProject.name}-plugin.jar").get().asFile,
+            thinArchiveFile = pluginProject.tasks.named<AbstractArchiveTask>("jar").flatMap { it.archiveFile },
+            standaloneArchiveFile = pluginProject.tasks.named<AbstractArchiveTask>("shadowJar").flatMap { it.archiveFile },
             id = requireNotNull(manifest["id"] as? String) { "Plugin ${pluginProject.path} has no id" },
             name = requireNotNull(manifest["name"] as? String) { "Plugin ${pluginProject.path} has no name" },
             version = requireNotNull(manifest["version"] as? String) { "Plugin ${pluginProject.path} has no version" },
@@ -56,10 +58,12 @@ val cleanPluginSmoke by tasks.registering(Delete::class) {
 }
 val preparePluginSmoke by tasks.registering(Sync::class) {
     dependsOn(cleanPluginSmoke)
-    dependsOn(bundledPlugins.map { "${it.projectPath}:shadowJar" })
+    dependsOn(bundledPlugins.map { "${it.projectPath}:jar" })
     into(smokeDirectory.map { it.dir("app-data/plugins") })
     bundledPlugins.forEach { plugin ->
-        from(plugin.archiveFile)
+        from(plugin.thinArchiveFile) {
+            rename { plugin.bundledFileName }
+        }
     }
 }
 
@@ -82,7 +86,7 @@ fun Zip.configureBundle(plugins: List<BundledPlugin>, variant: String) {
     group = "distribution"
     description = "Builds the $variant QTranslate distribution."
     dependsOn(appArchive)
-    dependsOn(plugins.map { "${it.projectPath}:shadowJar" })
+    dependsOn(plugins.map { "${it.projectPath}:jar" })
     destinationDirectory.set(releaseOutputDirectory)
     archiveFileName.set("QTranslate-${variant.replaceFirstChar(Char::uppercase)}-${releaseVersion.get()}.zip")
 
@@ -97,7 +101,7 @@ fun Zip.configureBundle(plugins: List<BundledPlugin>, variant: String) {
             into("themes")
         }
         plugins.forEach { plugin ->
-            from(plugin.archiveFile) {
+            from(plugin.thinArchiveFile) {
                 into("plugins")
                 rename { plugin.bundledFileName }
             }
@@ -141,7 +145,7 @@ val assembleIndividualPlugins by tasks.registering(Copy::class) {
     dependsOn(bundledPlugins.map { "${it.projectPath}:shadowJar" })
     into(releaseOutputDirectory.map { it.dir("plugins") })
     bundledPlugins.forEach { plugin ->
-        from(plugin.archiveFile) {
+        from(plugin.standaloneArchiveFile) {
             rename { plugin.releaseFileName }
         }
     }
@@ -190,10 +194,24 @@ val generateReleaseMetadata by tasks.registering(GenerateReleaseMetadataTask::cl
     outputFile.set(releaseOutputDirectory.map { it.file("release-metadata.json") })
 }
 
+val validateReleaseSizes by tasks.registering(ValidateReleaseSizesTask::class) {
+    group = "verification"
+    description = "Reports release sizes and fails when portable artifacts exceed their budgets."
+    dependsOn(assembleAppOnly, assembleMinimal, assembleFull)
+    appArtifact.set(releaseOutputDirectory.map { it.file("QTranslate-App-${releaseVersion.get()}.jar") })
+    minimalArtifact.set(releaseOutputDirectory.map { it.file("QTranslate-Minimal-${releaseVersion.get()}.zip") })
+    fullArtifact.set(releaseOutputDirectory.map { it.file("QTranslate-Full-${releaseVersion.get()}.zip") })
+    maxAppBytes.set(55L * 1024 * 1024)
+    maxMinimalBytes.set(50L * 1024 * 1024)
+    maxFullBytes.set(52L * 1024 * 1024)
+    maxBundledPluginsBytes.set(3L * 1024 * 1024)
+    reportFile.set(releaseOutputDirectory.map { it.file("SIZE_REPORT.md") })
+}
+
 val generateReleaseChecksums by tasks.registering(GenerateReleaseChecksumsTask::class) {
     group = "distribution"
     description = "Writes SHA-256 checksums for every release artifact."
-    dependsOn(generateReleaseMetadata)
+    dependsOn(generateReleaseMetadata, validateReleaseSizes)
     releaseDirectory.set(releaseOutputDirectory)
     outputFile.set(releaseOutputDirectory.map { it.file("SHA256SUMS.txt") })
 }

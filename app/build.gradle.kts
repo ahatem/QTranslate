@@ -25,6 +25,12 @@ dependencies {
     implementation(project(":core"))
     implementation(project(":ui-swing"))
 
+    // Bundled plugins are distributed as thin JARs. Keep their shared runtime
+    // dependencies in the host while external plugins remain self-contained.
+    runtimeOnly(project(":plugins:common"))
+    runtimeOnly(libs.jsoup)
+    runtimeOnly(libs.java.diff.utils)
+
     // Coroutines — needed for runBlocking in Main.kt and AppScope
     implementation(libs.kotlinxCoroutines)
 
@@ -77,12 +83,12 @@ val externalPluginsDirectory = providers.gradleProperty("pluginsDir")
 val prepareManualQaPlugins by tasks.registering(Sync::class) {
     group = "application"
     description = "Builds bundled plugins and stages them with external plugin JARs for manual QA."
-    dependsOn(manualQaPluginProjects.map { "${it.path}:shadowJar" })
+    dependsOn(manualQaPluginProjects.map { "${it.path}:jar" })
     into(manualQaDirectory.map { it.dir("app-data/plugins") })
 
     manualQaPluginProjects.forEach { pluginProject ->
-        from(pluginProject.layout.buildDirectory.dir("libs")) {
-            include("*-plugin.jar")
+        from(pluginProject.tasks.named<Jar>("jar").flatMap { it.archiveFile }) {
+            rename { "${pluginProject.name}-plugin.jar" }
         }
     }
     from(externalPluginsDirectory) {
