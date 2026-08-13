@@ -1,0 +1,8 @@
+{
+  "id": "mymemory-services",
+  "name": "MyMemory",
+  "version": "1.0.0",
+  "author": "Ahmed Hatem",
+  "description": "Free translation through the official MyMemory public API. No API key required; availability and limits are controlled by the provider.",
+  "minApiVersion": "1.0.0"
+}
