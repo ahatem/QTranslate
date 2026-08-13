@@ -121,14 +121,12 @@ val assembleAppOnly by tasks.registering(Copy::class) {
 
 val minimalPlugins = bundledPlugins.filter { it.id in minimalPluginIds }
 val missingMinimalPluginIds = minimalPluginIds - minimalPlugins.map { it.id }.toSet()
+val validateMinimalPlugins by tasks.registering(ValidateRequiredPluginsTask::class) {
+    missingPluginIds.set(missingMinimalPluginIds.sorted())
+}
 val assembleMinimal by tasks.registering(Zip::class) {
     configureBundle(minimalPlugins, "minimal")
-    dependsOn(cleanRelease)
-    doFirst {
-        check(missingMinimalPluginIds.isEmpty()) {
-            "Minimal distribution requires missing plugin module(s): ${missingMinimalPluginIds.sorted().joinToString()}"
-        }
-    }
+    dependsOn(cleanRelease, validateMinimalPlugins)
 }
 
 val assembleFull by tasks.registering(Zip::class) {
