@@ -1,6 +1,8 @@
 package com.github.ahatem.qtranslate.core.main.domain.usecase
 
 import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.api.dictionary.BilingualDictionary
+import com.github.ahatem.qtranslate.api.dictionary.BilingualDictionaryRequest
 import com.github.ahatem.qtranslate.api.dictionary.Dictionary
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
 import com.github.ahatem.qtranslate.api.language.LanguageCode
@@ -29,6 +31,7 @@ class LookupWordUseCase(
     suspend operator fun invoke(
         word: String,
         language: LanguageCode,
+        targetLanguage: LanguageCode? = null,
         updateState: (MainState.() -> MainState) -> Unit,
         onStatusUpdate: suspend (StatusCode, NotificationType, Boolean) -> Unit
     ) {
@@ -62,7 +65,15 @@ class LookupWordUseCase(
                 }
 
                 val result = withTimeoutOrNull(AppConstants.TRANSLATION_TIMEOUT_MS) {
-                    dictionary.lookup(DictionaryRequest(word, language))
+                    val bilingualRequest = targetLanguage?.let { target ->
+                        dictionary.getCapability(BilingualDictionary::class.java)?.let { it to target }
+                    }
+                    if (bilingualRequest != null) {
+                        val (bilingual, target) = bilingualRequest
+                        bilingual.lookupBilingual(BilingualDictionaryRequest(word, language, target))
+                    } else {
+                        dictionary.lookup(DictionaryRequest(word, language))
+                    }
                 }
 
                 if (result == null) {

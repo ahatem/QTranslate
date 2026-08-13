@@ -438,6 +438,7 @@ class MainStore(
         lookupWordUseCase(
             word = intent.word,
             language = intent.language,
+            targetLanguage = _state.value.targetLanguage,
             updateState = { transform -> _state.update(transform) },
             onStatusUpdate = ::updateStatusBar
         )
