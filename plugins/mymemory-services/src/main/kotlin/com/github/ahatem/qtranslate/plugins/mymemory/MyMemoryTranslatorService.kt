@@ -27,6 +27,7 @@ internal class MyMemoryTranslatorService(
 ) : Translator {
     override val id = "mymemory-services-translate"
     override val name = "MyMemory (Free)"
+    override val iconPath = "assets/mymemory.svg"
     override val version = "1.0.0"
     override val supportedLanguages = SupportedLanguages.Specific(SUPPORTED_LANGUAGES)
 
