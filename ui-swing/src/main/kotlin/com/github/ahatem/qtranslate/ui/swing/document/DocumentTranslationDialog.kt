@@ -1,6 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.document
 
 import com.formdev.flatlaf.FlatClientProperties
+import com.formdev.flatlaf.extras.FlatSVGIcon
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.document.DocumentFormat
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationProgress
 import com.github.ahatem.qtranslate.core.document.PdfTranslationMode
@@ -8,6 +10,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import net.miginfocom.swing.MigLayout
 import java.awt.BorderLayout
 import java.awt.Color
+import java.awt.Desktop
 import java.awt.Dimension
 import java.awt.Window
 import java.awt.event.KeyEvent
@@ -22,8 +25,10 @@ import javax.swing.JComponent
 import javax.swing.JDialog
 import javax.swing.JFileChooser
 import javax.swing.JLabel
+import javax.swing.JOptionPane
 import javax.swing.JPanel
 import javax.swing.JProgressBar
+import javax.swing.JTextField
 import javax.swing.KeyStroke
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
@@ -37,6 +42,8 @@ data class DocumentTranslationStrings(
     val outputFile: String,
     val browse: String,
     val translate: String,
+    val open: String,
+    val openFailed: String,
     val cancel: String,
     val close: String,
     val ready: String,
@@ -62,10 +69,8 @@ class DocumentTranslationDialog(
 ) : JDialog(owner, strings.title, ModalityType.MODELESS) {
     private enum class ViewState { READY, TRANSLATING, COMPLETED, FAILED, CANCELLED }
 
-    private val inputName = JLabel(strings.chooseInput)
-    private val inputPath = secondaryLabel()
-    private val outputName = JLabel(strings.chooseOutput)
-    private val outputPath = secondaryLabel()
+    private val inputField = filePathField(strings.chooseInput)
+    private val outputField = filePathField(strings.chooseOutput)
     private val inputButton = filePickerButton(strings.chooseInput)
     private val outputButton = filePickerButton(strings.chooseOutput).apply { isEnabled = false }
     private val pdfModeCombo = JComboBox(arrayOf(strings.layoutAware, strings.textOnly))
@@ -82,7 +87,6 @@ class DocumentTranslationDialog(
         isEnabled = false
     }
     private val cancelButton = JButton(strings.close)
-    private val filePanels = mutableListOf<JPanel>()
     private val contentPanel = createContentPanel()
     private val actionBar = createActionBar()
     private val lookAndFeelListener = PropertyChangeListener { event ->
@@ -92,6 +96,7 @@ class DocumentTranslationDialog(
     private var inputFile: File? = null
     private var outputFile: File? = null
     private var viewState = ViewState.READY
+    private var progressVisible = false
 
     init {
         defaultCloseOperation = DO_NOTHING_ON_CLOSE
@@ -112,8 +117,11 @@ class DocumentTranslationDialog(
         pdfModeCombo.addActionListener {
             inputFile?.let(::updateSuggestedOutput)
             updatePdfDescription()
+            if (inputFile != null) showState(ViewState.READY, strings.ready)
         }
-        primaryButton.addActionListener { startTranslation() }
+        primaryButton.addActionListener {
+            if (viewState == ViewState.COMPLETED) openOutput() else startTranslation()
+        }
         cancelButton.addActionListener { cancelOrClose() }
         addWindowListener(object : WindowAdapter() {
             override fun windowClosing(event: WindowEvent) = cancelOrClose()
@@ -122,8 +130,9 @@ class DocumentTranslationDialog(
 
         updateTheme()
         pack()
-        minimumSize = Dimension(560, height)
-        size = Dimension(600, height)
+        val packedWidth = width
+        minimumSize = Dimension(UIScale.scale(560), height)
+        size = Dimension(maxOf(packedWidth, UIScale.scale(600)), height)
         setLocationRelativeTo(owner)
     }
 
@@ -151,6 +160,12 @@ class DocumentTranslationDialog(
         showState(ViewState.COMPLETED, strings.completed.format(output.name), output.absolutePath)
     }
 
+    fun translationContextChanged() {
+        if (viewState == ViewState.COMPLETED || viewState == ViewState.FAILED || viewState == ViewState.CANCELLED) {
+            showState(ViewState.READY, strings.ready)
+        }
+    }
+
     fun fail(message: String) {
         showState(ViewState.FAILED, message, message)
     }
@@ -161,49 +176,44 @@ class DocumentTranslationDialog(
     }
 
     private fun createContentPanel() = JPanel(
-        MigLayout("fillx, insets 16, wrap 1", "[grow,fill]", "[]12[]12[]12[]")
+        MigLayout("fillx, insets 16, wrap 1, hidemode 3", "[grow,fill]", "")
     ).apply {
-        add(fileSection(strings.inputFile, inputName, inputPath, inputButton))
-        add(fileSection(strings.outputFile, outputName, outputPath, outputButton))
-        add(pdfOptionsPanel)
+        add(fileSection(strings.inputFile, inputField, inputButton), "gapbottom 12")
+        add(fileSection(strings.outputFile, outputField, outputButton), "gapbottom 12")
+        add(pdfOptionsPanel, "gapbottom 12")
         add(createProgressPanel())
     }
 
     private fun fileSection(
         title: String,
-        nameLabel: JLabel,
-        pathLabel: JLabel,
+        pathField: JTextField,
         button: JButton
-    ) = JPanel(MigLayout("insets 0, fillx", "[grow,fill]8[96!]", "[]5[]")).apply {
+    ) = JPanel(MigLayout("insets 0, fillx", "[grow,fill]8[]", "[]6[]")).apply {
         isOpaque = false
         add(JLabel(title), "cell 0 0 2 1")
-        add(JPanel(MigLayout("insets 7 8 7 10, fillx, wrap 1", "[grow,fill]", "[]2[]")).also(filePanels::add).apply {
-            add(nameLabel, "cell 0 0")
-            add(pathLabel, "cell 0 1")
-        }, "cell 0 1")
-        add(button, "cell 1 1, w 96!, h 32!")
+        add(pathField, "cell 0 1, h 32!")
+        add(button, "cell 1 1, h 32!")
     }
 
     private fun createPdfOptionsPanel() = JPanel(
-        MigLayout("insets 0, fillx", "[110!][grow,fill]", "[]6[]")
+        MigLayout("insets 0, fillx, wrap 1", "[grow,fill]", "[]6[]6[]")
     ).apply {
         isOpaque = false
-        add(JLabel(strings.pdfMode), "cell 0 0")
-        add(pdfModeCombo, "cell 1 0, h 32!")
-        add(pdfDescription, "cell 1 1")
+        add(JLabel(strings.pdfMode))
+        add(pdfModeCombo, "h 32!")
+        add(pdfDescription)
     }
 
     private fun createProgressPanel() = JPanel(
-        MigLayout("insets 0, fillx", "[grow,fill][48!,right]", "[]7[]")
+        MigLayout("insets 0, fillx, hidemode 3", "[grow,fill][48!,right]", "[]7[]")
     ).apply {
         isOpaque = false
-        preferredSize = Dimension(100, 50)
         add(statusLabel, "cell 0 0")
         add(progressLabel, "cell 1 0")
         add(progressBar, "cell 0 1 2 1, growx")
     }
 
-    private fun createActionBar() = JPanel(MigLayout("insets 10 12 10 12", "[grow][]8[]", "[]")).apply {
+    private fun createActionBar() = JPanel(MigLayout("insets 10", "[grow][]8[]", "[]")).apply {
         add(cancelButton, "cell 1 0, w 92!, h 32!")
         add(primaryButton, "cell 2 0, w 112!, h 32!")
     }
@@ -226,6 +236,24 @@ class DocumentTranslationDialog(
         onStart(input, output, selectedPdfMode())
     }
 
+    private fun openOutput() {
+        val output = outputFile ?: return
+        runCatching {
+            check(output.isFile) { "Output file does not exist." }
+            check(Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                "Opening files is not supported on this system."
+            }
+            Desktop.getDesktop().open(output)
+        }.onFailure { error ->
+            JOptionPane.showMessageDialog(
+                this,
+                strings.openFailed.format(error.message ?: output.absolutePath),
+                strings.title,
+                JOptionPane.ERROR_MESSAGE
+            )
+        }
+    }
+
     private fun cancelOrClose() {
         if (viewState == ViewState.TRANSLATING) {
             onCancel()
@@ -244,9 +272,8 @@ class DocumentTranslationDialog(
         }
         if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return
         inputFile = chooser.selectedFile
-        inputName.text = chooser.selectedFile.name
-        inputPath.text = chooser.selectedFile.parentFile?.absolutePath.orEmpty()
-        inputPath.toolTipText = chooser.selectedFile.absolutePath
+        inputField.text = chooser.selectedFile.absolutePath
+        inputField.toolTipText = chooser.selectedFile.absolutePath
         pdfOptionsPanel.isVisible = DocumentFormat.from(chooser.selectedFile) == DocumentFormat.PDF
         updateSuggestedOutput(chooser.selectedFile)
         outputButton.isEnabled = true
@@ -277,9 +304,8 @@ class DocumentTranslationDialog(
 
     private fun setOutput(file: File) {
         outputFile = file
-        outputName.text = file.name
-        outputPath.text = file.parentFile?.absolutePath.orEmpty()
-        outputPath.toolTipText = file.absolutePath
+        outputField.text = file.absolutePath
+        outputField.toolTipText = file.absolutePath
     }
 
     private fun updatePdfDescription() {
@@ -305,6 +331,8 @@ class DocumentTranslationDialog(
         outputButton.isEnabled = !running && inputFile != null
         pdfModeCombo.isEnabled = !running
         primaryButton.isEnabled = !running && inputFile != null && outputFile != null
+        primaryButton.text = if (state == ViewState.COMPLETED) strings.open else strings.translate
+        primaryButton.icon = if (state == ViewState.COMPLETED) themeIcon("icons/lucide/book-open.svg") else null
         cancelButton.text = if (running) strings.cancel else strings.close
         statusLabel.text = message
         statusLabel.toolTipText = tooltip
@@ -313,19 +341,18 @@ class DocumentTranslationDialog(
             ViewState.COMPLETED -> UIManager.getColor("Actions.Green") ?: Color(35, 135, 70)
             else -> UIManager.getColor("Label.foreground")
         }
+        val showProgress = state == ViewState.TRANSLATING || state == ViewState.COMPLETED
+        progressBar.isVisible = showProgress
+        progressLabel.isVisible = showProgress
+        if (progressVisible != showProgress) {
+            progressVisible = showProgress
+            resizeToContent()
+        }
     }
 
     private fun updateTheme() {
         val borderColor = UIManager.getColor("Component.borderColor") ?: Color.GRAY
         actionBar.border = MatteBorder(1, 0, 0, 0, borderColor)
-        filePanels.forEach { panel ->
-            panel.border = BorderFactory.createCompoundBorder(
-                MatteBorder(1, 1, 1, 1, borderColor),
-                BorderFactory.createEmptyBorder(0, 0, 0, 0)
-            )
-        }
-        inputPath.foreground = UIManager.getColor("Label.disabledForeground")
-        outputPath.foreground = UIManager.getColor("Label.disabledForeground")
         pdfDescription.foreground = UIManager.getColor("Label.disabledForeground")
         showState(viewState, statusLabel.text, statusLabel.toolTipText)
         revalidate()
@@ -339,16 +366,29 @@ class DocumentTranslationDialog(
 
     private fun filePickerButton(tooltip: String) = JButton(
         strings.browse,
-        iconManager.getIcon("icons/lucide/file-scan.svg", 16, 16)
+        themeIcon("icons/lucide/file-scan.svg")
     ).apply {
+        putClientProperty(FlatClientProperties.STYLE, "minimumWidth: 96")
         toolTipText = tooltip
         accessibleContext.accessibleName = tooltip
+    }
+
+    private fun themeIcon(path: String) = FlatSVGIcon(path, 16, 16, javaClass.classLoader).apply {
+        colorFilter = FlatSVGIcon.ColorFilter {
+            UIManager.getColor("Button.foreground") ?: UIManager.getColor("Label.foreground") ?: Color.DARK_GRAY
+        }
+    }
+
+    private fun filePathField(placeholder: String) = JTextField().apply {
+        isEditable = false
+        putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, placeholder)
+        accessibleContext.accessibleName = placeholder
     }
 
     private fun resizeToContent() {
         val currentLocation = location
         pack()
-        size = Dimension(600, height)
+        size = Dimension(maxOf(width, UIScale.scale(600)), height)
         location = currentLocation
     }
 

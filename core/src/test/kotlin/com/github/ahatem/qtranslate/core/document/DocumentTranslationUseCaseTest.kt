@@ -181,7 +181,7 @@ class DocumentTranslationUseCaseTest {
     }
 
     @Test
-    fun `PDF appearance mode keeps PDF pages and rasterizes translated result`() = runBlocking {
+    fun `PDF appearance mode keeps PDF pages and writes selectable translated text`() = runBlocking {
         val input = File(directory, "source.pdf")
         PDDocument().use { document ->
             val page = PDPage().also(document::addPage)
@@ -201,6 +201,85 @@ class DocumentTranslationUseCaseTest {
         Loader.loadPDF(output).use { translated ->
             assertEquals(1, translated.numberOfPages)
             assertEquals(612f, translated.getPage(0).mediaBox.width, 1f)
+            assertTrue(PDFTextStripper().getText(translated).contains("[Hello world]"))
+            val rendered = PDFRenderer(translated).renderImageWithDPI(0, 72f, ImageType.RGB)
+            val translatedRegionContainsInk = (55..95).any { y ->
+                (55..220).any { x -> Color(rendered.getRGB(x, y)).run { red < 245 || green < 245 || blue < 245 } }
+            }
+            assertTrue(translatedRegionContainsInk)
+        }
+    }
+
+    @Test
+    fun `PDF appearance mode joins paragraph lines and repairs line-end hyphens`() = runBlocking {
+        val input = File(directory, "paragraph.pdf")
+        PDDocument().use { document ->
+            val page = PDPage().also(document::addPage)
+            PDPageContentStream(document, page).use { content ->
+                content.beginText()
+                content.setFont(PDType1Font(Standard14Fonts.FontName.TIMES_ROMAN), 12f)
+                content.setLeading(14f)
+                content.newLineAtOffset(72f, 720f)
+                content.showText("Soft-")
+                content.newLine()
+                content.showText("ware systems should remain reliable.")
+                content.endText()
+            }
+            document.save(input)
+        }
+        val translator = FakeBatchTranslator()
+
+        useCase(translator).invoke(request(input, File(directory, "paragraph-translated.pdf"))) { }
+
+        assertEquals(listOf(listOf("Software systems should remain reliable.")), translator.requests)
+    }
+
+    @Test
+    fun `PDF appearance mode removes source glyphs before drawing translation`() = runBlocking {
+        val input = File(directory, "source-text.pdf")
+        PDDocument().use { document ->
+            val page = PDPage().also(document::addPage)
+            PDPageContentStream(document, page).use { content ->
+                content.beginText()
+                content.setFont(PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 18f)
+                content.newLineAtOffset(72f, 720f)
+                content.showText("SOURCE")
+                content.endText()
+            }
+            document.save(input)
+        }
+        val output = File(directory, "blank-translation.pdf")
+
+        useCase(FakeTranslator(transform = { "" })).invoke(request(input, output)) { }
+
+        Loader.loadPDF(output).use { translated ->
+            val rendered = PDFRenderer(translated).renderImageWithDPI(0, 72f, ImageType.RGB)
+            val sourceRegionIsBlank = (45..85).all { y ->
+                (65..160).all { x -> Color(rendered.getRGB(x, y)).run { red > 248 && green > 248 && blue > 248 } }
+            }
+            assertTrue(sourceRegionIsBlank)
+        }
+    }
+
+    @Test
+    fun `PDF appearance mode falls back to raster text for complex scripts`() = runBlocking {
+        val input = File(directory, "arabic-source.pdf")
+        PDDocument().use { document ->
+            val page = PDPage().also(document::addPage)
+            PDPageContentStream(document, page).use { content ->
+                content.beginText()
+                content.setFont(PDType1Font(Standard14Fonts.FontName.HELVETICA), 12f)
+                content.newLineAtOffset(72f, 720f)
+                content.showText("Reliable systems")
+                content.endText()
+            }
+            document.save(input)
+        }
+        val output = File(directory, "arabic-translated.pdf")
+
+        useCase(FakeTranslator(transform = { "أنظمة موثوقة" })).invoke(request(input, output)) { }
+
+        Loader.loadPDF(output).use { translated ->
             assertTrue(PDFTextStripper().getText(translated).isBlank())
             val rendered = PDFRenderer(translated).renderImageWithDPI(0, 72f, ImageType.RGB)
             val translatedRegionContainsInk = (55..95).any { y ->
@@ -260,7 +339,10 @@ class DocumentTranslationUseCaseTest {
         )
     }
 
-    private class FakeTranslator(private val failOn: String? = null) : Translator {
+    private class FakeTranslator(
+        private val failOn: String? = null,
+        private val transform: (String) -> String = { "[$it]" }
+    ) : Translator {
         override val id = "test-translator"
         override val name = "Test Translator"
         override val version = "1.0.0"
@@ -271,7 +353,7 @@ class DocumentTranslationUseCaseTest {
         ): Result<TranslationResponse, ServiceError> = if (request.text == failOn) {
             Err(ServiceError.NetworkError("Offline"))
         } else {
-            Ok(TranslationResponse("[${request.text}]"))
+            Ok(TranslationResponse(transform(request.text)))
         }
     }
 

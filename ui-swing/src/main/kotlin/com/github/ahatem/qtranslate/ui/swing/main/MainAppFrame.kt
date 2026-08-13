@@ -90,6 +90,8 @@ class MainAppFrame(
                 outputFile = localizer.getString("document_translation.output_file"),
                 browse = localizer.getString("common.browse"),
                 translate = localizer.getString("document_translation.translate"),
+                open = localizer.getString("document_translation.open"),
+                openFailed = localizer.getString("document_translation.open_failed"),
                 cancel = localizer.getString("common.cancel"),
                 close = localizer.getString("common.close"),
                 ready = localizer.getString("document_translation.ready"),
@@ -402,6 +404,24 @@ class MainAppFrame(
                     withContext(Dispatchers.Swing) {
                         val shouldShow = isLoading && (!isVisible && !isDialogVisible || isReplacing)
                         loadingIndicator.render(LoadingIndicatorState(isVisible = shouldShow))
+                    }
+                }
+        }
+
+        appScope.launch(handler) {
+            combine(
+                mainStore.state.map { it.sourceLanguage to it.targetLanguage },
+                settingsStore.state.map { settings ->
+                    settings.workingConfiguration.getActivePreset()
+                        ?.selectedServices
+                        ?.get(ServiceType.TRANSLATOR)
+                }
+            ) { languages, translatorId -> Triple(languages.first, languages.second, translatorId) }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect {
+                    withContext(Dispatchers.Swing) {
+                        documentTranslationDialog.translationContextChanged()
                     }
                 }
         }

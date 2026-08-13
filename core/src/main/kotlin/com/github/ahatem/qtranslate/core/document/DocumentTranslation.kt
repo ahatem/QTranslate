@@ -20,12 +20,18 @@ import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
 import org.apache.pdfbox.pdmodel.common.PDRectangle
-import org.apache.pdfbox.pdmodel.graphics.image.JPEGFactory
+import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject
+import org.apache.pdfbox.pdmodel.font.PDFont
+import org.apache.pdfbox.pdmodel.font.PDType0Font
 import org.apache.pdfbox.rendering.ImageType
+import org.apache.pdfbox.rendering.PageDrawer
+import org.apache.pdfbox.rendering.PageDrawerParameters
 import org.apache.pdfbox.rendering.PDFRenderer
 import org.apache.pdfbox.text.PDFTextStripper
 import org.apache.pdfbox.text.TextPosition
+import org.apache.pdfbox.util.Matrix
+import org.apache.pdfbox.util.Vector
 import org.apache.poi.xwpf.usermodel.XWPFDocument
 import org.apache.poi.xwpf.usermodel.XWPFParagraph
 import org.apache.poi.xwpf.usermodel.XWPFRun
@@ -34,16 +40,18 @@ import java.awt.Color
 import java.awt.Font
 import java.awt.Rectangle
 import java.awt.RenderingHints
+import java.awt.font.LineBreakMeasurer
 import java.awt.font.TextLayout
 import java.awt.image.BufferedImage
+import java.io.ByteArrayInputStream
+import java.text.AttributedString
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
-import java.text.Bidi
+import java.awt.font.TextAttribute
 import kotlin.coroutines.coroutineContext
-import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -279,7 +287,7 @@ class DocumentTranslationUseCase(
         onProgress: (DocumentTranslationProgress) -> Unit
     ) {
         val blocksByPage = (0 until pdf.numberOfPages).map { pageIndex ->
-            PositionedTextStripper(pageIndex + 1).extract(pdf)
+            groupPdfBlocks(PositionedTextStripper(pageIndex + 1).extract(pdf))
         }
         requirePdfText(pdf, blocksByPage.map { blocks -> blocks.joinToString(" ") { it.sourceText } })
         val blocks = blocksByPage.flatten()
@@ -292,8 +300,9 @@ class DocumentTranslationUseCase(
             onProgress
         )
 
-        val renderer = PDFRenderer(pdf)
+        val renderer = TextFreePdfRenderer(pdf)
         PDDocument().use { translatedPdf ->
+            val vectorFonts = PdfVectorFonts(translatedPdf)
             translatedPdf.documentInformation.title = pdf.documentInformation.title
             translatedPdf.documentInformation.author = pdf.documentInformation.author
             translatedPdf.documentInformation.subject = pdf.documentInformation.subject
@@ -302,15 +311,16 @@ class DocumentTranslationUseCase(
             blocksByPage.forEachIndexed { pageIndex, pageBlocks ->
                 coroutineContext.ensureActive()
                 val image = renderer.renderImageWithDPI(pageIndex, PDF_RENDER_DPI, ImageType.RGB)
-                paintTranslatedBlocks(image, pageBlocks)
+                val vectorLines = prepareTranslatedBlocks(image, pageBlocks, vectorFonts)
 
                 val widthPoints = image.width * PDF_POINTS_PER_INCH / PDF_RENDER_DPI
                 val heightPoints = image.height * PDF_POINTS_PER_INCH / PDF_RENDER_DPI
                 val outputPage = PDPage(PDRectangle(widthPoints, heightPoints))
                 translatedPdf.addPage(outputPage)
-                val pageImage = JPEGFactory.createFromImage(translatedPdf, image, PDF_JPEG_QUALITY, PDF_RENDER_DPI.toInt())
+                val pageImage = LosslessFactory.createFromImage(translatedPdf, image)
                 PDPageContentStream(translatedPdf, outputPage).use { content ->
                     content.drawImage(pageImage, 0f, 0f, widthPoints, heightPoints)
+                    drawVectorLines(content, vectorLines, vectorFonts, heightPoints)
                 }
             }
             translatedPdf.save(output)
@@ -332,49 +342,195 @@ class DocumentTranslationUseCase(
         throw DocumentTranslationException(message)
     }
 
-    private fun paintTranslatedBlocks(image: BufferedImage, blocks: List<PdfTextBlock>) {
+    private fun groupPdfBlocks(lines: List<PdfTextBlock>): List<PdfTextBlock> {
+        if (lines.size < 2) return lines
+        val sorted = lines.sortedWith(compareBy(PdfTextBlock::top, PdfTextBlock::x))
+        val groups = mutableListOf<MutableList<PdfTextBlock>>()
+
+        sorted.forEach { line ->
+            val current = groups.lastOrNull()
+            val previous = current?.lastOrNull()
+            if (previous == null || !belongsToSameParagraph(current, previous, line)) {
+                groups += mutableListOf(line)
+            } else {
+                current += line
+            }
+        }
+
+        return groups.map { group ->
+            if (group.size == 1) return@map group.single()
+            val left = group.minOf(PdfTextBlock::x)
+            val right = group.maxOf { it.x + it.width }
+            val top = group.minOf(PdfTextBlock::top)
+            val bottom = group.maxOf { it.top + it.height }
+            val first = group.first()
+            first.copy(
+                sourceText = joinPdfLines(group.map(PdfTextBlock::sourceText)),
+                x = left,
+                top = top,
+                width = right - left,
+                height = bottom - top,
+                translatedText = ""
+            )
+        }
+    }
+
+    private fun belongsToSameParagraph(
+        group: List<PdfTextBlock>,
+        previous: PdfTextBlock,
+        next: PdfTextBlock
+    ): Boolean {
+        val baselineStep = next.top - previous.top
+        val comparableSize = max(previous.fontSizePoints, next.fontSizePoints)
+        if (baselineStep <= 0f || baselineStep > comparableSize * 1.5f) return false
+        if (kotlin.math.abs(previous.fontSizePoints - next.fontSizePoints) > comparableSize * 0.2f) return false
+
+        val groupStartsWithBullet = group.first().sourceText.trimStart().startsWithAnyBullet()
+        val nextStartsWithBullet = next.sourceText.trimStart().startsWithAnyBullet()
+        if (nextStartsWithBullet) return false
+        if (groupStartsWithBullet) return next.x >= group.first().x - 1f && next.x - group.first().x <= 18f
+
+        val first = group.first()
+        val firstIsStandaloneItalic = group.size == 1 && first.fontStyle and Font.ITALIC != 0
+        val nextIsRegular = next.fontStyle and Font.ITALIC == 0
+        if (firstIsStandaloneItalic && nextIsRegular && next.x - first.x > 8f) return false
+        return kotlin.math.abs(next.x - first.x) <= 20f
+    }
+
+    private fun joinPdfLines(lines: List<String>): String {
+        val result = StringBuilder()
+        lines.forEach { line ->
+            val clean = line.trim()
+            if (result.isEmpty()) {
+                result.append(clean)
+            } else if (result.last() in PDF_LINE_END_HYPHENS) {
+                result.setLength(result.length - 1)
+                result.append(clean)
+            } else {
+                result.append(' ').append(clean)
+            }
+        }
+        return result.toString()
+    }
+
+    private fun String.startsWithAnyBullet(): Boolean = firstOrNull() in PDF_BULLETS
+
+    private fun prepareTranslatedBlocks(
+        image: BufferedImage,
+        blocks: List<PdfTextBlock>,
+        vectorFonts: PdfVectorFonts
+    ): List<PdfVectorLine> {
         val scale = PDF_RENDER_DPI / PDF_POINTS_PER_INCH
+        val contentRight = blocks.maxOfOrNull { it.x + it.width } ?: 0f
         val graphics = image.createGraphics()
+        val vectorLines = mutableListOf<PdfVectorLine>()
         try {
             graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
             graphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON)
 
             blocks.forEach { block ->
-                val bounds = block.pixelBounds(scale, image)
+                val bounds = block.pixelBounds(scale, image, contentRight)
                 if (bounds.width < 2 || bounds.height < 2 || block.translatedText.isBlank()) return@forEach
                 val background = sampleBackground(image, bounds)
-                graphics.color = background
-                graphics.fillRect(bounds.x, bounds.y, bounds.width, bounds.height)
-                graphics.color = contrastingTextColor(background)
-                drawFittedText(graphics, block.translatedText, bounds)
+                val color = contrastingTextColor(background)
+                val lines = fitText(graphics, block, bounds, scale, color, vectorFonts)
+                val pdfFont = vectorFonts.forStyle(block.fontFamily, block.fontStyle)
+                val canDrawAsVector = lines.all { line ->
+                    line.layout.isLeftToRight && runCatching { pdfFont.encode(line.text) }.isSuccess
+                }
+                if (canDrawAsVector) {
+                    vectorLines += lines.map { it.toVectorLine(block.fontFamily, block.fontStyle, color) }
+                } else {
+                    drawRasterLines(graphics, bounds, lines, color)
+                }
             }
         } finally {
             graphics.dispose()
         }
+        return vectorLines
     }
 
-    private fun drawFittedText(graphics: java.awt.Graphics2D, text: String, bounds: Rectangle) {
-        val cleanText = text.replace(Regex("\\s+"), " ").trim()
-        if (cleanText.isEmpty()) return
+    private fun fitText(
+        graphics: java.awt.Graphics2D,
+        block: PdfTextBlock,
+        bounds: Rectangle,
+        scale: Float,
+        color: Color,
+        vectorFonts: PdfVectorFonts
+    ): List<FittedPdfLine> {
+        val cleanText = block.translatedText.replace(Regex("\\s+"), " ").trim()
+        if (cleanText.isEmpty()) return emptyList()
         val context = graphics.fontRenderContext
-        val minimumSize = max(8f, bounds.height * 0.45f)
-        var size = max(minimumSize, bounds.height * 0.82f)
-        var font = Font(Font.SANS_SERIF, Font.PLAIN, ceil(size.toDouble()).toInt())
-        var layout = TextLayout(cleanText, font, context)
-        while (layout.advance > bounds.width && size > minimumSize) {
-            size = max(minimumSize, size - 1f)
-            font = font.deriveFont(size)
-            layout = TextLayout(cleanText, font, context)
-        }
+        val minimumSize = max(6f * scale, block.fontSizePoints * scale * 0.68f)
+        var size = max(minimumSize, block.fontSizePoints * scale)
+        var layouts: List<MeasuredPdfLine>
+        do {
+            val font = vectorFonts.awtForText(block.fontFamily, block.fontStyle, cleanText).deriveFont(size)
+            layouts = measureWrappedLines(cleanText, font, context, bounds.width.toFloat())
+            val requiredHeight = layouts.sumOf { (it.layout.ascent + it.layout.descent + it.layout.leading).toDouble() }.toFloat()
+            if (requiredHeight <= bounds.height || size <= minimumSize) break
+            size = max(minimumSize, size - 0.5f)
+        } while (true)
 
+        var baseline = bounds.y.toFloat()
+        return layouts.map { measured ->
+            val layout = measured.layout
+            baseline += layout.ascent
+            val x = if (layout.isLeftToRight) bounds.x.toFloat() else bounds.maxX.toFloat() - layout.advance
+            FittedPdfLine(measured.text.trimEnd(), layout, x, baseline, size, color).also {
+                baseline += layout.descent + layout.leading
+            }
+        }
+    }
+
+    private fun drawRasterLines(
+        graphics: java.awt.Graphics2D,
+        bounds: Rectangle,
+        lines: List<FittedPdfLine>,
+        color: Color
+    ) {
         val oldClip = graphics.clip
         graphics.clip(bounds)
-        val isRtl = Bidi(cleanText, Bidi.DIRECTION_DEFAULT_LEFT_TO_RIGHT).isRightToLeft
-        val x = if (isRtl) bounds.maxX.toFloat() - layout.advance else bounds.x.toFloat()
-        val baseline = bounds.y + ((bounds.height - layout.bounds.height) / 2f - layout.bounds.y).toFloat()
-        layout.draw(graphics, x, baseline)
+        graphics.color = color
+        lines.forEach { line -> line.layout.draw(graphics, line.x, line.baseline) }
         graphics.clip = oldClip
+    }
+
+    private fun measureWrappedLines(
+        text: String,
+        font: Font,
+        context: java.awt.font.FontRenderContext,
+        width: Float
+    ): List<MeasuredPdfLine> {
+        val attributed = AttributedString(text).apply { addAttribute(TextAttribute.FONT, font) }
+        val iterator = attributed.iterator
+        val measurer = LineBreakMeasurer(iterator, context)
+        return buildList {
+            while (measurer.position < iterator.endIndex) {
+                val start = measurer.position
+                val layout = measurer.nextLayout(width.coerceAtLeast(1f))
+                add(MeasuredPdfLine(text.substring(start, measurer.position), layout))
+            }
+        }
+    }
+
+    private fun drawVectorLines(
+        content: PDPageContentStream,
+        lines: List<PdfVectorLine>,
+        fonts: PdfVectorFonts,
+        pageHeightPoints: Float
+    ) {
+        val scale = PDF_RENDER_DPI / PDF_POINTS_PER_INCH
+        lines.forEach { line ->
+            if (line.text.isBlank()) return@forEach
+            content.beginText()
+            content.setFont(fonts.forStyle(line.fontFamily, line.fontStyle), line.sizePixels / scale)
+            content.setNonStrokingColor(line.color)
+            content.newLineAtOffset(line.xPixels / scale, pageHeightPoints - line.baselinePixels / scale)
+            content.showText(line.text)
+            content.endText()
+        }
     }
 
     private fun sampleBackground(image: BufferedImage, bounds: Rectangle): Color {
@@ -559,22 +715,134 @@ class DocumentTranslationUseCase(
         }
     }
 
+    private data class MeasuredPdfLine(val text: String, val layout: TextLayout)
+
+    private data class FittedPdfLine(
+        val text: String,
+        val layout: TextLayout,
+        val x: Float,
+        val baseline: Float,
+        val size: Float,
+        val color: Color
+    ) {
+        fun toVectorLine(fontFamily: String, fontStyle: Int, color: Color) = PdfVectorLine(
+            text = text,
+            xPixels = x,
+            baselinePixels = baseline,
+            sizePixels = size,
+            fontFamily = fontFamily,
+            fontStyle = fontStyle,
+            color = color
+        )
+    }
+
+    private data class PdfVectorLine(
+        val text: String,
+        val xPixels: Float,
+        val baselinePixels: Float,
+        val sizePixels: Float,
+        val fontFamily: String,
+        val fontStyle: Int,
+        val color: Color
+    )
+
+    private class PdfVectorFonts(document: PDDocument) {
+        private data class FontPair(val pdf: PDFont, val awt: Font)
+
+        private val serifRegular = load(document, "fonts/serif/ibm/IBMPlexSerif-Regular.ttf")
+        private val serifBold = load(document, "fonts/serif/ibm/IBMPlexSerif-SemiBold.ttf")
+        private val serifItalic = load(document, "fonts/serif/ibm/IBMPlexSerif-Italic.ttf")
+        private val serifBoldItalic = load(document, "fonts/serif/ibm/IBMPlexSerif-SemiBoldItalic.ttf")
+        private val sansRegular = load(document, "fonts/sans/ibm/IBMPlexSans-Regular.ttf")
+        private val sansBold = load(document, "fonts/sans/ibm/IBMPlexSans-SemiBold.ttf")
+        private val sansItalic = load(document, "fonts/sans/ibm/IBMPlexSans-Italic.ttf")
+        private val sansBoldItalic = load(document, "fonts/sans/ibm/IBMPlexSans-SemiBoldItalic.ttf")
+        private val arabicRegular = loadAwt("fonts/arabic/noto/NotoNaskhArabic-Regular.ttf")
+        private val arabicBold = loadAwt("fonts/arabic/noto/NotoNaskhArabic-Bold.ttf")
+
+        fun forStyle(family: String, style: Int): PDFont {
+            return pairForStyle(family, style).pdf
+        }
+
+        fun awtForText(family: String, style: Int, text: String): Font {
+            val preferred = pairForStyle(family, style).awt
+            if (preferred.canDisplayUpTo(text) < 0) return preferred
+            val arabic = if (style and Font.BOLD != 0) arabicBold else arabicRegular
+            return if (arabic.canDisplayUpTo(text) < 0) arabic else Font(Font.SANS_SERIF, style, 1)
+        }
+
+        private fun pairForStyle(family: String, style: Int): FontPair {
+            val bold = style and Font.BOLD != 0
+            val italic = style and Font.ITALIC != 0
+            return when (family) {
+                Font.SANS_SERIF -> select(bold, italic, sansRegular, sansBold, sansItalic, sansBoldItalic)
+                else -> select(bold, italic, serifRegular, serifBold, serifItalic, serifBoldItalic)
+            }
+        }
+
+        private fun select(
+            bold: Boolean,
+            italic: Boolean,
+            regular: FontPair,
+            boldFont: FontPair,
+            italicFont: FontPair,
+            boldItalicFont: FontPair
+        ): FontPair = when {
+            bold && italic -> boldItalicFont
+            bold -> boldFont
+            italic -> italicFont
+            else -> regular
+        }
+
+        private fun load(document: PDDocument, path: String): FontPair {
+            val bytes = loadFontBytes(path)
+            val pdf = PDType0Font.load(document, ByteArrayInputStream(bytes), true)
+            val awt = Font.createFont(Font.TRUETYPE_FONT, ByteArrayInputStream(bytes))
+            return FontPair(pdf, awt)
+        }
+
+        private fun loadAwt(path: String): Font =
+            Font.createFont(Font.TRUETYPE_FONT, ByteArrayInputStream(loadFontBytes(path)))
+
+        private fun loadFontBytes(path: String): ByteArray =
+            checkNotNull(DocumentTranslationUseCase::class.java.classLoader.getResourceAsStream(path)) {
+                "Bundled PDF font not found: $path"
+            }.use { it.readBytes() }
+    }
+
     private data class PdfTextBlock(
         val sourceText: String,
         val x: Float,
         val top: Float,
         val width: Float,
         val height: Float,
+        val fontFamily: String,
+        val fontStyle: Int,
+        val fontSizePoints: Float,
         var translatedText: String = sourceText
     ) {
-        fun pixelBounds(scale: Float, image: BufferedImage): Rectangle {
-            val padding = max(2, scale.roundToInt())
-            val left = (x * scale).roundToInt().minus(padding).coerceIn(0, image.width - 1)
-            val y = (top * scale).roundToInt().minus(padding).coerceIn(0, image.height - 1)
-            val right = ((x + width) * scale).roundToInt().plus(padding).coerceIn(left + 1, image.width)
-            val bottom = ((top + height) * scale).roundToInt().plus(padding).coerceIn(y + 1, image.height)
+        fun pixelBounds(scale: Float, image: BufferedImage, contentRight: Float): Rectangle {
+            val left = (x * scale).roundToInt().coerceIn(0, image.width - 1)
+            val y = (top * scale).roundToInt().coerceIn(0, image.height - 1)
+            val naturalRight = x + width
+            val availableRight = if (contentRight > naturalRight) contentRight else naturalRight
+            val right = (availableRight * scale).roundToInt().coerceIn(left + 1, image.width)
+            val descentAllowance = fontSizePoints * scale * 0.25f
+            val bottom = ((top + height) * scale + descentAllowance).roundToInt().coerceIn(y + 1, image.height)
             return Rectangle(left, y, right - left, bottom - y)
         }
+    }
+
+    private class TextFreePdfRenderer(document: PDDocument) : PDFRenderer(document) {
+        override fun createPageDrawer(parameters: PageDrawerParameters): PageDrawer =
+            object : PageDrawer(parameters) {
+                override fun showFontGlyph(
+                    textRenderingMatrix: Matrix,
+                    font: PDFont,
+                    code: Int,
+                    displacement: Vector
+                ) = Unit
+            }
     }
 
     private class PositionedTextStripper(private val pageNumber: Int) : PDFTextStripper() {
@@ -600,20 +868,43 @@ class DocumentTranslationUseCase(
             val right = positions.maxOf { it.xDirAdj + it.widthDirAdj }
             val top = positions.minOf { it.yDirAdj - it.heightDir }
             val bottom = positions.maxOf(TextPosition::getYDirAdj)
+            val primaryFont = positions.groupingBy { it.font.name }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
+            val normalizedFontName = primaryFont.lowercase()
+            val isItalic = "italic" in normalizedFontName || "oblique" in normalizedFontName ||
+                normalizedFontName.endsWith("-it") || normalizedFontName.endsWith("_it")
+            val isBold = "bold" in normalizedFontName || "black" in normalizedFontName ||
+                "semibold" in normalizedFontName || "demibold" in normalizedFontName
+            val fontFamily = when {
+                "courier" in normalizedFontName || "mono" in normalizedFontName -> Font.MONOSPACED
+                "helvetica" in normalizedFontName || "arial" in normalizedFontName ||
+                    "sans" in normalizedFontName || "myriad" in normalizedFontName ||
+                    "roboto" in normalizedFontName || "calibri" in normalizedFontName -> Font.SANS_SERIF
+                else -> Font.SERIF
+            }
+            val fontStyle = when {
+                isBold && isItalic -> Font.BOLD or Font.ITALIC
+                isBold -> Font.BOLD
+                isItalic -> Font.ITALIC
+                else -> Font.PLAIN
+            }
             blocks += PdfTextBlock(
                 sourceText = cleanText,
                 x = left,
                 top = top,
                 width = (right - left).coerceAtLeast(1f),
-                height = (bottom - top).coerceAtLeast(1f)
+                height = (bottom - top).coerceAtLeast(1f),
+                fontFamily = fontFamily,
+                fontStyle = fontStyle,
+                fontSizePoints = positions.map(TextPosition::getFontSizeInPt).average().toFloat().coerceAtLeast(1f)
             )
         }
     }
 
     private companion object {
-        const val PDF_RENDER_DPI = 144f
+        const val PDF_RENDER_DPI = 216f
         const val PDF_POINTS_PER_INCH = 72f
-        const val PDF_JPEG_QUALITY = 0.94f
+        val PDF_LINE_END_HYPHENS = setOf('-', '\u2010', '\u2011', '\u00AD')
+        val PDF_BULLETS = setOf('\u2022', '\u25E6', '\u25AA', '\u2013')
         val srtTimestamp = Regex("\\d{2}:\\d{2}:\\d{2},\\d{3}\\s+-->\\s+\\d{2}:\\d{2}:\\d{2},\\d{3}")
         val vttTimestamp = Regex("(?:\\d{2}:)?\\d{2}:\\d{2}\\.\\d{3}\\s+-->\\s+(?:\\d{2}:)?\\d{2}:\\d{2}\\.\\d{3}")
         val markup = Regex("<[^>]+>|\\{\\\\[^}]+}")
