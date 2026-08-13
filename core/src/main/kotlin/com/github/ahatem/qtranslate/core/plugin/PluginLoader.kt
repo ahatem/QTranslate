@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.core.plugin
 import com.github.ahatem.qtranslate.api.core.ApiVersion
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.Plugin
+import com.github.ahatem.qtranslate.core.plugin.registry.PluginError
 import com.github.ahatem.qtranslate.core.shared.util.Hashing
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -20,6 +21,11 @@ class PluginLoader(
     private val logger: Logger
 ) {
     private val json = Json { ignoreUnknownKeys = true }
+    private val _loadFailures = mutableListOf<PluginError.LoadFailure>()
+
+    /** Failures from the most recent directory scan, retained for UI reporting. */
+    val loadFailures: List<PluginError.LoadFailure>
+        get() = _loadFailures.toList()
 
     /**
      * Scans [directory] for JAR files, loads each one, and returns the results sorted by
@@ -33,6 +39,7 @@ class PluginLoader(
      * between runs. Sorting filenames before loading ensures consistent processing order.
      */
     fun loadPluginsFromDirectory(directory: File): List<LoadedPluginResult> {
+        _loadFailures.clear()
         if (!directory.isDirectory) {
             logger.warn("Plugin directory does not exist or is not a directory: ${directory.absolutePath}")
             return emptyList()
@@ -56,35 +63,56 @@ class PluginLoader(
      *
      * @return A [LoadedPluginResult] on success, or `null` if any step fails.
      */
-    fun loadPluginFromFile(jarFile: File): LoadedPluginResult? = runCatching {
-        val classLoader = URLClassLoader(arrayOf(jarFile.toURI().toURL()), javaClass.classLoader)
-
-        val plugin = ServiceLoader.load(Plugin::class.java, classLoader).firstOrNull()
-            ?: throw IllegalStateException("No Plugin implementation found via ServiceLoader in ${jarFile.name}. " +
-                    "Ensure META-INF/services/com.github.ahatem.qtranslate.api.plugin.Plugin is present.")
-
-        val manifest = getManifestFromJar(jarFile, classLoader)
-            ?: throw IllegalStateException("plugin.json is missing or could not be parsed in ${jarFile.name}")
-
-        // Delegate to ApiVersion — this checks both MAJOR and MINOR, not just MAJOR.
-        when (val compat = ApiVersion.isCompatible(manifest.minApiVersion)) {
-            is ApiVersion.CompatibilityResult.Compatible -> {
-                logger.debug("Plugin '${manifest.id}' API version ${manifest.minApiVersion} is compatible.")
-            }
-            is ApiVersion.CompatibilityResult.Incompatible -> {
-                logger.error(
-                    "Skipping '${manifest.id}' (v${manifest.version}): ${compat.reason}"
-                )
-                return null
-            }
+    fun loadPluginFromFile(jarFile: File): LoadedPluginResult? {
+        val classLoader = runCatching {
+            URLClassLoader(arrayOf(jarFile.toURI().toURL()), javaClass.classLoader)
+        }.getOrElse { error ->
+            recordFailure(jarFile, "Failed to open plugin JAR: ${error.message}", error)
+            return null
         }
 
-        val hash = Hashing.sha256(jarFile)
-        LoadedPluginResult(plugin, manifest, jarFile, hash, classLoader)
+        return try {
+            val plugin = ServiceLoader.load(Plugin::class.java, classLoader).firstOrNull()
+                ?: throw IllegalStateException("No Plugin implementation found via ServiceLoader in ${jarFile.name}. " +
+                        "Ensure META-INF/services/com.github.ahatem.qtranslate.api.plugin.Plugin is present.")
 
-    }.getOrElse { e ->
-        logger.error("Failed to load plugin from ${jarFile.name}: ${e.message}", e)
-        null
+            val manifest = getManifestFromJar(jarFile, classLoader)
+                ?: throw IllegalStateException("plugin.json is missing or could not be parsed in ${jarFile.name}")
+
+        // Delegate to ApiVersion — this checks both MAJOR and MINOR, not just MAJOR.
+            when (val compat = ApiVersion.isCompatible(manifest.minApiVersion)) {
+                is ApiVersion.CompatibilityResult.Compatible -> {
+                    logger.debug("Plugin '${manifest.id}' API version ${manifest.minApiVersion} is compatible.")
+                }
+                is ApiVersion.CompatibilityResult.Incompatible -> {
+                    recordFailure(
+                        jarFile,
+                        "Plugin '${manifest.id}' v${manifest.version} is incompatible: ${compat.reason}",
+                        null,
+                        manifest.id
+                    )
+                    classLoader.close()
+                    return null
+                }
+            }
+
+            val hash = Hashing.sha256(jarFile)
+            LoadedPluginResult(plugin, manifest, jarFile, hash, classLoader)
+        } catch (error: Throwable) {
+            runCatching { classLoader.close() }
+            recordFailure(jarFile, "Failed to load plugin: ${error.message}", error)
+            null
+        }
+    }
+
+    private fun recordFailure(
+        jarFile: File,
+        message: String,
+        cause: Throwable?,
+        pluginId: String = jarFile.nameWithoutExtension
+    ) {
+        _loadFailures += PluginError.LoadFailure(pluginId, message, cause, jarFile.absolutePath)
+        logger.error("PLUGIN FAILED  ${jarFile.name}: $message", cause)
     }
 
     /**
