@@ -1,0 +1,8 @@
+{
+  "id": "wikimedia-reference",
+  "name": "Wikimedia Reference",
+  "version": "1.0.0",
+  "author": "QTranslate Contributors",
+  "description": "Reference lookups from Wikipedia and Wiktionary using official MediaWiki REST APIs.",
+  "minApiVersion": "1.1.0"
+}
