@@ -10,6 +10,7 @@ import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
+import com.github.michaelbull.result.toResultOr
 
 internal class MozhiTranslatorService(
     private val context: PluginContext,
@@ -20,13 +21,14 @@ internal class MozhiTranslatorService(
     override val id = "mozhi-services-translator"
     override val name = "Mozhi"
     override val version = "1.0.0"
+    override val iconPath = "assets/mozhi.svg"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.All
 
     override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> =
         coroutineBinding {
             val current = settings()
             val response = httpClient.fetchJson<MozhiTranslationResponse>(
-                url = "${current.normalizedInstanceUrl()}/api/translate",
+                url = "${current.resolvedInstanceUrl()}/api/translate",
                 queryParams = mapOf(
                     "engine" to current.engine.lowercase(),
                     "from" to toMozhiCode(request.sourceLanguage),
@@ -34,9 +36,15 @@ internal class MozhiTranslatorService(
                     "text" to request.text
                 )
             ).bind()
+            val translatedText = response.translatedText.takeIf(String::isNotBlank)
+                .toResultOr {
+                    ServiceError.InvalidResponseError(
+                        "Mozhi's ${current.engine} engine returned no translation. Try another engine or instance."
+                    )
+                }.bind()
 
             TranslationResponse(
-                translatedText = response.translatedText,
+                translatedText = translatedText,
                 detectedLanguage = detectedLanguage(response, request),
                 transliteration = response.targetTransliteration?.takeIf(String::isNotBlank)
             )
