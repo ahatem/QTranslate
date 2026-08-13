@@ -270,6 +270,7 @@ class PluginManager(
         if (result.isOk) {
             registry.mutex.withLock {
                 container.services = container.plugin.getServices()
+                container.declaredServices = container.services
             }
             updateFlows()
         }
@@ -321,6 +322,11 @@ class PluginManager(
         )
 
         val initialized = lifecycleHandler.initialize(container)
+        if (initialized) {
+            container.declaredServices = runCatching { container.plugin.getServices() }
+                .onFailure { logger.warn("Could not inspect services for '${container.id}': ${it.message}") }
+                .getOrDefault(emptyList())
+        }
         registry.mutex.withLock { registry.put(container) }
 
         if (initialized && container.id !in disabledPluginIds) {

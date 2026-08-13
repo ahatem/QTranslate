@@ -27,6 +27,7 @@ internal data class PluginContainer(
     val classLoader: ClassLoader,
     var status: PluginStatus = PluginStatus.DISABLED,
     var services: List<Service> = emptyList(),
+    var declaredServices: List<Service> = emptyList(),
     var lastError: PluginError? = null
 ) {
     val id: String get() = manifest.id
@@ -89,7 +90,7 @@ internal class PluginRegistry {
                 manifest = c.manifest,
                 status = c.status,
                 jarPath = c.jarFile.absolutePath,
-                services = c.services,
+                services = c.declaredServices,
                 lastError = c.lastError
             )
         }

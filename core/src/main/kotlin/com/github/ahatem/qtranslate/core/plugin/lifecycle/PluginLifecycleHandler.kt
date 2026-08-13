@@ -152,6 +152,7 @@ internal class PluginLifecycleHandler(
                 result.fold(
                     success = {
                         container.services = container.plugin.getServices()
+                        container.declaredServices = container.services
                         container.status = PluginStatus.ENABLED
                         container.lastError = null
                         logger.info(

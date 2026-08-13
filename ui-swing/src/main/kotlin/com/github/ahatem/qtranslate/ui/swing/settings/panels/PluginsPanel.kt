@@ -1,6 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.extras.FlatSVGIcon
+import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
@@ -14,9 +16,14 @@ import kotlinx.coroutines.launch
 import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.beans.PropertyChangeListener
+import java.awt.datatransfer.DataFlavor
+import java.io.File
 import java.net.URI
 import javax.swing.*
 import javax.swing.border.MatteBorder
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 import javax.swing.filechooser.FileNameExtensionFilter
 
 /**
@@ -65,18 +72,23 @@ class PluginsPanel(
     override fun getScrollableTracksViewportHeight() = true   // no vertical outer scroll → actionBar stays fixed
 
     // ── Internal state ────────────────────────────────────────────────────────
-    private val pluginListModel = DefaultListModel<PluginState>()
-    private val pluginList: JList<PluginState>
+    private val pluginRows = JPanel()
+    private val searchField = JTextField()
+    private val categoryCombo = JComboBox(PluginCategory.entries.toTypedArray())
+    private val resultCount = JLabel()
     private val leftPanel: JPanel          // kept for theme-refresh of right border
     private val detailScroll: JScrollPane  // scrollable detail area
     private val actionBar = JPanel()       // fixed footer — never scrolls
     private var selectedPlugin: PluginState? = null
+    private var allPlugins: List<PluginState> = emptyList()
 
-    // ── Status dot colors ─────────────────────────────────────────────────────
-    private val dotEnabled  = Color(0x4CAF50)
-    private val dotDisabled = Color(0x9E9E9E)
-    private val dotFailed   = Color(0xE53935)
-    private val dotPending  = Color(0xFF9800)
+    private val themeListener = PropertyChangeListener { event ->
+        if (event.propertyName == "lookAndFeel") SwingUtilities.invokeLater {
+            refreshLeftBorder()
+            refreshActionBarBorder()
+            refreshPluginRows()
+        }
+    }
 
     init {
         // PluginsPanel overrides the SettingsPanel GridBag layout
@@ -84,27 +96,58 @@ class PluginsPanel(
         layout = BorderLayout()
         border = BorderFactory.createEmptyBorder()
 
-        // ── Left: plugin list ─────────────────────────────────────────────────
-        pluginList = JList(pluginListModel).apply {
-            selectionMode   = ListSelectionModel.SINGLE_SELECTION
-            cellRenderer    = PluginCellRenderer()
-            fixedCellHeight = 36
-            addListSelectionListener { e ->
-                if (!e.valueIsAdjusting) {
-                    selectedPlugin = selectedValue
-                    rebuildDetail()
+        searchField.apply {
+            putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT,
+                localizationManager.getString("settings_plugins.search_placeholder"))
+            putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON,
+                appIcon("icons/lucide/search.svg", 15))
+            document.addDocumentListener(object : DocumentListener {
+                override fun insertUpdate(e: DocumentEvent?) = refreshPluginRows()
+                override fun removeUpdate(e: DocumentEvent?) = refreshPluginRows()
+                override fun changedUpdate(e: DocumentEvent?) = refreshPluginRows()
+            })
+        }
+        categoryCombo.apply {
+            renderer = object : DefaultListCellRenderer() {
+                override fun getListCellRendererComponent(
+                    list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean
+                ): Component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus).apply {
+                    text = categoryName(value as? PluginCategory ?: PluginCategory.ALL)
                 }
             }
+            addActionListener { refreshPluginRows() }
+        }
+        val filterPanel = JPanel(GridLayout(1, 2, 6, 0)).apply {
+            isOpaque = false
+            add(searchField)
+            add(categoryCombo)
+        }
+        val listHeader = JPanel(BorderLayout(0, 7)).apply {
+            border = BorderFactory.createEmptyBorder(10, 10, 8, 10)
+            add(filterPanel, BorderLayout.CENTER)
+            add(resultCount.apply {
+                foreground = UIManager.getColor("Label.disabledForeground")
+                font = font.deriveFont(font.size - 1f)
+            }, BorderLayout.SOUTH)
+        }
+        pluginRows.apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            background = UIManager.getColor("List.background")
         }
 
-        val listScroll = JScrollPane(pluginList).apply {
+        val dropHandler = PluginJarTransferHandler()
+        val listScroll = JScrollPane(pluginRows).apply {
             border = null
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             verticalScrollBar.unitIncrement = 16
+            transferHandler = dropHandler
+            viewport.transferHandler = dropHandler
         }
 
-        val installBtn = JButton(localizationManager.getString("settings_plugins.install_plugin"))
-            .apply { addActionListener { onInstall() } }
+        val installBtn = JButton(
+            localizationManager.getString("settings_plugins.install_plugin"),
+            appIcon("icons/lucide/package.svg", 16)
+        ).apply { addActionListener { onInstall() } }
 
         val browseLink = JLabel(
             "<html><u>${localizationManager.getString("settings_plugins.browse_on_github")}</u></html>"
@@ -120,24 +163,34 @@ class PluginsPanel(
             })
         }
 
-        val leftBottom = JPanel(BorderLayout(0, 4)).apply {
+        val dropHint = JLabel(localizationManager.getString("settings_plugins.drop_hint"), SwingConstants.CENTER).apply {
+            foreground = UIManager.getColor("Label.disabledForeground")
+            font = font.deriveFont(font.size - 1f)
+            border = BorderFactory.createCompoundBorder(
+                BorderFactory.createDashedBorder(UIManager.getColor("Component.borderColor"), 1f, 4f, 3f, true),
+                BorderFactory.createEmptyBorder(7, 5, 7, 5)
+            )
+            transferHandler = dropHandler
+        }
+        val leftBottom = JPanel(BorderLayout(0, 6)).apply {
             isOpaque = false
             border   = BorderFactory.createEmptyBorder(8, 8, 10, 8)
             add(installBtn, BorderLayout.NORTH)
+            add(dropHint, BorderLayout.CENTER)
             add(browseLink, BorderLayout.SOUTH)
         }
 
         leftPanel = JPanel(BorderLayout()).apply {
-            preferredSize = Dimension(200, 0)
-            minimumSize   = Dimension(180, 0)
-            maximumSize   = Dimension(200, Int.MAX_VALUE)
+            preferredSize = Dimension(330, 0)
+            minimumSize   = Dimension(280, 0)
+            maximumSize   = Dimension(360, Int.MAX_VALUE)
+            add(listHeader, BorderLayout.NORTH)
             add(listScroll, BorderLayout.CENTER)
             add(leftBottom, BorderLayout.SOUTH)
+            transferHandler = dropHandler
         }
         refreshLeftBorder()
-        UIManager.addPropertyChangeListener { evt ->
-            if (evt.propertyName == "lookAndFeel") SwingUtilities.invokeLater { refreshLeftBorder() }
-        }
+        UIManager.addPropertyChangeListener(themeListener)
 
         // ── Right: detail scroll + fixed action bar ───────────────────────────
         // Placeholder empty content — replaced by rebuildDetail()
@@ -160,14 +213,9 @@ class PluginsPanel(
             pluginManager.plugins.collect { plugins ->
                 SwingUtilities.invokeLater {
                     val prevId = selectedPlugin?.manifest?.id
-                    pluginListModel.clear()
-                    plugins.forEach { pluginListModel.addElement(it) }
-                    val idx = plugins.indexOfFirst { it.manifest.id == prevId }
-                    pluginList.selectedIndex = when {
-                        idx >= 0             -> idx
-                        plugins.isNotEmpty() -> 0
-                        else                 -> -1
-                    }
+                    allPlugins = plugins
+                    selectedPlugin = plugins.firstOrNull { it.id == prevId } ?: plugins.firstOrNull()
+                    refreshPluginRows()
                 }
             }
         }
@@ -188,6 +236,128 @@ class PluginsPanel(
             BorderFactory.createEmptyBorder(10, 16, 12, 16)
         )
     }
+
+    private fun refreshPluginRows() {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(::refreshPluginRows)
+            return
+        }
+        val category = categoryCombo.selectedItem as? PluginCategory ?: PluginCategory.ALL
+        val visiblePlugins = PluginPanelModel.filter(allPlugins, searchField.text, category)
+        val selectedId = selectedPlugin?.id
+        if (visiblePlugins.none { it.id == selectedId }) selectedPlugin = visiblePlugins.firstOrNull()
+
+        pluginRows.removeAll()
+        if (visiblePlugins.isEmpty()) {
+            val messageKey = if (allPlugins.isEmpty()) "settings_plugins.empty_title" else "settings_plugins.no_results"
+            pluginRows.add(JLabel(localizationManager.getString(messageKey), SwingConstants.CENTER).apply {
+                alignmentX = Component.CENTER_ALIGNMENT
+                foreground = UIManager.getColor("Label.disabledForeground")
+                border = BorderFactory.createEmptyBorder(30, 12, 12, 12)
+            })
+        } else {
+            visiblePlugins.forEach { pluginRows.add(buildPluginRow(it)) }
+            pluginRows.add(Box.createVerticalGlue())
+        }
+        resultCount.text = localizationManager.getString("settings_plugins.result_count")
+            .format(visiblePlugins.size, allPlugins.size)
+        pluginRows.revalidate()
+        pluginRows.repaint()
+        rebuildDetail()
+    }
+
+    override fun removeNotify() {
+        UIManager.removePropertyChangeListener(themeListener)
+        super.removeNotify()
+    }
+
+    override fun addNotify() {
+        super.addNotify()
+        UIManager.removePropertyChangeListener(themeListener)
+        UIManager.addPropertyChangeListener(themeListener)
+    }
+
+    private fun buildPluginRow(plugin: PluginState): JComponent {
+        val selected = plugin.id == selectedPlugin?.id
+        val row = JPanel(BorderLayout(8, 0)).apply {
+            maximumSize = Dimension(Int.MAX_VALUE, 66)
+            preferredSize = Dimension(300, 66)
+            isOpaque = true
+            background = if (selected) UIManager.getColor("List.selectionBackground") else UIManager.getColor("List.background")
+            border = BorderFactory.createCompoundBorder(
+                MatteBorder(0, 0, 1, 0, UIManager.getColor("Separator.foreground") ?: Color.GRAY),
+                BorderFactory.createEmptyBorder(8, 10, 8, 8)
+            )
+            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+            addMouseListener(object : MouseAdapter() {
+                override fun mousePressed(e: MouseEvent) {
+                    selectedPlugin = plugin
+                    refreshPluginRows()
+                }
+            })
+        }
+        val foreground = if (selected) UIManager.getColor("List.selectionForeground") else UIManager.getColor("Label.foreground")
+        val serviceId = plugin.services.firstOrNull()?.id
+        val icon = plugin.manifest.icon?.let { path -> serviceId?.let { iconManager.getIcon(it, path, 24, 24) } }
+            ?: appIcon("icons/lucide/package.svg", 24)
+        val categories = PluginPanelModel.categories(plugin).joinToString(" · ") { categoryName(it) }
+        val text = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            isOpaque = false
+            add(JLabel(plugin.manifest.name, icon, SwingConstants.LEADING).apply {
+                font = font.deriveFont(Font.BOLD)
+                this.foreground = foreground
+                iconTextGap = 8
+            })
+            add(JLabel("v${plugin.manifest.version} · $categories").apply {
+                font = font.deriveFont(font.size - 1f)
+                this.foreground = if (selected) foreground else UIManager.getColor("Label.disabledForeground")
+                border = BorderFactory.createEmptyBorder(3, 32, 0, 0)
+            })
+        }
+        val controls = JPanel(FlowLayout(FlowLayout.TRAILING, 2, 0)).apply {
+            isOpaque = false
+            if (plugin.status == PluginStatus.ENABLED || plugin.status == PluginStatus.DISABLED) {
+                add(JCheckBox().apply {
+                    isSelected = plugin.status == PluginStatus.ENABLED
+                    toolTipText = if (isSelected) localizationManager.getString("settings_plugins.btn_disable")
+                        else localizationManager.getString("settings_plugins.btn_enable")
+                    isOpaque = false
+                    addActionListener {
+                        isEnabled = false
+                        scope.launch {
+                            if (isSelected) pluginManager.enablePlugin(plugin.id) else pluginManager.disablePlugin(plugin.id)
+                        }
+                    }
+                })
+                add(JButton(appIcon("icons/lucide/settings.svg", 15)).apply {
+                    putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
+                    toolTipText = localizationManager.getString("settings_plugins.btn_configure")
+                    addActionListener { onConfigure(plugin) }
+                })
+            } else {
+                add(buildStatusBadge(plugin.status))
+            }
+        }
+        row.add(text, BorderLayout.CENTER)
+        row.add(controls, BorderLayout.LINE_END)
+        return row
+    }
+
+    private fun categoryName(category: PluginCategory): String = localizationManager.getString(
+        when (category) {
+            PluginCategory.ALL -> "settings_plugins.category_all"
+            PluginCategory.TRANSLATORS -> "settings_plugins.category_translators"
+            PluginCategory.DICTIONARIES -> "settings_plugins.category_dictionaries"
+            PluginCategory.TTS -> "settings_plugins.category_tts"
+            PluginCategory.OCR -> "settings_plugins.category_ocr"
+            PluginCategory.SPELL_CHECKERS -> "settings_plugins.category_spell_checkers"
+            PluginCategory.AI -> "settings_plugins.category_ai"
+            PluginCategory.OTHER -> "settings_plugins.category_other"
+        }
+    )
+
+    private fun appIcon(path: String, size: Int): Icon = iconManager.getIcon(path, size, size)
 
     // ── Detail rebuild ────────────────────────────────────────────────────────
 
@@ -241,6 +411,20 @@ class PluginsPanel(
             .insets(0, 0, 2, 0).add(headerRow)
         g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
             .insets(0, 30, 0, 0).add(metaLabel)
+
+        val metadata = JPanel(GridLayout(0, 2, 18, 8)).apply {
+            isOpaque = false
+            add(buildMetadataItem(localizationManager.getString("settings_plugins.detail_category"),
+                PluginPanelModel.categories(plugin).joinToString(", ") { categoryName(it) }))
+            add(buildMetadataItem(localizationManager.getString("settings_plugins.detail_api"),
+                "QTranslate API ${plugin.manifest.minApiVersion}+"))
+            add(buildMetadataItem(localizationManager.getString("settings_plugins.detail_file"),
+                File(plugin.jarPath).name, plugin.jarPath))
+            add(buildMetadataItem(localizationManager.getString("settings_plugins.detail_languages"),
+                supportedLanguagesSummary(plugin)))
+        }
+        g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+            .insets(14, 0, 0, 0).add(metadata)
 
         // ─ Description ────────────────────────────────────────────────────────
         if (plugin.manifest.description.isNotBlank()) {
@@ -344,8 +528,17 @@ class PluginsPanel(
                 ico as Icon
             }.getOrNull()
             if (pkgIcon != null) add(JLabel(pkgIcon), gbc)
-            add(JLabel(localizationManager.getString("settings_plugins.empty_selection_hint")).apply {
+            val titleKey = when {
+                allPlugins.isEmpty() -> "settings_plugins.empty_title"
+                searchField.text.isNotBlank() || categoryCombo.selectedItem != PluginCategory.ALL -> "settings_plugins.no_results"
+                else -> "settings_plugins.empty_selection_hint"
+            }
+            add(JLabel(localizationManager.getString(titleKey)).apply {
                 foreground = UIManager.getColor("Label.disabledForeground")
+            }, gbc)
+            if (allPlugins.isEmpty()) add(JLabel(localizationManager.getString("settings_plugins.empty_description")).apply {
+                foreground = UIManager.getColor("Label.disabledForeground")
+                font = font.deriveFont(font.size - 1f)
             }, gbc)
         }
 
@@ -377,6 +570,9 @@ class PluginsPanel(
                 })
             }
             PluginStatus.DISABLED -> {
+                leftGroup.add(JButton(localizationManager.getString("settings_plugins.btn_configure")).apply {
+                    addActionListener { onConfigure(plugin) }
+                })
                 rightGroup.add(JButton(localizationManager.getString("settings_plugins.btn_enable")).apply {
                     addActionListener { scope.launch { pluginManager.enablePlugin(plugin.manifest.id) } }
                 })
@@ -402,11 +598,6 @@ class PluginsPanel(
         actionBar.add(leftGroup,  BorderLayout.LINE_START)
         actionBar.add(rightGroup, BorderLayout.LINE_END)
         actionBar.isVisible = true
-
-        // Keep the bar's border fresh across theme switches
-        UIManager.addPropertyChangeListener { evt ->
-            if (evt.propertyName == "lookAndFeel") SwingUtilities.invokeLater { refreshActionBarBorder() }
-        }
 
         actionBar.revalidate()
         actionBar.repaint()
@@ -463,6 +654,41 @@ class PluginsPanel(
         }
     }
 
+    private fun buildMetadataItem(label: String, value: String, tooltip: String? = null): JComponent = JPanel(BorderLayout(0, 2)).apply {
+        isOpaque = false
+        add(JLabel(label).apply {
+            font = font.deriveFont(font.size - 1f)
+            foreground = UIManager.getColor("Label.disabledForeground")
+        }, BorderLayout.NORTH)
+        add(JTextArea(value).apply {
+            isEditable = false
+            isFocusable = false
+            isOpaque = false
+            lineWrap = true
+            wrapStyleWord = true
+            rows = 1
+            columns = 18
+            border = null
+            font = UIManager.getFont("Label.font").deriveFont(Font.BOLD)
+            foreground = UIManager.getColor("Label.foreground")
+            toolTipText = tooltip
+        }, BorderLayout.CENTER)
+    }
+
+    private fun supportedLanguagesSummary(plugin: PluginState): String {
+        if (plugin.services.isEmpty()) return localizationManager.getString("settings_plugins.not_available")
+        if (plugin.services.any { it.supportedLanguages is SupportedLanguages.All }) {
+            return localizationManager.getString("settings_plugins.languages_all")
+        }
+        if (plugin.services.any { it.supportedLanguages is SupportedLanguages.Dynamic }) {
+            return localizationManager.getString("settings_plugins.languages_dynamic")
+        }
+        val languages = plugin.services.flatMap { service ->
+            (service.supportedLanguages as? SupportedLanguages.Specific)?.languages.orEmpty()
+        }.distinctBy { it.tag }
+        return localizationManager.getString("settings_plugins.languages_count").format(languages.size)
+    }
+
     // ── Actions ───────────────────────────────────────────────────────────────
 
     private fun onInstall() {
@@ -472,8 +698,12 @@ class PluginsPanel(
                 localizationManager.getString("settings_plugins.install_dialog_filter"), "jar")
         }
         if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return
+        installPlugin(chooser.selectedFile)
+    }
+
+    private fun installPlugin(file: File) {
         scope.launch {
-            pluginManager.installPlugin(chooser.selectedFile).fold(
+            pluginManager.installPlugin(file).fold(
                 success = {
                     SwingUtilities.invokeLater {
                         JOptionPane.showMessageDialog(this@PluginsPanel,
@@ -530,70 +760,20 @@ class PluginsPanel(
 
     override fun render(state: SettingsState) = Unit
 
-    // ── Cell renderer ─────────────────────────────────────────────────────────
+    private inner class PluginJarTransferHandler : TransferHandler() {
+        override fun canImport(support: TransferSupport): Boolean =
+            support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)
 
-    /**
-     * Single-line cell: plugin icon (15 px) + bold name + right-aligned status dot (8 px).
-     * The dot is a filled circle — green/gray/red/orange — so status is instantly readable
-     * without any text taking up horizontal space.
-     */
-    private inner class PluginCellRenderer : ListCellRenderer<PluginState> {
-
-        private inner class StatusDot(val dotColor: Color) : JComponent() {
-            init { preferredSize = Dimension(8, 8); minimumSize = preferredSize; isOpaque = false }
-            override fun paintComponent(g: Graphics) {
-                val g2 = g as Graphics2D
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                g2.color = dotColor
-                g2.fillOval(0, 0, width, height)
-            }
-        }
-
-        override fun getListCellRendererComponent(
-            list: JList<out PluginState>, value: PluginState?,
-            index: Int, isSelected: Boolean, cellHasFocus: Boolean
-        ): Component {
-            val plugin = value ?: return JPanel()
-
-            val bg = if (isSelected) UIManager.getColor("List.selectionBackground") else UIManager.getColor("List.background") ?: list.background
-            val fg = if (isSelected) UIManager.getColor("List.selectionForeground") ?: Color.WHITE else UIManager.getColor("Label.foreground") ?: list.foreground
-
-            val icon: Icon = plugin.manifest.icon?.let { path ->
-                plugin.services.firstOrNull()?.id?.let { svc ->
-                    iconManager.getIcon(svc, path, 15, 15)
-                }
-            } ?: FlatSVGIcon("icons/lucide/package.svg", 15, 15, javaClass.classLoader).apply {
-                colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.foreground") }
-            }
-
-            val nameLabel = JLabel(plugin.manifest.name, icon, SwingConstants.LEADING).apply {
-                font        = font.deriveFont(Font.BOLD)
-                foreground  = fg
-                iconTextGap = 7
-            }
-
-            val dotColor = when (plugin.status) {
-                PluginStatus.ENABLED               -> dotEnabled
-                PluginStatus.DISABLED              -> dotDisabled
-                PluginStatus.FAILED                -> dotFailed
-                PluginStatus.AWAITING_VERIFICATION -> dotPending
-            }
-
-            // Dot is centered vertically in a fixed-width wrapper so it doesn't affect
-            // the cell's preferred height or cause the name label to be misaligned.
-            val dotWrapper = JPanel(GridBagLayout()).apply {
-                isOpaque = false
-                preferredSize = Dimension(18, 0)
-                add(StatusDot(dotColor), GridBagConstraints().apply { anchor = GridBagConstraints.CENTER })
-            }
-
-            return JPanel(BorderLayout()).apply {
-                isOpaque   = true
-                background = bg
-                border     = BorderFactory.createEmptyBorder(0, 10, 0, 10)
-                add(nameLabel,  BorderLayout.CENTER)
-                add(dotWrapper, BorderLayout.LINE_END)
-            }
+        override fun importData(support: TransferSupport): Boolean {
+            if (!canImport(support)) return false
+            val files = runCatching {
+                @Suppress("UNCHECKED_CAST")
+                support.transferable.getTransferData(DataFlavor.javaFileListFlavor) as List<File>
+            }.getOrNull().orEmpty()
+            val jars = files.filter { it.isFile && it.extension.equals("jar", true) }
+            if (jars.isEmpty()) return false
+            jars.forEach(::installPlugin)
+            return true
         }
     }
 }

@@ -181,6 +181,11 @@ internal class PluginInstaller(
         )
 
         val initialized = lifecycleHandler.initialize(container)
+        if (initialized) {
+            container.declaredServices = runCatching { container.plugin.getServices() }
+                .onFailure { logger.warn("Could not inspect services for '${container.id}': ${it.message}") }
+                .getOrDefault(emptyList())
+        }
 
         registry.mutex.withLock { registry.put(container) }
 

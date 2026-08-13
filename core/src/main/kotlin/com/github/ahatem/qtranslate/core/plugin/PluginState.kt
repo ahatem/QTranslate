@@ -44,7 +44,7 @@ data class PluginState(
      */
     val jarPath: String,
 
-    /** Active services provided by this plugin. Empty when not [PluginStatus.ENABLED]. */
+    /** Services declared by this plugin, retained while the plugin is disabled. */
     val services: List<Service> = emptyList(),
 
     /** The last error encountered by this plugin, or `null` if healthy. */
