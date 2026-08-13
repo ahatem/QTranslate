@@ -5,12 +5,17 @@ import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.api.settings.PluginAction
 import com.github.ahatem.qtranslate.api.settings.Setting
 import com.github.ahatem.qtranslate.api.settings.SettingType
+import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.fold
+import kotlinx.coroutines.runBlocking
 import java.net.URI
 
 class LibreTranslatePlugin : Plugin<LibreTranslateSettings> {
@@ -26,6 +31,7 @@ class LibreTranslatePlugin : Plugin<LibreTranslateSettings> {
             apiKey = context.getValue(KEY_API_KEY).orEmpty()
         )
         httpClient = KtorHttpClient(context)
+        settings.attach(context) { httpClient }
         return Ok(Unit)
     }
 
@@ -44,6 +50,7 @@ class LibreTranslatePlugin : Plugin<LibreTranslateSettings> {
         context.storeValue(KEY_INSTANCE_URL, normalizedUrl)
         context.storeValue(KEY_API_KEY, settings.apiKey.trim())
         this.settings = settings.copy(instanceUrl = normalizedUrl, apiKey = settings.apiKey.trim())
+            .attach(context) { httpClient }
         return Ok(Unit)
     }
 
@@ -84,7 +91,34 @@ data class LibreTranslateSettings(
     )
     var apiKey: String = ""
 ) : PluginSettings.Configurable() {
+    @Transient private var context: PluginContext? = null
+    @Transient private var clientProvider: (() -> KtorHttpClient)? = null
+
+    internal fun attach(
+        context: PluginContext,
+        clientProvider: () -> KtorHttpClient
+    ): LibreTranslateSettings = apply {
+        this.context = context
+        this.clientProvider = clientProvider
+    }
+
     internal fun normalizedInstanceUrl(): String = instanceUrl.trim().trimEnd('/')
+
+    @PluginAction(
+        label = "Test Connection",
+        order = 30,
+        tooltip = "Tests the saved LibreTranslate server and API key."
+    )
+    fun testConnection(): String = runBlocking {
+        val context = context ?: return@runBlocking "LibreTranslate is not initialized."
+        val client = clientProvider?.invoke() ?: return@runBlocking "LibreTranslate is not initialized."
+        LibreTranslateService(context, client) { this@LibreTranslateSettings }
+            .translate(TranslationRequest("hello", LanguageCode.ENGLISH, LanguageCode.FRENCH))
+            .fold(
+                success = { "Connected successfully." },
+                failure = { "Connection failed: ${it.message}" }
+            )
+    }
 }
 
 private const val DEFAULT_INSTANCE_URL = "http://localhost:5000"

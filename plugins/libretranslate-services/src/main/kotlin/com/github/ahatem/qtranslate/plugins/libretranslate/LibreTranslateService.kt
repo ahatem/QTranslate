@@ -23,6 +23,7 @@ internal class LibreTranslateService(
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
     override val id = "libretranslate-local-translator"
     override val name = "LibreTranslate Local"
+    override val iconPath = "assets/libretranslate.svg"
     override val version = "1.0.0"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.Dynamic
     override val maxBatchSize = 50
