@@ -85,6 +85,21 @@ sealed class ServiceError {
     // -------------------------------------------------------------------------
 
     /**
+     * The service has not been configured yet — a required setting, usually an API key, is
+     * missing entirely.
+     *
+     * Distinct from [AuthenticationError], which means credentials were supplied and rejected.
+     * The host words them differently because they call for different actions: one sends the
+     * user to settings to fill something in, the other tells them what they entered is wrong.
+     */
+    data class ConfigurationError(
+        override val message: String,
+        override val cause: Throwable? = null
+    ) : ServiceError() {
+        override val isRetryable = false
+    }
+
+    /**
      * Authentication failed. The API key or credentials are invalid or expired.
      * Retrying with the same credentials will always fail.
      */

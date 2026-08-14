@@ -2,70 +2,67 @@ package com.github.ahatem.qtranslate.api.rewriter
 
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.api.plugin.ServiceOption
+import com.github.ahatem.qtranslate.api.plugin.StandardOptions
 import com.github.michaelbull.result.Result
 
 /**
- * A service that rewrites text in a different style or tone while preserving its meaning.
+ * Rewrites text in a different style or tone while preserving its meaning.
  *
- * `Rewriter` operates within the same language as the input — it does not translate.
- * Language support is declared via [Service.supportedLanguages] as with all services.
- * Most implementations will use [com.github.ahatem.qtranslate.api.plugin.SupportedLanguages.All]
- * since language handling is delegated to the underlying API.
+ * A rewriter works within one language — it does not translate. Language support is declared
+ * through [Service.supportedLanguages]; most implementations use
+ * [com.github.ahatem.qtranslate.api.plugin.SupportedLanguages.All] because the underlying API
+ * handles languages itself.
+ *
+ * ### Choosing a style
+ * Style is a [ServiceOption], not a fixed enum. A service offering the conventional formal,
+ * casual, concise, detailed and simplified choices declares [StandardOptions.REWRITE_STYLE] so
+ * the host can localize the labels. A service that can do "academic", "for a five-year-old" or
+ * "bullet points" declares its own option and the host renders that instead — previously
+ * impossible, since the host owned the vocabulary and offered every value regardless of what
+ * the service actually supported.
  */
 interface Rewriter : Service {
 
     /**
-     * Rewrites the text in [request] according to the requested [RewriteStyle].
+     * Rewrites the text in [request].
      *
-     * @param request The rewrite parameters including text and target style.
-     * @return `Ok` with the [RewriteResponse] on success, or an `Err` with a [ServiceError].
+     * @return `Ok` with a [RewriteResponse], or `Err` with a [ServiceError].
      */
     suspend fun rewrite(request: RewriteRequest): Result<RewriteResponse, ServiceError>
 }
 
 /**
- * Parameters for a rewrite operation.
+ * Parameters for a rewrite.
  *
- * @param text  The source text to rewrite. Must not be blank.
- * @param style The target style for the output. Defaults to [RewriteStyle.FORMAL].
+ * @property text The source text. Must not be blank.
+ * @property options Chosen values keyed by [ServiceOption.key], holding
+ *   [com.github.ahatem.qtranslate.api.plugin.ServiceOptionValue.id] values. Absent keys mean the
+ *   service should use its own default.
  */
 data class RewriteRequest(
     val text: String,
-    val style: RewriteStyle = RewriteStyle.FORMAL
+    val options: Map<String, String> = emptyMap()
 ) {
     init {
         require(text.isNotBlank()) { "Rewrite request text must not be blank." }
     }
+
+    /**
+     * The selected style id, or `null` when the user has expressed no preference.
+     * Convenience for the common case of a service using [StandardOptions.REWRITE_STYLE].
+     */
+    val style: String? get() = options[StandardOptions.KEY_REWRITE_STYLE]
 }
 
 /**
- * The result of a successful rewrite operation.
+ * The result of a rewrite.
  *
- * @param rewrittenText The rewritten version of the input text.
- * @param alternatives  Optional list of alternative rewrites if the service can produce
- *                      more than one. Empty when not supported.
+ * @property rewrittenText The rewritten text.
+ * @property alternatives Further rewrites, when the service can produce more than one. Empty
+ *   when unsupported.
  */
 data class RewriteResponse(
     val rewrittenText: String,
     val alternatives: List<String> = emptyList()
 )
-
-/**
- * The target style for a rewrite operation.
- */
-enum class RewriteStyle {
-    /** More professional and polished. */
-    FORMAL,
-
-    /** Simpler, conversational language. */
-    CASUAL,
-
-    /** Direct and brief — removes filler words and redundancy. */
-    CONCISE,
-
-    /** Thorough and detailed — expands on the original. */
-    DETAILED,
-
-    /** Plain language — easier to read and understand. */
-    SIMPLIFIED
-}

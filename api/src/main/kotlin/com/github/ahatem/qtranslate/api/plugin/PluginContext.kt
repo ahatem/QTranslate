@@ -105,6 +105,18 @@ interface PluginContext {
      *              other plugins' keys.
      * @param value The string value to persist.
      */
+    /**
+     * Typed, instance-scoped persistence. Prefer this over [storeValue] and [getValue], which
+     * remain for values a plugin has always stored as raw strings.
+     */
+    val settings: SettingsStore
+
+    /**
+     * Credentials, kept separately from [settings] so the host can protect them using the
+     * platform keychain where one exists.
+     */
+    val secrets: SecretStore
+
     suspend fun storeValue(key: String, value: String)
 
     /**

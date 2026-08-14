@@ -1,27 +1,24 @@
 package com.github.ahatem.qtranslate.core.shared.util
 
-import com.github.ahatem.qtranslate.api.dictionary.Dictionary
-import com.github.ahatem.qtranslate.api.ocr.OCR
 import com.github.ahatem.qtranslate.api.plugin.Service
-import com.github.ahatem.qtranslate.api.rewriter.Rewriter
-import com.github.ahatem.qtranslate.api.spellchecker.SpellChecker
-import com.github.ahatem.qtranslate.api.summarizer.Summarizer
-import com.github.ahatem.qtranslate.api.translator.Translator
-import com.github.ahatem.qtranslate.api.tts.TextToSpeech
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 
-/** Maps a Service to its ServiceType based on implemented interfaces. */
-fun mapServiceToType(service: Service): ServiceType? {
-    return when (service) {
-        is Translator -> ServiceType.TRANSLATOR
-        is TextToSpeech -> ServiceType.TTS
-        is OCR -> ServiceType.OCR
-        is SpellChecker -> ServiceType.SPELL_CHECKER
-        is Dictionary -> ServiceType.DICTIONARY
-        is Summarizer -> ServiceType.SUMMARIZER
-        is Rewriter -> ServiceType.REWRITER
-        else -> null
-    }
-}
+/**
+ * The capabilities a service declares.
+ *
+ * This used to test implemented interfaces in a fixed order, which meant a service that both
+ * translated and defined words was silently filed under whichever check happened to run first —
+ * so it could only ever be offered for one of the two. Services now declare what they can do and
+ * are offered under every one of them.
+ */
+val Service.types: Set<ServiceType> get() = capabilities
 
-val Service.type get() = mapServiceToType(this)
+/**
+ * A single representative capability, for the places that still assume one.
+ *
+ * Returns `null` when a service declares none, which the host treats as "not selectable".
+ */
+val Service.type: ServiceType? get() = capabilities.firstOrNull()
+
+/** Whether this service can act as [type]. */
+fun Service.hasType(type: ServiceType): Boolean = type in capabilities

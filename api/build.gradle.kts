@@ -1,4 +1,4 @@
-version = "1.1.0"  // only bump when the API interface changes
+version = "2.0.0"  // only bump when the API interface changes
 
 plugins {
     id("buildsrc.convention.kotlin-jvm")
