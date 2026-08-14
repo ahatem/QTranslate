@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.google
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -28,7 +30,9 @@ class GoogleSpellCheckerService(
     private val apiConfig: ApiConfig
 ) : SpellChecker {
 
-    override val id: String = "google-spell-checker"
+    override val capabilities = setOf(ServiceCapability.SPELL_CHECKER)
+
+    override val key: String = "google-spell-checker"
     override val name: String = "Google Spell Checker"
     override val version: String = "1.0.0"
     override val iconPath: String = "assets/google-translate-icon.svg"

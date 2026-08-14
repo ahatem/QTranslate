@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.deepl
 
+import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
+
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
@@ -76,7 +78,7 @@ class DeepLTranslatorServiceTest {
             Ok(WEB_SUCCESS),
             Ok(WEB_SUCCESS)
         ))
-        val context = RecordingPluginContext()
+        val context = FakePluginContext()
         val modes = mutableListOf<DeepLMode>()
         val settings = DeepLSettings(apiKey = "expired-key")
         val service = createService(client, settings, modes::add, context)
@@ -157,7 +159,7 @@ class DeepLTranslatorServiceTest {
         client: HttpClient,
         settings: DeepLSettings,
         onModeChanged: (DeepLMode) -> Unit,
-        context: PluginContext = RecordingPluginContext()
+        context: PluginContext = FakePluginContext()
     ) = DeepLTranslatorService(
         context = context,
         httpClient = client,
@@ -234,21 +236,3 @@ private class EchoWebHttpClient : HttpClient {
     }
 }
 
-private class RecordingPluginContext : PluginContext {
-    val notifications = mutableListOf<String>()
-    override val logger: Logger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
-    override val scope = CoroutineScope(Dispatchers.Unconfined)
-
-    override suspend fun notify(title: String, body: String, type: NotificationType) {
-        notifications += "$title: $body"
-    }
-    override suspend fun storeValue(key: String, value: String) = Unit
-    override suspend fun getValue(key: String): String? = null
-    override suspend fun deleteValue(key: String) = Unit
-    override fun getPluginDataDirectory(): File = File(System.getProperty("java.io.tmpdir"))
-}

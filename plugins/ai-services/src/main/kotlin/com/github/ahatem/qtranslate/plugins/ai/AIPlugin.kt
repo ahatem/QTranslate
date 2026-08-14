@@ -49,12 +49,12 @@ class AIPlugin : Plugin<AISettings> {
         pluginContext = context
 
         settings = AISettings(
-            baseUrl       = context.getValue(KEY_BASE_URL)       ?: AISettings().baseUrl,
-            apiKey        = context.getValue(KEY_API_KEY)        ?: "",
-            model         = context.getValue(KEY_MODEL)          ?: AISettings().model,
-            temperature   = context.getValue(KEY_TEMPERATURE)?.toDoubleOrNull() ?: 0.3,
-            maxTokens     = context.getValue(KEY_MAX_TOKENS)?.toIntOrNull()     ?: 4096,
-            customHeaders = context.getValue(KEY_CUSTOM_HEADERS) ?: AISettings().customHeaders
+            baseUrl       = context.settings.getString(KEY_BASE_URL) ?: AISettings().baseUrl,
+            apiKey        = context.secrets.get(KEY_API_KEY) ?: "",
+            model         = context.settings.getString(KEY_MODEL) ?: AISettings().model,
+            temperature   = context.settings.getDouble(KEY_TEMPERATURE, 0.3),
+            maxTokens     = context.settings.getInt(KEY_MAX_TOKENS, 4096),
+            customHeaders = context.settings.getString(KEY_CUSTOM_HEADERS) ?: AISettings().customHeaders
         )
 
         httpClient = KtorHttpClient(context)
@@ -86,12 +86,12 @@ class AIPlugin : Plugin<AISettings> {
         val error = validateSettings(settings)
         if (error != null) return Err(error)
 
-        pluginContext.storeValue(KEY_BASE_URL,       settings.baseUrl)
-        pluginContext.storeValue(KEY_API_KEY,        settings.apiKey)
-        pluginContext.storeValue(KEY_MODEL,          settings.model)
-        pluginContext.storeValue(KEY_TEMPERATURE,    settings.temperature.toString())
-        pluginContext.storeValue(KEY_MAX_TOKENS,     settings.maxTokens.toString())
-        pluginContext.storeValue(KEY_CUSTOM_HEADERS, settings.customHeaders)
+        pluginContext.settings.put(KEY_BASE_URL, settings.baseUrl)
+        pluginContext.secrets.put(KEY_API_KEY, settings.apiKey)
+        pluginContext.settings.put(KEY_MODEL, settings.model)
+        pluginContext.settings.put(KEY_TEMPERATURE, settings.temperature)
+        pluginContext.settings.put(KEY_MAX_TOKENS, settings.maxTokens)
+        pluginContext.settings.put(KEY_CUSTOM_HEADERS, settings.customHeaders)
 
         this.settings = settings
 

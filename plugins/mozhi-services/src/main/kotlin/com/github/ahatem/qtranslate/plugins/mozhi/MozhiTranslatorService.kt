@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.mozhi
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -18,7 +20,9 @@ internal class MozhiTranslatorService(
     private val settings: () -> MozhiSettings
 ) : Translator {
 
-    override val id = "mozhi-services-translator"
+    override val capabilities = setOf(ServiceCapability.TRANSLATOR)
+
+    override val key = "mozhi-services-translator"
     override val name = "Mozhi"
     override val version = "1.0.0"
     override val iconPath = "assets/mozhi.svg"

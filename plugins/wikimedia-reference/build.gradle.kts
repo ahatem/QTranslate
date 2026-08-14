@@ -11,6 +11,7 @@ dependencies {
     implementation(libs.jsoup)
 
     testImplementation(kotlin("test"))
+    testImplementation(testFixtures(project(":plugins:common")))
 }
 
 tasks.shadowJar {

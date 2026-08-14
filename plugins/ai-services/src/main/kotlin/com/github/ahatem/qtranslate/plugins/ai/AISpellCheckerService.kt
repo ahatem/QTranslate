@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.ai
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
@@ -16,7 +18,9 @@ class AISpellCheckerService(
     private val client: AIServiceClient
 ) : SpellChecker {
 
-    override val id: String = "ai-spell-checker"
+    override val capabilities = setOf(ServiceCapability.SPELL_CHECKER)
+
+    override val key: String = "ai-spell-checker"
     override val name: String = "AI Spell Checker"
     override val version: String = "1.0.0"
     override val iconPath: String = "assets/ai-icon.svg"

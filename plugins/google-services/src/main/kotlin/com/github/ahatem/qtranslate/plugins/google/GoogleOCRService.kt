@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.google
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.OCR
 import com.github.ahatem.qtranslate.api.ocr.OCRRequest
@@ -25,7 +27,9 @@ class GoogleOCRService(
     private val apiConfig: ApiConfig
 ) : OCR {
 
-    override val id: String = "google-ocr"
+    override val capabilities = setOf(ServiceCapability.OCR)
+
+    override val key: String = "google-ocr"
     override val name: String = "Google OCR"
     override val version: String = "1.0.0"
     override val iconPath: String = "assets/google-translate-icon.svg"

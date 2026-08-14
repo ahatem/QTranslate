@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.ai
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.dictionary.*
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
@@ -16,7 +18,9 @@ class AIDictionaryService(
     private val client: AIServiceClient
 ) : Dictionary {
 
-    override val id: String = "ai-dictionary"
+    override val capabilities = setOf(ServiceCapability.DICTIONARY)
+
+    override val key: String = "ai-dictionary"
     override val name: String = "AI Dictionary"
     override val version: String = "1.0.0"
     override val iconPath: String = "assets/ai-icon.svg"

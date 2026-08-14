@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.google
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.dictionary.Definition
 import com.github.ahatem.qtranslate.api.dictionary.Dictionary
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
@@ -24,7 +26,9 @@ class GoogleDictionaryService(
     private val apiConfig: ApiConfig
 ) : Dictionary {
 
-    override val id: String = "google-dictionary"
+    override val capabilities = setOf(ServiceCapability.DICTIONARY)
+
+    override val key: String = "google-dictionary"
     override val name: String = "Google Dictionary"
     override val version: String = "1.0.0"
     override val iconPath: String = "assets/google-translate-icon.svg"

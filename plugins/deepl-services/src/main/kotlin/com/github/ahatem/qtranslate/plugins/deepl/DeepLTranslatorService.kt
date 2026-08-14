@@ -1,6 +1,9 @@
 package com.github.ahatem.qtranslate.plugins.deepl
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.plugin.DisplayText
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -29,7 +32,8 @@ internal class DeepLTranslatorService(
     private val rateLimitBackoffMillis: Long = 10_000,
     private val maxWebRetries: Int = 1
 ) : Translator {
-    override val id = "deepl-services-translator"
+    override val capabilities = setOf(ServiceCapability.TRANSLATOR)
+    override val key = "deepl-services-translator"
     override val name = "DeepL"
     override val version = "1.1.0"
     override val iconPath = "assets/deepl.svg"
@@ -57,8 +61,16 @@ internal class DeepLTranslatorService(
                 onModeChanged(DeepLMode.FREE_WEB_AFTER_REJECTION)
                 context.logger.warn("DeepL rejected the configured API key; using the free web endpoint")
                 context.notify(
-                    title = "DeepL API key rejected",
-                    body = "Using the free web endpoint. Update the API key in plugin settings to restore official access.",
+                    // Key and fallback: the host translates it if it knows the key, and shows
+                    // the English text if it does not. This plugin ships no bundle of its own.
+                    title = DisplayText(
+                        "deepl.api_key_rejected_title",
+                        "DeepL API key rejected"
+                    ),
+                    body = DisplayText(
+                        "deepl.api_key_rejected_body",
+                        "Using the free web endpoint. Update the API key in plugin settings to restore official access."
+                    ),
                     type = NotificationType.WARNING
                 )
                 return translateWeb(request)

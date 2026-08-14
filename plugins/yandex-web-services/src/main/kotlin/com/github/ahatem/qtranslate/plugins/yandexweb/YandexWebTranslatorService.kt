@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.yandexweb
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
@@ -11,7 +13,8 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.map
 
 internal class YandexWebTranslatorService(private val client: YandexWebClient) : Translator {
-    override val id = "yandex-web-translator"
+    override val capabilities = setOf(ServiceCapability.TRANSLATOR)
+    override val key = "yandex-web-translator"
     override val name = "Yandex Web (Unofficial)"
     override val version = "1.0.0"
     override val iconPath = "assets/yandex.svg"

@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.wikimedia
 
+import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
+
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
@@ -128,7 +130,7 @@ class WikimediaReferenceTest {
     @Test
     fun `plugin exposes distinct dictionary services`() = runBlocking {
         val plugin = WikimediaReferencePlugin()
-        val context = TestPluginContext()
+        val context = FakePluginContext()
 
         plugin.initialize(context)
         plugin.onEnable()

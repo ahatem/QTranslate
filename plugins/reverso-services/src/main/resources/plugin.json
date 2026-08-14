@@ -4,6 +4,6 @@
   "version": "1.0.0",
   "author": "Ahmed Hatem",
   "description": "Reverso translation and contextual dictionary services. Free web access may stop working without notice.",
-  "minApiVersion": "1.2.0",
+  "minApiVersion": "2.0.0",
   "icon": "assets/reverso.png"
 }

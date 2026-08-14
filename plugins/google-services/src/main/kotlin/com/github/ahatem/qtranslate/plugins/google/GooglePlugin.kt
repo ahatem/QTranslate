@@ -28,8 +28,8 @@ class GooglePlugin : Plugin<GoogleSettings> {
         this.pluginContext = context
         // Restore persisted keys on first load so the user doesn't have to re-enter them.
         this.settings = GoogleSettings(
-            visionApiKey = context.getValue("visionApiKey") ?: "",
-            translateApiKey = context.getValue("translateApiKey") ?: ""
+            visionApiKey = context.secrets.get("visionApiKey") ?: "",
+            translateApiKey = context.secrets.get("translateApiKey") ?: ""
         )
         this.httpClient = KtorHttpClient(context)
         pluginContext.logger.info("Google Plugin initialized")
@@ -45,8 +45,8 @@ class GooglePlugin : Plugin<GoogleSettings> {
     override suspend fun onSettingsChanged(settings: GoogleSettings): Result<Unit, ServiceError> {
         pluginContext.logger.info("Applying new Google settings...")
         // Persist both keys so they survive app restarts.
-        pluginContext.storeValue("visionApiKey", settings.visionApiKey)
-        pluginContext.storeValue("translateApiKey", settings.translateApiKey)
+        pluginContext.secrets.put("visionApiKey", settings.visionApiKey)
+        pluginContext.secrets.put("translateApiKey", settings.translateApiKey)
         this.settings = settings
         // Rebuild services — OCR is conditionally included based on the vision key.
         buildServices()

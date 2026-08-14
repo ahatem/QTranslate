@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.libretranslate
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -21,7 +23,8 @@ internal class LibreTranslateService(
     private val settings: () -> LibreTranslateSettings
 ) : BatchTranslator {
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
-    override val id = "libretranslate-local-translator"
+    override val capabilities = setOf(ServiceCapability.TRANSLATOR)
+    override val key = "libretranslate-local-translator"
     override val name = "LibreTranslate Local"
     override val iconPath = "assets/libretranslate.svg"
     override val version = "1.0.0"

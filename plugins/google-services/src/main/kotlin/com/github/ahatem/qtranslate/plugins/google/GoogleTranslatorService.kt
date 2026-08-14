@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.google
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -25,7 +27,9 @@ class GoogleTranslatorService(
     private val apiConfig: ApiConfig
 ) : Translator {
 
-    override val id: String = "google-translator"
+    override val capabilities = setOf(ServiceCapability.TRANSLATOR)
+
+    override val key: String = "google-translator"
     override val name: String = "Google Translate"
     override val version: String = "1.0.0"
     override val iconPath: String = "assets/google-translate-icon.svg"

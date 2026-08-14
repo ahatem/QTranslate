@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.mymemory
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -25,7 +27,8 @@ internal class MyMemoryTranslatorService(
     private val apiConfig: ApiConfig,
     private val minimumRequestIntervalMillis: Long = 350
 ) : Translator {
-    override val id = "mymemory-services-translate"
+    override val capabilities = setOf(ServiceCapability.TRANSLATOR)
+    override val key = "mymemory-services-translate"
     override val name = "MyMemory (Free)"
     override val iconPath = "assets/mymemory.svg"
     override val version = "1.0.0"

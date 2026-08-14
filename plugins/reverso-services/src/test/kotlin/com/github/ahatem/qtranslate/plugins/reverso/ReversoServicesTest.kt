@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.reverso
 
+import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
+
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
 import com.github.ahatem.qtranslate.api.dictionary.BilingualDictionaryRequest
@@ -36,9 +38,11 @@ class ReversoServicesTest {
             listOf("Reverso Translation", "Reverso Dictionary"),
             plugin.getServices().map { it.name }
         )
+        // Keys, not ids: the plugin declares a name unique within itself and the host composes
+        // the identifier the rest of the application sees.
         assertEquals(
             listOf("reverso-services-translation", "reverso-services-dictionary"),
-            plugin.getServices().map { it.id }
+            plugin.getServices().map { it.key }
         )
         plugin.onDisable()
         plugin.shutdown()
@@ -205,18 +209,5 @@ private class RecordingHttpClient(
     }
 }
 
-private object TestPluginContext : PluginContext {
-    override val logger: Logger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
-    override val scope = CoroutineScope(Dispatchers.Unconfined)
 
-    override suspend fun notify(title: String, body: String, type: NotificationType) = Unit
-    override suspend fun storeValue(key: String, value: String) = Unit
-    override suspend fun getValue(key: String): String? = null
-    override suspend fun deleteValue(key: String) = Unit
-    override fun getPluginDataDirectory(): File = File(System.getProperty("java.io.tmpdir"))
-}
+private val TestPluginContext = FakePluginContext()

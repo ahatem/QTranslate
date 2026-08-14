@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.wikimedia
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.dictionary.Definition
 import com.github.ahatem.qtranslate.api.dictionary.Dictionary
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
@@ -14,7 +16,8 @@ import com.github.michaelbull.result.map
 import org.jsoup.Jsoup
 
 internal class WikipediaService(private val client: WikimediaClient) : Dictionary {
-    override val id = "wikimedia-wikipedia"
+    override val capabilities = setOf(ServiceCapability.DICTIONARY)
+    override val key = "wikimedia-wikipedia"
     override val name = "Wikipedia"
     override val iconPath = "assets/wikipedia.svg"
     override val version = "1.0.0"

@@ -4,6 +4,6 @@
   "version": "1.0.0",
   "author": "QTranslate Contributors",
   "description": "Free unofficial Yandex web translation. No API key required; the endpoint may change, become rate-limited, or stop working without notice.",
-  "minApiVersion": "1.1.0",
+  "minApiVersion": "2.0.0",
   "icon": "assets/yandex.svg"
 }

@@ -27,8 +27,8 @@ class LibreTranslatePlugin : Plugin<LibreTranslateSettings> {
     override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> {
         this.context = context
         settings = LibreTranslateSettings(
-            instanceUrl = context.getValue(KEY_INSTANCE_URL) ?: DEFAULT_INSTANCE_URL,
-            apiKey = context.getValue(KEY_API_KEY).orEmpty()
+            instanceUrl = context.settings.getString(KEY_INSTANCE_URL) ?: DEFAULT_INSTANCE_URL,
+            apiKey = context.secrets.get(KEY_API_KEY).orEmpty()
         )
         httpClient = KtorHttpClient(context)
         settings.attach(context) { httpClient }
@@ -47,8 +47,8 @@ class LibreTranslatePlugin : Plugin<LibreTranslateSettings> {
             return Err(ServiceError.ValidationError("LibreTranslate URL must be a valid HTTP or HTTPS URL."))
         }
 
-        context.storeValue(KEY_INSTANCE_URL, normalizedUrl)
-        context.storeValue(KEY_API_KEY, settings.apiKey.trim())
+        context.settings.put(KEY_INSTANCE_URL, normalizedUrl)
+        context.secrets.put(KEY_API_KEY, settings.apiKey.trim())
         this.settings = settings.copy(instanceUrl = normalizedUrl, apiKey = settings.apiKey.trim())
             .attach(context) { httpClient }
         return Ok(Unit)

@@ -28,7 +28,7 @@ class DeepLPlugin : Plugin<DeepLSettings> {
     override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> {
         this.context = context
         settings = DeepLSettings(
-            apiKey = context.getValue(KEY_API_KEY).orEmpty()
+            apiKey = context.secrets.get(KEY_API_KEY).orEmpty()
         )
         httpClient = KtorHttpClient(context)
         settings.updateMode(if (settings.apiKey.isBlank()) DeepLMode.FREE_WEB else DeepLMode.OFFICIAL)
@@ -48,7 +48,7 @@ class DeepLPlugin : Plugin<DeepLSettings> {
 
     override suspend fun onSettingsChanged(settings: DeepLSettings): Result<Unit, ServiceError> {
         val apiKey = settings.apiKey.trim()
-        if (apiKey.isBlank()) context.deleteValue(KEY_API_KEY) else context.storeValue(KEY_API_KEY, apiKey)
+        if (apiKey.isBlank()) context.secrets.remove(KEY_API_KEY) else context.secrets.put(KEY_API_KEY, apiKey)
         this.settings = settings.copy(apiKey = apiKey).also {
             it.updateMode(if (apiKey.isBlank()) DeepLMode.FREE_WEB else DeepLMode.OFFICIAL)
             it.attach(context) { httpClient }

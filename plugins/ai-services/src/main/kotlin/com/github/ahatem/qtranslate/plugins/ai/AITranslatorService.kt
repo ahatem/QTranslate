@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.ai
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
@@ -24,7 +26,9 @@ class AITranslatorService(
     private val client: AIServiceClient
 ) : Translator {
 
-    override val id: String = "ai-translator"
+    override val capabilities = setOf(ServiceCapability.TRANSLATOR)
+
+    override val key: String = "ai-translator"
     override val name: String = "AI Translate"
     override val version: String = "1.0.0"
     override val iconPath: String = "assets/ai-icon.svg"
