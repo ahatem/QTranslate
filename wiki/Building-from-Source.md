@@ -78,6 +78,13 @@ The QA launcher uses an isolated directory under `app/build/manual-qa/`, prints 
 ./gradlew assembleReleaseVariants -PreleaseVersion=1.3.0
 ```
 
+On PowerShell, quote the property — unquoted, PowerShell splits it at the first dot
+and Gradle fails with `Task '.3.0' not found`:
+
+```powershell
+.\gradlew.bat assembleReleaseVariants "-PreleaseVersion=1.3.0"
+```
+
 Artifacts are written to `build/release/`:
 
 - `QTranslate-App-1.3.0.jar` — app only
@@ -96,7 +103,7 @@ Each plugin is a separate Gradle subproject under `plugins/`:
 
 ```bash
 ./gradlew :plugins:google-services:shadowJar
-./gradlew assembleIndividualPlugins -PreleaseVersion=1.3.0
+./gradlew assembleIndividualPlugins -PreleaseVersion=1.3.0   # quote on PowerShell
 ```
 
 Single-plugin JARs are written to `plugins/<name>/build/libs/`. The aggregate task writes normalized, versioned JARs to `build/release/plugins/`. Install them through the QTranslate UI as described in [Installing Plugins](Installing-Plugins.md).

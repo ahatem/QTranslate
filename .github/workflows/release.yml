@@ -35,7 +35,9 @@ jobs:
 
       - name: Build full distribution
         shell: pwsh
-        run: ./gradlew assembleFull -PreleaseVersion=${{ steps.version.outputs.version }} --no-daemon
+        # The property must be quoted: PowerShell otherwise splits the argument at the
+        # first dot, passing Gradle a bogus ".3.0" task name and failing the build.
+        run: ./gradlew assembleFull "-PreleaseVersion=${{ steps.version.outputs.version }}" --no-daemon
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
@@ -113,7 +115,7 @@ jobs:
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Build release variants
-        run: ./gradlew assembleReleaseVariants -PreleaseVersion=${{ steps.version.outputs.version }} --no-daemon
+        run: ./gradlew assembleReleaseVariants "-PreleaseVersion=${{ steps.version.outputs.version }}" --no-daemon
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 

@@ -38,8 +38,11 @@ From the exact commit you intend to tag:
 ```powershell
 .\gradlew.bat clean build test --no-daemon
 .\gradlew.bat smokeTestAllPlugins --no-daemon --console=plain
-.\gradlew.bat assembleReleaseVariants -PreleaseVersion=1.3.0 --no-daemon
+.\gradlew.bat assembleReleaseVariants "-PreleaseVersion=1.3.0" --no-daemon
 ```
+
+> Quote `-PreleaseVersion=...` in PowerShell. Unquoted, PowerShell splits the argument
+> at the first dot and Gradle fails with `Task '.3.0' not found`.
 
 Review:
 
