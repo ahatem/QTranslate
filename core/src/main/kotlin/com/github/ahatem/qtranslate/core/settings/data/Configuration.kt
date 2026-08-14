@@ -1,7 +1,6 @@
 package com.github.ahatem.qtranslate.core.settings.data
 
-import com.github.ahatem.qtranslate.api.rewriter.RewriteStyle
-import com.github.ahatem.qtranslate.api.summarizer.SummaryLength
+import com.github.ahatem.qtranslate.api.plugin.StandardOptions
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import kotlinx.serialization.Serializable
 import javax.swing.KeyStroke
@@ -258,8 +257,15 @@ data class Configuration(
     val isSpellCheckingEnabled: Boolean = true,
     val extraOutputType: ExtraOutputType = ExtraOutputType.None,
     val extraOutputSource: ExtraOutputSource = ExtraOutputSource.Output,
-    val summaryLength: SummaryLength = SummaryLength.MEDIUM,
-    val rewriteStyle: RewriteStyle = RewriteStyle.FORMAL,
+    /**
+     * Selected ids for the standard summary and rewrite options.
+     *
+     * Strings rather than enums because the vocabulary now belongs to the service: a plugin can
+     * offer "Academic" or "Bullet points" without the host knowing about it. The standard ids
+     * match the names of the enums these replaced, so values already on disk keep working.
+     */
+    val summaryLength: String = StandardOptions.SUMMARY_LENGTH.defaultValue,
+    val rewriteStyle: String = StandardOptions.REWRITE_STYLE.defaultValue,
 
     // ---- Translation ----
     /**
@@ -359,8 +365,8 @@ data class Configuration(
                 isSpellCheckingEnabled       = true,
                 extraOutputType              = ExtraOutputType.None,
                 extraOutputSource            = ExtraOutputSource.Output,
-                summaryLength                = SummaryLength.MEDIUM,
-                rewriteStyle                 = RewriteStyle.FORMAL,
+                summaryLength                = StandardOptions.SUMMARY_LENGTH.defaultValue,
+                rewriteStyle                 = StandardOptions.REWRITE_STYLE.defaultValue,
                 isRemoveLineBreaksEnabled    = false,
                 pinnedLanguages              = emptyList(),
                 closeButtonBehavior          = CloseButtonBehavior.ASK,

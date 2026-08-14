@@ -12,6 +12,7 @@ import com.github.ahatem.qtranslate.core.plugin.settings.PluginSettingsModel
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprint
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprintRepository
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
+import com.github.ahatem.qtranslate.core.plugin.text.PluginTextResolver
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
@@ -54,7 +55,12 @@ class PluginManager(
     private val pluginFingerprintRepository: PluginFingerprintRepository,
     private val pluginKeyValueStore: PluginKeyValueStore,
     private val loggerFactory: LoggerFactory,
-    private val notificationBus: NotificationBus
+    private val notificationBus: NotificationBus,
+    /**
+     * Resolves the [com.github.ahatem.qtranslate.api.plugin.DisplayText] plugins hand back.
+     * Defaults to the fallback-only resolver so a host without localization still runs.
+     */
+    private val textResolver: PluginTextResolver = PluginTextResolver.Fallback
 ) {
     private val logger = loggerFactory.getLogger("PluginManager")
     private val pluginsDir = File(appDataDirectory, AppConstants.PLUGIN_DIRECTORY).also { it.mkdirs() }
@@ -65,6 +71,7 @@ class PluginManager(
         appDataDirectory = appDataDirectory,
         pluginKeyValueStore = pluginKeyValueStore,
         notificationBus = notificationBus,
+        textResolver = textResolver,
         loggerFactory = loggerFactory
     )
 

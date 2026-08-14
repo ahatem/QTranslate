@@ -2,6 +2,8 @@ package com.github.ahatem.qtranslate.core.document
 
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.plugin.Service
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
@@ -11,6 +13,7 @@ import com.github.ahatem.qtranslate.api.translator.BatchTranslationRequest
 import com.github.ahatem.qtranslate.api.translator.BatchTranslationResponse
 import com.github.ahatem.qtranslate.api.translator.BatchTranslator
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
+import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.Err
@@ -329,7 +332,11 @@ class DocumentTranslationUseCaseTest {
     )
 
     private fun useCase(translator: Translator = FakeTranslator()): DocumentTranslationUseCase {
-        val activeServices = MutableStateFlow(mapOf(translator.id to translator))
+        // The registry keys services by the id the host composes, so the test supplies one
+        // rather than reading it off the service.
+        val activeServices = MutableStateFlow<Map<String, Service>>(
+            mapOf(ServiceId.of("test-plugin", ServiceId.DEFAULT_INSTANCE, translator.key) to translator)
+        )
         val configuration = MutableStateFlow(Configuration.DEFAULT)
         return DocumentTranslationUseCase(
             ActiveServiceManager(activeServices, configuration),
@@ -343,9 +350,10 @@ class DocumentTranslationUseCaseTest {
         private val failOn: String? = null,
         private val transform: (String) -> String = { "[$it]" }
     ) : Translator {
-        override val id = "test-translator"
+        override val key = "test-translator"
         override val name = "Test Translator"
         override val version = "1.0.0"
+        override val capabilities = setOf(ServiceCapability.TRANSLATOR)
         override val supportedLanguages = SupportedLanguages.All
 
         override suspend fun translate(
@@ -360,9 +368,10 @@ class DocumentTranslationUseCaseTest {
     private class FakeBatchTranslator(
         override val maxBatchSize: Int = 50
     ) : BatchTranslator {
-        override val id = "test-batch-translator"
+        override val key = "test-batch-translator"
         override val name = "Test Batch Translator"
         override val version = "1.0.0"
+        override val capabilities = setOf(ServiceCapability.TRANSLATOR)
         override val supportedLanguages = SupportedLanguages.All
         val requests = mutableListOf<List<String>>()
 

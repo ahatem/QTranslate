@@ -79,12 +79,16 @@ class TranslateTextUseCase(
             return
         }
 
-        val translator = activeServiceManager.getActiveService<Translator>(ServiceType.TRANSLATOR)
-        if (translator == null) {
+        // Resolved with its id: history records which service produced each entry, and services
+        // no longer carry their own — the host composes it and keys the registry by it.
+        val active = activeServiceManager.getActive<Translator>(ServiceType.TRANSLATOR)
+        if (active == null) {
             logger.warn("No translator service available")
             onStatusUpdate(StatusCode.NoTranslatorActive, NotificationType.ERROR, true)
             return
         }
+        val translator = active.service
+        val translatorId = active.id
 
         logger.info("Starting translation with '${translator.name}'")
 
@@ -161,6 +165,7 @@ class TranslateTextUseCase(
                                     detectedLanguage = detectedLanguage,
                                     currentState     = currentState,
                                     translator       = translator,
+                                    translatorId     = translatorId,
                                     updateState      = updateState,
                                     onStatusUpdate   = onStatusUpdate
                                 )
@@ -172,7 +177,7 @@ class TranslateTextUseCase(
                         onStatusUpdate(StatusCode.TranslationComplete, NotificationType.SUCCESS, true)
 
                         val (newHistory, newHistoryIndex) = buildHistory(
-                            currentState, textToTranslate, response.translatedText, translator.id,
+                            currentState, textToTranslate, response.translatedText, translatorId,
                             detectedSourceLanguage = detectedLanguage?.tag
                         )
 
@@ -224,6 +229,7 @@ class TranslateTextUseCase(
         detectedLanguage: LanguageCode,
         currentState: MainState,
         translator: Translator,
+        translatorId: String,
         updateState: (MainState.() -> MainState) -> Unit,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit,
     ) {
@@ -250,7 +256,7 @@ class TranslateTextUseCase(
                 onStatusUpdate(StatusCode.TranslationComplete, NotificationType.SUCCESS, true)
 
                 val (newHistory, newHistoryIndex) = buildHistory(
-                    currentState, textToTranslate, retryResponse.translatedText, translator.id,
+                    currentState, textToTranslate, retryResponse.translatedText, translatorId,
                     detectedSourceLanguage = detectedLanguage.tag
                 )
 

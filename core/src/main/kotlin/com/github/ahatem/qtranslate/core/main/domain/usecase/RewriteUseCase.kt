@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.core.main.domain.usecase
 
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
+import com.github.ahatem.qtranslate.api.plugin.StandardOptions
 import com.github.ahatem.qtranslate.api.rewriter.RewriteRequest
 import com.github.ahatem.qtranslate.api.rewriter.Rewriter
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
@@ -36,8 +37,10 @@ class RewriteUseCase(
         val result = withTimeoutOrNull(AppConstants.TRANSLATION_TIMEOUT_MS) {
             rewriter.rewrite(
                 RewriteRequest(
-                    text  = text,
-                    style = config.rewriteStyle
+                    text = text,
+                    // The service declares which styles it offers; the host only passes the id
+                    // the user picked, so a plugin-defined style travels through unchanged.
+                    options = mapOf(StandardOptions.KEY_REWRITE_STYLE to config.rewriteStyle)
                 )
             )
         }

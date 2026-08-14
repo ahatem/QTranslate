@@ -4,8 +4,10 @@ import com.github.ahatem.qtranslate.core.plugin.LoadedPluginResult
 import com.github.ahatem.qtranslate.core.plugin.PluginStatus
 import com.github.ahatem.qtranslate.core.plugin.ScopedPluginContext
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginContainer
+import com.github.ahatem.qtranslate.core.plugin.registry.CapabilityValidator
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginError
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
+import com.github.ahatem.qtranslate.core.plugin.text.PluginTextResolver
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
 import com.github.michaelbull.result.fold
@@ -25,6 +27,7 @@ internal class PluginLifecycleHandler(
     private val appDataDirectory: File,
     private val pluginKeyValueStore: PluginKeyValueStore,
     private val notificationBus: NotificationBus,
+    private val textResolver: PluginTextResolver,
     private val loggerFactory: LoggerFactory
 ) {
     private val logger = loggerFactory.getLogger("PluginLifecycleHandler")
@@ -50,6 +53,7 @@ internal class PluginLifecycleHandler(
             appDataDirectory = appDataDirectory,
             pluginKeyValueStore = pluginKeyValueStore,
             notificationBus = notificationBus,
+            textResolver = textResolver,
             logger = loggerFactory.getLogger(result.manifest.id)
         )
 
@@ -151,10 +155,32 @@ internal class PluginLifecycleHandler(
             onSuccess = { result ->
                 result.fold(
                     success = {
-                        container.services = container.plugin.getServices()
-                        container.declaredServices = container.services
+                        val declared = container.plugin.getServices()
+
+                        // Capabilities are declared rather than inferred, so a service can claim
+                        // one it does not implement. The host casts on the strength of that claim,
+                        // so an unchecked one surfaces as a ClassCastException the moment the user
+                        // selects the service. Dropping it here keeps the plugin's other services
+                        // usable and puts the reason in the log instead.
+                        val (valid, invalid) = declared.partition { CapabilityValidator.validate(it).isEmpty() }
+                        invalid.forEach { service ->
+                            CapabilityValidator.validate(service).forEach { problem ->
+                                logger.error("Plugin '${container.id}': $problem — service not registered")
+                            }
+                        }
+
+                        container.services = valid
+                        container.declaredServices = valid
                         container.status = PluginStatus.ENABLED
-                        container.lastError = null
+                        container.lastError = invalid
+                            .takeIf { it.isNotEmpty() }
+                            ?.let {
+                                PluginError.EnableFailure(
+                                    pluginId = container.id,
+                                    message = "${it.size} service(s) declared capabilities they do not implement",
+                                    cause = null
+                                )
+                            }
                         logger.info(
                             "Plugin '${container.id}' enabled with ${container.services.size} service(s)."
                         )
