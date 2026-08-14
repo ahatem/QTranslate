@@ -16,8 +16,15 @@ import com.github.ahatem.qtranslate.api.core.Logger
  */
 object ConfigMigrator {
 
-    /** Must match the default value of [Configuration.configVersion]. */
-    private const val CURRENT_VERSION = 3
+    /**
+     * The schema version this build writes.
+     *
+     * Deliberately *not* the default of [Configuration.configVersion], which stays at 1: a file
+     * written before the field existed deserializes to that default, and treating it as current
+     * would skip every migration it needs. A configuration this build creates from scratch is
+     * stamped with this value instead.
+     */
+    internal const val CURRENT_VERSION = 4
 
     /**
      * Applies all pending migrations to [config] in order and returns the result.
@@ -66,6 +73,47 @@ object ConfigMigrator {
                 config.copy(
                     configVersion = 3,
                     hotkeys = config.hotkeys + missingDefaults
+                )
+            }
+            3 -> {
+                // v3 → v4: service identifiers changed shape. A service used to declare a globally
+                // unique id and the configuration stored it verbatim; the host now composes
+                // `pluginId:instanceId:serviceKey`. Without rewriting them, every preset on an
+                // existing installation names a service that no longer resolves, and the user's
+                // chosen translator silently reverts to whichever one happens to load first.
+                logger.info("ConfigMigrator: migrating v3 → v4 — rewriting service ids to their composed form")
+
+                val upgradedPresets = config.servicePresets.map { preset ->
+                    preset.copy(
+                        selectedServices = preset.selectedServices.mapValues { (_, serviceId) ->
+                            serviceId?.let(LegacyServiceIds::upgrade)
+                        }
+                    )
+                }
+
+                // Holds a mix of service ids and `type:CAPABILITY` sentinels; upgrade leaves the
+                // sentinels alone.
+                val upgradedDisabled = config.disabledServices.map(LegacyServiceIds::upgrade).toSet()
+
+                val unrecognised = (
+                    config.servicePresets.flatMap { it.selectedServices.values.filterNotNull() } +
+                        config.disabledServices
+                    ).filter { it == LegacyServiceIds.upgrade(it) && LegacyServiceIds.isKnownLegacyId(it).not() }
+                    .filterNot { it.startsWith("type:") || it.contains(':') }
+                    .distinct()
+                if (unrecognised.isNotEmpty()) {
+                    // Left as they were rather than guessed at — most likely a plugin the user
+                    // removed, in which case the selection was already dead.
+                    logger.warn(
+                        "ConfigMigrator: left ${unrecognised.size} unrecognised service id(s) unchanged: " +
+                            unrecognised.joinToString()
+                    )
+                }
+
+                config.copy(
+                    configVersion = 4,
+                    servicePresets = upgradedPresets,
+                    disabledServices = upgradedDisabled
                 )
             }
             else -> {

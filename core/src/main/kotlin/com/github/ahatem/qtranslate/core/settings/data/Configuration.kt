@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.core.settings.data
 
 import com.github.ahatem.qtranslate.api.plugin.StandardOptions
+import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import kotlinx.serialization.Serializable
 import javax.swing.KeyStroke
@@ -197,11 +198,14 @@ data class ServicePreset(
 
         const val DEFAULT_PRESET_NAME = "__default__" // internal sentinel, never shown to user
 
-        private const val DEFAULT_TRANSLATOR    = "google-translator"
-        private const val DEFAULT_TTS           = "google-tts"
-        private const val DEFAULT_SPELL_CHECKER = "google-spell-checker"
-        private const val DEFAULT_OCR           = "google-ocr"
-        private const val DEFAULT_DICTIONARY    = "google-dictionary"
+        // Composed ids, matching what the registry keys these services under. A fresh install must
+        // be valid on its own rather than depend on a migration to become so.
+        private const val GOOGLE = "google-services"
+        private val DEFAULT_TRANSLATOR    = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-translator")
+        private val DEFAULT_TTS           = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-tts")
+        private val DEFAULT_SPELL_CHECKER = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-spell-checker")
+        private val DEFAULT_OCR           = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-ocr")
+        private val DEFAULT_DICTIONARY    = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-dictionary")
 
         @OptIn(ExperimentalUuidApi::class)
         fun createDefault(name: String = DEFAULT_PRESET_NAME): ServicePreset = ServicePreset(
@@ -352,6 +356,7 @@ data class Configuration(
         val DEFAULT: Configuration by lazy {
             val defaultPreset = ServicePreset.createDefault()
             Configuration(
+                configVersion                = ConfigMigrator.CURRENT_VERSION,
                 servicePresets               = listOf(defaultPreset),
                 activeServicePresetId        = defaultPreset.id,
                 disabledServices             = emptySet(),
