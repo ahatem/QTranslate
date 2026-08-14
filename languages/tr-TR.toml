@@ -277,6 +277,7 @@ action_translate = "Çevir"
 action_focus_input = "Giriş paneline odaklan"
 action_focus_output = "Çıkış paneline odaklan"
 action_focus_extra_output = "Ekstra çıkış paneline odaklan"
+action_copy_translation = "Çeviriyi kopyala"action_clear_input = "Girişi temizle"action_swap_languages = "Dilleri değiştir"action_open_settings = "Ayarları aç"action_show_history = "Geçmişi göster"action_translate_document = "Belge çevir"
 scope_toggle_hint = "Küresel ve Yerel arasında geçiş yapmak için tıklayın"
 
 # Default Actions Descriptions

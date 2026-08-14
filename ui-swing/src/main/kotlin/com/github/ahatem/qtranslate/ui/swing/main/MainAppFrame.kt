@@ -54,6 +54,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.swing.Swing
 import java.awt.*
 import com.github.ahatem.qtranslate.core.document.DocumentFormat
+import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
 import java.io.File
@@ -806,6 +807,26 @@ class MainAppFrame(
                         HotkeyAction.FOCUS_INPUT        -> mainContentView.switchToAndFocusInput()
                         HotkeyAction.FOCUS_OUTPUT       -> mainContentView.switchToAndFocusOutput()
                         HotkeyAction.FOCUS_EXTRA_OUTPUT -> mainContentView.switchToAndFocusExtraOutput()
+
+                        // Also LOCAL-only, and every one of these needs something the frame
+                        // owns — a dialog, the clipboard, or the content view — so they are
+                        // handled here for the same reason FOCUS_* is.
+                        HotkeyAction.COPY_TRANSLATION -> {
+                            val text = mainStore.state.value.translatedText
+                            if (text.isNotBlank()) {
+                                text.copyToClipboard()
+                                mainStore.dispatch(MainIntent.NotifyTextCopied)
+                            }
+                        }
+                        HotkeyAction.CLEAR_INPUT -> {
+                            mainStore.dispatch(MainIntent.UpdateInputText(""))
+                            mainContentView.switchToAndFocusInput()
+                        }
+                        HotkeyAction.SWAP_LANGUAGES     -> mainStore.dispatch(MainIntent.SwapLanguages)
+                        HotkeyAction.OPEN_SETTINGS      -> openSettingsDialog()
+                        HotkeyAction.SHOW_HISTORY       -> showHistoryDialog()
+                        HotkeyAction.TRANSLATE_DOCUMENT -> documentTranslationDialog.open()
+
                         else -> globalKeyListener.dispatchAction(binding.action)
                     }
                 }
@@ -901,14 +922,7 @@ class MainAppFrame(
             onShowDictionary = { showDictionaryDialog() },
             onShowHistory = { showHistoryDialog() },
             onTranslateDocument = { documentTranslationDialog.open() },
-            onShowSettings = {
-                val dialog = createSettingsDialog()
-                dialog.applyComponentOrientation(
-                    if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
-                    else ComponentOrientation.LEFT_TO_RIGHT
-                )
-                dialog.isVisible = true
-            },
+            onShowSettings = { openSettingsDialog() },
             onShowHowToUse = { openUrl("https://github.com/ahatem/QTranslate/wiki") },
             onShowAboutQTranslate = { onShowAboutDialog() },
             onContactUs = { openUrl("https://github.com/ahatem/QTranslate/issues/new") },
@@ -1313,6 +1327,16 @@ class MainAppFrame(
      * Unsupported files are ignored so dropping an image or an archive does nothing rather
      * than opening a dialog that cannot proceed.
      */
+    /** Opens Settings with the correct orientation. Shared by the menu and the Ctrl+Comma binding. */
+    private fun openSettingsDialog() {
+        val dialog = createSettingsDialog()
+        dialog.applyComponentOrientation(
+            if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
+            else ComponentOrientation.LEFT_TO_RIGHT
+        )
+        dialog.isVisible = true
+    }
+
     private fun setupDocumentDropTarget() {
         transferHandler = object : TransferHandler() {
             override fun canImport(support: TransferSupport): Boolean =

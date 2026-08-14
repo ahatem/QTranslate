@@ -277,6 +277,7 @@ action_translate = "Translate"
 action_focus_input = "Focus Input Pane"
 action_focus_output = "Focus Output Pane"
 action_focus_extra_output = "Focus Extra Output Pane"
+action_copy_translation = "Copy translation"action_clear_input = "Clear input"action_swap_languages = "Swap languages"action_open_settings = "Open settings"action_show_history = "Show history"action_translate_document = "Translate document"
 scope_toggle_hint = "Click to toggle between Global and Local"
 
 # Default Actions Descriptions

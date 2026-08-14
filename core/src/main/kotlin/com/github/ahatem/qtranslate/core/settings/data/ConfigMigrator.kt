@@ -17,7 +17,7 @@ import com.github.ahatem.qtranslate.api.core.Logger
 object ConfigMigrator {
 
     /** Must match the default value of [Configuration.configVersion]. */
-    private const val CURRENT_VERSION = 2
+    private const val CURRENT_VERSION = 3
 
     /**
      * Applies all pending migrations to [config] in order and returns the result.
@@ -52,6 +52,19 @@ object ConfigMigrator {
                 val missingDefaults = HotkeyBinding.DEFAULTS.filter { it.action !in existingActions }
                 config.copy(
                     configVersion = 2,
+                    hotkeys = config.hotkeys + missingDefaults
+                )
+            }
+            2 -> {
+                // v2 → v3: same patch for the actions added after v2 (COPY_TRANSLATION,
+                // CLEAR_INPUT, SWAP_LANGUAGES, OPEN_SETTINGS, SHOW_HISTORY,
+                // TRANSLATE_DOCUMENT). Without this step existing users would keep their
+                // saved hotkey list and never receive the new bindings at all.
+                logger.info("ConfigMigrator: migrating v2 → v3 — patching missing hotkey defaults")
+                val existingActions = config.hotkeys.map { it.action }.toSet()
+                val missingDefaults = HotkeyBinding.DEFAULTS.filter { it.action !in existingActions }
+                config.copy(
+                    configVersion = 3,
                     hotkeys = config.hotkeys + missingDefaults
                 )
             }

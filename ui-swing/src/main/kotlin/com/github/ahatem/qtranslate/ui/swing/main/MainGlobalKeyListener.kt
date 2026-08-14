@@ -197,7 +197,15 @@ class MainGlobalKeyListener(
             // Nothing to do here; the branch is required for exhaustive when.
             HotkeyAction.FOCUS_INPUT,
             HotkeyAction.FOCUS_OUTPUT,
-            HotkeyAction.FOCUS_EXTRA_OUTPUT -> Unit
+            HotkeyAction.FOCUS_EXTRA_OUTPUT,
+            // Likewise LOCAL-only; MainAppFrame handles these because each needs a dialog,
+            // the clipboard, or the content view.
+            HotkeyAction.COPY_TRANSLATION,
+            HotkeyAction.CLEAR_INPUT,
+            HotkeyAction.SWAP_LANGUAGES,
+            HotkeyAction.OPEN_SETTINGS,
+            HotkeyAction.SHOW_HISTORY,
+            HotkeyAction.TRANSLATE_DOCUMENT -> Unit
         }
     }
 

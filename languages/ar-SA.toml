@@ -277,6 +277,7 @@ action_translate = "ترجمة"
 action_focus_input = "التركيز على لوحة الإدخال"
 action_focus_output = "التركيز على لوحة الإخراج"
 action_focus_extra_output = "التركيز على لوحة الإخراج الإضافي"
+action_copy_translation = "نسخ الترجمة"action_clear_input = "مسح الإدخال"action_swap_languages = "تبديل اللغات"action_open_settings = "فتح الإعدادات"action_show_history = "إظهار السجل"action_translate_document = "ترجمة مستند"
 scope_toggle_hint = "انقر للتبديل بين العالمي والمحلي"
 
 # Default Actions Descriptions

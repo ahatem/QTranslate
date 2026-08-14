@@ -277,6 +277,7 @@ action_translate = "Traduci"
 action_focus_input = "Metti il fuoco sul pannello di input"
 action_focus_output = "Metti il fuoco sul pannello di output"
 action_focus_extra_output = "Metti il fuoco sul pannello di output extra"
+action_copy_translation = "Copia traduzione"action_clear_input = "Cancella input"action_swap_languages = "Scambia lingue"action_open_settings = "Apri impostazioni"action_show_history = "Mostra cronologia"action_translate_document = "Traduci documento"
 scope_toggle_hint = "Fai clic per cambiare da globale a locale"
 
 # Default Actions Descriptions

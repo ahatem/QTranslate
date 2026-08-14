@@ -277,6 +277,7 @@ action_translate = "অনুবাদ করুন"
 action_focus_input = "ইনপুট প্যানেলে ফোকাস করুন"
 action_focus_output = "আউটপুট প্যানেলে ফোকাস করুন"
 action_focus_extra_output = "অতিরিক্ত আউটপুট প্যানেলে ফোকাস করুন"
+action_copy_translation = "অনুবাদ কপি করুন"action_clear_input = "ইনপুট সাফ করুন"action_swap_languages = "ভাষা অদলবদল করুন"action_open_settings = "সেটিংস খুলুন"action_show_history = "ইতিহাস দেখান"action_translate_document = "নথি অনুবাদ করুন"
 scope_toggle_hint = "গ্লোবাল এবং লোকাল এর মধ্যে পরিবর্তন করতে ক্লিক করুন"
 
 # Default Actions Descriptions

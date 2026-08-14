@@ -277,6 +277,7 @@ action_translate = "翻译"
 action_focus_input = "聚焦输入窗格"
 action_focus_output = "聚焦输出窗格"
 action_focus_extra_output = "聚焦额外输出窗格"
+action_copy_translation = "复制译文"action_clear_input = "清除输入"action_swap_languages = "交换语言"action_open_settings = "打开设置"action_show_history = "显示历史"action_translate_document = "翻译文档"
 scope_toggle_hint = "点击在全局和本地范围之间切换"
 
 # Default Actions Descriptions

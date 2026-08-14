@@ -277,6 +277,7 @@ action_translate = "Перевести"
 action_focus_input = "Фокус на панели ввода"
 action_focus_output = "Фокус на панели вывода"
 action_focus_extra_output = "Фокус на дополнительной панели вывода"
+action_copy_translation = "Копировать перевод"action_clear_input = "Очистить ввод"action_swap_languages = "Поменять языки"action_open_settings = "Открыть настройки"action_show_history = "Показать историю"action_translate_document = "Перевести документ"
 scope_toggle_hint = "Нажмите для переключения между Глобально и Локально"
 
 # Default Actions Descriptions

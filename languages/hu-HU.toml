@@ -277,6 +277,7 @@ action_translate = "Fordítás"
 action_focus_input = "Fókusz a beviteli panelre"
 action_focus_output = "Fókusz a kimeneti panelre"
 action_focus_extra_output = "Fókusz a kiegészítő kimeneti panelre"
+action_copy_translation = "Fordítás másolása"action_clear_input = "Bevitel törlése"action_swap_languages = "Nyelvek cseréje"action_open_settings = "Beállítások megnyitása"action_show_history = "Előzmények megjelenítése"action_translate_document = "Dokumentum fordítása"
 scope_toggle_hint = "Kattintson a Globális és a Helyi közötti váltáshoz"
 
 # Default Actions Descriptions

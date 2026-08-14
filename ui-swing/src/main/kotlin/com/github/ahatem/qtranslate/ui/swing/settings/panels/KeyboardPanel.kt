@@ -265,6 +265,12 @@ class KeyboardPanel(
         HotkeyAction.FOCUS_INPUT              -> localizationManager.getString("settings_hotkeys.action_focus_input")
         HotkeyAction.FOCUS_OUTPUT             -> localizationManager.getString("settings_hotkeys.action_focus_output")
         HotkeyAction.FOCUS_EXTRA_OUTPUT       -> localizationManager.getString("settings_hotkeys.action_focus_extra_output")
+        HotkeyAction.COPY_TRANSLATION         -> localizationManager.getString("settings_hotkeys.action_copy_translation")
+        HotkeyAction.CLEAR_INPUT              -> localizationManager.getString("settings_hotkeys.action_clear_input")
+        HotkeyAction.SWAP_LANGUAGES           -> localizationManager.getString("settings_hotkeys.action_swap_languages")
+        HotkeyAction.OPEN_SETTINGS            -> localizationManager.getString("settings_hotkeys.action_open_settings")
+        HotkeyAction.SHOW_HISTORY             -> localizationManager.getString("settings_hotkeys.action_show_history")
+        HotkeyAction.TRANSLATE_DOCUMENT       -> localizationManager.getString("settings_hotkeys.action_translate_document")
     }
 
     private fun scopeLabel(scope: HotkeyScope): String = when (scope) {
@@ -495,6 +501,12 @@ object HotkeyRecorderDialog {
             HotkeyAction.FOCUS_INPUT              -> localizer.getString("settings_hotkeys.action_focus_input")
             HotkeyAction.FOCUS_OUTPUT             -> localizer.getString("settings_hotkeys.action_focus_output")
             HotkeyAction.FOCUS_EXTRA_OUTPUT       -> localizer.getString("settings_hotkeys.action_focus_extra_output")
+            HotkeyAction.COPY_TRANSLATION         -> localizer.getString("settings_hotkeys.action_copy_translation")
+            HotkeyAction.CLEAR_INPUT              -> localizer.getString("settings_hotkeys.action_clear_input")
+            HotkeyAction.SWAP_LANGUAGES           -> localizer.getString("settings_hotkeys.action_swap_languages")
+            HotkeyAction.OPEN_SETTINGS            -> localizer.getString("settings_hotkeys.action_open_settings")
+            HotkeyAction.SHOW_HISTORY             -> localizer.getString("settings_hotkeys.action_show_history")
+            HotkeyAction.TRANSLATE_DOCUMENT       -> localizer.getString("settings_hotkeys.action_translate_document")
         }
 
         // ── colours ──────────────────────────────────────────────────────────

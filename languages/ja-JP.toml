@@ -277,6 +277,7 @@ action_translate = "翻訳"
 action_focus_input = "入力ペインにフォーカス"
 action_focus_output = "出力ペインにフォーカス"
 action_focus_extra_output = "追加出力ペインにフォーカス"
+action_copy_translation = "翻訳をコピー"action_clear_input = "入力をクリア"action_swap_languages = "言語を入れ替え"action_open_settings = "設定を開く"action_show_history = "履歴を表示"action_translate_document = "ドキュメントを翻訳"
 scope_toggle_hint = "クリックしてグローバルとローカルを切り替え"
 
 # Default Actions Descriptions
