@@ -63,6 +63,16 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 <sub><b>Settings — Services &amp; Presets</b> — configure engines, presets, and API keys</sub>
 </td>
 </tr>
+<tr>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-side-by-side.png" alt="Side-by-side layout" width="340"><br>
+<sub><b>Side-by-side layout</b> — source and translation in parallel columns</sub>
+</td>
+<td align="center" width="50%">
+<img src="docs/images/screenshot-document.png" alt="Document translation" width="340"><br>
+<sub><b>Document translation</b> — DOCX, PDF, TXT, SRT and VTT, structure preserved</sub>
+</td>
+</tr>
 </table>
 </div>
 
