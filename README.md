@@ -12,7 +12,7 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
 [![Made with Kotlin](https://img.shields.io/badge/Kotlin-2.x-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 
-[**Download**](#-installation) · [**Plugin Guide**](wiki/Creating-a-Plugin.md) · [**Contributing**](CONTRIBUTING.md) · [**Wiki**](wiki/Home.md)
+[**Download**](#installation) · [**Plugin Guide**](wiki/Creating-a-Plugin.md) · [**Build from source**](wiki/Building-from-Source.md) · [**Contributing**](CONTRIBUTING.md) · [**Wiki**](wiki/Home.md)
 
 <br>
 
@@ -39,7 +39,7 @@ Select text anywhere → press `Ctrl+Q` → translation appears instantly. That'
 
 <br>
 
-For longer work: open the main window, type or paste, translate. Switch engines in one click. Run OCR on a screenshot. Listen to pronunciation. Check spelling. Browse history. All from the keyboard, all without opening a browser.
+For longer work: open the main window, type or paste, translate. Switch engines in one click. Translate a document while preserving its structure. Run OCR on a screenshot. Listen to pronunciation. Check spelling. Browse history. All from the keyboard, all without opening a browser.
 
 <div align="center">
 <table>
@@ -82,6 +82,7 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 | **Rewrite** | Rewrite in a different style: Formal, Casual, Concise, Detailed, or Simplified |
 | **Translation history** | Full undo/redo through every past translation |
 | **Translation rules** | Auto-correct source text before translating — fix common mistakes, expand abbreviations, normalize input |
+| **Document translation** | Translate DOCX, PDF, TXT, SRT, and VTT files with progress and cancellation; DOCX structure and subtitle timing are preserved |
 
 ### Input
 
@@ -98,10 +99,14 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 | | |
 |---|---|
 | **Plugin system** | Install `.jar` plugins at runtime — no restart, no reinstall |
+| **Plugin manager** | Search and filter installed plugins, inspect metadata and errors, configure or toggle services inline, and install by file or drag-and-drop |
 | **Service presets** | Save different engine combinations for different contexts |
 | **Google Services** | Translator, TTS, OCR, Spell Checker, Dictionary — included |
 | **Bing Services** | Translator, TTS, Spell Checker — included |
 | **AI Services** | Translator, Summarizer, Rewriter, Spell Checker, Dictionary, Vision OCR — via [OpenRouter](https://openrouter.ai) (300+ models, one API key) — included. [Setup guide](wiki/AI-Services.md) |
+| **Free translation choices** | Mozhi, MyMemory, DeepL web fallback, Reverso, and Yandex Web work without an API key; unofficial endpoints may change or be rate-limited |
+| **Local translation** | Connect to a local or self-hosted LibreTranslate instance without sending text to a third-party cloud |
+| **Reference services** | Wikipedia and Wiktionary lookups through official MediaWiki APIs |
 
 ### Interface
 
@@ -110,18 +115,34 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 | **Three layouts** | Classic (stacked), Side-by-side, Compact (tabbed) |
 | **Global hotkeys** | Every action is bindable, configurable as global or app-local |
 | **RTL support** | Full layout mirroring for Arabic, Hebrew, Farsi, and more |
-| **30+ themes** | Dark and light via FlatLaf, with animated transitions — drop any IntelliJ `.theme.json` into the `themes/` folder to add more |
+| **QTranslate Light & Dark** | Purpose-built defaults with OS light/dark synchronization, plus 30+ FlatLaf themes and custom IntelliJ `.theme.json` support |
 | **Portable** | Runs from any folder, all data lives next to the JAR |
 
 ---
 
 ## Installation
 
-**Requires Java 11 or later** — [download from Adoptium](https://adoptium.net) if you need it.
+Download the latest build from [**GitHub Releases**](https://github.com/ahatem/QTranslate/releases/latest).
 
-1. Download `QTranslate-<version>.zip` from [**Releases**](https://github.com/ahatem/QTranslate/releases/latest)
-2. Unzip anywhere
-3. Run `QTranslate.jar`
+### Windows (recommended)
+
+1. Download `QTranslate-<version>-windows-x64.zip`
+2. Extract the archive to a writable folder
+3. Run `QTranslate.exe`
+
+The Windows package includes a trimmed Java runtime. No separate Java installation is required.
+
+### Portable JAR builds
+
+Portable builds require **Java 11 or later**. [Temurin](https://adoptium.net) is recommended.
+
+| Download | Includes | Best for |
+|----------|----------|----------|
+| `QTranslate-Minimal-<version>.zip` | App, Google, Bing, and Mozhi | Most users; smaller download with useful defaults |
+| `QTranslate-Full-<version>.zip` | App and every bundled plugin | Trying every included service |
+| `QTranslate-App-<version>.jar` | App only, no plugins | Custom installations and plugin development |
+
+Extract a ZIP and run `QTranslate.jar`, or launch the app-only artifact with `java -jar QTranslate-App-<version>.jar`.
 
 ```
 QTranslate/
@@ -129,7 +150,8 @@ QTranslate/
   ├── plugins/
   │     ├── google-services-plugin.jar
   │     ├── bing-services-plugin.jar
-  │     └── ai-services-plugin.jar
+  │     ├── mozhi-services-plugin.jar
+  │     └── ...
   ├── themes/
   │     └── kokedera.theme.json       ← community theme included; drop more .theme.json files here
   └── languages/
@@ -139,13 +161,15 @@ QTranslate/
         └── ...
 ```
 
-Google, Bing, and AI plugins are included. Add your API keys in **Settings → Plugins → [plugin] → Configure**.
+The Full build currently includes Google, Bing, AI Services, DeepL, Mozhi, MyMemory, LibreTranslate Local, Reverso, Yandex Web, and Wikimedia Reference. Configure a service directly from the service selector or from **Settings → Plugins**.
 
 > **Getting "This application requires a Java Runtime Environment"?**
 > Java isn't installed or `JAVA_HOME` isn't set. This video covers the full process:
 > **▶ [How to Install Java JDK and Set JAVA_HOME](https://youtu.be/VTzzmqNwGzM)** *(first 7 minutes)*
 
 **Build from source** → [Building from Source](wiki/Building-from-Source.md)
+
+**Preparing a release** → [Release Guide](wiki/Releasing.md)
 
 ---
 
@@ -164,18 +188,15 @@ Open **Settings** (gear icon) to configure API keys, themes, hotkeys, and servic
 
 ## Plugins
 
-**Installing a plugin:** Settings → Plugins → Install Plugin → select `.jar` → Enable → Configure → assign in Services & Presets
+**Installing a plugin:** Settings → Plugins → Install Plugin, or drop a plugin JAR onto the plugin panel. Review its details, enable it, configure it, then assign its services under Services & Presets.
 
 **Full guide** → [Installing Plugins](wiki/Installing-Plugins.md)
 
 ### Community plugins
 
-> **Built a plugin?** Publish it on GitHub with the `qtranslate-plugin` topic and a `qtranslate-plugin.json` in your repo — it will appear automatically in QTranslate's built-in marketplace.
-> → [Plugin publishing guide](wiki/Creating-a-Plugin.md#publishing-on-github)
+The in-app catalog and independent plugin updater are planned but are not available yet. Until then, install only JARs from publishers you trust and verify any checksum they provide.
 
-| Plugin | Services | Author |
-|--------|----------|--------|
-| *(be the first — it's 50 lines of Kotlin)* | | |
+> **Built a plugin?** Publish its source, release JAR, compatibility range, and checksum. See the [plugin publishing guide](wiki/Creating-a-Plugin.md#publishing-on-github).
 
 ---
 
@@ -194,7 +215,7 @@ class MyPlugin : Plugin<PluginSettings.None> {
 }
 ```
 
-The bundled Google, Bing, and AI plugins are fully open source in `plugins/` — they're the best real-world reference for auth, language mapping, error handling, and settings.
+All bundled plugins are open source under `plugins/`. They provide real-world examples of authentication, no-key services, local endpoints, throttling, language mapping, batch translation, dictionaries, and structured errors.
 
 **Full guide** → [Creating a Plugin](wiki/Creating-a-Plugin.md)
 
@@ -221,7 +242,7 @@ Clean Architecture + MVI. Nothing leaks between layers:
 :core         ← business logic, use cases, MVI stores
 :ui-swing     ← Swing UI, Renderable<State> components
 :app          ← composition root
-:plugins/*    ← Google, Bing, AI, community plugins
+:plugins/*    ← independently packaged service implementations
 :plugins/common ← shared HTTP client, JSON, language utilities
 ```
 

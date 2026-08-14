@@ -442,7 +442,7 @@ import com.github.michaelbull.result.Result  // for the return type
 
 ## Publishing on GitHub
 
-Once your plugin works, publishing it on GitHub makes it discoverable in QTranslate's built-in marketplace.
+Once your plugin works, publish its source and release JAR on GitHub so users can inspect and install it. QTranslate's signed in-app catalog and independent updater are planned but are not available yet.
 
 ### Step 1 — Create a public GitHub repository
 
@@ -454,11 +454,11 @@ github.com/your-username/qtranslate-my-plugin
 
 ### Step 2 — Add the `qtranslate-plugin` topic
 
-In your repo's **Settings → Topics**, add `qtranslate-plugin`. This is what the QTranslate marketplace uses to discover plugins — without this tag, your plugin won't appear.
+In your repo's **Settings → Topics**, add `qtranslate-plugin`. This makes plugins easier to find on GitHub and prepares the repository for future catalog discovery.
 
 ### Step 3 — Add `qtranslate-plugin.json` to your repo root
 
-This file provides the metadata shown in the marketplace:
+This forward-compatible file records metadata that a future catalog can consume:
 
 ```json
 {
@@ -466,7 +466,7 @@ This file provides the metadata shown in the marketplace:
   "name":          "My Plugin",
   "version":       "1.0.0",
   "author":        "your-github-username",
-  "description":   "One-sentence description shown in the marketplace.",
+  "description":   "One-sentence plugin description.",
   "serviceTypes":  ["TRANSLATOR"],
   "minApiVersion": "1.0.0",
   "sha256":        "abc123...",
@@ -477,12 +477,12 @@ This file provides the metadata shown in the marketplace:
 **Notes:**
 - `id` must match the `id` in your `Plugin` class and `plugin.json` exactly
 - `serviceTypes`: one or more of `TRANSLATOR` `TTS` `OCR` `SPELL_CHECKER` `DICTIONARY` `SUMMARIZER` `REWRITER`
-- `sha256`: optional but strongly recommended — the SHA-256 hash of the release JAR. Users see a warning if it is absent. Generate it with `sha256sum my-plugin.jar` (Linux/macOS) or `certutil -hashfile my-plugin.jar SHA256` (Windows).
-- `icon`: path to an SVG inside your repo (not your JAR). Used as the marketplace thumbnail.
+- `sha256`: strongly recommended — the SHA-256 hash of the release JAR. Generate it with `sha256sum my-plugin.jar` (Linux/macOS) or `Get-FileHash my-plugin.jar -Algorithm SHA256` (PowerShell).
+- `icon`: path to an SVG inside your repo (not your JAR). Reserved for catalog presentation.
 
 ### Step 4 — Create a GitHub Release with the JAR as an asset
 
-The marketplace downloads the **first `.jar` file** found in your latest release's assets. Name it `{plugin-id}.jar` so the filename is predictable.
+Attach exactly one installable plugin JAR to each release and name it `{plugin-id}-{version}.jar`. Document its minimum QTranslate API version and SHA-256 checksum in the release notes.
 
 Here is a full `release.yml` GitHub Actions workflow you can paste into `.github/workflows/release.yml`:
 
@@ -536,7 +536,7 @@ jobs:
           files: ${{ steps.sha256.outputs.jar }}
 ```
 
-> **Tip:** After each release, copy the computed `sha256` value into `qtranslate-plugin.json` and commit it so the marketplace can verify the download.
+> **Tip:** After each release, copy the computed `sha256` value into `qtranslate-plugin.json` and commit it. Until the catalog ships, users can compare that value manually before installing the JAR.
 
 ### Step 5 — Add README badges (optional)
 
@@ -548,4 +548,4 @@ jobs:
 
 ---
 
-Your plugin will appear in QTranslate's marketplace automatically once it has the `qtranslate-plugin` topic. Users can browse, install, and update it without leaving the app.
+Until the catalog ships, direct users to download the JAR from GitHub Releases, verify its checksum, and install it through **Settings → Plugins → Install Plugin**. Do not claim automatic discovery or updates yet.

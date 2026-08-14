@@ -45,6 +45,8 @@ This compiles `:api`, `:core`, `:ui-swing`, `:app`, and the bundled plugins. On 
 
 ## Run the application
 
+For ordinary development with the app module only:
+
 ```bash
 ./gradlew :app:run -DappData="C:/Users/you/QTranslateData"
 ```
@@ -56,19 +58,35 @@ On macOS/Linux:
 ./gradlew :app:run -DappData="/home/you/QTranslateData"
 ```
 
+For release-style manual QA with every bundled plugin staged and loaded:
+
+```bash
+# macOS / Linux
+./gradlew runWithPlugins
+
+# Windows
+gradlew.bat runWithPlugins
+```
+
+The QA launcher uses an isolated directory under `app/build/manual-qa/`, prints plugin load failures to the console, and leaves your normal QTranslate settings untouched.
+
 ---
 
-## Build a fat JAR
+## Build release artifacts
 
 ```bash
-./gradlew :app:jar
+./gradlew assembleReleaseVariants -PreleaseVersion=1.3.0
 ```
 
-The JAR is written to `app/build/libs/`. Run it with:
+Artifacts are written to `build/release/`:
 
-```bash
-java -jar app/build/libs/app.jar
-```
+- `QTranslate-App-1.3.0.jar` — app only
+- `QTranslate-Minimal-1.3.0.zip` — app with Google, Bing, and Mozhi
+- `QTranslate-Full-1.3.0.zip` — app with every bundled plugin
+- `plugins/*.jar` — independently versioned plugin artifacts
+- `release-metadata.json`, `SIZE_REPORT.md`, and `SHA256SUMS.txt`
+
+Replace `1.3.0` with the version you are testing. See [Releasing](Releasing.md) for the complete verification and publishing process.
 
 ---
 
@@ -78,11 +96,10 @@ Each plugin is a separate Gradle subproject under `plugins/`:
 
 ```bash
 ./gradlew :plugins:google-services:shadowJar
-./gradlew :plugins:bing-services:shadowJar
-./gradlew :plugins:ai-services:shadowJar
+./gradlew assembleIndividualPlugins -PreleaseVersion=1.3.0
 ```
 
-The plugin JARs are written to `plugins/<name>/build/libs/`. Install them through the QTranslate UI as described in [Installing Plugins](Installing-Plugins.md).
+Single-plugin JARs are written to `plugins/<name>/build/libs/`. The aggregate task writes normalized, versioned JARs to `build/release/plugins/`. Install them through the QTranslate UI as described in [Installing Plugins](Installing-Plugins.md).
 
 ---
 
@@ -99,6 +116,13 @@ qtranslate/
     google-services/
     bing-services/
     ai-services/ ← OpenRouter-based translator, summarizer, rewriter, OCR, dictionary
+    deepl-services/
+    mozhi-services/
+    mymemory-services/
+    libretranslate-services/
+    reverso-services/
+    yandex-web-services/
+    wikimedia-reference/
   buildSrc/      ← shared Gradle convention plugins
 ```
 
@@ -111,8 +135,8 @@ qtranslate/
 3. Create a Run Configuration:
    - Type: **Gradle**
    - Gradle project: `qtranslate`
-   - Tasks: `:app:run`
-   - VM options: `-DappData=C:/path/to/your/test/data`
+   - Tasks: `runWithPlugins` for full manual QA, or `:app:run` for app-only development
+   - VM options for `:app:run`: `-DappData=C:/path/to/your/test/data`
 
 ---
 

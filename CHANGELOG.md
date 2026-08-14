@@ -9,6 +9,35 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **QTranslate Light and QTranslate Dark** — purpose-built default themes with comfortable neutral surfaces, teal accents, OS light/dark synchronization, and tested WCAG contrast
+- **Format-preserving document translation** for DOCX, PDF, TXT, SRT, and VTT, including progress, cancellation, DOCX structure preservation, subtitle timing preservation, and best-effort PDF appearance mode
+- **Modern plugin manager** — searchable and filterable installed-plugin list, inline enable/configure actions, drag-and-drop installation, detailed metadata and service lists, failure states, and complete plugin/service icon coverage
+- **Configurable service selectors** — classic and enhanced layouts, icons/text display modes, overflow handling, automatic scrolling, and quick access to plugin configuration
+- **Selection-triggered translation** — optionally translate newly selected text without invoking the Quick Translate shortcut manually
+- **New translation plugins** — DeepL, Mozhi, MyMemory, LibreTranslate Local, Reverso, and Yandex Web
+- **Wikimedia Reference plugin** with separate Wikipedia and Wiktionary dictionary services using official MediaWiki APIs
+- **Batch translation and bilingual dictionary plugin API capabilities** for efficient document translation and contextual dictionary results
+- **Release variants** — app-only JAR, minimal ZIP, full ZIP, independently versioned plugin JARs, machine-readable metadata, SHA-256 checksums, and size reports
+- **Portable Windows x64 package** with `QTranslate.exe` and a bundled trimmed Java runtime
+- `runWithPlugins` manual QA launcher and `smokeTestAllPlugins` automated plugin lifecycle/service check
+
+### Changed
+- Minimal distribution now bundles Google, Bing, and Mozhi; Full bundles every included plugin
+- DeepL automatically uses the official API when a key is configured and otherwise uses its rate-limited free web fallback
+- Mozhi settings provide known public instances, endpoint tests, and automatic fastest-instance selection
+- OpenRouter defaults and setup guidance are clearer for first-time AI Services users
+- Release archives are size-budgeted to keep portable downloads practical
+
+### Fixed
+- Selected-text capture is more reliable across desktop applications
+- Global hotkeys support non-US keyboard layouts
+- Google translation supports Croatian and Farsi
+- Quick Translate closes when clicking outside the popup
+- Service types can be disabled independently
+- Java2D selects the appropriate rendering pipeline instead of forcing one globally
+- A malformed plugin is represented as a failure in the plugin manager without preventing app startup
+
 ---
 
 ## [1.2.1] — 2026-05-11
@@ -122,7 +151,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-[Unreleased]: https://github.com/ahatem/QTranslate/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/ahatem/QTranslate/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/ahatem/QTranslate/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/ahatem/QTranslate/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ahatem/QTranslate/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/ahatem/QTranslate/releases/tag/v1.0.0
