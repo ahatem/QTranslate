@@ -147,7 +147,9 @@ class MainAppFrame(
                 )
                 mainStore.dispatch(MainIntent.Translate())
             },
-            onListen = { mainStore.dispatch(MainIntent.ListenToText(TextSource.Output)) },
+            // Reads the source text, not the translation — the popup is most often used
+            // to check how the original word is pronounced.
+            onListen = { mainStore.dispatch(MainIntent.ListenToText(TextSource.Input)) },
             onCopy = { mainStore.state.value.translatedText.copyToClipboard() },
             onSavePosition = { pos ->
                 settingsStore.dispatch(
@@ -189,6 +191,14 @@ class MainAppFrame(
         onNotificationsClicked = { notificationPopover.show(mainContentView.statusBar) },
         onConfigureService = { serviceId -> openPluginConfiguration(serviceId) }
     )
+
+    private val selectionTranslateButton = SelectionTranslateButton(
+        this,
+        iconManager,
+        localizer.getString("main_window_language_bar.translate_button")
+    ) { text ->
+        mainStore.dispatch(MainIntent.ShowQuickTranslate(text))
+    }
 
     private fun openPluginConfiguration(serviceId: String) {
         val plugin = pluginManager.plugins.value.find { state -> state.services.any { it.id == serviceId } }
@@ -250,7 +260,15 @@ class MainAppFrame(
                 mainStore.dispatch(MainIntent.ShowQuickDictionary(selectedText, lang))
             }
         },
-        onTranslate = { mainStore.dispatch(MainIntent.Translate()) }
+        onTranslate = { mainStore.dispatch(MainIntent.Translate()) },
+        onSelectionDetected = { text, location ->
+            runOnUi {
+                val enabled = settingsStore.state.value.originalConfiguration.isSelectionIconEnabled
+                // Suppress the button while QTranslate itself is focused — selecting text
+                // inside the app already has the toolbar and hotkeys available.
+                if (enabled && !isActive) selectionTranslateButton.showAt(location, text)
+            }
+        }
     )
 
     private val statusBarController = StatusBarController(
@@ -262,6 +280,9 @@ class MainAppFrame(
     init {
         globalKeyListener.updateBindings(
             settingsStore.state.value.originalConfiguration.hotkeys
+        )
+        globalKeyListener.setSelectionIconEnabled(
+            settingsStore.state.value.originalConfiguration.isSelectionIconEnabled
         )
 
         SwingUtilities.invokeLater {
@@ -461,6 +482,18 @@ class MainAppFrame(
                     withContext(Dispatchers.Swing) {
                         statusBarController.setLoading(loading)
                     }
+                }
+        }
+
+        // Selection translate button — toggling the setting takes effect immediately,
+        // and disabling it hides any button that is currently on screen.
+        appScope.launch(handler) {
+            settingsStore.state
+                .map { it.originalConfiguration.isSelectionIconEnabled }
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    globalKeyListener.setSelectionIconEnabled(enabled)
+                    if (!enabled) withContext(Dispatchers.Swing) { selectionTranslateButton.dismiss() }
                 }
         }
 
@@ -1270,10 +1303,12 @@ class MainAppFrame(
                 globalKeyListener.initialize()
                 val config = settingsStore.state.value.workingConfiguration
                 globalKeyListener.setHotkeysEnabled(config.isGlobalHotkeysEnabled)
+                globalKeyListener.setSelectionIconEnabled(config.isSelectionIconEnabled)
                 registerLocalHotkeys()
             }
 
             override fun windowClosed(e: WindowEvent?) {
+                selectionTranslateButton.dispose()
                 globalKeyListener.shutdown()
                 System.runFinalization()
                 exitProcess(0)

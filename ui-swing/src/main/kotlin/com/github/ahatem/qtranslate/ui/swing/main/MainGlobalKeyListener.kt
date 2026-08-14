@@ -7,10 +7,13 @@ import com.github.kwhat.jnativehook.GlobalScreen
 import com.github.kwhat.jnativehook.NativeHookException
 import com.github.kwhat.jnativehook.keyboard.NativeKeyEvent
 import com.github.kwhat.jnativehook.keyboard.NativeKeyListener
+import com.github.kwhat.jnativehook.mouse.NativeMouseEvent
+import com.github.kwhat.jnativehook.mouse.NativeMouseInputListener
 import com.tulskiy.keymaster.common.Provider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.awt.Point
 import java.awt.Robot
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
@@ -49,17 +52,22 @@ class MainGlobalKeyListener(
     private val onReplaceWithTranslation: (String) -> Unit,
     private val onCycleTargetLanguage: () -> Unit,
     private val onShowDictionary: (String) -> Unit = {},
-    private val onTranslate: () -> Unit = {}
+    private val onTranslate: () -> Unit = {},
+    private val onSelectionDetected: (String, Point) -> Unit = { _, _ -> }
 ) {
 
     private var provider: Provider? = null
     private var nativeHookRegistered = false
     private val sequenceListener = CustomSequenceListener()
+    private val selectionMouseListener = SelectionMouseListener()
     private val clipboardLock = AtomicBoolean(false)
     private val hotkeysEnabled = AtomicBoolean(true)
     // AtomicBoolean.compareAndSet prevents double-initialization if initialize()
     // is called concurrently (e.g. from two rapid lifecycle events).
     private val initialized = AtomicBoolean(false)
+    // Off unless the user opts in — the selection listener observes every mouse
+    // drag system-wide, so it stays inert until explicitly enabled.
+    private val selectionIconEnabled = AtomicBoolean(false)
 
     @Volatile private var bindings: List<HotkeyBinding> = HotkeyBinding.DEFAULTS
 
@@ -94,6 +102,11 @@ class MainGlobalKeyListener(
 
     fun areHotkeysEnabled(): Boolean = hotkeysEnabled.get()
 
+    /** Enables or disables the floating translate button shown after a text selection. */
+    fun setSelectionIconEnabled(enabled: Boolean) {
+        selectionIconEnabled.set(enabled)
+    }
+
     /**
      * Returns bindings with [HotkeyScope.LOCAL] scope that are enabled and have a key.
      * The caller (MainAppFrame) registers these via Swing InputMap.
@@ -109,6 +122,8 @@ class MainGlobalKeyListener(
             provider = null
             if (nativeHookRegistered) {
                 GlobalScreen.removeNativeKeyListener(sequenceListener)
+                GlobalScreen.removeNativeMouseListener(selectionMouseListener)
+                GlobalScreen.removeNativeMouseMotionListener(selectionMouseListener)
                 GlobalScreen.unregisterNativeHook()
                 nativeHookRegistered = false
             }
@@ -202,6 +217,8 @@ class MainGlobalKeyListener(
                 nativeHookRegistered = true
             }
             GlobalScreen.addNativeKeyListener(sequenceListener)
+            GlobalScreen.addNativeMouseListener(selectionMouseListener)
+            GlobalScreen.addNativeMouseMotionListener(selectionMouseListener)
         } catch (ex: NativeHookException) {
             throw Exception("Native hook registration failed", ex)
         }
@@ -234,6 +251,50 @@ class MainGlobalKeyListener(
                 scope.launch { handleSelectedText(onShowApp) }
             }
             lastCtrlTime = now
+        }
+    }
+
+    /**
+     * Detects a drag-to-select gesture in any application and reports the selected
+     * text via [onSelectionDetected] so the caller can offer a floating translate button.
+     *
+     * A click alone is not a selection, so the gesture only counts once the pointer has
+     * travelled [MIN_SELECTION_DRAG_DISTANCE] while the primary button is held. After
+     * release the capture waits [SELECTION_SETTLE_DELAY_MS] so the source application
+     * has finished updating its own selection before Copy is synthesized.
+     */
+    private inner class SelectionMouseListener : NativeMouseInputListener {
+        private var pressedAt: Point? = null
+        private var dragged = false
+
+        override fun nativeMousePressed(event: NativeMouseEvent) {
+            if (!selectionIconEnabled.get() || event.button != NativeMouseEvent.BUTTON1) return
+            pressedAt = event.point
+            dragged = false
+        }
+
+        override fun nativeMouseDragged(event: NativeMouseEvent) {
+            val start = pressedAt ?: return
+            if (start.distance(event.point) >= MIN_SELECTION_DRAG_DISTANCE) dragged = true
+        }
+
+        override fun nativeMouseReleased(event: NativeMouseEvent) {
+            val wasSelectionDrag = selectionIconEnabled.get() && dragged
+            pressedAt = null
+            dragged = false
+            if (!wasSelectionDrag) return
+
+            val pointer = event.point
+            scope.launch {
+                delay(SELECTION_SETTLE_DELAY_MS)
+                handleSelectedText { text ->
+                    // Re-check the flag: the user may have disabled the option while
+                    // the capture was in flight.
+                    if (text.isNotBlank() && selectionIconEnabled.get()) {
+                        onSelectionDetected(text, pointer)
+                    }
+                }
+            }
         }
     }
 
@@ -294,5 +355,13 @@ class MainGlobalKeyListener(
             robot.keyRelease(copyModifier)
             robot.waitForIdle()
         }.onFailure { System.err.println("Copy simulation failed: ${it.message}") }
+    }
+
+    private companion object {
+        /** Pointer travel, in pixels, before a press-and-drag counts as a selection. */
+        const val MIN_SELECTION_DRAG_DISTANCE = 5.0
+
+        /** Grace period after mouse release so the source app can settle its selection. */
+        const val SELECTION_SETTLE_DELAY_MS = 80L
     }
 }

@@ -22,6 +22,7 @@ class GeneralPanel(
     private lateinit var updatesCheckbox: JCheckBox
     private lateinit var historyCheckbox: JCheckBox
     private lateinit var clearCheckbox:   JCheckBox
+    private lateinit var selectionIconCheckbox: JCheckBox
 
     /**
      * Picker for the default target language restored on every app startup.
@@ -61,6 +62,16 @@ class GeneralPanel(
             onChange = { enabled -> applyDraft(store) { it.copy(autoCheckForUpdates = enabled) } }
         )
 
+        // ── Selection
+        addSeparator(localizationManager.getString("settings_general.selection_group"))
+
+        selectionIconCheckbox = addCheckbox(
+            text = localizationManager.getString("settings_general.selection_icon"),
+            selected = false,
+            onChange = { enabled -> applyDraft(store) { it.copy(isSelectionIconEnabled = enabled) } }
+        )
+        addHint(localizationManager.getString("settings_general.selection_icon_hint"))
+
         // ── History
         addSeparator(localizationManager.getString("settings_general.history_group"))
 
@@ -99,6 +110,7 @@ class GeneralPanel(
 
             launchCheckbox.isSelected  = c.launchOnSystemStartup
             updatesCheckbox.isSelected = c.autoCheckForUpdates
+            selectionIconCheckbox.isSelected = c.isSelectionIconEnabled
             historyCheckbox.isSelected = c.isHistoryEnabled
             clearCheckbox.isSelected   = c.clearHistoryOnExit
             clearCheckbox.isEnabled    = c.isHistoryEnabled

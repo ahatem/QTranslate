@@ -14,7 +14,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - **Format-preserving document translation** for DOCX, PDF, TXT, SRT, and VTT, including progress, cancellation, DOCX structure preservation, subtitle timing preservation, and best-effort PDF appearance mode
 - **Modern plugin manager** — searchable and filterable installed-plugin list, inline enable/configure actions, drag-and-drop installation, detailed metadata and service lists, failure states, and complete plugin/service icon coverage
 - **Configurable service selectors** — classic and enhanced layouts, icons/text display modes, overflow handling, automatic scrolling, and quick access to plugin configuration
-- **Selection-triggered translation** — optionally translate newly selected text without invoking the Quick Translate shortcut manually
+- **Selection translate button** — optional floating button that appears next to text selected by dragging in any application; click it to translate without reaching for a hotkey (off by default, enable under Settings → General → Text Selection)
 - **New translation plugins** — DeepL, Mozhi, MyMemory, LibreTranslate Local, Reverso, and Yandex Web
 - **Wikimedia Reference plugin** with separate Wikipedia and Wiktionary dictionary services using official MediaWiki APIs
 - **Batch translation and bilingual dictionary plugin API capabilities** for efficient document translation and contextual dictionary results
@@ -31,6 +31,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - Selected-text capture is more reliable across desktop applications
+- Quick Translate now reads the original text aloud instead of the translation, so Listen can be used to check pronunciation of the word you selected
 - Global hotkeys support non-US keyboard layouts
 - Google translation supports Croatian and Farsi
 - Quick Translate closes when clicking outside the popup
