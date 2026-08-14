@@ -34,20 +34,40 @@ class QTranslateThemeTest {
         assertContrast("#1E1D1A", "#F6F2E9", 7.0)   // body text on canvas
         assertContrast("#1E1D1A", "#FBF8F1", 7.0)   // body text on editor surface
         assertContrast("#5F5B4C", "#F6F2E9", 4.5)   // muted text
-        assertContrast("#8A8574", "#F6F2E9", 3.0)   // disabled text
+        assertContrast("#807B6A", "#F6F2E9", 3.0)   // disabled text
         assertContrast("#1E1D1A", "#B8943A", 4.5)   // label on the gold primary button
         assertContrast("#8A6A1E", "#F6F2E9", 4.5)   // bronze as link and accent text
         assertContrast("#1E1D1A", "#EADFBF", 7.0)   // text over a selection
 
         // QTranslate Dark — brand gold on near-black
         assertContrast("#BCAC8F", "#0C0C0C", 7.0)   // body text on canvas
-        assertContrast("#BCAC8F", "#131312", 7.0)   // body text on editor surface
-        assertContrast("#7F7B66", "#0C0C0C", 4.5)   // muted text
-        assertContrast("#6B6857", "#0C0C0C", 3.0)   // disabled text
+        assertContrast("#BCAC8F", "#181714", 7.0)   // body text on editor surface
+        assertContrast("#8D8975", "#0C0C0C", 4.5)   // muted text
+        assertContrast("#726F5C", "#0C0C0C", 3.0)   // disabled text
         assertContrast("#14120A", "#B8943A", 4.5)   // label on the gold primary button
         assertContrast("#B8943A", "#0C0C0C", 4.5)   // gold as accent text
         assertContrast("#D6B063", "#0C0C0C", 4.5)   // link
-        assertContrast("#BCAC8F", "#3A2F14", 4.5)   // text over a selection
+        assertContrast("#BCAC8F", "#4A3A18", 4.5)   // text over a selection
+    }
+
+    /**
+     * Secondary text is drawn on raised surfaces too — menu accelerators, table headers,
+     * popups — where there is less contrast available than on the canvas. Checking only
+     * against the canvas hides failures on exactly the surfaces where muted text is
+     * hardest to read.
+     */
+    @Test
+    fun `muted and disabled text stay readable on every surface`() {
+        listOf("#0C0C0C", "#181714", "#201F1A").forEach { surface ->
+            assertContrast("#8D8975", surface, 4.5)
+            assertContrast("#726F5C", surface, 3.0)
+            assertContrast("#BCAC8F", surface, 7.0)
+        }
+        listOf("#F6F2E9", "#FBF8F1", "#EAE4D6").forEach { surface ->
+            assertContrast("#5F5B4C", surface, 4.5)
+            assertContrast("#807B6A", surface, 3.0)
+            assertContrast("#1E1D1A", surface, 7.0)
+        }
     }
 
     @Test
