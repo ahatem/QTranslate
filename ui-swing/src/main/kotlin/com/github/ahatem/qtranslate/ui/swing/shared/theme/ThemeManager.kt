@@ -17,6 +17,8 @@ class ThemeManager(
     // @formatter:off
     private val builtInThemes: List<Theme> = listOf(
         // ── Custom bundled themes ─────────────────────────────────────────────
+        createCustomTheme("qtranslate_light",    "QTranslate Light",     false, "themes/qtranslate-light.theme.json"),
+        createCustomTheme("qtranslate_dark",     "QTranslate Dark",      true,  "themes/qtranslate-dark.theme.json"),
         createCustomTheme("resharper_dark",      "ReSharper Dark",       true,  "themes/ReSharperDark.theme.json"),
         createCustomTheme("resharper_light",     "ReSharper Light",      false, "themes/ReSharperLight.theme.json"),
         createCustomTheme("xcode_dark",          "Xcode Dark",           true,  "themes/XcodeDark.theme.json"),
@@ -61,9 +63,11 @@ class ThemeManager(
 
     private var currentTheme: Theme? = null
 
-    /** Emergency fallback IDs — used only when a configured theme ID cannot be found. */
-    val defaultDarkThemeId  = "builtin:darcula"
-    val defaultLightThemeId = "builtin:intellij"
+    val defaultDarkThemeId  = "custom:qtranslate_dark"
+    val defaultLightThemeId = "custom:qtranslate_light"
+
+    private val emergencyDarkThemeId  = "builtin:darcula"
+    private val emergencyLightThemeId = "builtin:intellij"
 
     val systemDefaultThemeId: String
         get() = if (isSystemInDarkMode()) platformDefaultDarkThemeId() else platformDefaultLightThemeId()
@@ -229,7 +233,20 @@ class ThemeManager(
             FlatLaf.updateUI()
             currentTheme = fallback
         } catch (e: Exception) {
-            logger.error("CRITICAL: default fallback also failed", e)
+            logger.error("Default theme fallback failed", e)
+            fallbackToCoreTheme(isDark)
+        }
+    }
+
+    private fun fallbackToCoreTheme(isDark: Boolean) {
+        val fallbackId = if (isDark) emergencyDarkThemeId else emergencyLightThemeId
+        try {
+            val fallback = findThemeById(fallbackId)
+            fallback.apply()
+            FlatLaf.updateUI()
+            currentTheme = fallback
+        } catch (e: Exception) {
+            logger.error("CRITICAL: core theme fallback also failed", e)
             FlatDarkLaf.setup()
             FlatLaf.updateUI()
         }
@@ -255,27 +272,15 @@ class ThemeManager(
 
         /**
          * Platform-aware dark theme default:
-         * - macOS   → `mac_dark`  (native macOS look)
-         * - Linux   → `resharper_dark` (clean, professional)
-         * - Windows → `flat_dark`  (minimal, neutral)
+         * All platforms use the branded QTranslate dark theme by default.
          */
-        fun platformDefaultDarkThemeId(): String = when {
-            isMacOs()   -> "builtin:mac_dark"
-            isLinuxOs() -> "custom:resharper_dark"
-            else        -> "builtin:flat_dark"
-        }
+        fun platformDefaultDarkThemeId(): String = "custom:qtranslate_dark"
 
         /**
          * Platform-aware light theme default:
-         * - macOS   → `mac_light`
-         * - Linux   → `resharper_light`
-         * - Windows → `flat_light`
+         * All platforms use the branded QTranslate light theme by default.
          */
-        fun platformDefaultLightThemeId(): String = when {
-            isMacOs()   -> "builtin:mac_light"
-            isLinuxOs() -> "custom:resharper_light"
-            else        -> "builtin:flat_light"
-        }
+        fun platformDefaultLightThemeId(): String = "custom:qtranslate_light"
 
         fun isSystemInDarkMode(): Boolean = try {
             when {
