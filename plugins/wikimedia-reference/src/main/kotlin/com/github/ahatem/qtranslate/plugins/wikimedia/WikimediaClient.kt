@@ -6,6 +6,7 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.fold
+import com.github.michaelbull.result.map
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -55,6 +56,47 @@ internal class WikimediaClient(
         )
     }
 
+    /**
+     * Searches Commons for files matching [query].
+     *
+     * Commons is one wiki rather than one per language, so this takes no language: the search
+     * index covers every language's captions at once. [fileTypes] is a Commons search keyword
+     * (`bitmap`, `drawing`, or both joined by `|`) which keeps audio, video and PDFs out of a
+     * grid of thumbnails.
+     */
+    suspend fun searchImages(
+        query: String,
+        limit: Int,
+        fileTypes: String,
+        thumbnailWidth: Int
+    ): Result<List<CommonsPage>, ServiceError> = request {
+        httpClient.get(
+            url = "https://commons.wikimedia.org/w/api.php",
+            headers = HEADERS,
+            queryParams = mapOf(
+                "action" to "query",
+                "format" to "json",
+                "formatversion" to 2,
+                "generator" to "search",
+                "gsrsearch" to "$query filetype:$fileTypes",
+                // Namespace 6 is File:. Without it the search returns article pages, which have
+                // no image to show.
+                "gsrnamespace" to 6,
+                "gsrlimit" to limit,
+                "prop" to "imageinfo",
+                "iiprop" to "url|extmetadata",
+                // Asking for a thumbnail rather than scaling the original: some Commons files are
+                // tens of megabytes, and a grid of them would be unusable.
+                "iiurlwidth" to thumbnailWidth
+            )
+        ).fold(
+            success = { body ->
+                parse<CommonsImageResponse>(body).map { it.query?.pages.orEmpty() }
+            },
+            failure = { Err(mapError(COMMONS, it)) }
+        )
+    }
+
     private suspend fun <T> request(block: suspend () -> Result<T, ServiceError>): Result<T, ServiceError> =
         requestMutex.withLock {
             val remaining = minimumIntervalMillis - (clockMillis() - lastRequestStartedAt)
@@ -72,7 +114,11 @@ internal class WikimediaClient(
         )
 
     private fun mapError(project: String, error: ServiceError): ServiceError {
-        val serviceName = if (project == "wikipedia") "Wikipedia" else "Wiktionary"
+        val serviceName = when (project) {
+            "wikipedia" -> "Wikipedia"
+            COMMONS -> "Wikimedia Commons"
+            else -> "Wiktionary"
+        }
         return when (error) {
             is ServiceError.RateLimitError -> ServiceError.RateLimitError(
                 "$serviceName is rate-limiting requests. Please wait and try again.",
@@ -95,6 +141,8 @@ internal class WikimediaClient(
         URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20")
 
     private companion object {
+        const val COMMONS = "commons"
+
         val HEADERS = mapOf(
             "Accept" to "application/json",
             "User-Agent" to "QTranslate/1.0 (https://github.com/ahatem/QTranslate)"
