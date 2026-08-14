@@ -88,8 +88,7 @@ and Gradle fails with `Task '.3.0' not found`:
 Artifacts are written to `build/release/`:
 
 - `QTranslate-App-1.3.0.jar` — app only
-- `QTranslate-Minimal-1.3.0.zip` — app with Google, Bing, and Mozhi
-- `QTranslate-Full-1.3.0.zip` — app with every bundled plugin
+- `QTranslate-1.3.0.zip` — portable build with every bundled plugin
 - `plugins/*.jar` — independently versioned plugin artifacts
 - `release-metadata.json`, `SIZE_REPORT.md`, and `SHA256SUMS.txt`
 

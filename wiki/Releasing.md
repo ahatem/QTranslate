@@ -59,18 +59,16 @@ On Windows PowerShell:
 
 ```powershell
 Get-Content build/release/SHA256SUMS.txt
-Get-FileHash build/release/QTranslate-Full-1.3.0.zip -Algorithm SHA256
-Get-FileHash build/release/QTranslate-Minimal-1.3.0.zip -Algorithm SHA256
+Get-FileHash build/release/QTranslate-1.3.0.zip -Algorithm SHA256
 Get-FileHash build/release/QTranslate-App-1.3.0.jar -Algorithm SHA256
 ```
 
-Compare each hash with `SHA256SUMS.txt`. Open the Minimal and Full ZIPs and confirm they contain:
+Compare each hash with `SHA256SUMS.txt`. Open the portable ZIP and confirm it contains:
 
 - `QTranslate/QTranslate.jar`
 - `QTranslate/languages/`
 - `QTranslate/themes/`
-- Minimal: Google, Bing, and Mozhi plugin JARs only
-- Full: every bundled plugin JAR
+- Every bundled plugin JAR under `QTranslate/plugins/`
 
 Confirm each JAR under `build/release/plugins/` has a matching entry in `release-metadata.json` with the expected plugin ID, version, and minimum API version.
 
@@ -78,7 +76,7 @@ Confirm each JAR under `build/release/plugins/` has a matching entry in `release
 
 Use fresh temporary folders so existing settings do not hide first-run problems.
 
-1. **Java 11 portable test:** run both Minimal and Full using a Java 11 runtime and `java -jar QTranslate.jar`.
+1. **Java 11 portable test:** run the portable ZIP using a Java 11 runtime and `java -jar QTranslate.jar`.
 2. **Current Java portable test:** repeat with Java 17 or 21.
 3. **App-only test:** run `QTranslate-App-1.3.0.jar`, confirm the empty plugin state is clear, then install one individual plugin JAR from `build/release/plugins/`.
 4. **Windows package test:** download the Windows artifact produced by a prerelease tag or workflow run, extract it on a machine without relying on `JAVA_HOME`, and run `QTranslate.exe`.
@@ -138,7 +136,7 @@ git push origin v1.3.0
 The tag starts `.github/workflows/release.yml`. It builds:
 
 - App-only portable JAR
-- Minimal and Full portable ZIPs
+- Portable ZIP with every bundled plugin
 - Individual versioned plugin JARs
 - Windows x64 app image with bundled runtime
 - Release metadata, size report, and SHA-256 checksums

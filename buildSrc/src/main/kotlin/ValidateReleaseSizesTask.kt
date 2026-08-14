@@ -13,19 +13,13 @@ abstract class ValidateReleaseSizesTask : DefaultTask() {
     abstract val appArtifact: RegularFileProperty
 
     @get:InputFile
-    abstract val minimalArtifact: RegularFileProperty
-
-    @get:InputFile
-    abstract val fullArtifact: RegularFileProperty
+    abstract val portableArtifact: RegularFileProperty
 
     @get:Input
     abstract val maxAppBytes: Property<Long>
 
     @get:Input
-    abstract val maxMinimalBytes: Property<Long>
-
-    @get:Input
-    abstract val maxFullBytes: Property<Long>
+    abstract val maxPortableBytes: Property<Long>
 
     @get:Input
     abstract val maxBundledPluginsBytes: Property<Long>
@@ -36,17 +30,15 @@ abstract class ValidateReleaseSizesTask : DefaultTask() {
     @TaskAction
     fun validate() {
         val app = appArtifact.get().asFile
-        val minimal = minimalArtifact.get().asFile
-        val full = fullArtifact.get().asFile
-        val bundledPluginsBytes = ZipFile(full).use { zip ->
+        val portable = portableArtifact.get().asFile
+        val bundledPluginsBytes = ZipFile(portable).use { zip ->
             zip.entries().asSequence()
                 .filter { !it.isDirectory && it.name.matches(Regex("QTranslate/plugins/.*-plugin\\.jar")) }
                 .sumOf { it.size }
         }
         val measurements = listOf(
             Measurement("App JAR", app.length(), maxAppBytes.get()),
-            Measurement("Minimal ZIP", minimal.length(), maxMinimalBytes.get()),
-            Measurement("Full ZIP", full.length(), maxFullBytes.get()),
+            Measurement("Portable ZIP", portable.length(), maxPortableBytes.get()),
             Measurement("Bundled plugin JARs", bundledPluginsBytes, maxBundledPluginsBytes.get())
         )
         val report = buildString {

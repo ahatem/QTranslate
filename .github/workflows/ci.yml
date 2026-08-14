@@ -52,9 +52,7 @@ jobs:
         include:
           - variant: app-only
             task: assembleAppOnly
-          - variant: minimal
-            task: assembleMinimal
-          - variant: full
+          - variant: portable
             task: validateReleaseSizes
           - variant: plugins
             task: assembleIndividualPlugins

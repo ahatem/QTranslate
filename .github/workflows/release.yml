@@ -37,7 +37,7 @@ jobs:
         shell: pwsh
         # The property must be quoted: PowerShell otherwise splits the argument at the
         # first dot, passing Gradle a bogus ".3.0" task name and failing the build.
-        run: ./gradlew assembleFull "-PreleaseVersion=${{ steps.version.outputs.version }}" --no-daemon
+        run: ./gradlew assemblePortable "-PreleaseVersion=${{ steps.version.outputs.version }}" --no-daemon
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
@@ -46,11 +46,11 @@ jobs:
         run: |
           $version = "${{ steps.version.outputs.version }}"
           $packageVersion = ($version -split '-')[0]
-          $fullArchive = "build/release/QTranslate-Full-$version.zip"
+          $portableArchive = "build/release/QTranslate-$version.zip"
 
-          Expand-Archive -LiteralPath $fullArchive -DestinationPath full-distribution
+          Expand-Archive -LiteralPath $portableArchive -DestinationPath portable-distribution
           New-Item -ItemType Directory -Force package-input | Out-Null
-          Copy-Item full-distribution/QTranslate/QTranslate.jar package-input/QTranslate.jar
+          Copy-Item portable-distribution/QTranslate/QTranslate.jar package-input/QTranslate.jar
 
           # jlink only includes modules listed here. Providers loaded reflectively via
           # ServiceLoader (JCA crypto, locale data) are invisible to static analysis, so
@@ -90,9 +90,9 @@ jobs:
             --dest windows-package `
             --java-options '-Dfile.encoding=UTF-8'
 
-          Copy-Item full-distribution/QTranslate/plugins windows-package/QTranslate/plugins -Recurse
-          Copy-Item full-distribution/QTranslate/languages windows-package/QTranslate/languages -Recurse
-          Copy-Item full-distribution/QTranslate/themes windows-package/QTranslate/themes -Recurse
+          Copy-Item portable-distribution/QTranslate/plugins windows-package/QTranslate/plugins -Recurse
+          Copy-Item portable-distribution/QTranslate/languages windows-package/QTranslate/languages -Recurse
+          Copy-Item portable-distribution/QTranslate/themes windows-package/QTranslate/themes -Recurse
           Compress-Archive -Path windows-package/QTranslate -DestinationPath "QTranslate-$version-windows-x64.zip"
 
       - name: Upload Windows package
@@ -194,14 +194,15 @@ jobs:
 
             ## Downloads
 
-            - **Minimal:** QTranslate with Google, Bing, and Mozhi
-            - **Full:** QTranslate with every bundled plugin
-            - **App only:** QTranslate without plugins
-            - **Individual plugins:** independently versioned plugin JARs
+            | Download | Who it is for | Java needed |
+            |---|---|---|
+            | `QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip` | **Windows users — start here.** Extract and run `QTranslate.exe`. | No — runtime included |
+            | `QTranslate-${{ steps.version.outputs.version }}.zip` | Portable build for macOS, Linux, or Windows without an installer. Extract and run `QTranslate.jar`. | Java 11+ |
+            | `QTranslate-App-${{ steps.version.outputs.version }}.jar` | App only, no plugins. For custom setups and plugin development. | Java 11+ |
 
-            Windows users can download `QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip`, extract it, and run `QTranslate.exe`. The Windows package includes its own Java runtime.
-
-            > Portable JAR/ZIP variants require Java 11 or later. The Windows executable does not require a separate Java installation.
+            The portable ZIP already contains every bundled plugin. The individual
+            plugin JARs below are only needed to add or update a single plugin in an
+            existing installation — most users can ignore them.
 
             ## Verification
 
@@ -212,8 +213,7 @@ jobs:
 
           files: |
             build/release/QTranslate-App-${{ steps.version.outputs.version }}.jar
-            build/release/QTranslate-Minimal-${{ steps.version.outputs.version }}.zip
-            build/release/QTranslate-Full-${{ steps.version.outputs.version }}.zip
+            build/release/QTranslate-${{ steps.version.outputs.version }}.zip
             build/release/QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip
             build/release/plugins/*.jar
             build/release/release-metadata.json

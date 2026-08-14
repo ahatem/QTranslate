@@ -122,27 +122,29 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 
 ## Installation
 
-Download the latest build from [**GitHub Releases**](https://github.com/ahatem/QTranslate/releases/latest).
+All downloads live on the [**latest release page**](https://github.com/ahatem/QTranslate/releases/latest).
 
-### Windows (recommended)
+| Your platform | Download | Java required |
+|---|---|---|
+| **Windows** | `QTranslate-<version>-windows-x64.zip` | **No** — Java is included |
+| **macOS / Linux** | `QTranslate-<version>.zip` | Java 11+ |
+| **Any (app only, no plugins)** | `QTranslate-App-<version>.jar` | Java 11+ |
+
+Every download already contains all bundled plugins, languages, and themes. Pick one — you do not need the others.
+
+### Windows
 
 1. Download `QTranslate-<version>-windows-x64.zip`
-2. Extract the archive to a writable folder
+2. Extract to a writable folder
 3. Run `QTranslate.exe`
 
-The Windows package includes a trimmed Java runtime. No separate Java installation is required.
+No Java installation needed — the package ships its own trimmed runtime.
 
-### Portable JAR builds
+### macOS and Linux
 
-Portable builds require **Java 11 or later**. [Temurin](https://adoptium.net) is recommended.
-
-| Download | Includes | Best for |
-|----------|----------|----------|
-| `QTranslate-Minimal-<version>.zip` | App, Google, Bing, and Mozhi | Most users; smaller download with useful defaults |
-| `QTranslate-Full-<version>.zip` | App and every bundled plugin | Trying every included service |
-| `QTranslate-App-<version>.jar` | App only, no plugins | Custom installations and plugin development |
-
-Extract a ZIP and run `QTranslate.jar`, or launch the app-only artifact with `java -jar QTranslate-App-<version>.jar`.
+1. Install **Java 11 or later** ([Temurin](https://adoptium.net) recommended)
+2. Download and extract `QTranslate-<version>.zip`
+3. Run `QTranslate.jar`, or `java -jar QTranslate.jar` from a terminal
 
 ```
 QTranslate/
@@ -161,10 +163,13 @@ QTranslate/
         └── ...
 ```
 
-The Full build currently includes Google, Bing, AI Services, DeepL, Mozhi, MyMemory, LibreTranslate Local, Reverso, Yandex Web, and Wikimedia Reference. Configure a service directly from the service selector or from **Settings → Plugins**.
+Bundled plugins: Google, Bing, AI Services, DeepL, Mozhi, MyMemory, LibreTranslate Local, Reverso, Yandex Web, and Wikimedia Reference. Configure a service from the service selector or **Settings → Plugins**.
+
+> **Individual plugin JARs** are also attached to each release. They are only for adding or
+> updating a single plugin in an existing install — you do not need them for a fresh setup.
 
 > **Getting "This application requires a Java Runtime Environment"?**
-> Java isn't installed or `JAVA_HOME` isn't set. This video covers the full process:
+> Java isn't installed or `JAVA_HOME` isn't set — or use the Windows package, which needs neither.
 > **▶ [How to Install Java JDK and Set JAVA_HOME](https://youtu.be/VTzzmqNwGzM)** *(first 7 minutes)*
 
 **Build from source** → [Building from Source](wiki/Building-from-Source.md)

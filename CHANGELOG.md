@@ -18,12 +18,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - **New translation plugins** — DeepL, Mozhi, MyMemory, LibreTranslate Local, Reverso, and Yandex Web
 - **Wikimedia Reference plugin** with separate Wikipedia and Wiktionary dictionary services using official MediaWiki APIs
 - **Batch translation and bilingual dictionary plugin API capabilities** for efficient document translation and contextual dictionary results
-- **Release variants** — app-only JAR, minimal ZIP, full ZIP, independently versioned plugin JARs, machine-readable metadata, SHA-256 checksums, and size reports
+- **Release variants** — app-only JAR, portable ZIP, independently versioned plugin JARs, machine-readable metadata, SHA-256 checksums, and size reports
 - **Portable Windows x64 package** with `QTranslate.exe` and a bundled trimmed Java runtime
 - `runWithPlugins` manual QA launcher and `smokeTestAllPlugins` automated plugin lifecycle/service check
 
 ### Changed
-- Minimal distribution now bundles Google, Bing, and Mozhi; Full bundles every included plugin
+- A single portable distribution bundles every included plugin, replacing the separate minimal and full builds that differed by less than 1 MB
 - DeepL automatically uses the official API when a key is configured and otherwise uses its rate-limited free web fallback
 - Mozhi settings provide known public instances, endpoint tests, and automatic fastest-instance selection
 - OpenRouter defaults and setup guidance are clearer for first-time AI Services users

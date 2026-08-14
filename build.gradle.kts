@@ -28,7 +28,6 @@ evaluationDependsOn(":app")
 val appProject = project(":app")
 val appArchive = appProject.tasks.named<AbstractArchiveTask>("shadowJar")
 val appArchiveFile = appProject.layout.buildDirectory.file("libs/QTranslate.jar")
-val minimalPluginIds = setOf("google-services", "bing-services", "mozhi-services")
 
 val bundledPlugins = subprojects
     .filter { it.path.startsWith(":plugins:") && it.name != "common" }
@@ -82,13 +81,13 @@ tasks.register<JavaExec>("smokeTestAllPlugins") {
     systemProperty("java.awt.headless", "true")
 }
 
-fun Zip.configureBundle(plugins: List<BundledPlugin>, variant: String) {
+fun Zip.configurePortableBundle(plugins: List<BundledPlugin>) {
     group = "distribution"
-    description = "Builds the $variant QTranslate distribution."
+    description = "Builds the portable QTranslate distribution."
     dependsOn(appArchive)
     dependsOn(plugins.map { "${it.projectPath}:jar" })
     destinationDirectory.set(releaseOutputDirectory)
-    archiveFileName.set("QTranslate-${variant.replaceFirstChar(Char::uppercase)}-${releaseVersion.get()}.zip")
+    archiveFileName.set("QTranslate-${releaseVersion.get()}.zip")
 
     into("QTranslate") {
         from(appArchiveFile) {
@@ -123,18 +122,8 @@ val assembleAppOnly by tasks.registering(Copy::class) {
     rename("QTranslate.jar", "QTranslate-App-${releaseVersion.get()}.jar")
 }
 
-val minimalPlugins = bundledPlugins.filter { it.id in minimalPluginIds }
-val missingMinimalPluginIds = minimalPluginIds - minimalPlugins.map { it.id }.toSet()
-val validateMinimalPlugins by tasks.registering(ValidateRequiredPluginsTask::class) {
-    missingPluginIds.set(missingMinimalPluginIds.sorted())
-}
-val assembleMinimal by tasks.registering(Zip::class) {
-    configureBundle(minimalPlugins, "minimal")
-    dependsOn(cleanRelease, validateMinimalPlugins)
-}
-
-val assembleFull by tasks.registering(Zip::class) {
-    configureBundle(bundledPlugins, "full")
+val assemblePortable by tasks.registering(Zip::class) {
+    configurePortableBundle(bundledPlugins)
     dependsOn(cleanRelease)
 }
 
@@ -157,8 +146,7 @@ val releaseMetadata = linkedMapOf(
     "appVersion" to releaseVersion.get(),
     "variants" to listOf(
         mapOf("id" to "app-only", "file" to "QTranslate-App-${releaseVersion.get()}.jar", "plugins" to emptyList<String>()),
-        mapOf("id" to "minimal", "file" to "QTranslate-Minimal-${releaseVersion.get()}.zip", "plugins" to minimalPlugins.map { it.id }),
-        mapOf("id" to "full", "file" to "QTranslate-Full-${releaseVersion.get()}.zip", "plugins" to bundledPlugins.map { it.id }),
+        mapOf("id" to "portable", "file" to "QTranslate-${releaseVersion.get()}.zip", "plugins" to bundledPlugins.map { it.id }),
     ),
     "plugins" to bundledPlugins.map { plugin ->
         linkedMapOf(
@@ -167,10 +155,7 @@ val releaseMetadata = linkedMapOf(
             "version" to plugin.version,
             "minApiVersion" to plugin.minApiVersion,
             "file" to "plugins/${plugin.releaseFileName}",
-            "bundledIn" to buildList {
-                add("full")
-                if (plugin.id in minimalPluginIds) add("minimal")
-            },
+            "bundledIn" to listOf("portable"),
         )
     },
 )
@@ -178,15 +163,14 @@ val releaseMetadata = linkedMapOf(
 val generateReleaseMetadata by tasks.registering(GenerateReleaseMetadataTask::class) {
     group = "distribution"
     description = "Writes machine-readable metadata for release variants and plugins."
-    dependsOn(assembleAppOnly, assembleMinimal, assembleFull, assembleIndividualPlugins)
+    dependsOn(assembleAppOnly, assemblePortable, assembleIndividualPlugins)
     metadataJson.set(JsonOutput.toJson(releaseMetadata))
     releaseDirectory.set(releaseOutputDirectory)
     artifactFiles.from(
         releaseOutputDirectory.map { directory ->
             buildList {
                 add(directory.file("QTranslate-App-${releaseVersion.get()}.jar"))
-                add(directory.file("QTranslate-Minimal-${releaseVersion.get()}.zip"))
-                add(directory.file("QTranslate-Full-${releaseVersion.get()}.zip"))
+                add(directory.file("QTranslate-${releaseVersion.get()}.zip"))
                 bundledPlugins.forEach { add(directory.file("plugins/${it.releaseFileName}")) }
             }
         },
@@ -197,13 +181,11 @@ val generateReleaseMetadata by tasks.registering(GenerateReleaseMetadataTask::cl
 val validateReleaseSizes by tasks.registering(ValidateReleaseSizesTask::class) {
     group = "verification"
     description = "Reports release sizes and fails when portable artifacts exceed their budgets."
-    dependsOn(assembleAppOnly, assembleMinimal, assembleFull)
+    dependsOn(assembleAppOnly, assemblePortable)
     appArtifact.set(releaseOutputDirectory.map { it.file("QTranslate-App-${releaseVersion.get()}.jar") })
-    minimalArtifact.set(releaseOutputDirectory.map { it.file("QTranslate-Minimal-${releaseVersion.get()}.zip") })
-    fullArtifact.set(releaseOutputDirectory.map { it.file("QTranslate-Full-${releaseVersion.get()}.zip") })
+    portableArtifact.set(releaseOutputDirectory.map { it.file("QTranslate-${releaseVersion.get()}.zip") })
     maxAppBytes.set(55L * 1024 * 1024)
-    maxMinimalBytes.set(50L * 1024 * 1024)
-    maxFullBytes.set(52L * 1024 * 1024)
+    maxPortableBytes.set(52L * 1024 * 1024)
     maxBundledPluginsBytes.set(3L * 1024 * 1024)
     reportFile.set(releaseOutputDirectory.map { it.file("SIZE_REPORT.md") })
 }
@@ -218,7 +200,7 @@ val generateReleaseChecksums by tasks.registering(GenerateReleaseChecksumsTask::
 
 tasks.register("assembleReleaseVariants") {
     group = "distribution"
-    description = "Builds app-only, minimal, full, and individual plugin release artifacts."
+    description = "Builds app-only, portable, and individual plugin release artifacts."
     dependsOn(generateReleaseChecksums)
     notCompatibleWithConfigurationCache("Release assembly includes dynamic plugin artifacts.")
 }
