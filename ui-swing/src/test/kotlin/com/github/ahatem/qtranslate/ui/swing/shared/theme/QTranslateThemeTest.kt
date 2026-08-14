@@ -30,32 +30,33 @@ class QTranslateThemeTest {
 
     @Test
     fun `theme text and primary actions meet WCAG contrast targets`() {
-        // QTranslate Light — warm paper
-        assertContrast("#2A2521", "#FAF6EF", 7.0)   // body text on canvas
-        assertContrast("#2A2521", "#FFFDF9", 7.0)   // body text on input surface
-        assertContrast("#6A6158", "#FAF6EF", 4.5)   // muted text
-        assertContrast("#8F8677", "#FAF6EF", 3.0)   // disabled text
-        assertContrast("#FFFFFF", "#0E7C6B", 4.5)   // label on primary button
-        assertContrast("#0E7C6B", "#FAF6EF", 4.5)   // accent used as text
-        assertContrast("#2A2521", "#CFE6DF", 7.0)   // text over a selection
+        // QTranslate Light — warm parchment; gold carries fills, bronze carries accent text
+        assertContrast("#1E1D1A", "#F6F2E9", 7.0)   // body text on canvas
+        assertContrast("#1E1D1A", "#FBF8F1", 7.0)   // body text on editor surface
+        assertContrast("#5F5B4C", "#F6F2E9", 4.5)   // muted text
+        assertContrast("#8A8574", "#F6F2E9", 3.0)   // disabled text
+        assertContrast("#1E1D1A", "#B8943A", 4.5)   // label on the gold primary button
+        assertContrast("#8A6A1E", "#F6F2E9", 4.5)   // bronze as link and accent text
+        assertContrast("#1E1D1A", "#EADFBF", 7.0)   // text over a selection
 
-        // QTranslate Dark — deep ink
-        assertContrast("#E6E4DF", "#10161A", 7.0)
-        assertContrast("#E6E4DF", "#161E23", 7.0)
-        assertContrast("#97A3A8", "#10161A", 4.5)
-        assertContrast("#5F6C71", "#10161A", 3.0)
-        assertContrast("#06201C", "#45C4B0", 4.5)
-        assertContrast("#45C4B0", "#10161A", 4.5)
-        assertContrast("#E6E4DF", "#1E4E4C", 7.0)
+        // QTranslate Dark — brand gold on near-black
+        assertContrast("#BCAC8F", "#0C0C0C", 7.0)   // body text on canvas
+        assertContrast("#BCAC8F", "#131312", 7.0)   // body text on editor surface
+        assertContrast("#7F7B66", "#0C0C0C", 4.5)   // muted text
+        assertContrast("#6B6857", "#0C0C0C", 3.0)   // disabled text
+        assertContrast("#14120A", "#B8943A", 4.5)   // label on the gold primary button
+        assertContrast("#B8943A", "#0C0C0C", 4.5)   // gold as accent text
+        assertContrast("#D6B063", "#0C0C0C", 4.5)   // link
+        assertContrast("#BCAC8F", "#3A2F14", 4.5)   // text over a selection
     }
 
     @Test
     fun `status colours are readable on both canvases`() {
-        listOf("#1F6FB2", "#2E7D51", "#8F5714", "#B3413C").forEach {
-            assertContrast(it, "#FAF6EF", 4.5)
+        listOf("#4A6B1F", "#8F5714", "#B0342F").forEach {
+            assertContrast(it, "#F6F2E9", 4.5)
         }
-        listOf("#6FB2E8", "#5FC08A", "#E0B15C", "#EF7B84").forEach {
-            assertContrast(it, "#10161A", 4.5)
+        listOf("#94AE62", "#E0913C", "#D06B62").forEach {
+            assertContrast(it, "#0C0C0C", 4.5)
         }
     }
 
