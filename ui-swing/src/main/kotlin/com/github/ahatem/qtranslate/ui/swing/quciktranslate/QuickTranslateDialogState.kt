@@ -55,6 +55,7 @@ data class QuickTranslateActionsState(
 /** All user-facing strings for the dialog. */
 data class DialogStrings(
     val copyTooltip: String,
+    val closeTooltip: String,
     val listenTooltip: String,
     val pinTooltip: String,
     val unpinTooltip: String,

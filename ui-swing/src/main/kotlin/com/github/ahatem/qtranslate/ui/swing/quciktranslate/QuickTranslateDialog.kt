@@ -203,6 +203,7 @@ class QuickTranslateDialog(
         pinButton.toolTipText = if (state.isPinned) state.strings.unpinTooltip else state.strings.pinTooltip
         listenButton.toolTipText = state.strings.listenTooltip
         copyButton.toolTipText = state.strings.copyTooltip
+        closeButton.toolTipText = state.strings.closeTooltip
 
         listenButton.isEnabled = state.actionsState.canListen && !state.isLoading
         copyButton.isEnabled = state.actionsState.canCopy && !state.isLoading

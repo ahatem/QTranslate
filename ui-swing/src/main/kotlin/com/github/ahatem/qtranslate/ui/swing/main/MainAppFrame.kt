@@ -1292,6 +1292,7 @@ class MainAppFrame(
             ),
             strings = DialogStrings(
                 copyTooltip = localizer.getString("common.copy"),
+                closeTooltip = localizer.getString("common.close"),
                 listenTooltip = localizer.getString("common.listen"),
                 pinTooltip = localizer.getString("common.pin"),
                 unpinTooltip = localizer.getString("common.unpin"),
@@ -1590,6 +1591,7 @@ class MainAppFrame(
             errorDetailPopup.warningLabel = localizer.getString("main_window_status_bar.error_detail_warning")
             errorDetailPopup.copyLabel    = localizer.getString("main_window_status_bar.error_detail_copy")
             errorDetailPopup.copiedLabel  = localizer.getString("main_window_status_bar.error_detail_copied")
+            errorDetailPopup.closeLabel   = localizer.getString("common.close")
 
             statusBar.onErrorClicked = { message ->
                 shownDetailMessage = message
