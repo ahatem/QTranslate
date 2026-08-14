@@ -79,7 +79,8 @@ class PluginsPanel(
     private val searchField = JTextField()
     private val categoryCombo = JComboBox(PluginCategory.entries.toTypedArray())
     private val resultCount = JLabel()
-    private val leftPanel: JPanel          // kept for theme-refresh of right border
+    private val leftPanel: JPanel          // holds the divider line; refreshed on theme change
+    private val rightPanel: JPanel         // padded to sit clear of that line
     private val detailScroll: JScrollPane  // scrollable detail area
     private val actionBar = JPanel()       // fixed footer — never scrolls
     private var selectedPlugin: PluginState? = null
@@ -199,7 +200,6 @@ class PluginsPanel(
             add(leftBottom, BorderLayout.SOUTH)
             transferHandler = dropHandler
         }
-        refreshLeftBorder()
         UIManager.addPropertyChangeListener(themeListener)
 
         // ── Right: detail scroll + fixed action bar ───────────────────────────
@@ -211,10 +211,12 @@ class PluginsPanel(
             verticalScrollBar.unitIncrement = 16
         }
 
-        val rightPanel = JPanel(BorderLayout()).apply {
+        rightPanel = JPanel(BorderLayout()).apply {
             add(detailScroll, BorderLayout.CENTER)
             add(actionBar,    BorderLayout.SOUTH)
         }
+
+        refreshLeftBorder()
 
         add(leftPanel,  BorderLayout.LINE_START)
         add(rightPanel, BorderLayout.CENTER)
@@ -236,9 +238,40 @@ class PluginsPanel(
 
     // ── Theme helpers ─────────────────────────────────────────────────────────
 
+    /**
+     * Draws the line dividing the list from the detail panel, and the gap either side of it.
+     *
+     * Rebuilt on every theme change rather than set once, because a border keeps the colour it was
+     * given and a new look and feel does not revisit it — the line would hold the old theme's grey
+     * against the new background. This is the same failure the service selector had.
+     *
+     * `MatteBorder` and `EmptyBorder` both take absolute sides and neither knows about layout
+     * direction, so the sides are picked here: the line goes on the list's trailing edge and the
+     * detail panel's padding on its leading edge, which puts both between the two panels whichever
+     * way round the layout runs.
+     */
     private fun refreshLeftBorder() {
-        leftPanel.border = BorderFactory.createEmptyBorder(0, 0, 0, 10)
+        val line = UIManager.getColor("Component.borderColor") ?: Color.GRAY
+        val leftToRight = componentOrientation.isLeftToRight
+        val gap = UIScale.scale(14)
+
+        // The list's contents carry their own insets, so the line sits at the panel edge.
+        leftPanel.border = BorderFactory.createMatteBorder(
+            0,
+            if (leftToRight) 0 else 1,
+            0,
+            if (leftToRight) 1 else 0,
+            line
+        )
+        rightPanel.border = BorderFactory.createEmptyBorder(
+            0,
+            if (leftToRight) gap else 0,
+            0,
+            if (leftToRight) 0 else gap
+        )
+
         leftPanel.revalidate()
+        leftPanel.repaint()
     }
 
     private fun refreshActionBarBorder() {
