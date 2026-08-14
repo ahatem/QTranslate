@@ -100,6 +100,8 @@ internal class PluginInstaller(
         if (container.status == PluginStatus.ENABLED) {
             lifecycleHandler.disable(container)
         }
+        // Its bundle would otherwise stay cached and keep answering for a plugin that is gone.
+        lifecycleHandler.forgetLocalization(pluginId)
         purgePluginSandbox(pluginId)
 
         val currentDisabled = settingsRepository.loadDisabledPluginIds()

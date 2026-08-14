@@ -16,6 +16,7 @@ import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateTextUseCas
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.plugin.text.LocalizedPluginTextResolver
+import com.github.ahatem.qtranslate.core.plugin.text.PluginLocalization
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprintRepository
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
@@ -129,7 +130,13 @@ suspend fun buildDependencies(
         pluginKeyValueStore         = PluginKeyValueStore(appData),
         loggerFactory               = loggerFactory,
         notificationBus             = notificationBus,
-        textResolver                = LocalizedPluginTextResolver(localizationManager)
+        textResolver                = LocalizedPluginTextResolver(
+            localizationManager = localizationManager,
+            pluginLocalization  = PluginLocalization(
+                parser = LanguageTomlParser(logger = loggerFactory.getLogger("PluginLocalization")),
+                logger = loggerFactory.getLogger("PluginLocalization")
+            )
+        )
     )
 
     // ---- 4. Settings store + reactive config ----

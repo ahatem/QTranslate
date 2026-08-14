@@ -18,6 +18,18 @@ interface PluginTextResolver {
     /** @param pluginId the plugin that supplied [text], used to find its own bundle. */
     fun resolve(pluginId: String, text: DisplayText): String
 
+    /**
+     * A plugin has been loaded, and [classLoader] can read the files inside its JAR.
+     *
+     * Part of this interface rather than a second collaborator the host has to wire up alongside
+     * it: a resolver that reads plugin bundles and a registry of those bundles must be the same
+     * object, and two parameters could be given instances that do not match.
+     */
+    fun onPluginLoaded(pluginId: String, classLoader: ClassLoader) {}
+
+    /** A plugin has been removed and anything cached for it should be dropped. */
+    fun onPluginRemoved(pluginId: String) {}
+
     companion object {
         /**
          * Uses only what the plugin shipped in the object itself.
@@ -32,24 +44,31 @@ interface PluginTextResolver {
 }
 
 /**
- * Resolves against the application's own strings, falling back to what the plugin shipped.
+ * Resolves against the application's strings, then the plugin's own bundle, then the fallback.
  *
- * Plugin-supplied bundles are not consulted yet — that arrives with bundle loading, and this is
- * the only place that will need to change. Until then a plugin's own keys miss the host strings
- * and land on the fallback, which is exactly what the fallback is for.
+ * Host first is deliberate: a plugin that happened to choose a key the application already uses
+ * would otherwise replace application text with its own wherever that key appears.
  */
 class LocalizedPluginTextResolver(
-    private val localizationManager: LocalizationManager
+    private val localizationManager: LocalizationManager,
+    private val pluginLocalization: PluginLocalization
 ) : PluginTextResolver {
+
+    override fun onPluginLoaded(pluginId: String, classLoader: ClassLoader) =
+        pluginLocalization.register(pluginId, classLoader)
+
+    override fun onPluginRemoved(pluginId: String) = pluginLocalization.unregister(pluginId)
 
     override fun resolve(pluginId: String, text: DisplayText): String {
         // getString echoes the key back when it has no translation, which is the only signal it
         // gives that the lookup missed.
-        val hostString = localizationManager.getString(text.key)
-        if (hostString != text.key) {
-            return if (text.args.isEmpty()) hostString else hostString.format(*text.args.toTypedArray())
-        }
-        return text.format()
+        val hostString = localizationManager.getString(text.key).takeIf { it != text.key }
+
+        val translated = hostString
+            ?: pluginLocalization.string(pluginId, text.key, localizationManager.activeLanguage)
+            ?: text.fallback
+
+        return if (text.args.isEmpty()) translated else translated.format(*text.args.toTypedArray())
     }
 }
 

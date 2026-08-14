@@ -28,6 +28,7 @@ internal class PluginLifecycleHandler(
     private val pluginKeyValueStore: PluginKeyValueStore,
     private val notificationBus: NotificationBus,
     private val textResolver: PluginTextResolver,
+
     private val loggerFactory: LoggerFactory
 ) {
     private val logger = loggerFactory.getLogger("PluginLifecycleHandler")
@@ -47,8 +48,12 @@ internal class PluginLifecycleHandler(
      * The context is created once and reused across enable/disable cycles;
      * only the internal scope is reset on each enable.
      */
-    fun createContext(result: LoadedPluginResult): ScopedPluginContext =
-        ScopedPluginContext(
+    fun createContext(result: LoadedPluginResult): ScopedPluginContext {
+        // Every container is built from a context, and this is the only place that has both the
+        // plugin's id and the loader that can read the bundle out of its JAR.
+        textResolver.onPluginLoaded(result.manifest.id, result.classLoader)
+
+        return ScopedPluginContext(
             pluginId = result.manifest.id,
             appDataDirectory = appDataDirectory,
             pluginKeyValueStore = pluginKeyValueStore,
@@ -56,6 +61,10 @@ internal class PluginLifecycleHandler(
             textResolver = textResolver,
             logger = loggerFactory.getLogger(result.manifest.id)
         )
+    }
+
+    /** Drops a plugin's cached translations, for when it is uninstalled. */
+    fun forgetLocalization(pluginId: String) = textResolver.onPluginRemoved(pluginId)
 
     // -------------------------------------------------------------------------
     // Initialization

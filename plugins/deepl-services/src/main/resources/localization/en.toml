@@ -1,0 +1,13 @@
+# Strings this plugin contributes to the interface.
+#
+# The application reads localization/<language>.toml from inside the plugin JAR, in the same
+# format as its own language files. It tries the interface language as written (de-DE), then the
+# base language (de), then this file.
+#
+# Keys are matched against the DisplayText a service passes to the host. Keep en.toml complete:
+# it is the base a translator works from, and any key missing everywhere falls back to the English
+# text written into the code, which is harder to find and update.
+
+[deepl]
+api_key_rejected_title = "DeepL API key rejected"
+api_key_rejected_body = "Using the free web endpoint. Update the API key in plugin settings to restore official access."
