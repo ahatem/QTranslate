@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main
 
 import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
@@ -181,12 +182,16 @@ class MainContentView(
         ), contentWrapper
     )
 
-    private val splitPane = javax.swing.JSplitPane(
+    // MirroredSplitPane rather than a plain JSplitPane: with the interface in Arabic the whole
+    // window is flipped to right-to-left, and Swing implements that on a split pane by inverting
+    // the axis its divider is dragged along — the dictionary could not be resized. This mirrors by
+    // exchanging the two sides instead, so the divider still follows the mouse.
+    private val splitPane = MirroredSplitPane(
         javax.swing.JSplitPane.HORIZONTAL_SPLIT, true, contentWrapper, dictionaryPanel
     ).apply {
-        resizeWeight = 1.0   // main content gets all extra space when window is resized
-        dividerSize  = 0     // collapsed until panel is first shown
-        border       = null
+        leadingResizeWeight = 1.0 // main content gets all extra space when window is resized
+        dividerSize = 0           // collapsed until panel is first shown
+        border = null
         dictionaryPanel.isVisible = false
     }
 
@@ -234,6 +239,10 @@ class MainContentView(
 
     fun render(mainState: MainState, settingsState: SettingsState) {
         val config = settingsState.workingConfiguration
+
+        // Told outright rather than left to the orientation cascade, which reaches the split pane
+        // at a point in startup that depends on when this view was added to the window.
+        splitPane.isMirrored = localizer.isRtl
 
         if (lastState == null || lastState?.second?.workingConfiguration?.layoutPresetId != config.layoutPresetId) {
             layoutManager.switchLayout(config.layoutPresetId, localizer.isRtl)
@@ -354,7 +363,9 @@ class MainContentView(
                     // Defer via invokeLater so it fires after the layout pass — otherwise
                     // splitPane.width is still 0 and the panel opens with the wrong size.
                     javax.swing.SwingUtilities.invokeLater {
-                        splitPane.setDividerLocation(0.65)
+                        // Leading proportion, not a raw one: in a right-to-left interface the
+                        // dictionary sits on the other side of the divider.
+                        splitPane.setLeadingProportion(0.65)
                     }
                 }
             } else {
