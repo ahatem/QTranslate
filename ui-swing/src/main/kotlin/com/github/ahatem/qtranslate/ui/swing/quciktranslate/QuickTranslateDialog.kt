@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.quciktranslate
 
+import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.github.ahatem.qtranslate.core.settings.data.Position
@@ -123,11 +124,14 @@ class QuickTranslateDialog(
         wrapperPanel.add(mainPanel, BorderLayout.CENTER)
 
         val textScrollPane = JScrollPane(outputTextArea).apply {
+            // Styled rather than cleared: `borderWidth` addresses the look and feel's own border,
+            // so it is reapplied on a theme change and there is nothing to restore. Replacing the
+            // border outright would leave this style with no border to act on.
             putClientProperty(
                 FlatClientProperties.STYLE,
                 "borderWidth: 0; focusWidth: 0; innerFocusWidth: 0; innerOutlineWidth: 0;"
             )
-            border = null
+            // JViewport rejects any border but null, and never installs one of its own.
             viewport.border = null
 
             verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED

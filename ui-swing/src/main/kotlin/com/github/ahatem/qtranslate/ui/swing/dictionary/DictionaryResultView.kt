@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.dictionary
 
 import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
 import java.awt.*
 import javax.swing.*
@@ -33,7 +34,7 @@ class DictionaryResultView : JScrollPane() {
 
     init {
         setViewportView(content)
-        border = null
+        clearBorder()
         horizontalScrollBarPolicy = HORIZONTAL_SCROLLBAR_NEVER
         verticalScrollBarPolicy = VERTICAL_SCROLLBAR_AS_NEEDED
         verticalScrollBar.unitIncrement = 16
@@ -178,7 +179,7 @@ class DictionaryResultView : JScrollPane() {
             isEditable = false
             isOpaque = false
             isFocusable = false
-            border = null
+            clearBorder()
             background = null
             if (muted) foreground = UIManager.getColor("Label.disabledForeground")
             if (italic) font = font.deriveFont(Font.ITALIC)

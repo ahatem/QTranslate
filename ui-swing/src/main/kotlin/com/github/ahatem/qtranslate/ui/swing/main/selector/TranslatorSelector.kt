@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main.selector
 
+import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.formdev.flatlaf.FlatClientProperties
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
@@ -22,7 +23,7 @@ class TranslatorSelector(
     private var state = TranslatorSelectorState(emptyList(), null, false)
     private val classicButtons = JPanel(FlowLayout(FlowLayout.LEADING, 2, 0)).apply { isOpaque = false }
     private val classicScroll = JScrollPane(classicButtons).apply {
-        border = null; isOpaque = false; viewport.isOpaque = false
+        clearBorder(); isOpaque = false; viewport.isOpaque = false
         verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_NEVER
         horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
         horizontalScrollBar.unitIncrement = 24

@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.settings
 
+import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
@@ -236,7 +237,7 @@ class SettingsDialog(
 
     private fun buildSidebar(): JPanel {
         val treeScroll = JScrollPane(tree).apply {
-            border = null
+            clearBorder()
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
         }
@@ -258,7 +259,7 @@ class SettingsDialog(
 
         contentArea.components.filterIsInstance<JScrollPane>().forEach { contentArea.remove(it) }
         contentArea.add(JScrollPane(panel).apply {
-            border = null
+            clearBorder()
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
             verticalScrollBar.unitIncrement = 16

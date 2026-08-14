@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.settings.*
@@ -77,7 +78,7 @@ class DynamicPluginSettingsDialog(
         formPanel.add(Box.createVerticalGlue(), glueConstraints)
 
         val scroll = JScrollPane(formPanel).apply {
-            border = null
+            clearBorder()
             verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             viewport.isOpaque = false

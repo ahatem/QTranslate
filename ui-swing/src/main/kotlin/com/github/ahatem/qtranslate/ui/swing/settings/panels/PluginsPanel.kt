@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
@@ -140,7 +141,7 @@ class PluginsPanel(
 
         val dropHandler = PluginJarTransferHandler()
         val listScroll = JScrollPane(pluginRows).apply {
-            border = null
+            clearBorder()
             viewportBorder = null
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             verticalScrollBar.unitIncrement = 16
@@ -204,7 +205,7 @@ class PluginsPanel(
         // ── Right: detail scroll + fixed action bar ───────────────────────────
         // Placeholder empty content — replaced by rebuildDetail()
         detailScroll = JScrollPane().apply {
-            border = null
+            clearBorder()
             viewportBorder = null
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             verticalScrollBar.unitIncrement = 16
@@ -705,7 +706,7 @@ class PluginsPanel(
             wrapStyleWord = true
             rows = 1
             columns = 18
-            border = null
+            clearBorder()
             font = UIManager.getFont("Label.font").deriveFont(Font.BOLD)
             foreground = UIManager.getColor("Label.foreground")
             toolTipText = tooltip

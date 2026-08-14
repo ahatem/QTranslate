@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
+import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import java.awt.*
 import javax.swing.*
 
@@ -153,7 +154,7 @@ object LayoutBuilders {
             isContinuousLayout = true
             this.resizeWeight = resizeWeight
             dividerSize = UISpacing.DIVIDER_SIZE
-            border = null
+            clearBorder()
         }
     }
 
@@ -174,7 +175,7 @@ object LayoutBuilders {
             isContinuousLayout = true
             this.resizeWeight = weight
             dividerSize = UISpacing.DIVIDER_SIZE
-            border = null
+            clearBorder()
         }
     }
 }
