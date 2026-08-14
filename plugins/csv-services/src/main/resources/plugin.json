@@ -1,0 +1,9 @@
+{
+  "id": "csv-services",
+  "name": "CSV Dictionary",
+  "version": "1.0.0",
+  "author": "Ahmed Hatem",
+  "description": "Looks terms up in a CSV file you supply — a glossary, an abbreviation list, a table of error codes, a set of study notes. Which columns hold the term and its meaning is configurable. Nothing leaves your machine.",
+  "minApiVersion": "2.0.0",
+  "icon": "assets/csv.svg"
+}
