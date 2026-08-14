@@ -21,8 +21,14 @@ object AppConstants {
     // Timing
     // ============================================================
 
-    /** Debounce delay for instant translation. */
-    const val INSTANT_TRANSLATION_DEBOUNCE_MS = 700L
+    /**
+     * Debounce delay for instant translation.
+     *
+     * Kept short enough that typing still feels connected to the result. Beyond roughly
+     * half a second the translation reads as a separate event rather than a response to
+     * what was just typed, which is what "instant translation" is meant to convey.
+     */
+    const val INSTANT_TRANSLATION_DEBOUNCE_MS = 350L
 
     /** Minimum input length before instant translation fires. */
     const val INSTANT_TRANSLATE_MIN_CHARS = 2
