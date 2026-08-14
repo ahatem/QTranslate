@@ -427,6 +427,11 @@ close_behavior_hint    = "Controls what happens when you click the × button. Yo
 title_format = "Configure — %s"
 required_fields_error_title = "Required Fields"
 required_fields_error_msg = "Please fill in the required fields:"
+test_connection = "Test connection"
+testing = "Testing…"
+test_ok = "Ready — %d service(s) responded"
+test_failed = "Test failed"
+test_nothing_to_check = "Nothing to check"
 
 # ===================================================================
 # OTHER DIALOGS

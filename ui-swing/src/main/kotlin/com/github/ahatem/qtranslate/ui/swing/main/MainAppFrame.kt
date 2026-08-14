@@ -226,13 +226,24 @@ class MainAppFrame(
                     JOptionPane.showMessageDialog(this@MainAppFrame, "This service has no configurable settings.", plugin.manifest.name, JOptionPane.INFORMATION_MESSAGE)
                     return@withContext
                 }
+                // Only offered for plugins that say they need setting up. For anything else the
+                // check has nothing to report, and a button that always says "fine" teaches the
+                // user to ignore it.
+                val canTest = plugin.services.any { it.metadata.requiresConfiguration }
+
                 DynamicPluginSettingsDialog(
                     owner = this@MainAppFrame,
                     pluginName = plugin.manifest.name,
                     localizationManager = localizer,
                     settingsModel = model,
                     settingsInstance = instance,
-                    onSave = { values -> appScope.launch { pluginManager.applySettingsFromMap(plugin.id, values) } }
+                    onSave = { values -> appScope.launch { pluginManager.applySettingsFromMap(plugin.id, values) } },
+                    onTestConnection = if (!canTest) null else { values ->
+                        // Applied first so the test uses what is on screen, not what was saved
+                        // last time — testing a key you have just typed is the whole point.
+                        pluginManager.applySettingsFromMap(plugin.id, values)
+                        pluginManager.validateServices(plugin.id)
+                    }
                 ).isVisible = true
             }
         }

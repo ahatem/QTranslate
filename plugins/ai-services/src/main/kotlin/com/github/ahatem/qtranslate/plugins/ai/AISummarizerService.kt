@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.ai
 
 import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+import com.github.ahatem.qtranslate.api.plugin.ServiceMetadata
 
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
@@ -16,6 +17,12 @@ class AISummarizerService(
 ) : Summarizer {
 
     override val capabilities = setOf(ServiceCapability.SUMMARIZER)
+
+    // Nothing this plugin offers works until a key is set, which is what makes a connection
+    // test worth offering here. The check itself is shared: one key, one endpoint, one model.
+    override val metadata = ServiceMetadata(requiresConfiguration = true)
+
+    override suspend fun validate() = client.validate()
 
     override val key: String = "ai-summarizer"
     override val name: String = "AI Summarizer"
