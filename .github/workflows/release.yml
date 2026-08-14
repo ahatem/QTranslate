@@ -52,10 +52,22 @@ jobs:
           New-Item -ItemType Directory -Force package-input | Out-Null
           Copy-Item full-distribution/QTranslate/QTranslate.jar package-input/QTranslate.jar
 
+          # jlink only includes modules listed here. Providers loaded reflectively via
+          # ServiceLoader (JCA crypto, locale data) are invisible to static analysis, so
+          # they must be requested explicitly or they silently vanish from the runtime.
           $modules = @(
             'java.base', 'java.desktop', 'java.instrument', 'java.logging',
             'java.management', 'java.naming', 'java.net.http', 'java.prefs',
-            'java.security.jgss', 'java.xml.crypto', 'jdk.charsets', 'jdk.unsupported'
+            'java.security.jgss', 'java.xml.crypto', 'jdk.charsets', 'jdk.unsupported',
+            # SunEC provider. Without it every ECDHE/ECDSA TLS handshake fails, which
+            # breaks all network services ("EC KeyPairGenerator not available").
+            'jdk.crypto.ec',
+            # Locale data for the 13 bundled languages. Without it the JDK falls back to
+            # ROOT/English number, date, and display-name formatting.
+            'jdk.localedata',
+            # ZIP FileSystem provider. Not required by the app itself, but bundled plugins
+            # are third-party code that may rely on it; the module costs ~100 KB.
+            'jdk.zipfs'
           ) -join ','
           jlink `
             --add-modules $modules `
