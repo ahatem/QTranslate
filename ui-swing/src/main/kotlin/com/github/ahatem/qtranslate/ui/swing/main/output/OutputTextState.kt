@@ -1,8 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.output
 
-import com.github.ahatem.qtranslate.api.rewriter.RewriteStyle
-import com.github.ahatem.qtranslate.api.summarizer.SummaryLength
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.ui.swing.shared.util.ServiceOptionChoice
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsState
@@ -42,18 +41,24 @@ data class ExtraOutputState(
     val isEditable: Boolean = false,
 
     val activeType: ExtraOutputType = ExtraOutputType.None,
-    val summaryLength: SummaryLength = SummaryLength.MEDIUM,
-    val rewriteStyle: RewriteStyle = RewriteStyle.FORMAL,
 
     val labelBackward: String = "",
     val labelSummary: String = "",
     val labelRewrite: String = "",
-
     val labelConfigure: String = "",
-    val summaryLengthLabels: List<String> = emptyList(),
-    val rewriteStyleLabels: List<String> = emptyList(),
+
+    /**
+     * The choices offered by whichever service backs [activeType], already resolved for display,
+     * with [selectedOptionId] among them.
+     *
+     * One list rather than a pair of enum-specific ones: the panel shows a menu and reports an id
+     * back, and does not need to know whether it is offering lengths, styles, or something a
+     * plugin invented. Empty when the active type has no options — backward translation, or a
+     * service that declares none — and the configure button is hidden.
+     */
+    val optionChoices: List<ServiceOptionChoice> = emptyList(),
+    val selectedOptionId: String? = null,
 
     val onTypeChanged: (ExtraOutputType) -> Unit = {},
-    val onSummaryLengthChanged: (SummaryLength) -> Unit = {},
-    val onRewriteStyleChanged: (RewriteStyle) -> Unit = {}
+    val onOptionSelected: (String) -> Unit = {}
 ) : UiState

@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.core.plugin
 
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginError
+import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
 
 /**
  * Represents the runtime status of a loaded plugin.
@@ -47,8 +48,25 @@ data class PluginState(
     /** Services declared by this plugin, retained while the plugin is disabled. */
     val services: List<Service> = emptyList(),
 
+    /**
+     * Which instance of the plugin this is.
+     *
+     * Only one exists per plugin today, but the runtime service id is composed from it, and the
+     * UI needs that id to key icon caches and to map a selection back to its plugin.
+     */
+    val instanceId: String = ServiceId.DEFAULT_INSTANCE,
+
     /** The last error encountered by this plugin, or `null` if healthy. */
     val lastError: PluginError? = null
 ) {
     val id: String get() = manifest.id
+
+    /**
+     * The id the host registers [service] under.
+     *
+     * Services carry a key that is unique only within their plugin, so the identifier the rest of
+     * the application uses has to be composed. Reproduced here rather than passed down because
+     * the pieces are all present and a parallel list would be one more thing to keep in step.
+     */
+    fun serviceIdOf(service: Service): String = ServiceId.of(id, instanceId, service.key)
 }

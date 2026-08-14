@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceSelectionState
+import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.isServiceDisabled
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
@@ -39,10 +40,19 @@ import kotlinx.coroutines.launch
 class SelectActiveServiceUseCase(
     private val activeServices: StateFlow<Map<String, Service>>,
     private val settingsState: StateFlow<Configuration>,
+    private val activeServiceManager: ActiveServiceManager,
     private val scope: CoroutineScope,
     loggerFactory: LoggerFactory
 ) {
     private val logger = loggerFactory.getLogger("SelectActiveServiceUseCase")
+
+    private companion object {
+        /**
+         * The capabilities whose services carry user-facing options today. Reading every
+         * capability would work but calls the resolver eight times per emission for two answers.
+         */
+        val OPTION_BEARING_CAPABILITIES = listOf(ServiceType.SUMMARIZER, ServiceType.REWRITER)
+    }
 
     // Cache for Dynamic language results, keyed by service ID.
     // MutableStateFlow so that combine() re-emits when the cache updates.
@@ -88,7 +98,10 @@ class SelectActiveServiceUseCase(
 
             ServiceSelectionState(
                 availableServices = availableServices,
-                availableLanguages = languages
+                availableLanguages = languages,
+                serviceOptions = OPTION_BEARING_CAPABILITIES.associateWith { capability ->
+                    activeServiceManager.getActive<Service>(capability)?.service?.options.orEmpty()
+                }
             )
         }
 

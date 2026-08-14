@@ -147,6 +147,8 @@ class ServicesPanel(
             ServiceType.DICTIONARY -> "icons/lucide/book-open.svg"
             ServiceType.SUMMARIZER -> "icons/lucide/text-align-start.svg"
             ServiceType.REWRITER -> "icons/lucide/pen-line.svg"
+            // No service declares this yet; the generic icon is a placeholder until one does.
+            ServiceType.IMAGE_SEARCH -> "icons/lucide/search.svg"
         }
         return runCatching {
             val icon = FlatSVGIcon(path, 14, 14, javaClass.classLoader)
@@ -163,35 +165,42 @@ class ServicesPanel(
         ServiceType.DICTIONARY -> localizationManager.getString("settings_services.dictionary")
         ServiceType.SUMMARIZER -> localizationManager.getString("settings_services.summarizer")
         ServiceType.REWRITER -> localizationManager.getString("settings_services.rewriter")
+        ServiceType.IMAGE_SEARCH -> localizationManager.getString("settings_services.image_search")
     }
 
     // ── Plugin observation ────────────────────────────────────────────────────
 
     private fun observePlugins() {
-        populateCombos(groupByType(pluginManager.activeServices.value.values))
+        populateCombos(groupByType(pluginManager.activeServices.value))
         scope.launch {
             pluginManager.activeServices.collect { services ->
-                SwingUtilities.invokeLater { populateCombos(groupByType(services.values)) }
+                SwingUtilities.invokeLater { populateCombos(groupByType(services)) }
             }
         }
     }
 
-    private fun groupByType(services: Collection<Service>): Map<ServiceType, List<Service>> {
-        val result = mutableMapOf<ServiceType, MutableList<Service>>()
-        services.forEach { service ->
-            val type = service.type ?: return@forEach
-            result.getOrPut(type) { mutableListOf() }.add(service)
+    /**
+     * Groups by every capability a service declares, so one that both translates and defines
+     * words is offered in both pickers. Takes the registry map rather than its values because
+     * the key is the service's id, which the combo needs to store the selection.
+     */
+    private fun groupByType(services: Map<String, Service>): Map<ServiceType, List<ServiceOption>> {
+        val result = mutableMapOf<ServiceType, MutableList<ServiceOption>>()
+        services.forEach { (id, service) ->
+            service.capabilities.forEach { capability ->
+                result.getOrPut(capability) { mutableListOf() }.add(ServiceOption(id, service.name))
+            }
         }
         return result
     }
 
-    private fun populateCombos(servicesByType: Map<ServiceType, List<Service>>) {
+    private fun populateCombos(servicesByType: Map<ServiceType, List<ServiceOption>>) {
         withoutTrigger {
             serviceComboBoxes.forEach { (type, combo) ->
                 val current = combo.selectedItem as? ServiceOption
                 combo.removeAllItems()
                 combo.addItem(null) // "None" option
-                servicesByType[type]?.forEach { service -> combo.addItem(ServiceOption(service.id, service.name)) }
+                servicesByType[type]?.forEach { option -> combo.addItem(option) }
                 if (current != null) {
                     for (i in 0 until combo.itemCount) {
                         if (combo.getItemAt(i)?.id == current.id) {

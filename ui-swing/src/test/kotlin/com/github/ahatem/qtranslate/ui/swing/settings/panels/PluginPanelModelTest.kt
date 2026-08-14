@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.Service
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.core.plugin.PluginManifest
@@ -36,9 +37,10 @@ class PluginPanelModelTest {
     )
 
     private object TranslatorStub : Translator {
-        override val id = "translator-stub"
+        override val key = "translator-stub"
         override val name = "Translator Stub"
         override val version = "1.0.0"
+        override val capabilities = setOf(ServiceCapability.TRANSLATOR)
         override val supportedLanguages = SupportedLanguages.Specific(setOf(LanguageCode.ENGLISH))
         override suspend fun translate(request: com.github.ahatem.qtranslate.api.translator.TranslationRequest) =
             error("Not used")

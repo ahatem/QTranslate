@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.core.main.mvi
 
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.plugin.ServiceOption
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationProgress
@@ -48,6 +49,12 @@ data class MainState(
     val targetLanguage: LanguageCode = LanguageCode.ARABIC,
     val availableServices: List<ServiceInfo> = emptyList(),
     val availableLanguages: List<LanguageCode> = emptyList(),
+    /**
+     * Options declared by the active service for each capability, for the pickers that offer
+     * them. Empty for a capability with no active service, which the UI renders as no choices
+     * rather than as the host's own guess at what the choices should be.
+     */
+    val serviceOptions: Map<ServiceType, List<ServiceOption>> = emptyMap(),
     val history: List<HistorySnapshot> = emptyList(),
     val historyIndex: Int = 0,
     val dictionaryEntries: List<DictionaryEntry> = emptyList(),

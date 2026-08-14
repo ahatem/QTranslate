@@ -99,6 +99,7 @@ internal class PluginRegistry {
                 status = c.status,
                 jarPath = c.jarFile.absolutePath,
                 services = c.declaredServices,
+                instanceId = c.instanceId,
                 lastError = c.lastError
             )
         }

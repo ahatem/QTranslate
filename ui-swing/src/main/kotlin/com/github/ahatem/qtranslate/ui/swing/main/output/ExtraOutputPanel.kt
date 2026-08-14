@@ -1,8 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main.output
 
 import com.formdev.flatlaf.extras.components.FlatButton
-import com.github.ahatem.qtranslate.api.rewriter.RewriteStyle
-import com.github.ahatem.qtranslate.api.summarizer.SummaryLength
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.ReadOnlyTextPanel
@@ -148,7 +146,10 @@ class ExtraOutputPanel(
         summaryBtn.model.isSelected = state.activeType == ExtraOutputType.Summarize
         rewriteBtn.model.isSelected = state.activeType == ExtraOutputType.Rewrite
 
-        gearBtn.isVisible = state.activeType == ExtraOutputType.Summarize || state.activeType == ExtraOutputType.Rewrite
+        // Driven by whether there is anything to configure, rather than by the type: a service
+        // that declares no options gets no button, and one that declares them for a type the
+        // host did not anticipate gets one.
+        gearBtn.isVisible = state.optionChoices.isNotEmpty()
 
         readOnlyPanel.render(
             ReadOnlyTextPanelState(
@@ -163,29 +164,17 @@ class ExtraOutputPanel(
         )
     }
 
+    /**
+     * The choices come from the active service, so there is nothing here that knows what kind of
+     * option is being offered — one menu built from a list, whether those are summary lengths,
+     * rewrite styles, or something a plugin defined.
+     */
     private fun buildConfigPopup(state: ExtraOutputState): JPopupMenu = JPopupMenu().apply {
-        when (state.activeType) {
-            ExtraOutputType.Summarize -> {
-                SummaryLength.entries.forEachIndexed { i, length ->
-                    val label = state.summaryLengthLabels.getOrElse(i) { length.name }
-                    add(JMenuItem(label).apply {
-                        isEnabled = length != state.summaryLength
-                        addActionListener { state.onSummaryLengthChanged(length) }
-                    })
-                }
-            }
-
-            ExtraOutputType.Rewrite -> {
-                RewriteStyle.entries.forEachIndexed { i, style ->
-                    val label = state.rewriteStyleLabels.getOrElse(i) { style.name }
-                    add(JMenuItem(label).apply {
-                        isEnabled = style != state.rewriteStyle
-                        addActionListener { state.onRewriteStyleChanged(style) }
-                    })
-                }
-            }
-
-            else -> Unit
+        state.optionChoices.forEach { choice ->
+            add(JMenuItem(choice.label).apply {
+                isEnabled = choice.id != state.selectedOptionId
+                addActionListener { state.onOptionSelected(choice.id) }
+            })
         }
     }
 

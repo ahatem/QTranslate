@@ -31,8 +31,16 @@ class BatchTranslatorTest {
     }
 
     @Test
-    fun `host accepts plugins built against the previous minor API`() {
-        assertEquals("1.2.0", ApiVersion.VERSION)
-        assertIs<ApiVersion.CompatibilityResult.Compatible>(ApiVersion.isCompatible("1.0.0"))
+    fun `host accepts plugins built against an earlier minor of the same major`() {
+        assertEquals("2.0.0", ApiVersion.VERSION)
+        assertIs<ApiVersion.CompatibilityResult.Compatible>(ApiVersion.isCompatible("2.0.0"))
+    }
+
+    @Test
+    fun `host rejects plugins built against the previous major`() {
+        // The whole point of the major bump: a v1 plugin declares an id and infers its capability
+        // from the interfaces it implements, neither of which the host reads any more. Loading one
+        // would fail at the first call rather than at load, so it is refused here.
+        assertIs<ApiVersion.CompatibilityResult.Incompatible>(ApiVersion.isCompatible("1.2.0"))
     }
 }

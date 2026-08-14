@@ -216,6 +216,7 @@ spell_checker = "Spell Checker:"
 dictionary = "Dictionary:"
 summarizer = "Summariser:"
 rewriter = "Rewriter:"
+image_search = "Image Search:"
 # Dialogs
 new_preset_title = "New Preset"
 new_preset_prompt = "Enter a name for the new preset:"

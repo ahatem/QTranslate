@@ -12,6 +12,7 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
+import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
 import com.github.ahatem.qtranslate.core.settings.data.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
@@ -214,8 +215,9 @@ class MainAppFrame(
     }
 
     private fun openPluginConfiguration(serviceId: String) {
-        val plugin = pluginManager.plugins.value.find { state -> state.services.any { it.id == serviceId } }
-            ?: return
+        // The plugin is named in the service id itself, so there is nothing to search for.
+        val owningPluginId = ServiceId.pluginIdOf(serviceId) ?: return
+        val plugin = pluginManager.plugins.value.find { it.id == owningPluginId } ?: return
         appScope.launch {
             val model = pluginManager.getPluginSettingsModel(plugin.id)
             val instance = pluginManager.getPluginSettingsInstance(plugin.id)

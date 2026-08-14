@@ -235,10 +235,11 @@ suspend fun buildDependencies(
         handleTextToSpeechUseCase  = handleTtsUseCase,
         performSpellCheckUseCase   = PerformSpellCheckUseCase(activeServiceManager, loggerFactory),
         selectActiveServiceUseCase = SelectActiveServiceUseCase(
-            activeServices = pluginManager.activeServices,
-            settingsState  = configState,
-            scope          = appScope,
-            loggerFactory  = loggerFactory
+            activeServices       = pluginManager.activeServices,
+            settingsState        = configState,
+            activeServiceManager = activeServiceManager,
+            scope                = appScope,
+            loggerFactory        = loggerFactory
         ),
         translateTextUseCase       = translateUseCase,
         swapLanguagesUseCase       = SwapLanguagesUseCase(),

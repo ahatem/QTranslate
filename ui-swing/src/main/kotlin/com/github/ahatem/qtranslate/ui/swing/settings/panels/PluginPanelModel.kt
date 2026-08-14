@@ -17,15 +17,20 @@ internal enum class PluginCategory(val serviceType: ServiceType?) {
 
 internal object PluginPanelModel {
     fun categories(plugin: PluginState): Set<PluginCategory> {
-        val serviceCategories = plugin.services.mapNotNull { service ->
-            when (service.type) {
-                ServiceType.TRANSLATOR -> PluginCategory.TRANSLATORS
-                ServiceType.DICTIONARY -> PluginCategory.DICTIONARIES
-                ServiceType.TTS -> PluginCategory.TTS
-                ServiceType.OCR -> PluginCategory.OCR
-                ServiceType.SPELL_CHECKER -> PluginCategory.SPELL_CHECKERS
-                ServiceType.SUMMARIZER, ServiceType.REWRITER -> PluginCategory.AI
-                null -> null
+        // Every capability, not one per service: a plugin whose single service both translates and
+        // defines words belongs in both categories, and filtering by either should find it.
+        val serviceCategories = plugin.services.flatMap { service ->
+            service.capabilities.map { capability ->
+                when (capability) {
+                    ServiceType.TRANSLATOR -> PluginCategory.TRANSLATORS
+                    ServiceType.DICTIONARY -> PluginCategory.DICTIONARIES
+                    ServiceType.TTS -> PluginCategory.TTS
+                    ServiceType.OCR -> PluginCategory.OCR
+                    ServiceType.SPELL_CHECKER -> PluginCategory.SPELL_CHECKERS
+                    ServiceType.SUMMARIZER, ServiceType.REWRITER -> PluginCategory.AI
+                    // No category of its own until something actually offers it.
+                    ServiceType.IMAGE_SEARCH -> PluginCategory.OTHER
+                }
             }
         }.toSet()
         return serviceCategories.ifEmpty { setOf(PluginCategory.OTHER) }

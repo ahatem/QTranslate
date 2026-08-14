@@ -9,6 +9,7 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.api.plugin.StandardOptions
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
@@ -41,6 +42,9 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFallbackFont
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFont
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toImageData
+import com.github.ahatem.qtranslate.ui.swing.shared.util.choices
+import com.github.ahatem.qtranslate.ui.swing.shared.util.selectedIdOr
+import com.github.ahatem.qtranslate.ui.swing.shared.util.withKey
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.event.InputEvent
@@ -564,6 +568,22 @@ class MainContentView(
             )
         )
 
+        // The extra-output pane offers whatever the service behind the active type declares.
+        // Backward translation has no options, and neither does a service that declares none —
+        // both come out as an empty list, which hides the configure button.
+        val extraOutputOption = when (config.extraOutputType) {
+            ExtraOutputType.Summarize ->
+                mainState.serviceOptions[ServiceType.SUMMARIZER]?.withKey(StandardOptions.KEY_SUMMARY_LENGTH)
+            ExtraOutputType.Rewrite ->
+                mainState.serviceOptions[ServiceType.REWRITER]?.withKey(StandardOptions.KEY_REWRITE_STYLE)
+            else -> null
+        }
+        val extraOutputSelection = when (config.extraOutputType) {
+            ExtraOutputType.Summarize -> config.summaryLength
+            ExtraOutputType.Rewrite -> config.rewriteStyle
+            else -> ""
+        }
+
         extraOutputPanel.render(
             ExtraOutputState(
                 text = mainState.extraOutputText,
@@ -574,8 +594,6 @@ class MainContentView(
                 fontConfig = config.scaledEditorFont,
                 fallbackFontConfig = config.scaledEditorFallbackFont,
                 activeType = config.extraOutputType,
-                summaryLength = config.summaryLength,
-                rewriteStyle = config.rewriteStyle,
 
                 labelBackward = localizer.getString("extra_output.label_backward"),
                 labelSummary = localizer.getString("extra_output.label_summary"),
@@ -583,18 +601,8 @@ class MainContentView(
 
                 labelConfigure = localizer.getString("common.configure"),
 
-                summaryLengthLabels = listOf(
-                    localizer.getString("settings_translation.summary_length_short"),
-                    localizer.getString("settings_translation.summary_length_medium"),
-                    localizer.getString("settings_translation.summary_length_long")
-                ),
-                rewriteStyleLabels = listOf(
-                    localizer.getString("settings_translation.rewrite_style_formal"),
-                    localizer.getString("settings_translation.rewrite_style_casual"),
-                    localizer.getString("settings_translation.rewrite_style_concise"),
-                    localizer.getString("settings_translation.rewrite_style_detailed"),
-                    localizer.getString("settings_translation.rewrite_style_simplified")
-                ),
+                optionChoices = extraOutputOption?.choices(localizer).orEmpty(),
+                selectedOptionId = extraOutputOption?.selectedIdOr(extraOutputSelection),
 
                 onTypeChanged = { type ->
                     dispatchSettings(
@@ -604,20 +612,15 @@ class MainContentView(
                     )
                     dispatch(MainIntent.Translate())
                 },
-                onSummaryLengthChanged = { length ->
-                    dispatchSettings(
-                        SettingsIntent.UpdateDraft(
-                            config.copy(summaryLength = length)
-                        )
-                    )
-                    dispatch(MainIntent.Translate())
-                },
-                onRewriteStyleChanged = { style ->
-                    dispatchSettings(
-                        SettingsIntent.UpdateDraft(
-                            config.copy(rewriteStyle = style)
-                        )
-                    )
+                onOptionSelected = { id ->
+                    // Which setting the id belongs to follows from the active type; the panel
+                    // itself never learns that, so a new option kind only touches this branch.
+                    val updated = when (config.extraOutputType) {
+                        ExtraOutputType.Summarize -> config.copy(summaryLength = id)
+                        ExtraOutputType.Rewrite -> config.copy(rewriteStyle = id)
+                        else -> config
+                    }
+                    dispatchSettings(SettingsIntent.UpdateDraft(updated))
                     dispatch(MainIntent.Translate())
                 },
 

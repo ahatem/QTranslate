@@ -316,7 +316,7 @@ class PluginsPanel(
             })
         }
         val foreground = if (selected) UIManager.getColor("List.selectionForeground") else UIManager.getColor("Label.foreground")
-        val serviceId = plugin.services.firstOrNull()?.id
+        val serviceId = plugin.services.firstOrNull()?.let(plugin::serviceIdOf)
         val icon = plugin.manifest.icon?.let { path -> serviceId?.let { iconManager.getIcon(it, path, 24, 24) } }
             ?: themedAppIcon("icons/lucide/package.svg", 24)
         val categories = PluginPanelModel.categories(plugin).joinToString(" · ") { categoryName(it) }
@@ -404,7 +404,7 @@ class PluginsPanel(
 
         // ─ Plugin icon (small, left of name) + name + status badge ───────────
         val pluginIconPath = plugin.manifest.icon
-        val serviceId      = plugin.services.firstOrNull()?.id
+        val serviceId      = plugin.services.firstOrNull()?.let(plugin::serviceIdOf)
         val headerIcon: Icon = if (pluginIconPath != null && serviceId != null)
             iconManager.getIcon(serviceId, pluginIconPath, 24, 24)
         else
@@ -483,7 +483,7 @@ class PluginsPanel(
                 layout = BoxLayout(this, BoxLayout.Y_AXIS)
                 isOpaque = false
                 plugin.services.forEach { svc ->
-                    add(buildServiceLine(svc))
+                    add(buildServiceLine(plugin.serviceIdOf(svc), svc))
                 }
             }
             g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
@@ -660,12 +660,12 @@ class PluginsPanel(
         }
     }
 
-    private fun buildServiceLine(service: Service): JComponent = JPanel(BorderLayout(8, 0)).apply {
+    private fun buildServiceLine(serviceId: String, service: Service): JComponent = JPanel(BorderLayout(8, 0)).apply {
         isOpaque = false
         alignmentX = Component.LEFT_ALIGNMENT
         maximumSize = Dimension(Int.MAX_VALUE, 27)
         border = BorderFactory.createEmptyBorder(3, 0, 3, 0)
-        val serviceIcon = service.iconPath?.let { iconManager.getIcon(service.id, it, 15, 15) }
+        val serviceIcon = service.iconPath?.let { iconManager.getIcon(serviceId, it, 15, 15) }
             ?: service.type?.let(::capabilityIcon)
             ?: themedAppIcon("icons/lucide/package.svg", 15)
         add(JLabel(service.name, serviceIcon, SwingConstants.LEADING).apply {
@@ -688,6 +688,8 @@ class PluginsPanel(
             ServiceType.DICTIONARY -> "icons/lucide/book-open.svg"
             ServiceType.SUMMARIZER -> "icons/lucide/text-align-start.svg"
             ServiceType.REWRITER -> "icons/lucide/pen-line.svg"
+            // No service declares this yet; the generic icon is a placeholder until one does.
+            ServiceType.IMAGE_SEARCH -> "icons/lucide/search.svg"
         },
         15
     )
@@ -891,4 +893,5 @@ fun ServiceType.readableName(localizationManager: LocalizationManager): String =
         ServiceType.DICTIONARY    -> localizationManager.getString("settings_services.dictionary").removeSuffix(":")
         ServiceType.SUMMARIZER    -> localizationManager.getString("settings_services.summarizer").removeSuffix(":")
         ServiceType.REWRITER      -> localizationManager.getString("settings_services.rewriter").removeSuffix(":")
+        ServiceType.IMAGE_SEARCH  -> localizationManager.getString("settings_services.image_search").removeSuffix(":")
     }

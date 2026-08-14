@@ -72,7 +72,7 @@ fun main(args: Array<String>) = runBlocking {
             )
 
             val lifecycleCheck = runCatching {
-                val serviceIds = plugin.services.map { it.id }.toSet()
+                val serviceIds = plugin.services.map(plugin::serviceIdOf).toSet()
                 dependencies.pluginManager.disablePlugin(plugin.id)
                 check(dependencies.pluginManager.plugins.value.single { it.id == plugin.id }.status == PluginStatus.DISABLED)
                 check(serviceIds.none { it in dependencies.pluginManager.activeServices.value })
@@ -89,10 +89,11 @@ fun main(args: Array<String>) = runBlocking {
             )
         }
 
-        dependencies.pluginManager.activeServices.value.values
-            .filterIsInstance<Translator>()
-            .sortedBy { it.id }
-            .forEach { translator ->
+        // Iterated as entries: the id is the registry key now, not a property of the service.
+        dependencies.pluginManager.activeServices.value.entries
+            .mapNotNull { (id, service) -> (service as? Translator)?.let { id to it } }
+            .sortedBy { it.first }
+            .forEach { (serviceId, translator) ->
                 val translationCheck = runCatching {
                     withTimeoutOrNull(35_000) {
                         translator.translate(
@@ -114,8 +115,8 @@ fun main(args: Array<String>) = runBlocking {
                     } ?: "graceful TimeoutError: smoke request exceeded 35 seconds"
                 }
                 results += SmokeResult(
-                    translator.id.substringBeforeLast('-'),
-                    "translate:${translator.id}",
+                    serviceId.substringBefore(':'),
+                    "translate:$serviceId",
                     translationCheck.isSuccess,
                     translationCheck.fold({ it }, { "threw ${it::class.java.simpleName}: ${it.message}" })
                 )

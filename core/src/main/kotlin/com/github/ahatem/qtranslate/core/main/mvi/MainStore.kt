@@ -120,6 +120,7 @@ class MainStore(
                     current.copy(
                         availableServices  = selection.availableServices,
                         availableLanguages = sortedLanguages,
+                        serviceOptions     = selection.serviceOptions,
                         targetLanguage     = targetLang
                     )
                 }

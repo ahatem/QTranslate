@@ -69,6 +69,10 @@ data class ServiceOptionValue(
  *
  * The ids match the enum constants these replaced, so configurations written by earlier versions
  * keep resolving.
+ *
+ * The label keys are the host's own, not a namespace invented for this object: these exact strings
+ * are already translated in every language the application ships, and pointing at them means a
+ * service using the standard vocabulary inherits all of that rather than starting from English.
  */
 object StandardOptions {
 
@@ -77,24 +81,24 @@ object StandardOptions {
 
     val SUMMARY_LENGTH: ServiceOption = ServiceOption(
         key = KEY_SUMMARY_LENGTH,
-        label = DisplayText("service_option.summary_length", "Length"),
+        label = DisplayText("settings_translation.summary_length", "Length"),
         values = listOf(
-            ServiceOptionValue("SHORT", DisplayText("service_option.summary_length_short", "Short")),
-            ServiceOptionValue("MEDIUM", DisplayText("service_option.summary_length_medium", "Medium")),
-            ServiceOptionValue("LONG", DisplayText("service_option.summary_length_long", "Long"))
+            ServiceOptionValue("SHORT", DisplayText("settings_translation.summary_length_short", "Short")),
+            ServiceOptionValue("MEDIUM", DisplayText("settings_translation.summary_length_medium", "Medium")),
+            ServiceOptionValue("LONG", DisplayText("settings_translation.summary_length_long", "Long"))
         ),
         defaultValue = "MEDIUM"
     )
 
     val REWRITE_STYLE: ServiceOption = ServiceOption(
         key = KEY_REWRITE_STYLE,
-        label = DisplayText("service_option.rewrite_style", "Style"),
+        label = DisplayText("settings_translation.rewrite_style", "Style"),
         values = listOf(
-            ServiceOptionValue("FORMAL", DisplayText("service_option.rewrite_style_formal", "Formal")),
-            ServiceOptionValue("CASUAL", DisplayText("service_option.rewrite_style_casual", "Casual")),
-            ServiceOptionValue("CONCISE", DisplayText("service_option.rewrite_style_concise", "Concise")),
-            ServiceOptionValue("DETAILED", DisplayText("service_option.rewrite_style_detailed", "Detailed")),
-            ServiceOptionValue("SIMPLIFIED", DisplayText("service_option.rewrite_style_simplified", "Simplified"))
+            ServiceOptionValue("FORMAL", DisplayText("settings_translation.rewrite_style_formal", "Formal")),
+            ServiceOptionValue("CASUAL", DisplayText("settings_translation.rewrite_style_casual", "Casual")),
+            ServiceOptionValue("CONCISE", DisplayText("settings_translation.rewrite_style_concise", "Concise")),
+            ServiceOptionValue("DETAILED", DisplayText("settings_translation.rewrite_style_detailed", "Detailed")),
+            ServiceOptionValue("SIMPLIFIED", DisplayText("settings_translation.rewrite_style_simplified", "Simplified"))
         ),
         defaultValue = "FORMAL"
     )
