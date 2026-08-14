@@ -24,8 +24,12 @@ class WikimediaReferencePlugin : Plugin<PluginSettings.None> {
 
     override suspend fun onEnable(): Result<Unit, ServiceError> {
         val client = WikimediaClient(httpClient)
-        services = listOf(WikipediaService(client), WiktionaryService(client))
-        context.logger.info("Wikipedia and Wiktionary reference services enabled")
+        services = listOf(
+            WikipediaService(client),
+            WiktionaryService(client),
+            CommonsImageSearchService(client)
+        )
+        context.logger.info("Wikipedia, Wiktionary and Commons image services enabled")
         return Ok(Unit)
     }
 

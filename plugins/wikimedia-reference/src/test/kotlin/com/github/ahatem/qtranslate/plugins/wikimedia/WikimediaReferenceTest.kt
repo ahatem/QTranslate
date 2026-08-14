@@ -3,8 +3,10 @@ package com.github.ahatem.qtranslate.plugins.wikimedia
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
+import com.github.ahatem.qtranslate.api.imagesearch.ImageSearchRequest
 import com.github.ahatem.qtranslate.plugins.common.HttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -128,16 +130,114 @@ class WikimediaReferenceTest {
     }
 
     @Test
-    fun `plugin exposes distinct dictionary services`() = runBlocking {
+    fun `plugin exposes two dictionaries and an image search`() = runBlocking {
         val plugin = WikimediaReferencePlugin()
         val context = FakePluginContext()
 
         plugin.initialize(context)
         plugin.onEnable()
 
-        assertEquals(listOf("Wikipedia", "Wiktionary"), plugin.getServices().map { it.name })
-        assertTrue(plugin.getServices().all { it is com.github.ahatem.qtranslate.api.dictionary.Dictionary })
+        assertEquals(
+            listOf("Wikipedia", "Wiktionary", "Wikimedia Commons"),
+            plugin.getServices().map { it.name }
+        )
+        assertEquals(
+            listOf(
+                setOf(ServiceCapability.DICTIONARY),
+                setOf(ServiceCapability.DICTIONARY),
+                setOf(ServiceCapability.IMAGE_SEARCH)
+            ),
+            plugin.getServices().map { it.capabilities }
+        )
         plugin.shutdown()
+    }
+
+    // ── Commons image search ──────────────────────────────────────────────────
+
+    @Test
+    fun `image search reads urls, caption, credit and licence`() = runBlocking<Unit> {
+        val transport = QueueHttpClient(listOf(Ok(COMMONS_JSON)))
+
+        val results = CommonsImageSearchService(client(transport)).searchImages(
+            ImageSearchRequest("borborygmi", LanguageCode.ENGLISH)
+        ).getOrThrow(::failure).results
+
+        val first = results.first()
+        assertEquals("https://upload.wikimedia.org/thumb/gut.jpg", first.thumbnailUrl)
+        assertEquals("https://upload.wikimedia.org/gut.jpg", first.fullUrl)
+        assertEquals("https://commons.wikimedia.org/wiki/File:Gut_sounds.jpg", first.sourceUrl)
+        // "File:" and the extension are noise once it is a caption under a picture.
+        assertEquals("Gut sounds", first.title)
+        // The credit arrives as a link, which would read as raw HTML on screen.
+        assertEquals("Jane Roe", first.attribution)
+        assertEquals("CC BY-SA 4.0", first.license)
+    }
+
+    @Test
+    fun `a file Commons could not render a thumbnail for is dropped`() = runBlocking<Unit> {
+        // Showing it would put a broken tile in the grid; there is nothing to display.
+        val transport = QueueHttpClient(listOf(Ok(COMMONS_JSON)))
+
+        val results = CommonsImageSearchService(client(transport)).searchImages(
+            ImageSearchRequest("borborygmi", LanguageCode.ENGLISH)
+        ).getOrThrow(::failure).results
+
+        assertEquals(1, results.size)
+    }
+
+    @Test
+    fun `finding nothing is an empty result, not an error`() = runBlocking<Unit> {
+        // The popup says "no images found"; an error would put a red status bar in front of
+        // someone for the ordinary case of an obscure word.
+        val transport = QueueHttpClient(listOf(Ok("""{"batchcomplete":true}""")))
+
+        val response = CommonsImageSearchService(client(transport)).searchImages(
+            ImageSearchRequest("qwertyuiop", LanguageCode.ENGLISH)
+        ).getOrThrow(::failure)
+
+        assertTrue(response.results.isEmpty())
+    }
+
+    @Test
+    fun `metadata holding a number instead of a string does not fail the response`() = runBlocking<Unit> {
+        // extmetadata is typed per key: most entries are strings, some are numbers. A String
+        // field would lose the whole response over a field we never read.
+        val transport = QueueHttpClient(listOf(Ok(COMMONS_JSON_WITH_NUMERIC_METADATA)))
+
+        val results = CommonsImageSearchService(client(transport)).searchImages(
+            ImageSearchRequest("gut", LanguageCode.ENGLISH)
+        ).getOrThrow(::failure).results
+
+        assertEquals("CC0", results.single().license)
+    }
+
+    @Test
+    fun `the media type option selects which Commons file types are searched`() = runBlocking<Unit> {
+        suspend fun fileTypeFor(options: Map<String, String>): String {
+            val transport = QueueHttpClient(listOf(Ok("""{"batchcomplete":true}""")))
+            CommonsImageSearchService(client(transport)).searchImages(
+                ImageSearchRequest("gut", LanguageCode.ENGLISH, options = options)
+            )
+            return transport.params.single()["gsrsearch"].toString()
+        }
+
+        assertTrue(fileTypeFor(mapOf("mediaType" to "PHOTOS")).endsWith("filetype:bitmap"))
+        assertTrue(fileTypeFor(mapOf("mediaType" to "DIAGRAMS")).endsWith("filetype:drawing"))
+        // Unset falls back to the declared default rather than sending nothing.
+        assertTrue(fileTypeFor(emptyMap()).endsWith("filetype:bitmap|drawing"))
+    }
+
+    @Test
+    fun `image search asks Commons for files rather than articles`() = runBlocking<Unit> {
+        val transport = QueueHttpClient(listOf(Ok("""{"batchcomplete":true}""")))
+
+        CommonsImageSearchService(client(transport)).searchImages(
+            ImageSearchRequest("gut", LanguageCode.ENGLISH)
+        )
+
+        assertEquals("https://commons.wikimedia.org/w/api.php", transport.urls.single())
+        // Namespace 6 is File:. Without it the search returns pages with no image on them.
+        assertEquals(6, transport.params.single()["gsrnamespace"])
     }
 
     private fun client(httpClient: HttpClient) = WikimediaClient(httpClient, minimumIntervalMillis = 0)
@@ -153,6 +253,7 @@ class WikimediaReferenceTest {
     private class QueueHttpClient(responses: List<Result<String, ServiceError>>) : HttpClient {
         private val responses = ArrayDeque(responses)
         val urls = mutableListOf<String>()
+        val params = mutableListOf<Map<String, Any?>>()
 
         override suspend fun get(
             url: String,
@@ -160,6 +261,7 @@ class WikimediaReferenceTest {
             queryParams: Map<String, Any?>
         ): Result<String, ServiceError> {
             urls += url
+            params += queryParams
             return responses.removeFirst()
         }
 
@@ -172,6 +274,38 @@ class WikimediaReferenceTest {
     }
 
     private companion object {
+
+        /** Two files: one complete, one Commons produced no thumbnail for. */
+        val COMMONS_JSON = """
+            {"query":{"pages":[
+              {"title":"File:Gut sounds.jpg","imageinfo":[{
+                "thumburl":"https://upload.wikimedia.org/thumb/gut.jpg",
+                "url":"https://upload.wikimedia.org/gut.jpg",
+                "descriptionurl":"https://commons.wikimedia.org/wiki/File:Gut_sounds.jpg",
+                "extmetadata":{
+                  "Artist":{"value":"<a href=\"/wiki/User:Jane\">Jane Roe</a>"},
+                  "LicenseShortName":{"value":"CC BY-SA 4.0"}
+                }}]},
+              {"title":"File:Unrenderable.tif","imageinfo":[{
+                "url":"https://upload.wikimedia.org/unrenderable.tif",
+                "extmetadata":{}
+              }]}
+            ]}}
+        """.trimIndent()
+
+        val COMMONS_JSON_WITH_NUMERIC_METADATA = """
+            {"query":{"pages":[
+              {"title":"File:Gut.png","imageinfo":[{
+                "thumburl":"https://upload.wikimedia.org/thumb/gut.png",
+                "url":"https://upload.wikimedia.org/gut.png",
+                "extmetadata":{
+                  "LicenseShortName":{"value":"CC0"},
+                  "AttributionRequired":{"value":0},
+                  "Restrictions":{"value":""}
+                }}]}
+            ]}}
+        """.trimIndent()
+
         val ENGLISH_WIKTIONARY_HTML = """
             <html><body><section><h2>English</h2>
               <section><h3>Interjection</h3><ol>

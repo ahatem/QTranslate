@@ -1,0 +1,9 @@
+# Strings this plugin contributes. See the wiki for how bundles are resolved.
+
+[wikimedia]
+images_privacy_note = "The selected word is sent to Wikimedia Commons to search for images."
+images_attribution = "Images from Wikimedia Commons, under the licence shown with each result."
+media_type = "Show"
+media_type_both = "Anything"
+media_type_photos = "Photographs"
+media_type_diagrams = "Diagrams"
