@@ -61,6 +61,7 @@ no_translator = "Nincs fordító"
 backward_tooltip = "Menjen vissza a fordítási előzményekben"
 forward_tooltip = "Menjen előre a fordítási előzményekben"
 image_translate_tooltip = "Szöveg rögzítése és fordítása a képernyőről"
+document_translate_tooltip = "Dokumentum fordítása a formázás megőrzésével"
 
 [main_window_language_bar]
 clear_tooltip = "Törölje a bevitt szöveget"

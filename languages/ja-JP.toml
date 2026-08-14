@@ -61,6 +61,7 @@ no_translator = "翻訳エンジン未選択"
 backward_tooltip = "前の翻訳に戻る"
 forward_tooltip = "次の翻訳に進む"
 image_translate_tooltip = "画面上の範囲を指定してテキストを翻訳"
+document_translate_tooltip = "書式を保持したままドキュメントを翻訳"
 
 [main_window_language_bar]
 clear_tooltip = "入力をクリア"

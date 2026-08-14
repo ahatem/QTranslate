@@ -61,6 +61,7 @@ no_translator = "未选择翻译器"
 backward_tooltip = "返回翻译历史"
 forward_tooltip = "前进翻译历史"
 image_translate_tooltip = "截取屏幕区域并翻译文本"
+document_translate_tooltip = "翻译文档并保留其格式"
 
 [main_window_language_bar]
 clear_tooltip = "清除输入文本"

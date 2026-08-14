@@ -61,6 +61,7 @@ no_translator = "لا يوجد مترجم"
 backward_tooltip = "الرجوع للخلف في سجل الترجمة"
 forward_tooltip = "التقدم للأمام في سجل الترجمة"
 image_translate_tooltip = "التقاط وترجمة نص من منطقة على الشاشة"
+document_translate_tooltip = "ترجمة مستند مع الحفاظ على تنسيقه"
 
 [main_window_language_bar]
 clear_tooltip = "مسح نص الإدخال"

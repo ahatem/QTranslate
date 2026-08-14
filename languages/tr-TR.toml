@@ -61,6 +61,7 @@ no_translator = "Çevirmen Yok"
 backward_tooltip = "Çeviri geçmişinde geri git"
 forward_tooltip = "Çeviri geçmişinde ileri git"
 image_translate_tooltip = "Ekrandaki bir alandan metin yakala ve çevir"
+document_translate_tooltip = "Bir belgeyi biçimlendirmesini koruyarak çevir"
 
 [main_window_language_bar]
 clear_tooltip = "Giriş metnini temizle"

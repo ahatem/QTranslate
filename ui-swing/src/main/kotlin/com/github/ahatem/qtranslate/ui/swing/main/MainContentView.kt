@@ -54,6 +54,7 @@ class MainContentView(
     private val dispatch: (MainIntent) -> Unit,
     private val dispatchSettings: (SettingsIntent) -> Unit,
     private val onOpenSnippingTool: () -> Unit,
+    private val onOpenDocumentTranslation: () -> Unit,
     private val onNotificationsClicked: () -> Unit,
     private val onConfigureService: (String) -> Unit,
 ) : JPanel(BorderLayout(0, 0)) {
@@ -63,6 +64,7 @@ class MainContentView(
         onBackward = { dispatch(MainIntent.UndoTranslation) },
         onForward = { dispatch(MainIntent.RedoTranslation) },
         onImageTranslate = { onOpenSnippingTool() },
+        onDocumentTranslate = { onOpenDocumentTranslation() },
     )
 
     private val translatorSelector = TranslatorSelector(
@@ -425,6 +427,7 @@ class MainContentView(
                     backwardTooltip = localizer.getString("main_window_history_bar.backward_tooltip"),
                     forwardTooltip = localizer.getString("main_window_history_bar.forward_tooltip"),
                     imageTranslateTooltip = localizer.getString("main_window_history_bar.image_translate_tooltip"),
+                    documentTranslateTooltip = localizer.getString("main_window_history_bar.document_translate_tooltip"),
                 ),
             )
         )

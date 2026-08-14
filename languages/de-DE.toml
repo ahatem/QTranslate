@@ -61,6 +61,7 @@ no_translator = "Kein Übersetzer"
 backward_tooltip = "Im Verlauf zurückgehen"
 forward_tooltip = "Im Verlauf vorwärtsgehen"
 image_translate_tooltip = "Bildschirmbereich erfassen und Text übersetzen"
+document_translate_tooltip = "Dokument übersetzen und Formatierung beibehalten"
 
 [main_window_language_bar]
 clear_tooltip = "Eingabetext löschen"

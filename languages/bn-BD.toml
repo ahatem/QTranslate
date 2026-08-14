@@ -61,6 +61,7 @@ no_translator = "কোন অনুবাদক নেই"
 backward_tooltip = "অনুবাদ ইতিহাসে পেছনে যান"
 forward_tooltip = "অনুবাদ ইতিহাসে সামনে যান"
 image_translate_tooltip = "স্ক্রিনের একটি অংশ থেকে লেখা ক্যাপচার এবং অনুবাদ করুন"
+document_translate_tooltip = "বিন্যাস অক্ষুণ্ন রেখে একটি নথি অনুবাদ করুন"
 
 [main_window_language_bar]
 clear_tooltip = "ইনপুট লেখা মুছুন"

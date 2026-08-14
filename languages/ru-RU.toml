@@ -61,6 +61,7 @@ no_translator = "Переводчик не выбран"
 backward_tooltip = "Назад по истории переводов"
 forward_tooltip = "Вперед по истории переводов"
 image_translate_tooltip = "Захватить и перевести текст из области на экране"
+document_translate_tooltip = "Перевести документ с сохранением форматирования"
 
 [main_window_language_bar]
 clear_tooltip = "Очистить текст"

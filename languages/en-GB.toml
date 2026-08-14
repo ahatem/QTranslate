@@ -61,6 +61,7 @@ no_translator = "No Translator"
 backward_tooltip = "Go backward in translation history"
 forward_tooltip = "Go forward in translation history"
 image_translate_tooltip = "Capture and translate text from an area on screen"
+document_translate_tooltip = "Translate a document while preserving its formatting"
 
 [main_window_language_bar]
 clear_tooltip = "Clear input text"

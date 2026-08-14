@@ -185,6 +185,7 @@ class MainAppFrame(
         dispatch = { mainStore.dispatch(it) },
         dispatchSettings = { settingsStore.dispatch(it) },
         onOpenSnippingTool = { openSnippingTool() },
+        onOpenDocumentTranslation = { documentTranslationDialog.open() },
         onNotificationsClicked = { notificationPopover.show(mainContentView.statusBar) },
         onConfigureService = { serviceId -> openPluginConfiguration(serviceId) }
     )

@@ -61,6 +61,7 @@ no_translator = "Nessuno traduttore"
 backward_tooltip = "Vai indietro nella cronologia traduzioni"
 forward_tooltip = "Vai avanti nella cronologia traduzioni"
 image_translate_tooltip = "Cattura e traduci il testo in un'area sullo schermo"
+document_translate_tooltip = "Traduci un documento preservandone la formattazione"
 
 [main_window_language_bar]
 clear_tooltip = "Cancella il testo inserito"
