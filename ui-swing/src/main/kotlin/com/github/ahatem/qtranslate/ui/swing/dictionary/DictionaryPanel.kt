@@ -158,10 +158,19 @@ class DictionaryPanel(
             ?: UIManager.getColor("Panel.background")?.darker()
             ?: Color.GRAY
 
+        // The rule separates this panel from the content it is docked beside, so it belongs on
+        // whichever edge faces that content — the left in a left-to-right interface, the right in
+        // a right-to-left one, where the panel sits on the other side of the divider.
+        val facingContent = if (componentOrientation.isLeftToRight) 1 else 0
         border = BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 1, 0, 0, borderColor),
+            BorderFactory.createMatteBorder(0, facingContent, 0, 1 - facingContent, borderColor),
             BorderFactory.createEmptyBorder(12, 12, 12, 12)
         )
+    }
+
+    override fun setComponentOrientation(orientation: java.awt.ComponentOrientation) {
+        super.setComponentOrientation(orientation)
+        refreshBorder()
     }
 
     private fun refreshLabelColors() {
