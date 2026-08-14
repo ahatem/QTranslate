@@ -502,6 +502,7 @@ unknown_error = "Bilinmeyen bir hata oluştu."
 
 [status_bar]
 ocr_text_copied = "Metin tanındı ve panoya kopyalandı."
+text_copied = "Panoya kopyalandı."
 translating = "Çevriliyor..."
 translation_complete = "Çeviri tamamlandı."
 translation_timeout = "Çeviri zaman aşımına uğradı. Lütfen tekrar deneyin."

@@ -503,6 +503,7 @@ unknown_error = "Ein unbekannter Fehler ist aufgetreten."
 
 [status_bar]
 ocr_text_copied = "Text erkannt und in die Zwischenablage kopiert."
+text_copied = "In die Zwischenablage kopiert."
 translating = "Wird übersetzt..."
 translation_complete = "Übersetzung abgeschlossen."
 translation_timeout = "Übersetzung hat das Zeitlimit überschritten. Bitte erneut versuchen."

@@ -476,7 +476,7 @@ class MainContentView(
                     tooltip = localizer.getString("main_window_editor_context_menu.copy"),
                     isEnabled = hasInputText && !mainState.isLoading,
                     isVisible = true,
-                    onClick = { mainState.inputText.copyToClipboard() }
+                    onClick = { mainState.inputText.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) }
                 ),
                 Action(
                     id = if (isTtsPlaying) "stop_tts_input" else "listen_input",
@@ -521,7 +521,7 @@ class MainContentView(
                             tooltip = localizer.getString("main_window_editor_context_menu.copy"),
                             isEnabled = hasOutputText && !mainState.isLoading,
                             isVisible = true,
-                            onClick = { mainState.translatedText.copyToClipboard() }
+                            onClick = { mainState.translatedText.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) }
                         ),
                         Action(
                             id = if (isTtsPlaying) "stop_tts_output" else "listen_output",
@@ -602,7 +602,7 @@ class MainContentView(
                             tooltip = localizer.getString("main_window_editor_context_menu.copy"),
                             isEnabled = hasExtraText && !mainState.isLoading,
                             isVisible = true,
-                            onClick = { mainState.extraOutputText.copyToClipboard() }
+                            onClick = { mainState.extraOutputText.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) }
                         ),
                         Action(
                             id = if (isTtsPlaying) "stop_tts_extra" else "listen_extra",

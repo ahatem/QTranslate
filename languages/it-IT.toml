@@ -501,6 +501,7 @@ unknown_error = "Si è verificato un errore sconosciuto."
 
 [status_bar]
 ocr_text_copied = "Testo riconosciuto e copiato negli appunti."
+text_copied = "Copiato negli appunti."
 translating = "Traduzione in corso..."
 translation_complete = "Traduzione completata."
 translation_timeout = "Traduzione scaduta. Riprova."

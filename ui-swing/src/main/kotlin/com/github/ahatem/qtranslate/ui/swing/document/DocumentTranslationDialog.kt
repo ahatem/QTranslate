@@ -265,17 +265,32 @@ class DocumentTranslationDialog(
         }
     }
 
+    /**
+     * Opens the dialog with [file] already selected, for documents dropped onto the main
+     * window. Callers are expected to have checked [DocumentFormat.from] first; an
+     * unsupported file is ignored rather than opening an unusable dialog.
+     */
+    fun openWith(file: File) {
+        if (DocumentFormat.from(file) == null) return
+        applyInput(file)
+        open()
+    }
+
     private fun chooseInput() {
         val chooser = JFileChooser().apply {
             dialogTitle = strings.chooseInput
             fileFilter = FileNameExtensionFilter("DOCX, PDF, TXT, SRT, VTT", "docx", "pdf", "txt", "srt", "vtt")
         }
         if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return
-        inputFile = chooser.selectedFile
-        inputField.text = chooser.selectedFile.absolutePath
-        inputField.toolTipText = chooser.selectedFile.absolutePath
-        pdfOptionsPanel.isVisible = DocumentFormat.from(chooser.selectedFile) == DocumentFormat.PDF
-        updateSuggestedOutput(chooser.selectedFile)
+        applyInput(chooser.selectedFile)
+    }
+
+    private fun applyInput(file: File) {
+        inputFile = file
+        inputField.text = file.absolutePath
+        inputField.toolTipText = file.absolutePath
+        pdfOptionsPanel.isVisible = DocumentFormat.from(file) == DocumentFormat.PDF
+        updateSuggestedOutput(file)
         outputButton.isEnabled = true
         showState(ViewState.READY, strings.ready)
         resizeToContent()

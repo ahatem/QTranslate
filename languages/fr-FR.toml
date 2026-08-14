@@ -501,6 +501,7 @@ unknown_error = "Une erreur inconnue est survenue."
 
 [status_bar]
 ocr_text_copied = "Texte reconnu et copié dans le presse-papier."
+text_copied = "Copié dans le presse-papier."
 translating = "Traduction en cours..."
 translation_complete = "Traduction terminée."
 translation_timeout = "La traduction a expiré. Veuillez réessayer."

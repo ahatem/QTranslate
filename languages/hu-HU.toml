@@ -501,6 +501,7 @@ unknown_error = "Ismeretlen hiba történt."
 
 [status_bar]
 ocr_text_copied = "Felismert szöveg a vágólapra másolva."
+text_copied = "A vágólapra másolva."
 translating = "Fordítás folyamatban..."
 translation_complete = "A fordítás kész."
 translation_timeout = "A fordítás időtúllépés miatt megszakadt. Kérjük, próbálja újra."

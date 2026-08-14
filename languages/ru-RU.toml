@@ -502,6 +502,7 @@ unknown_error = "Произошла неизвестная ошибка."
 
 [status_bar]
 ocr_text_copied = "Текст распознан и скопирован в буфер обмена."
+text_copied = "Скопировано в буфер обмена."
 translating = "Перевод..."
 translation_complete = "Перевод выполнен."
 translation_timeout = "Время перевода истекло. Попробуйте снова."

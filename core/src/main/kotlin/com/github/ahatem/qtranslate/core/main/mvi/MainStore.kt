@@ -262,6 +262,10 @@ class MainStore(
                 }
             }
 
+            MainIntent.NotifyTextCopied -> scope.launch {
+                updateStatusBar(StatusCode.TextCopied, NotificationType.SUCCESS, true)
+            }
+
             MainIntent.StopTTS -> handleTextToSpeechUseCase.stop()
 
             is MainIntent.ReplaceWithTranslation -> scope.launch {

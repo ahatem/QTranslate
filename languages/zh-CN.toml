@@ -502,6 +502,7 @@ unknown_error = "发生了未知错误。"
 
 [status_bar]
 ocr_text_copied = "文本已识别并复制到剪贴板。"
+text_copied = "已复制到剪贴板。"
 translating = "正在翻译..."
 translation_complete = "翻译完成。"
 translation_timeout = "翻译超时。请重试。"

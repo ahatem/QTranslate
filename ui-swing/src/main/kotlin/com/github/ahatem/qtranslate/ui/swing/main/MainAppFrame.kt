@@ -53,7 +53,10 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.swing.Swing
 import java.awt.*
+import com.github.ahatem.qtranslate.core.document.DocumentFormat
+import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
+import java.io.File
 import java.awt.event.*
 import java.net.URI
 import java.util.*
@@ -328,6 +331,7 @@ class MainAppFrame(
             setupMenuBar()
             setupTrayMenu()
             setupGlobalHotkeys()
+            setupDocumentDropTarget()
 
             observeStateAndEvents()
             isVisible = true
@@ -1300,6 +1304,33 @@ class MainAppFrame(
         )
     }
 
+    /**
+     * Opens the document translation dialog when a supported file is dropped on the window.
+     *
+     * Document translation was otherwise reachable only through a menu item and a toolbar
+     * button, even though dropping a file on the window is the obvious gesture for it.
+     * Unsupported files are ignored so dropping an image or an archive does nothing rather
+     * than opening a dialog that cannot proceed.
+     */
+    private fun setupDocumentDropTarget() {
+        transferHandler = object : TransferHandler() {
+            override fun canImport(support: TransferSupport): Boolean =
+                support.isDataFlavorSupported(DataFlavor.javaFileListFlavor) && firstSupportedDocument(support) != null
+
+            override fun importData(support: TransferSupport): Boolean {
+                val file = firstSupportedDocument(support) ?: return false
+                SwingUtilities.invokeLater { documentTranslationDialog.openWith(file) }
+                return true
+            }
+
+            @Suppress("UNCHECKED_CAST")
+            private fun firstSupportedDocument(support: TransferSupport): File? = runCatching {
+                (support.transferable.getTransferData(DataFlavor.javaFileListFlavor) as List<File>)
+                    .firstOrNull { DocumentFormat.from(it) != null }
+            }.getOrNull()
+        }
+    }
+
     private fun setupGlobalHotkeys() {
         addWindowListener(object : WindowAdapter() {
             override fun windowOpened(e: WindowEvent?) {
@@ -1691,6 +1722,7 @@ class MainAppFrame(
             StatusCode.NoTextInImage                -> localizer.getString("status_bar.no_text_in_image")
             StatusCode.OcrComplete                  -> localizer.getString("status_bar.ocr_complete")
             StatusCode.OcrTextCopied               -> localizer.getString("status_bar.ocr_text_copied")
+            StatusCode.TextCopied                  -> localizer.getString("status_bar.text_copied")
             is StatusCode.OcrFailed                 -> localizer.getString("status_bar.ocr_failed", code.summary)
             StatusCode.NoSummarizerActive           -> localizer.getString("status_bar.no_summarizer_active")
             StatusCode.Summarizing                  -> localizer.getString("status_bar.summarizing")

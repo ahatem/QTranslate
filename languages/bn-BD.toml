@@ -503,6 +503,7 @@ unknown_error = "একটি অজানা ত্রুটি ঘটেছে
 
 [status_bar]
 ocr_text_copied = "পাঠ্য শনাক্ত করা হয়েছে এবং ক্লিপবোর্ডে কপি করা হয়েছে।"
+text_copied = "ক্লিপবোর্ডে কপি করা হয়েছে।"
 translating = "অনুবাদ হচ্ছে..."
 translation_complete = "অনুবাদ সম্পন্ন।"
 translation_timeout = "অনুবাদের সময়সীমা শেষ। আবার চেষ্টা করুন।"

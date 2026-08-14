@@ -501,6 +501,7 @@ unknown_error = "An unknown error occurred."
 
 [status_bar]
 ocr_text_copied = "Text recognized and copied to clipboard."
+text_copied = "Copied to clipboard."
 translating = "Translating..."
 translation_complete = "Translation complete."
 translation_cancelled = "Translation cancelled."

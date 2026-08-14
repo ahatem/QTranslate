@@ -503,6 +503,7 @@ unknown_error = "حدث خطأ غير معروف."
 
 [status_bar]
 ocr_text_copied = "تم التعرف على النص ونسخه إلى الحافظة."
+text_copied = "تم النسخ إلى الحافظة."
 translating = "جاري الترجمة..."
 translation_complete = "اكتملت الترجمة."
 translation_timeout = "انتهت مهلة الترجمة. يرجى المحاولة مجدداً."

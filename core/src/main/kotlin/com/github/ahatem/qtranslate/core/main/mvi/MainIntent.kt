@@ -43,6 +43,14 @@ sealed interface MainIntent : UiIntent {
     data object CancelTranslation : MainIntent
 
     /**
+     * Text was copied to the clipboard and the user should be told.
+     *
+     * The copy itself happens in the UI, which owns the clipboard; this only reports it so
+     * the confirmation travels through the same status-bar path as every other message.
+     */
+    data object NotifyTextCopied : MainIntent
+
+    /**
      * User stopped TTS playback that is currently in progress.
      * No-op if nothing is playing.
      */

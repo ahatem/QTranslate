@@ -503,6 +503,7 @@ unknown_error = "Ha ocurrido un error desconocido."
 
 [status_bar]
 ocr_text_copied = "Texto reconocido y copiado al portapapeles."
+text_copied = "Copiado al portapapeles."
 translating = "Traduciendo..."
 translation_complete = "Traducción completada."
 translation_timeout = "La traducción superó el tiempo de espera. Inténtalo de nuevo."
