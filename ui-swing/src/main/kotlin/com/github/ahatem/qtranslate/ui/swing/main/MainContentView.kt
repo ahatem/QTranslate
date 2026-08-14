@@ -543,7 +543,9 @@ class MainContentView(
             ExtraOutputState(
                 text = mainState.extraOutputText,
                 isVisible = config.extraOutputType != ExtraOutputType.None,
-                isLoading = mainState.isLoading,
+                // Stays loading after the main translation has landed — this panel is fed by
+                // its own request and must not make the main output wait for it.
+                isLoading = mainState.isLoading || mainState.isExtraOutputLoading,
                 fontConfig = config.scaledEditorFont,
                 fallbackFontConfig = config.scaledEditorFallbackFont,
                 activeType = config.extraOutputType,

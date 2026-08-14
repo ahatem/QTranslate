@@ -19,6 +19,9 @@ import com.github.ahatem.qtranslate.core.shared.arch.UiState
  * @property inputText The text currently in the source input field.
  * @property translatedText The most recent translation result.
  * @property extraOutputText Secondary output (backward translation, summary, rewrite).
+ * @property isExtraOutputLoading Whether the secondary output is still being produced.
+ *   The primary translation is published as soon as it arrives, so this stays true for a
+ *   short while after [isLoading] has already returned to false.
  * @property sourceLanguage The currently selected source language. May be [LanguageCode.AUTO].
  * @property detectedSourceLanguage The language auto-detected from the last translation.
  *   Only populated when [sourceLanguage] is [LanguageCode.AUTO] and the translator
@@ -39,6 +42,7 @@ data class MainState(
     val inputText: String = "",
     val translatedText: String = "",
     val extraOutputText: String = "",
+    val isExtraOutputLoading: Boolean = false,
     val sourceLanguage: LanguageCode = LanguageCode.AUTO,
     val detectedSourceLanguage: LanguageCode? = null,
     val targetLanguage: LanguageCode = LanguageCode.ARABIC,
