@@ -29,7 +29,15 @@ package com.github.ahatem.qtranslate.api.plugin
  */
 data class DisplayText(
     val key: String,
-    val fallback: String
+    val fallback: String,
+    /**
+     * Values substituted into the resolved string's format placeholders.
+     *
+     * Text that varies — "Translated %d of %d segments" — cannot be assembled by concatenation
+     * without breaking languages that order their clauses differently. Passing the pieces
+     * separately lets each translation put them where that language needs them.
+     */
+    val args: List<String> = emptyList()
 ) {
     init {
         require(key.isNotBlank()) { "DisplayText.key must not be blank." }
