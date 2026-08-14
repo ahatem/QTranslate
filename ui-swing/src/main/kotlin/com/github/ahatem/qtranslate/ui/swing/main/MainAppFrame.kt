@@ -268,6 +268,9 @@ class MainAppFrame(
                 // inside the app already has the toolbar and hotkeys available.
                 if (enabled && !isActive) selectionTranslateButton.showAt(location, text)
             }
+        },
+        onPointerPressed = { location ->
+            runOnUi { selectionTranslateButton.dismissIfOutside(location) }
         }
     )
 

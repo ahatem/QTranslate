@@ -53,7 +53,8 @@ class MainGlobalKeyListener(
     private val onCycleTargetLanguage: () -> Unit,
     private val onShowDictionary: (String) -> Unit = {},
     private val onTranslate: () -> Unit = {},
-    private val onSelectionDetected: (String, Point) -> Unit = { _, _ -> }
+    private val onSelectionDetected: (String, Point) -> Unit = { _, _ -> },
+    private val onPointerPressed: (Point) -> Unit = {}
 ) {
 
     private var provider: Provider? = null
@@ -268,7 +269,11 @@ class MainGlobalKeyListener(
         private var dragged = false
 
         override fun nativeMousePressed(event: NativeMouseEvent) {
-            if (!selectionIconEnabled.get() || event.button != NativeMouseEvent.BUTTON1) return
+            if (!selectionIconEnabled.get()) return
+            // Any press dismisses a button left over from an earlier selection; the
+            // caller ignores presses that land on the button itself so clicks still work.
+            onPointerPressed(event.point)
+            if (event.button != NativeMouseEvent.BUTTON1) return
             pressedAt = event.point
             dragged = false
         }
