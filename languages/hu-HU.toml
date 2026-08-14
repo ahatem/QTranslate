@@ -56,6 +56,7 @@ auto_detect = "Automatikus felismerés"
 [main_window]
 status_format = "%s használatban: %s → %s"
 no_translator = "Nincs fordító"
+no_service_message = "Nincs beállítva fordítási szolgáltatás."no_service_action = "Szolgáltatások beállításai"
 
 [main_window_history_bar]
 backward_tooltip = "Menjen vissza a fordítási előzményekben"

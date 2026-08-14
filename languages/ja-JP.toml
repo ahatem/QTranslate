@@ -56,6 +56,7 @@ auto_detect = "自動検出"
 [main_window]
 status_format = "%s を使用中: %s → %s"
 no_translator = "翻訳エンジン未選択"
+no_service_message = "翻訳サービスが設定されていません。"no_service_action = "サービス設定を開く"
 
 [main_window_history_bar]
 backward_tooltip = "前の翻訳に戻る"

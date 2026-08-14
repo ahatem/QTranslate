@@ -56,6 +56,7 @@ auto_detect = "Détection automatique"
 [main_window]
 status_format = "Utilisation de %s : %s → %s"
 no_translator = "Aucun traducteur"
+no_service_message = "Aucun service de traduction configuré."no_service_action = "Ouvrir les paramètres des services"
 
 [main_window_history_bar]
 backward_tooltip = "Reculer dans l'historique de traduction"

@@ -56,6 +56,7 @@ auto_detect = "Rilevamento automatico"
 [main_window]
 status_format = "Motore traduzione: %s - %s → %s"
 no_translator = "Nessuno traduttore"
+no_service_message = "Nessun servizio di traduzione configurato."no_service_action = "Apri impostazioni Servizi"
 
 [main_window_history_bar]
 backward_tooltip = "Vai indietro nella cronologia traduzioni"

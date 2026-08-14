@@ -25,6 +25,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
 import com.github.ahatem.qtranslate.ui.swing.main.output.ExtraOutputPanel
 import com.github.ahatem.qtranslate.ui.swing.main.output.ExtraOutputState
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextPanel
+import com.github.ahatem.qtranslate.ui.swing.main.output.NoServiceState
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextState
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelector
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
@@ -57,6 +58,7 @@ class MainContentView(
     private val onOpenDocumentTranslation: () -> Unit,
     private val onNotificationsClicked: () -> Unit,
     private val onConfigureService: (String) -> Unit,
+    private val onOpenServiceSettings: () -> Unit,
 ) : JPanel(BorderLayout(0, 0)) {
 
     private val translationHistoryBar: TranslationHistoryBar = TranslationHistoryBar(
@@ -507,9 +509,20 @@ class MainContentView(
         val hasOutputText = mainState.translatedText.isNotBlank()
         val hasExtraText = mainState.extraOutputText.isNotBlank()
 
+        // Nothing can be translated without a translator, and an empty window gives a new
+        // user no clue why. Point them at the setting that fixes it.
+        val noService = if (mainState.getAvailableServicesFor(ServiceType.TRANSLATOR).isEmpty()) {
+            NoServiceState(
+                message = localizer.getString("main_window.no_service_message"),
+                actionLabel = localizer.getString("main_window.no_service_action"),
+                onAction = onOpenServiceSettings
+            )
+        } else null
+
         outputTextPanel.render(
             OutputTextState(
                 text = mainState.translatedText,
+                noService = noService,
                 isLoading = mainState.isLoading,
                 fontConfig = config.scaledEditorFont,
                 fallbackFontConfig = config.scaledEditorFallbackFont,

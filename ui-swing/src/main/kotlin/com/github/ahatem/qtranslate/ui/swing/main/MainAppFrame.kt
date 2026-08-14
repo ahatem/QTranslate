@@ -192,7 +192,15 @@ class MainAppFrame(
         onOpenSnippingTool = { openSnippingTool() },
         onOpenDocumentTranslation = { documentTranslationDialog.open() },
         onNotificationsClicked = { notificationPopover.show(mainContentView.statusBar) },
-        onConfigureService = { serviceId -> openPluginConfiguration(serviceId) }
+        onConfigureService = { serviceId -> openPluginConfiguration(serviceId) },
+        onOpenServiceSettings = {
+            val dialog = createSettingsDialog()
+            dialog.applyComponentOrientation(
+                if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
+                else ComponentOrientation.LEFT_TO_RIGHT
+            )
+            dialog.isVisible = true
+        }
     )
 
     private val selectionTranslateButton = SelectionTranslateButton(

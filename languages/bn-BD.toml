@@ -56,6 +56,7 @@ auto_detect = "স্বয়ংক্রিয় সনাক্তকরণ"
 [main_window]
 status_format = "%s ব্যবহার করে: %s → %s"
 no_translator = "কোন অনুবাদক নেই"
+no_service_message = "কোনো অনুবাদ পরিষেবা কনফিগার করা হয়নি।"no_service_action = "পরিষেবা সেটিংস খুলুন"
 
 [main_window_history_bar]
 backward_tooltip = "অনুবাদ ইতিহাসে পেছনে যান"

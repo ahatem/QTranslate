@@ -56,6 +56,7 @@ auto_detect = "Auto-Detect"
 [main_window]
 status_format = "Using %s: %s → %s"
 no_translator = "No Translator"
+no_service_message = "No translation service is configured."no_service_action = "Open Services settings"
 
 [main_window_history_bar]
 backward_tooltip = "Go backward in translation history"

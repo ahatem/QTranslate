@@ -56,6 +56,7 @@ auto_detect = "Otomatik Algıla"
 [main_window]
 status_format = "Kullanılan %s: %s → %s"
 no_translator = "Çevirmen Yok"
+no_service_message = "Yapılandırılmış çeviri servisi yok."no_service_action = "Servis ayarlarını aç"
 
 [main_window_history_bar]
 backward_tooltip = "Çeviri geçmişinde geri git"

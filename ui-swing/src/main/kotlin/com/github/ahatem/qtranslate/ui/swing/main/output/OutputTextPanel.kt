@@ -8,16 +8,21 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.BorderLayout
+import java.awt.Color
+import java.awt.FlowLayout
 import java.awt.Point
 import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
 import javax.swing.AbstractAction
+import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.JLabel
 import javax.swing.JMenuItem
 import javax.swing.JPanel
 import javax.swing.JPopupMenu
 import javax.swing.JSeparator
 import javax.swing.KeyStroke
+import javax.swing.UIManager
 
 class OutputTextPanel(
     iconManager: IconManager,
@@ -37,6 +42,19 @@ class OutputTextPanel(
     private val actionsPanel = TextActionsPanel(iconManager)
     private val readOnlyPanel = ReadOnlyTextPanel(textPane, actionsPanel)
 
+    private val noServiceLabel = JLabel()
+    private val noServiceAction = JButton().apply {
+        putClientProperty("JButton.buttonType", "toolBarButton")
+        isFocusable = false
+        foreground = UIManager.getColor("Component.linkColor") ?: UIManager.getColor("Component.accentColor")
+    }
+    private val noServiceBanner = JPanel(FlowLayout(FlowLayout.LEADING, 8, 6)).apply {
+        isVisible = false
+        isOpaque = true
+        add(noServiceLabel)
+        add(noServiceAction)
+    }
+
     private var dictMenuItem: JMenuItem? = null
     private var dictMenuSeparator: JSeparator? = null
     private var setAsInputMenuItem: JMenuItem? = null
@@ -50,6 +68,7 @@ class OutputTextPanel(
     val textPaneComponent: JComponent get() = textPane
 
     init {
+        add(noServiceBanner, BorderLayout.NORTH)
         add(readOnlyPanel, BorderLayout.CENTER)
 
         textPane.hintText = localizationManager.getString("main_window_editor_context_menu.output_hint")
@@ -72,6 +91,7 @@ class OutputTextPanel(
     }
 
     override fun render(state: OutputTextState) {
+        renderNoServiceBanner(state.noService)
         readOnlyPanel.render(
             ReadOnlyTextPanelState(
                 text = state.text,
@@ -83,6 +103,41 @@ class OutputTextPanel(
                 isEditable = state.isEditable
             )
         )
+    }
+
+    /**
+     * Shows or hides the "no translator configured" banner.
+     *
+     * Sits above the output rather than replacing it, so it never fights the layout manager
+     * and the pane keeps working the moment a service becomes available. Colours are read
+     * from [UIManager] at build time and refreshed on each render so the banner follows theme
+     * changes.
+     */
+    private fun renderNoServiceBanner(state: NoServiceState?) {
+        if (state == null) {
+            if (noServiceBanner.isVisible) {
+                noServiceBanner.isVisible = false
+                revalidate()
+                repaint()
+            }
+            return
+        }
+
+        noServiceLabel.text = state.message
+        noServiceAction.text = state.actionLabel
+        noServiceAction.actionListeners.forEach(noServiceAction::removeActionListener)
+        noServiceAction.addActionListener { state.onAction() }
+
+        noServiceBanner.background = UIManager.getColor("Component.warningFocusColor")
+            ?.let { Color(it.red, it.green, it.blue, 28) }
+            ?: UIManager.getColor("Panel.background")
+        noServiceLabel.foreground = UIManager.getColor("Label.foreground")
+
+        if (!noServiceBanner.isVisible) {
+            noServiceBanner.isVisible = true
+            revalidate()
+            repaint()
+        }
     }
 
     private fun addFindInDictionaryItem(menu: JPopupMenu, clickPosition: Point) {

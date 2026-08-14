@@ -56,6 +56,7 @@ auto_detect = "Автоопределение"
 [main_window]
 status_format = "Используется %s: %s → %s"
 no_translator = "Переводчик не выбран"
+no_service_message = "Служба перевода не настроена."no_service_action = "Открыть настройки служб"
 
 [main_window_history_bar]
 backward_tooltip = "Назад по истории переводов"
