@@ -12,6 +12,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.*
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentMover
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentResizer
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.FloatingPopupBehavior
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.*
 import java.awt.event.*
@@ -110,32 +111,52 @@ class QuickTranslateDialog(
     }
 
     // timers and state
-    private val fadeLock = AtomicBoolean(false)
-    private var fadeTimer: Timer? = null
     private var copyFeedbackTimer: Timer? = null
     private var resizeSaveTimer: Timer? = null
 
-    // idle/auto-hide manager (single timer)
-    private var idleHideTimer: Timer? = null
-    private var idleCloseTimer: Timer? = null
+    /**
+     * Window flags, fading, idle-hide, pointer presence — shared with the other two popups.
+     *
+     * Declared ahead of [isPinned], whose setter writes into it. Kotlin initialises properties in
+     * declaration order, so the other way round leaves a window in which assigning isPinned would
+     * dereference null.
+     */
+    private val popup = FloatingPopupBehavior(
+        window = this,
+        owner = owner,
+        minimumSize = Dimension(350, 120),
+        pinnedBorderWidth = PINNED_BORDER_WIDTH,
+        resizeHandle = RESIZE_HANDLE_SIZE
+    ).apply {
+        configureIdleHide(
+            delayMs = { (currentConfig?.idleTimeoutSeconds ?: 3) * 1000 },
+            fadeMs = FADE_MS,
+            restingOpacity = { (100f - (currentConfig?.transparencyPercentage ?: 0)) / 100f },
+            // Dismissed through the store. Hiding the window directly left the application still
+            // believing the popup was open.
+            onExpired = { onDismiss() }
+        )
+    }
 
     // flags
     private var isDragging = false
     private var isResizing = false
+
+    /**
+     * Mirrored into the popup helper, whose idle-hide and pointer tracking both consult it.
+     * Two copies of "is this pinned" drifting apart means a pinned popup closing itself anyway.
+     */
     private var isPinned = false
+        set(value) {
+            field = value
+            popup.isPinned = value
+        }
     private var wasManuallyMoved = false
     private var currentConfig: DialogConfig? = null
 
     private var lastRenderedText: String? = null
 
-    // mouse presence detection via AWT
-    private var awtMouseListener: AWTEventListener? = null
-    private var isMouseOver = false
-
     init {
-        isUndecorated = true
-        isAlwaysOnTop = true
-        minimumSize = Dimension(350, 120)
         focusableWindowState = false
 
         val wrapperPanel = JPanel(BorderLayout()).apply {
@@ -292,31 +313,13 @@ class QuickTranslateDialog(
         fadeTo(target, FADE_MS)
     }
 
-    private fun fadeTo(targetOpacity: Float, durationMs: Int) {
-        if (fadeLock.get()) return
-        fadeLock.set(true)
-        fadeTimer?.stop()
-
-        val start = opacity
-        val steps = max(1, FADE_STEPS)
-        val stepDelay = max(10, durationMs / steps)
-        var step = 0
-
-        fadeTimer = Timer(stepDelay) {
-            step++
-            val t = step.toFloat() / steps
-            val value = start + (targetOpacity - start) * t
-            setOpacityIfDifferent(value)
-
-            if (step >= steps) {
-                (it.source as Timer).stop()
-                fadeLock.set(false)
-            }
-        }.apply {
-            isRepeats = true
-            start()
-        }
-    }
+    /**
+     * Delegated to the shared helper, which also drops a bug that lived only here: the old guard
+     * returned early while a fade was still running, so a fade back to transparency was silently
+     * discarded whenever the mouse entered and left within one animation. The dictionary popup
+     * had this fixed; this one never did.
+     */
+    private fun fadeTo(targetOpacity: Float, durationMs: Int) = popup.fadeTo(targetOpacity, durationMs)
 
     private fun setOpacityIfDifferent(value: Float) {
         if (abs(opacity - value) > 0.01f) opacity = value
@@ -345,82 +348,15 @@ class QuickTranslateDialog(
         onSaveSize(size.toSize())
     }
 
-    private fun startIdleHide() {
-        // restart single idle timer — reads live config each call so changes take effect immediately
-        val idleHideDelayMs = (currentConfig?.idleTimeoutSeconds ?: 3) * 1000
-        stopIdleHide()
-        idleHideTimer = Timer(idleHideDelayMs) { event ->
-            (event.source as Timer).stop()
-            if (isPinned) return@Timer
-            fadeTo(0f, FADE_MS)
-            // Kept in a field so stopIdleHide can reach it. Previously this was an anonymous
-            // timer nobody held, so a popup that had started fading still closed a moment later
-            // even if the user had moved back onto it or reopened it in the meantime.
-            idleCloseTimer = Timer(FADE_MS + 20) { closeEvent ->
-                (closeEvent.source as Timer).stop()
-                // Dismissed through the store rather than hidden directly. Hiding the window here
-                // left the application still believing the popup was open, so anything keyed on
-                // that — the loading indicator among them — went on behaving as if it were.
-                if (!isPinned) onDismiss()
-            }.apply { isRepeats = false; start() }
-        }.apply {
-            isRepeats = false
-            start()
-        }
-    }
+    private fun startIdleHide() = popup.startIdleHide()
 
-    private fun stopIdleHide() {
-        idleHideTimer?.stop()
-        idleCloseTimer?.stop()
-        idleCloseTimer = null
-    }
+    private fun stopIdleHide() = popup.stopIdleHide()
 
-    private fun installAwtMouseListener() {
-        if (awtMouseListener != null) return
-        awtMouseListener = AWTEventListener { ev ->
-            val me = ev as? MouseEvent ?: return@AWTEventListener
-            if (me.id == MouseEvent.MOUSE_PRESSED) {
-                if (!isPinned && isVisible) {
-                    val clickPoint = Point(me.locationOnScreen)
-                    SwingUtilities.convertPointFromScreen(clickPoint, contentPane)
-                    if (!contentPane.contains(clickPoint)) onDismiss()
-                }
-                return@AWTEventListener
-            }
-            if (me.id != MouseEvent.MOUSE_MOVED && me.id != MouseEvent.MOUSE_ENTERED && me.id != MouseEvent.MOUSE_EXITED) return@AWTEventListener
-            SwingUtilities.invokeLater {
-                val p = MouseInfo.getPointerInfo()?.location ?: return@invokeLater
-                val cp = Point(p)
-                SwingUtilities.convertPointFromScreen(cp, contentPane)
-                val over = contentPane.contains(cp)
-                if (over != isMouseOver) {
-                    isMouseOver = over
-                    if (isMouseOver) {
-                        stopIdleHide()
-                        fadeTo(1f, FADE_MS)
-                    } else {
-                        if (!isPinned) {
-                            applyTransparency()
-                            startIdleHide()
-                        }
-                    }
-                } else {
-                    // mouse moved inside window: reset idle timer
-                    if (isMouseOver && !isPinned) startIdleHide()
-                }
-            }
-        }
-        Toolkit.getDefaultToolkit()
-            .addAWTEventListener(awtMouseListener, AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK)
-    }
 
-    private fun uninstallAwtMouseListener() {
-        awtMouseListener?.let {
-            Toolkit.getDefaultToolkit().removeAWTEventListener(it)
-            awtMouseListener = null
-            isMouseOver = false
-        }
-    }
+    private fun installAwtMouseListener() = popup.installPointerTracking()
+
+    private fun uninstallAwtMouseListener() = popup.uninstallPointerTracking()
+
 
     // sizing (reuse measurePane; skip heavy ops during resize)
     private fun applySize(text: String) {
