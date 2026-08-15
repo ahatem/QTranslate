@@ -10,6 +10,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.*
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentMover
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentResizer
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.FloatingPopupBehavior
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.*
 import java.awt.event.*
@@ -129,31 +130,54 @@ class QuickDictionaryDialog(
         currentState?.onLookup?.invoke(word)
     }
 
+    /**
+     * Window flags, fading, idle-hide, pointer presence — shared with the other two popups.
+     *
+     * Declared ahead of [isPinned], whose setter writes into it: Kotlin initialises properties in
+     * declaration order, and the other way round leaves a window in which assigning isPinned
+     * would dereference null.
+     */
+    private val popup = FloatingPopupBehavior(
+        window = this,
+        owner = owner,
+        minimumSize = Dimension(UIScale.scale(320), UIScale.scale(200)),
+        pinnedBorderWidth = PINNED_BORDER_WIDTH,
+        resizeHandle = RESIZE_HANDLE_SIZE
+    ).apply {
+        configureIdleHide(
+            delayMs = { (currentState?.config?.idleTimeoutSeconds ?: 8) * 1000 },
+            fadeMs = FADE_MS,
+            restingOpacity = { (100f - (currentState?.config?.transparencyPercentage ?: 0)) / 100f },
+            // Dismissed through the store, so the application does not go on believing the popup
+            // is open after it has gone.
+            onExpired = { currentState?.onClose?.invoke() }
+        )
+    }
+
     // State
+    /**
+     * Mirrored into the popup helper on every change.
+     *
+     * The helper's idle-hide and pointer tracking both consult it, and two copies of "is this
+     * pinned" that drift apart mean a pinned popup that closes itself anyway.
+     */
     private var isPinned = false
+        set(value) {
+            field = value
+            popup.isPinned = value
+        }
     private var wasManuallyMoved = false
     private var isDragging = false
     private var isResizing = false
     private var currentState: QuickDictionaryDialogState? = null
 
     // Timers
-    private var fadeTimer: Timer? = null
-    private var idleHideTimer: Timer? = null
-    private var idleCloseTimer: Timer? = null
     private var resizeSaveTimer: Timer? = null
-    private var mouseExitDebounceTimer: Timer? = null
-
-    // Mouse over detection
-    private var awtMouseListener: AWTEventListener? = null
-    private var isMouseOver = false
 
     private val topPanel: JPanel
     private val mainPanel: JPanel
 
     init {
-        isUndecorated = true
-        isAlwaysOnTop = true
-        minimumSize = Dimension(UIScale.scale(320), UIScale.scale(200))
         focusableWindowState = false
 
         val wrapperPanel = JPanel(BorderLayout()).apply {
@@ -492,40 +516,12 @@ class QuickDictionaryDialog(
         currentState?.onSaveSize?.invoke(Size(sz.width, sz.height))
     }
 
-    private fun startIdleHide() {
-        stopIdleHide()
-        val idleMs = (currentState?.config?.idleTimeoutSeconds ?: 8) * 1000
-        idleHideTimer = Timer(idleMs) { event ->
-            (event.source as Timer).stop()
-            if (isPinned) return@Timer
-            fadeTo(0f, FADE_MS)
-            // Held in a field rather than left to run on its own. The previous version armed an
-            // anonymous timer here that stopIdleHide could not reach, so a popup that had begun
-            // fading would still close itself a moment later even though the user had just moved
-            // the mouse back over it — or reopened it.
-            idleCloseTimer = Timer(FADE_MS + 20) { closeEvent ->
-                (closeEvent.source as Timer).stop()
-                if (!isPinned) currentState?.onClose?.invoke()
-            }.apply { isRepeats = false; start() }
-        }.apply { isRepeats = false; start() }
-    }
+    private fun startIdleHide() = popup.startIdleHide()
 
-    private fun stopIdleHide() {
-        idleHideTimer?.stop()
-        idleCloseTimer?.stop()
-        idleCloseTimer = null
-    }
+    private fun stopIdleHide() = popup.stopIdleHide()
 
-    /**
-     * Restarts the idle countdown because the user is doing something.
-     *
-     * Typing counted for nothing before this: the timer was reset by moving the mouse, dragging,
-     * resizing or focus changes, so typing a word with the pointer parked elsewhere let the popup
-     * vanish mid-word.
-     */
-    private fun noteUserActivity() {
-        if (isVisible && !isPinned) startIdleHide()
-    }
+    /** Restarts the idle countdown because the user is doing something — typing counts. */
+    private fun noteUserActivity() = popup.noteActivity()
 
     private fun headerBorder() = BorderFactory.createCompoundBorder(
         BorderFactory.createMatteBorder(0, 0, 1, 0, borderColor),
@@ -548,81 +544,16 @@ class QuickDictionaryDialog(
         repaint()
     }
 
-    private fun fadeTo(targetOpacity: Float, durationMs: Int) {
-        // Always cancel any in-progress fade and restart — both callers run on EDT
-        // so there is no threading race to protect against. The old fadeLock guard
-        // was placed before fadeTimer?.stop(), which caused the fade-back-to-
-        // transparency to be silently dropped whenever a fade-to-opaque was still
-        // animating (e.g. quick mouse-in then mouse-out within 160 ms).
-        fadeTimer?.stop()
-        val start = opacity
-        val steps = FADE_STEPS.coerceAtLeast(1)
-        val stepDelay = (durationMs / steps).coerceAtLeast(10)
-        var step = 0
-        fadeTimer = Timer(stepDelay) {
-            step++
-            val t = step.toFloat() / steps
-            val value = start + (targetOpacity - start) * t
-            if (abs(opacity - value) > 0.01f) opacity = value
-            if (step >= steps) (it.source as Timer).stop()
-        }.apply { isRepeats = true; start() }
-    }
+    private fun fadeTo(targetOpacity: Float, durationMs: Int) = popup.fadeTo(targetOpacity, durationMs)
 
     // -----------------------------------------------------------------------
     // Mouse over detection
     // -----------------------------------------------------------------------
 
-    private fun installAwtMouseListener() {
-        if (awtMouseListener != null) return
-        awtMouseListener = AWTEventListener { ev ->
-            val me = ev as? MouseEvent ?: return@AWTEventListener
-            if (me.id != MouseEvent.MOUSE_MOVED &&
-                me.id != MouseEvent.MOUSE_ENTERED &&
-                me.id != MouseEvent.MOUSE_EXITED) return@AWTEventListener
-            SwingUtilities.invokeLater {
-                if (!isVisible) return@invokeLater
-                val p = MouseInfo.getPointerInfo()?.location ?: return@invokeLater
-                // Use dialog screen bounds directly — more reliable than coordinate conversion
-                // and avoids edge-case oscillation from rounding in convertPointFromScreen.
-                val over = bounds.contains(p)
-                if (over == isMouseOver) return@invokeLater  // no state change — do nothing
+    private fun installAwtMouseListener() = popup.installPointerTracking()
 
-                isMouseOver = over
-                if (over) {
-                    // Mouse entered: cancel any pending exit-debounce, stop idle, fade to full opacity.
-                    mouseExitDebounceTimer?.stop()
-                    stopIdleHide()
-                    fadeTo(1f, FADE_MS)
-                } else {
-                    // Mouse exited: debounce before fading so that brief exits at the window
-                    // border (mouse wiggle) don't cause flickering. If the mouse comes back
-                    // within the debounce window the timer is cancelled by the enter-branch above.
-                    mouseExitDebounceTimer?.stop()
-                    mouseExitDebounceTimer = Timer(120) {
-                        if (!isMouseOver && !isPinned) {
-                            applyTransparency()
-                            startIdleHide()
-                        }
-                        (it.source as Timer).stop()
-                    }.apply { isRepeats = false; start() }
-                }
-            }
-        }
-        Toolkit.getDefaultToolkit().addAWTEventListener(
-            awtMouseListener,
-            AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK
-        )
-    }
+    private fun uninstallAwtMouseListener() = popup.uninstallPointerTracking()
 
-    private fun uninstallAwtMouseListener() {
-        mouseExitDebounceTimer?.stop()
-        mouseExitDebounceTimer = null
-        awtMouseListener?.let {
-            Toolkit.getDefaultToolkit().removeAWTEventListener(it)
-            awtMouseListener = null
-            isMouseOver = false
-        }
-    }
 
     // -----------------------------------------------------------------------
     // Size / position

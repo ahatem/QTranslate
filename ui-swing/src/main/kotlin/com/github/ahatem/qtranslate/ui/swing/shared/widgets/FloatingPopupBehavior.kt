@@ -3,12 +3,15 @@ package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.settings.data.Position
 import com.github.ahatem.qtranslate.core.settings.data.Size
+import java.awt.AWTEvent
 import java.awt.Color
 import java.awt.Dimension
 import java.awt.Frame
 import java.awt.Insets
 import java.awt.MouseInfo
+import java.awt.Toolkit
 import java.awt.event.ActionEvent
+import java.awt.event.AWTEventListener
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -19,7 +22,9 @@ import javax.swing.JComponent
 import javax.swing.JDialog
 import javax.swing.KeyStroke
 import javax.swing.SwingUtilities
+import javax.swing.Timer
 import javax.swing.UIManager
+import kotlin.math.abs
 
 /**
  * The window behaviour shared by the floating popups — translate, dictionary, images.
@@ -27,15 +32,18 @@ import javax.swing.UIManager
  * ### Why a helper rather than a base class
  * The three popups agree about how their *window* behaves and disagree about everything inside
  * it, including deliberately: the image popup has no idle-hide, because a grid of pictures is
- * compared and clicked through while a definition is read in a couple of seconds. A base class
- * would have to expose each of those differences as a hook, and the fade and idle-hide logic in
- * the two older dialogs carries edge cases that were found the hard way — a mouse leaving during
- * a fade, a drag that must suspend the hide timer. Those stay where they were debugged. What
- * moves here is the part that was three identical copies.
+ * compared and clicked through while a definition is read in a couple of seconds. Composition
+ * lets that be a decision each popup makes — it simply never calls [configureIdleHide] — rather
+ * than a hook a base class has to invent.
+ *
+ * ### What it owns
+ * Window flags, the pinned border, Escape, dragging, resizing, geometry, positioning, the theme
+ * listener, fading, idle-hide and pointer presence. All of it existed two or three times over
+ * before, closely enough that the copies shared their bugs: an idle-close timer nothing held a
+ * reference to, and a countdown no amount of typing would reset.
  *
  * ### What it does not own
- * Fade animation, idle-hide, and mouse-over tracking. Two of the three popups have them; moving
- * them would mean rewriting working code for symmetry's sake.
+ * Anything to do with content. What a popup shows, and when it asks for more of it, is its own.
  */
 class FloatingPopupBehavior(
     private val window: JDialog,
@@ -217,7 +225,159 @@ class FloatingPopupBehavior(
         themeListener = null
     }
 
+    // ── Fading, idle-hide, and pointer presence ───────────────────────────────
+    //
+    // These were written twice, identically enough that both copies carried the same two bugs:
+    // an idle-close timer nothing held a reference to, and a countdown that no amount of typing
+    // would reset. One implementation, fixed once.
+
+    private var fadeTimer: Timer? = null
+    private var idleTimer: Timer? = null
+    private var idleCloseTimer: Timer? = null
+    private var exitDebounceTimer: Timer? = null
+    private var pointerListener: AWTEventListener? = null
+
+    private var idleDelayMs: () -> Int = { 8_000 }
+    private var idleFadeMs: Int = 160
+    private var restingOpacity: () -> Float = { 1f }
+    private var onIdleExpired: () -> Unit = {}
+
+    /** Set by the owner whenever the user pins or unpins; nothing auto-hides while pinned. */
+    var isPinned: Boolean = false
+
+    /** True while the pointer is inside the window. */
+    var isPointerOver: Boolean = false
+        private set
+
+    /**
+     * @param delayMs read fresh on each start so a settings change takes effect immediately.
+     * @param restingOpacity the opacity to return to once the pointer leaves.
+     * @param onExpired how the owner dismisses itself. Route this through the application's
+     *   state rather than hiding the window directly, or the rest of the app goes on believing
+     *   the popup is open.
+     */
+    fun configureIdleHide(
+        delayMs: () -> Int,
+        fadeMs: Int = 160,
+        restingOpacity: () -> Float,
+        onExpired: () -> Unit
+    ) {
+        this.idleDelayMs = delayMs
+        this.idleFadeMs = fadeMs
+        this.restingOpacity = restingOpacity
+        this.onIdleExpired = onExpired
+    }
+
+    fun startIdleHide() {
+        stopIdleHide()
+        if (isPinned) return
+        idleTimer = Timer(idleDelayMs().coerceAtLeast(500)) { event ->
+            (event.source as Timer).stop()
+            if (isPinned) return@Timer
+            fadeTo(0f, idleFadeMs)
+            // Held, so stopIdleHide can cancel it. Left anonymous, a popup that had begun fading
+            // closed itself regardless of the user moving back onto it or reopening it.
+            idleCloseTimer = Timer(idleFadeMs + 20) { closeEvent ->
+                (closeEvent.source as Timer).stop()
+                if (!isPinned) onIdleExpired()
+            }.apply { isRepeats = false; start() }
+        }.apply { isRepeats = false; start() }
+    }
+
+    fun stopIdleHide() {
+        idleTimer?.stop()
+        idleCloseTimer?.stop()
+        idleCloseTimer = null
+    }
+
+    /** Restarts the countdown because the user did something — typing counts. */
+    fun noteActivity() {
+        if (window.isVisible && !isPinned) startIdleHide()
+    }
+
+    /**
+     * Animates opacity, cancelling any fade already running.
+     *
+     * Restarting rather than refusing while one is in flight: an earlier version guarded against
+     * re-entry and so dropped the fade back to transparency whenever the mouse entered and left
+     * within a single animation.
+     */
+    fun fadeTo(target: Float, durationMs: Int = idleFadeMs) {
+        fadeTimer?.stop()
+        val start = window.opacity
+        val steps = FADE_STEPS
+        val delay = (durationMs / steps).coerceAtLeast(10)
+        var step = 0
+        fadeTimer = Timer(delay) { event ->
+            step++
+            val value = start + (target - start) * (step.toFloat() / steps)
+            if (abs(window.opacity - value) > 0.01f) window.opacity = value.coerceIn(0f, 1f)
+            if (step >= steps) (event.source as Timer).stop()
+        }.apply { isRepeats = true; start() }
+    }
+
+    /**
+     * Watches the pointer globally so the popup can wake when it is hovered.
+     *
+     * Global because the popup must react to a pointer that never enters any of its components —
+     * crossing the window edge is enough. Screen bounds are compared directly rather than
+     * converting coordinates, which rounds and makes the state oscillate at the border.
+     */
+    fun installPointerTracking(exitDebounceMs: Int = 120) {
+        if (pointerListener != null) return
+        val listener = AWTEventListener { event ->
+            val mouse = event as? MouseEvent ?: return@AWTEventListener
+            if (mouse.id != MouseEvent.MOUSE_MOVED &&
+                mouse.id != MouseEvent.MOUSE_ENTERED &&
+                mouse.id != MouseEvent.MOUSE_EXITED
+            ) return@AWTEventListener
+
+            SwingUtilities.invokeLater {
+                if (!window.isVisible) return@invokeLater
+                val pointer = MouseInfo.getPointerInfo()?.location ?: return@invokeLater
+                val over = window.bounds.contains(pointer)
+                if (over == isPointerOver) return@invokeLater
+                isPointerOver = over
+
+                if (over) {
+                    exitDebounceTimer?.stop()
+                    stopIdleHide()
+                    fadeTo(1f)
+                } else {
+                    // Debounced, so a wiggle across the border does not flicker the window.
+                    exitDebounceTimer?.stop()
+                    exitDebounceTimer = Timer(exitDebounceMs) { timerEvent ->
+                        (timerEvent.source as Timer).stop()
+                        if (!isPointerOver && !isPinned) {
+                            fadeTo(restingOpacity())
+                            startIdleHide()
+                        }
+                    }.apply { isRepeats = false; start() }
+                }
+            }
+        }
+        pointerListener = listener
+        Toolkit.getDefaultToolkit()
+            .addAWTEventListener(listener, AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK)
+    }
+
+    fun uninstallPointerTracking() {
+        exitDebounceTimer?.stop()
+        exitDebounceTimer = null
+        pointerListener?.let { Toolkit.getDefaultToolkit().removeAWTEventListener(it) }
+        pointerListener = null
+        isPointerOver = false
+    }
+
+    /** Everything a popup must let go of when it is hidden. */
+    fun onHidden() {
+        stopIdleHide()
+        fadeTimer?.stop()
+        uninstallPointerTracking()
+    }
+
     private companion object {
         const val ESCAPE_ACTION = "floating-popup-escape"
+        const val FADE_STEPS = 8
     }
 }
