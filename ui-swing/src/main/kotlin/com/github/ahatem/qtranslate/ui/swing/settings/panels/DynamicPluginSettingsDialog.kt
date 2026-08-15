@@ -1,8 +1,19 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.core.plugin.ServiceValidation
 import com.github.ahatem.qtranslate.core.plugin.settings.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.swing.Swing
+import kotlinx.coroutines.withContext
 import java.awt.*
 import java.awt.event.ItemEvent
 import java.io.File
@@ -39,7 +50,16 @@ class DynamicPluginSettingsDialog(
     private val settingsModel: PluginSettingsModel,
     /** Live settings instance for @PluginAction invocation. May be null for plugins without actions. */
     private val settingsInstance: PluginSettings.Configurable? = null,
-    private val onSave: (Map<String, String>) -> Unit
+    private val onSave: (Map<String, String>) -> Unit,
+    /**
+     * Applies the values on screen and then asks each service whether it works, reporting one
+     * line per service.
+     *
+     * Null for a plugin with nothing to check, which hides the button. Testing applies first
+     * because otherwise the user would be testing the key they saved last time rather than the
+     * one they just typed.
+     */
+    private val onTestConnection: (suspend (Map<String, String>) -> List<ServiceValidation>)? = null
 ) : JDialog(
     owner,
     localizationManager.getString("plugin_config.title_format").format(pluginName),
@@ -54,7 +74,24 @@ class DynamicPluginSettingsDialog(
     )
 
     private val components = mutableMapOf<String, SettingComponent>()
+
+    /** A field rather than an inline lambda, so [dispose] can detach it again. */
+    private val themeListener = java.beans.PropertyChangeListener { event ->
+        if (event.propertyName == "lookAndFeel") SwingUtilities.invokeLater { updateButtonBarBorder() }
+    }
     private val saveButton = JButton(localizationManager.getString("common.save"))
+    private val testButton = JButton(localizationManager.getString("plugin_config.test_connection")).apply {
+        addActionListener { onTestClicked() }
+    }
+    private val testStatusLabel = JLabel().apply {
+        isVisible = false
+        border = BorderFactory.createEmptyBorder(0, 8, 0, 8)
+        font = font.deriveFont(font.size - 0.5f)
+    }
+
+    /** Cancelled with the dialog, so a slow check cannot outlive the window it reports into. */
+    private val dialogScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     private var rowIndex = 0
     private var buttonBar: JPanel? = null
 
@@ -76,7 +113,7 @@ class DynamicPluginSettingsDialog(
         formPanel.add(Box.createVerticalGlue(), glueConstraints)
 
         val scroll = JScrollPane(formPanel).apply {
-            border = null
+            clearBorder()
             verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             viewport.isOpaque = false
@@ -88,9 +125,7 @@ class DynamicPluginSettingsDialog(
         add(buttonBar, BorderLayout.SOUTH)
 
         // Keep button-bar top-border in sync with the active theme
-        UIManager.addPropertyChangeListener { evt ->
-            if (evt.propertyName == "lookAndFeel") SwingUtilities.invokeLater { updateButtonBarBorder() }
-        }
+        UIManager.addPropertyChangeListener(themeListener)
 
         // Keyboard shortcuts
         rootPane.defaultButton = saveButton
@@ -105,7 +140,7 @@ class DynamicPluginSettingsDialog(
 
         defaultCloseOperation = DISPOSE_ON_CLOSE
         minimumSize = Dimension(520, 320)
-        preferredSize = Dimension(640, 500)
+        preferredSize = Dimension(UIScale.scale(640), UIScale.scale(500))
         pack()
         setLocationRelativeTo(owner)
     }
@@ -390,7 +425,7 @@ class DynamicPluginSettingsDialog(
                 }
                 val fm = area.getFontMetrics(area.font)
                 val targetH = (fm.height * rows + 8).coerceAtLeast(60)
-                scroll.preferredSize = Dimension(300, targetH)
+                scroll.preferredSize = Dimension(UIScale.scale(300), targetH)
                 scroll.minimumSize = Dimension(0, targetH)
                 SettingComponent(placeholder, scroll) { area.text }
             }
@@ -435,7 +470,7 @@ class DynamicPluginSettingsDialog(
                 }
                 val fmt = "%.${decimalPlaces}f"
                 val valueLabel = JLabel(fmt.format(intVal.toDouble() / scale)).apply {
-                    preferredSize = Dimension(48, preferredSize.height)
+                    preferredSize = Dimension(UIScale.scale(48), preferredSize.height)
                     horizontalAlignment = SwingConstants.TRAILING
                     font = font.deriveFont(Font.BOLD)
                 }
@@ -653,10 +688,97 @@ class DynamicPluginSettingsDialog(
             addActionListener { dispose() }
         }
 
-        return JPanel(FlowLayout(FlowLayout.TRAILING, 8, 8)).apply {
-            add(saveButton)
-            add(cancelButton)
+        return JPanel(BorderLayout()).apply {
+            // The test result sits on the left, where it can grow without pushing the buttons
+            // around, and the buttons stay where they were.
+            add(testStatusLabel, BorderLayout.CENTER)
+            add(
+                JPanel(FlowLayout(FlowLayout.TRAILING, 8, 8)).apply {
+                    isOpaque = false
+                    if (onTestConnection != null) add(testButton)
+                    add(saveButton)
+                    add(cancelButton)
+                },
+                BorderLayout.LINE_END
+            )
         }.also { updateButtonBarBorder(it) }
+    }
+
+    /**
+     * Runs the plugin's own checks and reports them.
+     *
+     * The dialog stays open on both outcomes: a failure is something to correct here, and closing
+     * would take the field being corrected away with it.
+     */
+    private fun onTestClicked() {
+        val test = onTestConnection ?: return
+        val values = components.mapValues { it.value.getValue() }
+
+        testButton.isEnabled = false
+        showTestStatus(localizationManager.getString("plugin_config.testing"), null)
+
+        dialogScope.launch {
+            val results = runCatching { test(values) }.getOrElse { thrown ->
+                listOf(
+                    ServiceValidation(
+                        serviceId = "",
+                        serviceName = "",
+                        error = ServiceError.UnknownError(thrown.message ?: thrown::class.java.simpleName, thrown)
+                    )
+                )
+            }
+
+            withContext(Dispatchers.Swing) {
+                testButton.isEnabled = true
+                reportTestResults(results)
+            }
+        }
+    }
+
+    private fun reportTestResults(results: List<ServiceValidation>) {
+        if (results.isEmpty()) {
+            showTestStatus(localizationManager.getString("plugin_config.test_nothing_to_check"), null)
+            return
+        }
+
+        val failed = results.filterNot { it.isReady }
+        if (failed.isEmpty()) {
+            showTestStatus(
+                localizationManager.getString("plugin_config.test_ok").format(results.size),
+                UIManager.getColor("Actions.Green")
+            )
+            return
+        }
+
+        // The first failure inline, the rest in a dialog: one bad key is the common case and
+        // deserves to be readable without a second click.
+        showTestStatus(
+            failed.first().error?.message ?: localizationManager.getString("plugin_config.test_failed"),
+            UIManager.getColor("Actions.Red") ?: Color.RED
+        )
+        if (failed.size > 1) {
+            JOptionPane.showMessageDialog(
+                this,
+                "<html>${failed.joinToString("<br>") { "• <b>${it.serviceName}</b>: ${it.error?.message.orEmpty()}" }}</html>",
+                localizationManager.getString("plugin_config.test_failed"),
+                JOptionPane.WARNING_MESSAGE
+            )
+        }
+    }
+
+    private fun showTestStatus(message: String, color: Color?) {
+        testStatusLabel.text = message
+        testStatusLabel.foreground = color ?: UIManager.getColor("Label.disabledForeground")
+        testStatusLabel.isVisible = message.isNotBlank()
+    }
+
+    override fun dispose() {
+        // A check can still be in flight; without this it would come back to a disposed window.
+        dialogScope.cancel()
+        // One of these dialogs is built per plugin configured, and UIManager keeps its listeners
+        // for the life of the process — so leaving this attached pins the whole dialog forever.
+        UIManager.removePropertyChangeListener(themeListener)
+        super.dispose()
     }
 
     private fun updateButtonBarBorder(bar: JPanel? = buttonBar) {

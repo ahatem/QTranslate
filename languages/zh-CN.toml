@@ -56,11 +56,13 @@ auto_detect = "自动检测"
 [main_window]
 status_format = "正在使用 %s: %s → %s"
 no_translator = "未选择翻译器"
+no_service_message = "未配置翻译服务。"no_service_action = "打开服务设置"
 
 [main_window_history_bar]
 backward_tooltip = "返回翻译历史"
 forward_tooltip = "前进翻译历史"
 image_translate_tooltip = "截取屏幕区域并翻译文本"
+document_translate_tooltip = "翻译文档并保留其格式"
 
 [main_window_language_bar]
 clear_tooltip = "清除输入文本"
@@ -168,6 +170,9 @@ startup_group = "启动"
 launch_on_startup = "开机自启动"
 updates_group = "更新"
 auto_check_updates = "自动检查更新"
+selection_group = "文本选择"
+selection_icon = "选择文本后显示翻译按钮"
+selection_icon_hint = "在其他应用程序中拖动选择文本时，会在附近显示一个小按钮。点击即可翻译所选内容。"
 history_group = "历史记录"
 enable_history = "启用翻译历史"
 clear_history_on_exit = "关闭程序时清除历史"
@@ -273,6 +278,7 @@ action_translate = "翻译"
 action_focus_input = "聚焦输入窗格"
 action_focus_output = "聚焦输出窗格"
 action_focus_extra_output = "聚焦额外输出窗格"
+action_copy_translation = "复制译文"action_clear_input = "清除输入"action_swap_languages = "交换语言"action_open_settings = "打开设置"action_show_history = "显示历史"action_translate_document = "翻译文档"
 scope_toggle_hint = "点击在全局和本地范围之间切换"
 
 # Default Actions Descriptions
@@ -498,6 +504,7 @@ unknown_error = "发生了未知错误。"
 
 [status_bar]
 ocr_text_copied = "文本已识别并复制到剪贴板。"
+text_copied = "已复制到剪贴板。"
 translating = "正在翻译..."
 translation_complete = "翻译完成。"
 translation_timeout = "翻译超时。请重试。"

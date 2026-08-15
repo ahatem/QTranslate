@@ -56,11 +56,13 @@ auto_detect = "Автоопределение"
 [main_window]
 status_format = "Используется %s: %s → %s"
 no_translator = "Переводчик не выбран"
+no_service_message = "Служба перевода не настроена."no_service_action = "Открыть настройки служб"
 
 [main_window_history_bar]
 backward_tooltip = "Назад по истории переводов"
 forward_tooltip = "Вперед по истории переводов"
 image_translate_tooltip = "Захватить и перевести текст из области на экране"
+document_translate_tooltip = "Перевести документ с сохранением форматирования"
 
 [main_window_language_bar]
 clear_tooltip = "Очистить текст"
@@ -168,6 +170,9 @@ startup_group = "Запуск"
 launch_on_startup = "Запускать при старте системы"
 updates_group = "Обновления"
 auto_check_updates = "Автоматически проверять обновления"
+selection_group = "Выделение текста"
+selection_icon = "Показывать кнопку перевода после выделения текста"
+selection_icon_hint = "Показывает небольшую кнопку рядом с текстом, выделенным перетаскиванием в других приложениях. Нажмите её, чтобы перевести выделенное."
 history_group = "История"
 enable_history = "Включить историю переводов"
 clear_history_on_exit = "Очищать историю при выходе"
@@ -273,6 +278,7 @@ action_translate = "Перевести"
 action_focus_input = "Фокус на панели ввода"
 action_focus_output = "Фокус на панели вывода"
 action_focus_extra_output = "Фокус на дополнительной панели вывода"
+action_copy_translation = "Копировать перевод"action_clear_input = "Очистить ввод"action_swap_languages = "Поменять языки"action_open_settings = "Открыть настройки"action_show_history = "Показать историю"action_translate_document = "Перевести документ"
 scope_toggle_hint = "Нажмите для переключения между Глобально и Локально"
 
 # Default Actions Descriptions
@@ -498,6 +504,7 @@ unknown_error = "Произошла неизвестная ошибка."
 
 [status_bar]
 ocr_text_copied = "Текст распознан и скопирован в буфер обмена."
+text_copied = "Скопировано в буфер обмена."
 translating = "Перевод..."
 translation_complete = "Перевод выполнен."
 translation_timeout = "Время перевода истекло. Попробуйте снова."

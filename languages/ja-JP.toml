@@ -56,11 +56,13 @@ auto_detect = "自動検出"
 [main_window]
 status_format = "%s を使用中: %s → %s"
 no_translator = "翻訳エンジン未選択"
+no_service_message = "翻訳サービスが設定されていません。"no_service_action = "サービス設定を開く"
 
 [main_window_history_bar]
 backward_tooltip = "前の翻訳に戻る"
 forward_tooltip = "次の翻訳に進む"
 image_translate_tooltip = "画面上の範囲を指定してテキストを翻訳"
+document_translate_tooltip = "書式を保持したままドキュメントを翻訳"
 
 [main_window_language_bar]
 clear_tooltip = "入力をクリア"
@@ -168,6 +170,9 @@ startup_group = "起動"
 launch_on_startup = "システム起動時に実行"
 updates_group = "更新"
 auto_check_updates = "更新を自動的に確認する"
+selection_group = "テキスト選択"
+selection_icon = "テキスト選択後に翻訳ボタンを表示する"
+selection_icon_hint = "他のアプリケーションでドラッグして選択したテキストの近くに小さなボタンを表示します。クリックすると選択範囲を翻訳します。"
 history_group = "履歴"
 enable_history = "翻訳履歴を有効にする"
 clear_history_on_exit = "終了時に履歴を消去する"
@@ -273,6 +278,7 @@ action_translate = "翻訳"
 action_focus_input = "入力ペインにフォーカス"
 action_focus_output = "出力ペインにフォーカス"
 action_focus_extra_output = "追加出力ペインにフォーカス"
+action_copy_translation = "翻訳をコピー"action_clear_input = "入力をクリア"action_swap_languages = "言語を入れ替え"action_open_settings = "設定を開く"action_show_history = "履歴を表示"action_translate_document = "ドキュメントを翻訳"
 scope_toggle_hint = "クリックしてグローバルとローカルを切り替え"
 
 # Default Actions Descriptions
@@ -497,6 +503,7 @@ unknown_error = "不明なエラーが発生しました。"
 
 [status_bar]
 ocr_text_copied = "テキスト認識され、クリップボードにコピーされました。"
+text_copied = "クリップボードにコピーしました。"
 translating = "翻訳中..."
 translation_complete = "翻訳完了。"
 translation_timeout = "翻訳がタイムアウトしました。もう一度お試しください。"

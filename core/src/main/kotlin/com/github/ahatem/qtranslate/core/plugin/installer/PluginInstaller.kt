@@ -100,6 +100,8 @@ internal class PluginInstaller(
         if (container.status == PluginStatus.ENABLED) {
             lifecycleHandler.disable(container)
         }
+        // Its bundle would otherwise stay cached and keep answering for a plugin that is gone.
+        lifecycleHandler.forgetLocalization(pluginId)
         purgePluginSandbox(pluginId)
 
         val currentDisabled = settingsRepository.loadDisabledPluginIds()
@@ -181,6 +183,11 @@ internal class PluginInstaller(
         )
 
         val initialized = lifecycleHandler.initialize(container)
+        if (initialized) {
+            container.declaredServices = runCatching { container.plugin.getServices() }
+                .onFailure { logger.warn("Could not inspect services for '${container.id}': ${it.message}") }
+                .getOrDefault(emptyList())
+        }
 
         registry.mutex.withLock { registry.put(container) }
 

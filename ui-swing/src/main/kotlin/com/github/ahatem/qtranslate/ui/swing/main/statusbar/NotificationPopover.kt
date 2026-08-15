@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main.statusbar
 
+import com.formdev.flatlaf.util.UIScale
 import com.formdev.flatlaf.FlatClientProperties
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import java.awt.BorderLayout
@@ -34,7 +35,7 @@ class NotificationPopover(
         list.isOpaque = false
 
         val scrollPane = JScrollPane(list).apply {
-            preferredSize = Dimension(360, 240)
+            preferredSize = Dimension(UIScale.scale(360), UIScale.scale(240))
             border = BorderFactory.createEmptyBorder()
         }
 

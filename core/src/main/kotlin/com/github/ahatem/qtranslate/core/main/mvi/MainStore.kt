@@ -2,6 +2,9 @@ package com.github.ahatem.qtranslate.core.main.mvi
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
+import com.github.ahatem.qtranslate.core.document.DocumentTranslationException
+import com.github.ahatem.qtranslate.core.document.DocumentTranslationRequest
+import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 import com.github.ahatem.qtranslate.core.history.HistoryRepository
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
@@ -11,7 +14,9 @@ import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.shared.arch.Store
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -49,8 +54,14 @@ class MainStore(
     private val ocrAndTranslateUseCase: OcrAndTranslateUseCase,
     private val summarizeUseCase: SummarizeUseCase,
     private val rewriteUseCase: RewriteUseCase,
-    private val lookupWordUseCase: LookupWordUseCase
+    private val lookupWordUseCase: LookupWordUseCase,
+    private val searchImagesUseCase: SearchImagesUseCase,
+    private val fetchInlineDefinitionUseCase: FetchInlineDefinitionUseCase,
+    private val documentTranslationUseCase: DocumentTranslationUseCase
 ) : Store<MainState, MainIntent, MainEvent> {
+
+    private var documentTranslationJob: Job? = null
+    private var documentTranslationGeneration = 0L
 
     private val _state = MutableStateFlow(
         MainState(
@@ -111,6 +122,7 @@ class MainStore(
                     current.copy(
                         availableServices  = selection.availableServices,
                         availableLanguages = sortedLanguages,
+                        serviceOptions     = selection.serviceOptions,
                         targetLanguage     = targetLang
                     )
                 }
@@ -219,8 +231,13 @@ class MainStore(
             is MainIntent.ApplyCorrection ->
                 _state.update { it.copy(inputText = it.inputText.replaceFirst(intent.original, intent.suggestion)) }
 
+            // Closing clears the pin. A pin says "keep this one around", not "and every one
+            // after it" — leaving it set meant the next popup opened wearing the pinned border
+            // and then auto-hid anyway, which is the worst of both.
             MainIntent.HideQuickTranslate ->
-                _state.update { it.copy(isQuickTranslateDialogVisible = false) }
+                _state.update {
+                    it.copy(isQuickTranslateDialogVisible = false, isQuickTranslateDialogPinned = false)
+                }
 
             MainIntent.ToggleQuickTranslateDialogPin ->
                 // Use `it` from the update lambda — not _state.value — to avoid
@@ -237,6 +254,8 @@ class MainStore(
 
             MainIntent.SwapLanguages -> scope.launch { swapLanguages() }
             MainIntent.CheckForUpdates -> checkForUpdates()
+            is MainIntent.TranslateDocument -> startDocumentTranslation(intent)
+            MainIntent.CancelDocumentTranslation -> cancelDocumentTranslation()
             MainIntent.PerformSpellCheck -> scope.launch {
                 handleSpellCheck(_state.value.inputText, isEnabled = true)
             }
@@ -251,6 +270,10 @@ class MainStore(
                 }
             }
 
+            MainIntent.NotifyTextCopied -> scope.launch {
+                updateStatusBar(StatusCode.TextCopied, NotificationType.SUCCESS, true)
+            }
+
             MainIntent.StopTTS -> handleTextToSpeechUseCase.stop()
 
             is MainIntent.ReplaceWithTranslation -> scope.launch {
@@ -258,7 +281,7 @@ class MainStore(
             }
 
             is MainIntent.ListenToText -> scope.launch {
-                handleListen(intent.textSource, intent.text)
+                handleListen(intent.textSource, intent.text, intent.language)
             }
 
             is MainIntent.OcrAndTranslateImage -> scope.launch {
@@ -285,8 +308,12 @@ class MainStore(
                 _state.update {
                     it.copy(
                         isQuickDictionaryVisible = true,
+                        // A pin belongs to the popup that was pinned, not to the next one.
+                        isQuickDictionaryPinned =
+                            if (it.isQuickDictionaryVisible) it.isQuickDictionaryPinned else false,
                         dictionaryWord   = if (intent.selectedText.isNotBlank()) intent.selectedText else it.dictionaryWord,
-                        isDictionaryLoading = intent.selectedText.isNotBlank()
+                        isDictionaryLoading = intent.selectedText.isNotBlank(),
+                        quickDictionaryTriggerCount = it.quickDictionaryTriggerCount + 1
                     )
                 }
                 if (intent.selectedText.isNotBlank()) {
@@ -295,18 +322,111 @@ class MainStore(
             }
 
             is MainIntent.HideQuickDictionary -> _state.update {
-                it.copy(isQuickDictionaryVisible = false)
+                it.copy(isQuickDictionaryVisible = false, isQuickDictionaryPinned = false)
             }
 
             is MainIntent.ToggleQuickDictionaryPin -> _state.update {
                 it.copy(isQuickDictionaryPinned = !it.isQuickDictionaryPinned)
             }
+
+            is MainIntent.SearchImages -> scope.launch { handleSearchImages(intent) }
+
+            is MainIntent.ShowImageSearch -> scope.launch {
+                // Same reason as the dictionary popup: seed the term so the field is filled on
+                // the first render rather than a frame later.
+                _state.update {
+                    it.copy(
+                        isImageSearchVisible = true,
+                        isImageSearchPinned =
+                            if (it.isImageSearchVisible) it.isImageSearchPinned else false,
+                        imageSearchTerm = intent.selectedText.ifBlank { it.imageSearchTerm },
+                        isImageSearchLoading = intent.selectedText.isNotBlank(),
+                        imageSearchTriggerCount = it.imageSearchTriggerCount + 1
+                    )
+                }
+                if (intent.selectedText.isNotBlank()) {
+                    handleSearchImages(MainIntent.SearchImages(intent.selectedText, intent.language))
+                }
+            }
+
+            is MainIntent.HideImageSearch -> _state.update {
+                it.copy(isImageSearchVisible = false, isImageSearchPinned = false)
+            }
+
+            is MainIntent.ToggleImageSearchPin -> _state.update {
+                it.copy(isImageSearchPinned = !it.isImageSearchPinned)
+            }
+
+            is MainIntent.UpdateInlineDefinition ->
+                if (intent.word.isBlank()) {
+                    fetchInlineDefinitionUseCase.clear { transform -> _state.update(transform) }
+                } else {
+                    fetchInlineDefinitionUseCase(
+                        word = intent.word,
+                        language = intent.language,
+                        alternateWord = intent.alternateWord,
+                        alternateLanguage = intent.alternateLanguage,
+                        updateState = { transform -> _state.update(transform) }
+                    )
+                }
         }
     }
 
     // -------------------------------------------------------------------------
     // Async handlers
     // -------------------------------------------------------------------------
+
+    private fun startDocumentTranslation(intent: MainIntent.TranslateDocument) {
+        documentTranslationJob?.cancel()
+        val generation = ++documentTranslationGeneration
+        documentTranslationJob = scope.launch {
+            val state = _state.value
+            try {
+                val output = documentTranslationUseCase(
+                    DocumentTranslationRequest(
+                        inputFile = intent.inputFile,
+                        outputFile = intent.outputFile,
+                        sourceLanguage = state.sourceLanguage,
+                        targetLanguage = state.targetLanguage,
+                        pdfMode = intent.pdfMode
+                    )
+                ) { progress ->
+                    if (generation == documentTranslationGeneration) {
+                        _state.update { it.copy(documentTranslationProgress = progress) }
+                    }
+                }
+                if (generation != documentTranslationGeneration) return@launch
+                _state.update { it.copy(documentTranslationProgress = null) }
+                _eventChannel.send(MainEvent.DocumentTranslationCompleted(output))
+            } catch (error: CancellationException) {
+                if (generation == documentTranslationGeneration) {
+                    _state.update { it.copy(documentTranslationProgress = null) }
+                }
+                throw error
+            } catch (error: DocumentTranslationException) {
+                if (generation != documentTranslationGeneration) return@launch
+                _state.update { it.copy(documentTranslationProgress = null) }
+                _eventChannel.send(MainEvent.DocumentTranslationFailed(error.message))
+            } catch (error: Exception) {
+                if (generation != documentTranslationGeneration) return@launch
+                _state.update { it.copy(documentTranslationProgress = null) }
+                _eventChannel.send(
+                    MainEvent.DocumentTranslationFailed(error.message ?: "Document translation failed.")
+                )
+            } finally {
+                if (generation == documentTranslationGeneration) {
+                    documentTranslationJob = null
+                }
+            }
+        }
+    }
+
+    private fun cancelDocumentTranslation() {
+        documentTranslationGeneration++
+        documentTranslationJob?.cancel(CancellationException("Document translation cancelled"))
+        documentTranslationJob = null
+        _state.update { it.copy(documentTranslationProgress = null) }
+    }
 
     private suspend fun handleOcrAndTranslate(intent: MainIntent.OcrAndTranslateImage) {
         val extractedText = ocrAndTranslateUseCase(
@@ -341,19 +461,33 @@ class MainStore(
     private suspend fun handleShowQuickTranslate(intent: MainIntent.ShowQuickTranslate) {
         if (intent.selectedText.isBlank()) return
 
-        val current = _state.value
-        val isPinnedAndVisible = current.isQuickTranslateDialogVisible && current.isQuickTranslateDialogPinned
-
-        if (isPinnedAndVisible) {
-            // Popup is already open and pinned — just update the text and retranslate.
-            _state.update { it.copy(inputText = intent.selectedText) }
-        } else {
-            // Open a fresh popup — not pinned.
+        if (_state.value.isQuickTranslateDialogVisible) {
+            // Already open, pinned or not: replace the text and count the trigger, so the popup
+            // refreshes in place and restarts its countdown. Hiding and re-showing it would
+            // flicker, move it, and throw away a pin the user had set.
             _state.update {
                 it.copy(
                     inputText = intent.selectedText,
+                    quickTranslateTriggerCount = it.quickTranslateTriggerCount + 1
+                )
+            }
+        } else {
+            // Open a fresh popup — never pinned, whatever the last one was left as.
+            //
+            // isLoading and the cleared text are set here rather than left to the use case that
+            // follows. The popup withholds itself until there is something to show, and it decides
+            // that from this state; without it the popup saw "not loading, no text" for the moment
+            // between being asked for and the request starting, took that for a finished result,
+            // and opened empty — which is the loading state the user was seeing inside the popup
+            // instead of the marker that should have covered the wait.
+            _state.update {
+                it.copy(
+                    inputText = intent.selectedText,
+                    translatedText = "",
+                    isLoading = true,
                     isQuickTranslateDialogPinned = false,
-                    isQuickTranslateDialogVisible = true
+                    isQuickTranslateDialogVisible = true,
+                    quickTranslateTriggerCount = it.quickTranslateTriggerCount + 1
                 )
             }
         }
@@ -375,17 +509,32 @@ class MainStore(
         lookupWordUseCase(
             word = intent.word,
             language = intent.language,
+            targetLanguage = _state.value.targetLanguage,
             updateState = { transform -> _state.update(transform) },
             onStatusUpdate = ::updateStatusBar
         )
     }
 
-    private suspend fun handleListen(textSource: TextSource, textOverride: String?) {
-        handleTextToSpeechUseCase(
-            currentState   = _state.value,
-            textSource     = textSource,
-            textOverride   = textOverride,
+    private suspend fun handleSearchImages(intent: MainIntent.SearchImages) {
+        searchImagesUseCase(
+            term = intent.term,
+            language = intent.language,
+            updateState = { transform -> _state.update(transform) },
             onStatusUpdate = ::updateStatusBar
+        )
+    }
+
+    private suspend fun handleListen(
+        textSource: TextSource,
+        textOverride: String?,
+        languageOverride: LanguageCode?
+    ) {
+        handleTextToSpeechUseCase(
+            currentState     = _state.value,
+            textSource       = textSource,
+            textOverride     = textOverride,
+            languageOverride = languageOverride,
+            onStatusUpdate   = ::updateStatusBar
         )
     }
 
@@ -529,6 +678,7 @@ class MainStore(
     }
 
     suspend fun onShutdown() {
+        cancelDocumentTranslation()
         if (settingsState.value.clearHistoryOnExit) {
             historyRepository.clearHistory()
         }

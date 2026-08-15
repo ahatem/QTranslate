@@ -16,12 +16,15 @@ Welcome to the QTranslate documentation wiki.
 - [Architecture](Architecture.md) — how QTranslate is structured and why
 - [Creating a Plugin](Creating-a-Plugin.md) — build your own translation engine, OCR, or TTS plugin
 - [Contributing](Contributing.md) — how to contribute code, docs, or translations
+- [Releasing](Releasing.md) — test, package, publish, and verify an official release
 
 ### Plugin Marketplace _(coming soon)_
 
-QTranslate has a built-in marketplace that discovers community plugins from GitHub. Plugin authors opt in by adding the `qtranslate-plugin` topic to their repo and placing a `qtranslate-plugin.json` file at the repo root.
+The signed in-app catalog and independent plugin updater are planned but are not available yet. Today, users install trusted plugin JARs manually through **Settings → Plugins**.
 
-→ [Plugin publishing guide](Creating-a-Plugin.md#publishing-on-github)
+Plugin authors can prepare for future catalog support by publishing releases, checksums, compatibility metadata, and the `qtranslate-plugin` topic.
+
+→ [Current plugin publishing guide](Creating-a-Plugin.md#publishing-on-github)
 
 ### Plugin examples (in the repo)
 

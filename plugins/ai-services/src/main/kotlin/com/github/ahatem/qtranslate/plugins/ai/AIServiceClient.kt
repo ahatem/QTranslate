@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.plugins.common.createJsonParser
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.andThen
+import com.github.michaelbull.result.map
 import com.github.michaelbull.result.toResultOr
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -48,6 +49,26 @@ class AIServiceClient(
      * @param system      The system-level instruction (becomes the first "system" message).
      * @param userContent The user turn content.
      */
+    /**
+     * Checks that the configured endpoint, key and model actually work together.
+     *
+     * Sends the smallest real request rather than only inspecting the settings: an endpoint that
+     * rejects the key, or a model name the provider does not have, both look perfectly valid on
+     * paper and only fail when the user tries to translate something.
+     */
+    suspend fun validate(): Result<Unit, ServiceError> {
+        val current = settings()
+        if (current.apiKey.isBlank()) {
+            return Err(
+                ServiceError.ConfigurationError(
+                    "No API key set. Add one in Settings → Plugins → AI Plugin."
+                )
+            )
+        }
+        return complete(system = "Reply with the single character: 1", userContent = "1")
+            .map { }
+    }
+
     suspend fun complete(
         system: String,
         userContent: String
@@ -55,8 +76,10 @@ class AIServiceClient(
         val current = settings()
 
         if (current.apiKey.isBlank()) {
+            // Not set up yet, which is a different problem from a key the provider rejected —
+            // one is "finish configuring", the other is "the key is wrong".
             return Err(
-                ServiceError.AuthenticationError(
+                ServiceError.ConfigurationError(
                     "AI Plugin: API key is not configured. Add your key in Settings → Plugins → AI Plugin."
                 )
             )

@@ -1,9 +1,12 @@
 package com.github.ahatem.qtranslate.core.main.mvi
 
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
+import com.github.ahatem.qtranslate.api.imagesearch.ImageResult
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.plugin.ServiceOption
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
+import com.github.ahatem.qtranslate.core.document.DocumentTranslationProgress
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
@@ -18,6 +21,9 @@ import com.github.ahatem.qtranslate.core.shared.arch.UiState
  * @property inputText The text currently in the source input field.
  * @property translatedText The most recent translation result.
  * @property extraOutputText Secondary output (backward translation, summary, rewrite).
+ * @property isExtraOutputLoading Whether the secondary output is still being produced.
+ *   The primary translation is published as soon as it arrives, so this stays true for a
+ *   short while after [isLoading] has already returned to false.
  * @property sourceLanguage The currently selected source language. May be [LanguageCode.AUTO].
  * @property detectedSourceLanguage The language auto-detected from the last translation.
  *   Only populated when [sourceLanguage] is [LanguageCode.AUTO] and the translator
@@ -38,16 +44,31 @@ data class MainState(
     val inputText: String = "",
     val translatedText: String = "",
     val extraOutputText: String = "",
+    val isExtraOutputLoading: Boolean = false,
     val sourceLanguage: LanguageCode = LanguageCode.AUTO,
     val detectedSourceLanguage: LanguageCode? = null,
     val targetLanguage: LanguageCode = LanguageCode.ARABIC,
     val availableServices: List<ServiceInfo> = emptyList(),
     val availableLanguages: List<LanguageCode> = emptyList(),
+    /**
+     * Options declared by the active service for each capability, for the pickers that offer
+     * them. Empty for a capability with no active service, which the UI renders as no choices
+     * rather than as the host's own guess at what the choices should be.
+     */
+    val serviceOptions: Map<ServiceType, List<ServiceOption>> = emptyMap(),
     val history: List<HistorySnapshot> = emptyList(),
     val historyIndex: Int = 0,
     val dictionaryEntries: List<DictionaryEntry> = emptyList(),
     val isDictionaryLoading: Boolean = false,
     val dictionaryWord: String = "",
+    /**
+     * The language [dictionaryWord] was looked up in.
+     *
+     * Kept so the Listen control beside a headword can speak it in the right language. A lookup
+     * can come from either side of a translation, so neither the source nor the target language
+     * is a reliable stand-in.
+     */
+    val dictionaryLanguage: LanguageCode = LanguageCode("en"),
     val dictionaryFailed: Boolean = false,
     val isDictionaryPanelVisible: Boolean = false,
     val spellCheckCorrections: List<Correction> = emptyList(),
@@ -55,10 +76,36 @@ data class MainState(
     val isQuickTranslateDialogPinned: Boolean = false,
     val isQuickDictionaryVisible: Boolean = false,
     val isQuickDictionaryPinned: Boolean = false,
+    /**
+     * Incremented every time the user asks for a popup that is already open.
+     *
+     * A dialog cannot otherwise tell "the user pressed the hotkey again" from any of the dozens
+     * of unrelated state changes it is re-rendered for, and the two call for different things:
+     * one should restart the auto-hide countdown, the rest should not.
+     */
+    val quickTranslateTriggerCount: Int = 0,
+    val quickDictionaryTriggerCount: Int = 0,
+    val imageSearchTriggerCount: Int = 0,
+    /**
+     * A short definition shown beneath a single-word translation, or empty.
+     *
+     * Kept apart from [dictionaryEntries], which belongs to the dictionary the user opened. This
+     * is a secondary detail attached to a translation, and conflating the two would let a glance
+     * overwrite what someone was reading in the dictionary panel.
+     */
+    val inlineDefinition: String = "",
+    val imageResults: List<ImageResult> = emptyList(),
+    val isImageSearchLoading: Boolean = false,
+    val imageSearchTerm: String = "",
+    val imageSearchFailed: Boolean = false,
+    val isImageSearchVisible: Boolean = false,
+    val isImageSearchPinned: Boolean = false,
     /** True while a silent background translation for inline replace is running. */
     val isReplacingSelection: Boolean = false,
     /** True while the [com.github.ahatem.qtranslate.core.audio.AudioPlayer] is actively playing TTS audio. */
-    val isTtsPlaying: Boolean = false
+    val isTtsPlaying: Boolean = false,
+    /** Progress for an active document translation, or null when idle. */
+    val documentTranslationProgress: DocumentTranslationProgress? = null
 ) : UiState {
 
     /** `true` when [sourceLanguage] is [LanguageCode.AUTO]. */

@@ -53,7 +53,7 @@ package com.github.ahatem.qtranslate.api.core
  */
 object ApiVersion {
     /** The major version. Incrementing this signals a breaking API change. */
-    const val MAJOR = 1
+    const val MAJOR = 2
 
     /** The minor version. Incrementing this signals new backwards-compatible features. */
     const val MINOR = 0

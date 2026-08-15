@@ -14,4 +14,5 @@ data class TranslationHistoryBarStrings(
     val backwardTooltip: String,
     val forwardTooltip: String,
     val imageTranslateTooltip: String,
+    val documentTranslateTooltip: String,
 )

@@ -26,6 +26,32 @@ interface Dictionary : Service {
 }
 
 /**
+ * Optional dictionary capability for providers that return bilingual definitions and
+ * usage examples for a selected language pair.
+ *
+ * The core discovers this through [Service.getCapability]. Existing dictionaries retain
+ * the original [DictionaryRequest] ABI and continue to receive monolingual lookups.
+ */
+interface BilingualDictionary : Dictionary {
+    suspend fun lookupBilingual(
+        request: BilingualDictionaryRequest
+    ): Result<DictionaryResponse, ServiceError>
+}
+
+data class BilingualDictionaryRequest(
+    val word: String,
+    val sourceLanguage: LanguageCode,
+    val targetLanguage: LanguageCode
+) {
+    init {
+        require(word.isNotBlank()) { "Dictionary lookup word must not be blank." }
+        require(targetLanguage != LanguageCode.AUTO) {
+            "Dictionary target language must be specific."
+        }
+    }
+}
+
+/**
  * Parameters for a dictionary lookup.
  *
  * @param word     The word to look up. Must not be blank.

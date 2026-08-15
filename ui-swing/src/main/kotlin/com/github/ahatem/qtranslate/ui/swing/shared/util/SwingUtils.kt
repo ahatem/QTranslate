@@ -91,3 +91,15 @@ fun BufferedImage.toImageData(format: String): ImageData {
         height = this.height
     )
 }
+/**
+ * Removes this component's border so that a look-and-feel change cannot bring it back.
+ *
+ * `border = null` looks like it does the same thing, but [javax.swing.LookAndFeel.installBorder]
+ * reinstalls the look-and-feel default whenever the current border is `null` or a `UIResource` —
+ * and every component's `updateUI()` runs that on a theme change. Scroll panes and split panes
+ * that were built borderless would suddenly draw a frame around themselves the first time the
+ * user switched themes. An empty border is neither `null` nor a `UIResource`, so it survives.
+ */
+fun JComponent.clearBorder() {
+    border = BorderFactory.createEmptyBorder()
+}

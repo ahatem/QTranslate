@@ -5,12 +5,14 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.core.plugin.installer.PluginInstaller
 import com.github.ahatem.qtranslate.core.plugin.lifecycle.PluginLifecycleHandler
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginContainer
+import com.github.ahatem.qtranslate.core.plugin.registry.PluginError
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginRegistry
 import com.github.ahatem.qtranslate.core.plugin.settings.PluginSettingsManager
 import com.github.ahatem.qtranslate.core.plugin.settings.PluginSettingsModel
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprint
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprintRepository
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
+import com.github.ahatem.qtranslate.core.plugin.text.PluginTextResolver
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
@@ -18,9 +20,11 @@ import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
 import com.github.ahatem.qtranslate.core.shared.notification.AppNotification
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
 import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.getError
 import com.github.michaelbull.result.Result
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +32,7 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 /**
@@ -53,8 +58,18 @@ class PluginManager(
     private val pluginFingerprintRepository: PluginFingerprintRepository,
     private val pluginKeyValueStore: PluginKeyValueStore,
     private val loggerFactory: LoggerFactory,
-    private val notificationBus: NotificationBus
+    private val notificationBus: NotificationBus,
+    /**
+     * Resolves the [com.github.ahatem.qtranslate.api.plugin.DisplayText] plugins hand back.
+     * Defaults to the fallback-only resolver so a host without localization still runs.
+     */
+    private val textResolver: PluginTextResolver = PluginTextResolver.Fallback
 ) {
+    private companion object {
+        /** A check is a network round trip; long enough to succeed, short enough to give up on. */
+        const val VALIDATE_TIMEOUT_MS = 15_000L
+    }
+
     private val logger = loggerFactory.getLogger("PluginManager")
     private val pluginsDir = File(appDataDirectory, AppConstants.PLUGIN_DIRECTORY).also { it.mkdirs() }
 
@@ -64,6 +79,7 @@ class PluginManager(
         appDataDirectory = appDataDirectory,
         pluginKeyValueStore = pluginKeyValueStore,
         notificationBus = notificationBus,
+        textResolver = textResolver,
         loggerFactory = loggerFactory
     )
 
@@ -81,6 +97,7 @@ class PluginManager(
 
     private val _plugins = MutableStateFlow<List<PluginState>>(emptyList())
     private val _activeServices = MutableStateFlow<Map<String, Service>>(emptyMap())
+    private var discoveryFailureStates: List<PluginState> = emptyList()
 
     /** Observable list of all loaded plugins with their current state. */
     val plugins: StateFlow<List<PluginState>> = _plugins.asStateFlow()
@@ -107,8 +124,10 @@ class PluginManager(
 
             val rawPlugins = loader.loadPluginsFromDirectory(pluginsDir)
             val loadResult = registry.validateAndFilter(rawPlugins)
+            val discoveryErrors = loader.loadFailures + loadResult.failed + loadResult.skipped
+            discoveryFailureStates = discoveryErrors.mapIndexed(::toFailedPluginState)
 
-            logDiscoverySummary(loadResult)
+            logDiscoverySummary(loadResult, loader.loadFailures)
 
             supervisorScope {
                 loadResult.successful.map { result ->
@@ -132,7 +151,7 @@ class PluginManager(
             // Surface load failures and JAR-change warnings to the UI via NotificationBus.
             // Errors that happened during validateAndFilter are in loadResult.failed —
             // those plugins never made it into the registry so we report them separately.
-            loadResult.failed.forEach { error ->
+            discoveryErrors.forEach { error ->
                 notificationBus.post(
                     AppNotification(
                         type           = com.github.ahatem.qtranslate.api.plugin.NotificationType.ERROR,
@@ -210,6 +229,13 @@ class PluginManager(
         installer.installPlugin(sourceJar).also { updateFlows() }
 
     suspend fun uninstallPlugin(pluginId: String) {
+        val discoveryFailure = discoveryFailureStates.firstOrNull { it.id == pluginId }
+        if (discoveryFailure != null) {
+            withContext(Dispatchers.IO) { File(discoveryFailure.jarPath).delete() }
+            discoveryFailureStates = discoveryFailureStates.filterNot { it.id == pluginId }
+            updateFlows()
+            return
+        }
         installer.uninstallPlugin(pluginId)
         updateFlows()
     }
@@ -222,6 +248,55 @@ class PluginManager(
     suspend fun resolveAsCleanInstall(pluginId: String) {
         installer.resolveAsCleanInstall(pluginId)
         updateFlows()
+    }
+
+    // -------------------------------------------------------------------------
+    // Validation
+    // -------------------------------------------------------------------------
+
+    /**
+     * Asks each of a plugin's services whether it is correctly configured.
+     *
+     * Runs the services concurrently — a check is a network round trip, and a plugin exposing six
+     * of them should not take six times as long to answer. Each is given its own timeout so one
+     * unresponsive endpoint cannot hold up the rest.
+     *
+     * A service that does not implement a check answers successfully, which is honest: there is
+     * nothing about it that can be misconfigured.
+     */
+    suspend fun validateServices(pluginId: String): List<ServiceValidation> {
+        val container = registry.mutex.withLock { registry.get(pluginId) } ?: return emptyList()
+
+        return withContext(Dispatchers.IO) {
+            supervisorScope {
+                container.services.map { service ->
+                    async {
+                        val outcome = withTimeoutOrNull(VALIDATE_TIMEOUT_MS) {
+                            runCatching { service.validate() }
+                                .getOrElse { thrown ->
+                                    // A check that throws is a failed check, not a crashed app.
+                                    Err(
+                                        ServiceError.UnknownError(
+                                            "Validation threw ${thrown::class.java.simpleName}: ${thrown.message}",
+                                            thrown
+                                        )
+                                    )
+                                }
+                        } ?: Err(
+                            ServiceError.TimeoutError(
+                                "Validation did not answer within ${VALIDATE_TIMEOUT_MS / 1000}s"
+                            )
+                        )
+
+                        ServiceValidation(
+                            serviceId = container.serviceIdOf(service),
+                            serviceName = service.name,
+                            error = outcome.getError()
+                        )
+                    }
+                }.awaitAll()
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -259,6 +334,7 @@ class PluginManager(
         if (result.isOk) {
             registry.mutex.withLock {
                 container.services = container.plugin.getServices()
+                container.declaredServices = container.services
             }
             updateFlows()
         }
@@ -280,6 +356,7 @@ class PluginManager(
         }
 
         registry.mutex.withLock { registry.clear() }
+        discoveryFailureStates = emptyList()
         updateFlows()
 
         logger.info("All plugins shut down.")
@@ -309,6 +386,11 @@ class PluginManager(
         )
 
         val initialized = lifecycleHandler.initialize(container)
+        if (initialized) {
+            container.declaredServices = runCatching { container.plugin.getServices() }
+                .onFailure { logger.warn("Could not inspect services for '${container.id}': ${it.message}") }
+                .getOrDefault(emptyList())
+        }
         registry.mutex.withLock { registry.put(container) }
 
         if (initialized && container.id !in disabledPluginIds) {
@@ -347,13 +429,44 @@ class PluginManager(
         logger.info("Saved plugin registry (${fingerprints.size} fingerprint(s)).")
     }
 
-    private fun logDiscoverySummary(loadResult: com.github.ahatem.qtranslate.core.plugin.registry.PluginLoadResult) {
+    private fun logDiscoverySummary(
+        loadResult: com.github.ahatem.qtranslate.core.plugin.registry.PluginLoadResult,
+        loaderFailures: List<PluginError>
+    ) {
         logger.info(
             "Plugin discovery: ${loadResult.successful.size} valid, " +
-                    "${loadResult.failed.size} failed, ${loadResult.skipped.size} skipped"
+                    "${loadResult.failed.size + loaderFailures.size} failed, ${loadResult.skipped.size} skipped"
         )
+        loadResult.successful.forEach {
+            logger.info("  LOADED  ${it.manifest.id} v${it.manifest.version} (${it.jarFile.name})")
+        }
+        loaderFailures.forEach { logger.error("  FAILED  ${it.pluginId}: ${it.message}", it.cause) }
         loadResult.failed.forEach { logger.error("  FAILED  ${it.pluginId}: ${it.message}", it.cause) }
         loadResult.skipped.forEach { logger.warn("  SKIPPED ${it.pluginId}: ${it.message}") }
+    }
+
+    private fun toFailedPluginState(index: Int, error: PluginError): PluginState {
+        val jarPath = when (error) {
+            is PluginError.LoadFailure -> error.jarPath
+            is PluginError.InvalidManifest -> error.jarPath
+            is PluginError.DuplicateId -> File(pluginsDir, error.duplicateJar).absolutePath
+            else -> File(pluginsDir, error.pluginId).absolutePath
+        }
+        val displayName = File(jarPath).name.takeIf { it.isNotBlank() } ?: error.pluginId
+        val safeName = displayName.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
+        return PluginState(
+            manifest = PluginManifest(
+                id = "load-failure-$index-$safeName",
+                name = displayName,
+                version = "unknown",
+                author = "unknown",
+                description = "This plugin could not be loaded.",
+                minApiVersion = "1.0.0"
+            ),
+            status = PluginStatus.FAILED,
+            jarPath = jarPath,
+            lastError = error
+        )
     }
 
     /**
@@ -363,7 +476,7 @@ class PluginManager(
      */
     private suspend fun updateFlows() {
         registry.mutex.withLock {
-            _plugins.value = registry.snapshot()
+            _plugins.value = registry.snapshot() + discoveryFailureStates
             _activeServices.value = registry.activeServices()
         }
     }

@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.history
 
+import com.formdev.flatlaf.util.UIScale
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.Frame
@@ -9,14 +10,14 @@ import javax.swing.*
 import javax.swing.table.AbstractTableModel
 import javax.swing.table.DefaultTableCellRenderer
 
-class HistoryDialog(owner: Frame) : JDialog(owner, false) {
+class HistoryDialog(owner: Frame) : JDialog(null as Frame?, false) {
 
     private var state: HistoryDialogState? = null
 
     private val tableModel = HistoryTableModel()
     private val table = JTable(tableModel).apply {
         setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
-        rowHeight = 28
+        rowHeight = UIScale.scale(28)
         showHorizontalLines = true
         showVerticalLines = false
         tableHeader.reorderingAllowed = false
@@ -35,6 +36,7 @@ class HistoryDialog(owner: Frame) : JDialog(owner, false) {
     private val closeButton = JButton()
 
     init {
+        com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons.applyTo(this)
         defaultCloseOperation = HIDE_ON_CLOSE
         isResizable = true
 
@@ -103,8 +105,8 @@ class HistoryDialog(owner: Frame) : JDialog(owner, false) {
 
         if (!isVisible) {
             pack()
-            minimumSize = Dimension(640, 400)
-            preferredSize = Dimension(760, 480)
+            minimumSize = Dimension(UIScale.scale(640), UIScale.scale(400))
+            preferredSize = Dimension(UIScale.scale(760), UIScale.scale(480))
             pack()
             setLocationRelativeTo(owner)
         }
@@ -117,11 +119,11 @@ class HistoryDialog(owner: Frame) : JDialog(owner, false) {
 
     private fun applyColumnRenderers(centerRenderer: DefaultTableCellRenderer) {
         if (table.columnCount < 5) return
-        table.columnModel.getColumn(0).apply { preferredWidth = 110; maxWidth = 140; cellRenderer = centerRenderer }
-        table.columnModel.getColumn(1).preferredWidth = 220
-        table.columnModel.getColumn(2).preferredWidth = 220
-        table.columnModel.getColumn(3).apply { preferredWidth = 90; maxWidth = 120; cellRenderer = centerRenderer }
-        table.columnModel.getColumn(4).apply { preferredWidth = 100; maxWidth = 140; cellRenderer = centerRenderer }
+        table.columnModel.getColumn(0).apply { preferredWidth = UIScale.scale(110); maxWidth = UIScale.scale(140); cellRenderer = centerRenderer }
+        table.columnModel.getColumn(1).preferredWidth = UIScale.scale(220)
+        table.columnModel.getColumn(2).preferredWidth = UIScale.scale(220)
+        table.columnModel.getColumn(3).apply { preferredWidth = UIScale.scale(90); maxWidth = UIScale.scale(120); cellRenderer = centerRenderer }
+        table.columnModel.getColumn(4).apply { preferredWidth = UIScale.scale(100); maxWidth = UIScale.scale(140); cellRenderer = centerRenderer }
     }
 
     private class HistoryTableModel : AbstractTableModel() {

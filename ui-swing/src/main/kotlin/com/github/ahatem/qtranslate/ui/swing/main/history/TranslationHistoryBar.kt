@@ -15,11 +15,13 @@ class TranslationHistoryBar(
     private val onBackward: () -> Unit,
     private val onForward: () -> Unit,
     private val onImageTranslate: () -> Unit,
+    private val onDocumentTranslate: () -> Unit,
 ) : JPanel(BorderLayout()), Renderable<TranslationHistoryBarState> {
 
     private val backwardButton = createButtonWithIcon(iconManager, "icons/lucide/arrow-left.svg", 16)
     private val forwardButton = createButtonWithIcon(iconManager, "icons/lucide/arrow-right.svg", 16)
     private val imageTranslateButton = createButtonWithIcon(iconManager, "icons/lucide/scan-text.svg", 16)
+    private val documentTranslateButton = createButtonWithIcon(iconManager, "icons/lucide/file-scan.svg", 16)
 
     private val statusLabel = JLabel().apply {
         border = BorderFactory.createEmptyBorder(0, 8, 0, 8)
@@ -35,12 +37,14 @@ class TranslationHistoryBar(
     private val rightGroup = JPanel(FlowLayout(FlowLayout.TRAILING, 2, 0)).apply {
         isOpaque = false
         add(imageTranslateButton)
+        add(documentTranslateButton)
     }
 
     init {
         backwardButton.addActionListener { onBackward() }
         forwardButton.addActionListener { onForward() }
         imageTranslateButton.addActionListener { onImageTranslate() }
+        documentTranslateButton.addActionListener { onDocumentTranslate() }
 
         add(leftGroup, BorderLayout.LINE_START)
         add(rightGroup, BorderLayout.LINE_END)
@@ -70,9 +74,11 @@ class TranslationHistoryBar(
         backwardButton.isEnabled = !state.isLoading && state.canGoBackward
         forwardButton.isEnabled = !state.isLoading && state.canGoForward
         imageTranslateButton.isEnabled = !state.isLoading
+        documentTranslateButton.isEnabled = !state.isLoading
 
         backwardButton.toolTipText = state.strings.backwardTooltip
         forwardButton.toolTipText = state.strings.forwardTooltip
         imageTranslateButton.toolTipText = state.strings.imageTranslateTooltip
+        documentTranslateButton.toolTipText = state.strings.documentTranslateTooltip
     }
 }

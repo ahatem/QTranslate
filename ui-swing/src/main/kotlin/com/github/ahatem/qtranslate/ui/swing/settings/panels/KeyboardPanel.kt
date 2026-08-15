@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.formdev.flatlaf.util.UIScale
 import com.formdev.flatlaf.FlatClientProperties
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
@@ -38,6 +39,7 @@ class KeyboardPanel(
         HotkeyAction.REPLACE_WITH_TRANSLATION,
         HotkeyAction.CYCLE_TARGET_LANGUAGE,
         HotkeyAction.SHOW_DICTIONARY,
+        HotkeyAction.SHOW_IMAGES,
         HotkeyAction.TRANSLATE,
         HotkeyAction.FOCUS_INPUT,
         HotkeyAction.FOCUS_OUTPUT,
@@ -91,14 +93,14 @@ class KeyboardPanel(
             setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
             putClientProperty("FlatLaf.style", "showCellFocusIndicator: false")
 
-            columnModel.getColumn(COL_ACTION).apply { preferredWidth = 200; minWidth = 150 }
+            columnModel.getColumn(COL_ACTION).apply { preferredWidth = UIScale.scale(200); minWidth = UIScale.scale(150) }
             columnModel.getColumn(COL_HOTKEY).apply {
-                preferredWidth = 150
+                preferredWidth = UIScale.scale(150)
                 minWidth       = 110
                 cellRenderer   = HotkeyColumnRenderer()
             }
             columnModel.getColumn(COL_SCOPE).apply {
-                preferredWidth = 130
+                preferredWidth = UIScale.scale(130)
                 minWidth       = 80
                 cellRenderer   = ScopeColumnRenderer()
             }
@@ -129,7 +131,7 @@ class KeyboardPanel(
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
             .insets(4, 0, 0, 0)
             .add(JScrollPane(table).apply {
-                preferredSize = Dimension(580, actionOrder.size * 34 + 4)
+                preferredSize = Dimension(UIScale.scale(580), UIScale.scale(actionOrder.size * 34 + 4))
                 border = themeAwareBorder()
             })
 
@@ -261,10 +263,17 @@ class KeyboardPanel(
         HotkeyAction.REPLACE_WITH_TRANSLATION -> localizationManager.getString("settings_hotkeys.action_replace")
         HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizationManager.getString("settings_hotkeys.action_cycle_language")
         HotkeyAction.SHOW_DICTIONARY          -> localizationManager.getString("settings_hotkeys.action_show_dictionary")
+        HotkeyAction.SHOW_IMAGES              -> localizationManager.getString("settings_hotkeys.action_show_images")
         HotkeyAction.TRANSLATE                -> localizationManager.getString("settings_hotkeys.action_translate")
         HotkeyAction.FOCUS_INPUT              -> localizationManager.getString("settings_hotkeys.action_focus_input")
         HotkeyAction.FOCUS_OUTPUT             -> localizationManager.getString("settings_hotkeys.action_focus_output")
         HotkeyAction.FOCUS_EXTRA_OUTPUT       -> localizationManager.getString("settings_hotkeys.action_focus_extra_output")
+        HotkeyAction.COPY_TRANSLATION         -> localizationManager.getString("settings_hotkeys.action_copy_translation")
+        HotkeyAction.CLEAR_INPUT              -> localizationManager.getString("settings_hotkeys.action_clear_input")
+        HotkeyAction.SWAP_LANGUAGES           -> localizationManager.getString("settings_hotkeys.action_swap_languages")
+        HotkeyAction.OPEN_SETTINGS            -> localizationManager.getString("settings_hotkeys.action_open_settings")
+        HotkeyAction.SHOW_HISTORY             -> localizationManager.getString("settings_hotkeys.action_show_history")
+        HotkeyAction.TRANSLATE_DOCUMENT       -> localizationManager.getString("settings_hotkeys.action_translate_document")
     }
 
     private fun scopeLabel(scope: HotkeyScope): String = when (scope) {
@@ -491,10 +500,17 @@ object HotkeyRecorderDialog {
             HotkeyAction.REPLACE_WITH_TRANSLATION -> localizer.getString("settings_hotkeys.action_replace")
             HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizer.getString("settings_hotkeys.action_cycle_language")
             HotkeyAction.SHOW_DICTIONARY          -> localizer.getString("settings_hotkeys.action_show_dictionary")
+            HotkeyAction.SHOW_IMAGES              -> localizer.getString("settings_hotkeys.action_show_images")
             HotkeyAction.TRANSLATE                -> localizer.getString("settings_hotkeys.action_translate")
             HotkeyAction.FOCUS_INPUT              -> localizer.getString("settings_hotkeys.action_focus_input")
             HotkeyAction.FOCUS_OUTPUT             -> localizer.getString("settings_hotkeys.action_focus_output")
             HotkeyAction.FOCUS_EXTRA_OUTPUT       -> localizer.getString("settings_hotkeys.action_focus_extra_output")
+            HotkeyAction.COPY_TRANSLATION         -> localizer.getString("settings_hotkeys.action_copy_translation")
+            HotkeyAction.CLEAR_INPUT              -> localizer.getString("settings_hotkeys.action_clear_input")
+            HotkeyAction.SWAP_LANGUAGES           -> localizer.getString("settings_hotkeys.action_swap_languages")
+            HotkeyAction.OPEN_SETTINGS            -> localizer.getString("settings_hotkeys.action_open_settings")
+            HotkeyAction.SHOW_HISTORY             -> localizer.getString("settings_hotkeys.action_show_history")
+            HotkeyAction.TRANSLATE_DOCUMENT       -> localizer.getString("settings_hotkeys.action_translate_document")
         }
 
         // ── colours ──────────────────────────────────────────────────────────
@@ -669,6 +685,14 @@ object HotkeyRecorderDialog {
                 e.consume()
                 isErrorState = false
 
+                val resolvedKeyCode = when {
+                    e.keyCode != KeyEvent.VK_UNDEFINED -> e.keyCode
+                    e.extendedKeyCode != KeyEvent.VK_UNDEFINED -> e.extendedKeyCode
+                    e.keyChar != KeyEvent.CHAR_UNDEFINED && !Character.isISOControl(e.keyChar) ->
+                        KeyEvent.getExtendedKeyCodeForChar(e.keyChar.code)
+                    else -> KeyEvent.VK_UNDEFINED
+                }
+
                 when {
                     e.keyCode == KeyEvent.VK_ESCAPE -> {
                         if (isCaptureDone) {
@@ -692,9 +716,9 @@ object HotkeyRecorderDialog {
                         return
                     }
 
-                    e.keyCode in UNUSABLE_MAIN_KEYS -> {
+                    resolvedKeyCode in UNUSABLE_MAIN_KEYS -> {
                         // Rejected key — show in red, disable OK
-                        errorKeyCode       = e.keyCode
+                        errorKeyCode       = resolvedKeyCode
                         isErrorState       = true
                         okButton.isEnabled = false
                         updateUI()
@@ -703,7 +727,7 @@ object HotkeyRecorderDialog {
 
                     else -> {
                         // Valid main key — capture the full combination
-                        capturedKeyCode   = e.keyCode
+                        capturedKeyCode   = resolvedKeyCode
                         capturedModifiers = e.modifiersEx
                         liveModifiers     = 0
                         isCaptureDone     = true

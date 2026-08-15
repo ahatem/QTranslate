@@ -56,11 +56,13 @@ auto_detect = "Auto-Detect"
 [main_window]
 status_format = "Using %s: %s → %s"
 no_translator = "No Translator"
+no_service_message = "No translation service is configured."no_service_action = "Open Services settings"
 
 [main_window_history_bar]
 backward_tooltip = "Go backward in translation history"
 forward_tooltip = "Go forward in translation history"
 image_translate_tooltip = "Capture and translate text from an area on screen"
+document_translate_tooltip = "Translate a document while preserving its formatting"
 
 [main_window_language_bar]
 clear_tooltip = "Clear input text"
@@ -168,6 +170,9 @@ startup_group = "Startup"
 launch_on_startup = "Launch on system startup"
 updates_group = "Updates"
 auto_check_updates = "Automatically check for updates"
+selection_group = "Text Selection"
+selection_icon = "Show a translate button after selecting text"
+selection_icon_hint = "Shows a small button near text you select by dragging in other applications. Click it to translate the selection."
 history_group = "History"
 enable_history = "Enable translation history"
 clear_history_on_exit = "Clear history when the app closes"
@@ -211,6 +216,7 @@ spell_checker = "Spell Checker:"
 dictionary = "Dictionary:"
 summarizer = "Summariser:"
 rewriter = "Rewriter:"
+image_search = "Image Search:"
 # Dialogs
 new_preset_title = "New Preset"
 new_preset_prompt = "Enter a name for the new preset:"
@@ -273,6 +279,7 @@ action_translate = "Translate"
 action_focus_input = "Focus Input Pane"
 action_focus_output = "Focus Output Pane"
 action_focus_extra_output = "Focus Extra Output Pane"
+action_copy_translation = "Copy translation"action_clear_input = "Clear input"action_swap_languages = "Swap languages"action_open_settings = "Open settings"action_show_history = "Show history"action_translate_document = "Translate document"
 scope_toggle_hint = "Click to toggle between Global and Local"
 
 # Default Actions Descriptions
@@ -420,6 +427,11 @@ close_behavior_hint    = "Controls what happens when you click the × button. Yo
 title_format = "Configure — %s"
 required_fields_error_title = "Required Fields"
 required_fields_error_msg = "Please fill in the required fields:"
+test_connection = "Test connection"
+testing = "Testing…"
+test_ok = "Ready — %d service(s) responded"
+test_failed = "Test failed"
+test_nothing_to_check = "Nothing to check"
 
 # ===================================================================
 # OTHER DIALOGS
@@ -497,6 +509,7 @@ unknown_error = "An unknown error occurred."
 
 [status_bar]
 ocr_text_copied = "Text recognized and copied to clipboard."
+text_copied = "Copied to clipboard."
 translating = "Translating..."
 translation_complete = "Translation complete."
 translation_cancelled = "Translation cancelled."

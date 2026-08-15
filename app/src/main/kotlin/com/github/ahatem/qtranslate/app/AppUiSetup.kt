@@ -14,13 +14,11 @@ import javax.swing.UIManager
 object AppUiSetup {
 
     fun setSystemProperties() {
-        System.setProperty("sun.awt.xembedserver",         "true")
-        System.setProperty("awt.useSystemAAFontSettings",  "lcd")
-        System.setProperty("swing.aatext",                 "true")
-        System.setProperty("sun.java2d.opengl",            "true")
-        System.setProperty("sun.java2d.d3d",               "false")
-        System.setProperty("sun.java2d.noddraw",           "true")
-        System.setProperty("sun.java2d.xrender",           "true")
+        if (System.getProperty("os.name").startsWith("Linux", ignoreCase = true)) {
+            System.setProperty("sun.awt.xembedserver", "true")
+        }
+        System.setProperty("awt.useSystemAAFontSettings", "lcd")
+        System.setProperty("swing.aatext", "true")
     }
 
     fun setRenderingHints() {

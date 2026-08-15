@@ -61,12 +61,10 @@ fun createCustomTheme(id: String, name: String, isDark: Boolean, resourcePath: S
         name = name,
         isDark = isDark,
         apply = {
-            val stream = Theme::class.java.classLoader.getResourceAsStream(resourcePath)
-            if (stream != null) {
-                FlatLaf.setup(IntelliJTheme.createLaf(stream))
-            } else {
-                println("ERROR: Theme resource not found at path: $resourcePath")
+            val stream = requireNotNull(Theme::class.java.classLoader.getResourceAsStream(resourcePath)) {
+                "Theme resource not found: $resourcePath"
             }
+            stream.use { FlatLaf.setup(IntelliJTheme.createLaf(it)) }
         }
     )
 }

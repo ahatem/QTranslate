@@ -1,9 +1,16 @@
 package com.github.ahatem.qtranslate.core.plugin
 
 import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.api.plugin.DisplayText
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
+import com.github.ahatem.qtranslate.api.plugin.SecretStore
+import com.github.ahatem.qtranslate.api.plugin.SettingsStore
+import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
+import com.github.ahatem.qtranslate.core.plugin.storage.ScopedSecretStore
+import com.github.ahatem.qtranslate.core.plugin.storage.ScopedSettingsStore
+import com.github.ahatem.qtranslate.core.plugin.text.PluginTextResolver
 import com.github.ahatem.qtranslate.core.shared.notification.AppNotification
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
@@ -31,9 +38,11 @@ import java.io.File
  */
 internal class ScopedPluginContext(
     private val pluginId: String,
+    private val instanceId: String = ServiceId.DEFAULT_INSTANCE,
     private val appDataDirectory: File,
-    private val pluginKeyValueStore: PluginKeyValueStore,
+    pluginKeyValueStore: PluginKeyValueStore,
     private val notificationBus: NotificationBus,
+    private val textResolver: PluginTextResolver,
     override val logger: Logger
 ) : PluginContext {
 
@@ -47,36 +56,35 @@ internal class ScopedPluginContext(
     }
 
     // -------------------------------------------------------------------------
+    // Storage
+    // -------------------------------------------------------------------------
+
+    override val settings: SettingsStore =
+        ScopedSettingsStore(pluginId, instanceId, pluginKeyValueStore)
+
+    override val secrets: SecretStore =
+        ScopedSecretStore(pluginId, instanceId, pluginKeyValueStore)
+
+    // -------------------------------------------------------------------------
     // Notifications
     // -------------------------------------------------------------------------
 
-    override suspend fun notify(title: String, body: String, type: NotificationType) {
+    /**
+     * Resolves both strings before posting, so what reaches the notification bus is display text
+     * in the user's language rather than a key the rest of the app would have to know how to
+     * interpret.
+     */
+    override suspend fun notify(title: DisplayText, body: DisplayText, type: NotificationType) {
         notificationBus.post(
             AppNotification(
                 type = type,
-                code = NotificationCode.Custom(title, body),
+                code = NotificationCode.Custom(
+                    textResolver.resolve(pluginId, title),
+                    textResolver.resolve(pluginId, body)
+                ),
                 sourcePluginId = pluginId
             )
         )
-    }
-
-    // -------------------------------------------------------------------------
-    // Key-value storage
-    // -------------------------------------------------------------------------
-
-    override suspend fun getValue(key: String): String? {
-        logger.debug("[$pluginId] Reading key: $key")
-        return pluginKeyValueStore.getValue(pluginId, key)
-    }
-
-    override suspend fun storeValue(key: String, value: String) {
-        logger.debug("[$pluginId] Writing key: $key")
-        pluginKeyValueStore.storeValue(pluginId, key, value)
-    }
-
-    override suspend fun deleteValue(key: String) {
-        logger.debug("[$pluginId] Deleting key: $key")
-        pluginKeyValueStore.deleteValue(pluginId, key)
     }
 
     // -------------------------------------------------------------------------

@@ -1,6 +1,8 @@
 package com.github.ahatem.qtranslate.core.main.domain.model
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.plugin.ServiceOption
+import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 
 /**
  * Snapshot of available services and the languages supported by the
@@ -17,5 +19,14 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
  */
 data class ServiceSelectionState(
     val availableServices: List<ServiceInfo>,
-    val availableLanguages: List<LanguageCode>
+    val availableLanguages: List<LanguageCode>,
+    /**
+     * The options declared by whichever service is currently active for each capability.
+     *
+     * The host no longer owns the vocabulary for things like summary length or rewrite style, so
+     * the pickers that offer them are built from this rather than from a fixed enum. A service
+     * offering something the application has never heard of appears here and is rendered like any
+     * other choice.
+     */
+    val serviceOptions: Map<ServiceType, List<ServiceOption>> = emptyMap()
 )

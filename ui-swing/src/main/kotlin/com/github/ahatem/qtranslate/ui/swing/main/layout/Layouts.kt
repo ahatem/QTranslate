@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
+import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import java.awt.*
 import javax.swing.*
 
@@ -149,32 +150,31 @@ object LayoutBuilders {
     ): JSplitPane {
         top.minimumSize = Dimension(0, topMinHeight)
         bottom.minimumSize = Dimension(0, bottomMinHeight)
-        return JSplitPane(JSplitPane.VERTICAL_SPLIT, top, bottom).apply {
-            isContinuousLayout = true
-            this.resizeWeight = resizeWeight
+        return MirroredSplitPane(JSplitPane.VERTICAL_SPLIT, true, top, bottom).apply {
+            leadingResizeWeight = resizeWeight
             dividerSize = UISpacing.DIVIDER_SIZE
-            border = null
+            clearBorder()
         }
     }
 
+    /**
+     * @param leading  the pane shown first in reading order — left in a left-to-right interface,
+     *                 right in a right-to-left one. [MirroredSplitPane] handles the exchange, so
+     *                 callers pass reading order and never check the direction themselves.
+     */
     fun createHorizontalSplit(
-        left: JComponent,
-        right: JComponent,
+        leading: JComponent,
+        trailing: JComponent,
         resizeWeight: Double = 0.5,
-        leftMinWidth: Int = UISpacing.MIN_PANEL_WIDTH,
-        rightMinWidth: Int = UISpacing.MIN_PANEL_WIDTH,
-        rtl: Boolean = false
+        leadingMinWidth: Int = UISpacing.MIN_PANEL_WIDTH,
+        trailingMinWidth: Int = UISpacing.MIN_PANEL_WIDTH,
     ): JSplitPane {
-        val first = if (rtl) right else left
-        val second = if (rtl) left else right
-        val weight = if (rtl) 1.0 - resizeWeight else resizeWeight
-        first.minimumSize = Dimension(leftMinWidth, 0)
-        second.minimumSize = Dimension(rightMinWidth, 0)
-        return JSplitPane(JSplitPane.HORIZONTAL_SPLIT, first, second).apply {
-            isContinuousLayout = true
-            this.resizeWeight = weight
+        leading.minimumSize = Dimension(leadingMinWidth, 0)
+        trailing.minimumSize = Dimension(trailingMinWidth, 0)
+        return MirroredSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, leading, trailing).apply {
+            leadingResizeWeight = resizeWeight
             dividerSize = UISpacing.DIVIDER_SIZE
-            border = null
+            clearBorder()
         }
     }
 }
@@ -228,8 +228,8 @@ object SideBySideLayout : LayoutStrategy {
         val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
 
         val mainSplit = LayoutBuilders.createHorizontalSplit(
-            left = components.inputPanel, right = components.outputPanel,
-            resizeWeight = 0.5, rtl = isRtl
+            leading = components.inputPanel, trailing = components.outputPanel,
+            resizeWeight = 0.5
         )
         val extraSplit = LayoutBuilders.createVerticalSplit(
             top = mainSplit,

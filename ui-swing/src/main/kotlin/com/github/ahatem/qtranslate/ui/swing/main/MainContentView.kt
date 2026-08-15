@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main
 
+import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
@@ -7,6 +9,7 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.api.plugin.StandardOptions
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
@@ -25,6 +28,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
 import com.github.ahatem.qtranslate.ui.swing.main.output.ExtraOutputPanel
 import com.github.ahatem.qtranslate.ui.swing.main.output.ExtraOutputState
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextPanel
+import com.github.ahatem.qtranslate.ui.swing.main.output.NoServiceState
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextState
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelector
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
@@ -35,9 +39,13 @@ import com.github.ahatem.qtranslate.ui.swing.main.widgets.Action
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsState
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
+import com.github.ahatem.qtranslate.ui.swing.shared.util.installContentDropHandler
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFallbackFont
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFont
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toImageData
+import com.github.ahatem.qtranslate.ui.swing.shared.util.choices
+import com.github.ahatem.qtranslate.ui.swing.shared.util.selectedIdOr
+import com.github.ahatem.qtranslate.ui.swing.shared.util.withKey
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.event.InputEvent
@@ -54,7 +62,14 @@ class MainContentView(
     private val dispatch: (MainIntent) -> Unit,
     private val dispatchSettings: (SettingsIntent) -> Unit,
     private val onOpenSnippingTool: () -> Unit,
+    /**
+     * Opens the document translation dialog, with [java.io.File] when one is already chosen --
+     * a document pasted into the input pane, for instance.
+     */
+    private val onOpenDocumentTranslation: (java.io.File?) -> Unit,
     private val onNotificationsClicked: () -> Unit,
+    private val onConfigureService: (String) -> Unit,
+    private val onOpenServiceSettings: () -> Unit,
 ) : JPanel(BorderLayout(0, 0)) {
 
     private val translationHistoryBar: TranslationHistoryBar = TranslationHistoryBar(
@@ -62,16 +77,18 @@ class MainContentView(
         onBackward = { dispatch(MainIntent.UndoTranslation) },
         onForward = { dispatch(MainIntent.RedoTranslation) },
         onImageTranslate = { onOpenSnippingTool() },
+        onDocumentTranslate = { onOpenDocumentTranslation(null) },
     )
 
     private val translatorSelector = TranslatorSelector(
         iconManager = iconManager,
-        onTranslatorSelected = { serviceId ->
+        onServiceSelected = { type, serviceId ->
             dispatchSettings(
-                SettingsIntent.UpdateServiceInActivePreset(ServiceType.TRANSLATOR, serviceId)
+                SettingsIntent.UpdateServiceInActivePreset(type, serviceId)
             )
-            dispatch(MainIntent.Translate())
-        }
+            if (type == ServiceType.TRANSLATOR) dispatch(MainIntent.Translate())
+        },
+        onConfigureService = onConfigureService
     )
 
     private val languageSelectionBar = LanguageSelectionBar(
@@ -101,7 +118,9 @@ class MainContentView(
             dispatch(MainIntent.ApplyCorrection(original, suggestion))
         },
         onImageDropped = { image -> dispatch(MainIntent.OcrAndTranslateImage(image.toImageData("png"))) },
+        onDocumentPasted = { file -> onOpenDocumentTranslation(file) },
         onFindInDictionary = { word -> showDictionaryWithWord(word) },
+        onSearchImages = { word -> showImagesForWord(word) },
     )
 
     private val outputTextPanel = OutputTextPanel(
@@ -113,6 +132,7 @@ class MainContentView(
             dispatch(MainIntent.Translate(text))
         },
         onFindInDictionary = { word -> showDictionaryWithWord(word, currentTargetLanguage) },
+        onSearchImages = { word -> showImagesForWord(word, currentTargetLanguage) },
         onSetAsInput = { text ->
             dispatch(MainIntent.UpdateInputText(text))
             inputTextPanel.requestFocusOnText()
@@ -129,6 +149,7 @@ class MainContentView(
             dispatch(MainIntent.Translate(text))
         },
         onFindInDictionary = { word -> showDictionaryWithWord(word, currentExtraOutputLanguage) },
+        onSearchImages = { word -> showImagesForWord(word, currentExtraOutputLanguage) },
         onSetAsInput = { text ->
             dispatch(MainIntent.UpdateInputText(text))
             inputTextPanel.requestFocusOnText()
@@ -156,7 +177,7 @@ class MainContentView(
         },
         onClose  = { dispatch(MainIntent.ToggleDictionaryPanel) },
     ).apply {
-        minimumSize = Dimension(220, 0)
+        minimumSize = Dimension(UIScale.scale(220), 0)
     }
 
     // Separate wrapper so LayoutManager.switchLayout()'s removeAll() never touches dictionaryPanel.
@@ -174,12 +195,16 @@ class MainContentView(
         ), contentWrapper
     )
 
-    private val splitPane = javax.swing.JSplitPane(
+    // MirroredSplitPane rather than a plain JSplitPane: with the interface in Arabic the whole
+    // window is flipped to right-to-left, and Swing implements that on a split pane by inverting
+    // the axis its divider is dragged along — the dictionary could not be resized. This mirrors by
+    // exchanging the two sides instead, so the divider still follows the mouse.
+    private val splitPane = MirroredSplitPane(
         javax.swing.JSplitPane.HORIZONTAL_SPLIT, true, contentWrapper, dictionaryPanel
     ).apply {
-        resizeWeight = 1.0   // main content gets all extra space when window is resized
-        dividerSize  = 0     // collapsed until panel is first shown
-        border       = null
+        leadingResizeWeight = 1.0 // main content gets all extra space when window is resized
+        dividerSize = 0           // collapsed until panel is first shown
+        border = null
         dictionaryPanel.isVisible = false
     }
 
@@ -201,6 +226,8 @@ class MainContentView(
         val selectedDictionaryId: String?,
         val dictionaryCount: Int,
         val autoSource: com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource,
+        /** Part of the key so the headword's Listen control flips when playback starts or stops. */
+        val isTtsPlaying: Boolean,
     )
 
     init {
@@ -227,6 +254,10 @@ class MainContentView(
 
     fun render(mainState: MainState, settingsState: SettingsState) {
         val config = settingsState.workingConfiguration
+
+        // Told outright rather than left to the orientation cascade, which reaches the split pane
+        // at a point in startup that depends on when this view was added to the window.
+        splitPane.isMirrored = localizer.isRtl
 
         if (lastState == null || lastState?.second?.workingConfiguration?.layoutPresetId != config.layoutPresetId) {
             layoutManager.switchLayout(config.layoutPresetId, localizer.isRtl)
@@ -330,6 +361,7 @@ class MainContentView(
             selectedDictionaryId = selectedDictId,
             dictionaryCount   = availableDicts.size,
             autoSource        = config.dictionaryAutoSource,
+            isTtsPlaying      = mainState.isTtsPlaying,
         )
         if (key == lastDictionaryKey) return
         lastDictionaryKey = key
@@ -347,7 +379,9 @@ class MainContentView(
                     // Defer via invokeLater so it fires after the layout pass — otherwise
                     // splitPane.width is still 0 and the panel opens with the wrong size.
                     javax.swing.SwingUtilities.invokeLater {
-                        splitPane.setDividerLocation(0.65)
+                        // Leading proportion, not a raw one: in a right-to-left interface the
+                        // dictionary sits on the other side of the divider.
+                        splitPane.setLeadingProportion(0.65)
                     }
                 }
             } else {
@@ -369,7 +403,10 @@ class MainContentView(
                     loadingMessage        = localizer.getString("dictionary_dialog.loading_message"),
                     errorMessage          = localizer.getString("dictionary_dialog.error_message"),
                     synonymsLabel         = localizer.getString("dictionary_dialog.synonyms_label"),
+                    listenTooltip         = localizer.getString("common.listen"),
+                    stopListeningTooltip  = localizer.getString("common.stop"),
                     isLoading             = key.isLoading,
+                    isTtsPlaying          = key.isTtsPlaying,
                     entries               = key.entries,
                     lookedUpWord          = key.word,
                     hasFailed             = key.hasFailed,
@@ -384,6 +421,18 @@ class MainContentView(
                             SettingsIntent.ToggleSetting { it.copy(dictionaryAutoSource = newSource) }
                         )
                     },
+                    // The headword belongs to the lookup, not to a panel, so it carries the
+                    // language the lookup was made in rather than the input panel's.
+                    onListen = { word ->
+                        dispatch(
+                            MainIntent.ListenToText(
+                                textSource = TextSource.Input,
+                                text = word,
+                                language = key.lookupLanguage
+                            )
+                        )
+                    },
+                    onStopListening = { dispatch(MainIntent.StopTTS) },
                 )
             )
         }
@@ -423,6 +472,7 @@ class MainContentView(
                     backwardTooltip = localizer.getString("main_window_history_bar.backward_tooltip"),
                     forwardTooltip = localizer.getString("main_window_history_bar.forward_tooltip"),
                     imageTranslateTooltip = localizer.getString("main_window_history_bar.image_translate_tooltip"),
+                    documentTranslateTooltip = localizer.getString("main_window_history_bar.document_translate_tooltip"),
                 ),
             )
         )
@@ -431,7 +481,11 @@ class MainContentView(
             TranslatorSelectorState(
                 availableTranslators = mainState.getAvailableServicesFor(ServiceType.TRANSLATOR),
                 selectedTranslatorId = selectedTranslatorId,
-                isLoading = mainState.isLoading
+                isLoading = mainState.isLoading,
+                availableServices = mainState.availableServices,
+                selectedServices = activePreset?.selectedServices.orEmpty(),
+                style = config.serviceSelectorStyle,
+                appearance = config.serviceSelectorAppearance
             )
         )
 
@@ -467,7 +521,7 @@ class MainContentView(
                     tooltip = localizer.getString("main_window_editor_context_menu.copy"),
                     isEnabled = hasInputText && !mainState.isLoading,
                     isVisible = true,
-                    onClick = { mainState.inputText.copyToClipboard() }
+                    onClick = { mainState.inputText.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) }
                 ),
                 Action(
                     id = if (isTtsPlaying) "stop_tts_input" else "listen_input",
@@ -498,9 +552,23 @@ class MainContentView(
         val hasOutputText = mainState.translatedText.isNotBlank()
         val hasExtraText = mainState.extraOutputText.isNotBlank()
 
+        // Nothing can be translated without a translator, and an empty window gives a new
+        // user no clue why. Point them at the setting that fixes it.
+        val noService = if (mainState.getAvailableServicesFor(ServiceType.TRANSLATOR).isEmpty()) {
+            NoServiceState(
+                message = localizer.getString("main_window.no_service_message"),
+                actionLabel = localizer.getString("main_window.no_service_action"),
+                onAction = onOpenServiceSettings
+            )
+        } else null
+
         outputTextPanel.render(
             OutputTextState(
                 text = mainState.translatedText,
+                // Shown automatically for a single word, empty otherwise, so a multi-word
+                // translation lays out exactly as it did before this existed.
+                definition = mainState.inlineDefinition,
+                noService = noService,
                 isLoading = mainState.isLoading,
                 fontConfig = config.scaledEditorFont,
                 fallbackFontConfig = config.scaledEditorFallbackFont,
@@ -512,7 +580,7 @@ class MainContentView(
                             tooltip = localizer.getString("main_window_editor_context_menu.copy"),
                             isEnabled = hasOutputText && !mainState.isLoading,
                             isVisible = true,
-                            onClick = { mainState.translatedText.copyToClipboard() }
+                            onClick = { mainState.translatedText.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) }
                         ),
                         Action(
                             id = if (isTtsPlaying) "stop_tts_output" else "listen_output",
@@ -530,16 +598,32 @@ class MainContentView(
             )
         )
 
+        // The extra-output pane offers whatever the service behind the active type declares.
+        // Backward translation has no options, and neither does a service that declares none —
+        // both come out as an empty list, which hides the configure button.
+        val extraOutputOption = when (config.extraOutputType) {
+            ExtraOutputType.Summarize ->
+                mainState.serviceOptions[ServiceType.SUMMARIZER]?.withKey(StandardOptions.KEY_SUMMARY_LENGTH)
+            ExtraOutputType.Rewrite ->
+                mainState.serviceOptions[ServiceType.REWRITER]?.withKey(StandardOptions.KEY_REWRITE_STYLE)
+            else -> null
+        }
+        val extraOutputSelection = when (config.extraOutputType) {
+            ExtraOutputType.Summarize -> config.summaryLength
+            ExtraOutputType.Rewrite -> config.rewriteStyle
+            else -> ""
+        }
+
         extraOutputPanel.render(
             ExtraOutputState(
                 text = mainState.extraOutputText,
                 isVisible = config.extraOutputType != ExtraOutputType.None,
-                isLoading = mainState.isLoading,
+                // Stays loading after the main translation has landed — this panel is fed by
+                // its own request and must not make the main output wait for it.
+                isLoading = mainState.isLoading || mainState.isExtraOutputLoading,
                 fontConfig = config.scaledEditorFont,
                 fallbackFontConfig = config.scaledEditorFallbackFont,
                 activeType = config.extraOutputType,
-                summaryLength = config.summaryLength,
-                rewriteStyle = config.rewriteStyle,
 
                 labelBackward = localizer.getString("extra_output.label_backward"),
                 labelSummary = localizer.getString("extra_output.label_summary"),
@@ -547,18 +631,8 @@ class MainContentView(
 
                 labelConfigure = localizer.getString("common.configure"),
 
-                summaryLengthLabels = listOf(
-                    localizer.getString("settings_translation.summary_length_short"),
-                    localizer.getString("settings_translation.summary_length_medium"),
-                    localizer.getString("settings_translation.summary_length_long")
-                ),
-                rewriteStyleLabels = listOf(
-                    localizer.getString("settings_translation.rewrite_style_formal"),
-                    localizer.getString("settings_translation.rewrite_style_casual"),
-                    localizer.getString("settings_translation.rewrite_style_concise"),
-                    localizer.getString("settings_translation.rewrite_style_detailed"),
-                    localizer.getString("settings_translation.rewrite_style_simplified")
-                ),
+                optionChoices = extraOutputOption?.choices(localizer).orEmpty(),
+                selectedOptionId = extraOutputOption?.selectedIdOr(extraOutputSelection),
 
                 onTypeChanged = { type ->
                     dispatchSettings(
@@ -568,20 +642,15 @@ class MainContentView(
                     )
                     dispatch(MainIntent.Translate())
                 },
-                onSummaryLengthChanged = { length ->
-                    dispatchSettings(
-                        SettingsIntent.UpdateDraft(
-                            config.copy(summaryLength = length)
-                        )
-                    )
-                    dispatch(MainIntent.Translate())
-                },
-                onRewriteStyleChanged = { style ->
-                    dispatchSettings(
-                        SettingsIntent.UpdateDraft(
-                            config.copy(rewriteStyle = style)
-                        )
-                    )
+                onOptionSelected = { id ->
+                    // Which setting the id belongs to follows from the active type; the panel
+                    // itself never learns that, so a new option kind only touches this branch.
+                    val updated = when (config.extraOutputType) {
+                        ExtraOutputType.Summarize -> config.copy(summaryLength = id)
+                        ExtraOutputType.Rewrite -> config.copy(rewriteStyle = id)
+                        else -> config
+                    }
+                    dispatchSettings(SettingsIntent.UpdateDraft(updated))
                     dispatch(MainIntent.Translate())
                 },
 
@@ -593,7 +662,7 @@ class MainContentView(
                             tooltip = localizer.getString("main_window_editor_context_menu.copy"),
                             isEnabled = hasExtraText && !mainState.isLoading,
                             isVisible = true,
-                            onClick = { mainState.extraOutputText.copyToClipboard() }
+                            onClick = { mainState.extraOutputText.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) }
                         ),
                         Action(
                             id = if (isTtsPlaying) "stop_tts_extra" else "listen_extra",
@@ -662,6 +731,35 @@ class MainContentView(
 
     fun setDictionarySearchWord(word: String) {
         dictionaryPanel.setSearchWord(word)
+    }
+
+    /**
+     * Opens the floating image popup for [word].
+     *
+     * A popup rather than an inline panel: the pictures are a glance on the way through a text,
+     * not something to keep half the window reserved for.
+     */
+    /**
+     * Gives every text pane the same drop handling as the window around them.
+     *
+     * Needed because Swing consults only the deepest component under the pointer: a handler on the
+     * frame alone never sees a drop that lands on an editor, and the editor refuses it. Called by
+     * the frame, which owns the overlay and the intents these drops turn into.
+     */
+    fun installDropHandling(
+        onContent: (com.github.ahatem.qtranslate.ui.swing.shared.util.DroppedContent) -> Unit,
+        onDragOver: () -> Unit,
+        onDropped: () -> Unit
+    ) {
+        listOf(
+            inputTextPanel.textPaneComponent,
+            outputTextPanel.textPaneComponent,
+            extraOutputPanel.textPaneComponent
+        ).forEach { it.installContentDropHandler(onContent, onDragOver, onDropped) }
+    }
+
+    private fun showImagesForWord(word: String, language: LanguageCode = currentLookupLanguage) {
+        dispatch(MainIntent.ShowImageSearch(word, language))
     }
 
     private fun showDictionaryWithWord(word: String, language: LanguageCode = currentLookupLanguage) {

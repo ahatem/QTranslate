@@ -1,10 +1,13 @@
 package com.github.ahatem.qtranslate.plugins.ai
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+import com.github.ahatem.qtranslate.api.plugin.ServiceMetadata
+
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.rewriter.RewriteRequest
 import com.github.ahatem.qtranslate.api.rewriter.RewriteResponse
-import com.github.ahatem.qtranslate.api.rewriter.RewriteStyle
+import com.github.ahatem.qtranslate.api.plugin.StandardOptions
 import com.github.ahatem.qtranslate.api.rewriter.Rewriter
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.map
@@ -13,18 +16,36 @@ class AIRewriterService(
     private val client: AIServiceClient
 ) : Rewriter {
 
-    override val id: String = "ai-rewriter"
+    override val capabilities = setOf(ServiceCapability.REWRITER)
+
+    // Nothing this plugin offers works until a key is set, which is what makes a connection
+    // test worth offering here. The check itself is shared: one key, one endpoint, one model.
+    override val metadata = ServiceMetadata(requiresConfiguration = true)
+
+    override suspend fun validate() = client.validate()
+
+    override val key: String = "ai-rewriter"
     override val name: String = "AI Rewriter"
     override val version: String = "1.0.0"
+    override val iconPath: String = "assets/ai-icon.svg"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.All
 
+    /**
+     * The standard styles, so the labels come out translated in every language the app ships.
+     * A service wanting its own vocabulary would build a [com.github.ahatem.qtranslate.api.plugin.ServiceOption]
+     * here instead and supply the labels in its own bundle.
+     */
+    override val options = listOf(StandardOptions.REWRITE_STYLE)
+
     override suspend fun rewrite(request: RewriteRequest): Result<RewriteResponse, ServiceError> {
-        val styleInstruction = when (request.style) {
-            RewriteStyle.FORMAL -> "Rewrite in a formal, professional tone. Use precise vocabulary and complete sentences. Remove slang and colloquialisms."
-            RewriteStyle.CASUAL -> "Rewrite in a natural, conversational tone. Use everyday language as if speaking to a friend."
-            RewriteStyle.CONCISE -> "Rewrite as briefly as possible. Remove all filler words, redundancy, and unnecessary detail."
-            RewriteStyle.DETAILED -> "Rewrite in an expanded, thorough form. Add relevant context and elaborate on key points."
-            RewriteStyle.SIMPLIFIED -> "Rewrite using plain, simple language suitable for a general audience. Avoid jargon."
+        // An id, not an enum: the host passes through whatever the user picked, so an unknown
+        // value is possible in principle and falls back to the option's own default.
+        val styleInstruction = when (request.style ?: StandardOptions.REWRITE_STYLE.defaultValue) {
+            "CASUAL" -> "Rewrite in a natural, conversational tone. Use everyday language as if speaking to a friend."
+            "CONCISE" -> "Rewrite as briefly as possible. Remove all filler words, redundancy, and unnecessary detail."
+            "DETAILED" -> "Rewrite in an expanded, thorough form. Add relevant context and elaborate on key points."
+            "SIMPLIFIED" -> "Rewrite using plain, simple language suitable for a general audience. Avoid jargon."
+            else -> "Rewrite in a formal, professional tone. Use precise vocabulary and complete sentences. Remove slang and colloquialisms."
         }
 
         val system = """
