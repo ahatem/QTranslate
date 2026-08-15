@@ -1,7 +1,10 @@
 package com.github.ahatem.qtranslate.app
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.shared.notification.AppNotification
+import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.ui.swing.main.MainAppFrame
@@ -44,10 +47,12 @@ fun main() = runBlocking {
     val json         = Json { ignoreUnknownKeys = true; isLenient = true }
     val settingsRepo = SettingsRepository(appData, json, logFactory.getLogger("SettingsRepository"))
 
+    var configLoadTimedOut = false
     val initialConfig = withTimeoutOrNull(AppConstants.CONFIG_LOAD_TIMEOUT_MS) {
         settingsRepo.loadInitialConfiguration()
     } ?: run {
         logger.warn("Configuration load timed out after ${AppConstants.CONFIG_LOAD_TIMEOUT_MS}ms — using defaults")
+        configLoadTimedOut = true
         Configuration.DEFAULT
     }
 
@@ -60,6 +65,34 @@ fun main() = runBlocking {
         initialConfig = initialConfig
     )
     AppUiSetup.apply(initialConfig, deps.themeManager)
+
+    // Starting with defaults when settings existed is not a detail to leave in a log file. From
+    // the user's side the app looks freshly installed, and the natural response — setting
+    // everything up again — overwrites the file that still holds the original.
+    settingsRepo.lastRecovery?.let { recovery ->
+        logger.error("Configuration recovery: ${recovery.reason}")
+        deps.notificationBus.post(
+            AppNotification(
+                type = NotificationType.ERROR,
+                code = NotificationCode.Custom(
+                    title = "Settings could not be loaded",
+                    body = recovery.reason
+                )
+            )
+        )
+    }
+    if (configLoadTimedOut) {
+        deps.notificationBus.post(
+            AppNotification(
+                type = NotificationType.WARNING,
+                code = NotificationCode.Custom(
+                    title = "Settings took too long to load",
+                    body = "QTranslate started with default settings so it would not hang. " +
+                        "Your saved settings are still on disk — restarting may load them."
+                )
+            )
+        )
+    }
 
     val savedLanguage = if (initialConfig.interfaceLanguage == LanguageCode.ENGLISH.tag) {
         OsLanguageDetector.detect(deps.localizationManager.availableLanguages)

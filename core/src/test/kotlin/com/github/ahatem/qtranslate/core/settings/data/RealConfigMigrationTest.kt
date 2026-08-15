@@ -37,6 +37,51 @@ class RealConfigMigrationTest {
     private fun load(payload: String): Configuration =
         ConfigMigrator.migrate(json.decodeFromString<Configuration>(payload), logger)
 
+    /**
+     * The profile this release is being cut against, checked field by field.
+     *
+     * Deliberately exhaustive rather than spot-checked. Everything asserted here is something a
+     * real person would notice losing, and the failure mode is a silent reset to defaults, so a
+     * partial check would pass while handing them a factory-fresh app.
+     */
+    @Test
+    fun `the maintainer's own 1_3_0 profile survives intact`() {
+        val migrated = load(V3_REAL_PROFILE)
+
+        assertEquals(ConfigMigrator.CURRENT_VERSION, migrated.configVersion)
+
+        // Their five chosen services, rewritten into the composed form and still pointing at the
+        // same providers. DeepL is the one to watch: it is the only non-Google choice.
+        val selected = migrated.servicePresets.single().selectedServices
+        assertTrue(
+            selected[ServiceType.TRANSLATOR]!!.contains("deepl"),
+            "Translator should still be DeepL, was ${selected[ServiceType.TRANSLATOR]}"
+        )
+        listOf(ServiceType.TTS, ServiceType.SPELL_CHECKER, ServiceType.OCR, ServiceType.DICTIONARY)
+            .forEach { type ->
+                assertTrue(
+                    selected[type]!!.contains("google"),
+                    "$type should still be Google, was ${selected[type]}"
+                )
+            }
+
+        // The preset itself, not just its contents: a new id would orphan the active selection.
+        assertEquals("72ea1742-e544-4dfb-890b-bd94a9ec406e", migrated.activeServicePresetId)
+        assertEquals("72ea1742-e544-4dfb-890b-bd94a9ec406e", migrated.servicePresets.single().id)
+
+        // Everything else they had set. An Arabic interface reverting to English, or 125% zoom
+        // reverting to 100%, is exactly the kind of loss that reads as the app being broken.
+        assertEquals("ar-SA", migrated.interfaceLanguage)
+        assertEquals(125, migrated.uiScale)
+        assertEquals("custom:qtranslate_light", migrated.themeId)
+        assertEquals("ru", migrated.preferredTargetLanguage)
+        assertEquals("en", migrated.preferredSourceLanguage)
+        assertEquals(686, migrated.mainWindowSize?.width)
+        assertEquals(559, migrated.mainWindowSize?.height)
+        assertEquals(1077, migrated.mainWindowPosition?.x)
+        assertEquals(464, migrated.mainWindowPosition?.y)
+    }
+
     @Test
     fun `a v3 install keeps every service it had chosen`() {
         val migrated = load(V3_INSTALL)
@@ -124,6 +169,29 @@ class RealConfigMigrationTest {
             "activeServicePresetId":"72ea1742-e544-4dfb-890b-bd94a9ec406e","preferredTargetLanguage":"ar",
             "preferredSourceLanguage":"en","mainWindowSize":{"width":686,"height":544},
             "mainWindowPosition":{"x":1030,"y":530},"uiScale":125}
+        """.trimIndent().replace("\n", "")
+
+        /**
+         * The maintainer's own 1.3.0 profile, taken from `datastore/app_settings.preferences_pb`
+         * before the 1.4.0 release.
+         *
+         * Kept because it is the release-blocking case in one file: it is at version 3, its five
+         * services all use the pre-v2 id format, its interface is Arabic, and it runs at 125%.
+         * A migration bug here loses a real person's settings, and it loses them silently.
+         *
+         * A custom theme id is included deliberately — `custom:` prefixed themes come from a file
+         * on disk, and a migration that mangled the id would leave the app on the default theme
+         * with no explanation.
+         */
+        val V3_REAL_PROFILE = """
+            {"configVersion":3,"servicePresets":[{"id":"72ea1742-e544-4dfb-890b-bd94a9ec406e",
+            "name":"__default__","selectedServices":{"TRANSLATOR":"deepl-services-translator",
+            "TTS":"google-tts","SPELL_CHECKER":"google-spell-checker","OCR":"google-ocr",
+            "DICTIONARY":"google-dictionary"}}],
+            "activeServicePresetId":"72ea1742-e544-4dfb-890b-bd94a9ec406e",
+            "interfaceLanguage":"ar-SA","preferredTargetLanguage":"ru","preferredSourceLanguage":"en",
+            "mainWindowSize":{"width":686,"height":559},"mainWindowPosition":{"x":1077,"y":464},
+            "uiScale":125,"themeId":"custom:qtranslate_light"}
         """.trimIndent().replace("\n", "")
 
         /** An older install left at config version 2, still on Google Translate. */
