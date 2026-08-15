@@ -790,15 +790,21 @@ class MainAppFrame(
                         }
                         return@collect
                     }
-                    // Which word to define. SOURCE is a deliberate choice to define the word the
-                    // user typed; everything else defines the translation, which is what someone
-                    // reading a result is looking at.
+                    // Both sides of the translation are offered, in preference order. SOURCE means
+                    // the user asked for the word they typed; otherwise the translation comes
+                    // first, since that is what they are looking at.
+                    //
+                    // Both matter because dictionaries are lopsided. Translating English into
+                    // Arabic and defining only the Arabic would ask Google Dictionary for a
+                    // language it barely holds, and produce nothing every single time.
+                    val preferSource =
+                        key.autoSource == com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource.SOURCE
                     val (word, lang) =
-                        if (key.autoSource == com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource.SOURCE) {
-                            key.inputText to key.resolvedSourceLang
-                        } else {
-                            key.translatedText to key.targetLang
-                        }
+                        if (preferSource) key.inputText to key.resolvedSourceLang
+                        else key.translatedText to key.targetLang
+                    val (alternate, alternateLang) =
+                        if (preferSource) key.translatedText to key.targetLang
+                        else key.inputText to key.resolvedSourceLang
 
                     // Not a single word, so no definition belongs under the result.
                     if (word.isBlank() || word.contains(Regex("\\s")) || word.length < 2) {
@@ -808,7 +814,14 @@ class MainAppFrame(
 
                     // A single word: fetch the short definition that sits beneath the translation,
                     // in the popup and in the main window alike. Nothing is opened for it.
-                    mainStore.dispatch(MainIntent.UpdateInlineDefinition(word, lang))
+                    mainStore.dispatch(
+                        MainIntent.UpdateInlineDefinition(
+                            word = word,
+                            language = lang,
+                            alternateWord = alternate.takeIf { it.isNotBlank() && it.none(Char::isWhitespace) }.orEmpty(),
+                            alternateLanguage = alternateLang
+                        )
+                    )
                     val current = mainStore.state.value.dictionaryWord
                     if (word.equals(current, ignoreCase = true)) return@collect
 

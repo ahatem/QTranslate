@@ -364,6 +364,8 @@ class MainStore(
                     fetchInlineDefinitionUseCase(
                         word = intent.word,
                         language = intent.language,
+                        alternateWord = intent.alternateWord,
+                        alternateLanguage = intent.alternateLanguage,
                         updateState = { transform -> _state.update(transform) }
                     )
                 }
