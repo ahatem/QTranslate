@@ -78,6 +78,14 @@ data class MainState(
     val quickTranslateTriggerCount: Int = 0,
     val quickDictionaryTriggerCount: Int = 0,
     val imageSearchTriggerCount: Int = 0,
+    /**
+     * A short definition shown beneath a single-word translation, or empty.
+     *
+     * Kept apart from [dictionaryEntries], which belongs to the dictionary the user opened. This
+     * is a secondary detail attached to a translation, and conflating the two would let a glance
+     * overwrite what someone was reading in the dictionary panel.
+     */
+    val inlineDefinition: String = "",
     val imageResults: List<ImageResult> = emptyList(),
     val isImageSearchLoading: Boolean = false,
     val imageSearchTerm: String = "",

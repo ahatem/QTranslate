@@ -203,4 +203,13 @@ sealed interface MainIntent : UiIntent {
 
     /** User toggled the pin state of the floating image popup. */
     data object ToggleImageSearchPin : MainIntent
+
+    /**
+     * A translation finished and its result is a single word, so a short definition belongs
+     * beneath it. A blank [word] clears whatever is showing.
+     */
+    data class UpdateInlineDefinition(
+        val word: String,
+        val language: LanguageCode = LanguageCode("en")
+    ) : MainIntent
 }

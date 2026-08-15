@@ -754,13 +754,15 @@ class MainAppFrame(
                         else -> return@collect
                     }
 
-                    // Word is not a single valid word — dismiss any unpinned auto popup.
+                    // Not a single word, so no definition belongs under the result.
                     if (word.isBlank() || word.contains(Regex("\\s")) || word.length < 2) {
-                        if (key.isQuickDictionaryVisible && !key.isQuickDictionaryPinned) {
-                            mainStore.dispatch(MainIntent.HideQuickDictionary)
-                        }
+                        mainStore.dispatch(MainIntent.UpdateInlineDefinition(""))
                         return@collect
                     }
+
+                    // A single word: fetch the short definition that sits beneath the translation,
+                    // in the popup and in the main window alike. Nothing is opened for it.
+                    mainStore.dispatch(MainIntent.UpdateInlineDefinition(word, lang))
                     val current = mainStore.state.value.dictionaryWord
                     if (word.equals(current, ignoreCase = true)) return@collect
 
@@ -1350,6 +1352,7 @@ class MainAppFrame(
             translatedText = mainState.translatedText,
             isPinned = mainState.isQuickTranslateDialogPinned,
             triggerCount = mainState.quickTranslateTriggerCount,
+            definition = mainState.inlineDefinition,
 
             sourceLanguage = displaySourceLanguage,
             targetLanguage = mainState.targetLanguage,
