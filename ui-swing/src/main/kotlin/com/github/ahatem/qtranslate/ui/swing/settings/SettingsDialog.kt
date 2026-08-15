@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings
 
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.formdev.flatlaf.extras.FlatSVGIcon
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
@@ -172,8 +173,8 @@ class SettingsDialog(
 
         observeState()
 
-        minimumSize = Dimension(860, 580)
-        preferredSize = Dimension(1020, 700)
+        minimumSize = Dimension(UIScale.scale(860), UIScale.scale(580))
+        preferredSize = Dimension(UIScale.scale(1020), UIScale.scale(700))
         pack()
         setLocationRelativeTo(owner)
 
@@ -259,7 +260,7 @@ class SettingsDialog(
         }
 
         return JPanel(BorderLayout()).apply {
-            minimumSize = Dimension(160, 0)
+            minimumSize = Dimension(UIScale.scale(160), 0)
             // Let preferred width be driven by the tree's widest row
             add(treeScroll, BorderLayout.CENTER)
         }

@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
@@ -218,7 +219,10 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      */
     protected fun addHint(text: String) {
         val html = text.replace("\n", "<br>")
-        val hint = JLabel("<html><body style='width:460px'><i>$html</i></body></html>").apply {
+        // Swing does not scale pixel widths inside HTML, so an unscaled figure here wraps the
+        // hint at half the intended measure on a 200% display while the font around it doubles.
+        val width = UIScale.scale(HINT_WIDTH)
+        val hint = JLabel("<html><body style='width:${width}px'><i>$html</i></body></html>").apply {
             foreground = UIManager.getColor("Label.disabledForeground")
             font = font.deriveFont(font.size - 1f)
         }
@@ -241,5 +245,10 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
             .weightY(1.0)
             .fill(GridBagConstraints.BOTH)
             .add(Box.createVerticalGlue())
+    }
+
+    protected companion object {
+        /** Measure a hint wraps at, before scaling. Roughly a comfortable line of prose. */
+        const val HINT_WIDTH = 460
     }
 }
