@@ -254,7 +254,10 @@ class ImageSearchDialog(
                 size = state.config.lastKnownSize.toDimension()
                 applyPosition(state.config)
                 isVisible = true
-                searchField.requestFocusInWindow()
+                // Queued rather than requested inline: focus cannot be taken until the window is
+                // actually on screen, so asking during the same event does nothing and the field
+                // silently fails to accept typing.
+                SwingUtilities.invokeLater { searchField.requestFocusInWindow() }
             } else {
                 saveGeometry()
                 isVisible = false
