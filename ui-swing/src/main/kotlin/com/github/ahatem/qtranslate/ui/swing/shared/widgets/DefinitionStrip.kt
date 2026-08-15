@@ -1,8 +1,9 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
 import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.ui.swing.shared.util.isRTL
 import java.awt.BorderLayout
-import java.awt.Color
+import java.awt.ComponentOrientation
 import java.awt.Dimension
 import javax.swing.BorderFactory
 import javax.swing.JPanel
@@ -17,13 +18,11 @@ import javax.swing.UIManager
  * word would hand you the word *and* a dictionary entry, which is almost never what was wanted.
  * Keeping it out of the output pane keeps copy honest.
  *
- * Styled as an aside — smaller, dimmer, above a hairline — because it is a detail attached to the
- * answer and not the answer. It hides itself entirely when there is nothing to say, so a
- * multi-word translation is laid out exactly as it was before this existed.
+ * Styled as an aside — smaller, dimmer, indented to the same measure as the text above — because
+ * it is a detail attached to the answer and not the answer. It hides itself entirely when there is
+ * nothing to say, so a multi-word translation is laid out exactly as it was before this existed.
  */
 class DefinitionStrip : JPanel(BorderLayout()) {
-
-    private val borderColor: Color get() = UIManager.getColor("Component.borderColor") ?: Color.GRAY
 
     private val text = JTextArea().apply {
         isEditable = false
@@ -63,7 +62,19 @@ class DefinitionStrip : JPanel(BorderLayout()) {
     /** Blank hides the strip; anything else shows it. */
     fun render(definition: String) {
         val wanted = definition.isNotBlank()
-        if (wanted && text.text != definition) text.text = definition
+        if (wanted && text.text != definition) {
+            text.text = definition
+            // Follows the definition's own script, not the interface language. A definition of an
+            // Arabic word is Arabic, and left-aligning it under a right-aligned translation reads
+            // as a stray line of text rather than a note about the word above it.
+            val orientation =
+                if (definition.isRTL()) ComponentOrientation.RIGHT_TO_LEFT
+                else ComponentOrientation.LEFT_TO_RIGHT
+            if (text.componentOrientation != orientation) {
+                text.componentOrientation = orientation
+                componentOrientation = orientation
+            }
+        }
         if (isVisible != wanted) {
             isVisible = wanted
             revalidate()
@@ -78,15 +89,20 @@ class DefinitionStrip : JPanel(BorderLayout()) {
         repaint()
     }
 
+    /**
+     * Spacing only — no rule of its own.
+     *
+     * The output pane it sits beneath already draws a border, and a second hairline immediately
+     * below that read as a doubled line and made the definition look like a separate band rather
+     * than a note about the translation. Indented to the same measure as the text above so the
+     * two line up instead of the definition running to the panel edge.
+     */
     private fun applyBorder() {
-        border = BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(1, 0, 0, 0, borderColor),
-            BorderFactory.createEmptyBorder(
-                UIScale.scale(6),
-                UIScale.scale(8),
-                UIScale.scale(6),
-                UIScale.scale(8)
-            )
+        border = BorderFactory.createEmptyBorder(
+            UIScale.scale(4),
+            UIScale.scale(10),
+            UIScale.scale(6),
+            UIScale.scale(10)
         )
     }
 }
