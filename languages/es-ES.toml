@@ -56,7 +56,8 @@ auto_detect = "Detectar automáticamente"
 [main_window]
 status_format = "Usando %s: %s → %s"
 no_translator = "Sin traductor"
-no_service_message = "No hay ningún servicio de traducción configurado."no_service_action = "Abrir ajustes de Servicios"
+no_service_message = "No hay ningún servicio de traducción configurado."
+no_service_action = "Abrir ajustes de Servicios"
 
 [main_window_history_bar]
 backward_tooltip = "Retroceder en el historial de traducción"
@@ -278,7 +279,12 @@ action_translate = "Traducir"
 action_focus_input = "Enfocar panel de entrada"
 action_focus_output = "Enfocar panel de salida"
 action_focus_extra_output = "Enfocar panel de salida adicional"
-action_copy_translation = "Copiar traducción"action_clear_input = "Borrar entrada"action_swap_languages = "Intercambiar idiomas"action_open_settings = "Abrir ajustes"action_show_history = "Mostrar historial"action_translate_document = "Traducir documento"
+action_copy_translation = "Copiar traducción"
+action_clear_input = "Borrar entrada"
+action_swap_languages = "Intercambiar idiomas"
+action_open_settings = "Abrir ajustes"
+action_show_history = "Mostrar historial"
+action_translate_document = "Traducir documento"
 scope_toggle_hint = "Haga clic para cambiar entre Global y Local"
 
 # Default Actions Descriptions

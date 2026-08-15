@@ -56,7 +56,8 @@ auto_detect = "Auto-Detect"
 [main_window]
 status_format = "Using %s: %s → %s"
 no_translator = "No Translator"
-no_service_message = "No translation service is configured."no_service_action = "Open Services settings"
+no_service_message = "No translation service is configured."
+no_service_action = "Open Services settings"
 
 [main_window_history_bar]
 backward_tooltip = "Go backward in translation history"
@@ -146,6 +147,7 @@ reset_defaults_button = "Reset to Defaults"
 reset_confirmation_title = "Reset to Defaults"
 reset_confirmation_message = "Reset all settings to their defaults?\nThis cannot be undone."
 search_placeholder = "Filter settings..."
+search_no_results = "No settings match '%s'"
 
 [settings_dialog_sidebar]
 general = "General"
@@ -162,8 +164,6 @@ group_interface = "Interface"
 behavior = "Behaviour"
 layout = "Layout"
 popups = "Popups"
-search_placeholder = "Search settings"
-search_no_results = "No settings match '%s'"
 
 # ===================================================================
 # SETTINGS PAGES
@@ -287,7 +287,12 @@ action_translate = "Translate"
 action_focus_input = "Focus Input Pane"
 action_focus_output = "Focus Output Pane"
 action_focus_extra_output = "Focus Extra Output Pane"
-action_copy_translation = "Copy translation"action_clear_input = "Clear input"action_swap_languages = "Swap languages"action_open_settings = "Open settings"action_show_history = "Show history"action_translate_document = "Translate document"
+action_copy_translation = "Copy translation"
+action_clear_input = "Clear input"
+action_swap_languages = "Swap languages"
+action_open_settings = "Open settings"
+action_show_history = "Show history"
+action_translate_document = "Translate document"
 scope_toggle_hint = "Click to toggle between Global and Local"
 
 # Default Actions Descriptions

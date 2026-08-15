@@ -56,7 +56,8 @@ auto_detect = "自动检测"
 [main_window]
 status_format = "正在使用 %s: %s → %s"
 no_translator = "未选择翻译器"
-no_service_message = "未配置翻译服务。"no_service_action = "打开服务设置"
+no_service_message = "未配置翻译服务。"
+no_service_action = "打开服务设置"
 
 [main_window_history_bar]
 backward_tooltip = "返回翻译历史"
@@ -278,7 +279,12 @@ action_translate = "翻译"
 action_focus_input = "聚焦输入窗格"
 action_focus_output = "聚焦输出窗格"
 action_focus_extra_output = "聚焦额外输出窗格"
-action_copy_translation = "复制译文"action_clear_input = "清除输入"action_swap_languages = "交换语言"action_open_settings = "打开设置"action_show_history = "显示历史"action_translate_document = "翻译文档"
+action_copy_translation = "复制译文"
+action_clear_input = "清除输入"
+action_swap_languages = "交换语言"
+action_open_settings = "打开设置"
+action_show_history = "显示历史"
+action_translate_document = "翻译文档"
 scope_toggle_hint = "点击在全局和本地范围之间切换"
 
 # Default Actions Descriptions
