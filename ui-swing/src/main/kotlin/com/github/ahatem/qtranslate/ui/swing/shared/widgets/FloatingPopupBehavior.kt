@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.settings.data.Position
 import com.github.ahatem.qtranslate.core.settings.data.Size
+import com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons
 import java.awt.AWTEvent
 import java.awt.Color
 import java.awt.Dimension
@@ -81,6 +82,9 @@ class FloatingPopupBehavior(
             ?: borderColor
 
     init {
+        // Applied here so every floating popup gets it: they are owned by the shared hidden
+        // frame, which carries Java's default icon and passes it on.
+        AppIcons.applyTo(window)
         window.isUndecorated = true
         window.isAlwaysOnTop = true
         window.defaultCloseOperation = JDialog.DO_NOTHING_ON_CLOSE

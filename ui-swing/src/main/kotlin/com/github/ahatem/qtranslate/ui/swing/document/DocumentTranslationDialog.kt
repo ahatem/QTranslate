@@ -99,6 +99,7 @@ class DocumentTranslationDialog(
     private var progressVisible = false
 
     init {
+        com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons.applyTo(this)
         defaultCloseOperation = DO_NOTHING_ON_CLOSE
         isResizable = false
         contentPane = JPanel(BorderLayout()).apply {

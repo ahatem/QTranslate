@@ -230,8 +230,13 @@ class MainStore(
             is MainIntent.ApplyCorrection ->
                 _state.update { it.copy(inputText = it.inputText.replaceFirst(intent.original, intent.suggestion)) }
 
+            // Closing clears the pin. A pin says "keep this one around", not "and every one
+            // after it" — leaving it set meant the next popup opened wearing the pinned border
+            // and then auto-hid anyway, which is the worst of both.
             MainIntent.HideQuickTranslate ->
-                _state.update { it.copy(isQuickTranslateDialogVisible = false) }
+                _state.update {
+                    it.copy(isQuickTranslateDialogVisible = false, isQuickTranslateDialogPinned = false)
+                }
 
             MainIntent.ToggleQuickTranslateDialogPin ->
                 // Use `it` from the update lambda — not _state.value — to avoid
@@ -302,8 +307,12 @@ class MainStore(
                 _state.update {
                     it.copy(
                         isQuickDictionaryVisible = true,
+                        // A pin belongs to the popup that was pinned, not to the next one.
+                        isQuickDictionaryPinned =
+                            if (it.isQuickDictionaryVisible) it.isQuickDictionaryPinned else false,
                         dictionaryWord   = if (intent.selectedText.isNotBlank()) intent.selectedText else it.dictionaryWord,
-                        isDictionaryLoading = intent.selectedText.isNotBlank()
+                        isDictionaryLoading = intent.selectedText.isNotBlank(),
+                        quickDictionaryTriggerCount = it.quickDictionaryTriggerCount + 1
                     )
                 }
                 if (intent.selectedText.isNotBlank()) {
@@ -312,7 +321,7 @@ class MainStore(
             }
 
             is MainIntent.HideQuickDictionary -> _state.update {
-                it.copy(isQuickDictionaryVisible = false)
+                it.copy(isQuickDictionaryVisible = false, isQuickDictionaryPinned = false)
             }
 
             is MainIntent.ToggleQuickDictionaryPin -> _state.update {
@@ -327,8 +336,11 @@ class MainStore(
                 _state.update {
                     it.copy(
                         isImageSearchVisible = true,
+                        isImageSearchPinned =
+                            if (it.isImageSearchVisible) it.isImageSearchPinned else false,
                         imageSearchTerm = intent.selectedText.ifBlank { it.imageSearchTerm },
-                        isImageSearchLoading = intent.selectedText.isNotBlank()
+                        isImageSearchLoading = intent.selectedText.isNotBlank(),
+                        imageSearchTriggerCount = it.imageSearchTriggerCount + 1
                     )
                 }
                 if (intent.selectedText.isNotBlank()) {
@@ -337,7 +349,7 @@ class MainStore(
             }
 
             is MainIntent.HideImageSearch -> _state.update {
-                it.copy(isImageSearchVisible = false)
+                it.copy(isImageSearchVisible = false, isImageSearchPinned = false)
             }
 
             is MainIntent.ToggleImageSearchPin -> _state.update {
@@ -435,19 +447,24 @@ class MainStore(
     private suspend fun handleShowQuickTranslate(intent: MainIntent.ShowQuickTranslate) {
         if (intent.selectedText.isBlank()) return
 
-        val current = _state.value
-        val isPinnedAndVisible = current.isQuickTranslateDialogVisible && current.isQuickTranslateDialogPinned
-
-        if (isPinnedAndVisible) {
-            // Popup is already open and pinned — just update the text and retranslate.
-            _state.update { it.copy(inputText = intent.selectedText) }
+        if (_state.value.isQuickTranslateDialogVisible) {
+            // Already open, pinned or not: replace the text and count the trigger, so the popup
+            // refreshes in place and restarts its countdown. Hiding and re-showing it would
+            // flicker, move it, and throw away a pin the user had set.
+            _state.update {
+                it.copy(
+                    inputText = intent.selectedText,
+                    quickTranslateTriggerCount = it.quickTranslateTriggerCount + 1
+                )
+            }
         } else {
-            // Open a fresh popup — not pinned.
+            // Open a fresh popup — never pinned, whatever the last one was left as.
             _state.update {
                 it.copy(
                     inputText = intent.selectedText,
                     isQuickTranslateDialogPinned = false,
-                    isQuickTranslateDialogVisible = true
+                    isQuickTranslateDialogVisible = true,
+                    quickTranslateTriggerCount = it.quickTranslateTriggerCount + 1
                 )
             }
         }

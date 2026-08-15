@@ -138,6 +138,9 @@ class ImageSearchDialog(
      */
     private var renderedResults: List<ImageResult> = emptyList()
 
+    /** The trigger this popup last reacted to; see [ImageSearchDialogState.triggerCount]. */
+    private var lastTriggerCount = 0
+
     /** Undecorated, always on top, draggable, resizable, Escape-dismissed — shared with the
      *  translate and dictionary popups so all three behave the same as windows. */
     private val popup = FloatingPopupBehavior(
@@ -272,10 +275,16 @@ class ImageSearchDialog(
         if (!isVisible) return
 
         val pinChanged = isPinned != state.isPinned
+        val retriggered = lastTriggerCount != state.triggerCount
+        lastTriggerCount = state.triggerCount
+
         currentState = state
         applyText(state)
         rebuildGridIfChanged(state)
         if (pinChanged) applyPinStyle(state.isPinned)
+        // Asked for again while open: bring it back to the front of the user's attention rather
+        // than closing and reopening it.
+        if (retriggered) toFront()
     }
 
     private fun applyText(state: ImageSearchDialogState) {

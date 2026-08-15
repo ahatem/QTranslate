@@ -24,7 +24,11 @@ object ConfigMigrator {
      * would skip every migration it needs. A configuration this build creates from scratch is
      * stamped with this value instead.
      */
-    internal const val CURRENT_VERSION = 5
+    internal const val CURRENT_VERSION = 6
+
+    /** The old defaults, frozen: this is what "the user never changed it" looked like. */
+    private const val LEGACY_POPUP_IDLE_SECONDS = 3
+    private const val LEGACY_DICTIONARY_IDLE_SECONDS = 8
 
     /**
      * Applies all pending migrations to [config] in order and returns the result.
@@ -126,6 +130,28 @@ object ConfigMigrator {
                 config.copy(
                     configVersion = 5,
                     hotkeys = config.hotkeys + missingDefaults
+                )
+            }
+            5 -> {
+                // v5 → v6: the popup auto-hide defaults were too short to read the result before
+                // it vanished. Raised only for users still sitting on the old defaults — anyone
+                // who chose their own value keeps it, since a migration that overrode a deliberate
+                // choice would be worse than the short timeout ever was.
+                logger.info("ConfigMigrator: migrating v5 → v6 — raising untouched popup auto-hide timeouts")
+                config.copy(
+                    configVersion = 6,
+                    popupIdleTimeoutSeconds =
+                        if (config.popupIdleTimeoutSeconds == LEGACY_POPUP_IDLE_SECONDS) {
+                            Configuration.DEFAULT.popupIdleTimeoutSeconds
+                        } else {
+                            config.popupIdleTimeoutSeconds
+                        },
+                    quickDictionaryIdleTimeoutSeconds =
+                        if (config.quickDictionaryIdleTimeoutSeconds == LEGACY_DICTIONARY_IDLE_SECONDS) {
+                            Configuration.DEFAULT.quickDictionaryIdleTimeoutSeconds
+                        } else {
+                            config.quickDictionaryIdleTimeoutSeconds
+                        }
                 )
             }
             else -> {

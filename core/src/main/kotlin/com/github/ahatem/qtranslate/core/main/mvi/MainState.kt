@@ -68,6 +68,16 @@ data class MainState(
     val isQuickTranslateDialogPinned: Boolean = false,
     val isQuickDictionaryVisible: Boolean = false,
     val isQuickDictionaryPinned: Boolean = false,
+    /**
+     * Incremented every time the user asks for a popup that is already open.
+     *
+     * A dialog cannot otherwise tell "the user pressed the hotkey again" from any of the dozens
+     * of unrelated state changes it is re-rendered for, and the two call for different things:
+     * one should restart the auto-hide countdown, the rest should not.
+     */
+    val quickTranslateTriggerCount: Int = 0,
+    val quickDictionaryTriggerCount: Int = 0,
+    val imageSearchTriggerCount: Int = 0,
     val imageResults: List<ImageResult> = emptyList(),
     val isImageSearchLoading: Boolean = false,
     val imageSearchTerm: String = "",
