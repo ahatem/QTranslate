@@ -39,6 +39,7 @@ class KeyboardPanel(
         HotkeyAction.REPLACE_WITH_TRANSLATION,
         HotkeyAction.CYCLE_TARGET_LANGUAGE,
         HotkeyAction.SHOW_DICTIONARY,
+        HotkeyAction.SHOW_IMAGES,
         HotkeyAction.TRANSLATE,
         HotkeyAction.FOCUS_INPUT,
         HotkeyAction.FOCUS_OUTPUT,
@@ -262,6 +263,7 @@ class KeyboardPanel(
         HotkeyAction.REPLACE_WITH_TRANSLATION -> localizationManager.getString("settings_hotkeys.action_replace")
         HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizationManager.getString("settings_hotkeys.action_cycle_language")
         HotkeyAction.SHOW_DICTIONARY          -> localizationManager.getString("settings_hotkeys.action_show_dictionary")
+        HotkeyAction.SHOW_IMAGES              -> localizationManager.getString("settings_hotkeys.action_show_images")
         HotkeyAction.TRANSLATE                -> localizationManager.getString("settings_hotkeys.action_translate")
         HotkeyAction.FOCUS_INPUT              -> localizationManager.getString("settings_hotkeys.action_focus_input")
         HotkeyAction.FOCUS_OUTPUT             -> localizationManager.getString("settings_hotkeys.action_focus_output")
@@ -498,6 +500,7 @@ object HotkeyRecorderDialog {
             HotkeyAction.REPLACE_WITH_TRANSLATION -> localizer.getString("settings_hotkeys.action_replace")
             HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizer.getString("settings_hotkeys.action_cycle_language")
             HotkeyAction.SHOW_DICTIONARY          -> localizer.getString("settings_hotkeys.action_show_dictionary")
+            HotkeyAction.SHOW_IMAGES              -> localizer.getString("settings_hotkeys.action_show_images")
             HotkeyAction.TRANSLATE                -> localizer.getString("settings_hotkeys.action_translate")
             HotkeyAction.FOCUS_INPUT              -> localizer.getString("settings_hotkeys.action_focus_input")
             HotkeyAction.FOCUS_OUTPUT             -> localizer.getString("settings_hotkeys.action_focus_output")

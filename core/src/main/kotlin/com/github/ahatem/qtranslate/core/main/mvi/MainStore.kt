@@ -55,6 +55,7 @@ class MainStore(
     private val summarizeUseCase: SummarizeUseCase,
     private val rewriteUseCase: RewriteUseCase,
     private val lookupWordUseCase: LookupWordUseCase,
+    private val searchImagesUseCase: SearchImagesUseCase,
     private val documentTranslationUseCase: DocumentTranslationUseCase
 ) : Store<MainState, MainIntent, MainEvent> {
 
@@ -317,6 +318,31 @@ class MainStore(
             is MainIntent.ToggleQuickDictionaryPin -> _state.update {
                 it.copy(isQuickDictionaryPinned = !it.isQuickDictionaryPinned)
             }
+
+            is MainIntent.SearchImages -> scope.launch { handleSearchImages(intent) }
+
+            is MainIntent.ShowImageSearch -> scope.launch {
+                // Same reason as the dictionary popup: seed the term so the field is filled on
+                // the first render rather than a frame later.
+                _state.update {
+                    it.copy(
+                        isImageSearchVisible = true,
+                        imageSearchTerm = intent.selectedText.ifBlank { it.imageSearchTerm },
+                        isImageSearchLoading = intent.selectedText.isNotBlank()
+                    )
+                }
+                if (intent.selectedText.isNotBlank()) {
+                    handleSearchImages(MainIntent.SearchImages(intent.selectedText, intent.language))
+                }
+            }
+
+            is MainIntent.HideImageSearch -> _state.update {
+                it.copy(isImageSearchVisible = false)
+            }
+
+            is MainIntent.ToggleImageSearchPin -> _state.update {
+                it.copy(isImageSearchPinned = !it.isImageSearchPinned)
+            }
         }
     }
 
@@ -444,6 +470,15 @@ class MainStore(
             word = intent.word,
             language = intent.language,
             targetLanguage = _state.value.targetLanguage,
+            updateState = { transform -> _state.update(transform) },
+            onStatusUpdate = ::updateStatusBar
+        )
+    }
+
+    private suspend fun handleSearchImages(intent: MainIntent.SearchImages) {
+        searchImagesUseCase(
+            term = intent.term,
+            language = intent.language,
             updateState = { transform -> _state.update(transform) },
             onStatusUpdate = ::updateStatusBar
         )

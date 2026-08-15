@@ -114,6 +114,7 @@ class MainContentView(
         },
         onImageDropped = { image -> dispatch(MainIntent.OcrAndTranslateImage(image.toImageData("png"))) },
         onFindInDictionary = { word -> showDictionaryWithWord(word) },
+        onSearchImages = { word -> showImagesForWord(word) },
     )
 
     private val outputTextPanel = OutputTextPanel(
@@ -125,6 +126,7 @@ class MainContentView(
             dispatch(MainIntent.Translate(text))
         },
         onFindInDictionary = { word -> showDictionaryWithWord(word, currentTargetLanguage) },
+        onSearchImages = { word -> showImagesForWord(word, currentTargetLanguage) },
         onSetAsInput = { text ->
             dispatch(MainIntent.UpdateInputText(text))
             inputTextPanel.requestFocusOnText()
@@ -141,6 +143,7 @@ class MainContentView(
             dispatch(MainIntent.Translate(text))
         },
         onFindInDictionary = { word -> showDictionaryWithWord(word, currentExtraOutputLanguage) },
+        onSearchImages = { word -> showImagesForWord(word, currentExtraOutputLanguage) },
         onSetAsInput = { text ->
             dispatch(MainIntent.UpdateInputText(text))
             inputTextPanel.requestFocusOnText()
@@ -701,6 +704,16 @@ class MainContentView(
 
     fun setDictionarySearchWord(word: String) {
         dictionaryPanel.setSearchWord(word)
+    }
+
+    /**
+     * Opens the floating image popup for [word].
+     *
+     * A popup rather than an inline panel: the pictures are a glance on the way through a text,
+     * not something to keep half the window reserved for.
+     */
+    private fun showImagesForWord(word: String, language: LanguageCode = currentLookupLanguage) {
+        dispatch(MainIntent.ShowImageSearch(word, language))
     }
 
     private fun showDictionaryWithWord(word: String, language: LanguageCode = currentLookupLanguage) {

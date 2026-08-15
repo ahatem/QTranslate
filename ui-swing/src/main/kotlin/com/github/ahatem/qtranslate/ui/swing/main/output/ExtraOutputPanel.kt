@@ -30,6 +30,7 @@ class ExtraOutputPanel(
     onListen: (text: String) -> Unit,
     onTranslateRequest: (text: String) -> Unit,
     private val onFindInDictionary: ((String) -> Unit)? = null,
+    private val onSearchImages: ((String) -> Unit)? = null,
     private val onSetAsInput: ((String) -> Unit)? = null,
     private val onEscapePressed: (() -> Unit)? = null,
 ) : JPanel(BorderLayout()), Renderable<ExtraOutputState> {
@@ -118,9 +119,9 @@ class ExtraOutputPanel(
         textPane.getContextMenuLabel = { key ->
             localizationManager.getString("main_window_editor_context_menu.$key")
         }
-        if (onFindInDictionary != null || onSetAsInput != null) {
+        if (onFindInDictionary != null || onSearchImages != null || onSetAsInput != null) {
             textPane.onBeforeContextMenuPopup = { menu, clickPosition ->
-                if (onFindInDictionary != null) addFindInDictionaryItem(menu, clickPosition)
+                if (onFindInDictionary != null || onSearchImages != null) addFindInDictionaryItem(menu, clickPosition)
                 if (onSetAsInput != null) addSetAsInputItem(menu)
             }
         }
@@ -128,6 +129,7 @@ class ExtraOutputPanel(
 
     private var dictMenuItem: JMenuItem? = null
     private var dictMenuSeparator: JSeparator? = null
+    private var imageMenuItem: JMenuItem? = null
     private var setAsInputMenuItem: JMenuItem? = null
     private var setAsInputSeparator: JSeparator? = null
 
@@ -181,22 +183,31 @@ class ExtraOutputPanel(
     private fun addFindInDictionaryItem(menu: JPopupMenu, clickPosition: Point) {
         dictMenuItem?.let { menu.remove(it) }
         dictMenuSeparator?.let { menu.remove(it) }
+        imageMenuItem?.let { menu.remove(it) }
         dictMenuItem = null
         dictMenuSeparator = null
+        imageMenuItem = null
 
         val clickOffset = textPane.viewToModel(clickPosition)
         val word = (textPane.selectedText?.trim() ?: "")
             .takeIf { it.isNotBlank() && !it.contains(' ') }
             ?: wordAtOffset(clickOffset)
-        if (word.isNotEmpty()) {
-            val sep = JSeparator()
-            val item = JMenuItem(localizationManager.getString("main_window_editor_context_menu.find_in_dictionary")).apply {
-                addActionListener { onFindInDictionary?.invoke(word) }
-            }
-            dictMenuSeparator = sep
-            dictMenuItem = item
-            menu.add(sep)
-            menu.add(item)
+        if (word.isEmpty()) return
+
+        val sep = JSeparator()
+        dictMenuSeparator = sep
+        menu.add(sep)
+
+        onFindInDictionary?.let { lookup ->
+            dictMenuItem = JMenuItem(
+                localizationManager.getString("main_window_editor_context_menu.find_in_dictionary")
+            ).apply { addActionListener { lookup(word) } }.also(menu::add)
+        }
+
+        onSearchImages?.let { search ->
+            imageMenuItem = JMenuItem(
+                localizationManager.getString("main_window_editor_context_menu.search_images")
+            ).apply { addActionListener { search(word) } }.also(menu::add)
         }
     }
 

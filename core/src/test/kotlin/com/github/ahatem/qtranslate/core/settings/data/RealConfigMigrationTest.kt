@@ -88,6 +88,18 @@ class RealConfigMigrationTest {
     }
 
     @Test
+    fun `a real install gains hotkeys added after it was saved`() {
+        // A saved configuration carries the hotkey list as it was, so a new action reaches
+        // existing users only through a migration step. Neither of these files has ever heard of
+        // SHOW_IMAGES; both must come out of the migration with it bound.
+        listOf(V3_INSTALL, V2_INSTALL).forEach { payload ->
+            val actions = load(payload).hotkeys.map { it.action }
+            assertTrue(HotkeyAction.SHOW_IMAGES in actions, "SHOW_IMAGES missing after migration")
+            assertEquals(actions.distinct().size, actions.size, "a hotkey was bound twice")
+        }
+    }
+
+    @Test
     fun `a real payload does not fall back to defaults`() {
         // The failure this whole class exists for: deserialization throwing, the repository
         // swallowing it, and the user silently receiving a factory configuration.

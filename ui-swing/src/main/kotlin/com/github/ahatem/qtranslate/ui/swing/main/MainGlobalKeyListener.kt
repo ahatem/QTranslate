@@ -52,6 +52,7 @@ class MainGlobalKeyListener(
     private val onReplaceWithTranslation: (String) -> Unit,
     private val onCycleTargetLanguage: () -> Unit,
     private val onShowDictionary: (String) -> Unit = {},
+    private val onShowImages: (String) -> Unit = {},
     private val onTranslate: () -> Unit = {},
     private val onSelectionDetected: (String, Point) -> Unit = { _, _ -> },
     private val onPointerPressed: (Point) -> Unit = {}
@@ -191,6 +192,8 @@ class MainGlobalKeyListener(
                 onCycleTargetLanguage()
             HotkeyAction.SHOW_DICTIONARY ->
                 scope.launch { handleSelectedText(onShowDictionary) }
+            HotkeyAction.SHOW_IMAGES ->
+                scope.launch { handleSelectedText(onShowImages) }
             HotkeyAction.TRANSLATE ->
                 onTranslate()
             // Focus actions are LOCAL-scope only — handled by MainContentView's InputMap.

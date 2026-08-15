@@ -30,6 +30,10 @@ import com.github.ahatem.qtranslate.ui.swing.dictionary.QuickDictionaryDialog
 import com.github.ahatem.qtranslate.ui.swing.dictionary.QuickDictionaryConfig
 import com.github.ahatem.qtranslate.ui.swing.dictionary.QuickDictionaryDialogState
 import com.github.ahatem.qtranslate.ui.swing.dictionary.QuickDictionaryStrings
+import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchConfig
+import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchDialog
+import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchDialogState
+import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchStrings
 import com.github.ahatem.qtranslate.ui.swing.document.DocumentTranslationDialog
 import com.github.ahatem.qtranslate.ui.swing.document.DocumentTranslationStrings
 import com.github.ahatem.qtranslate.ui.swing.history.HistoryDialog
@@ -131,6 +135,10 @@ class MainAppFrame(
 
     private val quickDictionaryDialog by lazy {
         QuickDictionaryDialog(owner = this, iconManager = iconManager)
+    }
+
+    private val imageSearchDialog by lazy {
+        ImageSearchDialog(owner = this, iconManager = iconManager)
     }
 
     /**
@@ -284,6 +292,16 @@ class MainAppFrame(
                 }
                 quickDictionaryPositionNearMouse = true   // hotkey — position near cursor
                 mainStore.dispatch(MainIntent.ShowQuickDictionary(selectedText, lang))
+            }
+        },
+        onShowImages = { selectedText ->
+            appScope.launch {
+                // Same toggle as the dictionary: the key that opened it closes it.
+                if (mainStore.state.value.isImageSearchVisible) {
+                    mainStore.dispatch(MainIntent.HideImageSearch)
+                    return@launch
+                }
+                mainStore.dispatch(MainIntent.ShowImageSearch(selectedText, resolvedLookupLanguage()))
             }
         },
         onTranslate = { mainStore.dispatch(MainIntent.Translate()) },
@@ -464,6 +482,12 @@ class MainAppFrame(
                             if (mainState.isQuickDictionaryVisible || quickDictionaryDialog.isVisible) {
                                 quickDictionaryDialog.render(
                                     buildQuickDictionaryDialogState(mainState, settingsState.workingConfiguration)
+                                )
+                            }
+
+                            if (mainState.isImageSearchVisible || imageSearchDialog.isVisible) {
+                                imageSearchDialog.render(
+                                    buildImageSearchDialogState(mainState, settingsState.workingConfiguration)
                                 )
                             }
                         } catch (e: Exception) {
@@ -1522,6 +1546,81 @@ class MainAppFrame(
         )
     }
 
+    /**
+     * The language a looked-up term should be treated as.
+     *
+     * The chosen source language when there is one, otherwise whatever detection found, otherwise
+     * English. "Auto" is not a language a dictionary or an image search can be asked about.
+     */
+    private fun resolvedLookupLanguage(state: MainState = mainStore.state.value): LanguageCode = when {
+        state.sourceLanguage != LanguageCode.AUTO -> state.sourceLanguage
+        state.detectedSourceLanguage != null      -> state.detectedSourceLanguage!!
+        else                                      -> LanguageCode("en")
+    }
+
+    private fun buildImageSearchDialogState(
+        mainState: MainState,
+        config: Configuration
+    ): ImageSearchDialogState {
+        val serviceType = com.github.ahatem.qtranslate.core.shared.arch.ServiceType.IMAGE_SEARCH
+        val available = mainState.getAvailableServicesFor(serviceType)
+        val selectedId = config.getActivePreset()?.selectedServices?.get(serviceType)
+        val language = resolvedLookupLanguage(mainState)
+
+        return ImageSearchDialogState(
+            isVisible         = mainState.isImageSearchVisible,
+            isLoading         = mainState.isImageSearchLoading,
+            results           = mainState.imageResults,
+            searchedTerm      = mainState.imageSearchTerm,
+            hasFailed         = mainState.imageSearchFailed,
+            isPinned          = mainState.isImageSearchPinned,
+            availableServices = available,
+            selectedServiceId = selectedId,
+            config = ImageSearchConfig(
+                lastKnownSize     = config.imageSearchLastKnownSize,
+                lastKnownPosition = config.imageSearchLastKnownPosition
+            ),
+            strings = ImageSearchStrings(
+                title             = localizer.getString("image_search_dialog.title"),
+                hintMessage       = localizer.getString("image_search_dialog.hint_message"),
+                loadingMessage    = localizer.getString("image_search_dialog.loading_message"),
+                notFoundMessage   = localizer.getString(
+                    "image_search_dialog.not_found_message",
+                    mainState.imageSearchTerm
+                ),
+                errorMessage      = localizer.getString("image_search_dialog.error_message"),
+                searchButtonLabel = localizer.getString("image_search_dialog.search_button"),
+                openTooltip       = localizer.getString("image_search_dialog.open_tooltip"),
+                pinTooltip        = localizer.getString("common.pin"),
+                unpinTooltip      = localizer.getString("common.unpin"),
+                closeTooltip      = localizer.getString("common.close")
+            ),
+            onSearch = { term -> mainStore.dispatch(MainIntent.SearchImages(term, language)) },
+            onServiceSelected = { serviceId ->
+                settingsStore.dispatch(SettingsIntent.UpdateServiceInActivePreset(serviceType, serviceId))
+                val term = mainStore.state.value.imageSearchTerm
+                if (term.isNotBlank()) mainStore.dispatch(MainIntent.SearchImages(term, language))
+            },
+            // The description page rather than the raw image: it carries the licence and the
+            // caption, which is what someone looking a term up actually wants to read.
+            onImageOpened = { result -> openUrl(result.sourceUrl ?: result.fullUrl) },
+            onPinToggled = { mainStore.dispatch(MainIntent.ToggleImageSearchPin) },
+            onClose = { mainStore.dispatch(MainIntent.HideImageSearch) },
+            onSavePosition = { position ->
+                settingsStore.dispatch(
+                    SettingsIntent.ToggleSetting { it.copy(imageSearchLastKnownPosition = position) }
+                )
+                settingsStore.dispatch(SettingsIntent.SaveChanges)
+            },
+            onSaveSize = { size ->
+                settingsStore.dispatch(
+                    SettingsIntent.ToggleSetting { it.copy(imageSearchLastKnownSize = size) }
+                )
+                settingsStore.dispatch(SettingsIntent.SaveChanges)
+            }
+        )
+    }
+
     private fun buildQuickDictionaryDialogState(
         mainState: MainState,
         config: Configuration
@@ -1796,6 +1895,13 @@ class MainAppFrame(
             is StatusCode.DictionaryNotFound        -> localizer.getString("status_bar.dictionary_not_found", code.word)
             StatusCode.DictionaryTimeout            -> localizer.getString("status_bar.dictionary_timeout")
             is StatusCode.DictionaryFailed          -> localizer.getString("status_bar.dictionary_failed", code.summary)
+            StatusCode.NoTermToIllustrate           -> localizer.getString("status_bar.no_term_to_illustrate")
+            StatusCode.NoImageSearchServiceActive   -> localizer.getString("status_bar.no_image_search_active")
+            StatusCode.SearchingImages              -> localizer.getString("status_bar.searching_images")
+            StatusCode.ImageSearchReady             -> localizer.getString("status_bar.image_search_ready")
+            is StatusCode.ImagesNotFound            -> localizer.getString("status_bar.images_not_found", code.term)
+            StatusCode.ImageSearchTimeout           -> localizer.getString("status_bar.image_search_timeout")
+            is StatusCode.ImageSearchFailed         -> localizer.getString("status_bar.image_search_failed", code.summary)
             is StatusCode.AlreadyUpToDate           -> localizer.getString("status_bar.already_up_to_date", code.version)
             StatusCode.UpdateCheckNetworkError      -> localizer.getString("status_bar.update_check_network_error")
             StatusCode.UpdateCheckParseError        -> localizer.getString("status_bar.update_check_parse_error")

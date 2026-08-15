@@ -21,6 +21,7 @@ class InputTextPanel(
     private val onCorrectionApplied: (original: String, suggestion: String) -> Unit,
     private val onImageDropped: ((BufferedImage) -> Unit)? = null,
     private val onFindInDictionary: ((String) -> Unit)? = null,
+    private val onSearchImages: ((String) -> Unit)? = null,
 ) : JPanel(BorderLayout()), Renderable<InputTextState> {
 
     private val textPane = AdvancedTextPane(
@@ -35,6 +36,7 @@ class InputTextPanel(
     private var spellingMenuSeparator: JSeparator? = null
     private var dictMenuItem: JMenuItem? = null
     private var dictMenuSeparator: JSeparator? = null
+    private var imageMenuItem: JMenuItem? = null
 
     private var currentState: InputTextState? = null
 
@@ -100,23 +102,38 @@ class InputTextPanel(
 
         dictMenuItem?.let { menu.remove(it) }
         dictMenuSeparator?.let { menu.remove(it) }
+        imageMenuItem?.let { menu.remove(it) }
         dictMenuItem = null
         dictMenuSeparator = null
+        imageMenuItem = null
 
-        if (onFindInDictionary != null) {
-            val word = (textPane.selectedText?.trim() ?: "")
-                .takeIf { it.isNotBlank() && !it.contains(' ') }
-                ?: wordAtOffset(clickOffset)
-            if (word.isNotEmpty()) {
-                val sep = JSeparator()
-                val item = JMenuItem(localizationManager.getString("main_window_editor_context_menu.find_in_dictionary")).apply {
-                    addActionListener { onFindInDictionary.invoke(word) }
-                }
-                dictMenuSeparator = sep
-                dictMenuItem = item
-                menu.add(sep)
-                menu.add(item)
-            }
+        if (onFindInDictionary == null && onSearchImages == null) return
+
+        val word = (textPane.selectedText?.trim() ?: "")
+            .takeIf { it.isNotBlank() && !it.contains(' ') }
+            ?: wordAtOffset(clickOffset)
+        if (word.isEmpty()) return
+
+        val sep = JSeparator()
+        dictMenuSeparator = sep
+        menu.add(sep)
+
+        onFindInDictionary?.let { lookup ->
+            dictMenuItem = JMenuItem(
+                localizationManager.getString("main_window_editor_context_menu.find_in_dictionary")
+            ).apply {
+                addActionListener { lookup(word) }
+            }.also(menu::add)
+        }
+
+        // Sits beside the dictionary entry because it answers the same question about the same
+        // word, and this is where someone already looks for it.
+        onSearchImages?.let { search ->
+            imageMenuItem = JMenuItem(
+                localizationManager.getString("main_window_editor_context_menu.search_images")
+            ).apply {
+                addActionListener { search(word) }
+            }.also(menu::add)
         }
     }
 

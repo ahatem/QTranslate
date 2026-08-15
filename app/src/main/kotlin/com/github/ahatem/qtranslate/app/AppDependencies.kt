@@ -10,6 +10,7 @@ import com.github.ahatem.qtranslate.core.main.domain.usecase.PerformSpellCheckUs
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SelectActiveServiceUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SwapLanguagesUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.LookupWordUseCase
+import com.github.ahatem.qtranslate.core.main.domain.usecase.SearchImagesUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.RewriteUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SummarizeUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateTextUseCase
@@ -232,6 +233,12 @@ suspend fun buildDependencies(
         loggerFactory        = loggerFactory
     )
 
+    val searchImagesUseCase = SearchImagesUseCase(
+        scope                = appScope,
+        activeServiceManager = activeServiceManager,
+        loggerFactory        = loggerFactory
+    )
+
     // ---- 8. Stores ----
 
     val mainStore = MainStore(
@@ -254,6 +261,7 @@ suspend fun buildDependencies(
         summarizeUseCase           = summarizeUseCase,
         rewriteUseCase             = rewriteUseCase,
         lookupWordUseCase          = lookupWordUseCase,
+        searchImagesUseCase        = searchImagesUseCase,
         documentTranslationUseCase = DocumentTranslationUseCase(activeServiceManager, loggerFactory)
     )
 
