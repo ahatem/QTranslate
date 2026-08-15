@@ -271,6 +271,9 @@ class FontFallbackDocumentListener(
     }
 }
 
+/** Shared because it is only ever read; a fresh one per paint was pure garbage. */
+private val EMPTY_INSETS = Insets(0, 0, 0, 0)
+
 private fun toBufferedImage(image: Image): BufferedImage {
     if (image is BufferedImage) return image
     val buffered = BufferedImage(image.getWidth(null), image.getHeight(null), BufferedImage.TYPE_INT_ARGB)
@@ -316,6 +319,14 @@ class AdvancedTextPane(
      */
     var showCharCount: Boolean = false
         set(value) { field = value; repaint() }
+
+    // Paint-path caches. This component repaints on every caret blink, so anything allocated in
+    // paintComponent is allocated roughly twice a second per pane, forever.
+    private var cachedCounterFont: Font? = null
+    private var cachedCounterBase: Font? = null
+    private var cachedCounterValue: Int = -1
+    private var cachedCounterText: String = ""
+    private var cachedDisabledFg: Color? = null
 
     private val contextMenu: JPopupMenu by lazy { createContextMenu() }
     private val fallbackListener: FontFallbackDocumentListener
@@ -457,38 +468,68 @@ class AdvancedTextPane(
     // -----------------------------------------------------------------------
 
     override fun paintComponent(g: Graphics) {
-        val g2 = g as Graphics2D
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
-        g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON)
-        super.paintComponent(g)
+        // Painted on a copy. Rendering hints set on the Graphics Swing handed us outlive this
+        // method and change how sibling components are drawn afterwards; AdvancedCaret already
+        // saves and restores for the same reason, and this half of the file did not.
+        val g2 = g.create() as Graphics2D
+        try {
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+            g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON)
+            super.paintComponent(g2)
 
-        // Use document.length (O(1)) instead of text.length (O(n) serialisation).
-        val docLen     = document.length
-        val insets     = margin ?: Insets(0, 0, 0, 0)
-        val disabledFg = UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
-        val ltr        = componentOrientation.isLeftToRight
+            // Use document.length (O(1)) instead of text.length (O(n) serialisation).
+            val docLen = document.length
+            val hasHint = docLen == 0 && hintText.isNotBlank()
+            val hasCounter = showCharCount && docLen > 0
+            if (!hasHint && !hasCounter) return
 
-        // Placeholder / hint text — drawn only when the pane is empty.
-        if (docLen == 0 && hintText.isNotBlank()) {
-            g2.font  = font
-            g2.color = disabledFg
-            val fm = g2.fontMetrics
-            val x  = if (ltr) insets.left + 2 else width - insets.right - 2 - fm.stringWidth(hintText)
-            val y  = insets.top + fm.ascent
-            g2.drawString(hintText, x, y)
+            // Only touched when something is actually drawn — paint runs on every caret blink.
+            val insets = margin ?: EMPTY_INSETS
+            val disabledFg = cachedDisabledFg
+                ?: (UIManager.getColor("Label.disabledForeground") ?: Color.GRAY).also { cachedDisabledFg = it }
+            val ltr = componentOrientation.isLeftToRight
+
+            if (hasHint) {
+                g2.font = font
+                g2.color = disabledFg
+                val fm = g2.fontMetrics
+                val x = if (ltr) insets.left + 2 else width - insets.right - 2 - fm.stringWidth(hintText)
+                val y = insets.top + fm.ascent
+                g2.drawString(hintText, x, y)
+            }
+
+            if (hasCounter) {
+                val counterFont = counterFont()
+                val counterStr = counterText(docLen)
+                g2.font = counterFont
+                g2.color = disabledFg
+                val fm = g2.getFontMetrics(counterFont)
+                val x = if (ltr) width - insets.right - fm.stringWidth(counterStr) - 2 else insets.left + 2
+                val y = height - insets.bottom - 2
+                g2.drawString(counterStr, x, y)
+            }
+        } finally {
+            g2.dispose()
         }
+    }
 
-        // Character count — drawn in the bottom corner when enabled and there is text.
-        if (showCharCount && docLen > 0) {
-            val counterFont = font.deriveFont(font.size2D - 1f)
-            val counterStr  = docLen.toString()
-            g2.font  = counterFont
-            g2.color = disabledFg
-            val fm = g2.getFontMetrics(counterFont)
-            val x  = if (ltr) width - insets.right - fm.stringWidth(counterStr) - 2 else insets.left + 2
-            val y  = height - insets.bottom - 2
-            g2.drawString(counterStr, x, y)
+    /** Derived once per font rather than on every paint — `deriveFont` is not free. */
+    private fun counterFont(): Font {
+        val base = font
+        if (cachedCounterBase !== base || cachedCounterFont == null) {
+            cachedCounterBase = base
+            cachedCounterFont = base.deriveFont(base.size2D - 1f)
         }
+        return cachedCounterFont!!
+    }
+
+    /** The count changes far less often than the pane repaints, so the string is kept. */
+    private fun counterText(length: Int): String {
+        if (cachedCounterValue != length) {
+            cachedCounterValue = length
+            cachedCounterText = length.toString()
+        }
+        return cachedCounterText
     }
 
     // -----------------------------------------------------------------------
@@ -735,6 +776,11 @@ class AdvancedTextPane(
     override fun updateUI() {
         super.updateUI()
         putClientProperty(HONOR_DISPLAY_PROPERTIES, true)
+        // A theme switch invalidates the cached colour and the font derived from the old one.
+        // Swing calls this for us then, which is why the caches need no listener of their own.
+        cachedCounterFont = null
+        cachedCounterBase = null
+        cachedDisabledFg = null
     }
 
     override fun getScrollableTracksViewportWidth(): Boolean =
