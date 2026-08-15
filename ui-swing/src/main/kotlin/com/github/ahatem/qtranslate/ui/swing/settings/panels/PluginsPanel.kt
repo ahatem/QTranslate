@@ -75,6 +75,9 @@ class PluginsPanel(
     override fun getScrollableTracksViewportHeight() = true   // no vertical outer scroll → actionBar stays fixed
 
     // ── Internal state ────────────────────────────────────────────────────────
+    /** The filter row above the list; its underline is rebuilt on every theme change. */
+    private lateinit var listHeaderPanel: JPanel
+
     private val pluginRows = JPanel()
     private val searchField = JTextField()
     private val categoryCombo = JComboBox(PluginCategory.entries.toTypedArray())
@@ -126,7 +129,7 @@ class PluginsPanel(
             add(searchField)
             add(categoryCombo)
         }
-        val listHeader = JPanel(BorderLayout(0, 7)).apply {
+        listHeaderPanel = JPanel(BorderLayout(0, 7)).apply {
             border = BorderFactory.createEmptyBorder(10, 10, 8, 10)
             add(filterPanel, BorderLayout.CENTER)
             add(resultCount.apply {
@@ -195,7 +198,7 @@ class PluginsPanel(
             preferredSize = Dimension(UIScale.scale(320), 0)
             minimumSize   = Dimension(270, 0)
             maximumSize   = Dimension(350, Int.MAX_VALUE)
-            add(listHeader, BorderLayout.NORTH)
+            add(listHeaderPanel, BorderLayout.NORTH)
             add(listScroll, BorderLayout.CENTER)
             add(leftBottom, BorderLayout.SOUTH)
             transferHandler = dropHandler
@@ -268,6 +271,14 @@ class PluginsPanel(
             if (leftToRight) gap else 0,
             0,
             if (leftToRight) 0 else gap
+        )
+
+        // Separates the filter row from the list it filters. Without it the search box, the
+        // category picker and the result count read as the first entry in the list rather than as
+        // the controls above it.
+        listHeaderPanel.border = BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, line),
+            BorderFactory.createEmptyBorder(10, 10, 8, 10)
         )
 
         leftPanel.revalidate()

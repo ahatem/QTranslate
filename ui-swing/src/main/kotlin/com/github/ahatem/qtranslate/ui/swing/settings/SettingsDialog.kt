@@ -170,6 +170,14 @@ class SettingsDialog(
     /** Built on the first search and reused; see [searchIndex]. */
     private var cachedIndex: List<SearchHit>? = null
 
+    /**
+     * Ends the highlight currently showing, if any.
+     *
+     * Held as the whole cleanup rather than just the timer, so a second result restores the first
+     * row's border on the way past instead of leaving it highlighted.
+     */
+    private var activeFlash: (() -> Unit)? = null
+
     private val noResultsLabel = JLabel().apply {
         foreground = UIManager.getColor("Label.disabledForeground")
         verticalAlignment = SwingConstants.TOP
@@ -263,6 +271,13 @@ class SettingsDialog(
 
         sidebarPanel.border = MatteBorder(0, 0, 0, 1, bc)
 
+        // Divides the search box from the sections it searches, matching the rule under the
+        // header strip on the other side of the sidebar so the two line up as one row of chrome.
+        searchField.border = BorderFactory.createCompoundBorder(
+            MatteBorder(0, 0, 1, 0, bc),
+            BorderFactory.createEmptyBorder(8, 8, 8, 8)
+        )
+
         headerStrip.border = BorderFactory.createCompoundBorder(
             MatteBorder(0, 0, 1, 0, bc),
             BorderFactory.createEmptyBorder(12, 16, 12, 16)
@@ -319,11 +334,21 @@ class SettingsDialog(
                     text = name
                     icon = sidebarIcons[name]
                     iconTextGap = 8
-                    border = BorderFactory.createEmptyBorder(0, 8, 0, 8)
 
                     // A group is a heading for the rows beneath it, so it is styled as one
                     // rather than competing with the pages it labels.
                     val isGroup = navTree.any { it is Nav.Group && it.label == name }
+
+                    // Every page shares one left edge, whether or not it happens to sit under a
+                    // group, and only the two headings outdent. The tree indents its children by
+                    // one unit on its own, so the pages that have no group are given that unit
+                    // back here. Read from the look and feel rather than hard-coded, since the
+                    // tree's own indent comes from the same numbers.
+                    val depth = (value as? DefaultMutableTreeNode)?.level ?: 1
+                    val unit = UIManager.getInt("Tree.leftChildIndent") +
+                        UIManager.getInt("Tree.rightChildIndent")
+                    val extra = if (!isGroup && depth <= 1) unit else 0
+                    border = BorderFactory.createEmptyBorder(0, 8 + extra, 0, 8)
                     font = font.deriveFont(if (isGroup) Font.BOLD else Font.PLAIN)
                     if (!sel) {
                         foreground = UIManager.getColor(
@@ -381,7 +406,7 @@ class SettingsDialog(
             )
             putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true)
             putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON, FlatSearchIcon())
-            border = BorderFactory.createEmptyBorder(8, 8, 8, 8)
+            // Border applied by updateBorders() so the rule follows the theme.
 
             document.addDocumentListener(object : DocumentListener {
                 override fun insertUpdate(e: DocumentEvent) = onSearchChanged()
@@ -472,19 +497,89 @@ class SettingsDialog(
      * reader to find it again by eye, which is the work the search was meant to save.
      */
     private fun flash(component: JComponent) {
-        val original = component.isOpaque
-        val originalBg = component.background
-        component.isOpaque = true
-        component.background = UIManager.getColor("Component.accentColor")
-            ?: UIManager.getColor("Table.selectionBackground")
-            ?: Color(86, 156, 214)
-        component.repaint()
+        // Ends the previous highlight properly rather than only stopping its timer, which would
+        // leave the row it was on wearing the border for the rest of the session.
+        activeFlash?.invoke()
 
-        Timer(FLASH_MILLIS) {
-            component.isOpaque = original
-            component.background = originalBg
+        val highlight = FlashHighlight()
+        val original = component.border
+        // Wrapped rather than replaced, and with no insets of its own, so nothing on the page
+        // moves while the highlight is up. A border paints after the component, which is what
+        // lets it tint the row rather than sit behind it.
+        component.border = BorderFactory.createCompoundBorder(highlight, original)
+
+        val timer = Timer(FLASH_TICK_MILLIS, null)
+        val finish = {
+            timer.stop()
+            component.border = original
             component.repaint()
-        }.apply { isRepeats = false }.start()
+            activeFlash = null
+        }
+
+        val started = System.currentTimeMillis()
+        timer.addActionListener {
+            val elapsed = (System.currentTimeMillis() - started).toFloat()
+            if (elapsed >= FLASH_MILLIS) {
+                finish()
+            } else {
+                // Held at full strength for the first part, then faded. Fading from the first
+                // frame makes it read as a flicker; holding first makes it read as a marker.
+                val fadeFrom = FLASH_MILLIS * FLASH_HOLD_FRACTION
+                highlight.strength = if (elapsed <= fadeFrom) 1f
+                else 1f - (elapsed - fadeFrom) / (FLASH_MILLIS - fadeFrom)
+                component.repaint()
+            }
+        }
+        activeFlash = finish
+        timer.start()
+    }
+
+    /**
+     * A tinted panel behind a found setting, with a firm outline around it.
+     *
+     * A solid fill was the first attempt and it swallowed the very text it was pointing at. This
+     * keeps the label readable: the tint is faint, and the outline is what carries the emphasis.
+     * Colours are read at paint time so a theme change mid-flash cannot leave a stale colour.
+     */
+    private class FlashHighlight : javax.swing.border.AbstractBorder() {
+        /** 1 while held, falling to 0 as it fades out. */
+        var strength: Float = 1f
+
+        override fun paintBorder(c: Component, g: Graphics, x: Int, y: Int, w: Int, h: Int) {
+            if (strength <= 0f) return
+            val accent = UIManager.getColor("Component.accentColor")
+                ?: UIManager.getColor("Table.selectionBackground")
+                ?: Color(86, 156, 214)
+
+            val g2 = g.create() as Graphics2D
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                val pad = UIScale.scale(2)
+                val arc = UIScale.scale(6)
+                val bounds = Rectangle(x - pad, y - pad, w + pad * 2, h + pad * 2)
+
+                g2.color = Color(accent.red, accent.green, accent.blue, (FILL_ALPHA * strength).toInt())
+                g2.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, arc, arc)
+
+                g2.color = Color(accent.red, accent.green, accent.blue, (OUTLINE_ALPHA * strength).toInt())
+                g2.stroke = BasicStroke(UIScale.scale(1.5f))
+                g2.drawRoundRect(bounds.x, bounds.y, bounds.width - 1, bounds.height - 1, arc, arc)
+            } finally {
+                g2.dispose()
+            }
+        }
+
+        /** Zero, so wrapping a component in this never changes the layout. */
+        override fun getBorderInsets(c: Component): Insets = Insets(0, 0, 0, 0)
+        override fun getBorderInsets(c: Component, insets: Insets): Insets =
+            insets.also { it.set(0, 0, 0, 0) }
+
+        override fun isBorderOpaque() = false
+
+        private companion object {
+            const val FILL_ALPHA = 46f
+            const val OUTLINE_ALPHA = 200f
+        }
     }
 
     private data class SearchHit(val pageLabel: String, val entry: SettingsPanel.SettingEntry) {
@@ -684,6 +779,9 @@ class SettingsDialog(
         const val NAV_RESULTS = "results"
         const val NAV_EMPTY = "empty"
         const val PATH_SEPARATOR = "›"
-        const val FLASH_MILLIS = 1200
+        const val FLASH_MILLIS = 1600f
+        const val FLASH_TICK_MILLIS = 30
+        /** How much of the flash is held at full strength before it starts fading. */
+        const val FLASH_HOLD_FRACTION = 0.45f
     }
 }
