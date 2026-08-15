@@ -165,6 +165,21 @@ class SettingsDialog(
         addListSelectionListener { e ->
             if (!e.valueIsAdjusting) (selectedValue as? SearchHit)?.let { openHit(it) }
         }
+
+        // Selection listeners only fire on a change, so clicking the row you are already on did
+        // nothing — and that is exactly when you want the marker shown again, having lost track of
+        // it. Only the already-selected row is handled here; anything else is a real selection
+        // change and the listener above has it.
+        addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mousePressed(e: java.awt.event.MouseEvent) {
+                val index = locationToIndex(e.point)
+                if (index < 0 || index != selectedIndex) return
+                // locationToIndex answers with the nearest row even for a click in the empty space
+                // below the last one, so the click has to be inside the row it named.
+                val bounds = getCellBounds(index, index) ?: return
+                if (bounds.contains(e.point)) openHit(model.getElementAt(index))
+            }
+        })
     }
 
     /** Built on the first search and reused; see [searchIndex]. */
@@ -377,6 +392,14 @@ class SettingsDialog(
     }
 
     private fun buildSidebar(): JPanel {
+        // Breathing room under the search box's rule. Without it the first row sits against the
+        // line and reads as attached to it rather than as the first of a list.
+        // An EmptyBorder rather than null: the look and feel reinstalls its own default over a
+        // null border on every theme change, which is what clearBorder() exists to avoid.
+        val listInset = BorderFactory.createEmptyBorder(UIScale.scale(6), 0, UIScale.scale(6), 0)
+        tree.border = listInset
+        resultsList.border = listInset
+
         val treeScroll = JScrollPane(tree).apply {
             clearBorder()
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
@@ -554,16 +577,29 @@ class SettingsDialog(
             val g2 = g.create() as Graphics2D
             try {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                val pad = UIScale.scale(2)
-                val arc = UIScale.scale(6)
-                val bounds = Rectangle(x - pad, y - pad, w + pad * 2, h + pad * 2)
+                val padX = UIScale.scale(4)
+                val padY = UIScale.scale(3)
+                val arc = UIScale.scale(8)
+                val left = x - padX
+                val top = y - padY
+                val width = w + padX * 2
+                val height = h + padY * 2
 
                 g2.color = Color(accent.red, accent.green, accent.blue, (FILL_ALPHA * strength).toInt())
-                g2.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, arc, arc)
+                g2.fillRoundRect(left, top, width, height, arc, arc)
 
+                // Dashed, in the idiom the plugin drop zone already uses, and thick enough to
+                // carry the emphasis on its own — the fill is only there to seat it.
                 g2.color = Color(accent.red, accent.green, accent.blue, (OUTLINE_ALPHA * strength).toInt())
-                g2.stroke = BasicStroke(UIScale.scale(1.5f))
-                g2.drawRoundRect(bounds.x, bounds.y, bounds.width - 1, bounds.height - 1, arc, arc)
+                g2.stroke = BasicStroke(
+                    UIScale.scale(2f),
+                    BasicStroke.CAP_BUTT,
+                    BasicStroke.JOIN_ROUND,
+                    1f,
+                    floatArrayOf(UIScale.scale(5f), UIScale.scale(3f)),
+                    0f
+                )
+                g2.drawRoundRect(left, top, width - 1, height - 1, arc, arc)
             } finally {
                 g2.dispose()
             }
@@ -577,8 +613,9 @@ class SettingsDialog(
         override fun isBorderOpaque() = false
 
         private companion object {
-            const val FILL_ALPHA = 46f
-            const val OUTLINE_ALPHA = 200f
+            /** Faint: the outline does the work, and the row's own text has to stay readable. */
+            const val FILL_ALPHA = 38f
+            const val OUTLINE_ALPHA = 255f
         }
     }
 
@@ -779,9 +816,9 @@ class SettingsDialog(
         const val NAV_RESULTS = "results"
         const val NAV_EMPTY = "empty"
         const val PATH_SEPARATOR = "›"
-        const val FLASH_MILLIS = 1600f
+        const val FLASH_MILLIS = 2200f
         const val FLASH_TICK_MILLIS = 30
         /** How much of the flash is held at full strength before it starts fading. */
-        const val FLASH_HOLD_FRACTION = 0.45f
+        const val FLASH_HOLD_FRACTION = 0.6f
     }
 }
