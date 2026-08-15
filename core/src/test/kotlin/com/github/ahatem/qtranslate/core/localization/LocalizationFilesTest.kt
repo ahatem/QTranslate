@@ -131,6 +131,52 @@ class LocalizationFilesTest {
         }
     }
 
+    /**
+     * A translated string takes the same number of arguments as the English it replaces.
+     *
+     * `getString` passes its arguments to `String.format`, which throws when a specifier has no
+     * argument behind it. A translator who drops a `%s` turns a label into a crash, and only in
+     * their language, which is the hardest kind of bug to notice.
+     *
+     * Counted rather than compared in order, because reordering is legitimate: zh-CN writes
+     * `%2$s %1$s` where English has `%s %s`, since the clauses fall the other way round.
+     */
+    @Test
+    fun `translations take the same arguments as the English they replace`() {
+        val english = valuesOf(embedded)
+
+        val problems = languageFiles.flatMap { file ->
+            valuesOf(file).mapNotNull { (key, translated) ->
+                val source = english[key] ?: return@mapNotNull null
+                val expected = FORMAT_SPECIFIER.findAll(source).count()
+                val actual = FORMAT_SPECIFIER.findAll(translated).count()
+                if (expected == actual) null
+                else "${file.name}: $key takes $actual argument(s), English takes $expected"
+            }
+        }
+
+        if (problems.isNotEmpty()) {
+            fail(
+                "These translations would throw when formatted:\n" + problems.joinToString("\n") { "  $it" }
+            )
+        }
+    }
+
+    /** Flattens a TOML localization file to `section.key` → value. */
+    private fun valuesOf(file: File): Map<String, String> {
+        var section = ""
+        val values = mutableMapOf<String, String>()
+        file.readLines().forEach { raw ->
+            val line = raw.trim()
+            when {
+                line.startsWith("#") || line.isEmpty() -> return@forEach
+                line.startsWith("[") -> section = line.trim('[', ']').trim()
+                else -> VALUE_LINE.find(line)?.let { values["$section.${it.groupValues[1]}"] = it.groupValues[2] }
+            }
+        }
+        return values
+    }
+
     /** Flattens a TOML localization file to `section.key` strings. */
     private fun keysOf(file: File): Set<String> {
         var section = ""
@@ -149,5 +195,9 @@ class LocalizationFilesTest {
     private companion object {
         val LITERAL_KEY = Regex("""getString\("([a-zA-Z0-9_]+\.[a-zA-Z0-9_]+)"""")
         val KEY_LINE = Regex("""^([A-Za-z_][A-Za-z0-9_]*)\s*=""")
+        val VALUE_LINE = Regex("""^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$""")
+
+        /** Covers `%s`, `%d`, and the positional `%1$s` form translators use to reorder. */
+        val FORMAT_SPECIFIER = Regex("""%\d*\$?[sdf]""")
     }
 }
