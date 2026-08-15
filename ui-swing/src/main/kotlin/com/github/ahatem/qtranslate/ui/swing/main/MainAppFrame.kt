@@ -977,6 +977,7 @@ class MainAppFrame(
                 )
             },
             onShowDictionary = { showDictionaryDialog() },
+            onShowImageSearch = { showImageSearchDialog() },
             onShowHistory = { showHistoryDialog() },
             onTranslateDocument = { documentTranslationDialog.open() },
             onShowSettings = { openSettingsDialog() },
@@ -1032,6 +1033,7 @@ class MainAppFrame(
             viewOptions = localizer.getString("main_window_main_menu.options_submenu"),
             dictionary = localizer.getString("system_tray_menu.dictionary"),
             isDictionaryPanelOpen = mainStore.state.value.isDictionaryPanelVisible,
+            imageSearch = localizer.getString("system_tray_menu.image_search"),
             history = localizer.getString("system_tray_menu.history"),
             translateDocument = localizer.getString("main_window_main_menu.translate_document"),
             settings = localizer.getString("main_window_main_menu.settings"),
@@ -1105,6 +1107,7 @@ class MainAppFrame(
         val strings = TrayMenuStrings(
             showApplication = localizer.getString("system_tray_menu.show_application"),
             dictionary = localizer.getString("system_tray_menu.dictionary"),
+            imageSearch = localizer.getString("system_tray_menu.image_search"),
             textRecognition = localizer.getString("system_tray_menu.recognize_text"),
             history = localizer.getString("system_tray_menu.history"),
             settings = localizer.getString("system_tray_menu.settings"),
@@ -1115,6 +1118,7 @@ class MainAppFrame(
         val actions = TrayMenuActions(
             onShowApplication = { runOnUi { showAndFocus() } },
             onShowDictionary = { showDictionaryDialog() },
+            onShowImageSearch = { showImageSearchDialog() },
             onRecognizeText = { openSnippingTool() },
             onShowHistory = { showHistoryDialog() },
             onShowSettings = {
@@ -1498,6 +1502,18 @@ class MainAppFrame(
             onRemindLater = {}
         )
         runOnUi { updateDialog.show(state) }
+    }
+
+    /**
+     * Opens the image popup from a menu, seeded with the input text when it is a single word.
+     *
+     * The hotkey and the context menu both start from a selection; a menu click has none, so it
+     * falls back to what is in the input pane and otherwise opens empty for the user to type in.
+     */
+    private fun showImageSearchDialog() {
+        val term = mainStore.state.value.inputText.trim()
+            .takeIf { it.isNotBlank() && !it.contains(' ') } ?: ""
+        mainStore.dispatch(MainIntent.ShowImageSearch(term, resolvedLookupLanguage()))
     }
 
     private fun showDictionaryDialog() {

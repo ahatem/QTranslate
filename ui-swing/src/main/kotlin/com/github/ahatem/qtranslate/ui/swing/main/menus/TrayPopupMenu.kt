@@ -9,6 +9,7 @@ import javax.swing.JSeparator
 data class TrayMenuStrings(
     val showApplication: String,
     val dictionary: String,
+    val imageSearch: String,
     val textRecognition: String,
     val history: String,
     val settings: String,
@@ -19,6 +20,7 @@ data class TrayMenuStrings(
 data class TrayMenuActions(
     val onShowApplication: () -> Unit,
     val onShowDictionary: () -> Unit,
+    val onShowImageSearch: () -> Unit,
     val onRecognizeText: () -> Unit,
     val onShowHistory: () -> Unit,
     val onShowSettings: () -> Unit,
@@ -37,8 +39,11 @@ class TrayMenuPopup(
         })
 
         add(JMenuItem(strings.dictionary).apply {
-            
             addActionListener { actions.onShowDictionary() }
+        })
+
+        add(JMenuItem(strings.imageSearch).apply {
+            addActionListener { actions.onShowImageSearch() }
         })
 
         add(JMenuItem(strings.textRecognition).apply {
