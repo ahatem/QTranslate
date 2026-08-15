@@ -20,6 +20,8 @@ import java.awt.GridLayout
 import java.awt.Image
 import java.awt.Insets
 import java.awt.MouseInfo
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
@@ -28,6 +30,7 @@ import javax.swing.AbstractAction
 import javax.swing.BorderFactory
 import javax.swing.Box
 import javax.swing.BoxLayout
+import javax.swing.JButton
 import javax.swing.ImageIcon
 import javax.swing.JComponent
 import javax.swing.JDialog
@@ -59,8 +62,16 @@ class ImageSearchDialog(
     private companion object {
         const val RESIZE_HANDLE_SIZE = 8
         const val PINNED_BORDER_WIDTH = 4
-        const val COLUMNS = 3
-        const val TILE_HEIGHT = 84
+        /**
+         * The narrowest a tile may get before the picture in it stops being readable.
+         *
+         * Columns are derived from this rather than fixed, so a narrow popup shows one usable
+         * image instead of three unusable ones. A diagram — which is the kind of picture this
+         * feature exists to show — is a smudge below roughly this width.
+         */
+        const val MIN_TILE_WIDTH = 180
+        const val MAX_COLUMNS = 4
+        const val TILE_HEIGHT = 124
         const val GRID_GAP = 6
     }
 
@@ -84,7 +95,7 @@ class ImageSearchDialog(
         border = EmptyBorder(24, 12, 24, 12)
     }
 
-    private val grid = JPanel(GridLayout(0, COLUMNS, GRID_GAP, GRID_GAP)).apply {
+    private val grid = JPanel(GridLayout(0, 1, GRID_GAP, GRID_GAP)).apply {
         border = EmptyBorder(8, 8, 8, 8)
     }
 
@@ -96,6 +107,9 @@ class ImageSearchDialog(
     }
 
     private val body = JPanel(BorderLayout())
+
+    /** The enlarged view, or null when the grid is showing. */
+    private var preview: ImageResult? = null
 
     /** Kept as a field because it is both the drag handle and the title row. */
     private lateinit var header: JComponent
@@ -131,6 +145,36 @@ class ImageSearchDialog(
 
         installEscapeToClose()
         installMoveAndResize()
+        installResponsiveColumns()
+    }
+
+    /**
+     * Recomputes how many tiles fit across whenever the popup is resized.
+     *
+     * Driven by the viewport rather than the window so the scrollbar's width is already accounted
+     * for; otherwise the last column is cut off exactly when a scrollbar appears.
+     */
+    private fun installResponsiveColumns() {
+        scroll.viewport.addComponentListener(object : ComponentAdapter() {
+            override fun componentResized(e: ComponentEvent) = applyColumnCount()
+        })
+    }
+
+    private fun applyColumnCount() {
+        val insets = grid.insets
+        val available = scroll.viewport.width - insets.left - insets.right
+        if (available <= 0) return
+
+        val tile = UIScale.scale(MIN_TILE_WIDTH) + UIScale.scale(GRID_GAP)
+        val columns = (available / tile).coerceIn(1, MAX_COLUMNS)
+
+        val layout = grid.layout as GridLayout
+        if (layout.columns == columns) return
+        layout.columns = columns
+        // Rows must follow, or GridLayout keeps the old row count and lays the tiles out to it.
+        layout.rows = 0
+        grid.revalidate()
+        grid.repaint()
     }
 
     private fun buildHeader(): JComponent {
@@ -224,10 +268,9 @@ class ImageSearchDialog(
         grid.removeAll()
         state.results.forEach { grid.add(tileFor(it, state)) }
 
-        body.removeAll()
-        body.add(scroll, BorderLayout.CENTER)
-        body.revalidate()
-        body.repaint()
+        // A new search replaces what the enlarged view was showing, so it returns to the grid
+        // rather than leaving an image from the previous term on screen.
+        showGrid()
     }
 
     /**
@@ -276,12 +319,92 @@ class ImageSearchDialog(
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent) {
-                    // The description page, not the bare image: it carries the licence, the full
-                    // caption and the context, which is what a reader looking something up wants.
-                    state.onImageOpened(result)
+                    // Enlarged here rather than in a browser. Someone who wants to know what a
+                    // word looks like is answered by the picture; sending them to Chrome for it
+                    // costs seconds and a context switch, and the source page is still one click
+                    // further on for anyone who wants it.
+                    showPreview(result)
                 }
             })
         }
+    }
+
+    /** Fills the popup with one image. */
+    private fun showPreview(result: ImageResult) {
+        val state = currentState ?: return
+        preview = result
+
+        val picture = JLabel("", SwingConstants.CENTER)
+        // Shown at whatever size the popup happens to be, and rescaled when that changes.
+        var loaded: Image? = null
+        fun redraw() {
+            val image = loaded ?: return
+            picture.icon = ImageIcon(scaleToFit(image, picture.width, picture.height))
+        }
+        picture.addComponentListener(object : ComponentAdapter() {
+            override fun componentResized(e: ComponentEvent) = redraw()
+        })
+        thumbnails.load(result.thumbnailUrl) { image ->
+            loaded = image
+            redraw()
+        }
+
+        val caption = ElidingLabel(result.title.orEmpty()).apply {
+            putClientProperty("FlatLaf.styleClass", "h4")
+        }
+        val credit = ElidingLabel(fullCreditFor(result)).apply {
+            putClientProperty("FlatLaf.styleClass", "small")
+            foreground = UIManager.getColor("Label.disabledForeground")
+            toolTipText = fullCreditFor(result)
+        }
+
+        val back = JButton(state.strings.backLabel).apply {
+            putClientProperty("JButton.buttonType", "toolBarButton")
+            addActionListener { showGrid() }
+        }
+        val open = JButton(state.strings.openSourceLabel).apply {
+            putClientProperty("JButton.buttonType", "toolBarButton")
+            toolTipText = state.strings.openTooltip
+            addActionListener { state.onImageOpened(result) }
+        }
+
+        val footer = JPanel(BorderLayout(8, 0)).apply {
+            border = EmptyBorder(6, 8, 8, 8)
+            add(
+                JPanel(BorderLayout()).apply {
+                    isOpaque = false
+                    add(caption, BorderLayout.NORTH)
+                    add(credit, BorderLayout.SOUTH)
+                },
+                BorderLayout.CENTER
+            )
+            add(
+                JPanel().apply {
+                    isOpaque = false
+                    layout = BoxLayout(this, BoxLayout.X_AXIS)
+                    add(back)
+                    add(Box.createHorizontalStrut(4))
+                    add(open)
+                },
+                BorderLayout.LINE_END
+            )
+        }
+
+        body.removeAll()
+        body.add(picture, BorderLayout.CENTER)
+        body.add(footer, BorderLayout.SOUTH)
+        body.revalidate()
+        body.repaint()
+    }
+
+    /** Returns from the enlarged view to the grid, leaving the tiles and their images intact. */
+    private fun showGrid() {
+        preview = null
+        body.removeAll()
+        body.add(scroll, BorderLayout.CENTER)
+        body.revalidate()
+        body.repaint()
+        applyColumnCount()
     }
 
     private fun fullCreditFor(result: ImageResult): String =
@@ -387,7 +510,9 @@ class ImageSearchDialog(
             .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "close-image-search")
         root.actionMap.put("close-image-search", object : AbstractAction() {
             override fun actionPerformed(e: ActionEvent) {
-                currentState?.onClose?.invoke()
+                // Escape unwinds one step at a time: out of the enlarged image first, and only
+                // then out of the popup. Closing outright would throw away the search as well.
+                if (preview != null) showGrid() else currentState?.onClose?.invoke()
             }
         })
     }

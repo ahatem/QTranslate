@@ -1591,6 +1591,8 @@ class MainAppFrame(
                 errorMessage      = localizer.getString("image_search_dialog.error_message"),
                 searchButtonLabel = localizer.getString("image_search_dialog.search_button"),
                 openTooltip       = localizer.getString("image_search_dialog.open_tooltip"),
+                openSourceLabel   = localizer.getString("image_search_dialog.open_source"),
+                backLabel         = localizer.getString("image_search_dialog.back"),
                 pinTooltip        = localizer.getString("common.pin"),
                 unpinTooltip      = localizer.getString("common.unpin"),
                 closeTooltip      = localizer.getString("common.close")

@@ -47,6 +47,8 @@ data class ImageSearchStrings(
     val errorMessage: String,
     val searchButtonLabel: String,
     val openTooltip: String,
+    val openSourceLabel: String,
+    val backLabel: String,
     val pinTooltip: String,
     val unpinTooltip: String,
     val closeTooltip: String
