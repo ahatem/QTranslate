@@ -11,6 +11,7 @@ import com.github.ahatem.qtranslate.core.main.domain.usecase.SelectActiveService
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SwapLanguagesUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.LookupWordUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SearchImagesUseCase
+import com.github.ahatem.qtranslate.core.main.domain.usecase.FetchInlineDefinitionUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.RewriteUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SummarizeUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateTextUseCase
@@ -233,6 +234,12 @@ suspend fun buildDependencies(
         loggerFactory        = loggerFactory
     )
 
+    val fetchInlineDefinitionUseCase = FetchInlineDefinitionUseCase(
+        scope                = appScope,
+        activeServiceManager = activeServiceManager,
+        loggerFactory        = loggerFactory
+    )
+
     val searchImagesUseCase = SearchImagesUseCase(
         scope                = appScope,
         activeServiceManager = activeServiceManager,
@@ -262,6 +269,7 @@ suspend fun buildDependencies(
         rewriteUseCase             = rewriteUseCase,
         lookupWordUseCase          = lookupWordUseCase,
         searchImagesUseCase        = searchImagesUseCase,
+        fetchInlineDefinitionUseCase = fetchInlineDefinitionUseCase,
         documentTranslationUseCase = DocumentTranslationUseCase(activeServiceManager, loggerFactory)
     )
 

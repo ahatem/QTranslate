@@ -373,6 +373,21 @@ class FloatingPopupBehavior(
         pointerListener = listener
         Toolkit.getDefaultToolkit()
             .addAWTEventListener(listener, AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK)
+        samplePointer()
+    }
+
+    /**
+     * Reads where the pointer is right now, rather than waiting to be told it moved.
+     *
+     * These popups open at the cursor, so the pointer is frequently inside one the instant it
+     * appears — and then never generates an enter event, because it never crossed the boundary.
+     * The popup therefore believed the pointer was elsewhere and counted down to hiding itself
+     * while the user was sitting over it, reading.
+     */
+    fun samplePointer() {
+        val pointer = MouseInfo.getPointerInfo()?.location ?: return
+        isPointerOver = window.isVisible && window.bounds.contains(pointer)
+        if (isPointerOver) stopIdleHide()
     }
 
     fun uninstallPointerTracking() {

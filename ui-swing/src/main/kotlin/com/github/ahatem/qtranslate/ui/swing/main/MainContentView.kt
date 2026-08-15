@@ -532,11 +532,6 @@ class MainContentView(
         )
 
         val hasOutputText = mainState.translatedText.isNotBlank()
-
-        // A one-word translation is the case where a definition is usually the next thing wanted.
-        // Anything longer is a sentence, and offering to "define" it would be noise.
-        val singleWordOutput = mainState.translatedText.trim()
-            .takeIf { it.isNotBlank() && it.none(Char::isWhitespace) && it.length >= 2 }
         val hasExtraText = mainState.extraOutputText.isNotBlank()
 
         // Nothing can be translated without a translator, and an empty window gives a new
@@ -552,6 +547,9 @@ class MainContentView(
         outputTextPanel.render(
             OutputTextState(
                 text = mainState.translatedText,
+                // Shown automatically for a single word, empty otherwise, so a multi-word
+                // translation lays out exactly as it did before this existed.
+                definition = mainState.inlineDefinition,
                 noService = noService,
                 isLoading = mainState.isLoading,
                 fontConfig = config.scaledEditorFont,
@@ -576,18 +574,6 @@ class MainContentView(
                                 if (isTtsPlaying) dispatch(MainIntent.StopTTS)
                                 else dispatch(MainIntent.ListenToText(textSource = TextSource.Output))
                             }
-                        ),
-                        // Offered, not forced. A single-word result is the case where a definition
-                        // is usually wanted, so the button appears exactly then — but opening the
-                        // dictionary stays the reader's decision, which is what the popup that
-                        // used to appear on its own got wrong.
-                        Action(
-                            id = "define_output",
-                            iconPath = "icons/lucide/book-open.svg",
-                            tooltip = localizer.getString("main_window_editor_context_menu.find_in_dictionary"),
-                            isEnabled = !mainState.isLoading,
-                            isVisible = singleWordOutput != null,
-                            onClick = { singleWordOutput?.let { showDictionaryWithWord(it, currentTargetLanguage) } }
                         )
                     )
                 )

@@ -14,6 +14,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentMover
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentResizer
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.FloatingPopupBehavior
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.InlineLoadingBar
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DefinitionStrip
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.*
 import java.awt.event.*
@@ -105,6 +106,7 @@ class QuickTranslateDialog(
     }
 
     private val loadingBar = InlineLoadingBar()
+    private val definitionStrip = DefinitionStrip()
 
     private val topPanel = createTopPanel()
 
@@ -208,6 +210,8 @@ class QuickTranslateDialog(
             BorderLayout.NORTH
         )
         mainPanel.add(textScrollPane, BorderLayout.CENTER)
+        // Below the translation, above nothing: an aside, not part of the result.
+        mainPanel.add(definitionStrip, BorderLayout.SOUTH)
 
         setupWindowBehavior(topPanel)
         popup.installClickOutsideToClose(
@@ -305,6 +309,8 @@ class QuickTranslateDialog(
         // Only while something is already on screen: before that the popup is withheld and the
         // standalone loading indicator covers the wait.
         loadingBar.isLoading = state.isLoading && isVisible
+        // Only for single words; the state carries it empty otherwise, so the strip hides itself.
+        definitionStrip.render(state.definition)
 
         val source = state.sourceLanguage.tag.uppercase()
         val target = state.targetLanguage.tag.uppercase()
@@ -402,7 +408,9 @@ class QuickTranslateDialog(
         focusableWindowState = true
         isVisible = true
         installAwtMouseListener()
-        if (!isPinned) startIdleHide()
+        // Not if the pointer is already inside it -- the popup opens at the cursor, so it often
+        // is, and starting the countdown then hides the popup out from under the reader.
+        if (!isPinned && !popup.isPointerOver) startIdleHide()
     }
 
     private fun hideDialog() {

@@ -21,6 +21,8 @@ data class NoServiceState(
 )
 
 data class OutputTextState(
+    /** Short definition for a single-word result; empty for anything longer. */
+    val definition: String = "",
     val text: String,
     val fontConfig: FontConfig,
     val fallbackFontConfig: FontConfig,

@@ -17,6 +17,8 @@ data class QuickTranslateDialogState(
     val isPinned: Boolean,
     /** Bumped when the user asks for this popup again; a change restarts the countdown. */
     val triggerCount: Int,
+    /** Short definition for a single-word result; empty for anything longer. */
+    val definition: String,
 
     // --- The Data is now a first-class citizen ---
     val sourceLanguage: LanguageCode,

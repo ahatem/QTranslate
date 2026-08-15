@@ -536,7 +536,9 @@ class QuickDictionaryDialog(
         focusableWindowState = true
         isVisible = true
         installAwtMouseListener()
-        if (!isPinned) startIdleHide()
+        // Not if the pointer is already inside it -- the popup opens at the cursor, so it often
+        // is, and starting the countdown then hides the popup out from under the reader.
+        if (!isPinned && !popup.isPointerOver) startIdleHide()
     }
 
     private fun hideDialog() {

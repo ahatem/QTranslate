@@ -56,6 +56,7 @@ class MainStore(
     private val rewriteUseCase: RewriteUseCase,
     private val lookupWordUseCase: LookupWordUseCase,
     private val searchImagesUseCase: SearchImagesUseCase,
+    private val fetchInlineDefinitionUseCase: FetchInlineDefinitionUseCase,
     private val documentTranslationUseCase: DocumentTranslationUseCase
 ) : Store<MainState, MainIntent, MainEvent> {
 
@@ -355,6 +356,17 @@ class MainStore(
             is MainIntent.ToggleImageSearchPin -> _state.update {
                 it.copy(isImageSearchPinned = !it.isImageSearchPinned)
             }
+
+            is MainIntent.UpdateInlineDefinition ->
+                if (intent.word.isBlank()) {
+                    fetchInlineDefinitionUseCase.clear { transform -> _state.update(transform) }
+                } else {
+                    fetchInlineDefinitionUseCase(
+                        word = intent.word,
+                        language = intent.language,
+                        updateState = { transform -> _state.update(transform) }
+                    )
+                }
         }
     }
 
@@ -459,9 +471,18 @@ class MainStore(
             }
         } else {
             // Open a fresh popup — never pinned, whatever the last one was left as.
+            //
+            // isLoading and the cleared text are set here rather than left to the use case that
+            // follows. The popup withholds itself until there is something to show, and it decides
+            // that from this state; without it the popup saw "not loading, no text" for the moment
+            // between being asked for and the request starting, took that for a finished result,
+            // and opened empty — which is the loading state the user was seeing inside the popup
+            // instead of the marker that should have covered the wait.
             _state.update {
                 it.copy(
                     inputText = intent.selectedText,
+                    translatedText = "",
+                    isLoading = true,
                     isQuickTranslateDialogPinned = false,
                     isQuickTranslateDialogVisible = true,
                     quickTranslateTriggerCount = it.quickTranslateTriggerCount + 1
