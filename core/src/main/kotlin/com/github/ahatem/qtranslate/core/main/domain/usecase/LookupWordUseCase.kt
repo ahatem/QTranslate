@@ -64,6 +64,7 @@ class LookupWordUseCase(
                     copy(
                         isDictionaryLoading = true,
                         dictionaryWord = word,
+                        dictionaryLanguage = language,
                         dictionaryFailed = false
                     )
                 }

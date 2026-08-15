@@ -69,10 +69,13 @@ sealed interface MainIntent : UiIntent {
      * User requested text-to-speech for a specific text panel.
      * @property textSource Which panel to read aloud.
      * @property text Optional text override. If `null`, uses the text from [textSource].
+     * @property language Optional language override. If `null`, it is derived from [textSource].
+     *   Set by callers whose text belongs to neither panel, such as a dictionary headword.
      */
     data class ListenToText(
         val textSource: TextSource,
-        val text: String? = null
+        val text: String? = null,
+        val language: LanguageCode? = null
     ) : MainIntent
 
     /** User manually triggered a spell check (or it was triggered automatically). */

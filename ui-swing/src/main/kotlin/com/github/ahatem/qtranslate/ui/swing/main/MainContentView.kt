@@ -226,6 +226,8 @@ class MainContentView(
         val selectedDictionaryId: String?,
         val dictionaryCount: Int,
         val autoSource: com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource,
+        /** Part of the key so the headword's Listen control flips when playback starts or stops. */
+        val isTtsPlaying: Boolean,
     )
 
     init {
@@ -359,6 +361,7 @@ class MainContentView(
             selectedDictionaryId = selectedDictId,
             dictionaryCount   = availableDicts.size,
             autoSource        = config.dictionaryAutoSource,
+            isTtsPlaying      = mainState.isTtsPlaying,
         )
         if (key == lastDictionaryKey) return
         lastDictionaryKey = key
@@ -400,7 +403,10 @@ class MainContentView(
                     loadingMessage        = localizer.getString("dictionary_dialog.loading_message"),
                     errorMessage          = localizer.getString("dictionary_dialog.error_message"),
                     synonymsLabel         = localizer.getString("dictionary_dialog.synonyms_label"),
+                    listenTooltip         = localizer.getString("common.listen"),
+                    stopListeningTooltip  = localizer.getString("common.stop"),
                     isLoading             = key.isLoading,
+                    isTtsPlaying          = key.isTtsPlaying,
                     entries               = key.entries,
                     lookedUpWord          = key.word,
                     hasFailed             = key.hasFailed,
@@ -415,6 +421,18 @@ class MainContentView(
                             SettingsIntent.ToggleSetting { it.copy(dictionaryAutoSource = newSource) }
                         )
                     },
+                    // The headword belongs to the lookup, not to a panel, so it carries the
+                    // language the lookup was made in rather than the input panel's.
+                    onListen = { word ->
+                        dispatch(
+                            MainIntent.ListenToText(
+                                textSource = TextSource.Input,
+                                text = word,
+                                language = key.lookupLanguage
+                            )
+                        )
+                    },
+                    onStopListening = { dispatch(MainIntent.StopTTS) },
                 )
             )
         }

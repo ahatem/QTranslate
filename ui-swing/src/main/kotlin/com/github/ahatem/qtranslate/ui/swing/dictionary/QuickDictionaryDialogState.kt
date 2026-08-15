@@ -31,8 +31,12 @@ data class QuickDictionaryDialogState(
     val autoSourceOffLabel: String = "",
     val autoSourceTranslatedLabel: String = "",
     val autoSourceSourceLabel: String = "",
+    /** Whether speech is playing right now; the headword's Listen control becomes a stop button. */
+    val isTtsPlaying: Boolean = false,
     // callbacks
     val onLookup: (word: String) -> Unit,
+    val onListen: (word: String) -> Unit = {},
+    val onStopListening: () -> Unit = {},
     val onDictionarySelected: (serviceId: String) -> Unit,
     val onAutoSourceChanged: (DictionaryAutoSource) -> Unit = {},
     val onPinToggled: () -> Unit,
@@ -63,5 +67,7 @@ data class QuickDictionaryStrings(
     val synonymsLabel: String,
     val pinTooltip: String,
     val unpinTooltip: String,
-    val closeTooltip: String
+    val closeTooltip: String,
+    val listenTooltip: String = "",
+    val stopListeningTooltip: String = ""
 )

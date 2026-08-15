@@ -24,7 +24,7 @@ class DictionaryPanel(
 
     private val hintLabel = JLabel("", SwingConstants.CENTER)
     private val loadingLabel = JLabel("", SwingConstants.CENTER)
-    private val resultView = DictionaryResultView()
+    private val resultView = DictionaryResultView(iconManager)
     private val cardPanel = JPanel(CardLayout())
 
     private val serviceCombo = JComboBox<ServiceInfo>().apply {
@@ -287,9 +287,14 @@ class DictionaryPanel(
                     chips.clear()
                     searchField.text = word
                     onLookup(word)
-                }
+                },
+                listenTooltip = state.listenTooltip,
+                stopTooltip = state.stopListeningTooltip,
+                onListen = state.onListen,
+                onStopListening = state.onStopListening
             )
         }
+        resultView.setSpeaking(state.isTtsPlaying)
     }
 
     fun setSearchWord(word: String) {

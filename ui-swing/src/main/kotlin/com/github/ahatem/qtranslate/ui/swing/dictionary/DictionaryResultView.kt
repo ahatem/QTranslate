@@ -1,7 +1,11 @@
 package com.github.ahatem.qtranslate.ui.swing.dictionary
 
+import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
+import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
+import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
 import java.awt.*
 import javax.swing.*
@@ -11,7 +15,22 @@ import javax.swing.*
  * Implements [Scrollable] so that the content tracks the viewport width, enabling
  * JTextArea line-wrapping without a fixed pixel width.
  */
-class DictionaryResultView : JScrollPane() {
+class DictionaryResultView(private val iconManager: IconManager) : JScrollPane() {
+
+    /**
+     * The speaker beside the headword, kept so playback state can be reflected without rebuilding.
+     *
+     * A rebuild would clear the panel for a frame and reset the scroll position, which is a poor
+     * trade for swapping one icon — and it would happen every time audio started or stopped.
+     */
+    private var listenButton: JButton? = null
+
+    private var headword: String = ""
+    private var isSpeaking = false
+    private var listenTooltip = ""
+    private var stopTooltip = ""
+    private var onListen: ((String) -> Unit)? = null
+    private var onStopListening: (() -> Unit)? = null
 
     private val content = object : JPanel(), Scrollable {
         override fun getPreferredScrollableViewportSize(): Dimension = preferredSize
@@ -43,12 +62,24 @@ class DictionaryResultView : JScrollPane() {
     fun render(
         entries: List<DictionaryEntry>,
         synonymsLabel: String,
-        onSynonymClicked: ((String) -> Unit)? = null
+        onSynonymClicked: ((String) -> Unit)? = null,
+        listenTooltip: String = "",
+        stopTooltip: String = "",
+        onListen: ((String) -> Unit)? = null,
+        onStopListening: (() -> Unit)? = null
     ) {
+        // Assigned before the early return, so a caller that re-renders with the same entries but
+        // fresh callbacks does not leave the speaker wired to the previous ones.
+        this.listenTooltip = listenTooltip
+        this.stopTooltip = stopTooltip
+        this.onListen = onListen
+        this.onStopListening = onStopListening
+
         if (entries == lastEntries && synonymsLabel == lastSynonymsLabel) return
         lastEntries = entries
         lastSynonymsLabel = synonymsLabel
         content.removeAll()
+        listenButton = null
 
         if (entries.isEmpty()) {
             content.revalidate()
@@ -57,8 +88,9 @@ class DictionaryResultView : JScrollPane() {
         }
 
         val first = entries.first()
+        headword = first.word
 
-        addRow(wordLabel(first.word))
+        addRow(headwordRow(first.word))
         addGap(4)
 
         first.phonetic?.let {
@@ -100,6 +132,55 @@ class DictionaryResultView : JScrollPane() {
 
     private fun wordLabel(text: String): JLabel = JLabel(text).apply {
         font = font.deriveFont(Font.BOLD, font.size + 9f)
+    }
+
+    /**
+     * The headword, followed by a speaker when the caller supplied a listen callback.
+     *
+     * The button sits on the baseline row rather than in the toolbar because it belongs to the
+     * word, not to the window: the standalone dictionary dialog has no toolbar of its own.
+     */
+    private fun headwordRow(word: String): JComponent {
+        val label = wordLabel(word)
+        val listen = onListen ?: return label
+
+        val button = createButtonWithIcon(iconManager, LISTEN_ICON, LISTEN_ICON_SIZE).apply {
+            putClientProperty("JButton.buttonType", "toolBarButton")
+            isFocusable = false
+            addActionListener {
+                if (isSpeaking) onStopListening?.invoke() else listen(headword)
+            }
+        }
+        listenButton = button
+        applySpeakingState()
+
+        return JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(6), 0)).apply {
+            isOpaque = false
+            // BoxLayout hands a row its maximum height, which would stretch a FlowLayout panel
+            // and float the word away from the definitions below it.
+            maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
+            add(label)
+            add(button)
+        }
+    }
+
+    /**
+     * Reflects playback in the speaker without rebuilding the entry list.
+     *
+     * Safe to call before anything is rendered; it does nothing until a headword exists.
+     */
+    fun setSpeaking(speaking: Boolean) {
+        if (speaking == isSpeaking) return
+        isSpeaking = speaking
+        applySpeakingState()
+    }
+
+    private fun applySpeakingState() {
+        val button = listenButton ?: return
+        val iconPath = if (isSpeaking) STOP_ICON else LISTEN_ICON
+        button.icon = (iconManager.getIcon(iconPath, LISTEN_ICON_SIZE, LISTEN_ICON_SIZE)
+            as FlatSVGIcon).applyForegroundColorFilter()
+        button.toolTipText = if (isSpeaking) stopTooltip else listenTooltip
     }
 
     private fun muteLabel(text: String): JLabel = JLabel(text).apply {
@@ -184,5 +265,11 @@ class DictionaryResultView : JScrollPane() {
             if (muted) foreground = UIManager.getColor("Label.disabledForeground")
             if (italic) font = font.deriveFont(Font.ITALIC)
         }
+    }
+
+    private companion object {
+        const val LISTEN_ICON = "icons/lucide/volume.svg"
+        const val STOP_ICON = "icons/lucide/close.svg"
+        const val LISTEN_ICON_SIZE = 14
     }
 }

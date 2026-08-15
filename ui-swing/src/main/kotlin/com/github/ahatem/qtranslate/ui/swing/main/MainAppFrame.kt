@@ -88,7 +88,7 @@ class MainAppFrame(
     private val aboutDialog by lazy { InfoDialog(this) }
     private val updateDialog by lazy { UpdateDialog(this) }
     private val historyDialog by lazy { HistoryDialog(this) }
-    private val dictionaryDialog by lazy { DictionaryDialog(this) }
+    private val dictionaryDialog by lazy { DictionaryDialog(this, iconManager) }
     private val loadingIndicator by lazy { LoadingIndicator(this) }
 
     private val documentTranslationDialog by lazy {
@@ -1632,13 +1632,18 @@ class MainAppFrame(
             loadingMessage        = localizer.getString("dictionary_dialog.loading_message"),
             errorMessage          = localizer.getString("dictionary_dialog.error_message"),
             synonymsLabel         = localizer.getString("dictionary_dialog.synonyms_label"),
+            listenTooltip         = localizer.getString("common.listen"),
+            stopListeningTooltip  = localizer.getString("common.stop"),
             isLoading             = s.isDictionaryLoading,
+            isTtsPlaying          = s.isTtsPlaying,
             entries               = s.dictionaryEntries,
             lookedUpWord          = s.dictionaryWord,
             hasFailed             = s.dictionaryFailed,
             availableDictionaries = availableDicts,
             selectedDictionaryId  = selectedDictId,
             onLookup = { word -> mainStore.dispatch(MainIntent.LookupWord(word, resolvedLang)) },
+            onListen = { word -> listenToLookedUpWord(word) },
+            onStopListening = { mainStore.dispatch(MainIntent.StopTTS) },
             onDictionarySelected = { serviceId ->
                 settingsStore.dispatch(
                     SettingsIntent.UpdateServiceInActivePreset(
@@ -1648,6 +1653,22 @@ class MainAppFrame(
                 val currentWord = mainStore.state.value.dictionaryWord
                 if (currentWord.isNotBlank()) mainStore.dispatch(MainIntent.LookupWord(currentWord, resolvedLang))
             }
+        )
+    }
+
+    /**
+     * Speaks a dictionary headword in the language it was looked up in.
+     *
+     * A lookup can be triggered from either side of a translation, so the word does not reliably
+     * belong to the input panel; [MainState.dictionaryLanguage] is what the lookup actually used.
+     */
+    private fun listenToLookedUpWord(word: String) {
+        mainStore.dispatch(
+            MainIntent.ListenToText(
+                textSource = TextSource.Input,
+                text = word,
+                language = mainStore.state.value.dictionaryLanguage
+            )
         )
     }
 
@@ -1779,9 +1800,14 @@ class MainAppFrame(
                 synonymsLabel    = localizer.getString("dictionary_dialog.synonyms_label"),
                 pinTooltip       = localizer.getString("common.pin"),
                 unpinTooltip     = localizer.getString("common.unpin"),
-                closeTooltip     = localizer.getString("common.close")
+                closeTooltip     = localizer.getString("common.close"),
+                listenTooltip    = localizer.getString("common.listen"),
+                stopListeningTooltip = localizer.getString("common.stop")
             ),
+            isTtsPlaying = mainState.isTtsPlaying,
             onLookup = { word -> mainStore.dispatch(MainIntent.LookupWord(word, resolvedLang)) },
+            onListen = { word -> listenToLookedUpWord(word) },
+            onStopListening = { mainStore.dispatch(MainIntent.StopTTS) },
             onDictionarySelected = { serviceId ->
                 settingsStore.dispatch(
                     SettingsIntent.UpdateServiceInActivePreset(

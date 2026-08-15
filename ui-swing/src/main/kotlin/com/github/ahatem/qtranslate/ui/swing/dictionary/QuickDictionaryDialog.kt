@@ -127,7 +127,7 @@ class QuickDictionaryDialog(
 
     // Results
     private val loadingBar = InlineLoadingBar()
-    private val resultView = DictionaryResultView()
+    private val resultView = DictionaryResultView(iconManager)
     private val cardPanel = JPanel(CardLayout())
 
     // Word chips
@@ -349,9 +349,14 @@ class QuickDictionaryDialog(
                     chips.clear()
                     searchField.text = word
                     state.onLookup(word)
-                }
+                },
+                listenTooltip = state.strings.listenTooltip,
+                stopTooltip = state.strings.stopListeningTooltip,
+                onListen = state.onListen,
+                onStopListening = state.onStopListening
             )
         }
+        resultView.setSpeaking(state.isTtsPlaying)
     }
 
     fun setSearchWord(word: String) {

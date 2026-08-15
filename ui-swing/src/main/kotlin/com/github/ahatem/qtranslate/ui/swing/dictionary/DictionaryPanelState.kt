@@ -13,7 +13,11 @@ data class DictionaryPanelState(
     val loadingMessage: String,
     val errorMessage: String,
     val synonymsLabel: String,
+    val listenTooltip: String = "",
+    val stopListeningTooltip: String = "",
     val isLoading: Boolean,
+    /** Whether speech is playing right now; the headword's Listen control becomes a stop button. */
+    val isTtsPlaying: Boolean = false,
     val entries: List<DictionaryEntry>,
     val lookedUpWord: String,
     val hasFailed: Boolean,
@@ -25,4 +29,6 @@ data class DictionaryPanelState(
     val autoSourceTranslatedLabel: String = "",
     val autoSourceSourceLabel: String = "",
     val onAutoSourceChanged: (DictionaryAutoSource) -> Unit = {},
+    val onListen: (word: String) -> Unit = {},
+    val onStopListening: () -> Unit = {},
 )

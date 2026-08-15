@@ -61,6 +61,14 @@ data class MainState(
     val dictionaryEntries: List<DictionaryEntry> = emptyList(),
     val isDictionaryLoading: Boolean = false,
     val dictionaryWord: String = "",
+    /**
+     * The language [dictionaryWord] was looked up in.
+     *
+     * Kept so the Listen control beside a headword can speak it in the right language. A lookup
+     * can come from either side of a translation, so neither the source nor the target language
+     * is a reliable stand-in.
+     */
+    val dictionaryLanguage: LanguageCode = LanguageCode("en"),
     val dictionaryFailed: Boolean = false,
     val isDictionaryPanelVisible: Boolean = false,
     val spellCheckCorrections: List<Correction> = emptyList(),

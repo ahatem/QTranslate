@@ -281,7 +281,7 @@ class MainStore(
             }
 
             is MainIntent.ListenToText -> scope.launch {
-                handleListen(intent.textSource, intent.text)
+                handleListen(intent.textSource, intent.text, intent.language)
             }
 
             is MainIntent.OcrAndTranslateImage -> scope.launch {
@@ -524,12 +524,17 @@ class MainStore(
         )
     }
 
-    private suspend fun handleListen(textSource: TextSource, textOverride: String?) {
+    private suspend fun handleListen(
+        textSource: TextSource,
+        textOverride: String?,
+        languageOverride: LanguageCode?
+    ) {
         handleTextToSpeechUseCase(
-            currentState   = _state.value,
-            textSource     = textSource,
-            textOverride   = textOverride,
-            onStatusUpdate = ::updateStatusBar
+            currentState     = _state.value,
+            textSource       = textSource,
+            textOverride     = textOverride,
+            languageOverride = languageOverride,
+            onStatusUpdate   = ::updateStatusBar
         )
     }
 
