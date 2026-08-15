@@ -9,6 +9,50 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Image search for a selected term.** Select a word and press `Ctrl+Shift+Q`, or use the context menu, the main menu or the tray menu, to see pictures of it from Wikimedia Commons. Built for reading technical material, where a diagram explains a term faster than a definition does. The grid fits itself to the popup, clicking a picture enlarges it in place rather than opening a browser, and Escape steps back out of the picture before it closes the search. A **media type** filter picks between Anything, Photographs and Diagrams, since which one helps depends on what you are reading. The licence stays visible under each picture, with the full credit on the source page a click away
+- **CSV Dictionary plugin.** Point it at your own CSV file and look terms up in it: a glossary, an abbreviation list, a table of error codes, a set of study mnemonics. The term column, the definition column, the delimiter and the label shown beside each result are all configurable, so the file does not have to be arranged any particular way
+- **A short definition under single-word translations.** Translate a single word and a one-line definition appears beneath it, in the popup and the main window alike, with no click and no toggle. It is kept out of the output pane on purpose, so copying a translated word still copies just the word. Longer translations lay out exactly as before
+- **Listen on dictionary results.** A speaker beside the headword reads it aloud, in the quick popup, the standalone dialog and the docked panel. It turns into a stop button while audio is playing
+- **Test connection** in plugin settings, for plugins that need credentials. It tests the values on screen rather than the ones saved last time, and says whether a key was refused or was never filled in
+- **Plugins can ship their own translations**, as TOML bundles inside the plugin JAR, so plugin text is no longer English-only
+- **Documents can be pasted** as well as dropped, and dragging a file over the window now draws an overlay showing it will be accepted
+- **Click outside to close** is now a setting for the floating popups, on by default. Turning it off suits translating a word and then working in the document beside it. Pinning still overrides it
+
+### Changed
+- **Plugin API v2.** Services declare what they can do instead of the host guessing from the interfaces they implement, so one service can be offered as both a translator and a dictionary. Summary lengths and rewrite styles are now data a plugin defines rather than a fixed list the app owns, settings are typed and scoped per plugin instance, credentials live in their own store, and a service can offer a cheap configuration check. **Third-party plugins built against API v1 are refused at load and need rebuilding.** All bundled plugins are migrated, and existing service selections are converted on first launch
+- API keys move out of the plugin settings file into a separate credential store
+- Popup auto-hide defaults rise from 3 seconds to 12 for translations, and from 8 to 20 for definitions, neither of which was long enough to read. Anyone who chose their own timeout keeps it
+- Popup width is now bounded by a comfortable line length rather than only by a fraction of the screen, so a sentence no longer stretches across half a wide monitor
+- Pressing a popup's hotkey while it is already open refreshes it in place instead of hiding it
+- A popup keeps the result you were reading while it fetches the next one, showing a thin progress bar under its header instead of emptying itself
+- The dictionary popup no longer opens by itself whenever a single word is translated. A dictionary you already have open still follows along
+- README screenshots are recaptured in the bronze palette the app actually ships, at full display scale, and now include the side-by-side layout and document translation, two features the page described in prose but never showed. A gallery of thirty-four captures sits behind them, covering both themes across all three layouts and every settings page
+
+### Fixed
+- **QTranslate now renders at the display's scale.** On a 150% or 200% display it drew scaled icons and borders around unscaled text, paddings, table rows and windows. The window opened at roughly half the size its own contents needed, clipping the language selectors to "Eng…" and "Ara…" and leaving the output pane no usable height; the history table clipped its headers to "Date …", "Lan…" and "Servi…"; and the docked dictionary was pinned to half its intended width, wrapping definitions one word per line. On an unscaled display nothing changes
+- **Hotkeys no longer disturb the main window.** Summoning a popup could pull the main window out of the tray, push it away, or produce no popup at all, depending on the state the window had been left in
+- Pressing Listen in a popup while speech was playing started a second playback with no way to stop either. It now stops, matching the main window
+- A document dropped on a text pane did nothing. Document drop worked only on window chrome, which is the part of the window nobody aims at. Every part of the window now accepts the same things
+- Clicking outside a popup did not close it. The old implementation could only see clicks landing on QTranslate itself, never the ones in the document being read
+- Closing a pinned popup left it pinned, so the next one opened pinned and then auto-hid anyway
+- Every dialog showed Java's default coffee cup icon instead of the application's
+- The loading indicator never appeared, having been suppressed in exactly the case it was written for
+- Opening Settings left an entire dialog in memory permanently, every time, and later theme changes ran the handlers of all the dead ones
+- None of the floating popups survived a theme change; they went on painting the previous theme's borders and dimmed text for the rest of the session
+- **The Arabic interface laid its panes out upside down.** With the interface language set to Arabic the output pane sat above the input and the extra pane above both, the docked dictionary could not be resized by dragging its divider, and the rule dividing the dictionary from the translation was drawn on the outer edge so the two areas ran together. The dictionary also opened at its minimum width rather than the size it asks for
+- Switching themes drew a frame around components that are deliberately borderless: the service selector, the dictionary panel, the plugin lists and the settings content area
+- The CSV plugin icon was drawn in black and disappeared into the dark theme, and the plugins screen ran its list straight into the detail pane with no divider
+- Double-tapping Ctrl misfired on ordinary shortcuts, since every hotkey here is a Ctrl combination and two in quick succession looked identical to a deliberate double tap
+- Image tile captions clipped mid-word instead of eliding, and the credit under each picture is now the licence alone, with the full credit in the tooltip
+- The inline definition takes its text direction from its own script, so an Arabic definition sits under a right-aligned Arabic translation rather than opposite it
+
+### Performance
+- Font fallback scanned the remaining text again for every font run, making a document with many scripts quadratic in allocation
+- The enlarged image was rescaled with AWT's slowest scaler on the event thread on every resize event, continuously while dragging the popup's edge
+- Thumbnails from an abandoned image search were fetched to completion, so four terms typed quickly downloaded four full grids with the wanted one last
+- The text pane allocated a font, a string and an insets object on every caret blink
+
 ---
 
 ## [1.3.0] — 2026-08-14
