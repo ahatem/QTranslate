@@ -342,7 +342,7 @@ class KtorHttpClient(
                     ServiceError.AuthenticationError(
                         "Insufficient credits. " +
                         "If you are using OpenRouter, visit openrouter.ai/settings/credits to top up, " +
-                        "or switch to a free model (append :free to the model name, e.g. google/gemini-flash-1.5-8b:free)."
+                        "or switch the model to openrouter/free."
                     )
                 )
             }

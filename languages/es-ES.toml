@@ -56,11 +56,13 @@ auto_detect = "Detectar automáticamente"
 [main_window]
 status_format = "Usando %s: %s → %s"
 no_translator = "Sin traductor"
+no_service_message = "No hay ningún servicio de traducción configurado."no_service_action = "Abrir ajustes de Servicios"
 
 [main_window_history_bar]
 backward_tooltip = "Retroceder en el historial de traducción"
 forward_tooltip = "Avanzar en el historial de traducción"
 image_translate_tooltip = "Capturar y traducir texto de un área de la pantalla"
+document_translate_tooltip = "Traducir un documento conservando su formato"
 
 [main_window_language_bar]
 clear_tooltip = "Limpiar texto de entrada"
@@ -168,6 +170,9 @@ startup_group = "Inicio"
 launch_on_startup = "Ejecutar al iniciar el sistema"
 updates_group = "Actualizaciones"
 auto_check_updates = "Buscar actualizaciones automáticamente"
+selection_group = "Selección de texto"
+selection_icon = "Mostrar un botón de traducción al seleccionar texto"
+selection_icon_hint = "Muestra un pequeño botón junto al texto que selecciones arrastrando en otras aplicaciones. Haz clic en él para traducir la selección."
 history_group = "Historial"
 enable_history = "Habilitar historial de traducción"
 clear_history_on_exit = "Limpiar historial al cerrar la aplicación"
@@ -273,6 +278,7 @@ action_translate = "Traducir"
 action_focus_input = "Enfocar panel de entrada"
 action_focus_output = "Enfocar panel de salida"
 action_focus_extra_output = "Enfocar panel de salida adicional"
+action_copy_translation = "Copiar traducción"action_clear_input = "Borrar entrada"action_swap_languages = "Intercambiar idiomas"action_open_settings = "Abrir ajustes"action_show_history = "Mostrar historial"action_translate_document = "Traducir documento"
 scope_toggle_hint = "Haga clic para cambiar entre Global y Local"
 
 # Default Actions Descriptions
@@ -499,6 +505,7 @@ unknown_error = "Ha ocurrido un error desconocido."
 
 [status_bar]
 ocr_text_copied = "Texto reconocido y copiado al portapapeles."
+text_copied = "Copiado al portapapeles."
 translating = "Traduciendo..."
 translation_complete = "Traducción completada."
 translation_timeout = "La traducción superó el tiempo de espera. Inténtalo de nuevo."

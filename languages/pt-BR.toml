@@ -56,11 +56,13 @@ auto_detect = "Detectar automaticamente"
 [main_window]
 status_format = "Usando %s: %s → %s"
 no_translator = "Sem Tradutor"
+no_service_message = "Nenhum serviço de tradução configurado."no_service_action = "Abrir configurações de Serviços"
 
 [main_window_history_bar]
 backward_tooltip = "Voltar no histórico de tradução"
 forward_tooltip = "Avançar no histórico de tradução"
 image_translate_tooltip = "Capturar e traduzir texto de uma área na tela"
+document_translate_tooltip = "Traduzir um documento preservando sua formatação"
 
 [main_window_language_bar]
 clear_tooltip = "Limpar texto de entrada"
@@ -168,6 +170,9 @@ startup_group = "Inicialização"
 launch_on_startup = "Iniciar com o sistema"
 updates_group = "Atualizações"
 auto_check_updates = "Verificar atualizações automaticamente"
+selection_group = "Seleção de texto"
+selection_icon = "Mostrar um botão de tradução após selecionar texto"
+selection_icon_hint = "Mostra um pequeno botão perto do texto que você seleciona arrastando em outros aplicativos. Clique nele para traduzir a seleção."
 history_group = "Histórico"
 enable_history = "Ativar histórico de tradução"
 clear_history_on_exit = "Limpar histórico ao fechar o app"
@@ -273,6 +278,7 @@ action_translate = "Traduzir"
 action_focus_input = "Focar painel de entrada"
 action_focus_output = "Focar painel de saída"
 action_focus_extra_output = "Focar painel de saída extra"
+action_copy_translation = "Copiar tradução"action_clear_input = "Limpar entrada"action_swap_languages = "Inverter idiomas"action_open_settings = "Abrir configurações"action_show_history = "Mostrar histórico"action_translate_document = "Traduzir documento"
 scope_toggle_hint = "Clique para alternar entre Global e Local"
 
 # Default Actions Descriptions
@@ -498,6 +504,7 @@ unknown_error = "Ocorreu um erro desconhecido."
 
 [status_bar]
 ocr_text_copied = "Texto reconhecido e copiado para a área de transferência."
+text_copied = "Copiado para a área de transferência."
 translating = "Traduzindo..."
 translation_complete = "Tradução concluída."
 translation_timeout = "A tradução expirou. Por favor, tente novamente."

@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.dictionary
 
+import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import java.awt.Dimension
 import javax.swing.*
 
@@ -22,7 +23,7 @@ class DictionaryChipController(
     val scrollPane: JScrollPane = JScrollPane(chipsPanel).apply {
         horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
         verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_NEVER
-        border = null
+        clearBorder()
         isOpaque = false
         viewport.isOpaque = false
         isVisible = false

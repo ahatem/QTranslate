@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.core.main.domain.usecase
 
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
+import com.github.ahatem.qtranslate.api.plugin.StandardOptions
 import com.github.ahatem.qtranslate.api.summarizer.SummarizeRequest
 import com.github.ahatem.qtranslate.api.summarizer.Summarizer
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
@@ -36,8 +37,10 @@ class SummarizeUseCase(
         val result = withTimeoutOrNull(AppConstants.TRANSLATION_TIMEOUT_MS) {
             summarizer.summarize(
                 SummarizeRequest(
-                    text   = text,
-                    length = config.summaryLength
+                    text = text,
+                    // The service declares which lengths it offers; the host only passes the id
+                    // the user picked, so a plugin-defined length travels through unchanged.
+                    options = mapOf(StandardOptions.KEY_SUMMARY_LENGTH to config.summaryLength)
                 )
             )
         }

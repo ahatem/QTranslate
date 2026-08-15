@@ -15,6 +15,17 @@ data class QuickTranslateDialogState(
     val isLoading: Boolean,
     val translatedText: String,
     val isPinned: Boolean,
+    /** Bumped when the user asks for this popup again; a change restarts the countdown. */
+    val triggerCount: Int,
+    /**
+     * Whether speech is playing right now.
+     *
+     * The Listen button turns into a stop button while it is, the same as in the main window.
+     * Without it, pressing Listen again started a second playback on top of the first.
+     */
+    val isTtsPlaying: Boolean = false,
+    /** Short definition for a single-word result; empty for anything longer. */
+    val definition: String,
 
     // --- The Data is now a first-class citizen ---
     val sourceLanguage: LanguageCode,
@@ -36,6 +47,8 @@ data class DialogConfig(
     val autoPositionEnabled: Boolean,
     val transparencyPercentage: Int,
     val idleTimeoutSeconds: Int = 3,
+    /** Whether pressing outside the popup dismisses it; pinning overrides this. */
+    val closeOnClickOutside: Boolean = true,
     val lastKnownSize: Size,
     val lastKnownPosition: Position
 )
@@ -55,7 +68,9 @@ data class QuickTranslateActionsState(
 /** All user-facing strings for the dialog. */
 data class DialogStrings(
     val copyTooltip: String,
+    val closeTooltip: String,
     val listenTooltip: String,
+    val stopListeningTooltip: String,
     val pinTooltip: String,
     val unpinTooltip: String,
     val loadingText: String

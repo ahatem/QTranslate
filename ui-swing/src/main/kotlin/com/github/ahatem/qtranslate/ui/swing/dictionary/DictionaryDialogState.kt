@@ -12,12 +12,18 @@ data class DictionaryDialogState(
     val loadingMessage: String,
     val errorMessage: String,
     val synonymsLabel: String,
+    val listenTooltip: String = "",
+    val stopListeningTooltip: String = "",
     val isLoading: Boolean,
+    /** Whether speech is playing right now; the headword's Listen control becomes a stop button. */
+    val isTtsPlaying: Boolean = false,
     val entries: List<DictionaryEntry>,
     val lookedUpWord: String,
     val hasFailed: Boolean,
     val availableDictionaries: List<ServiceInfo> = emptyList(),
     val selectedDictionaryId: String? = null,
     val onLookup: (word: String) -> Unit,
+    val onListen: (word: String) -> Unit = {},
+    val onStopListening: () -> Unit = {},
     val onDictionarySelected: (serviceId: String) -> Unit = {},
 )

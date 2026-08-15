@@ -42,6 +42,9 @@ sealed class StatusCode {
     object NoTextInImage : StatusCode()
     object OcrComplete : StatusCode()
     object OcrTextCopied : StatusCode()
+
+    /** Confirms a copy-to-clipboard action that would otherwise give no visible feedback. */
+    object TextCopied : StatusCode()
     data class OcrFailed(val summary: String) : StatusCode()
 
     // ---- Summarize ----
@@ -74,6 +77,16 @@ sealed class StatusCode {
     data class DictionaryNotFound(val word: String) : StatusCode()
     object DictionaryTimeout : StatusCode()
     data class DictionaryFailed(val summary: String) : StatusCode()
+
+    // ---- Image search ----
+
+    object NoTermToIllustrate : StatusCode()
+    object NoImageSearchServiceActive : StatusCode()
+    object SearchingImages : StatusCode()
+    object ImageSearchReady : StatusCode()
+    data class ImagesNotFound(val term: String) : StatusCode()
+    object ImageSearchTimeout : StatusCode()
+    data class ImageSearchFailed(val summary: String) : StatusCode()
 
     // ---- Updates ----
 

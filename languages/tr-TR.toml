@@ -56,11 +56,13 @@ auto_detect = "Otomatik Algıla"
 [main_window]
 status_format = "Kullanılan %s: %s → %s"
 no_translator = "Çevirmen Yok"
+no_service_message = "Yapılandırılmış çeviri servisi yok."no_service_action = "Servis ayarlarını aç"
 
 [main_window_history_bar]
 backward_tooltip = "Çeviri geçmişinde geri git"
 forward_tooltip = "Çeviri geçmişinde ileri git"
 image_translate_tooltip = "Ekrandaki bir alandan metin yakala ve çevir"
+document_translate_tooltip = "Bir belgeyi biçimlendirmesini koruyarak çevir"
 
 [main_window_language_bar]
 clear_tooltip = "Giriş metnini temizle"
@@ -168,6 +170,9 @@ startup_group = "Başlangıç"
 launch_on_startup = "Sistem başlangıcında çalıştır"
 updates_group = "Güncellemeler"
 auto_check_updates = "Güncellemeleri otomatik olarak denetle"
+selection_group = "Metin Seçimi"
+selection_icon = "Metin seçtikten sonra çeviri düğmesi göster"
+selection_icon_hint = "Diğer uygulamalarda sürükleyerek seçtiğiniz metnin yanında küçük bir düğme gösterir. Seçimi çevirmek için tıklayın."
 history_group = "Geçmiş"
 enable_history = "Çeviri geçmişini etkinleştir"
 clear_history_on_exit = "Uygulama kapandığında geçmişi temizle"
@@ -273,6 +278,7 @@ action_translate = "Çevir"
 action_focus_input = "Giriş paneline odaklan"
 action_focus_output = "Çıkış paneline odaklan"
 action_focus_extra_output = "Ekstra çıkış paneline odaklan"
+action_copy_translation = "Çeviriyi kopyala"action_clear_input = "Girişi temizle"action_swap_languages = "Dilleri değiştir"action_open_settings = "Ayarları aç"action_show_history = "Geçmişi göster"action_translate_document = "Belge çevir"
 scope_toggle_hint = "Küresel ve Yerel arasında geçiş yapmak için tıklayın"
 
 # Default Actions Descriptions
@@ -498,6 +504,7 @@ unknown_error = "Bilinmeyen bir hata oluştu."
 
 [status_bar]
 ocr_text_copied = "Metin tanındı ve panoya kopyalandı."
+text_copied = "Panoya kopyalandı."
 translating = "Çevriliyor..."
 translation_complete = "Çeviri tamamlandı."
 translation_timeout = "Çeviri zaman aşımına uğradı. Lütfen tekrar deneyin."

@@ -50,6 +50,13 @@ class ErrorDetailPopup(private val iconManager: IconManager) {
     var copyLabel: String    = "Copy"
     var copiedLabel: String  = "Copied!"
 
+    /** Tooltip for the icon-only close button, which otherwise gives no hint of its purpose. */
+    var closeLabel: String   = "Close"
+        set(value) {
+            field = value
+            closeButton.toolTipText = value
+        }
+
     // -----------------------------------------------------------------------
     // UI components
     // -----------------------------------------------------------------------

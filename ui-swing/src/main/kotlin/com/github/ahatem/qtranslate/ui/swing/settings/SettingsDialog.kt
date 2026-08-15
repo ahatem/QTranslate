@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.settings
 
+import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
@@ -47,6 +48,11 @@ class SettingsDialog(
 ) : JDialog(owner, "Settings", true) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** Held as a field so it can be removed again — a lambda passed inline never can be. */
+    private val themeListener = java.beans.PropertyChangeListener { event ->
+        if (event.propertyName == "lookAndFeel") SwingUtilities.invokeLater { updateBorders() }
+    }
 
     // ── Nav items (ordered) ───────────────────────────────────────────────────
     private val navItems = listOf(
@@ -113,6 +119,7 @@ class SettingsDialog(
     // ─────────────────────────────────────────────────────────────────────────
 
     init {
+        com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons.applyTo(this)
         title = localizationManager.getString("settings_dialog.title")
         layout = BorderLayout()
 
@@ -138,9 +145,7 @@ class SettingsDialog(
 
         // Apply borders based on current theme, then keep them fresh on theme changes
         updateBorders()
-        UIManager.addPropertyChangeListener { evt ->
-            if (evt.propertyName == "lookAndFeel") SwingUtilities.invokeLater { updateBorders() }
-        }
+        UIManager.addPropertyChangeListener(themeListener)
 
         rootPane.registerKeyboardAction(
             { cancelAndClose() },
@@ -151,6 +156,18 @@ class SettingsDialog(
         defaultCloseOperation = DO_NOTHING_ON_CLOSE
         addWindowListener(object : WindowAdapter() {
             override fun windowClosing(e: WindowEvent) = cancelAndClose()
+
+            /**
+             * Detaches from [UIManager] on the way out.
+             *
+             * A fresh dialog is built every time settings are opened, and `UIManager` holds its
+             * listeners for the life of the process. Without this, each open pins an entire
+             * dialog — every panel and everything they reference — in memory for good, and every
+             * later theme change runs the handlers of all the dead ones.
+             */
+            override fun windowClosed(e: WindowEvent) {
+                UIManager.removePropertyChangeListener(themeListener)
+            }
         })
 
         observeState()
@@ -236,7 +253,7 @@ class SettingsDialog(
 
     private fun buildSidebar(): JPanel {
         val treeScroll = JScrollPane(tree).apply {
-            border = null
+            clearBorder()
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
         }
@@ -258,7 +275,7 @@ class SettingsDialog(
 
         contentArea.components.filterIsInstance<JScrollPane>().forEach { contentArea.remove(it) }
         contentArea.add(JScrollPane(panel).apply {
-            border = null
+            clearBorder()
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
             verticalScrollBar.unitIncrement = 16

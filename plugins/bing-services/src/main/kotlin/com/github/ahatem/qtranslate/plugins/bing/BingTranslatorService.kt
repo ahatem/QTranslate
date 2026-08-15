@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.bing
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -22,7 +24,9 @@ class BingTranslatorService(
     private val apiConfig: ApiConfig
 ) : Translator {
 
-    override val id: String = "bing-translator"
+    override val capabilities = setOf(ServiceCapability.TRANSLATOR)
+
+    override val key: String = "bing-translator"
     override val name: String = "Bing Translate"
     override val version: String = "1.0.0"
     override val iconPath: String = "assets/bing-translate-icon.svg"

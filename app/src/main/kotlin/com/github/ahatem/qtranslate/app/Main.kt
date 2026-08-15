@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.ui.swing.main.MainAppFrame
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
@@ -60,11 +61,6 @@ fun main() = runBlocking {
     )
     AppUiSetup.apply(initialConfig, deps.themeManager)
 
-    logger.info("Loading plugins...")
-    runCatching { deps.pluginManager.loadAndProcessPlugins() }
-        .onSuccess { logger.info("Plugins loaded successfully") }
-        .onFailure { e -> logger.error("Failed to load plugins", e) }
-
     val savedLanguage = if (initialConfig.interfaceLanguage == LanguageCode.ENGLISH.tag) {
         OsLanguageDetector.detect(deps.localizationManager.availableLanguages)
     } else {
@@ -77,6 +73,11 @@ fun main() = runBlocking {
         logger.warn("Failed to load interface language '${initialConfig.interfaceLanguage}': ${e.message}")
     }
 
+    // The window is shown before plugins are loaded. Everything it needs to paint — theme,
+    // scale and interface language — is already resolved, and services reach the UI through
+    // SelectActiveServiceUseCase.observe(), so the selector and Plugins panel fill in on
+    // their own as plugins finish initialising. Waiting here instead would leave the screen
+    // empty for as long as the slowest plugin takes, and several do network work at startup.
     SwingUtilities.invokeLater {
         frame = MainAppFrame(
             mainStore        = deps.mainStore,
@@ -88,6 +89,13 @@ fun main() = runBlocking {
             notificationBus  = deps.notificationBus
         )
         logger.info("Main window launched")
+    }
+
+    logger.info("Loading plugins...")
+    deps.appScope.launch {
+        runCatching { deps.pluginManager.loadAndProcessPlugins() }
+            .onSuccess { logger.info("Plugins loaded successfully") }
+            .onFailure { e -> logger.error("Failed to load plugins", e) }
     }
 
     Thread.currentThread().join()

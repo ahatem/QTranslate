@@ -43,6 +43,14 @@ sealed interface MainIntent : UiIntent {
     data object CancelTranslation : MainIntent
 
     /**
+     * Text was copied to the clipboard and the user should be told.
+     *
+     * The copy itself happens in the UI, which owns the clipboard; this only reports it so
+     * the confirmation travels through the same status-bar path as every other message.
+     */
+    data object NotifyTextCopied : MainIntent
+
+    /**
      * User stopped TTS playback that is currently in progress.
      * No-op if nothing is playing.
      */
@@ -61,10 +69,13 @@ sealed interface MainIntent : UiIntent {
      * User requested text-to-speech for a specific text panel.
      * @property textSource Which panel to read aloud.
      * @property text Optional text override. If `null`, uses the text from [textSource].
+     * @property language Optional language override. If `null`, it is derived from [textSource].
+     *   Set by callers whose text belongs to neither panel, such as a dictionary headword.
      */
     data class ListenToText(
         val textSource: TextSource,
-        val text: String? = null
+        val text: String? = null,
+        val language: LanguageCode? = null
     ) : MainIntent
 
     /** User manually triggered a spell check (or it was triggered automatically). */
@@ -165,4 +176,53 @@ sealed interface MainIntent : UiIntent {
 
     /** User toggled the pin state of the floating dictionary popup. */
     data object ToggleQuickDictionaryPin : MainIntent
+
+    // ---- Image search ----
+
+    /**
+     * User asked to see images for [term].
+     *
+     * @property language The language [term] is in. A term often resolves better in the language
+     *   it was written in — species names and medical Latin especially.
+     */
+    data class SearchImages(
+        val term: String,
+        val language: LanguageCode = LanguageCode("en")
+    ) : MainIntent
+
+    /**
+     * User triggered the floating image popup, from the context menu or the global hotkey.
+     *
+     * @property selectedText The text selected when the popup was asked for.
+     * @property language     The language to search in.
+     */
+    data class ShowImageSearch(
+        val selectedText: String,
+        val language: LanguageCode = LanguageCode("en")
+    ) : MainIntent
+
+    /** User dismissed the floating image popup. */
+    data object HideImageSearch : MainIntent
+
+    /** User toggled the pin state of the floating image popup. */
+    data object ToggleImageSearchPin : MainIntent
+
+    /**
+     * A translation finished and its result is a single word, so a short definition belongs
+     * beneath it. A blank [word] clears whatever is showing.
+     */
+    data class UpdateInlineDefinition(
+        val word: String,
+        val language: LanguageCode = LanguageCode("en"),
+        /**
+         * The other word worth defining, tried when [word] yields nothing.
+         *
+         * A translation has two sides and dictionaries are lopsided: the common ones cover English
+         * thoroughly and most other languages barely at all. Defining only the translated word
+         * means a reader translating into Arabic, or Hindi, or Vietnamese, sees no definition ever
+         * — the lookup is simply asking a dictionary for a language it does not hold.
+         */
+        val alternateWord: String = "",
+        val alternateLanguage: LanguageCode = LanguageCode("en")
+    ) : MainIntent
 }

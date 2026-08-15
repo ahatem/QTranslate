@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
@@ -91,7 +92,7 @@ class LanguagesPanel(
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
             .insets(4, 0, 0, 0)
             .add(JScrollPane(checkBoxPanel).apply {
-                preferredSize = Dimension(580, 200)
+                preferredSize = Dimension(UIScale.scale(580), UIScale.scale(200))
                 verticalScrollBarPolicy   = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
                 horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
                 border = themeAwareBorder()

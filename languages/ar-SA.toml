@@ -56,11 +56,13 @@ auto_detect = "اكتشاف تلقائي"
 [main_window]
 status_format = "باستخدام %s: %s ← %s"
 no_translator = "لا يوجد مترجم"
+no_service_message = "لم يتم تكوين أي خدمة ترجمة."no_service_action = "فتح إعدادات الخدمات"
 
 [main_window_history_bar]
 backward_tooltip = "الرجوع للخلف في سجل الترجمة"
 forward_tooltip = "التقدم للأمام في سجل الترجمة"
 image_translate_tooltip = "التقاط وترجمة نص من منطقة على الشاشة"
+document_translate_tooltip = "ترجمة مستند مع الحفاظ على تنسيقه"
 
 [main_window_language_bar]
 clear_tooltip = "مسح نص الإدخال"
@@ -168,6 +170,9 @@ startup_group = "بدء التشغيل"
 launch_on_startup = "التشغيل عند بدء تشغيل النظام"
 updates_group = "التحديثات"
 auto_check_updates = "التحقق من التحديثات تلقائيًا"
+selection_group = "تحديد النص"
+selection_icon = "إظهار زر ترجمة بعد تحديد النص"
+selection_icon_hint = "يعرض زرًا صغيرًا بجوار النص الذي تحدده بالسحب في التطبيقات الأخرى. انقر عليه لترجمة التحديد."
 history_group = "السجل"
 enable_history = "تفعيل سجل الترجمة"
 clear_history_on_exit = "مسح السجل عند إغلاق التطبيق"
@@ -273,6 +278,7 @@ action_translate = "ترجمة"
 action_focus_input = "التركيز على لوحة الإدخال"
 action_focus_output = "التركيز على لوحة الإخراج"
 action_focus_extra_output = "التركيز على لوحة الإخراج الإضافي"
+action_copy_translation = "نسخ الترجمة"action_clear_input = "مسح الإدخال"action_swap_languages = "تبديل اللغات"action_open_settings = "فتح الإعدادات"action_show_history = "إظهار السجل"action_translate_document = "ترجمة مستند"
 scope_toggle_hint = "انقر للتبديل بين العالمي والمحلي"
 
 # Default Actions Descriptions
@@ -499,6 +505,7 @@ unknown_error = "حدث خطأ غير معروف."
 
 [status_bar]
 ocr_text_copied = "تم التعرف على النص ونسخه إلى الحافظة."
+text_copied = "تم النسخ إلى الحافظة."
 translating = "جاري الترجمة..."
 translation_complete = "اكتملت الترجمة."
 translation_timeout = "انتهت مهلة الترجمة. يرجى المحاولة مجدداً."

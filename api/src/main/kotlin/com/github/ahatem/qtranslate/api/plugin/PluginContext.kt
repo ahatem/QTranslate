@@ -79,49 +79,40 @@ interface PluginContext {
      * **Rate limiting**: The core applies best-effort debouncing per plugin. Avoid
      * calling this in tight loops — repeated notifications will be coalesced or dropped.
      *
-     * @param title   Short title for the notification (aim for ≤ 5 words).
-     * @param body    The main message body, providing context or suggested action.
-     * @param type    Severity level, which affects the notification's appearance.
-     *                Defaults to [NotificationType.INFO].
+     * Both strings are [DisplayText], so a plugin shipping a `localization/` bundle has its
+     * notifications appear in the user's language. Passing raw strings would have made these
+     * the one piece of plugin text that could never be translated.
+     *
+     * @param title Short title for the notification (aim for ≤ 5 words).
+     * @param body  The main message, providing context or a suggested action.
+     * @param type  Severity, which affects appearance. Defaults to [NotificationType.INFO].
      */
-    suspend fun notify(title: String, body: String, type: NotificationType = NotificationType.INFO)
+    suspend fun notify(title: DisplayText, body: DisplayText, type: NotificationType = NotificationType.INFO)
 
     // -------------------------------------------------------------------------
-    // Private Key-Value Storage
+    // Storage
     // -------------------------------------------------------------------------
 
     /**
-     * Stores a private key-value pair scoped exclusively to this plugin.
+     * Typed persistence, scoped to this plugin and to the instance the user created.
      *
-     * Ideal for **operational state** that is not part of user-facing settings:
-     * authentication tokens, refresh timestamps, API usage counters, cache metadata.
+     * Covers everything from user-facing settings to operational state such as cache
+     * timestamps and usage counters. An earlier untyped `storeValue`/`getValue` pair existed
+     * alongside this and has been removed: it was the same storage with the same scoping, only
+     * stringly-typed, which left two ways to do one thing and every plugin re-parsing values.
      *
-     * **Security note**: The core provides simple string persistence. If the value
-     * is sensitive (e.g. an OAuth refresh token), encrypt it before storing.
-     *
-     * @param key   A unique key for the entry. Use a prefix to avoid collisions
-     *              within your own plugin (e.g. `"auth_token"`, `"cache_ts_en"`).
-     *              Keys are scoped per plugin — there is no risk of collision with
-     *              other plugins' keys.
-     * @param value The string value to persist.
+     * For credentials use [secrets] instead.
      */
-    suspend fun storeValue(key: String, value: String)
+    val settings: SettingsStore
 
     /**
-     * Retrieves a value previously stored by this plugin via [storeValue].
+     * Credentials — API keys, tokens, anything damaging to leak.
      *
-     * @param key The key used when the value was stored.
-     * @return The stored string, or `null` if no value exists for the given key.
+     * Separate from [settings] so the host can protect them using the platform keychain where
+     * one exists, and so sensitive values are visible as such in plugin code rather than
+     * blending into ordinary configuration.
      */
-    suspend fun getValue(key: String): String?
-
-    /**
-     * Removes a value previously stored by this plugin.
-     * A no-op if the key does not exist.
-     *
-     * @param key The key to remove.
-     */
-    suspend fun deleteValue(key: String)
+    val secrets: SecretStore
 
     // -------------------------------------------------------------------------
     // File System

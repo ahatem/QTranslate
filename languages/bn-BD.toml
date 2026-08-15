@@ -56,11 +56,13 @@ auto_detect = "স্বয়ংক্রিয় সনাক্তকরণ"
 [main_window]
 status_format = "%s ব্যবহার করে: %s → %s"
 no_translator = "কোন অনুবাদক নেই"
+no_service_message = "কোনো অনুবাদ পরিষেবা কনফিগার করা হয়নি।"no_service_action = "পরিষেবা সেটিংস খুলুন"
 
 [main_window_history_bar]
 backward_tooltip = "অনুবাদ ইতিহাসে পেছনে যান"
 forward_tooltip = "অনুবাদ ইতিহাসে সামনে যান"
 image_translate_tooltip = "স্ক্রিনের একটি অংশ থেকে লেখা ক্যাপচার এবং অনুবাদ করুন"
+document_translate_tooltip = "বিন্যাস অক্ষুণ্ন রেখে একটি নথি অনুবাদ করুন"
 
 [main_window_language_bar]
 clear_tooltip = "ইনপুট লেখা মুছুন"
@@ -168,6 +170,9 @@ startup_group = "স্টার্টআপ"
 launch_on_startup = "সিস্টেম স্টার্টআপে চালু করুন"
 updates_group = "আপডেট"
 auto_check_updates = "স্বয়ংক্রিয়ভাবে আপডেটের জন্য চেক করুন"
+selection_group = "টেক্সট নির্বাচন"
+selection_icon = "টেক্সট নির্বাচনের পর একটি অনুবাদ বোতাম দেখান"
+selection_icon_hint = "অন্য অ্যাপ্লিকেশনে টেনে নির্বাচন করা টেক্সটের পাশে একটি ছোট বোতাম দেখায়। নির্বাচনটি অনুবাদ করতে এটিতে ক্লিক করুন।"
 history_group = "ইতিহাস"
 enable_history = "অনুবাদ ইতিহাস সক্রিয় করুন"
 clear_history_on_exit = "অ্যাপ বন্ধ করার সময় ইতিহাস মুছে ফেলুন"
@@ -273,6 +278,7 @@ action_translate = "অনুবাদ করুন"
 action_focus_input = "ইনপুট প্যানেলে ফোকাস করুন"
 action_focus_output = "আউটপুট প্যানেলে ফোকাস করুন"
 action_focus_extra_output = "অতিরিক্ত আউটপুট প্যানেলে ফোকাস করুন"
+action_copy_translation = "অনুবাদ কপি করুন"action_clear_input = "ইনপুট সাফ করুন"action_swap_languages = "ভাষা অদলবদল করুন"action_open_settings = "সেটিংস খুলুন"action_show_history = "ইতিহাস দেখান"action_translate_document = "নথি অনুবাদ করুন"
 scope_toggle_hint = "গ্লোবাল এবং লোকাল এর মধ্যে পরিবর্তন করতে ক্লিক করুন"
 
 # Default Actions Descriptions
@@ -499,6 +505,7 @@ unknown_error = "একটি অজানা ত্রুটি ঘটেছে
 
 [status_bar]
 ocr_text_copied = "পাঠ্য শনাক্ত করা হয়েছে এবং ক্লিপবোর্ডে কপি করা হয়েছে।"
+text_copied = "ক্লিপবোর্ডে কপি করা হয়েছে।"
 translating = "অনুবাদ হচ্ছে..."
 translation_complete = "অনুবাদ সম্পন্ন।"
 translation_timeout = "অনুবাদের সময়সীমা শেষ। আবার চেষ্টা করুন।"

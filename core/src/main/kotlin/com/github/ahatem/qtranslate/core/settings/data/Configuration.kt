@@ -1,7 +1,7 @@
 package com.github.ahatem.qtranslate.core.settings.data
 
-import com.github.ahatem.qtranslate.api.rewriter.RewriteStyle
-import com.github.ahatem.qtranslate.api.summarizer.SummaryLength
+import com.github.ahatem.qtranslate.api.plugin.StandardOptions
+import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
 import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
 import kotlinx.serialization.Serializable
 import javax.swing.KeyStroke
@@ -35,6 +35,12 @@ enum class CloseButtonBehavior {
     /** Always exit the application without asking. */
     EXIT
 }
+
+@Serializable
+enum class ServiceSelectorStyle { CLASSIC, ENHANCED }
+
+@Serializable
+enum class ServiceSelectorAppearance { ICONS_ONLY, ICONS_AND_TEXT, TEXT_ONLY }
 
 // -------------------------------------------------------------------------
 // UI layout types
@@ -81,10 +87,17 @@ enum class HotkeyAction {
     REPLACE_WITH_TRANSLATION,  // Rob #2 / Davide — translate and replace selected text
     CYCLE_TARGET_LANGUAGE,     // Yan #3 — cycle through available target languages
     SHOW_DICTIONARY,           // open floating dictionary popup
+    SHOW_IMAGES,               // open floating image popup (default: Ctrl+Shift+Q, GLOBAL)
     TRANSLATE,                 // trigger translation (default: Ctrl+Enter, LOCAL)
     FOCUS_INPUT,               // move keyboard focus to the input text pane (default: Alt+1, LOCAL)
     FOCUS_OUTPUT,              // move keyboard focus to the output text pane (default: Alt+2, LOCAL)
-    FOCUS_EXTRA_OUTPUT         // move keyboard focus to the extra-output pane (default: Alt+3, LOCAL)
+    FOCUS_EXTRA_OUTPUT,        // move keyboard focus to the extra-output pane (default: Alt+3, LOCAL)
+    COPY_TRANSLATION,          // copy the translated text (default: Ctrl+Shift+C, LOCAL)
+    CLEAR_INPUT,               // clear the input pane (default: Ctrl+Shift+X, LOCAL)
+    SWAP_LANGUAGES,            // swap source and target languages (default: Ctrl+Shift+S, LOCAL)
+    OPEN_SETTINGS,             // open the settings dialog (default: Ctrl+Comma, LOCAL)
+    SHOW_HISTORY,              // open the translation history dialog (default: Ctrl+Shift+H, LOCAL)
+    TRANSLATE_DOCUMENT         // open the document translation dialog (default: Ctrl+Shift+D, LOCAL)
 }
 
 /**
@@ -156,10 +169,21 @@ data class HotkeyBinding(
             HotkeyBinding(HotkeyAction.REPLACE_WITH_TRANSLATION, keyCode = java.awt.event.KeyEvent.VK_T,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.GLOBAL),
             HotkeyBinding(HotkeyAction.CYCLE_TARGET_LANGUAGE,    keyCode = java.awt.event.KeyEvent.VK_L,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.LOCAL),
             HotkeyBinding(HotkeyAction.SHOW_DICTIONARY,          keyCode = java.awt.event.KeyEvent.VK_D,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.GLOBAL),
+            // Shift+the quick-translate key: this is the same gesture on the same selection,
+            // asking for pictures instead of words. Ctrl+Shift+I would read as a variant of OCR.
+            HotkeyBinding(HotkeyAction.SHOW_IMAGES,              keyCode = java.awt.event.KeyEvent.VK_Q,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.GLOBAL),
             HotkeyBinding(HotkeyAction.TRANSLATE,                keyCode = java.awt.event.KeyEvent.VK_ENTER,            modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.LOCAL),
             HotkeyBinding(HotkeyAction.FOCUS_INPUT,              keyCode = java.awt.event.KeyEvent.VK_1,                modifiers = java.awt.event.InputEvent.ALT_DOWN_MASK,   scope = HotkeyScope.LOCAL),
             HotkeyBinding(HotkeyAction.FOCUS_OUTPUT,             keyCode = java.awt.event.KeyEvent.VK_2,                modifiers = java.awt.event.InputEvent.ALT_DOWN_MASK,   scope = HotkeyScope.LOCAL),
             HotkeyBinding(HotkeyAction.FOCUS_EXTRA_OUTPUT,       keyCode = java.awt.event.KeyEvent.VK_3,                modifiers = java.awt.event.InputEvent.ALT_DOWN_MASK,   scope = HotkeyScope.LOCAL),
+            // All LOCAL — these act on the focused window, so they must not take the key
+            // combination away from other applications the way a GLOBAL binding would.
+            HotkeyBinding(HotkeyAction.COPY_TRANSLATION,         keyCode = java.awt.event.KeyEvent.VK_C,                modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.LOCAL),
+            HotkeyBinding(HotkeyAction.CLEAR_INPUT,              keyCode = java.awt.event.KeyEvent.VK_X,                modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.LOCAL),
+            HotkeyBinding(HotkeyAction.SWAP_LANGUAGES,           keyCode = java.awt.event.KeyEvent.VK_S,                modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.LOCAL),
+            HotkeyBinding(HotkeyAction.OPEN_SETTINGS,            keyCode = java.awt.event.KeyEvent.VK_COMMA,            modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.LOCAL),
+            HotkeyBinding(HotkeyAction.SHOW_HISTORY,             keyCode = java.awt.event.KeyEvent.VK_H,                modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.LOCAL),
+            HotkeyBinding(HotkeyAction.TRANSLATE_DOCUMENT,       keyCode = java.awt.event.KeyEvent.VK_D,                modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.LOCAL),
         )
     }
 }
@@ -178,11 +202,14 @@ data class ServicePreset(
 
         const val DEFAULT_PRESET_NAME = "__default__" // internal sentinel, never shown to user
 
-        private const val DEFAULT_TRANSLATOR    = "google-translator"
-        private const val DEFAULT_TTS           = "google-tts"
-        private const val DEFAULT_SPELL_CHECKER = "google-spell-checker"
-        private const val DEFAULT_OCR           = "google-ocr"
-        private const val DEFAULT_DICTIONARY    = "google-dictionary"
+        // Composed ids, matching what the registry keys these services under. A fresh install must
+        // be valid on its own rather than depend on a migration to become so.
+        private const val GOOGLE = "google-services"
+        private val DEFAULT_TRANSLATOR    = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-translator")
+        private val DEFAULT_TTS           = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-tts")
+        private val DEFAULT_SPELL_CHECKER = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-spell-checker")
+        private val DEFAULT_OCR           = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-ocr")
+        private val DEFAULT_DICTIONARY    = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-dictionary")
 
         @OptIn(ExperimentalUuidApi::class)
         fun createDefault(name: String = DEFAULT_PRESET_NAME): ServicePreset = ServicePreset(
@@ -232,13 +259,21 @@ data class Configuration(
     val launchOnSystemStartup: Boolean = false,
     val autoCheckForUpdates: Boolean = true,
     val isGlobalHotkeysEnabled: Boolean = true,
+    val isSelectionIconEnabled: Boolean = false,
     val interfaceLanguage: String = "en",
     val isInstantTranslationEnabled: Boolean = false,
     val isSpellCheckingEnabled: Boolean = true,
     val extraOutputType: ExtraOutputType = ExtraOutputType.None,
     val extraOutputSource: ExtraOutputSource = ExtraOutputSource.Output,
-    val summaryLength: SummaryLength = SummaryLength.MEDIUM,
-    val rewriteStyle: RewriteStyle = RewriteStyle.FORMAL,
+    /**
+     * Selected ids for the standard summary and rewrite options.
+     *
+     * Strings rather than enums because the vocabulary now belongs to the service: a plugin can
+     * offer "Academic" or "Bullet points" without the host knowing about it. The standard ids
+     * match the names of the enums these replaced, so values already on disk keep working.
+     */
+    val summaryLength: String = StandardOptions.SUMMARY_LENGTH.defaultValue,
+    val rewriteStyle: String = StandardOptions.REWRITE_STYLE.defaultValue,
 
     // ---- Translation ----
     /**
@@ -282,6 +317,17 @@ data class Configuration(
     val showDictionaryPanel: Boolean = false,
     val dictionaryAutoSource: DictionaryAutoSource = DictionaryAutoSource.TRANSLATED,
     val isDictionaryAutoPopupEnabled: Boolean = true,
+
+    /**
+     * Whether clicking away from a floating popup closes it.
+     *
+     * On by default: clicking elsewhere is how people dismiss a transient window, and a popup
+     * that ignores it has to be closed deliberately every time. Off suits anyone who translates
+     * a word and then works in the document beside it — for them, a click in the document
+     * throwing the translation away is the annoyance instead. Pinning still overrides it either
+     * way, which is what pinning is for.
+     */
+    val closePopupsOnClickOutside: Boolean = true,
     val mainWindowSize: Size? = null,
     val mainWindowPosition: Position? = null,
     val uiFontConfig: FontConfig = FontConfig(name = "Rubik", size = 13),
@@ -292,21 +338,34 @@ data class Configuration(
     val useUnifiedTitleBar: Boolean = true,
     val layoutPresetId: String = "classic",
     val toolbarVisibility: ToolbarVisibility = ToolbarVisibility.DEFAULT,
+    val serviceSelectorStyle: ServiceSelectorStyle = ServiceSelectorStyle.CLASSIC,
+    val serviceSelectorAppearance: ServiceSelectorAppearance = ServiceSelectorAppearance.ICONS_AND_TEXT,
 
     // ---- UI — Quick Panel (Popup) ----
     val isPopupAutoSizeEnabled: Boolean = true,
     val isPopupAutoPositionEnabled: Boolean = true,
     val popupTransparencyPercentage: Int = 5,
-    val popupIdleTimeoutSeconds: Int = 3,
+    /**
+     * How long the translate popup waits before hiding itself.
+     *
+     * Three seconds was not enough to read a translated sentence, let alone a paragraph -- the
+     * popup was gone before most people finished. The countdown restarts on any activity, so a
+     * longer default costs nothing to someone who has already moved on.
+     */
+    val popupIdleTimeoutSeconds: Int = 12,
     val popupLastKnownSize: Size = Size(width = 450, height = 250),
     val popupLastKnownPosition: Position = Position(x = 0, y = 0),
 
     // ---- UI — Quick Dictionary Popup ----
     val quickDictionaryLastKnownSize: Size = Size(width = 420, height = 400),
     val quickDictionaryLastKnownPosition: Position = Position(x = 0, y = 0),
+    /** Wider than the dictionary popup because it holds a grid rather than a column of text. */
+    val imageSearchLastKnownSize: Size = Size(width = 560, height = 460),
+    val imageSearchLastKnownPosition: Position = Position(x = 0, y = 0),
     val isQuickDictionaryPinned: Boolean = false,
     val isQuickDictionaryAutoPositionEnabled: Boolean = true,
-    val quickDictionaryIdleTimeoutSeconds: Int = 8,
+    /** Longer than the translate popup: definitions are read and compared, not glanced at. */
+    val quickDictionaryIdleTimeoutSeconds: Int = 20,
     val quickDictionaryTransparencyPercentage: Int = 5,
 
     // ---- Donation nudge ----
@@ -323,20 +382,22 @@ data class Configuration(
         val DEFAULT: Configuration by lazy {
             val defaultPreset = ServicePreset.createDefault()
             Configuration(
+                configVersion                = ConfigMigrator.CURRENT_VERSION,
                 servicePresets               = listOf(defaultPreset),
                 activeServicePresetId        = defaultPreset.id,
                 disabledServices             = emptySet(),
                 hotkeys                      = HotkeyBinding.DEFAULTS,
                 launchOnSystemStartup        = false,
                 isGlobalHotkeysEnabled       = true,
+                isSelectionIconEnabled       = false,
                 autoCheckForUpdates          = true,
                 interfaceLanguage            = "en",
                 isInstantTranslationEnabled  = false,
                 isSpellCheckingEnabled       = true,
                 extraOutputType              = ExtraOutputType.None,
                 extraOutputSource            = ExtraOutputSource.Output,
-                summaryLength                = SummaryLength.MEDIUM,
-                rewriteStyle                 = RewriteStyle.FORMAL,
+                summaryLength                = StandardOptions.SUMMARY_LENGTH.defaultValue,
+                rewriteStyle                 = StandardOptions.REWRITE_STYLE.defaultValue,
                 isRemoveLineBreaksEnabled    = false,
                 pinnedLanguages              = emptyList(),
                 closeButtonBehavior          = CloseButtonBehavior.ASK,

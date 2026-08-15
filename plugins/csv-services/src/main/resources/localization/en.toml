@@ -1,0 +1,4 @@
+# Strings this plugin contributes. See the wiki for how bundles are resolved.
+
+[csv]
+privacy_note = "Looks up terms in a local file. Nothing is sent anywhere."

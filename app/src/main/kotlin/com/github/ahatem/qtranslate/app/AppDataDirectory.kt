@@ -43,6 +43,10 @@ object AppDataDirectory {
             return file.also { f -> f.mkdirs() }
         }
 
+        nativeLauncherDirectory()?.let { directory ->
+            if (directory.canWrite()) return directory.also { it.mkdirs() }
+        }
+
         val jarDir = jarLocation()
         if (jarDir != null && jarDir.canWrite()) {
             return jarDir.also { it.mkdirs() }
@@ -62,6 +66,13 @@ object AppDataDirectory {
             .toURI()
         File(uri).parentFile
     }.getOrNull()
+
+    /** Returns the directory containing a native launcher created by jpackage. */
+    private fun nativeLauncherDirectory(): File? =
+        System.getProperty("jpackage.app-path")
+            ?.takeIf { it.isNotBlank() }
+            ?.let(::File)
+            ?.parentFile
 
     private fun osFallback(): File {
         val base = when {

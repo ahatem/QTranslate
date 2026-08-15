@@ -56,11 +56,13 @@ auto_detect = "Détection automatique"
 [main_window]
 status_format = "Utilisation de %s : %s → %s"
 no_translator = "Aucun traducteur"
+no_service_message = "Aucun service de traduction configuré."no_service_action = "Ouvrir les paramètres des services"
 
 [main_window_history_bar]
 backward_tooltip = "Reculer dans l'historique de traduction"
 forward_tooltip = "Avancer dans l'historique de traduction"
 image_translate_tooltip = "Capturer et traduire du texte depuis une zone de l'écran"
+document_translate_tooltip = "Traduire un document en préservant sa mise en forme"
 
 [main_window_language_bar]
 clear_tooltip = "Effacer le texte d'entrée"
@@ -168,6 +170,9 @@ startup_group = "Démarrage"
 launch_on_startup = "Lancer au démarrage du système"
 updates_group = "Mises à jour"
 auto_check_updates = "Vérifier automatiquement les mises à jour"
+selection_group = "Sélection de texte"
+selection_icon = "Afficher un bouton de traduction après la sélection du texte"
+selection_icon_hint = "Affiche un petit bouton près du texte que vous sélectionnez par glissement dans d'autres applications. Cliquez dessus pour traduire la sélection."
 history_group = "Historique"
 enable_history = "Activer l'historique des traductions"
 clear_history_on_exit = "Effacer l'historique à la fermeture"
@@ -273,6 +278,7 @@ action_translate = "Traduire"
 action_focus_input = "Mettre le focus sur le panneau d'entrée"
 action_focus_output = "Mettre le focus sur le panneau de sortie"
 action_focus_extra_output = "Mettre le focus sur le panneau de sortie supplémentaire"
+action_copy_translation = "Copier la traduction"action_clear_input = "Effacer la saisie"action_swap_languages = "Inverser les langues"action_open_settings = "Ouvrir les paramètres"action_show_history = "Afficher l'historique"action_translate_document = "Traduire un document"
 scope_toggle_hint = "Cliquez pour basculer entre Global et Local"
 
 # Default Actions Descriptions
@@ -497,6 +503,7 @@ unknown_error = "Une erreur inconnue est survenue."
 
 [status_bar]
 ocr_text_copied = "Texte reconnu et copié dans le presse-papier."
+text_copied = "Copié dans le presse-papier."
 translating = "Traduction en cours..."
 translation_complete = "Traduction terminée."
 translation_timeout = "La traduction a expiré. Veuillez réessayer."

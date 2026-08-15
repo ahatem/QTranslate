@@ -49,10 +49,14 @@ class HandleTextToSpeechUseCase(
         currentState: MainState,
         textSource: TextSource,
         textOverride: String?,
+        languageOverride: LanguageCode? = null,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
     ) {
         val textToSynthesize = textOverride ?: getTextFromSource(currentState, textSource)
-        val language = determineLanguage(currentState, textSource)
+        // AUTO is not a language a TTS service can speak, so it falls through to the panel's
+        // language rather than being handed over as-is.
+        val language = languageOverride?.takeIf { it != LanguageCode.AUTO }
+            ?: determineLanguage(currentState, textSource)
 
         if (textToSynthesize.isBlank()) {
             logger.debug("TTS skipped: text is blank")

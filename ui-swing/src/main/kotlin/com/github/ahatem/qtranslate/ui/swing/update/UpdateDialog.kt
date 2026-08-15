@@ -27,7 +27,7 @@ import javax.swing.JScrollPane
 import javax.swing.UIManager
 import javax.swing.event.HyperlinkEvent
 
-class UpdateDialog(owner: Frame) : JDialog(owner, false) {
+class UpdateDialog(owner: Frame) : JDialog(null as Frame?, false) {
 
     // ------------------------------------------------------------------ UI
     private val versionBanner = JLabel().apply {
@@ -90,6 +90,7 @@ class UpdateDialog(owner: Frame) : JDialog(owner, false) {
 
     // ------------------------------------------------------------------ init
     init {
+        com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons.applyTo(this)
         defaultCloseOperation = HIDE_ON_CLOSE
         isResizable = true
 

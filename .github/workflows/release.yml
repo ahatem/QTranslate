@@ -9,9 +9,103 @@ permissions:
   contents: write
 
 jobs:
+  windows-package:
+    name: Build Windows executable
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Extract version
+        id: version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build full distribution
+        shell: pwsh
+        # The property must be quoted: PowerShell otherwise splits the argument at the
+        # first dot, passing Gradle a bogus ".3.0" task name and failing the build.
+        run: ./gradlew assemblePortable "-PreleaseVersion=${{ steps.version.outputs.version }}" --no-daemon
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Assemble portable Windows app image
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $packageVersion = ($version -split '-')[0]
+          $portableArchive = "build/release/QTranslate-$version.zip"
+
+          Expand-Archive -LiteralPath $portableArchive -DestinationPath portable-distribution
+          New-Item -ItemType Directory -Force package-input | Out-Null
+          Copy-Item portable-distribution/QTranslate/QTranslate.jar package-input/QTranslate.jar
+
+          # jlink only includes modules listed here. Providers loaded reflectively via
+          # ServiceLoader (JCA crypto, locale data) are invisible to static analysis, so
+          # they must be requested explicitly or they silently vanish from the runtime.
+          $modules = @(
+            'java.base', 'java.desktop', 'java.instrument', 'java.logging',
+            'java.management', 'java.naming', 'java.net.http', 'java.prefs',
+            'java.security.jgss', 'java.xml.crypto', 'jdk.charsets', 'jdk.unsupported',
+            # SunEC provider. Without it every ECDHE/ECDSA TLS handshake fails, which
+            # breaks all network services ("EC KeyPairGenerator not available").
+            'jdk.crypto.ec',
+            # Locale data for the 13 bundled languages. Without it the JDK falls back to
+            # ROOT/English number, date, and display-name formatting.
+            'jdk.localedata',
+            # ZIP FileSystem provider. Not required by the app itself, but bundled plugins
+            # are third-party code that may rely on it; the module costs ~100 KB.
+            'jdk.zipfs'
+          ) -join ','
+          jlink `
+            --add-modules $modules `
+            --strip-debug `
+            --no-header-files `
+            --no-man-pages `
+            --strip-native-commands `
+            --compress=2 `
+            --output qtranslate-runtime
+
+          jpackage `
+            --type app-image `
+            --name QTranslate `
+            --input package-input `
+            --main-jar QTranslate.jar `
+            --main-class com.github.ahatem.qtranslate.app.MainKt `
+            --app-version $packageVersion `
+            --icon ui-swing/src/main/resources/icons/app/icon.ico `
+            --runtime-image qtranslate-runtime `
+            --dest windows-package `
+            --java-options '-Dfile.encoding=UTF-8'
+
+          Copy-Item portable-distribution/QTranslate/plugins windows-package/QTranslate/plugins -Recurse
+          Copy-Item portable-distribution/QTranslate/languages windows-package/QTranslate/languages -Recurse
+          Copy-Item portable-distribution/QTranslate/themes windows-package/QTranslate/themes -Recurse
+          Compress-Archive -Path windows-package/QTranslate -DestinationPath "QTranslate-$version-windows-x64.zip"
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v7
+        with:
+          name: qtranslate-windows-x64
+          path: QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip
+          if-no-files-found: error
+
   release:
     name: Build & Publish Release
     runs-on: ubuntu-latest
+    needs: windows-package
 
     steps:
       - name: Checkout
@@ -32,49 +126,21 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Build app JAR
-        run: ./gradlew :app:shadowJar --no-daemon
+      - name: Build release variants
+        run: ./gradlew assembleReleaseVariants "-PreleaseVersion=${{ steps.version.outputs.version }}" --no-daemon
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
-      - name: Build plugin JARs
-        run: ./gradlew :plugins:bing-services:shadowJar :plugins:google-services:shadowJar :plugins:ai-services:shadowJar --no-daemon
-        env:
-          APP_VERSION: ${{ steps.version.outputs.version }}
+      - name: Download Windows package
+        uses: actions/download-artifact@v8
+        with:
+          name: qtranslate-windows-x64
+          path: build/release
 
-      - name: Assemble release zip
+      - name: Add Windows checksum
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
-          mkdir -p dist/QTranslate/plugins
-          mkdir -p dist/QTranslate/languages
-
-          cp app/build/libs/QTranslate.jar \
-             dist/QTranslate/QTranslate.jar
-
-          cp plugins/bing-services/build/libs/bing-services-plugin.jar \
-             dist/QTranslate/plugins/bing-services-plugin.jar
-
-          cp plugins/google-services/build/libs/google-services-plugin.jar \
-             dist/QTranslate/plugins/google-services-plugin.jar
-          
-          cp plugins/ai-services/build/libs/ai-services-plugin.jar \
-             dist/QTranslate/plugins/ai-services-plugin.jar
-
-          if [ -d languages ]; then
-            cp -R languages/. dist/QTranslate/languages/
-          fi
-
-          mkdir -p dist/QTranslate/themes
-          if [ -d themes ]; then
-            cp -R themes/. dist/QTranslate/themes/
-          fi
-
-          cd dist
-          zip -r "../QTranslate-${VERSION}.zip" QTranslate/
-
-          echo "Built: QTranslate-${VERSION}.zip"
-          ls -lh "../QTranslate-${VERSION}.zip"
+          cd build/release
+          sha256sum "QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip" >> SHA256SUMS.txt
 
       - name: Generate changelog
         id: changelog
@@ -113,14 +179,6 @@ jobs:
           printf "%b" "$LOG" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Generate SHA-256 checksum
-        id: checksum
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sha256sum "QTranslate-${VERSION}.zip" > "SHA256SUMS.txt"
-          echo "Built checksum:"
-          cat SHA256SUMS.txt
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -134,26 +192,33 @@ jobs:
 
             **Full changelog:** https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md
 
-            ## Installation
+            ## Downloads
 
-            1. Download `QTranslate-${{ steps.version.outputs.version }}.zip`
-            2. Extract it — you'll get a `QTranslate/` folder
-            3. Run `QTranslate.jar` inside it
-            4. The `plugins/` folder already contains the bundled plugins
-            5. The `languages/` folder already contains the bundled language files
-            6. The `themes/` folder contains additional community themes (drop more `.theme.json` files here to add themes)
+            | Download | Who it is for | Java needed |
+            |---|---|---|
+            | **[⬇ Windows (.exe)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip)** | **Start here on Windows.** Extract and run `QTranslate.exe`. | No — runtime included |
+            | **[⬇ Portable (all platforms)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/QTranslate-${{ steps.version.outputs.version }}.zip)** | macOS, Linux, or Windows without an installer. Extract and run `QTranslate.jar`. | Java 11+ |
+            | **[⬇ App only (.jar)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/QTranslate-App-${{ steps.version.outputs.version }}.jar)** | No plugins. For custom setups and plugin development. | Java 11+ |
 
-            > **Requires Java 17 or later.** [Download Java](https://adoptium.net)
+            The portable ZIP already contains every bundled plugin. The individual
+            plugin JARs in the assets below are only needed to add or update a single
+            plugin in an existing installation — most users can ignore them.
 
             ## Verification
 
-            Verify the integrity of your download using the `SHA256SUMS.txt` file:
+            Optional. Download [SHA256SUMS.txt](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/SHA256SUMS.txt)
+            into the same folder as your download and run:
             ```
             sha256sum -c SHA256SUMS.txt
             ```
 
           files: |
-            QTranslate-${{ steps.version.outputs.version }}.zip
-            SHA256SUMS.txt
+            build/release/QTranslate-App-${{ steps.version.outputs.version }}.jar
+            build/release/QTranslate-${{ steps.version.outputs.version }}.zip
+            build/release/QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip
+            build/release/plugins/*.jar
+            build/release/release-metadata.json
+            build/release/SIZE_REPORT.md
+            build/release/SHA256SUMS.txt
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc') }}
           draft: false

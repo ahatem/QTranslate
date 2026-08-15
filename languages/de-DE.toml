@@ -56,11 +56,13 @@ auto_detect = "Automatisch erkennen"
 [main_window]
 status_format = "Verwendet %s: %s → %s"
 no_translator = "Kein Übersetzer"
+no_service_message = "Kein Übersetzungsdienst konfiguriert."no_service_action = "Dienste-Einstellungen öffnen"
 
 [main_window_history_bar]
 backward_tooltip = "Im Verlauf zurückgehen"
 forward_tooltip = "Im Verlauf vorwärtsgehen"
 image_translate_tooltip = "Bildschirmbereich erfassen und Text übersetzen"
+document_translate_tooltip = "Dokument übersetzen und Formatierung beibehalten"
 
 [main_window_language_bar]
 clear_tooltip = "Eingabetext löschen"
@@ -168,6 +170,9 @@ startup_group = "Systemstart"
 launch_on_startup = "Mit dem System starten"
 updates_group = "Updates"
 auto_check_updates = "Automatisch nach Updates suchen"
+selection_group = "Textauswahl"
+selection_icon = "Übersetzungsschaltfläche nach Textauswahl anzeigen"
+selection_icon_hint = "Zeigt eine kleine Schaltfläche neben Text, den Sie in anderen Anwendungen durch Ziehen auswählen. Klicken Sie darauf, um die Auswahl zu übersetzen."
 history_group = "Verlauf"
 enable_history = "Übersetzungsverlauf aktivieren"
 clear_history_on_exit = "Verlauf beim Schließen löschen"
@@ -273,6 +278,7 @@ action_translate = "Übersetzen"
 action_focus_input = "Eingabebereich fokussieren"
 action_focus_output = "Ausgabebereich fokussieren"
 action_focus_extra_output = "Zusatzausgabe fokussieren"
+action_copy_translation = "Übersetzung kopieren"action_clear_input = "Eingabe löschen"action_swap_languages = "Sprachen tauschen"action_open_settings = "Einstellungen öffnen"action_show_history = "Verlauf anzeigen"action_translate_document = "Dokument übersetzen"
 scope_toggle_hint = "Klicken, um zwischen Global und Lokal zu wechseln"
 
 # Default Actions Descriptions
@@ -499,6 +505,7 @@ unknown_error = "Ein unbekannter Fehler ist aufgetreten."
 
 [status_bar]
 ocr_text_copied = "Text erkannt und in die Zwischenablage kopiert."
+text_copied = "In die Zwischenablage kopiert."
 translating = "Wird übersetzt..."
 translation_complete = "Übersetzung abgeschlossen."
 translation_timeout = "Übersetzung hat das Zeitlimit überschritten. Bitte erneut versuchen."

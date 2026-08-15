@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.google
 
+import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -23,7 +25,9 @@ class GoogleTTSService(
     private val apiConfig: ApiConfig
 ) : TextToSpeech {
 
-    override val id: String = "google-tts"
+    override val capabilities = setOf(ServiceCapability.TTS)
+
+    override val key: String = "google-tts"
     override val name: String = "Google TTS"
     override val version: String = "1.0.0"
     override val iconPath: String = "assets/google-translate-icon.svg"

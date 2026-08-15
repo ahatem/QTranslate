@@ -1,0 +1,5 @@
+# German translations for this plugin's own strings. Keys match en.toml.
+
+[deepl]
+api_key_rejected_title = "DeepL-API-Schlüssel abgelehnt"
+api_key_rejected_body = "Der kostenlose Web-Endpunkt wird verwendet. Aktualisieren Sie den API-Schlüssel in den Plugin-Einstellungen, um den offiziellen Zugang wiederherzustellen."

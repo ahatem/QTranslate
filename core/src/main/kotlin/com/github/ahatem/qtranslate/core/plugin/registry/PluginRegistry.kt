@@ -27,9 +27,18 @@ internal data class PluginContainer(
     val classLoader: ClassLoader,
     var status: PluginStatus = PluginStatus.DISABLED,
     var services: List<Service> = emptyList(),
-    var lastError: PluginError? = null
+    var declaredServices: List<Service> = emptyList(),
+    var lastError: PluginError? = null,
+    /**
+     * Which copy of this plugin this is. Every plugin has exactly one until the user creates
+     * more, but identifiers carry it from the start so their shape never changes.
+     */
+    val instanceId: String = ServiceId.DEFAULT_INSTANCE
 ) {
     val id: String get() = manifest.id
+
+    /** The identifier the host persists for [service]. Plugins never construct this. */
+    fun serviceIdOf(service: Service): String = ServiceId.of(id, instanceId, service.key)
 }
 
 /**
@@ -60,7 +69,7 @@ internal class PluginRegistry {
     fun contains(pluginId: String): Boolean = containers.containsKey(pluginId)
 
     fun findByServiceId(serviceId: String): PluginContainer? =
-        containers.values.find { c -> c.services.any { it.id == serviceId } }
+        containers.values.find { c -> c.services.any { c.serviceIdOf(it) == serviceId } }
 
     // -------------------------------------------------------------------------
     // Writes (call from within mutex.withLock)
@@ -89,7 +98,8 @@ internal class PluginRegistry {
                 manifest = c.manifest,
                 status = c.status,
                 jarPath = c.jarFile.absolutePath,
-                services = c.services,
+                services = c.declaredServices,
+                instanceId = c.instanceId,
                 lastError = c.lastError
             )
         }
@@ -101,9 +111,9 @@ internal class PluginRegistry {
     fun activeServices(): Map<String, Service> =
         containers.values
             .filter { it.status == PluginStatus.ENABLED }
-            .flatMap { it.services }
-            .sortedBy { it.id }
-            .associateBy { it.id }
+            .flatMap { container -> container.services.map { container.serviceIdOf(it) to it } }
+            .sortedBy { it.first }
+            .toMap()
 
     // -------------------------------------------------------------------------
     // Validation

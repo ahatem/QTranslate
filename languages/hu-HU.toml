@@ -56,11 +56,13 @@ auto_detect = "Automatikus felismerés"
 [main_window]
 status_format = "%s használatban: %s → %s"
 no_translator = "Nincs fordító"
+no_service_message = "Nincs beállítva fordítási szolgáltatás."no_service_action = "Szolgáltatások beállításai"
 
 [main_window_history_bar]
 backward_tooltip = "Menjen vissza a fordítási előzményekben"
 forward_tooltip = "Menjen előre a fordítási előzményekben"
 image_translate_tooltip = "Szöveg rögzítése és fordítása a képernyőről"
+document_translate_tooltip = "Dokumentum fordítása a formázás megőrzésével"
 
 [main_window_language_bar]
 clear_tooltip = "Törölje a bevitt szöveget"
@@ -168,6 +170,9 @@ startup_group = "Indítás"
 launch_on_startup = "Indítás a rendszer indulásakor"
 updates_group = "Frissítések"
 auto_check_updates = "Automatikusan ellenőrizze a frissítéseket"
+selection_group = "Szövegkijelölés"
+selection_icon = "Fordítás gomb megjelenítése szöveg kijelölése után"
+selection_icon_hint = "Kis gombot jelenít meg a más alkalmazásokban húzással kijelölt szöveg mellett. Kattintson rá a kijelölés lefordításához."
 history_group = "Előzmények"
 enable_history = "Fordítási előzmények engedélyezése"
 clear_history_on_exit = "Előzmények törlése az alkalmazás bezárásakor"
@@ -273,6 +278,7 @@ action_translate = "Fordítás"
 action_focus_input = "Fókusz a beviteli panelre"
 action_focus_output = "Fókusz a kimeneti panelre"
 action_focus_extra_output = "Fókusz a kiegészítő kimeneti panelre"
+action_copy_translation = "Fordítás másolása"action_clear_input = "Bevitel törlése"action_swap_languages = "Nyelvek cseréje"action_open_settings = "Beállítások megnyitása"action_show_history = "Előzmények megjelenítése"action_translate_document = "Dokumentum fordítása"
 scope_toggle_hint = "Kattintson a Globális és a Helyi közötti váltáshoz"
 
 # Default Actions Descriptions
@@ -497,6 +503,7 @@ unknown_error = "Ismeretlen hiba történt."
 
 [status_bar]
 ocr_text_copied = "Felismert szöveg a vágólapra másolva."
+text_copied = "A vágólapra másolva."
 translating = "Fordítás folyamatban..."
 translation_complete = "A fordítás kész."
 translation_timeout = "A fordítás időtúllépés miatt megszakadt. Kérjük, próbálja újra."

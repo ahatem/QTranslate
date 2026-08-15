@@ -107,6 +107,22 @@ sealed class PluginSettings {
  */
 interface Plugin<S : PluginSettings> {
 
+    /**
+     * Whether the user may create several independently configured copies of this plugin.
+     *
+     * Each instance gets its own settings and its own credentials, and its services appear
+     * separately, so one plugin can front several providers at once — a Gemini instance beside
+     * an OpenRouter instance, say.
+     *
+     * Leave this false for plugins with nothing to configure. Offering to duplicate a plugin
+     * whose instances would be identical only invites confusion.
+     *
+     * Instances are entirely a host concern: the plugin is constructed once per instance and
+     * sees nothing different. It needs no instance-aware code.
+     */
+    val supportsMultipleInstances: Boolean
+        get() = false
+
     // -------------------------------------------------------------------------
     // Core Lifecycle
     // -------------------------------------------------------------------------

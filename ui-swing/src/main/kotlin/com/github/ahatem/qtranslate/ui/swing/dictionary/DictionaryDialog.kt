@@ -1,12 +1,14 @@
 package com.github.ahatem.qtranslate.ui.swing.dictionary
 
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.Frame
 import javax.swing.*
 
-class DictionaryDialog(owner: Frame) : JDialog(owner, false) {
+class DictionaryDialog(owner: Frame, iconManager: IconManager) : JDialog(null as Frame?, false) {
 
     private var state: DictionaryDialogState? = null
     private var updatingFromState = false
@@ -21,7 +23,7 @@ class DictionaryDialog(owner: Frame) : JDialog(owner, false) {
     private val loadingLabel = JLabel("", SwingConstants.CENTER).apply {
         foreground = UIManager.getColor("Label.disabledForeground")
     }
-    private val resultView = DictionaryResultView()
+    private val resultView = DictionaryResultView(iconManager)
     private val cardPanel = JPanel(java.awt.CardLayout())
 
     private val serviceCombo = JComboBox<ServiceInfo>().apply {
@@ -36,6 +38,7 @@ class DictionaryDialog(owner: Frame) : JDialog(owner, false) {
     }
 
     init {
+        com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons.applyTo(this)
         defaultCloseOperation = HIDE_ON_CLOSE
         isResizable = true
 
@@ -134,14 +137,19 @@ class DictionaryDialog(owner: Frame) : JDialog(owner, false) {
                 onSynonymClicked = { word ->
                     searchField.text = word
                     state?.onLookup?.invoke(word)
-                }
+                },
+                listenTooltip = newState.listenTooltip,
+                stopTooltip = newState.stopListeningTooltip,
+                onListen = newState.onListen,
+                onStopListening = newState.onStopListening
             )
         }
+        resultView.setSpeaking(newState.isTtsPlaying)
 
         if (!isVisible) {
             pack()
-            minimumSize = Dimension(480, 400)
-            preferredSize = Dimension(560, 520)
+            minimumSize = Dimension(UIScale.scale(480), UIScale.scale(400))
+            preferredSize = Dimension(UIScale.scale(560), UIScale.scale(520))
             pack()
             setLocationRelativeTo(owner)
         }

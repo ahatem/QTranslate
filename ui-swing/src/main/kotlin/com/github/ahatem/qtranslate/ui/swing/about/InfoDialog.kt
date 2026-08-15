@@ -35,6 +35,7 @@ class InfoDialog(owner: Frame) : JDialog(owner, true) {
     }
 
     init {
+        com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons.applyTo(this)
         defaultCloseOperation = HIDE_ON_CLOSE
         isResizable = false
 
