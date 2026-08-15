@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.ai
 
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
+import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.settings.Setting
 import com.github.ahatem.qtranslate.api.settings.SettingGroup
 import com.github.ahatem.qtranslate.api.settings.SettingGroups
@@ -52,9 +53,14 @@ data class AISettings(
         label       = "API Key",
         description = "Your API key for the selected endpoint. " +
                 "Get an OpenRouter key at openrouter.ai/keys. " +
-                "Leave blank for local Ollama.",
+                "Leave blank for a local endpoint such as Ollama or LM Studio, which need none.",
         type        = SettingType.PASSWORD,
-        isRequired  = true,
+        // Not marked required, though a hosted endpoint does need one. The dialog refuses to save
+        // while a required field is blank, and that made a local endpoint impossible to configure
+        // at all — the field said "leave blank for Ollama" and then would not let you. Whether a
+        // key is needed depends on the endpoint, which an annotation cannot express, so the check
+        // moved to where the endpoint is known: see [missingKeyError].
+        isRequired  = false,
         group       = "endpoint",
         order       = 20
     )
@@ -115,4 +121,44 @@ data class AISettings(
     )
     var customHeaders: String = """{"HTTP-Referer": "https://github.com/ahatem/QTranslate", "X-Title": "QTranslate", "X-OpenRouter-Title": "QTranslate"}"""
 
-) : PluginSettings.Configurable()
+) : PluginSettings.Configurable() {
+
+    /**
+     * Whether [baseUrl] points at something running on this machine or network.
+     *
+     * A local server needs no API key, so requiring one would make Ollama and LM Studio
+     * unusable. Matched on the host rather than on a list of known products, since anyone can
+     * run an OpenAI-compatible server on any port.
+     *
+     * Deliberately generous: a private-network address counts, because a model served from
+     * another machine on the same LAN is the same privacy story as one served from this one.
+     */
+    val isLocalEndpoint: Boolean
+        get() = runCatching {
+            val host = java.net.URI(baseUrl.trim()).host?.lowercase() ?: return@runCatching false
+            host == "localhost" ||
+                host == "::1" ||
+                host.endsWith(".local") ||
+                host.startsWith("127.") ||
+                host.startsWith("10.") ||
+                host.startsWith("192.168.") ||
+                Regex("""^172\.(1[6-9]|2\d|3[01])\.""").containsMatchIn(host)
+        }.getOrDefault(false)
+
+    /**
+     * The error to report when no key is set, or null when none is needed.
+     *
+     * A hosted endpoint without a key is "finish setting this up", which is a different problem
+     * from a key the provider rejected, and the two deserve different messages. A local endpoint
+     * without a key is not a problem at all.
+     */
+    fun missingKeyError(): ServiceError? =
+        if (apiKey.isBlank() && !isLocalEndpoint) {
+            ServiceError.ConfigurationError(
+                "No API key set for $baseUrl. Add one in Settings → Plugins → AI Plugin, " +
+                    "or point the endpoint at a local server such as Ollama, which needs no key."
+            )
+        } else {
+            null
+        }
+}

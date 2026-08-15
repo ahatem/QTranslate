@@ -116,7 +116,7 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 | **Bing Services** | Translator, TTS, Spell Checker — included |
 | **AI Services** | Translator, Summarizer, Rewriter, Spell Checker, Dictionary, Vision OCR — via [OpenRouter](https://openrouter.ai) (300+ models, one API key) — included. [Setup guide](wiki/AI-Services.md) |
 | **Free translation choices** | Mozhi, MyMemory, DeepL web fallback, Reverso, and Yandex Web work without an API key; unofficial endpoints may change or be rate-limited |
-| **Local translation** | Connect to a local or self-hosted LibreTranslate instance without sending text to a third-party cloud |
+| **Fully offline & private** | Point AI Services at a local [Ollama](https://ollama.com) or LM Studio server, or use a self-hosted LibreTranslate instance. No account, no API key, no per-word cost, and nothing leaves your machine — for work under an NDA, proprietary code, or anything else that cannot go to a cloud service. [Setup guide](wiki/AI-Services.md) |
 | **Reference services** | Wikipedia and Wiktionary lookups, and Wikimedia Commons image search, through official MediaWiki APIs |
 | **CSV dictionary** | Point it at your own CSV — a glossary, an abbreviation list, a table of error codes, a set of study notes — and look terms up in it. Which columns hold the term and its meaning is configurable, and nothing leaves your machine |
 
