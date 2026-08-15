@@ -429,7 +429,7 @@ class SettingsDialog(
         searchField.apply {
             putClientProperty(
                 FlatClientProperties.PLACEHOLDER_TEXT,
-                localizationManager.getString("settings_dialog_sidebar.search_placeholder")
+                localizationManager.getString("settings_dialog.search_placeholder")
             )
             putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true)
             putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON, FlatSearchIcon())
@@ -473,7 +473,7 @@ class SettingsDialog(
             // Naming the query back is the difference between "nothing matched what you typed"
             // and a sidebar that looks broken.
             noResultsLabel.text = "<html><body style='width:${UIScale.scale(140)}px'>" +
-                localizationManager.getString("settings_dialog_sidebar.search_no_results", query) +
+                localizationManager.getString("settings_dialog.search_no_results", query) +
                 "</body></html>"
             cards.show(navCards, NAV_EMPTY)
             return
