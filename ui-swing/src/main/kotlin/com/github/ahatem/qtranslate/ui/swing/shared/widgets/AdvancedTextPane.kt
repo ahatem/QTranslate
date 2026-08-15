@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isRTL
 import com.github.ahatem.qtranslate.ui.swing.shared.util.DroppedContent
@@ -341,6 +342,8 @@ class AdvancedTextPane(
     private lateinit var ctxPasteItem:     JMenuItem
     private lateinit var ctxTranslateItem: JMenuItem
     private lateinit var ctxListenItem:    JMenuItem
+    private lateinit var ctxSelectAllItem: JMenuItem
+    private lateinit var ctxClearItem:     JMenuItem
 
     private var isTextRtl = false
     private var lastRenderedText: String? = null
@@ -359,6 +362,7 @@ class AdvancedTextPane(
         highlighter  = WavyUnderlineHighlighter()
         editorKit    = WrappingEditorKit()
         caret        = AdvancedCaret()
+        applyReadingSpacing()
         // Enable Swing's built-in focus traversal so plain Tab / Shift+Tab are consumed by
         // the KeyboardFocusManager and routed through TextPaneCycleFocusPolicy.
         // By default the JDK also includes Ctrl+Tab / Shift+Ctrl+Tab in the traversal sets,
@@ -418,6 +422,12 @@ class AdvancedTextPane(
                 undoManager.discardAllEdits()
                 textWasChanged = true
 
+                // Aligned while the listeners are detached. Writing paragraph attributes fires
+                // changedUpdate, which the fallback listener answers by rescanning the whole
+                // document — so doing this afterwards paid for a full rescan of text that had
+                // just been scanned.
+                applyParagraphDirections()
+
                 document.addDocumentListener(documentListener)
                 document.addDocumentListener(fallbackListener)
             }
@@ -427,10 +437,6 @@ class AdvancedTextPane(
                 lastRenderedCorrections = corrections
             }
 
-            if (textWasChanged) {
-                val rtl = text.isRTL()
-                if (rtl != isTextRtl) updateOrientation(rtl)
-            }
         }
     }
 
@@ -445,11 +451,15 @@ class AdvancedTextPane(
             lastRenderedText = currentText
             onTextChanged(currentText)
 
-            val rtl = currentText.isRTL()
-            // Use invokeLater — this fires inside a document listener and
-            // updateOrientation() calls setParagraphAttributes(), which must
-            // not run while the document write-lock is still held.
-            if (rtl != isTextRtl) SwingUtilities.invokeLater { updateOrientation(rtl) }
+            // Deferred because this fires inside a document listener, and aligning paragraphs
+            // writes attributes, which must not happen while the document's write lock is held.
+            //
+            // Unconditional now rather than gated on the pane's overall direction changing: a
+            // typed paragraph can switch direction on its own without the document's majority
+            // moving, and that case used to go unaligned. The pass itself skips paragraphs that
+            // are already correct, so the common keystroke costs a direction test per paragraph
+            // and no document write at all.
+            SwingUtilities.invokeLater { applyParagraphDirections() }
         }
     }
 
@@ -551,14 +561,69 @@ class AdvancedTextPane(
     // Orientation
     // -----------------------------------------------------------------------
 
-    private fun updateOrientation(isRtlNow: Boolean) {
-        if (isRtlNow == isTextRtl) return
-        componentOrientation = if (isRtlNow) ComponentOrientation.RIGHT_TO_LEFT else ComponentOrientation.LEFT_TO_RIGHT
-        isTextRtl = isRtlNow
+    /**
+     * Opens the line and paragraph spacing to something readable.
+     *
+     * Swing's default sets lines directly against one another, which is legible for a form field
+     * and tiring for a paragraph — and paragraphs here are the whole point. Applied to the
+     * document's default style rather than across the text, so every paragraph inherits it and
+     * nothing has to be rewritten when the text changes.
+     *
+     * Line spacing is a multiple of the line height, so it follows the font size and the zoom
+     * without being told. The gap below a paragraph is in points and is scaled.
+     */
+    private fun applyReadingSpacing() {
+        val default = styledDocument.getStyle(StyleContext.DEFAULT_STYLE) ?: return
+        StyleConstants.setLineSpacing(default, LINE_SPACING)
+        StyleConstants.setSpaceBelow(default, UIScale.scale(PARAGRAPH_GAP))
+    }
 
-        val attributes = SimpleAttributeSet()
-        StyleConstants.setAlignment(attributes, if (isRtlNow) StyleConstants.ALIGN_RIGHT else StyleConstants.ALIGN_LEFT)
-        styledDocument.setParagraphAttributes(0, styledDocument.length, attributes, false)
+    /**
+     * Aligns each paragraph to its own direction, and the component to the document's.
+     *
+     * Direction used to be one flag for the whole pane, with the alignment written across the
+     * entire document. A translation that mixes an Arabic paragraph with an English one then got
+     * a single alignment for both, and the wrong one for half of it. Mixed direction *within* a
+     * line was always fine — Swing's own Bidi handles that — but paragraphs were not.
+     *
+     * Writing per paragraph is also cheaper than it sounds. The old call rewrote attributes over
+     * every character; this touches each paragraph once, and only the ones whose alignment
+     * actually changes, so a document already laid out correctly costs nothing.
+     */
+    private fun applyParagraphDirections() {
+        val root = styledDocument.defaultRootElement
+        val rtlAttributes = SimpleAttributeSet().also {
+            StyleConstants.setAlignment(it, StyleConstants.ALIGN_RIGHT)
+        }
+        val ltrAttributes = SimpleAttributeSet().also {
+            StyleConstants.setAlignment(it, StyleConstants.ALIGN_LEFT)
+        }
+
+        var rtlParagraphs = 0
+        for (i in 0 until root.elementCount) {
+            val paragraph = root.getElement(i)
+            val start = paragraph.startOffset
+            val length = (paragraph.endOffset - start).coerceAtMost(styledDocument.length - start)
+            if (length <= 0) continue
+
+            val paragraphText = runCatching { styledDocument.getText(start, length) }.getOrNull() ?: continue
+            val rtl = paragraphText.isRTL()
+            if (rtl) rtlParagraphs++
+
+            val wanted = if (rtl) StyleConstants.ALIGN_RIGHT else StyleConstants.ALIGN_LEFT
+            if (StyleConstants.getAlignment(paragraph.attributes) == wanted) continue
+            styledDocument.setParagraphAttributes(start, length, if (rtl) rtlAttributes else ltrAttributes, false)
+        }
+
+        // The component follows the majority, since it decides which side the scrollbar and the
+        // caret's home position sit on, and those belong to the pane rather than to a paragraph.
+        val documentIsRtl = rtlParagraphs * 2 > root.elementCount
+        if (documentIsRtl != isTextRtl) {
+            isTextRtl = documentIsRtl
+            componentOrientation =
+                if (documentIsRtl) ComponentOrientation.RIGHT_TO_LEFT else ComponentOrientation.LEFT_TO_RIGHT
+        }
+
         revalidate()
         repaint()
     }
@@ -714,6 +779,16 @@ class AdvancedTextPane(
         ctxListenItem = JMenuItem("Listen").apply {
             addActionListener { onListenRequest(selectedText ?: text) }
         }
+        ctxSelectAllItem = JMenuItem("Select All").apply { addActionListener { selectAll() } }
+        // Clear replaces the text rather than calling setText, so it goes through the undo
+        // manager and can be taken back — losing a paragraph to a menu click with no way back
+        // would be the worst thing this menu could do.
+        ctxClearItem = JMenuItem("Clear").apply {
+            addActionListener {
+                if (!isEditable) return@addActionListener
+                runCatching { document.remove(0, document.length) }
+            }
+        }
 
         menu.add(ctxUndoItem)
         menu.add(ctxRedoItem)
@@ -721,6 +796,9 @@ class AdvancedTextPane(
         menu.add(ctxCutItem)
         menu.add(ctxCopyItem)
         menu.add(ctxPasteItem)
+        menu.addSeparator()
+        menu.add(ctxSelectAllItem)
+        menu.add(ctxClearItem)
         menu.addSeparator()
         menu.add(ctxTranslateItem)
         menu.add(ctxListenItem)
@@ -737,6 +815,8 @@ class AdvancedTextPane(
                 ctxPasteItem.isEnabled    = isEditable
                 ctxTranslateItem.isEnabled = hasText
                 ctxListenItem.isEnabled   = hasText
+                ctxSelectAllItem.isEnabled = hasText
+                ctxClearItem.isEnabled    = isEditable && hasText
 
                 getContextMenuLabel?.let { get ->
                     get("undo")?.let      { ctxUndoItem.text      = it }
@@ -744,6 +824,8 @@ class AdvancedTextPane(
                     get("cut")?.let       { ctxCutItem.text       = it }
                     get("copy")?.let      { ctxCopyItem.text      = it }
                     get("paste")?.let     { ctxPasteItem.text     = it }
+                    get("select_all")?.let { ctxSelectAllItem.text = it }
+                    get("clear")?.let     { ctxClearItem.text     = it }
                     get("translate")?.let { ctxTranslateItem.text = it }
                     get("listen")?.let    { ctxListenItem.text    = it }
                 }
@@ -803,4 +885,17 @@ class AdvancedTextPane(
             init { putValue(ACCELERATOR_KEY, accelerator) }
             override fun actionPerformed(e: ActionEvent) = action(e)
         }
+
+    private companion object {
+        /**
+         * Extra leading, as a fraction of the line height.
+         *
+         * Enough to separate lines of Arabic, whose ascenders and descenders reach further than
+         * Latin ones and collide at Swing's default of zero.
+         */
+        const val LINE_SPACING = 0.18f
+
+        /** Gap below a paragraph, before scaling. */
+        const val PARAGRAPH_GAP = 6f
+    }
 }
