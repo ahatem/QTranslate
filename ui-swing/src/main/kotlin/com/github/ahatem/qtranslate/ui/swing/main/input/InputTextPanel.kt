@@ -20,6 +20,7 @@ class InputTextPanel(
     private val onTranslateRequest: (String) -> Unit,
     private val onCorrectionApplied: (original: String, suggestion: String) -> Unit,
     private val onImageDropped: ((BufferedImage) -> Unit)? = null,
+    private val onDocumentPasted: ((java.io.File) -> Unit)? = null,
     private val onFindInDictionary: ((String) -> Unit)? = null,
     private val onSearchImages: ((String) -> Unit)? = null,
 ) : JPanel(BorderLayout()), Renderable<InputTextState> {
@@ -29,6 +30,7 @@ class InputTextPanel(
         onListenRequest = onListen,
         onTranslateRequest = onTranslateRequest,
         onImageDropped = onImageDropped,
+        onDocumentPasted = onDocumentPasted,
     )
     private val actionsPanel = TextActionsPanel(iconManager)
 

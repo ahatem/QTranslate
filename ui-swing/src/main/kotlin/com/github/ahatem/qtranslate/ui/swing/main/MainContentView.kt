@@ -39,6 +39,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.widgets.Action
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsState
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
+import com.github.ahatem.qtranslate.ui.swing.shared.util.installContentDropHandler
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFallbackFont
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFont
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toImageData
@@ -61,7 +62,11 @@ class MainContentView(
     private val dispatch: (MainIntent) -> Unit,
     private val dispatchSettings: (SettingsIntent) -> Unit,
     private val onOpenSnippingTool: () -> Unit,
-    private val onOpenDocumentTranslation: () -> Unit,
+    /**
+     * Opens the document translation dialog, with [java.io.File] when one is already chosen --
+     * a document pasted into the input pane, for instance.
+     */
+    private val onOpenDocumentTranslation: (java.io.File?) -> Unit,
     private val onNotificationsClicked: () -> Unit,
     private val onConfigureService: (String) -> Unit,
     private val onOpenServiceSettings: () -> Unit,
@@ -72,7 +77,7 @@ class MainContentView(
         onBackward = { dispatch(MainIntent.UndoTranslation) },
         onForward = { dispatch(MainIntent.RedoTranslation) },
         onImageTranslate = { onOpenSnippingTool() },
-        onDocumentTranslate = { onOpenDocumentTranslation() },
+        onDocumentTranslate = { onOpenDocumentTranslation(null) },
     )
 
     private val translatorSelector = TranslatorSelector(
@@ -113,6 +118,7 @@ class MainContentView(
             dispatch(MainIntent.ApplyCorrection(original, suggestion))
         },
         onImageDropped = { image -> dispatch(MainIntent.OcrAndTranslateImage(image.toImageData("png"))) },
+        onDocumentPasted = { file -> onOpenDocumentTranslation(file) },
         onFindInDictionary = { word -> showDictionaryWithWord(word) },
         onSearchImages = { word -> showImagesForWord(word) },
     )
@@ -712,6 +718,25 @@ class MainContentView(
      * A popup rather than an inline panel: the pictures are a glance on the way through a text,
      * not something to keep half the window reserved for.
      */
+    /**
+     * Gives every text pane the same drop handling as the window around them.
+     *
+     * Needed because Swing consults only the deepest component under the pointer: a handler on the
+     * frame alone never sees a drop that lands on an editor, and the editor refuses it. Called by
+     * the frame, which owns the overlay and the intents these drops turn into.
+     */
+    fun installDropHandling(
+        onContent: (com.github.ahatem.qtranslate.ui.swing.shared.util.DroppedContent) -> Unit,
+        onDragOver: () -> Unit,
+        onDropped: () -> Unit
+    ) {
+        listOf(
+            inputTextPanel.textPaneComponent,
+            outputTextPanel.textPaneComponent,
+            extraOutputPanel.textPaneComponent
+        ).forEach { it.installContentDropHandler(onContent, onDragOver, onDropped) }
+    }
+
     private fun showImagesForWord(word: String, language: LanguageCode = currentLookupLanguage) {
         dispatch(MainIntent.ShowImageSearch(word, language))
     }

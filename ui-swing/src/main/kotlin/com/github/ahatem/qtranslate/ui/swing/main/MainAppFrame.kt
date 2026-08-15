@@ -141,6 +141,10 @@ class MainAppFrame(
         ImageSearchDialog(owner = this, iconManager = iconManager)
     }
 
+    private val dragOverlay by lazy {
+        DragOverlay(this) { localizer.getString("main_window.drop_hint") }
+    }
+
     /**
      * Controls where the floating dictionary popup positions itself on first open.
      * - `true`  → near the mouse cursor   (global hotkey trigger)
@@ -201,7 +205,9 @@ class MainAppFrame(
         dispatch = { mainStore.dispatch(it) },
         dispatchSettings = { settingsStore.dispatch(it) },
         onOpenSnippingTool = { openSnippingTool() },
-        onOpenDocumentTranslation = { documentTranslationDialog.open() },
+        onOpenDocumentTranslation = { file ->
+            if (file != null) documentTranslationDialog.openWith(file) else documentTranslationDialog.open()
+        },
         onNotificationsClicked = { notificationPopover.show(mainContentView.statusBar) },
         onConfigureService = { serviceId -> openPluginConfiguration(serviceId) },
         onOpenServiceSettings = {
@@ -377,7 +383,7 @@ class MainAppFrame(
             setupMenuBar()
             setupTrayMenu()
             setupGlobalHotkeys()
-            setupDocumentDropTarget()
+            setupDropTarget()
 
             observeStateAndEvents()
             isVisible = true
@@ -1388,23 +1394,37 @@ class MainAppFrame(
         dialog.isVisible = true
     }
 
-    private fun setupDocumentDropTarget() {
-        transferHandler = object : TransferHandler() {
-            override fun canImport(support: TransferSupport): Boolean =
-                support.isDataFlavorSupported(DataFlavor.javaFileListFlavor) && firstSupportedDocument(support) != null
-
-            override fun importData(support: TransferSupport): Boolean {
-                val file = firstSupportedDocument(support) ?: return false
-                SwingUtilities.invokeLater { documentTranslationDialog.openWith(file) }
-                return true
+    /**
+     * The window's single drop target, for pictures and documents alike.
+     *
+     * It used to be two: the input pane took images and the frame took documents. Because the pane
+     * claimed every file list — documents included — a `.docx` dropped on it was accepted and then
+     * quietly discarded, so document drop worked only on the window chrome. Handling both here
+     * means a drop behaves the same wherever in the window it lands, which is what anyone dropping
+     * a file expects.
+     *
+     * Plain text is deliberately declined so a text drag still reaches the editor under the
+     * pointer and inserts there.
+     */
+    private fun setupDropTarget() {
+        val onContent: (DroppedContent) -> Unit = { content ->
+            when (content) {
+                is DroppedContent.Picture ->
+                    mainStore.dispatch(MainIntent.OcrAndTranslateImage(content.image.toImageData("png")))
+                is DroppedContent.Document ->
+                    SwingUtilities.invokeLater { documentTranslationDialog.openWith(content.file) }
+                DroppedContent.None -> Unit
             }
-
-            @Suppress("UNCHECKED_CAST")
-            private fun firstSupportedDocument(support: TransferSupport): File? = runCatching {
-                (support.transferable.getTransferData(DataFlavor.javaFileListFlavor) as List<File>)
-                    .firstOrNull { DocumentFormat.from(it) != null }
-            }.getOrNull()
         }
+        val onDragOver = { dragOverlay.keepShowing() }
+        val onDropped = { dragOverlay.hide() }
+
+        // The frame covers window chrome; the overlay covers itself once it is showing, since a
+        // visible glass pane is what the pointer is over; the panes cover themselves because
+        // Swing asks no one else once they own the pointer.
+        rootPane.installContentDropHandler(onContent, onDragOver, onDropped)
+        dragOverlay.component.installContentDropHandler(onContent, onDragOver, onDropped)
+        mainContentView.installDropHandling(onContent, onDragOver, onDropped)
     }
 
     private fun setupGlobalHotkeys() {
