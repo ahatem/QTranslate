@@ -521,6 +521,8 @@ not_found_message = "No images found for \"%s\"."
 loading_message = "Searching…"
 error_message = "Image search failed. Please try again."
 open_tooltip = "Open the source page in your browser"
+open_source = "Source page"
+back = "Back"
 
 [preset_selector]
 manage_tooltip  = "Manage Service Presets"

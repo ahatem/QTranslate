@@ -111,8 +111,12 @@ internal class CommonsImageSearchService(private val client: WikimediaClient) : 
         const val ARTIST = "Artist"
         const val LICENSE = "LicenseShortName"
 
-        /** Wide enough to stay sharp on a HiDPI grid, small enough to load many at once. */
-        const val THUMBNAIL_WIDTH = 320
+        /**
+         * Wide enough that the host can enlarge one of these without it going soft, small enough
+         * that a dozen still arrive quickly. Commons originals run to tens of megabytes, so asking
+         * for the full file instead would be far worse than a slightly larger thumbnail.
+         */
+        const val THUMBNAIL_WIDTH = 480
 
         /**
          * A vocabulary the host does not own, supplied with the plugin's own translations.
