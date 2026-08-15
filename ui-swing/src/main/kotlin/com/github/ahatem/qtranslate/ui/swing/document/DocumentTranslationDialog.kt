@@ -131,9 +131,12 @@ class DocumentTranslationDialog(
 
         updateTheme()
         pack()
+        // Wide enough that a long file path is readable, and no wider. The floor used to be 600
+        // against a minimum of 560, which held the window well past what its four rows need and
+        // left it looking mostly empty.
         val packedWidth = width
-        minimumSize = Dimension(UIScale.scale(560), height)
-        size = Dimension(maxOf(packedWidth, UIScale.scale(600)), height)
+        minimumSize = Dimension(UIScale.scale(MIN_DIALOG_WIDTH), height)
+        size = Dimension(maxOf(packedWidth, UIScale.scale(MIN_DIALOG_WIDTH)), height)
         setLocationRelativeTo(owner)
     }
 
@@ -176,12 +179,22 @@ class DocumentTranslationDialog(
         super.dispose()
     }
 
+    // Spacing follows UISpacing, which is what the rest of the application lays out with. This
+    // dialog is the only MigLayout in the app and had grown its own vocabulary — wider insets,
+    // wider gaps — which is a large part of why it read as a separate tool rather than part of
+    // QTranslate. MigLayout's units are scaled by FlatLaf, so these are logical pixels like
+    // everywhere else.
+    //
+    // Nothing here forces a control's height. Every field and button used to be pinned to `h 32!`,
+    // which is taller than the look and feel's own metrics and, being exact, ignored the user's
+    // font size entirely: the rest of the app shrank with a smaller UI font and this dialog did
+    // not.
     private fun createContentPanel() = JPanel(
-        MigLayout("fillx, insets 16, wrap 1, hidemode 3", "[grow,fill]", "")
+        MigLayout("fillx, insets $PADDING, wrap 1, hidemode 3", "[grow,fill]", "")
     ).apply {
-        add(fileSection(strings.inputFile, inputField, inputButton), "gapbottom 12")
-        add(fileSection(strings.outputFile, outputField, outputButton), "gapbottom 12")
-        add(pdfOptionsPanel, "gapbottom 12")
+        add(fileSection(strings.inputFile, inputField, inputButton), "gapbottom $V_GAP")
+        add(fileSection(strings.outputFile, outputField, outputButton), "gapbottom $V_GAP")
+        add(pdfOptionsPanel, "gapbottom $V_GAP")
         add(createProgressPanel())
     }
 
@@ -189,24 +202,24 @@ class DocumentTranslationDialog(
         title: String,
         pathField: JTextField,
         button: JButton
-    ) = JPanel(MigLayout("insets 0, fillx", "[grow,fill]8[]", "[]6[]")).apply {
+    ) = JPanel(MigLayout("insets 0, fillx", "[grow,fill]$LABEL_GAP[]", "[]$LABEL_GAP[]")).apply {
         isOpaque = false
         add(JLabel(title), "cell 0 0 2 1")
-        add(pathField, "cell 0 1, h 32!")
-        add(button, "cell 1 1, h 32!")
+        add(pathField, "cell 0 1")
+        add(button, "cell 1 1")
     }
 
     private fun createPdfOptionsPanel() = JPanel(
-        MigLayout("insets 0, fillx, wrap 1", "[grow,fill]", "[]6[]6[]")
+        MigLayout("insets 0, fillx, wrap 1", "[grow,fill]", "[]$LABEL_GAP[]$LABEL_GAP[]")
     ).apply {
         isOpaque = false
         add(JLabel(strings.pdfMode))
-        add(pdfModeCombo, "h 32!")
+        add(pdfModeCombo)
         add(pdfDescription)
     }
 
     private fun createProgressPanel() = JPanel(
-        MigLayout("insets 0, fillx, hidemode 3", "[grow,fill][48!,right]", "[]7[]")
+        MigLayout("insets 0, fillx, hidemode 3", "[grow,fill][48!,right]", "[]$LABEL_GAP[]")
     ).apply {
         isOpaque = false
         add(statusLabel, "cell 0 0")
@@ -214,9 +227,14 @@ class DocumentTranslationDialog(
         add(progressBar, "cell 0 1 2 1, growx")
     }
 
-    private fun createActionBar() = JPanel(MigLayout("insets 10", "[grow][]8[]", "[]")).apply {
-        add(cancelButton, "cell 1 0, w 92!, h 32!")
-        add(primaryButton, "cell 2 0, w 112!, h 32!")
+    /**
+     * The two action buttons share a width through a size group rather than fixed pixel widths,
+     * so they stay equal to one another while each still sizes to its own label — which matters
+     * once the labels are translated and "Translate" becomes "Dokument übersetzen".
+     */
+    private fun createActionBar() = JPanel(MigLayout("insets $PADDING", "[grow][]$LABEL_GAP[]", "[]")).apply {
+        add(cancelButton, "cell 1 0, sizegroup action")
+        add(primaryButton, "cell 2 0, sizegroup action")
     }
 
     private fun startTranslation() {
@@ -380,11 +398,13 @@ class DocumentTranslationDialog(
         putClientProperty(FlatClientProperties.STYLE, "font: -1")
     }
 
+    // No minimum width override. This was the only button in the application asking for one, at
+    // 96 against the look and feel's own 72, which made these read as a third larger than every
+    // other button in QTranslate.
     private fun filePickerButton(tooltip: String) = JButton(
         strings.browse,
         themeIcon("icons/lucide/file-scan.svg")
     ).apply {
-        putClientProperty(FlatClientProperties.STYLE, "minimumWidth: 96")
         toolTipText = tooltip
         accessibleContext.accessibleName = tooltip
     }
@@ -404,10 +424,28 @@ class DocumentTranslationDialog(
     private fun resizeToContent() {
         val currentLocation = location
         pack()
-        size = Dimension(maxOf(width, UIScale.scale(600)), height)
+        size = Dimension(maxOf(width, UIScale.scale(MIN_DIALOG_WIDTH)), height)
         location = currentLocation
     }
 
     private fun File.withExtension(extension: String): File =
         if (this.extension.equals(extension, ignoreCase = true)) this else File("$absolutePath.$extension")
+
+    private companion object {
+        /**
+         * Layout spacing, in logical pixels.
+         *
+         * Matching `UISpacing`, which the rest of the application lays out with. Restated here as
+         * plain numbers because MigLayout takes its constraints as strings and FlatLaf scales
+         * them, so passing already-scaled values would scale them twice.
+         */
+        const val PADDING = 12
+        const val V_GAP = 8
+
+        /** The gap between a label and the control it labels, and between paired controls. */
+        const val LABEL_GAP = 6
+
+        /** Wide enough for a readable file path, and no wider. */
+        const val MIN_DIALOG_WIDTH = 520
+    }
 }
