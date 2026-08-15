@@ -168,6 +168,7 @@ class MainAppFrame(
             // Reads the source text, not the translation — the popup is most often used
             // to check how the original word is pronounced.
             onListen = { mainStore.dispatch(MainIntent.ListenToText(TextSource.Input)) },
+            onStopListening = { mainStore.dispatch(MainIntent.StopTTS) },
             onCopy = { mainStore.state.value.translatedText.copyToClipboard() },
             onSavePosition = { pos ->
                 settingsStore.dispatch(
@@ -1411,6 +1412,7 @@ class MainAppFrame(
             translatedText = mainState.translatedText,
             isPinned = mainState.isQuickTranslateDialogPinned,
             triggerCount = mainState.quickTranslateTriggerCount,
+            isTtsPlaying = mainState.isTtsPlaying,
             definition = mainState.inlineDefinition,
 
             sourceLanguage = displaySourceLanguage,
@@ -1439,6 +1441,7 @@ class MainAppFrame(
                 copyTooltip = localizer.getString("common.copy"),
                 closeTooltip = localizer.getString("common.close"),
                 listenTooltip = localizer.getString("common.listen"),
+                stopListeningTooltip = localizer.getString("common.stop"),
                 pinTooltip = localizer.getString("common.pin"),
                 unpinTooltip = localizer.getString("common.unpin"),
                 loadingText = localizer.getString("common.loading")

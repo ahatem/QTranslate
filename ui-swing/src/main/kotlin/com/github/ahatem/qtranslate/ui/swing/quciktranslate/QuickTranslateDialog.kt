@@ -35,6 +35,7 @@ class QuickTranslateDialog(
     private val onDismiss: () -> Unit,
     onTranslatorSelected: (String) -> Unit,
     private val onListen: () -> Unit,
+    private val onStopListening: () -> Unit,
     private val onCopy: () -> Unit,
     private val onSavePosition: (Position) -> Unit,
     private val onSaveSize: (Size) -> Unit,
@@ -170,6 +171,14 @@ class QuickTranslateDialog(
 
     /** The trigger this popup last reacted to; see [QuickTranslateDialogState.triggerCount]. */
     private var lastTriggerCount = 0
+
+    /**
+     * Whether speech is playing, as of the last render.
+     *
+     * The click handler is installed once and cannot see the current state, so it reads this to
+     * decide whether a press means play or stop.
+     */
+    private var currentIsTtsPlaying = false
 
     init {
         focusableWindowState = false
@@ -321,11 +330,23 @@ class QuickTranslateDialog(
         )
 
         pinButton.toolTipText = if (state.isPinned) state.strings.unpinTooltip else state.strings.pinTooltip
-        listenButton.toolTipText = state.strings.listenTooltip
         copyButton.toolTipText = state.strings.copyTooltip
         closeButton.toolTipText = state.strings.closeTooltip
 
-        listenButton.isEnabled = state.actionsState.canListen && !state.isLoading
+        // Becomes a stop button while speech is playing, as it does in the main window. Pressing
+        // Listen a second time used to start another playback over the first, with no way to stop
+        // either of them.
+        val playing = state.isTtsPlaying
+        currentIsTtsPlaying = playing
+        listenButton.icon = iconManager.getIcon(
+            if (playing) "icons/lucide/close.svg" else "icons/lucide/volume.svg",
+            14,
+            14
+        )
+        listenButton.toolTipText =
+            if (playing) state.strings.stopListeningTooltip else state.strings.listenTooltip
+
+        listenButton.isEnabled = playing || (state.actionsState.canListen && !state.isLoading)
         copyButton.isEnabled = state.actionsState.canCopy && !state.isLoading
 
         val textToRender = if (state.isLoading) state.strings.loadingText else state.translatedText
@@ -538,7 +559,9 @@ class QuickTranslateDialog(
 
     private fun createTopPanel(): JPanel {
         pinButton.addActionListener { onPinToggled() }
-        listenButton.addActionListener { onListen() }
+        listenButton.addActionListener {
+            if (currentIsTtsPlaying) onStopListening() else onListen()
+        }
         copyButton.addActionListener {
             onCopy()
             showCopyFeedback()
