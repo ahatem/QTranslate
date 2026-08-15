@@ -85,6 +85,7 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 | | |
 |---|---|
 | **Quick Translate popup** | `Ctrl+Q` on any selected text — popup with result, no main window needed |
+| **Image search** | `Ctrl+Shift+Q` on any selected word — a grid of reference pictures from Wikimedia Commons, enlarged in place, licence shown and source page a click away. For the words a definition alone does not settle |
 | **Instant translation** | Translates as you type with configurable debounce |
 | **Inline replace** | `Ctrl+Shift+T` — translates selected text and pastes the result back in place |
 | **Backward translation** | See the round-trip result alongside the main output — spots awkward phrasing instantly |
@@ -116,7 +117,8 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 | **AI Services** | Translator, Summarizer, Rewriter, Spell Checker, Dictionary, Vision OCR — via [OpenRouter](https://openrouter.ai) (300+ models, one API key) — included. [Setup guide](wiki/AI-Services.md) |
 | **Free translation choices** | Mozhi, MyMemory, DeepL web fallback, Reverso, and Yandex Web work without an API key; unofficial endpoints may change or be rate-limited |
 | **Local translation** | Connect to a local or self-hosted LibreTranslate instance without sending text to a third-party cloud |
-| **Reference services** | Wikipedia and Wiktionary lookups through official MediaWiki APIs |
+| **Reference services** | Wikipedia and Wiktionary lookups, and Wikimedia Commons image search, through official MediaWiki APIs |
+| **CSV dictionary** | Point it at your own CSV — a glossary, an abbreviation list, a table of error codes, a set of study notes — and look terms up in it. Which columns hold the term and its meaning is configurable, and nothing leaves your machine |
 
 ### Interface
 
@@ -194,8 +196,9 @@ Bundled plugins: Google, Bing, AI Services, DeepL, Mozhi, MyMemory, LibreTransla
 2. Select text anywhere on screen
 3. Press `Ctrl+Q` — Quick Translate popup opens with the result ready
 4. Press `Ctrl+D` — open the Dictionary for the selected word
-5. Press `Ctrl+E` — listen to the selected text
-6. Press `Ctrl+I` — draw a screen region to OCR and translate
+5. Press `Ctrl+Shift+Q` — see pictures of the selected word
+6. Press `Ctrl+E` — listen to the selected text
+7. Press `Ctrl+I` — draw a screen region to OCR and translate
 
 Open **Settings** (gear icon) to configure API keys, themes, hotkeys, and service presets.
 
