@@ -8,8 +8,7 @@ import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toDimension
-import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentMover
-import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentResizer
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.FloatingPopupBehavior
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.BorderLayout
 import java.awt.Color
@@ -90,10 +89,6 @@ class ImageSearchDialog(
 
     private val thumbnails = ThumbnailLoader()
 
-    /** A field rather than an inline lambda, so [dispose] can detach it. */
-    private val themeListener = java.beans.PropertyChangeListener { event ->
-        if (event.propertyName == "lookAndFeel") SwingUtilities.invokeLater { refreshTheme() }
-    }
 
     private val titleLabel = JLabel("").apply { putClientProperty("FlatLaf.styleClass", "h4") }
     private val pinButton = createButtonWithIcon(iconManager, "icons/lucide/pin.svg", 14)
@@ -129,7 +124,6 @@ class ImageSearchDialog(
 
     private var currentState: ImageSearchDialogState? = null
     private var isPinned = false
-    private var wasManuallyMoved = false
 
     /**
      * The results the grid was last built from.
@@ -140,26 +134,42 @@ class ImageSearchDialog(
      */
     private var renderedResults: List<ImageResult> = emptyList()
 
+    /** Undecorated, always on top, draggable, resizable, Escape-dismissed — shared with the
+     *  translate and dictionary popups so all three behave the same as windows. */
+    private val popup = FloatingPopupBehavior(
+        window = this,
+        owner = owner,
+        minimumSize = Dimension(UIScale.scale(340), UIScale.scale(280)),
+        pinnedBorderWidth = PINNED_BORDER_WIDTH
+    )
+
     init {
-        isUndecorated = true
-        isAlwaysOnTop = true
         focusableWindowState = true
-        defaultCloseOperation = DO_NOTHING_ON_CLOSE
 
         pinButton.addActionListener { currentState?.onPinToggled?.invoke() }
         closeButton.addActionListener { currentState?.onClose?.invoke() }
 
         header = buildHeader()
         contentPane = JPanel(BorderLayout()).apply {
-            border = BorderFactory.createLineBorder(borderColor, 1)
             add(header, BorderLayout.NORTH)
             add(body.apply { add(scroll, BorderLayout.CENTER) }, BorderLayout.CENTER)
         }
 
-        installEscapeToClose()
-        installMoveAndResize()
+        popup.installDrag(header) { position -> currentState?.onSavePosition?.invoke(position) }
+        popup.installResize({ size -> currentState?.onSaveSize?.invoke(size) })
+        // Escape unwinds one step at a time: out of the enlarged image first, and only then out
+        // of the popup. Closing outright would throw away the search as well.
+        popup.installEscape {
+            if (preview != null) {
+                showGrid(); true
+            } else {
+                currentState?.onClose?.invoke(); true
+            }
+        }
+        popup.installTheme(::refreshTheme)
+        popup.applyPinBorder(false)
+
         installResponsiveColumns()
-        UIManager.addPropertyChangeListener(themeListener)
     }
 
     /**
@@ -235,7 +245,7 @@ class ImageSearchDialog(
         if (visibilityChanged) {
             if (state.isVisible) {
                 currentState = state
-                wasManuallyMoved = false
+                popup.resetManualMove()
                 applyText(state)
                 if (state.searchedTerm.isNotBlank() && searchField.text != state.searchedTerm) {
                     searchField.text = state.searchedTerm
@@ -522,78 +532,15 @@ class ImageSearchDialog(
         }
     }
 
-    private fun applyPinStyle(pinned: Boolean) {
-        (contentPane as JPanel).border = if (pinned) {
-            BorderFactory.createLineBorder(accentColor, PINNED_BORDER_WIDTH)
-        } else {
-            BorderFactory.createLineBorder(borderColor, 1)
-        }
-        contentPane.revalidate()
-        contentPane.repaint()
-    }
+    private fun applyPinStyle(pinned: Boolean) = popup.applyPinBorder(pinned)
 
     private fun applyPosition(config: ImageSearchConfig) {
-        if (wasManuallyMoved) return
-        val screen = graphicsConfiguration?.bounds ?: run {
-            setLocationRelativeTo(owner)
-            return
-        }
-        if (!config.positionNearMouse) {
-            setLocationRelativeTo(owner)
-            return
-        }
-        val mouse = MouseInfo.getPointerInfo()?.location ?: run {
-            setLocationRelativeTo(owner)
-            return
-        }
-        val x = (mouse.x + UIScale.scale(12))
-            .coerceIn(screen.x, (screen.x + screen.width - width).coerceAtLeast(screen.x))
-        val y = (mouse.y + UIScale.scale(12))
-            .coerceIn(screen.y, (screen.y + screen.height - height).coerceAtLeast(screen.y))
-        setLocation(x, y)
+        if (config.positionNearMouse) popup.positionNearMouse() else popup.positionBesideOwner()
     }
 
     private fun saveGeometry() {
         currentState?.onSavePosition?.invoke(Position(location.x.coerceAtLeast(0), location.y.coerceAtLeast(0)))
         currentState?.onSaveSize?.invoke(Size(size.width, size.height))
-    }
-
-    private fun installEscapeToClose() {
-        val root = rootPane
-        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
-            .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "close-image-search")
-        root.actionMap.put("close-image-search", object : AbstractAction() {
-            override fun actionPerformed(e: ActionEvent) {
-                // Escape unwinds one step at a time: out of the enlarged image first, and only
-                // then out of the popup. Closing outright would throw away the search as well.
-                if (preview != null) showGrid() else currentState?.onClose?.invoke()
-            }
-        })
-    }
-
-    private fun installMoveAndResize() {
-        minimumSize = Dimension(UIScale.scale(340), UIScale.scale(280))
-
-        ComponentMover.builder()
-            .destinationComponent(this)
-            .build()
-            .register(header)
-
-        val handle = UIScale.scale(RESIZE_HANDLE_SIZE)
-        ComponentResizer.builder()
-            .dragInsets(Insets(handle, handle, handle, handle))
-            .minimumSize(minimumSize)
-            .onResizeEnd { currentState?.onSaveSize?.invoke(Size(size.width, size.height)) }
-            .build()
-            .register(this)
-
-        header.addMouseListener(object : MouseAdapter() {
-            override fun mouseReleased(e: MouseEvent) {
-                wasManuallyMoved = true
-                currentState?.onSavePosition
-                    ?.invoke(Position(location.x.coerceAtLeast(0), location.y.coerceAtLeast(0)))
-            }
-        })
     }
 
     /**
@@ -605,7 +552,7 @@ class ImageSearchDialog(
      */
     override fun dispose() {
         thumbnails.shutdown()
-        UIManager.removePropertyChangeListener(themeListener)
+        popup.uninstallTheme()
         super.dispose()
     }
 }
