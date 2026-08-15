@@ -117,6 +117,7 @@ class QuickTranslateDialog(
 
     // idle/auto-hide manager (single timer)
     private var idleHideTimer: Timer? = null
+    private var idleCloseTimer: Timer? = null
 
     // flags
     private var isDragging = false
@@ -326,8 +327,10 @@ class QuickTranslateDialog(
         val transparency = currentConfig?.transparencyPercentage ?: 0
         opacity = (100f - transparency) / 100f
 
-        isVisible = true
+        // Set before showing: changing focusableWindowState on a window already on screen makes
+        // AWT discard and rebuild the native peer, which flickers and can drop focus.
         focusableWindowState = true
+        isVisible = true
         installAwtMouseListener()
         if (!isPinned) startIdleHide()
     }
@@ -345,17 +348,21 @@ class QuickTranslateDialog(
     private fun startIdleHide() {
         // restart single idle timer — reads live config each call so changes take effect immediately
         val idleHideDelayMs = (currentConfig?.idleTimeoutSeconds ?: 3) * 1000
-        idleHideTimer?.stop()
+        stopIdleHide()
         idleHideTimer = Timer(idleHideDelayMs) { event ->
-            if (!isPinned) fadeTo(0f, FADE_MS) // fade out visually
-            // after fade complete, actually hide
-            Timer(FADE_MS + 20) {
-                if (!isPinned) {
-                    hideDialog()
-                }
-                (it.source as Timer).stop()
-            }.apply { isRepeats = false; start() }
             (event.source as Timer).stop()
+            if (isPinned) return@Timer
+            fadeTo(0f, FADE_MS)
+            // Kept in a field so stopIdleHide can reach it. Previously this was an anonymous
+            // timer nobody held, so a popup that had started fading still closed a moment later
+            // even if the user had moved back onto it or reopened it in the meantime.
+            idleCloseTimer = Timer(FADE_MS + 20) { closeEvent ->
+                (closeEvent.source as Timer).stop()
+                // Dismissed through the store rather than hidden directly. Hiding the window here
+                // left the application still believing the popup was open, so anything keyed on
+                // that — the loading indicator among them — went on behaving as if it were.
+                if (!isPinned) onDismiss()
+            }.apply { isRepeats = false; start() }
         }.apply {
             isRepeats = false
             start()
@@ -364,6 +371,8 @@ class QuickTranslateDialog(
 
     private fun stopIdleHide() {
         idleHideTimer?.stop()
+        idleCloseTimer?.stop()
+        idleCloseTimer = null
     }
 
     private fun installAwtMouseListener() {

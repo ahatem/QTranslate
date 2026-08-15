@@ -139,6 +139,7 @@ class QuickDictionaryDialog(
     // Timers
     private var fadeTimer: Timer? = null
     private var idleHideTimer: Timer? = null
+    private var idleCloseTimer: Timer? = null
     private var resizeSaveTimer: Timer? = null
     private var mouseExitDebounceTimer: Timer? = null
 
@@ -376,6 +377,13 @@ class QuickDictionaryDialog(
     private fun createSearchPanel(): JPanel {
         searchField.addActionListener { triggerLookup() }
         lookupButton.addActionListener { triggerLookup() }
+
+        // Typing is the clearest possible sign the popup is still wanted, and it used to count
+        // for nothing: with the pointer parked outside, a word typed slowly disappeared under the
+        // person typing it.
+        searchField.addKeyListener(object : KeyAdapter() {
+            override fun keyPressed(e: KeyEvent) = noteUserActivity()
+        })
         serviceCombo.addActionListener {
             if (!updatingFromState) {
                 val selected = serviceCombo.selectedItem as? ServiceInfo ?: return@addActionListener
@@ -463,8 +471,11 @@ class QuickDictionaryDialog(
         // set initial opacity from config before making visible (no animation on first show)
         val pct = currentState?.config?.transparencyPercentage ?: 0
         opacity = (100f - pct) / 100f
-        isVisible = true
+        // Set before showing. Changing focusableWindowState on a window already on screen makes
+        // AWT discard the native peer and build a new one, which flickers and can drop the focus
+        // the popup has just taken.
         focusableWindowState = true
+        isVisible = true
         installAwtMouseListener()
         if (!isPinned) startIdleHide()
     }
@@ -482,22 +493,38 @@ class QuickDictionaryDialog(
     }
 
     private fun startIdleHide() {
-        idleHideTimer?.stop()
+        stopIdleHide()
         val idleMs = (currentState?.config?.idleTimeoutSeconds ?: 8) * 1000
         idleHideTimer = Timer(idleMs) { event ->
-            if (!isPinned) {
-                fadeTo(0f, FADE_MS)
-                Timer(FADE_MS + 20) {
-                    if (!isPinned) currentState?.onClose?.invoke()
-                    (it.source as Timer).stop()
-                }.apply { isRepeats = false; start() }
-            }
             (event.source as Timer).stop()
+            if (isPinned) return@Timer
+            fadeTo(0f, FADE_MS)
+            // Held in a field rather than left to run on its own. The previous version armed an
+            // anonymous timer here that stopIdleHide could not reach, so a popup that had begun
+            // fading would still close itself a moment later even though the user had just moved
+            // the mouse back over it — or reopened it.
+            idleCloseTimer = Timer(FADE_MS + 20) { closeEvent ->
+                (closeEvent.source as Timer).stop()
+                if (!isPinned) currentState?.onClose?.invoke()
+            }.apply { isRepeats = false; start() }
         }.apply { isRepeats = false; start() }
     }
 
     private fun stopIdleHide() {
         idleHideTimer?.stop()
+        idleCloseTimer?.stop()
+        idleCloseTimer = null
+    }
+
+    /**
+     * Restarts the idle countdown because the user is doing something.
+     *
+     * Typing counted for nothing before this: the timer was reset by moving the mouse, dragging,
+     * resizing or focus changes, so typing a word with the pointer parked elsewhere let the popup
+     * vanish mid-word.
+     */
+    private fun noteUserActivity() {
+        if (isVisible && !isPinned) startIdleHide()
     }
 
     private fun headerBorder() = BorderFactory.createCompoundBorder(
