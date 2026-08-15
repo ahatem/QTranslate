@@ -12,6 +12,7 @@ import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Desktop
 import java.awt.Dimension
+import java.awt.Insets
 import java.awt.Window
 import java.awt.event.KeyEvent
 import java.awt.event.WindowAdapter
@@ -198,30 +199,48 @@ class DocumentTranslationDialog(
         add(createProgressPanel())
     }
 
+    /**
+     * A nested MigLayout panel that does not clip the focus ring of what it holds.
+     *
+     * FlatLaf paints focus *outside* a component's bounds, so a nested panel with zero insets
+     * cuts the ring off along its own edges — visible on the file fields and the PDF picker
+     * whenever they take focus. A two-pixel inset makes room, and `visualPadding` tells the
+     * parent layout to disregard that room when aligning, so the extra space costs no shift.
+     *
+     * This is the FlatLaf author's own remedy for it, from JFormDesigner/FlatLaf#792, and it
+     * holds only while the containing panel is also MigLayout — which is the case here.
+     */
+    private fun nestedPanel(layout: MigLayout) = JPanel(layout).apply {
+        isOpaque = false
+        putClientProperty(
+            "visualPadding",
+            UIScale.scale(Insets(FOCUS_INSET, FOCUS_INSET, FOCUS_INSET, FOCUS_INSET))
+        )
+    }
+
     private fun fileSection(
         title: String,
         pathField: JTextField,
         button: JButton
-    ) = JPanel(MigLayout("insets 0, fillx", "[grow,fill]$LABEL_GAP[]", "[]$LABEL_GAP[]")).apply {
-        isOpaque = false
+    ) = nestedPanel(
+        MigLayout("insets $FOCUS_INSET, fillx", "[grow,fill]$LABEL_GAP[]", "[]$LABEL_GAP[]")
+    ).apply {
         add(JLabel(title), "cell 0 0 2 1")
         add(pathField, "cell 0 1")
         add(button, "cell 1 1")
     }
 
-    private fun createPdfOptionsPanel() = JPanel(
-        MigLayout("insets 0, fillx, wrap 1", "[grow,fill]", "[]$LABEL_GAP[]$LABEL_GAP[]")
+    private fun createPdfOptionsPanel() = nestedPanel(
+        MigLayout("insets $FOCUS_INSET, fillx, wrap 1", "[grow,fill]", "[]$LABEL_GAP[]$LABEL_GAP[]")
     ).apply {
-        isOpaque = false
         add(JLabel(strings.pdfMode))
         add(pdfModeCombo)
         add(pdfDescription)
     }
 
-    private fun createProgressPanel() = JPanel(
-        MigLayout("insets 0, fillx, hidemode 3", "[grow,fill][48!,right]", "[]$LABEL_GAP[]")
+    private fun createProgressPanel() = nestedPanel(
+        MigLayout("insets $FOCUS_INSET, fillx, hidemode 3", "[grow,fill][48!,right]", "[]$LABEL_GAP[]")
     ).apply {
-        isOpaque = false
         add(statusLabel, "cell 0 0")
         add(progressLabel, "cell 1 0")
         add(progressBar, "cell 0 1 2 1, growx")
@@ -444,6 +463,14 @@ class DocumentTranslationDialog(
 
         /** The gap between a label and the control it labels, and between paired controls. */
         const val LABEL_GAP = 6
+
+        /**
+         * Room for FlatLaf's outer focus ring inside a nested panel.
+         *
+         * Two pixels is what the look and feel draws; see [nestedPanel] for why a nested panel
+         * has to reserve it rather than letting the ring fall outside its bounds.
+         */
+        const val FOCUS_INSET = 2
 
         /** Wide enough for a readable file path, and no wider. */
         const val MIN_DIALOG_WIDTH = 520
