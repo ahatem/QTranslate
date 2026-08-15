@@ -186,12 +186,14 @@ class SettingsDialog(
     private var cachedIndex: List<SearchHit>? = null
 
     /**
-     * Ends the highlight currently showing, if any.
+     * Ends the marker currently showing, if any.
      *
-     * Held as the whole cleanup rather than just the timer, so a second result restores the first
-     * row's border on the way past instead of leaving it highlighted.
+     * Held as the whole cleanup rather than just the timer, so a second result clears the first
+     * on the way past instead of leaving it on screen.
      */
     private var activeFlash: (() -> Unit)? = null
+
+    private val markerOverlay = MarkerOverlay()
 
     private val noResultsLabel = JLabel().apply {
         foreground = UIManager.getColor("Label.disabledForeground")
@@ -241,6 +243,8 @@ class SettingsDialog(
 
         add(mainPanel, BorderLayout.CENTER)
         add(buttonBarPanel, BorderLayout.SOUTH)
+
+        glassPane = markerOverlay
 
         // Apply borders based on current theme, then keep them fresh on theme changes
         updateBorders()
@@ -504,12 +508,20 @@ class SettingsDialog(
 
     private fun openHit(hit: SearchHit) {
         selectPage(hit.pageLabel)
-        // After the panel is in the viewport and has been laid out; scrolling to a component
-        // that has not been positioned yet lands at the top of the page instead.
         SwingUtilities.invokeLater {
+            // The panel may have been built for the search index and never shown, in which case
+            // it has no layout yet and every component in it measures zero. Scrolling to a
+            // zero-sized component lands at the top of the page and the marker is drawn around
+            // nothing, which is why results on unvisited pages appeared to do nothing at all.
+            contentArea.validate()
+
             val anchor = hit.entry.anchor
             anchor.scrollRectToVisible(Rectangle(0, 0, anchor.width, anchor.height))
-            flash(anchor)
+
+            // Once more, after the scroll has settled: the marker is positioned in window
+            // coordinates, so it has to be placed where the row ended up rather than where it
+            // was before the viewport moved.
+            SwingUtilities.invokeLater { flash(anchor) }
         }
     }
 
@@ -520,22 +532,25 @@ class SettingsDialog(
      * reader to find it again by eye, which is the work the search was meant to save.
      */
     private fun flash(component: JComponent) {
-        // Ends the previous highlight properly rather than only stopping its timer, which would
-        // leave the row it was on wearing the border for the rest of the session.
         activeFlash?.invoke()
+        if (component.width == 0 || component.height == 0) return
 
-        val highlight = FlashHighlight()
-        val original = component.border
-        // Wrapped rather than replaced, and with no insets of its own, so nothing on the page
-        // moves while the highlight is up. A border paints after the component, which is what
-        // lets it tint the row rather than sit behind it.
-        component.border = BorderFactory.createCompoundBorder(highlight, original)
+        // Drawn on the glass pane rather than on the row itself. A component clips its own
+        // painting to its bounds, so a marker drawn around a row was cut off exactly where it
+        // needed to be visible, leaving only the faint fill inside. The glass pane spans the
+        // window, so the outline can sit outside the row with room to breathe, and nothing in
+        // the page moves to make space for it.
+        val bounds = SwingUtilities.convertRectangle(
+            component.parent,
+            component.bounds,
+            markerOverlay
+        )
+        markerOverlay.markAt(bounds)
 
         val timer = Timer(FLASH_TICK_MILLIS, null)
         val finish = {
             timer.stop()
-            component.border = original
-            component.repaint()
+            markerOverlay.clear()
             activeFlash = null
         }
 
@@ -548,9 +563,9 @@ class SettingsDialog(
                 // Held at full strength for the first part, then faded. Fading from the first
                 // frame makes it read as a flicker; holding first makes it read as a marker.
                 val fadeFrom = FLASH_MILLIS * FLASH_HOLD_FRACTION
-                highlight.strength = if (elapsed <= fadeFrom) 1f
+                markerOverlay.strength = if (elapsed <= fadeFrom) 1f
                 else 1f - (elapsed - fadeFrom) / (FLASH_MILLIS - fadeFrom)
-                component.repaint()
+                markerOverlay.repaint()
             }
         }
         activeFlash = finish
@@ -558,18 +573,50 @@ class SettingsDialog(
     }
 
     /**
-     * A tinted panel behind a found setting, with a firm outline around it.
+     * A dashed marker drawn over the window, around whichever row the search just found.
      *
-     * A solid fill was the first attempt and it swallowed the very text it was pointing at. This
-     * keeps the label readable: the tint is faint, and the outline is what carries the emphasis.
-     * Colours are read at paint time so a theme change mid-flash cannot leave a stale colour.
+     * Lives on the glass pane rather than on the row, because a component clips its own painting
+     * to its bounds: a marker drawn around a row was cut off exactly where it needed to be seen.
+     * From up here it can sit outside the row with padding, and no layout changes to make room.
+     *
+     * Colours are read at paint time, so a theme change while it is up cannot leave a stale one.
      */
-    private class FlashHighlight : javax.swing.border.AbstractBorder() {
+    private class MarkerOverlay : JComponent() {
         /** 1 while held, falling to 0 as it fades out. */
         var strength: Float = 1f
 
-        override fun paintBorder(c: Component, g: Graphics, x: Int, y: Int, w: Int, h: Int) {
+        private var target: Rectangle? = null
+
+        init {
+            isOpaque = false
+            isVisible = false
+        }
+
+        fun markAt(bounds: Rectangle) {
+            target = bounds
+            strength = 1f
+            isVisible = true
+            repaint()
+        }
+
+        fun clear() {
+            target = null
+            isVisible = false
+            repaint()
+        }
+
+        /**
+         * Never claims the pointer.
+         *
+         * A visible glass pane swallows every click underneath it by default, which would make
+         * the settings unusable for as long as the marker is up.
+         */
+        override fun contains(x: Int, y: Int) = false
+
+        override fun paintComponent(g: Graphics) {
+            val rect = target ?: return
             if (strength <= 0f) return
+
             val accent = UIManager.getColor("Component.accentColor")
                 ?: UIManager.getColor("Table.selectionBackground")
                 ?: Color(86, 156, 214)
@@ -577,13 +624,14 @@ class SettingsDialog(
             val g2 = g.create() as Graphics2D
             try {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                val padX = UIScale.scale(4)
-                val padY = UIScale.scale(3)
-                val arc = UIScale.scale(8)
-                val left = x - padX
-                val top = y - padY
-                val width = w + padX * 2
-                val height = h + padY * 2
+
+                val padX = UIScale.scale(7)
+                val padY = UIScale.scale(5)
+                val arc = UIScale.scale(9)
+                val left = rect.x - padX
+                val top = rect.y - padY
+                val width = rect.width + padX * 2
+                val height = rect.height + padY * 2
 
                 g2.color = Color(accent.red, accent.green, accent.blue, (FILL_ALPHA * strength).toInt())
                 g2.fillRoundRect(left, top, width, height, arc, arc)
@@ -596,7 +644,7 @@ class SettingsDialog(
                     BasicStroke.CAP_BUTT,
                     BasicStroke.JOIN_ROUND,
                     1f,
-                    floatArrayOf(UIScale.scale(5f), UIScale.scale(3f)),
+                    floatArrayOf(UIScale.scale(6f), UIScale.scale(4f)),
                     0f
                 )
                 g2.drawRoundRect(left, top, width - 1, height - 1, arc, arc)
@@ -604,13 +652,6 @@ class SettingsDialog(
                 g2.dispose()
             }
         }
-
-        /** Zero, so wrapping a component in this never changes the layout. */
-        override fun getBorderInsets(c: Component): Insets = Insets(0, 0, 0, 0)
-        override fun getBorderInsets(c: Component, insets: Insets): Insets =
-            insets.also { it.set(0, 0, 0, 0) }
-
-        override fun isBorderOpaque() = false
 
         private companion object {
             /** Faint: the outline does the work, and the row's own text has to stay readable. */
