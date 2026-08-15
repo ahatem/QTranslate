@@ -7,7 +7,7 @@ native_name = "Italiano"
 locale = "it-IT"
 version = "1.0.0"
 author = "bovirus <bovirus@gmail.com>"
-last_updated = "2026-04-26"
+last_updated = "2026-08-15"
 rtl = false
 
 # ===================================================================
