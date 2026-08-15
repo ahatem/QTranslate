@@ -9,6 +9,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toDimension
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.FloatingPopupBehavior
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.InlineLoadingBar
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.BorderLayout
 import java.awt.Color
@@ -118,6 +119,8 @@ class ImageSearchDialog(
         verticalScrollBar.unitIncrement = 16
     }
 
+    private val loadingBar = InlineLoadingBar()
+
     private val body = JPanel(BorderLayout())
 
     /** The enlarged view, or null when the grid is showing. */
@@ -158,7 +161,14 @@ class ImageSearchDialog(
 
         header = buildHeader()
         contentPane = JPanel(BorderLayout()).apply {
-            add(header, BorderLayout.NORTH)
+            add(
+                JPanel(BorderLayout()).apply {
+                    isOpaque = false
+                    add(header, BorderLayout.CENTER)
+                    add(loadingBar, BorderLayout.SOUTH)
+                },
+                BorderLayout.NORTH
+            )
             add(body.apply { add(scroll, BorderLayout.CENTER) }, BorderLayout.CENTER)
         }
 
@@ -289,6 +299,7 @@ class ImageSearchDialog(
 
     private fun applyText(state: ImageSearchDialogState) {
         isPinned = state.isPinned
+        loadingBar.isLoading = state.isLoading
         titleLabel.text = state.strings.title
         pinButton.toolTipText = if (state.isPinned) state.strings.unpinTooltip else state.strings.pinTooltip
         closeButton.toolTipText = state.strings.closeTooltip

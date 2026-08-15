@@ -11,6 +11,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.*
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentMover
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentResizer
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.FloatingPopupBehavior
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.InlineLoadingBar
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.*
 import java.awt.event.*
@@ -125,6 +126,7 @@ class QuickDictionaryDialog(
     }
 
     // Results
+    private val loadingBar = InlineLoadingBar()
     private val resultView = DictionaryResultView()
     private val cardPanel = JPanel(CardLayout())
 
@@ -207,7 +209,14 @@ class QuickDictionaryDialog(
 
         // Restructure: top=header, center=body (search+chips+results)
         mainPanel.removeAll()
-        mainPanel.add(topPanel, BorderLayout.NORTH)
+        mainPanel.add(
+            JPanel(BorderLayout()).apply {
+                isOpaque = false
+                add(topPanel, BorderLayout.CENTER)
+                add(loadingBar, BorderLayout.SOUTH)
+            },
+            BorderLayout.NORTH
+        )
         mainPanel.add(contentArea, BorderLayout.CENTER)
 
         setupWindowBehavior()
@@ -320,9 +329,13 @@ class QuickDictionaryDialog(
             updatingFromState = false
         }
 
-        // Card
+        // Definitions already on screen stay there while the next lookup runs, with the hairline
+        // bar carrying the "working" signal instead. Swapping to the loading card would take away
+        // what the reader was in the middle of and give them a spinner in exchange.
+        loadingBar.isLoading = state.isLoading
+
         val card = when {
-            state.isLoading -> "loading"
+            state.isLoading && state.entries.isEmpty() -> "loading"
             state.entries.isNotEmpty() -> "results"
             else -> "hint"
         }

@@ -53,7 +53,7 @@ class SearchImagesUseCase(
         if (service == null) {
             logger.warn("No image search service available")
             onStatusUpdate(StatusCode.NoImageSearchServiceActive, NotificationType.ERROR, true)
-            updateState { copy(isImageSearchLoading = false, imageSearchFailed = true) }
+            updateState { copy(isImageSearchLoading = false, imageSearchFailed = true, imageResults = emptyList()) }
             return
         }
 
@@ -63,9 +63,9 @@ class SearchImagesUseCase(
             try {
                 onStatusUpdate(StatusCode.SearchingImages, NotificationType.INFO, false)
                 updateState {
+                    // Existing thumbnails stay up while the new search runs -- see LookupWordUseCase.
                     copy(
                         isImageSearchLoading = true,
-                        imageResults = emptyList(),
                         imageSearchTerm = term,
                         imageSearchFailed = false
                     )
@@ -78,7 +78,7 @@ class SearchImagesUseCase(
                 if (result == null) {
                     logger.warn("Image search timed out for '$term'")
                     onStatusUpdate(StatusCode.ImageSearchTimeout, NotificationType.WARNING, true)
-                    updateState { copy(isImageSearchLoading = false, imageSearchFailed = true) }
+                    updateState { copy(isImageSearchLoading = false, imageSearchFailed = true, imageResults = emptyList()) }
                     return@launch
                 }
 
@@ -104,7 +104,7 @@ class SearchImagesUseCase(
                         val summary = error.toString()
                         logger.warn("Image search failed for '$term': $summary")
                         onStatusUpdate(StatusCode.ImageSearchFailed(summary), NotificationType.ERROR, true)
-                        updateState { copy(isImageSearchLoading = false, imageSearchFailed = true) }
+                        updateState { copy(isImageSearchLoading = false, imageSearchFailed = true, imageResults = emptyList()) }
                     }
                 )
             } catch (e: CancellationException) {
@@ -113,7 +113,7 @@ class SearchImagesUseCase(
                 val summary = e.message ?: "Unknown error"
                 logger.warn("Unexpected error during image search: $summary")
                 onStatusUpdate(StatusCode.ImageSearchFailed(summary), NotificationType.ERROR, true)
-                updateState { copy(isImageSearchLoading = false, imageSearchFailed = true) }
+                updateState { copy(isImageSearchLoading = false, imageSearchFailed = true, imageResults = emptyList()) }
             }
         }
     }

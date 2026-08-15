@@ -13,6 +13,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentMover
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentResizer
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.FloatingPopupBehavior
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.InlineLoadingBar
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.*
 import java.awt.event.*
@@ -102,6 +103,8 @@ class QuickTranslateDialog(
         isEditable = false
         border = EmptyBorder(6, 6, 6, 6)
     }
+
+    private val loadingBar = InlineLoadingBar()
 
     private val topPanel = createTopPanel()
 
@@ -194,7 +197,16 @@ class QuickTranslateDialog(
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
         }
 
-        mainPanel.add(topPanel, BorderLayout.NORTH)
+        // Header, then the hairline loading bar, then the text. The bar reserves its height even
+        // when idle, so a reload does not nudge the translation down and back up again.
+        mainPanel.add(
+            JPanel(BorderLayout()).apply {
+                isOpaque = false
+                add(topPanel, BorderLayout.CENTER)
+                add(loadingBar, BorderLayout.SOUTH)
+            },
+            BorderLayout.NORTH
+        )
         mainPanel.add(textScrollPane, BorderLayout.CENTER)
 
         setupWindowBehavior(topPanel)
@@ -286,6 +298,9 @@ class QuickTranslateDialog(
     // Full content sync
     private fun updateContent(state: QuickTranslateDialogState) {
         this.isPinned = state.isPinned
+        // Only while something is already on screen: before that the popup is withheld and the
+        // standalone loading indicator covers the wait.
+        loadingBar.isLoading = state.isLoading && isVisible
 
         val source = state.sourceLanguage.tag.uppercase()
         val target = state.targetLanguage.tag.uppercase()
