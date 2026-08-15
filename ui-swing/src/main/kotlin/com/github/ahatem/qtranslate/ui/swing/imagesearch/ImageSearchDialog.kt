@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.imagesearch
 
+import com.formdev.flatlaf.FlatClientProperties
+import com.formdev.flatlaf.icons.FlatSearchIcon
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.imagesearch.ImageResult
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
@@ -99,7 +101,16 @@ class ImageSearchDialog(
     private val pinButton = createButtonWithIcon(iconManager, "icons/lucide/pin.svg", 14)
     private val closeButton = createButtonWithIcon(iconManager, "icons/lucide/close.svg", 16)
 
+    /**
+     * A search field in the look and feel's own idiom rather than a bare text box.
+     *
+     * FlatLaf draws the magnifier and the clear button itself from these properties, so they
+     * follow the theme and the scale factor without any icon handling here. The clear button only
+     * appears when there is something to clear.
+     */
     private val searchField = JTextField().apply {
+        putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON, FlatSearchIcon())
+        putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true)
         addActionListener { currentState?.onSearch?.invoke(text.trim()) }
     }
 
@@ -183,6 +194,10 @@ class ImageSearchDialog(
                 currentState?.onClose?.invoke(); true
             }
         }
+        popup.installClickOutsideToClose(
+            enabled = { currentState?.config?.closeOnClickOutside ?: true },
+            onClose = { currentState?.onClose?.invoke() }
+        )
         popup.installTheme(::refreshTheme)
         popup.applyPinBorder(false)
 
@@ -292,6 +307,11 @@ class ImageSearchDialog(
         applyText(state)
         rebuildGridIfChanged(state)
         if (pinChanged) applyPinStyle(state.isPinned)
+        // Re-triggered from a new selection: the field should show the word being searched, not
+        // the one from last time.
+        if (retriggered && state.searchedTerm.isNotBlank() && searchField.text != state.searchedTerm) {
+            searchField.text = state.searchedTerm
+        }
         // Asked for again while open: bring it back to the front of the user's attention rather
         // than closing and reopening it.
         if (retriggered) toFront()

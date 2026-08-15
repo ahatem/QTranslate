@@ -317,6 +317,17 @@ data class Configuration(
     val showDictionaryPanel: Boolean = false,
     val dictionaryAutoSource: DictionaryAutoSource = DictionaryAutoSource.TRANSLATED,
     val isDictionaryAutoPopupEnabled: Boolean = true,
+
+    /**
+     * Whether clicking away from a floating popup closes it.
+     *
+     * On by default: clicking elsewhere is how people dismiss a transient window, and a popup
+     * that ignores it has to be closed deliberately every time. Off suits anyone who translates
+     * a word and then works in the document beside it — for them, a click in the document
+     * throwing the translation away is the annoyance instead. Pinning still overrides it either
+     * way, which is what pinning is for.
+     */
+    val closePopupsOnClickOutside: Boolean = true,
     val mainWindowSize: Size? = null,
     val mainWindowPosition: Position? = null,
     val uiFontConfig: FontConfig = FontConfig(name = "Rubik", size = 13),

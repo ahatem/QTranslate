@@ -460,6 +460,8 @@ auto_position = "Auto-position popup near the cursor"
 transparency = "Background Transparency:"
 popup_idle_timeout = "Hide after idle:"
 popup_idle_hint = "The popup fades out after this many seconds of inactivity. Move the mouse over it to reset the timer."
+close_popup_on_click_outside = "Close popups when clicking elsewhere"
+close_popup_on_click_outside_hint = "Clicking outside a floating popup dismisses it. Pinned popups always stay open."
 seconds_unit = "seconds"
 dict_popup_group = "Dictionary Popup"
 # Close button

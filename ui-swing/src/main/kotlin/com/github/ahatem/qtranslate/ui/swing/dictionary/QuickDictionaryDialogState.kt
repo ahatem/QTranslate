@@ -48,6 +48,8 @@ data class QuickDictionaryConfig(
     /** When false, the dialog positions itself adjacent to the owner window instead of near the mouse cursor. */
     val positionNearMouse: Boolean = true,
     val idleTimeoutSeconds: Int = 8,
+    /** Whether pressing outside the popup dismisses it; pinning overrides this. */
+    val closeOnClickOutside: Boolean = true,
     val transparencyPercentage: Int = 5
 )
 

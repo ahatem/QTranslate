@@ -18,6 +18,7 @@ class WindowPanel(
     }
 
     private lateinit var layoutCombo: JComboBox<LayoutInfo>
+    private lateinit var closeOnClickOutsideCheck: JCheckBox
     private lateinit var historyCheck: JCheckBox
     private lateinit var languageCheck: JCheckBox
     private lateinit var servicesCheck: JCheckBox
@@ -173,6 +174,14 @@ class WindowPanel(
         )
         addHint(localizationManager.getString("settings_window.popup_idle_hint"))
 
+        closeOnClickOutsideCheck = addCheckbox(
+            localizationManager.getString("settings_window.close_popup_on_click_outside"),
+            true
+        ) { enabled ->
+            applyDraft(store) { it.copy(closePopupsOnClickOutside = enabled) }
+        }
+        addHint(localizationManager.getString("settings_window.close_popup_on_click_outside_hint"))
+
         // Dictionary Popup sub-section
         addSubSeparator(localizationManager.getString("settings_window.dict_popup_sub"))
 
@@ -257,6 +266,7 @@ class WindowPanel(
             autoPositionCheck.isSelected = c.isPopupAutoPositionEnabled
             transparencySpinner.value = c.popupTransparencyPercentage.coerceIn(5, 50)
             popupIdleSpinner.value = c.popupIdleTimeoutSeconds
+            closeOnClickOutsideCheck.isSelected = c.closePopupsOnClickOutside
             dictTransparencySpinner.value = c.quickDictionaryTransparencyPercentage.coerceIn(5, 50)
             dictIdleSpinner.value = c.quickDictionaryIdleTimeoutSeconds
             closeButtonCombo.selectedItem = (0 until closeButtonCombo.itemCount)

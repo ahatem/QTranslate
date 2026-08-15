@@ -38,7 +38,9 @@ data class ImageSearchDialogState(
 data class ImageSearchConfig(
     val lastKnownSize: Size,
     val lastKnownPosition: Position,
-    val positionNearMouse: Boolean = true
+    val positionNearMouse: Boolean = true,
+    /** Whether pressing outside the popup dismisses it; pinning overrides this. */
+    val closeOnClickOutside: Boolean = true
 )
 
 data class ImageSearchStrings(

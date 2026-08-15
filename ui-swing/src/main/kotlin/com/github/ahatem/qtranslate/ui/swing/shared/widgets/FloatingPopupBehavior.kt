@@ -383,6 +383,37 @@ class FloatingPopupBehavior(
         isPointerOver = false
     }
 
+    /**
+     * Closes the popup when the user presses somewhere outside it.
+     *
+     * Watched globally, because the click that dismisses a popup lands in another application
+     * entirely — the document being read, usually. A press rather than a release, so the popup is
+     * gone by the time the click takes effect where it landed.
+     *
+     * Pinned popups ignore it: staying put regardless is what a pin means. [enabled] is read on
+     * each press so the setting takes effect without reinstalling anything.
+     */
+    fun installClickOutsideToClose(enabled: () -> Boolean, onClose: () -> Unit) {
+        if (outsideClickListener != null) return
+        val listener = AWTEventListener { event ->
+            val mouse = event as? MouseEvent ?: return@AWTEventListener
+            if (mouse.id != MouseEvent.MOUSE_PRESSED) return@AWTEventListener
+            if (!window.isVisible || isPinned || !enabled()) return@AWTEventListener
+
+            val screenPoint = mouse.locationOnScreen ?: return@AWTEventListener
+            if (!window.bounds.contains(screenPoint)) SwingUtilities.invokeLater(onClose)
+        }
+        outsideClickListener = listener
+        Toolkit.getDefaultToolkit().addAWTEventListener(listener, AWTEvent.MOUSE_EVENT_MASK)
+    }
+
+    fun uninstallClickOutsideToClose() {
+        outsideClickListener?.let { Toolkit.getDefaultToolkit().removeAWTEventListener(it) }
+        outsideClickListener = null
+    }
+
+    private var outsideClickListener: AWTEventListener? = null
+
     /** Everything a popup must let go of when it is hidden. */
     fun onHidden() {
         stopIdleHide()

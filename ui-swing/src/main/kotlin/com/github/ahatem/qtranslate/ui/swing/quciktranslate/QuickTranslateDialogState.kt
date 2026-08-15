@@ -38,6 +38,8 @@ data class DialogConfig(
     val autoPositionEnabled: Boolean,
     val transparencyPercentage: Int,
     val idleTimeoutSeconds: Int = 3,
+    /** Whether pressing outside the popup dismisses it; pinning overrides this. */
+    val closeOnClickOutside: Boolean = true,
     val lastKnownSize: Size,
     val lastKnownPosition: Position
 )
