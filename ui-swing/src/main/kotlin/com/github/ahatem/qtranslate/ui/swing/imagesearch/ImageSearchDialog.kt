@@ -10,6 +10,7 @@ import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toDimension
+import com.github.ahatem.qtranslate.ui.swing.shared.util.PopupSizing
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.FloatingPopupBehavior
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.InlineLoadingBar
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
@@ -160,7 +161,7 @@ class ImageSearchDialog(
     private val popup = FloatingPopupBehavior(
         window = this,
         owner = owner,
-        minimumSize = Dimension(UIScale.scale(340), UIScale.scale(280)),
+        minimumSize = Dimension(PopupSizing.minWidth(), UIScale.scale(300)),
         pinnedBorderWidth = PINNED_BORDER_WIDTH
     )
 

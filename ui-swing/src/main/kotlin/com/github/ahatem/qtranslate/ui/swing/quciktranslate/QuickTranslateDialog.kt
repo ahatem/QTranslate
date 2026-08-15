@@ -131,7 +131,7 @@ class QuickTranslateDialog(
     private val popup = FloatingPopupBehavior(
         window = this,
         owner = owner,
-        minimumSize = Dimension(350, 120),
+        minimumSize = Dimension(PopupSizing.minWidth(), PopupSizing.minHeight()),
         pinnedBorderWidth = PINNED_BORDER_WIDTH,
         resizeHandle = RESIZE_HANDLE_SIZE
     ).apply {
@@ -442,8 +442,14 @@ class QuickTranslateDialog(
         // happens to be placed — prevents wrong-monitor bounds on multi-monitor setups.
         val gc = MouseInfo.getPointerInfo()?.device?.defaultConfiguration ?: graphicsConfiguration
         val screenBounds = gc.bounds
-        val maxWidth = (screenBounds.width * MAX_WIDTH_SCALE).toInt()
-        val maxHeight = (screenBounds.height * MAX_HEIGHT_SCALE).toInt()
+        // Bounded by a readable line length first and the screen second. A share of the screen
+        // alone stretches one sentence across half a wide monitor, which is hard to read for the
+        // same reason a book is not printed edge to edge.
+        val maxWidth = PopupSizing.maxTextWidth(
+            measurePane.getFontMetrics(outputTextArea.font),
+            screenBounds
+        )
+        val maxHeight = PopupSizing.maxHeight(screenBounds)
 
         measurePane.font = outputTextArea.font
         if (measurePane.text != text) measurePane.text = text
