@@ -44,6 +44,16 @@ import kotlin.math.abs
  *
  * ### What it does not own
  * Anything to do with content. What a popup shows, and when it asks for more of it, is its own.
+ *
+ * ### Ownership
+ * These popups must be constructed with a **null owner**, not with the main window, and [owner]
+ * here is a positioning reference only. AWT ties an owned window's fate to its owner: while the
+ * owner is hidden or iconified the platform suppresses windows it owns, and showing one can pull
+ * the owner back into view. This application lives in the tray, so its main window is hidden or
+ * iconified most of the time — which made a hotkey sometimes summon the main window, sometimes
+ * dismiss it, and sometimes produce no popup at all, depending on the state the window was last
+ * left in. A null owner gives Swing's shared hidden frame, which is never shown and never
+ * iconified, so none of that applies.
  */
 class FloatingPopupBehavior(
     private val window: JDialog,

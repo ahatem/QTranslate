@@ -24,6 +24,10 @@ import kotlin.math.max
 
 
 class QuickTranslateDialog(
+    /**
+     * The main window, used only to position against. It is deliberately NOT this dialog's
+     * owner -- see FloatingPopupBehavior for why a tray application must not own these.
+     */
     private val owner: Frame,
     private val iconManager: IconManager,
     private val onDismiss: () -> Unit,
@@ -33,7 +37,7 @@ class QuickTranslateDialog(
     private val onSavePosition: (Position) -> Unit,
     private val onSaveSize: (Size) -> Unit,
     private val onPinToggled: () -> Unit
-) : JDialog(owner, ModalityType.MODELESS), Renderable<QuickTranslateDialogState> {
+) : JDialog(null as Frame?, ModalityType.MODELESS), Renderable<QuickTranslateDialogState> {
 
     private companion object {
         const val MAX_WIDTH_SCALE = 0.40

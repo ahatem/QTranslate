@@ -58,9 +58,13 @@ import javax.swing.border.EmptyBorder
  * vanishes mid-comparison would be worse than one the reader closes themselves.
  */
 class ImageSearchDialog(
+    /**
+     * The main window, used only to position against. It is deliberately NOT this dialog's
+     * owner -- see FloatingPopupBehavior for why a tray application must not own these.
+     */
     private val owner: Frame,
     private val iconManager: IconManager
-) : JDialog(owner, ModalityType.MODELESS), Renderable<ImageSearchDialogState> {
+) : JDialog(null as Frame?, ModalityType.MODELESS), Renderable<ImageSearchDialogState> {
 
     private companion object {
         const val RESIZE_HANDLE_SIZE = 8
