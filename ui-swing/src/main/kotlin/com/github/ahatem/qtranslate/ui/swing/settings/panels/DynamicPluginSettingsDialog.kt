@@ -74,6 +74,11 @@ class DynamicPluginSettingsDialog(
     )
 
     private val components = mutableMapOf<String, SettingComponent>()
+
+    /** A field rather than an inline lambda, so [dispose] can detach it again. */
+    private val themeListener = java.beans.PropertyChangeListener { event ->
+        if (event.propertyName == "lookAndFeel") SwingUtilities.invokeLater { updateButtonBarBorder() }
+    }
     private val saveButton = JButton(localizationManager.getString("common.save"))
     private val testButton = JButton(localizationManager.getString("plugin_config.test_connection")).apply {
         addActionListener { onTestClicked() }
@@ -120,9 +125,7 @@ class DynamicPluginSettingsDialog(
         add(buttonBar, BorderLayout.SOUTH)
 
         // Keep button-bar top-border in sync with the active theme
-        UIManager.addPropertyChangeListener { evt ->
-            if (evt.propertyName == "lookAndFeel") SwingUtilities.invokeLater { updateButtonBarBorder() }
-        }
+        UIManager.addPropertyChangeListener(themeListener)
 
         // Keyboard shortcuts
         rootPane.defaultButton = saveButton
@@ -772,6 +775,9 @@ class DynamicPluginSettingsDialog(
     override fun dispose() {
         // A check can still be in flight; without this it would come back to a disposed window.
         dialogScope.cancel()
+        // One of these dialogs is built per plugin configured, and UIManager keeps its listeners
+        // for the life of the process — so leaving this attached pins the whole dialog forever.
+        UIManager.removePropertyChangeListener(themeListener)
         super.dispose()
     }
 

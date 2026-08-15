@@ -46,14 +46,38 @@ class QuickTranslateDialog(
         const val RESIZE_SAVE_DEBOUNCE_MS = 180
     }
 
-    // theme colors cached
-    private val borderColor = UIManager.getColor("Component.borderColor")
-    private val accentBorderColor = UIManager.getColor("Component.focusedBorderColor")
-        ?: UIManager.getColor("Component.accentColor")
-        ?: borderColor
-    private val toolbarSelectedBg = UIManager.getColor("Button.toolbar.selectedBackground")
-    private val toolbarSelectedFg = UIManager.getColor("Button.toolbar.selectedForeground")
-    private val labelFg = UIManager.getColor("Label.foreground")
+    // Read on use, not cached. This dialog is created once and outlives any number of theme
+    // switches; a captured colour would pin the borders and button styling to whichever theme
+    // happened to be active at startup. See refreshTheme.
+    private val borderColor: Color? get() = UIManager.getColor("Component.borderColor")
+    private val accentBorderColor: Color?
+        get() = UIManager.getColor("Component.focusedBorderColor")
+            ?: UIManager.getColor("Component.accentColor")
+            ?: borderColor
+    private val toolbarSelectedBg: Color? get() = UIManager.getColor("Button.toolbar.selectedBackground")
+    private val toolbarSelectedFg: Color? get() = UIManager.getColor("Button.toolbar.selectedForeground")
+    private val labelFg: Color? get() = UIManager.getColor("Label.foreground")
+
+    /** A field, not an inline lambda, so it can be detached when the window goes away. */
+    private val themeListener = java.beans.PropertyChangeListener { event ->
+        if (event.propertyName == "lookAndFeel") SwingUtilities.invokeLater { refreshTheme() }
+    }
+
+    /** Panels carrying a themed divider, kept so it can be redrawn in the new theme's colour. */
+    private val dividedPanels = mutableListOf<Pair<JPanel, () -> javax.swing.border.Border>>()
+
+    /**
+     * Re-applies the colours this dialog painted itself with.
+     *
+     * Borders keep the colour they were given, and switching look and feel does not revisit them,
+     * so without this the popup keeps the old theme's edges against the new background.
+     */
+    private fun refreshTheme() {
+        dividedPanels.forEach { (panel, borderOf) -> panel.border = borderOf() }
+        updatePinButtonStyle(isPinned)
+        revalidate()
+        repaint()
+    }
 
     // title + controls
     private val languagePairLabel = JLabel().apply { putClientProperty("FlatLaf.styleClass", "h4") }
@@ -142,6 +166,7 @@ class QuickTranslateDialog(
         mainPanel.add(textScrollPane, BorderLayout.CENTER)
 
         setupWindowBehavior(topPanel)
+        UIManager.addPropertyChangeListener(themeListener)
         updatePinButtonStyle(isPinned)
     }
 
@@ -535,6 +560,7 @@ class QuickTranslateDialog(
 
         val separator = JPanel().apply {
             border = BorderFactory.createMatteBorder(0, 0, 0, 1, borderColor)
+            dividedPanels += this to { BorderFactory.createMatteBorder(0, 0, 0, 1, borderColor) }
             preferredSize = Dimension(1, 24)
             maximumSize = Dimension(1, Int.MAX_VALUE)
             isOpaque = false
@@ -564,6 +590,7 @@ class QuickTranslateDialog(
         val finalPanel = JPanel().apply {
             isOpaque = false
             border = BorderFactory.createMatteBorder(0, 0, 1, 0, borderColor)
+            dividedPanels += this to { BorderFactory.createMatteBorder(0, 0, 1, 0, borderColor) }
         }
 
         val grid = GridBag(finalPanel)
@@ -667,6 +694,7 @@ class QuickTranslateDialog(
             override fun windowClosing(e: WindowEvent) = onDismiss()
             override fun windowClosed(e: WindowEvent) {
                 uninstallAwtMouseListener()
+                UIManager.removePropertyChangeListener(themeListener)
             }
         })
 

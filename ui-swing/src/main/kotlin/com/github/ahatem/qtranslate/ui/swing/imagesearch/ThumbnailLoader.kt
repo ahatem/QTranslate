@@ -37,6 +37,24 @@ class ThumbnailLoader(private val maxEntries: Int = 120) {
     )
 
     /**
+     * Everything queued belongs to this search. Bumped by [cancelPending] so work already in the
+     * queue can tell that its results are no longer wanted.
+     */
+    @Volatile
+    private var generation = 0
+
+    /**
+     * Abandons thumbnails still queued for an earlier search.
+     *
+     * Typing in the popup starts a search per pause, and without this every set of results
+     * downloads in full — four terms in quick succession fetched forty-odd images for the three
+     * grids nobody is looking at any more, ahead of the one they are.
+     */
+    fun cancelPending() {
+        generation++
+    }
+
+    /**
      * Loads [url], calling [onLoaded] on the event thread.
      *
      * [onLoaded] is not called if the image cannot be fetched or decoded: a tile that stays a
@@ -51,9 +69,14 @@ class ThumbnailLoader(private val maxEntries: Int = 120) {
             return
         }
 
+        val requested = generation
         pool.execute {
+            // Checked before the fetch, which is the expensive part and the point of cancelling.
+            if (requested != generation) return@execute
             val image = runCatching { fetch(url) }.getOrNull() ?: return@execute
+            // Cached regardless: it was paid for, and the same term searched again should be free.
             cache[url] = image
+            if (requested != generation) return@execute
             SwingUtilities.invokeLater { onLoaded(image) }
         }
     }

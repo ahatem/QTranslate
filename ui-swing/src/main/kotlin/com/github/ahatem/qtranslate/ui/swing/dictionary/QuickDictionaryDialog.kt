@@ -44,14 +44,26 @@ class QuickDictionaryDialog(
     }
 
     // Theme colors
-    private val borderColor = UIManager.getColor("Component.borderColor")
-    private val accentBorderColor = UIManager.getColor("Component.focusedBorderColor")
-        ?: UIManager.getColor("Component.accentColor")
-        ?: borderColor
-    private val toolbarSelectedBg = UIManager.getColor("Button.toolbar.selectedBackground")
-    private val toolbarSelectedFg = UIManager.getColor("Button.toolbar.selectedForeground")
-    private val labelFg = UIManager.getColor("Label.foreground")
-    private val disabledFg = UIManager.getColor("Label.disabledForeground")
+    // Accessors rather than fields. This dialog is built once and lives for the whole session, so
+    // a colour captured here would be the one the theme had at startup, and every border and
+    // dimmed label would keep it after a theme switch. See refreshTheme.
+    private val borderColor: Color? get() = UIManager.getColor("Component.borderColor")
+    private val accentBorderColor: Color?
+        get() = UIManager.getColor("Component.focusedBorderColor")
+            ?: UIManager.getColor("Component.accentColor")
+            ?: borderColor
+    private val toolbarSelectedBg: Color? get() = UIManager.getColor("Button.toolbar.selectedBackground")
+    private val toolbarSelectedFg: Color? get() = UIManager.getColor("Button.toolbar.selectedForeground")
+    private val labelFg: Color? get() = UIManager.getColor("Label.foreground")
+    private val disabledFg: Color? get() = UIManager.getColor("Label.disabledForeground")
+
+    /** Held so it can be detached; also the reason this is not an inline lambda. */
+    private val themeListener = java.beans.PropertyChangeListener { event ->
+        if (event.propertyName == "lookAndFeel") SwingUtilities.invokeLater { refreshTheme() }
+    }
+
+    /** The header, kept so its divider can be recoloured when the theme changes. */
+    private var headerPanel: JPanel? = null
 
     // Header widgets
     private val titleLabel = JLabel("").apply {
@@ -170,6 +182,7 @@ class QuickDictionaryDialog(
         mainPanel.add(contentArea, BorderLayout.CENTER)
 
         setupWindowBehavior()
+        UIManager.addPropertyChangeListener(themeListener)
         updatePinButtonStyle(false)
     }
 
@@ -353,12 +366,10 @@ class QuickDictionaryDialog(
 
         return JPanel(BorderLayout(8, 0)).apply {
             isOpaque = false
-            border = BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, borderColor),
-                EmptyBorder(6, 10, 6, 6)
-            )
+            border = headerBorder()
             add(titleLabel, BorderLayout.CENTER)
             add(rightPanel, BorderLayout.LINE_END)
+            headerPanel = this
         }
     }
 
@@ -487,6 +498,27 @@ class QuickDictionaryDialog(
 
     private fun stopIdleHide() {
         idleHideTimer?.stop()
+    }
+
+    private fun headerBorder() = BorderFactory.createCompoundBorder(
+        BorderFactory.createMatteBorder(0, 0, 1, 0, borderColor),
+        EmptyBorder(6, 10, 6, 6)
+    )
+
+    /**
+     * Re-applies every colour this dialog painted itself with.
+     *
+     * A border keeps whatever colour it was handed, and a new look and feel does not revisit it,
+     * so without this the popup goes on showing the previous theme's divider and dimmed text
+     * against the new background — the same fault the service selector had.
+     */
+    private fun refreshTheme() {
+        headerPanel?.border = headerBorder()
+        hintLabel.foreground = disabledFg
+        loadingLabel.foreground = disabledFg
+        updatePinButtonStyle(isPinned)
+        revalidate()
+        repaint()
     }
 
     private fun fadeTo(targetOpacity: Float, durationMs: Int) {
@@ -676,7 +708,10 @@ class QuickDictionaryDialog(
 
         addWindowListener(object : WindowAdapter() {
             override fun windowClosing(e: WindowEvent) { currentState?.onClose?.invoke() }
-            override fun windowClosed(e: WindowEvent) { uninstallAwtMouseListener() }
+            override fun windowClosed(e: WindowEvent) {
+                uninstallAwtMouseListener()
+                UIManager.removePropertyChangeListener(themeListener)
+            }
         })
 
         rootPane.registerKeyboardAction(
