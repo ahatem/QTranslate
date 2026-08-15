@@ -46,7 +46,7 @@ class LookupWordUseCase(
         if (dictionary == null) {
             logger.warn("No dictionary service available")
             onStatusUpdate(StatusCode.NoDictionaryServiceActive, NotificationType.ERROR, true)
-            updateState { copy(isDictionaryLoading = false, dictionaryFailed = true) }
+            updateState { copy(isDictionaryLoading = false, dictionaryFailed = true, dictionaryEntries = emptyList()) }
             return
         }
 
@@ -55,10 +55,14 @@ class LookupWordUseCase(
         lookupJob = scope.launch {
             try {
                 onStatusUpdate(StatusCode.LookingUpWord, NotificationType.INFO, false)
+                // The previous definitions stay up while this one runs. They are still readable,
+                // and a popup that empties itself the moment you ask it for something else takes
+                // away what you were reading in exchange for a blank panel. They are replaced
+                // when the new result lands, and cleared only if it turns out there is nothing
+                // to replace them with.
                 updateState {
                     copy(
                         isDictionaryLoading = true,
-                        dictionaryEntries = emptyList(),
                         dictionaryWord = word,
                         dictionaryFailed = false
                     )
@@ -79,7 +83,7 @@ class LookupWordUseCase(
                 if (result == null) {
                     logger.warn("Dictionary lookup timed out for '$word'")
                     onStatusUpdate(StatusCode.DictionaryTimeout, NotificationType.WARNING, true)
-                    updateState { copy(isDictionaryLoading = false, dictionaryFailed = true) }
+                    updateState { copy(isDictionaryLoading = false, dictionaryFailed = true, dictionaryEntries = emptyList()) }
                     return@launch
                 }
 
@@ -105,7 +109,7 @@ class LookupWordUseCase(
                         val msg = error.toString()
                         logger.warn("Dictionary lookup failed for '$word': $msg")
                         onStatusUpdate(StatusCode.DictionaryFailed(msg), NotificationType.ERROR, true)
-                        updateState { copy(isDictionaryLoading = false, dictionaryFailed = true) }
+                        updateState { copy(isDictionaryLoading = false, dictionaryFailed = true, dictionaryEntries = emptyList()) }
                     }
                 )
             } catch (e: CancellationException) {
@@ -114,7 +118,7 @@ class LookupWordUseCase(
                 val msg = e.message ?: "Unknown error"
                 logger.warn("Unexpected error during dictionary lookup: $msg")
                 onStatusUpdate(StatusCode.DictionaryFailed(msg), NotificationType.ERROR, true)
-                updateState { copy(isDictionaryLoading = false, dictionaryFailed = true) }
+                updateState { copy(isDictionaryLoading = false, dictionaryFailed = true, dictionaryEntries = emptyList()) }
             }
         }
     }
