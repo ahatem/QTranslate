@@ -249,9 +249,37 @@ class MainGlobalKeyListener(
         private var lastCtrlTime = 0L
         private val threshold = 400
 
+        /** True once a key other than Ctrl is pressed while Ctrl is held. */
+        private var ctrlWasPartOfCombination = false
+        private var ctrlIsDown = false
+
+        override fun nativeKeyPressed(e: NativeKeyEvent) {
+            if (e.keyCode == NativeKeyEvent.VC_CONTROL) {
+                ctrlIsDown = true
+                ctrlWasPartOfCombination = false
+            } else if (ctrlIsDown) {
+                ctrlWasPartOfCombination = true
+            }
+        }
+
         override fun nativeKeyReleased(e: NativeKeyEvent) {
-            if (!hotkeysEnabled.get()) return
             if (e.keyCode != NativeKeyEvent.VC_CONTROL) return
+            ctrlIsDown = false
+
+            // The Ctrl that ends a shortcut is not a tap. Every hotkey in this application is a
+            // Ctrl combination, so counting those releases meant two shortcuts pressed within the
+            // threshold — Ctrl+Q twice, or Ctrl+Q then Ctrl+D — read as a double-Ctrl and summoned
+            // the main window on top of the popup the user actually asked for.
+            //
+            // The time is cleared as well as ignored, so the release that ends a shortcut cannot
+            // pair with a genuine tap that follows it either.
+            if (ctrlWasPartOfCombination) {
+                ctrlWasPartOfCombination = false
+                lastCtrlTime = 0L
+                return
+            }
+
+            if (!hotkeysEnabled.get()) return
 
             // Only fire if the binding exists, is enabled, AND the user
             // has not opted out of the double-Ctrl mechanism specifically.
@@ -261,6 +289,8 @@ class MainGlobalKeyListener(
             val now = System.currentTimeMillis()
             if (now - lastCtrlTime < threshold) {
                 scope.launch { handleSelectedText(onShowApp) }
+                lastCtrlTime = 0L
+                return
             }
             lastCtrlTime = now
         }

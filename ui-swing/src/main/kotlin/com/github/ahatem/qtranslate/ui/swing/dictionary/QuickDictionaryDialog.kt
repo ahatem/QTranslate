@@ -146,7 +146,7 @@ class QuickDictionaryDialog(
     private val popup = FloatingPopupBehavior(
         window = this,
         owner = owner,
-        minimumSize = Dimension(UIScale.scale(320), UIScale.scale(200)),
+        minimumSize = Dimension(PopupSizing.minWidth(), UIScale.scale(240)),
         pinnedBorderWidth = PINNED_BORDER_WIDTH,
         resizeHandle = RESIZE_HANDLE_SIZE
     ).apply {

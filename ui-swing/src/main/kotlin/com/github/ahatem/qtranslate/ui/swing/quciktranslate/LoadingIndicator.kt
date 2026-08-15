@@ -41,16 +41,51 @@ class LoadingIndicator(owner: Frame) : JWindow(), Renderable<LoadingIndicatorSta
         pack()
     }
 
-    override fun render(state: LoadingIndicatorState) {
-        val shouldBeVisible = state.isVisible
+    /** When the marker went up, so a fast result cannot take it down before it was ever seen. */
+    private var shownAt = 0L
 
-        if (isVisible != shouldBeVisible) {
-            isVisible = shouldBeVisible
-            if (shouldBeVisible) {
+    private var pendingHide: Timer? = null
+
+    override fun render(state: LoadingIndicatorState) {
+        if (state.isVisible) {
+            pendingHide?.stop()
+            pendingHide = null
+            if (!isVisible) {
+                // Positioned before showing, or the first frame lands wherever the window was
+                // last left — usually the top-left corner of the screen.
+                MouseInfo.getPointerInfo()?.location?.let { setLocation(it.x, it.y + 20) }
+                shownAt = System.currentTimeMillis()
+                isVisible = true
                 positionUpdater.start()
-            } else {
-                positionUpdater.stop()
             }
+            return
         }
+
+        if (!isVisible) return
+
+        // A translation that returns in 80ms would otherwise show and hide the marker inside a
+        // single frame — the user sees a flicker, or nothing at all, and reports that the
+        // indicator "doesn't work". Held for a moment so that appearing means something.
+        val shownFor = System.currentTimeMillis() - shownAt
+        if (shownFor >= MINIMUM_VISIBLE_MS) {
+            hideNow()
+            return
+        }
+        if (pendingHide != null) return
+        pendingHide = Timer((MINIMUM_VISIBLE_MS - shownFor).toInt()) {
+            (it.source as Timer).stop()
+            pendingHide = null
+            hideNow()
+        }.apply { isRepeats = false; start() }
+    }
+
+    private fun hideNow() {
+        isVisible = false
+        positionUpdater.stop()
+    }
+
+    private companion object {
+        /** Long enough to register as "something is happening" rather than as a glitch. */
+        const val MINIMUM_VISIBLE_MS = 350L
     }
 }
