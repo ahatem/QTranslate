@@ -94,6 +94,43 @@ class LocalizationFilesTest {
         }
     }
 
+    /**
+     * en-GB carries the same keys as the fallback, no more and no less.
+     *
+     * Both are English, so a key present in one and absent from the other is drift rather than a
+     * translation gap — which is what it had become: en-GB was missing 67 keys and carried three
+     * of its own that nothing referenced. Values are deliberately not compared; en-GB exists to
+     * differ, in British spellings such as "Minimise" and "Summariser".
+     *
+     * The other twelve files are exempt on purpose. Falling behind is normal for them, since a
+     * missing key falls back to English and an untranslated string is better than none.
+     */
+    @Test
+    fun `en-GB carries exactly the keys the fallback does`() {
+        val embeddedKeys = keysOf(embedded)
+        val enGb = languageFiles.single { it.name == "en-GB.toml" }
+        val enGbKeys = keysOf(enGb)
+
+        val missing = embeddedKeys - enGbKeys
+        val extra = enGbKeys - embeddedKeys
+
+        if (missing.isNotEmpty() || extra.isNotEmpty()) {
+            fail(
+                buildString {
+                    appendLine("en-GB.toml has drifted from embedded_en.toml.")
+                    if (missing.isNotEmpty()) {
+                        appendLine("Missing from en-GB (${missing.size}):")
+                        missing.sorted().forEach { appendLine("  $it") }
+                    }
+                    if (extra.isNotEmpty()) {
+                        appendLine("Present in en-GB but not the fallback (${extra.size}):")
+                        extra.sorted().forEach { appendLine("  $it") }
+                    }
+                }
+            )
+        }
+    }
+
     /** Flattens a TOML localization file to `section.key` strings. */
     private fun keysOf(file: File): Set<String> {
         var section = ""
