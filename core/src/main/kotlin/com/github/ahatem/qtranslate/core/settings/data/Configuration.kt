@@ -87,6 +87,7 @@ enum class HotkeyAction {
     REPLACE_WITH_TRANSLATION,  // Rob #2 / Davide — translate and replace selected text
     CYCLE_TARGET_LANGUAGE,     // Yan #3 — cycle through available target languages
     SHOW_DICTIONARY,           // open floating dictionary popup
+    SHOW_IMAGES,               // open floating image popup (default: Ctrl+Shift+Q, GLOBAL)
     TRANSLATE,                 // trigger translation (default: Ctrl+Enter, LOCAL)
     FOCUS_INPUT,               // move keyboard focus to the input text pane (default: Alt+1, LOCAL)
     FOCUS_OUTPUT,              // move keyboard focus to the output text pane (default: Alt+2, LOCAL)
@@ -168,6 +169,9 @@ data class HotkeyBinding(
             HotkeyBinding(HotkeyAction.REPLACE_WITH_TRANSLATION, keyCode = java.awt.event.KeyEvent.VK_T,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.GLOBAL),
             HotkeyBinding(HotkeyAction.CYCLE_TARGET_LANGUAGE,    keyCode = java.awt.event.KeyEvent.VK_L,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.LOCAL),
             HotkeyBinding(HotkeyAction.SHOW_DICTIONARY,          keyCode = java.awt.event.KeyEvent.VK_D,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.GLOBAL),
+            // Shift+the quick-translate key: this is the same gesture on the same selection,
+            // asking for pictures instead of words. Ctrl+Shift+I would read as a variant of OCR.
+            HotkeyBinding(HotkeyAction.SHOW_IMAGES,              keyCode = java.awt.event.KeyEvent.VK_Q,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.GLOBAL),
             HotkeyBinding(HotkeyAction.TRANSLATE,                keyCode = java.awt.event.KeyEvent.VK_ENTER,            modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.LOCAL),
             HotkeyBinding(HotkeyAction.FOCUS_INPUT,              keyCode = java.awt.event.KeyEvent.VK_1,                modifiers = java.awt.event.InputEvent.ALT_DOWN_MASK,   scope = HotkeyScope.LOCAL),
             HotkeyBinding(HotkeyAction.FOCUS_OUTPUT,             keyCode = java.awt.event.KeyEvent.VK_2,                modifiers = java.awt.event.InputEvent.ALT_DOWN_MASK,   scope = HotkeyScope.LOCAL),
@@ -337,6 +341,9 @@ data class Configuration(
     // ---- UI — Quick Dictionary Popup ----
     val quickDictionaryLastKnownSize: Size = Size(width = 420, height = 400),
     val quickDictionaryLastKnownPosition: Position = Position(x = 0, y = 0),
+    /** Wider than the dictionary popup because it holds a grid rather than a column of text. */
+    val imageSearchLastKnownSize: Size = Size(width = 560, height = 460),
+    val imageSearchLastKnownPosition: Position = Position(x = 0, y = 0),
     val isQuickDictionaryPinned: Boolean = false,
     val isQuickDictionaryAutoPositionEnabled: Boolean = true,
     val quickDictionaryIdleTimeoutSeconds: Int = 8,

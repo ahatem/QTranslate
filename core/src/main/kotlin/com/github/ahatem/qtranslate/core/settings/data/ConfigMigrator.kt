@@ -24,7 +24,7 @@ object ConfigMigrator {
      * would skip every migration it needs. A configuration this build creates from scratch is
      * stamped with this value instead.
      */
-    internal const val CURRENT_VERSION = 4
+    internal const val CURRENT_VERSION = 5
 
     /**
      * Applies all pending migrations to [config] in order and returns the result.
@@ -114,6 +114,18 @@ object ConfigMigrator {
                     configVersion = 4,
                     servicePresets = upgradedPresets,
                     disabledServices = upgradedDisabled
+                )
+            }
+            4 -> {
+                // v4 → v5: SHOW_IMAGES was added. Same patch as v1 → v2 and v2 → v3: a user with
+                // a saved hotkey list keeps exactly that list, so without this step the new
+                // binding would exist only for people installing fresh.
+                logger.info("ConfigMigrator: migrating v4 → v5 — patching missing hotkey defaults")
+                val existingActions = config.hotkeys.map { it.action }.toSet()
+                val missingDefaults = HotkeyBinding.DEFAULTS.filter { it.action !in existingActions }
+                config.copy(
+                    configVersion = 5,
+                    hotkeys = config.hotkeys + missingDefaults
                 )
             }
             else -> {

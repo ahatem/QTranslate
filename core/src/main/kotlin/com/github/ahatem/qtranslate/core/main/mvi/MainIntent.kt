@@ -173,4 +173,34 @@ sealed interface MainIntent : UiIntent {
 
     /** User toggled the pin state of the floating dictionary popup. */
     data object ToggleQuickDictionaryPin : MainIntent
+
+    // ---- Image search ----
+
+    /**
+     * User asked to see images for [term].
+     *
+     * @property language The language [term] is in. A term often resolves better in the language
+     *   it was written in — species names and medical Latin especially.
+     */
+    data class SearchImages(
+        val term: String,
+        val language: LanguageCode = LanguageCode("en")
+    ) : MainIntent
+
+    /**
+     * User triggered the floating image popup, from the context menu or the global hotkey.
+     *
+     * @property selectedText The text selected when the popup was asked for.
+     * @property language     The language to search in.
+     */
+    data class ShowImageSearch(
+        val selectedText: String,
+        val language: LanguageCode = LanguageCode("en")
+    ) : MainIntent
+
+    /** User dismissed the floating image popup. */
+    data object HideImageSearch : MainIntent
+
+    /** User toggled the pin state of the floating image popup. */
+    data object ToggleImageSearchPin : MainIntent
 }

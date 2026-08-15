@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.core.main.mvi
 
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
+import com.github.ahatem.qtranslate.api.imagesearch.ImageResult
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceOption
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
@@ -67,6 +68,12 @@ data class MainState(
     val isQuickTranslateDialogPinned: Boolean = false,
     val isQuickDictionaryVisible: Boolean = false,
     val isQuickDictionaryPinned: Boolean = false,
+    val imageResults: List<ImageResult> = emptyList(),
+    val isImageSearchLoading: Boolean = false,
+    val imageSearchTerm: String = "",
+    val imageSearchFailed: Boolean = false,
+    val isImageSearchVisible: Boolean = false,
+    val isImageSearchPinned: Boolean = false,
     /** True while a silent background translation for inline replace is running. */
     val isReplacingSelection: Boolean = false,
     /** True while the [com.github.ahatem.qtranslate.core.audio.AudioPlayer] is actively playing TTS audio. */

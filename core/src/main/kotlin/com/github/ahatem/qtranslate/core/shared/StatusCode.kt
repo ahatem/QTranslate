@@ -78,6 +78,16 @@ sealed class StatusCode {
     object DictionaryTimeout : StatusCode()
     data class DictionaryFailed(val summary: String) : StatusCode()
 
+    // ---- Image search ----
+
+    object NoTermToIllustrate : StatusCode()
+    object NoImageSearchServiceActive : StatusCode()
+    object SearchingImages : StatusCode()
+    object ImageSearchReady : StatusCode()
+    data class ImagesNotFound(val term: String) : StatusCode()
+    object ImageSearchTimeout : StatusCode()
+    data class ImageSearchFailed(val summary: String) : StatusCode()
+
     // ---- Updates ----
 
     data class AlreadyUpToDate(val version: String) : StatusCode()
