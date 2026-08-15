@@ -210,6 +210,16 @@ sealed interface MainIntent : UiIntent {
      */
     data class UpdateInlineDefinition(
         val word: String,
-        val language: LanguageCode = LanguageCode("en")
+        val language: LanguageCode = LanguageCode("en"),
+        /**
+         * The other word worth defining, tried when [word] yields nothing.
+         *
+         * A translation has two sides and dictionaries are lopsided: the common ones cover English
+         * thoroughly and most other languages barely at all. Defining only the translated word
+         * means a reader translating into Arabic, or Hindi, or Vietnamese, sees no definition ever
+         * — the lookup is simply asking a dictionary for a language it does not hold.
+         */
+        val alternateWord: String = "",
+        val alternateLanguage: LanguageCode = LanguageCode("en")
     ) : MainIntent
 }
