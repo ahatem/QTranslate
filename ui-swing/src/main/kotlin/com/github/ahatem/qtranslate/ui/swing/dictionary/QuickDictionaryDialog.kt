@@ -240,10 +240,24 @@ class QuickDictionaryDialog(
         if (!isVisible) return
 
         val pinChanged = this.isPinned != state.isPinned
+        val retriggered = lastTriggerCount != state.triggerCount
+        lastTriggerCount = state.triggerCount
+
         currentState = state
         updateContent(state)
         if (pinChanged) handlePinState(state)
+
+        // The user asked for this popup again while it was already open. Refresh in place and
+        // give them the full countdown back — but only on a real trigger, since render runs for
+        // every unrelated state change and resetting on all of them would disable auto-hide.
+        if (retriggered) {
+            fadeTo(1f, FADE_MS)
+            noteUserActivity()
+        }
     }
+
+    /** The trigger this popup last reacted to; see [QuickDictionaryDialogState.triggerCount]. */
+    private var lastTriggerCount = 0
 
     private fun updateContent(state: QuickDictionaryDialogState) {
         isPinned = state.isPinned

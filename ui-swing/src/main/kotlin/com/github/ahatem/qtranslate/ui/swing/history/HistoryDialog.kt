@@ -10,7 +10,7 @@ import javax.swing.*
 import javax.swing.table.AbstractTableModel
 import javax.swing.table.DefaultTableCellRenderer
 
-class HistoryDialog(owner: Frame) : JDialog(owner, false) {
+class HistoryDialog(owner: Frame) : JDialog(null as Frame?, false) {
 
     private var state: HistoryDialogState? = null
 
@@ -36,6 +36,7 @@ class HistoryDialog(owner: Frame) : JDialog(owner, false) {
     private val closeButton = JButton()
 
     init {
+        com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons.applyTo(this)
         defaultCloseOperation = HIDE_ON_CLOSE
         isResizable = true
 

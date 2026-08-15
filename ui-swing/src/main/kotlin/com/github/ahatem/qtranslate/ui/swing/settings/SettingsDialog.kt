@@ -119,6 +119,7 @@ class SettingsDialog(
     // ─────────────────────────────────────────────────────────────────────────
 
     init {
+        com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons.applyTo(this)
         title = localizationManager.getString("settings_dialog.title")
         layout = BorderLayout()
 

@@ -7,7 +7,7 @@ import java.awt.Dimension
 import java.awt.Frame
 import javax.swing.*
 
-class DictionaryDialog(owner: Frame) : JDialog(owner, false) {
+class DictionaryDialog(owner: Frame) : JDialog(null as Frame?, false) {
 
     private var state: DictionaryDialogState? = null
     private var updatingFromState = false
@@ -37,6 +37,7 @@ class DictionaryDialog(owner: Frame) : JDialog(owner, false) {
     }
 
     init {
+        com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons.applyTo(this)
         defaultCloseOperation = HIDE_ON_CLOSE
         isResizable = true
 

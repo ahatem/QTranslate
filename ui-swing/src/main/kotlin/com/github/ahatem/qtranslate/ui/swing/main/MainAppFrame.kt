@@ -285,11 +285,9 @@ class MainAppFrame(
         },
         onShowDictionary = { selectedText ->
             appScope.launch {
-                // Toggle: Ctrl+D while popup is open → close it.
-                if (mainStore.state.value.isQuickDictionaryVisible) {
-                    mainStore.dispatch(MainIntent.HideQuickDictionary)
-                    return@launch
-                }
+                // No longer a toggle. Pressing the hotkey again with the popup open refreshes it
+                // in place and restarts its countdown — hiding it meant the popup vanished when
+                // the user was asking for more of it, and threw away a pin they had set.
                 val s = mainStore.state.value
                 val lang = when {
                     s.sourceLanguage != LanguageCode.AUTO -> s.sourceLanguage
@@ -301,12 +299,8 @@ class MainAppFrame(
             }
         },
         onShowImages = { selectedText ->
+            // Refreshes in place when already open, for the same reason as the dictionary.
             appScope.launch {
-                // Same toggle as the dictionary: the key that opened it closes it.
-                if (mainStore.state.value.isImageSearchVisible) {
-                    mainStore.dispatch(MainIntent.HideImageSearch)
-                    return@launch
-                }
                 mainStore.dispatch(MainIntent.ShowImageSearch(selectedText, resolvedLookupLanguage()))
             }
         },
@@ -512,9 +506,14 @@ class MainAppFrame(
             mainStore.state
                 .map { Triple(it.isLoading, it.isQuickTranslateDialogVisible, it.isReplacingSelection) }
                 .distinctUntilChanged()
-                .collect { (isLoading, isDialogVisible, isReplacing) ->
+                .collect { (isLoading, _, isReplacing) ->
                     withContext(Dispatchers.Swing) {
-                        val shouldShow = isLoading && (!isVisible && !isDialogVisible || isReplacing)
+                        // Keyed on whether the popup window is actually on screen, not on the
+                        // state flag. The popup now holds itself back until it has something to
+                        // show, so between the hotkey and the result the state says "visible"
+                        // while nothing is — which is exactly the stretch the indicator is for.
+                        val popupOnScreen = quickTranslateDialog.isVisible
+                        val shouldShow = isLoading && (isReplacing || (!isVisible && !popupOnScreen))
                         loadingIndicator.render(LoadingIndicatorState(isVisible = shouldShow))
                     }
                 }
@@ -1347,6 +1346,7 @@ class MainAppFrame(
             isLoading = mainState.isLoading,
             translatedText = mainState.translatedText,
             isPinned = mainState.isQuickTranslateDialogPinned,
+            triggerCount = mainState.quickTranslateTriggerCount,
 
             sourceLanguage = displaySourceLanguage,
             targetLanguage = mainState.targetLanguage,
@@ -1610,6 +1610,7 @@ class MainAppFrame(
             searchedTerm      = mainState.imageSearchTerm,
             hasFailed         = mainState.imageSearchFailed,
             isPinned          = mainState.isImageSearchPinned,
+            triggerCount      = mainState.imageSearchTriggerCount,
             availableServices = available,
             selectedServiceId = selectedId,
             config = ImageSearchConfig(
@@ -1682,6 +1683,7 @@ class MainAppFrame(
             lookedUpWord         = mainState.dictionaryWord,
             hasFailed            = mainState.dictionaryFailed,
             isPinned             = mainState.isQuickDictionaryPinned,
+            triggerCount         = mainState.quickDictionaryTriggerCount,
             availableDictionaries = availableDicts,
             selectedDictionaryId  = selectedDictId,
             autoSource               = config.dictionaryAutoSource,

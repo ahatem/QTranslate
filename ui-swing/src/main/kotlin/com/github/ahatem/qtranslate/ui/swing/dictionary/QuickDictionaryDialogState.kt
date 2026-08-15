@@ -20,6 +20,8 @@ data class QuickDictionaryDialogState(
     val lookedUpWord: String,
     val hasFailed: Boolean,
     val isPinned: Boolean,
+    /** Bumped when the user asks for this popup again; a change restarts the countdown. */
+    val triggerCount: Int,
     val availableDictionaries: List<ServiceInfo>,
     val selectedDictionaryId: String?,
     val config: QuickDictionaryConfig,

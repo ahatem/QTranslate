@@ -20,6 +20,8 @@ data class ImageSearchDialogState(
     val searchedTerm: String,
     val hasFailed: Boolean,
     val isPinned: Boolean,
+    /** Bumped when the user asks for this popup again; a change restarts the countdown. */
+    val triggerCount: Int,
     val availableServices: List<ServiceInfo>,
     val selectedServiceId: String?,
     val config: ImageSearchConfig,

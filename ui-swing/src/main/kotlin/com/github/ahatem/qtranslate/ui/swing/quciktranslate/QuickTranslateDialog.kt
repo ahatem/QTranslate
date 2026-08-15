@@ -160,6 +160,12 @@ class QuickTranslateDialog(
 
     private var lastRenderedText: String? = null
 
+    /** True while the popup has been asked for but is waiting for something worth showing. */
+    private var pendingShow = false
+
+    /** The trigger this popup last reacted to; see [QuickTranslateDialogState.triggerCount]. */
+    private var lastTriggerCount = 0
+
     init {
         focusableWindowState = false
 
@@ -213,22 +219,50 @@ class QuickTranslateDialog(
                 )
 
                 updateContent(state)
-                applySize(state.translatedText)
-                applyPosition()
-                showDialog()
+
+                // Nothing to show yet, so nothing is shown. Opening now would put a popup on
+                // screen sized to an empty string — a sliver that then jumps to full size when
+                // the translation lands. The loading indicator covers the wait instead, and the
+                // popup appears once, already the right size.
+                if (state.isLoading && state.translatedText.isBlank()) {
+                    pendingShow = true
+                    return
+                }
+                showNow(state)
             } else {
+                pendingShow = false
                 hideDialog()
             }
             return
         }
 
-        if (!isVisible) return
+        if (!isVisible) {
+            // A deferred open, now that the result has arrived — or failed, which also deserves
+            // to be shown rather than left waiting forever.
+            if (pendingShow && state.isVisible && (!state.isLoading || state.translatedText.isNotBlank())) {
+                currentConfig = state.config
+                updateContent(state)
+                showNow(state)
+            }
+            return
+        }
 
         val pinStateChanged = this.isPinned != state.isPinned
+        val retriggered = lastTriggerCount != state.triggerCount
+        lastTriggerCount = state.triggerCount
 
         updateContent(state)
 
         if (pinStateChanged) handlePinState(state)
+
+        // Asked for again while already open: refresh in place, come back to full opacity, and
+        // restart the countdown. Re-sized for the new text, since it is a different translation.
+        if (retriggered) {
+            fadeTo(1f, FADE_MS)
+            if (!isResizing && !isDragging) applySize(state.translatedText)
+            popup.noteActivity()
+            toFront()
+        }
 
         // only refresh font when user changed it
         if (!isResizing && !isDragging) {
@@ -237,6 +271,16 @@ class QuickTranslateDialog(
                 newFallback = state.config.fallbackFont.toFont()
             )
         }
+    }
+
+    /** Sizes the popup for the text it is about to show, then puts it on screen. */
+    private fun showNow(state: QuickTranslateDialogState) {
+        pendingShow = false
+        wasManuallyMoved = false
+        lastTriggerCount = state.triggerCount
+        applySize(state.translatedText)
+        applyPosition()
+        showDialog()
     }
 
     // Full content sync
