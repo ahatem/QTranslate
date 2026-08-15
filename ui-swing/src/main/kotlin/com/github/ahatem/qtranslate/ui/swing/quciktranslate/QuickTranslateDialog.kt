@@ -214,10 +214,6 @@ class QuickTranslateDialog(
         mainPanel.add(definitionStrip, BorderLayout.SOUTH)
 
         setupWindowBehavior(topPanel)
-        popup.installClickOutsideToClose(
-            enabled = { currentConfig?.closeOnClickOutside ?: true },
-            onClose = { onDismiss() }
-        )
         UIManager.addPropertyChangeListener(themeListener)
         updatePinButtonStyle(isPinned)
     }
