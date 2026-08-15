@@ -43,7 +43,8 @@ class OutputTextPanel(
     )
     private val actionsPanel = TextActionsPanel(iconManager)
     private val readOnlyPanel = ReadOnlyTextPanel(textPane, actionsPanel)
-    private val definitionStrip = DefinitionStrip()
+    // No rule of its own: the output pane above already draws a border.
+    private val definitionStrip = DefinitionStrip(showDivider = false)
 
     private val noServiceLabel = JLabel()
     private val noServiceAction = JButton().apply {
