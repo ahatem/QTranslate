@@ -1,7 +1,9 @@
 package com.github.ahatem.qtranslate.ui.swing.settings
 
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
+import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.extras.FlatSVGIcon
+import com.formdev.flatlaf.icons.FlatSearchIcon
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
@@ -24,6 +26,8 @@ import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import javax.swing.*
 import javax.swing.border.MatteBorder
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeCellRenderer
 import javax.swing.tree.DefaultTreeModel
@@ -122,6 +126,54 @@ class SettingsDialog(
 
     // ── Widgets ───────────────────────────────────────────────────────────────
     private val tree: JTree
+
+    private val searchField = JTextField()
+
+    /** Swaps between the section tree and the search results in the same space. */
+    private val navCards = JPanel(CardLayout())
+
+    private val resultsList = JList<SearchHit>().apply {
+        selectionMode = ListSelectionModel.SINGLE_SELECTION
+        cellRenderer = ListCellRenderer<SearchHit> { list, hit, _, selected, _ ->
+            JPanel(BorderLayout()).apply {
+                border = BorderFactory.createEmptyBorder(4, 10, 4, 10)
+                isOpaque = true
+                background = if (selected) {
+                    UIManager.getColor("List.selectionBackground")
+                } else {
+                    list.background
+                }
+                add(JLabel(hit.entry.label).apply {
+                    foreground = if (selected) {
+                        UIManager.getColor("List.selectionForeground")
+                    } else {
+                        UIManager.getColor("Label.foreground")
+                    }
+                }, BorderLayout.NORTH)
+                // The path is what tells two identically-labelled rows apart, so it is always
+                // shown rather than only on ambiguity.
+                add(JLabel("${hit.pageLabel} $PATH_SEPARATOR ${hit.entry.section}").apply {
+                    font = font.deriveFont(font.size - 2f)
+                    foreground = if (selected) {
+                        UIManager.getColor("List.selectionForeground")
+                    } else {
+                        UIManager.getColor("Label.disabledForeground")
+                    }
+                }, BorderLayout.SOUTH)
+            }
+        }
+        addListSelectionListener { e ->
+            if (!e.valueIsAdjusting) (selectedValue as? SearchHit)?.let { openHit(it) }
+        }
+    }
+
+    /** Built on the first search and reused; see [searchIndex]. */
+    private var cachedIndex: List<SearchHit>? = null
+
+    private val noResultsLabel = JLabel().apply {
+        foreground = UIManager.getColor("Label.disabledForeground")
+        verticalAlignment = SwingConstants.TOP
+    }
 
     private val contentArea = JPanel(BorderLayout())
 
@@ -306,10 +358,142 @@ class SettingsDialog(
             verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
         }
 
+        val resultsScroll = JScrollPane(resultsList).apply {
+            clearBorder()
+            horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+            verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+        }
+
+        navCards.add(treeScroll, NAV_TREE)
+        navCards.add(resultsScroll, NAV_RESULTS)
+        navCards.add(
+            JPanel(BorderLayout()).apply {
+                border = BorderFactory.createEmptyBorder(16, 12, 12, 12)
+                add(noResultsLabel, BorderLayout.NORTH)
+            },
+            NAV_EMPTY
+        )
+
+        searchField.apply {
+            putClientProperty(
+                FlatClientProperties.PLACEHOLDER_TEXT,
+                localizationManager.getString("settings_dialog_sidebar.search_placeholder")
+            )
+            putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true)
+            putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON, FlatSearchIcon())
+            border = BorderFactory.createEmptyBorder(8, 8, 8, 8)
+
+            document.addDocumentListener(object : DocumentListener {
+                override fun insertUpdate(e: DocumentEvent) = onSearchChanged()
+                override fun removeUpdate(e: DocumentEvent) = onSearchChanged()
+                override fun changedUpdate(e: DocumentEvent) = onSearchChanged()
+            })
+
+            // Down from the field moves into the results without reaching for the mouse, which is
+            // the whole point of typing rather than clicking.
+            registerKeyboardAction(
+                { if (resultsList.model.size > 0) { resultsList.requestFocusInWindow(); resultsList.selectedIndex = 0 } },
+                KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0),
+                JComponent.WHEN_FOCUSED
+            )
+        }
+
         return JPanel(BorderLayout()).apply {
-            minimumSize = Dimension(UIScale.scale(160), 0)
-            // Let preferred width be driven by the tree's widest row
-            add(treeScroll, BorderLayout.CENTER)
+            minimumSize = Dimension(UIScale.scale(200), 0)
+            add(searchField, BorderLayout.NORTH)
+            add(navCards, BorderLayout.CENTER)
+        }
+    }
+
+    // ── Search ────────────────────────────────────────────────────────────────
+
+    private fun onSearchChanged() {
+        val query = searchField.text.trim()
+        val cards = navCards.layout as CardLayout
+
+        if (query.isEmpty()) {
+            cards.show(navCards, NAV_TREE)
+            return
+        }
+
+        val hits = searchIndex().filter { it.matches(query) }
+        if (hits.isEmpty()) {
+            // Naming the query back is the difference between "nothing matched what you typed"
+            // and a sidebar that looks broken.
+            noResultsLabel.text = "<html><body style='width:${UIScale.scale(140)}px'>" +
+                localizationManager.getString("settings_dialog_sidebar.search_no_results", query) +
+                "</body></html>"
+            cards.show(navCards, NAV_EMPTY)
+            return
+        }
+        resultsList.setListData(hits.toTypedArray())
+        cards.show(navCards, NAV_RESULTS)
+    }
+
+    /**
+     * Every setting on every page, built once on the first search.
+     *
+     * Panels are created lazily as pages are opened, so until someone searches, most do not
+     * exist to be asked. Building the rest here trades a pause on the first keystroke for an
+     * index that cannot fall behind the panels it describes.
+     *
+     * Plugins is excluded deliberately: it is a manager for a list that changes at runtime, not a
+     * page of settings, and it is the one panel whose construction does real work.
+     */
+    private fun searchIndex(): List<SearchHit> {
+        cachedIndex?.let { return it }
+
+        val index = pages
+            .filter { it.label != label("plugins") }
+            .flatMap { page ->
+                val panel = panelCache.getOrPut(page.label) { createPanel(page.label) }
+                (panel as? SettingsPanel)?.searchEntries.orEmpty()
+                    .map { SearchHit(page.label, it) }
+            }
+        cachedIndex = index
+        return index
+    }
+
+    private fun openHit(hit: SearchHit) {
+        selectPage(hit.pageLabel)
+        // After the panel is in the viewport and has been laid out; scrolling to a component
+        // that has not been positioned yet lands at the top of the page instead.
+        SwingUtilities.invokeLater {
+            val anchor = hit.entry.anchor
+            anchor.scrollRectToVisible(Rectangle(0, 0, anchor.width, anchor.height))
+            flash(anchor)
+        }
+    }
+
+    /**
+     * Briefly tints the found setting.
+     *
+     * A page can hold thirty rows, and landing on the right one without a marker leaves the
+     * reader to find it again by eye, which is the work the search was meant to save.
+     */
+    private fun flash(component: JComponent) {
+        val original = component.isOpaque
+        val originalBg = component.background
+        component.isOpaque = true
+        component.background = UIManager.getColor("Component.accentColor")
+            ?: UIManager.getColor("Table.selectionBackground")
+            ?: Color(86, 156, 214)
+        component.repaint()
+
+        Timer(FLASH_MILLIS) {
+            component.isOpaque = original
+            component.background = originalBg
+            component.repaint()
+        }.apply { isRepeats = false }.start()
+    }
+
+    private data class SearchHit(val pageLabel: String, val entry: SettingsPanel.SettingEntry) {
+        fun matches(query: String): Boolean {
+            val q = query.lowercase()
+            return entry.label.lowercase().contains(q) ||
+                entry.section.lowercase().contains(q) ||
+                entry.hint.lowercase().contains(q) ||
+                pageLabel.lowercase().contains(q)
         }
     }
 
@@ -493,5 +677,13 @@ class SettingsDialog(
     override fun dispose() {
         scope.cancel()
         super.dispose()
+    }
+
+    private companion object {
+        const val NAV_TREE = "tree"
+        const val NAV_RESULTS = "results"
+        const val NAV_EMPTY = "empty"
+        const val PATH_SEPARATOR = "›"
+        const val FLASH_MILLIS = 1200
     }
 }
