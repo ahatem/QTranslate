@@ -11,7 +11,15 @@ data class LoadingIndicatorState(
     val isVisible: Boolean
 ) : UiState
 
-class LoadingIndicator(owner: Frame) : JWindow(owner), Renderable<LoadingIndicatorState> {
+/**
+ * The small progress marker that follows the pointer while a popup translation is being fetched.
+ *
+ * Owned by Swing's shared hidden frame rather than by the main window. It exists precisely for the
+ * case where the main window is hidden in the tray, and an owned window is suppressed by the
+ * platform while its owner is hidden — so owning it by the main window meant it never appeared at
+ * the only time it was wanted.
+ */
+class LoadingIndicator(owner: Frame) : JWindow(), Renderable<LoadingIndicatorState> {
 
     private val positionUpdater = Timer(10) {
         val mouseLocation = MouseInfo.getPointerInfo().location

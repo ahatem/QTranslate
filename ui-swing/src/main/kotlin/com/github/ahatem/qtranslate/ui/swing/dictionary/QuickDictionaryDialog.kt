@@ -220,6 +220,10 @@ class QuickDictionaryDialog(
         mainPanel.add(contentArea, BorderLayout.CENTER)
 
         setupWindowBehavior()
+        popup.installClickOutsideToClose(
+            enabled = { currentState?.config?.closeOnClickOutside ?: true },
+            onClose = { currentState?.onClose?.invoke() }
+        )
         UIManager.addPropertyChangeListener(themeListener)
         updatePinButtonStyle(false)
     }

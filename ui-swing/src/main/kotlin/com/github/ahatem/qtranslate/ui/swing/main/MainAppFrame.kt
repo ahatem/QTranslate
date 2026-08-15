@@ -764,17 +764,20 @@ class MainAppFrame(
                     val current = mainStore.state.value.dictionaryWord
                     if (word.equals(current, ignoreCase = true)) return@collect
 
-                    if (key.panelVisible) {
-                        // Panel is open — update it directly.
+                    // Only ever fills in a dictionary the user already has open, and only in the
+                    // main window. It never summons one.
+                    //
+                    // Translating a single word used to make the dictionary popup appear on its
+                    // own. That was wrong twice over: it fired during Quick Translate with the
+                    // main window hidden, so a hotkey translation produced two windows when one
+                    // was asked for; and even in the main window it decided for the user that a
+                    // short word meant they wanted a definition. Looking a word up is now an
+                    // action they take — see the definition button on the output pane.
+                    if (key.panelVisible && key.mainVisible) {
                         withContext(Dispatchers.Swing) {
                             mainContentView.setDictionarySearchWord(word)
                         }
                         mainStore.dispatch(MainIntent.LookupWord(word, lang))
-                    } else if (key.mainVisible && key.isDictionaryAutoPopupEnabled) {
-                        // Panel closed but main window visible — show floating popup.
-                        // Position near the owner window, not the mouse cursor.
-                        quickDictionaryPositionNearMouse = false
-                        mainStore.dispatch(MainIntent.ShowQuickDictionary(word, lang))
                     }
                 }
         }
@@ -1366,6 +1369,7 @@ class MainAppFrame(
                 autoPositionEnabled = config.isPopupAutoPositionEnabled,
                 transparencyPercentage = config.popupTransparencyPercentage,
                 idleTimeoutSeconds = config.popupIdleTimeoutSeconds,
+                closeOnClickOutside = config.closePopupsOnClickOutside,
                 lastKnownSize = config.popupLastKnownSize,
                 lastKnownPosition = config.popupLastKnownPosition
             ),
@@ -1615,7 +1619,8 @@ class MainAppFrame(
             selectedServiceId = selectedId,
             config = ImageSearchConfig(
                 lastKnownSize     = config.imageSearchLastKnownSize,
-                lastKnownPosition = config.imageSearchLastKnownPosition
+                lastKnownPosition = config.imageSearchLastKnownPosition,
+                closeOnClickOutside = config.closePopupsOnClickOutside
             ),
             strings = ImageSearchStrings(
                 title             = localizer.getString("image_search_dialog.title"),
@@ -1696,6 +1701,7 @@ class MainAppFrame(
                 lastKnownPosition    = config.quickDictionaryLastKnownPosition,
                 positionNearMouse    = quickDictionaryPositionNearMouse,
                 idleTimeoutSeconds   = config.quickDictionaryIdleTimeoutSeconds,
+                closeOnClickOutside  = config.closePopupsOnClickOutside,
                 transparencyPercentage = config.quickDictionaryTransparencyPercentage
             ),
             strings = QuickDictionaryStrings(
