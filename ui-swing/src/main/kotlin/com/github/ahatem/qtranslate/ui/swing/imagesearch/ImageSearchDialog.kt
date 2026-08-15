@@ -195,10 +195,6 @@ class ImageSearchDialog(
                 currentState?.onClose?.invoke(); true
             }
         }
-        popup.installClickOutsideToClose(
-            enabled = { currentState?.config?.closeOnClickOutside ?: true },
-            onClose = { currentState?.onClose?.invoke() }
-        )
         popup.installTheme(::refreshTheme)
         popup.applyPinBorder(false)
 

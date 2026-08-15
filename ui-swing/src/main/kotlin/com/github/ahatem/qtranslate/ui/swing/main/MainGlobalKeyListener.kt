@@ -310,10 +310,13 @@ class MainGlobalKeyListener(
         private var dragged = false
 
         override fun nativeMousePressed(event: NativeMouseEvent) {
-            if (!selectionIconEnabled.get()) return
-            // Any press dismisses a button left over from an earlier selection; the
-            // caller ignores presses that land on the button itself so clicks still work.
+            // Reported before the selection-icon check, not after. This is the only notice the
+            // application gets of a press that lands in another program, and the floating popups
+            // rely on it to close when the user clicks away. Tying it to the selection button
+            // meant turning that button off also stopped popups noticing clicks outside them.
             onPointerPressed(event.point)
+
+            if (!selectionIconEnabled.get()) return
             if (event.button != NativeMouseEvent.BUTTON1) return
             pressedAt = event.point
             dragged = false

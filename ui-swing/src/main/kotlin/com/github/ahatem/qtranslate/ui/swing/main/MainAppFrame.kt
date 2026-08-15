@@ -314,9 +314,46 @@ class MainAppFrame(
             }
         },
         onPointerPressed = { location ->
-            runOnUi { selectionTranslateButton.dismissIfOutside(location) }
+            runOnUi {
+                selectionTranslateButton.dismissIfOutside(location)
+                dismissPopupsPressedOutside(location)
+            }
         }
     )
+
+    /**
+     * Closes any floating popup the user has just clicked away from.
+     *
+     * Driven by the native hook rather than by an AWT listener. The click that dismisses a popup
+     * almost always lands in another application — the document being read — and AWT never sees
+     * those: it only delivers events destined for this program's own windows. An AWT-based
+     * version of this appeared to work when clicking on QTranslate itself and did nothing at all
+     * in the case that matters.
+     *
+     * Pinned popups are left alone, which is the point of pinning.
+     */
+    private fun dismissPopupsPressedOutside(screenPoint: java.awt.Point) {
+        if (!settingsStore.state.value.workingConfiguration.closePopupsOnClickOutside) return
+        val state = mainStore.state.value
+
+        fun pressedOutside(dialog: java.awt.Window) = dialog.isVisible && !dialog.bounds.contains(screenPoint)
+
+        if (state.isQuickTranslateDialogVisible && !state.isQuickTranslateDialogPinned &&
+            pressedOutside(quickTranslateDialog)
+        ) {
+            mainStore.dispatch(MainIntent.HideQuickTranslate)
+        }
+        if (state.isQuickDictionaryVisible && !state.isQuickDictionaryPinned &&
+            pressedOutside(quickDictionaryDialog)
+        ) {
+            mainStore.dispatch(MainIntent.HideQuickDictionary)
+        }
+        if (state.isImageSearchVisible && !state.isImageSearchPinned &&
+            pressedOutside(imageSearchDialog)
+        ) {
+            mainStore.dispatch(MainIntent.HideImageSearch)
+        }
+    }
 
     private val statusBarController = StatusBarController(
         statusBar = mainContentView.statusBar,
@@ -506,14 +543,19 @@ class MainAppFrame(
             mainStore.state
                 .map { Triple(it.isLoading, it.isQuickTranslateDialogVisible, it.isReplacingSelection) }
                 .distinctUntilChanged()
-                .collect { (isLoading, _, isReplacing) ->
+                .collect { (isLoading, popupRequested, isReplacing) ->
                     withContext(Dispatchers.Swing) {
-                        // Keyed on whether the popup window is actually on screen, not on the
-                        // state flag. The popup now holds itself back until it has something to
-                        // show, so between the hotkey and the result the state says "visible"
-                        // while nothing is — which is exactly the stretch the indicator is for.
-                        val popupOnScreen = quickTranslateDialog.isVisible
-                        val shouldShow = isLoading && (isReplacing || (!isVisible && !popupOnScreen))
+                        // Two cases want the marker, and neither depends on whether the main
+                        // window happens to be open: a popup translation that has been asked for
+                        // but has nothing to show yet, and an inline replace, which has no window
+                        // of its own at all.
+                        //
+                        // It used to also require the main window to be hidden, on the reasoning
+                        // that a visible main window shows its own progress. But Ctrl+Q opens the
+                        // popup either way, and in that case the main window is not where the user
+                        // is looking.
+                        val popupPending = popupRequested && !quickTranslateDialog.isVisible
+                        val shouldShow = isLoading && (isReplacing || popupPending)
                         loadingIndicator.render(LoadingIndicatorState(isVisible = shouldShow))
                     }
                 }
@@ -718,8 +760,13 @@ class MainAppFrame(
                         curr.isLoading -> true
                         // Need a previous snapshot to detect transitions.
                         prev == null -> false
-                        // Auto-lookup is disabled — nothing to do.
-                        curr.autoSource == com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource.OFF -> false
+                        // The definition strip is switched off entirely.
+                        //
+                        // Gated on its own setting rather than on dictionaryAutoSource. That
+                        // setting used to mean "open the dictionary popup by itself", and anyone
+                        // who found that intrusive turned it off — which would now also cost them
+                        // the quiet one-line definition, a different thing they never refused.
+                        !curr.isDictionaryAutoPopupEnabled -> false
                         else -> {
                             // Primary trigger: translation just finished.
                             val justFinishedLoading = prev.isLoading && !curr.isLoading
@@ -743,16 +790,15 @@ class MainAppFrame(
                         }
                         return@collect
                     }
-                    val autoSource = key.autoSource
-                    if (autoSource == com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource.OFF) return@collect
-
-                    val (word, lang) = when (autoSource) {
-                        com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource.TRANSLATED ->
-                            key.translatedText to key.targetLang
-                        com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource.SOURCE ->
+                    // Which word to define. SOURCE is a deliberate choice to define the word the
+                    // user typed; everything else defines the translation, which is what someone
+                    // reading a result is looking at.
+                    val (word, lang) =
+                        if (key.autoSource == com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource.SOURCE) {
                             key.inputText to key.resolvedSourceLang
-                        else -> return@collect
-                    }
+                        } else {
+                            key.translatedText to key.targetLang
+                        }
 
                     // Not a single word, so no definition belongs under the result.
                     if (word.isBlank() || word.contains(Regex("\\s")) || word.length < 2) {
