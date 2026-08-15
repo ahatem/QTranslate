@@ -80,14 +80,50 @@ class FetchInlineDefinitionUseCase(
         }.getOrNull() ?: return null
 
         val entry = response.entries.firstOrNull() ?: return null
-        val meanings = entry.definitions.take(MAX_MEANINGS)
+        val meanings = entry.definitions
             .map { it.text.trim() }
             .filter { it.isNotEmpty() }
         if (meanings.isEmpty()) return null
 
         val partOfSpeech = entry.partOfSpeech?.trim().orEmpty()
-        val body = meanings.joinToString(" · ")
+        val body = withinBudget(meanings)
         return if (partOfSpeech.isEmpty()) body else "$partOfSpeech — $body"
+    }
+
+    /**
+     * Fits the senses into a glance.
+     *
+     * The first sense always appears, shortened if it runs long. A second is added only when the
+     * first was brief enough that both still fit — taking a fixed two senses regardless of length
+     * is what turned a one-line note into a paragraph, and something you have to read is a
+     * different thing from something you can take in at a glance. Anything past that belongs in
+     * the dictionary, which is a keystroke away.
+     */
+    private fun withinBudget(meanings: List<String>): String {
+        val first = elide(meanings.first(), FIRST_SENSE_BUDGET)
+        if (meanings.size == 1 || first.length > SECOND_SENSE_THRESHOLD) return first
+
+        val combined = first + separatorAfter(first) + meanings[1]
+        return if (combined.length <= TOTAL_BUDGET) combined else first
+    }
+
+    /**
+     * What goes between two senses.
+     *
+     * A sense that already ends in punctuation separates itself; putting a bullet after a full
+     * stop is clutter, and reads as though the two halves were fragments of one thought rather
+     * than two complete ones.
+     */
+    private fun separatorAfter(previous: String): String =
+        if (previous.lastOrNull() in SENTENCE_ENDINGS) " " else " · "
+
+    /** Cut at a word boundary rather than mid-word, and never leave dangling punctuation. */
+    private fun elide(text: String, budget: Int): String {
+        if (text.length <= budget) return text
+        val cut = text.take(budget)
+        val boundary = cut.lastIndexOf(' ')
+        val kept = if (boundary > budget / 2) cut.take(boundary) else cut
+        return kept.trimEnd().trimEnd(',', ';', ':', '،', '؛') + "…"
     }
 
     /** Clears the line, for when the translation is no longer a single word. */
@@ -99,7 +135,22 @@ class FetchInlineDefinitionUseCase(
     private companion object {
         const val TIMEOUT_MS = 6_000L
 
-        /** Two senses is a glance; more is a dictionary, which is what the panel is for. */
-        const val MAX_MEANINGS = 2
+        /**
+         * Budgets in characters rather than pixels.
+         *
+         * The strip does not know how wide it will be drawn, and the popup and the main window
+         * differ anyway. Characters are a coarse proxy, but the decision being made here is only
+         * "one sense or two", which does not need pixel accuracy — and a rule that holds in both
+         * places is worth more than one tuned for either.
+         */
+        const val FIRST_SENSE_BUDGET = 120
+
+        /** A first sense longer than this leaves no room for a second worth reading. */
+        const val SECOND_SENSE_THRESHOLD = 60
+
+        const val TOTAL_BUDGET = 150
+
+        /** Latin and Arabic sentence endings — both scripts turn up here routinely. */
+        val SENTENCE_ENDINGS = setOf('.', '!', '?', '۔', '؟', '…')
     }
 }
