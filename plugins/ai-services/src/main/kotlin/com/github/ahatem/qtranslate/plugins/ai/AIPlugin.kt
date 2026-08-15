@@ -70,9 +70,13 @@ class AIPlugin : Plugin<AISettings> {
     }
 
     override suspend fun onEnable(): Result<Unit, ServiceError> {
-        if (settings.apiKey.isBlank()) {
+        // Only a warning when a key is actually needed. A local endpoint runs perfectly well
+        // without one, and warning there would send someone hunting for a problem that is not
+        // there.
+        if (settings.missingKeyError() != null) {
             pluginContext.logger.warn(
-                "AI Plugin enabled without an API key — services will return AuthenticationError until a key is set."
+                "AI Plugin enabled without an API key for ${settings.baseUrl} — " +
+                    "services will report a configuration error until a key is set."
             )
         }
         buildServices()

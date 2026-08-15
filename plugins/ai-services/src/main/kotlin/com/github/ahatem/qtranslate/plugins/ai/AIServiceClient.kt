@@ -144,13 +144,10 @@ class AIServiceClient(
     ): Result<String, ServiceError> {
         val current = settings()
 
-        if (current.apiKey.isBlank()) {
-            return Err(
-                ServiceError.AuthenticationError(
-                    "AI Plugin: API key is not configured. Add your key in Settings → Plugins → AI Plugin."
-                )
-            )
-        }
+        // The same rule as every other call. This one used to have its own check, which meant
+        // Vision OCR still refused to run against a local endpoint after the others had been
+        // fixed — and reported it as an authentication failure rather than a missing setting.
+        current.missingKeyError()?.let { return Err(it) }
 
         val baseUrl  = current.baseUrl.trimEnd('/')
         val endpoint = "$baseUrl/chat/completions"
