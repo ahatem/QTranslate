@@ -16,10 +16,13 @@ import java.awt.Color
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Frame
+import java.awt.Graphics
+import java.awt.Graphics2D
 import java.awt.GridLayout
 import java.awt.Image
 import java.awt.Insets
 import java.awt.MouseInfo
+import java.awt.RenderingHints
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
 import java.awt.event.ActionEvent
@@ -40,6 +43,7 @@ import javax.swing.JScrollPane
 import javax.swing.JTextField
 import javax.swing.KeyStroke
 import javax.swing.SwingConstants
+import javax.swing.SwingUtilities
 import javax.swing.UIManager
 import javax.swing.border.EmptyBorder
 
@@ -75,12 +79,21 @@ class ImageSearchDialog(
         const val GRID_GAP = 6
     }
 
-    private val borderColor: Color? = UIManager.getColor("Component.borderColor")
-    private val accentColor: Color? = UIManager.getColor("Component.focusedBorderColor")
-        ?: UIManager.getColor("Component.accentColor")
-        ?: borderColor
+    // Read on each use rather than captured once: a colour held in a field keeps the value the
+    // theme had when this dialog was built, and these popups are created once and live for the
+    // whole session, so after a theme switch they would go on painting the old theme's grey.
+    private val borderColor: Color get() = UIManager.getColor("Component.borderColor") ?: Color.GRAY
+    private val accentColor: Color
+        get() = UIManager.getColor("Component.focusedBorderColor")
+            ?: UIManager.getColor("Component.accentColor")
+            ?: borderColor
 
     private val thumbnails = ThumbnailLoader()
+
+    /** A field rather than an inline lambda, so [dispose] can detach it. */
+    private val themeListener = java.beans.PropertyChangeListener { event ->
+        if (event.propertyName == "lookAndFeel") SwingUtilities.invokeLater { refreshTheme() }
+    }
 
     private val titleLabel = JLabel("").apply { putClientProperty("FlatLaf.styleClass", "h4") }
     private val pinButton = createButtonWithIcon(iconManager, "icons/lucide/pin.svg", 14)
@@ -138,7 +151,7 @@ class ImageSearchDialog(
 
         header = buildHeader()
         contentPane = JPanel(BorderLayout()).apply {
-            border = BorderFactory.createLineBorder(borderColor ?: Color.GRAY, 1)
+            border = BorderFactory.createLineBorder(borderColor, 1)
             add(header, BorderLayout.NORTH)
             add(body.apply { add(scroll, BorderLayout.CENTER) }, BorderLayout.CENTER)
         }
@@ -146,6 +159,23 @@ class ImageSearchDialog(
         installEscapeToClose()
         installMoveAndResize()
         installResponsiveColumns()
+        UIManager.addPropertyChangeListener(themeListener)
+    }
+
+    /**
+     * Re-applies the colours already painted into borders and labels.
+     *
+     * The accessors above keep *new* components correct; this is for the ones already built, since
+     * a border holds the colour it was handed and a theme switch does not revisit it.
+     */
+    private fun refreshTheme() {
+        applyPinStyle(isPinned)
+        hintLabel.foreground = UIManager.getColor("Label.disabledForeground")
+        // Tiles carry a border and a dimmed credit line, and are cheapest to simply rebuild.
+        renderedResults = emptyList()
+        currentState?.let { rebuildGridIfChanged(it) }
+        revalidate()
+        repaint()
     }
 
     /**
@@ -265,6 +295,8 @@ class ImageSearchDialog(
         if (state.results == renderedResults) return
         renderedResults = state.results
 
+        // Whatever the previous grid was still fetching is now for a term nobody is looking at.
+        thumbnails.cancelPending()
         grid.removeAll()
         state.results.forEach { grid.add(tileFor(it, state)) }
 
@@ -280,9 +312,9 @@ class ImageSearchDialog(
      * carry require it to be visible, and a tooltip is not.
      */
     private fun tileFor(result: ImageResult, state: ImageSearchDialogState): JComponent {
-        val picture = JLabel("", SwingConstants.CENTER).apply {
+        val picture = ScaledImage().apply {
             preferredSize = Dimension(0, UIScale.scale(TILE_HEIGHT))
-            border = BorderFactory.createLineBorder(borderColor ?: Color.GRAY, 1)
+            border = BorderFactory.createLineBorder(borderColor, 1)
         }
 
         val caption = ElidingLabel(result.title.orEmpty()).apply {
@@ -302,7 +334,7 @@ class ImageSearchDialog(
         thumbnails.load(result.thumbnailUrl) { image ->
             // The grid may have been rebuilt by a newer search while this was in flight.
             if (picture.parent == null) return@load
-            picture.icon = ImageIcon(scaleToFit(image, picture.width, picture.height))
+            picture.image = image
         }
 
         return JPanel(BorderLayout(0, 2)).apply {
@@ -334,20 +366,9 @@ class ImageSearchDialog(
         val state = currentState ?: return
         preview = result
 
-        val picture = JLabel("", SwingConstants.CENTER)
-        // Shown at whatever size the popup happens to be, and rescaled when that changes.
-        var loaded: Image? = null
-        fun redraw() {
-            val image = loaded ?: return
-            picture.icon = ImageIcon(scaleToFit(image, picture.width, picture.height))
-        }
-        picture.addComponentListener(object : ComponentAdapter() {
-            override fun componentResized(e: ComponentEvent) = redraw()
-        })
-        thumbnails.load(result.thumbnailUrl) { image ->
-            loaded = image
-            redraw()
-        }
+        // Sizes itself to the popup as it changes, without rescaling work per resize event.
+        val picture = ScaledImage()
+        thumbnails.load(result.thumbnailUrl) { image -> picture.image = image }
 
         val caption = ElidingLabel(result.title.orEmpty()).apply {
             putClientProperty("FlatLaf.styleClass", "h4")
@@ -454,25 +475,58 @@ class ImageSearchDialog(
     }
 
     /**
-     * Scales to fit inside the tile without distorting it — a stretched diagram is harder to read
-     * than a small one.
+     * Draws an image scaled to fit, keeping its proportions.
+     *
+     * Scaling happens while painting rather than by producing a resized copy. `getScaledInstance`
+     * with `SCALE_SMOOTH` is the slow path in AWT, and the enlarged view rescaled on every resize
+     * event — so dragging the popup's edge ran it continuously on the event thread. Letting
+     * `drawImage` do it with a bilinear hint costs nothing per resize and looks the same.
+     *
+     * Never scaled above 1:1: a thumbnail stretched past its own resolution looks worse than a
+     * smaller sharp one.
      */
-    private fun scaleToFit(image: Image, boxWidth: Int, boxHeight: Int): Image {
-        val width = image.getWidth(null).takeIf { it > 0 } ?: return image
-        val height = image.getHeight(null).takeIf { it > 0 } ?: return image
-        val targetWidth = boxWidth.takeIf { it > 0 } ?: return image
-        val targetHeight = boxHeight.takeIf { it > 0 } ?: return image
+    private class ScaledImage : JComponent() {
 
-        val scale = minOf(targetWidth.toDouble() / width, targetHeight.toDouble() / height)
-        if (scale >= 1.0) return image
-        return image.getScaledInstance((width * scale).toInt(), (height * scale).toInt(), Image.SCALE_SMOOTH)
+        var image: Image? = null
+            set(value) {
+                field = value
+                repaint()
+            }
+
+        override fun paintComponent(g: Graphics) {
+            val source = image ?: return
+            val sourceWidth = source.getWidth(null)
+            val sourceHeight = source.getHeight(null)
+            if (sourceWidth <= 0 || sourceHeight <= 0) return
+
+            // Painted on a copy so the hints do not leak into whatever Swing draws next.
+            val g2 = g.create() as Graphics2D
+            try {
+                g2.setRenderingHint(
+                    RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_BILINEAR
+                )
+                g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+
+                val scale = minOf(
+                    width.toDouble() / sourceWidth,
+                    height.toDouble() / sourceHeight
+                ).coerceAtMost(1.0)
+                val drawWidth = (sourceWidth * scale).toInt().coerceAtLeast(1)
+                val drawHeight = (sourceHeight * scale).toInt().coerceAtLeast(1)
+
+                g2.drawImage(source, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight, null)
+            } finally {
+                g2.dispose()
+            }
+        }
     }
 
     private fun applyPinStyle(pinned: Boolean) {
         (contentPane as JPanel).border = if (pinned) {
-            BorderFactory.createLineBorder(accentColor ?: Color.GRAY, PINNED_BORDER_WIDTH)
+            BorderFactory.createLineBorder(accentColor, PINNED_BORDER_WIDTH)
         } else {
-            BorderFactory.createLineBorder(borderColor ?: Color.GRAY, 1)
+            BorderFactory.createLineBorder(borderColor, 1)
         }
         contentPane.revalidate()
         contentPane.repaint()
@@ -542,9 +596,16 @@ class ImageSearchDialog(
         })
     }
 
-    /** Releases the thumbnail pool; the dialog is not usable afterwards. */
-    fun dispose(shutdownThumbnails: Boolean) {
-        if (shutdownThumbnails) thumbnails.shutdown()
+    /**
+     * Releases the thumbnail pool along with the window.
+     *
+     * Overrides the real `dispose` rather than adding a variant beside it: the previous
+     * `dispose(Boolean)` was never called from anywhere, so the pool it was meant to shut down
+     * never was.
+     */
+    override fun dispose() {
+        thumbnails.shutdown()
+        UIManager.removePropertyChangeListener(themeListener)
         super.dispose()
     }
 }

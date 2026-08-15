@@ -221,35 +221,41 @@ class FontFallbackDocumentListener(
     private fun applyFontFallback(doc: StyledDocument, offset: Int, length: Int, primary: Font, fallback: Font) {
         if (length <= 0) return
         val text = doc.getText(offset, length)
-        var pos  = 0
-        while (pos < text.length) {
-            val remaining        = text.substring(pos)
-            val primaryFailIndex = primary.canDisplayUpTo(remaining)
+        // Copied once, then scanned in place. The previous version called text.substring(pos)
+        // once per run, copying everything still to be scanned each time, which made a run-heavy
+        // document quadratic in allocation — while this method's own documentation claimed it
+        // allocated nothing per character. canDisplayUpTo takes an offset only for char arrays,
+        // which is why this is an array rather than the string.
+        val chars = text.toCharArray()
+        val end = chars.size
+        var pos = 0
 
-            if (primaryFailIndex == -1) {
-                applyRunAttributes(doc, offset + pos, remaining.length, primary)
+        while (pos < end) {
+            val primaryFail = primary.canDisplayUpTo(chars, pos, end)
+
+            if (primaryFail == -1) {
+                applyRunAttributes(doc, offset + pos, end - pos, primary)
                 break
             }
-            if (primaryFailIndex > 0) {
-                applyRunAttributes(doc, offset + pos, primaryFailIndex, primary)
-                pos += primaryFailIndex
+            if (primaryFail > pos) {
+                applyRunAttributes(doc, offset + pos, primaryFail - pos, primary)
+                pos = primaryFail
                 continue
             }
 
-            val fallbackFailIndex = fallback.canDisplayUpTo(remaining)
-            if (fallbackFailIndex == -1) {
-                applyRunAttributes(doc, offset + pos, remaining.length, fallback)
+            val fallbackFail = fallback.canDisplayUpTo(chars, pos, end)
+            if (fallbackFail == -1) {
+                applyRunAttributes(doc, offset + pos, end - pos, fallback)
                 break
             }
-            if (fallbackFailIndex > 0) {
-                applyRunAttributes(doc, offset + pos, fallbackFailIndex, fallback)
-                pos += fallbackFailIndex
+            if (fallbackFail > pos) {
+                applyRunAttributes(doc, offset + pos, fallbackFail - pos, fallback)
+                pos = fallbackFail
                 continue
             }
 
             // Neither font can display this code point — skip it and let the system handle it.
-            val cpLen = Character.charCount(remaining.codePointAt(0))
-            pos += cpLen
+            pos += Character.charCount(Character.codePointAt(chars, pos))
         }
     }
 
