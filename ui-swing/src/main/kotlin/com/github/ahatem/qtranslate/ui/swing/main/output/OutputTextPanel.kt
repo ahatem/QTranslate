@@ -99,6 +99,7 @@ class OutputTextPanel(
 
     override fun render(state: OutputTextState) {
         renderNoServiceBanner(state.noService)
+        definitionStrip.render(state.definition)
         readOnlyPanel.render(
             ReadOnlyTextPanelState(
                 text = state.text,

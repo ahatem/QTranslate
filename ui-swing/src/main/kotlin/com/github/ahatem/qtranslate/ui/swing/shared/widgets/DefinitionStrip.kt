@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 import com.formdev.flatlaf.util.UIScale
 import java.awt.BorderLayout
 import java.awt.Color
+import java.awt.Dimension
 import javax.swing.BorderFactory
 import javax.swing.JPanel
 import javax.swing.JTextArea
@@ -41,6 +42,22 @@ class DefinitionStrip : JPanel(BorderLayout()) {
         isVisible = false
         applyBorder()
         add(text, BorderLayout.CENTER)
+    }
+
+    /**
+     * Height measured against the width this strip has actually been given.
+     *
+     * A wrapping `JTextArea` reports a preferred size based on its own current width, which in
+     * `BorderLayout.SOUTH` is whatever it was last set to rather than what it is about to get.
+     * Left alone it asks for one line and gets one line, clipping a two-line definition — or asks
+     * for its full unwrapped width and is squeezed flat. Measuring at the real width avoids both.
+     */
+    override fun getPreferredSize(): Dimension {
+        val insets = insets
+        val available = (width - insets.left - insets.right).coerceAtLeast(1)
+        text.setSize(available, Int.MAX_VALUE)
+        val textHeight = text.preferredSize.height
+        return Dimension(0, textHeight + insets.top + insets.bottom)
     }
 
     /** Blank hides the strip; anything else shows it. */
