@@ -18,9 +18,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - **Plugins can ship their own translations**, as TOML bundles inside the plugin JAR, so plugin text is no longer English-only
 - **Documents can be pasted** as well as dropped, and dragging a file over the window now draws an overlay showing it will be accepted
 - **Click outside to close** is now a setting for the floating popups, on by default. Turning it off suits translating a word and then working in the document beside it. Pinning still overrides it
+- **Search the settings.** A field above the sidebar finds any setting by name, by the section it sits in, or by a word that appears only in its explanation. Typing "fades" reaches the popup idle timeout. Choosing a result opens its page, scrolls to the setting and marks it
+- **Default source language**, alongside the existing default target. A default for one side and not the other was an arbitrary half
+- **Select All and Clear** in the text pane context menu. Clear can be undone
+- **Listen on the dictionary** now also reads the headword in the language it was looked up in, rather than guessing from the panel it came from
+- **A local, private AI setup.** Point AI Services at [Ollama](https://ollama.com) or LM Studio and nothing leaves your machine: no account, no API key, no per-word cost. For work under an NDA, proprietary code, or anything else that cannot go to a cloud service. [Setup guide](wiki/AI-Services.md)
 
 ### Changed
-- **Plugin API v2.** Services declare what they can do instead of the host guessing from the interfaces they implement, so one service can be offered as both a translator and a dictionary. Summary lengths and rewrite styles are now data a plugin defines rather than a fixed list the app owns, settings are typed and scoped per plugin instance, credentials live in their own store, and a service can offer a cheap configuration check. **Third-party plugins built against API v1 are refused at load and need rebuilding.** All bundled plugins are migrated, and existing service selections are converted on first launch
+- ⚠️ **Plugin API v2. Third-party plugins built against v1 are refused at load and must be rebuilt.** There are no known third-party plugins, so in practice this affects nobody today, but it breaks a documented contract and is stated plainly for that reason. All bundled plugins are migrated, and existing service selections are converted automatically on first launch.
+
+  What changed: services declare what they can do instead of the host guessing from the interfaces they implement, so one service can be offered as both a translator and a dictionary. Summary lengths and rewrite styles are now data a plugin defines rather than a fixed list the app owns. Settings are typed and scoped per plugin instance, credentials live in their own store, and a service can offer a cheap configuration check
+- **The interface is smaller at zoom levels above 100%, and that is the bug being fixed.** With the UI scale set to 125%, every theme or font change used to enlarge the whole interface by a further 25%, compounding each time, so it had drifted well past its intended size. It now stays put. If the app looks smaller than you remember at the same zoom setting, this is why; raise the scale in Settings → Appearance if you prefer the larger size
+- **The Settings dialog is reorganised.** Two groups, Translation and Interface, rather than eight flat pages in no particular order. Window & Layout is split into Layout and Popups. Four settings moved to where people look for them, and the three floating popups now offer the same controls as one another
+- **The document translation dialog matches the rest of the app.** Its fields and buttons were pinned to a fixed height taller than every equivalent control elsewhere, and ignored the UI font setting entirely
 - API keys move out of the plugin settings file into a separate credential store
 - Popup auto-hide defaults rise from 3 seconds to 12 for translations, and from 8 to 20 for definitions, neither of which was long enough to read. Anyone who chose their own timeout keeps it
 - Popup width is now bounded by a comfortable line length rather than only by a fraction of the screen, so a sentence no longer stretches across half a wide monitor
@@ -30,6 +40,9 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - README screenshots are recaptured in the bronze palette the app actually ships, at full display scale, and now include the side-by-side layout and document translation, two features the page described in prose but never showed. A gallery of thirty-four captures sits behind them, covering both themes across all three layouts and every settings page
 
 ### Fixed
+- **Six labels showed their own key names instead of text.** The action button on the no-service message in all thirteen languages, and five of the six keyboard shortcuts added in 1.3.0 (clear input, swap languages, open settings, show history, translate document) read as `settings_hotkeys.action_clear_input` and the like. The strings had been written but appended without a line break, so the parser kept the first and discarded the rest of the line
+- **Twelve languages were missing 89 strings each**, covering the plugin manager, document translation, image search and the status bar, and showed English in the middle of otherwise translated screens. All are now translated
+- **Settings are never silently reset again.** A configuration that could not be read fell back to defaults with only a line in a log: the app looked freshly installed, and setting it up again overwrote the file that still held the original. The unreadable configuration is now copied aside, timestamped, and the failure is reported when the app starts
 - **QTranslate now renders at the display's scale.** On a 150% or 200% display it drew scaled icons and borders around unscaled text, paddings, table rows and windows. The window opened at roughly half the size its own contents needed, clipping the language selectors to "Eng…" and "Ara…" and leaving the output pane no usable height; the history table clipped its headers to "Date …", "Lan…" and "Servi…"; and the docked dictionary was pinned to half its intended width, wrapping definitions one word per line. On an unscaled display nothing changes
 - **Hotkeys no longer disturb the main window.** Summoning a popup could pull the main window out of the tray, push it away, or produce no popup at all, depending on the state the window had been left in
 - Pressing Listen in a popup while speech was playing started a second playback with no way to stop either. It now stops, matching the main window
@@ -46,12 +59,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - Double-tapping Ctrl misfired on ordinary shortcuts, since every hotkey here is a Ctrl combination and two in quick succession looked identical to a deliberate double tap
 - Image tile captions clipped mid-word instead of eliding, and the credit under each picture is now the licence alone, with the full credit in the tooltip
 - The inline definition takes its text direction from its own script, so an Arabic definition sits under a right-aligned Arabic translation rather than opposite it
+- **Mixed-direction text is aligned per paragraph.** A translation holding an Arabic paragraph and an English one used to take a single alignment for both, and the wrong one for half of it
+- Line and paragraph spacing in the text panes opened up from Swing's default, which sets lines directly against one another and is tiring to read a paragraph in
+- Vision OCR refused to run against a local AI endpoint, reporting a missing API key that a local server does not need
+- Focusing a field in the document dialog showed a focus ring clipped along the edge of the panel holding it
 
 ### Performance
 - Font fallback scanned the remaining text again for every font run, making a document with many scripts quadratic in allocation
 - The enlarged image was rescaled with AWT's slowest scaler on the event thread on every resize event, continuously while dragging the popup's edge
 - Thumbnails from an abandoned image search were fetched to completion, so four terms typed quickly downloaded four full grids with the wanted one last
 - The text pane allocated a font, a string and an insets object on every caret blink
+- **Right-to-left text lays out far faster.** Setting the direction rewrote attributes across every character in the document and forced a full re-layout; it now touches each paragraph once and skips those already correct. Laying out a large Arabic document falls from roughly 200ms to about 1ms, and a page-sized one from 40ms to nothing measurable
 
 ---
 
