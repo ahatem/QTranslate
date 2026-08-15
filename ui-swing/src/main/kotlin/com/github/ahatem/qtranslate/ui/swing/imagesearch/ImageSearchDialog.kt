@@ -60,8 +60,8 @@ class ImageSearchDialog(
         const val RESIZE_HANDLE_SIZE = 8
         const val PINNED_BORDER_WIDTH = 4
         const val COLUMNS = 3
-        const val TILE_HEIGHT = 132
-        const val GRID_GAP = 8
+        const val TILE_HEIGHT = 84
+        const val GRID_GAP = 6
     }
 
     private val borderColor: Color? = UIManager.getColor("Component.borderColor")
@@ -242,15 +242,18 @@ class ImageSearchDialog(
             border = BorderFactory.createLineBorder(borderColor ?: Color.GRAY, 1)
         }
 
-        val caption = JLabel(result.title.orEmpty()).apply {
+        val caption = ElidingLabel(result.title.orEmpty()).apply {
             putClientProperty("FlatLaf.styleClass", "small")
             toolTipText = result.title
         }
 
-        val credit = JLabel(creditFor(result)).apply {
+        // The licence alone, dimmed. The author's name is long and varies wildly in length — a
+        // grid of them reads as clutter rather than as credit — so it lives in the tooltip and on
+        // the page a click opens, which is where a licence expects to be honoured anyway.
+        val credit = ElidingLabel(result.license.orEmpty()).apply {
             putClientProperty("FlatLaf.styleClass", "mini")
             foreground = UIManager.getColor("Label.disabledForeground")
-            toolTipText = creditFor(result)
+            toolTipText = fullCreditFor(result)
         }
 
         thumbnails.load(result.thumbnailUrl) { image ->
@@ -281,8 +284,51 @@ class ImageSearchDialog(
         }
     }
 
-    private fun creditFor(result: ImageResult): String =
-        listOfNotNull(result.attribution, result.license).joinToString(" · ")
+    private fun fullCreditFor(result: ImageResult): String =
+        listOfNotNull(result.attribution, result.license).joinToString(" · ").ifBlank { "" }
+
+    /**
+     * A label that shortens its own text to whatever width it is given.
+     *
+     * A plain `JLabel` clips, which cuts a word in half and leaves no sign that anything is
+     * missing. Eliding happens during layout because the tile's width is not known until then,
+     * and re-runs on resize.
+     */
+    private class ElidingLabel(private val fullText: String) : JLabel(fullText) {
+
+        /** Guards the setText inside doLayout, which would otherwise re-enter through layout. */
+        private var eliding = false
+
+        init {
+            // Keeps the grid's cells sized by the picture rather than by the longest caption.
+            preferredSize = Dimension(0, preferredSize.height)
+        }
+
+        override fun doLayout() {
+            super.doLayout()
+            if (eliding) return
+            eliding = true
+            try {
+                setText(elide(fullText, width - insets.left - insets.right))
+            } finally {
+                eliding = false
+            }
+        }
+
+        private fun elide(text: String, available: Int): String {
+            if (text.isEmpty() || available <= 0) return text
+            val metrics = getFontMetrics(font)
+            if (metrics.stringWidth(text) <= available) return text
+
+            val ellipsis = "…"
+            val room = available - metrics.stringWidth(ellipsis)
+            if (room <= 0) return ellipsis
+
+            var end = text.length
+            while (end > 0 && metrics.stringWidth(text.substring(0, end)) > room) end--
+            return text.substring(0, end).trimEnd() + ellipsis
+        }
+    }
 
     /**
      * Scales to fit inside the tile without distorting it — a stretched diagram is harder to read
