@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isRTL
 import java.awt.BorderLayout
+import java.awt.Color
 import java.awt.ComponentOrientation
 import java.awt.Dimension
 import javax.swing.BorderFactory
@@ -18,11 +19,22 @@ import javax.swing.UIManager
  * word would hand you the word *and* a dictionary entry, which is almost never what was wanted.
  * Keeping it out of the output pane keeps copy honest.
  *
- * Styled as an aside — smaller, dimmer, indented to the same measure as the text above — because
- * it is a detail attached to the answer and not the answer. It hides itself entirely when there is
- * nothing to say, so a multi-word translation is laid out exactly as it was before this existed.
+ * Styled as an aside — smaller, dimmer, set apart from the answer — because it is a detail
+ * attached to the answer and not the answer. It hides itself entirely when there is nothing to
+ * say, so a multi-word translation is laid out exactly as it was before this existed.
+ *
+ * @param showDivider whether to draw a hairline above the definition.
+ *
+ * True where the strip is the only thing marking the boundary — the popup, whose content pane
+ * draws nothing of its own, and where the rule is exactly right. False beneath the main window's
+ * output pane, which already has a border of its own: a second line immediately below it reads as
+ * a doubled rule and cuts the definition off into a band rather than attaching it to the
+ * translation. The two placements genuinely differ, so this is a parameter rather than a single
+ * choice imposed on both.
  */
-class DefinitionStrip : JPanel(BorderLayout()) {
+class DefinitionStrip(private val showDivider: Boolean = true) : JPanel(BorderLayout()) {
+
+    private val borderColor: Color get() = UIManager.getColor("Component.borderColor") ?: Color.GRAY
 
     private val text = JTextArea().apply {
         isEditable = false
@@ -89,20 +101,26 @@ class DefinitionStrip : JPanel(BorderLayout()) {
         repaint()
     }
 
-    /**
-     * Spacing only — no rule of its own.
-     *
-     * The output pane it sits beneath already draws a border, and a second hairline immediately
-     * below that read as a doubled line and made the definition look like a separate band rather
-     * than a note about the translation. Indented to the same measure as the text above so the
-     * two line up instead of the definition running to the panel edge.
-     */
     private fun applyBorder() {
-        border = BorderFactory.createEmptyBorder(
-            UIScale.scale(4),
-            UIScale.scale(10),
-            UIScale.scale(6),
-            UIScale.scale(10)
-        )
+        border = if (showDivider) {
+            BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, borderColor),
+                BorderFactory.createEmptyBorder(
+                    UIScale.scale(6),
+                    UIScale.scale(8),
+                    UIScale.scale(6),
+                    UIScale.scale(8)
+                )
+            )
+        } else {
+            // Spacing alone. Indented to the same measure as the text above, so the definition
+            // lines up with the translation instead of running wider than the box it belongs to.
+            BorderFactory.createEmptyBorder(
+                UIScale.scale(4),
+                UIScale.scale(10),
+                UIScale.scale(6),
+                UIScale.scale(10)
+            )
+        }
     }
 }
