@@ -2,6 +2,8 @@ package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isRTL
+import com.github.ahatem.qtranslate.ui.swing.shared.util.DroppedContent
+import com.github.ahatem.qtranslate.ui.swing.shared.util.DroppedContentClassifier
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
 import java.awt.event.*
@@ -280,6 +282,8 @@ class AdvancedTextPane(
     private val onTranslateRequest: (text: String) -> Unit,
     private val onListenRequest: (text: String) -> Unit,
     private val onImageDropped: ((BufferedImage) -> Unit)? = null,
+    /** Ctrl+V with a document on the clipboard. Null falls back to pasting its path as text. */
+    private val onDocumentPasted: ((File) -> Unit)? = null,
 ) : JTextPane() {
 
     private val undoManager by lazy { UndoManager() }
@@ -368,7 +372,6 @@ class AdvancedTextPane(
         lastEmittedText = this.text
         setupKeyBindings()
         setupMouseListeners()
-        setupTransferHandler()
     }
 
     // -----------------------------------------------------------------------
@@ -576,18 +579,22 @@ class AdvancedTextPane(
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_X, InputEvent.CTRL_DOWN_MASK), "cut-to-clipboard")
 
         if (onImageDropped != null) {
-            // Input pane: Ctrl+V tries to paste an image first, falls back to text paste.
+            // Paste stays on the pane rather than moving to the frame with drops: it targets
+            // whatever has focus, so it is genuinely this component's business. It shares the
+            // classifier so pasting and dropping agree on what a thing is.
             val pasteAction = createAction(
                 "PasteImageOrText",
                 KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.CTRL_DOWN_MASK)
             ) {
-                val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-                val image = runCatching {
-                    if (clipboard.isDataFlavorAvailable(DataFlavor.imageFlavor))
-                        clipboard.getData(DataFlavor.imageFlavor) as? Image
-                    else null
+                val contents = runCatching {
+                    Toolkit.getDefaultToolkit().systemClipboard.getContents(null)
                 }.getOrNull()
-                if (image != null) onImageDropped.invoke(toBufferedImage(image)) else paste()
+
+                when (val content = contents?.let(DroppedContentClassifier::classify)) {
+                    is DroppedContent.Picture -> onImageDropped.invoke(content.image)
+                    is DroppedContent.Document -> onDocumentPasted?.invoke(content.file) ?: paste()
+                    else -> paste()
+                }
             }
             actionMap.put("paste-image-or-text", pasteAction)
             inputMap.put(pasteAction.getValue(Action.ACCELERATOR_KEY) as KeyStroke, "paste-image-or-text")
@@ -612,73 +619,14 @@ class AdvancedTextPane(
     // Transfer handler (drag-and-drop images)
     // -----------------------------------------------------------------------
 
-    private fun setupTransferHandler() {
-        if (onImageDropped == null) return
-        // Capture the default JTextPane TransferHandler BEFORE replacing it.
-        // It handles all text export operations (copy / cut / drag-out).  Our custom
-        // handler only adds image-import support; for everything else it must delegate
-        // back to the original, otherwise Ctrl+C / Ctrl+X silently do nothing because
-        // the base TransferHandler.createTransferable() returns null.
-        val original = transferHandler
-        transferHandler = object : TransferHandler() {
-
-            // ----------------------------------------------------------------
-            // Import — image first, then fall through to the original handler
-            // ----------------------------------------------------------------
-
-            override fun canImport(support: TransferSupport): Boolean {
-                if (isEditable) {
-                    if (support.isDataFlavorSupported(DataFlavor.imageFlavor)) return true
-                    if (support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) return true
-                }
-                return original?.canImport(support) ?: false
-            }
-
-            override fun importData(support: TransferSupport): Boolean {
-                if (isEditable) {
-                    if (support.isDataFlavorSupported(DataFlavor.imageFlavor)) {
-                        val image = runCatching {
-                            support.transferable.getTransferData(DataFlavor.imageFlavor) as? Image
-                        }.getOrNull()
-                        if (image != null) { onImageDropped.invoke(toBufferedImage(image)); return true }
-                    }
-                    if (support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
-                        @Suppress("UNCHECKED_CAST")
-                        val files = runCatching {
-                            support.transferable.getTransferData(DataFlavor.javaFileListFlavor) as? List<File>
-                        }.getOrNull()
-                        val imageFile = files?.firstOrNull { it.isImageFile() }
-                        if (imageFile != null) {
-                            val image = runCatching { ImageIO.read(imageFile) }.getOrNull()
-                            if (image != null) { onImageDropped.invoke(image); return true }
-                        }
-                    }
-                }
-                return original?.importData(support) ?: false
-            }
-
-            // ----------------------------------------------------------------
-            // Export (Ctrl+C, Ctrl+X, drag-out) — delegate to original handler
-            // so the selected text is correctly placed on the clipboard / drag.
-            // createTransferable / exportDone are protected in TransferHandler and
-            // cannot be called on an external instance.  Delegating through the two
-            // public entry-points (exportToClipboard + exportAsDrag) avoids the
-            // visibility restriction entirely while achieving the same result.
-            // ----------------------------------------------------------------
-
-            override fun getSourceActions(c: JComponent?): Int =
-                original?.getSourceActions(c) ?: NONE
-
-            override fun exportToClipboard(comp: JComponent?, clip: java.awt.datatransfer.Clipboard?, action: Int) {
-                original?.exportToClipboard(comp, clip, action)
-            }
-
-            override fun exportAsDrag(comp: JComponent?, e: InputEvent?, action: Int) {
-                original?.exportAsDrag(comp, e, action)
-            }
-        }
-        dropTarget?.isActive = true
-    }
+    /**
+     * Drops are the window's business, not this pane's.
+     *
+     * This class used to install its own handler to catch dropped images. Because it accepted
+     * every file list, a document dropped here was taken and then discarded — the frame never saw
+     * it. The frame now handles both kinds for the whole window, and this pane keeps the stock
+     * `JTextPane` handler, which is what makes dragging plain text into the editor work.
+     */
 
     // -----------------------------------------------------------------------
     // Context menu
