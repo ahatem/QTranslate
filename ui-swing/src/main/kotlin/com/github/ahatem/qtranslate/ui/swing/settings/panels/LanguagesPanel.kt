@@ -3,7 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
-import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.LanguageComboBox
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
@@ -18,32 +18,45 @@ import javax.swing.table.DefaultTableModel
  * Settings panel for language-related configuration.
  *
  * ### Sections
- * 1. **Pinned Languages** — a scrollable checklist of common languages that appear
+ * 1. **Defaults** — the source and target languages restored on every launch.
+ *
+ * 2. **Pinned Languages** — a scrollable checklist of common languages that appear
  *    in the quick-access language picker. Uses individual [JCheckBox]es instead of a
  *    [JList] to avoid the stale-state render loop that multi-select JList triggers
  *    when [withoutTrigger] clears and re-sets the selection.
  *
- * 2. **Translation Rules** — per-source-language forced target overrides displayed
+ * 3. **Translation Rules** — per-source-language forced target overrides displayed
  *    as a two-column table. Add / Remove buttons below.
  *
- * 3. **Dictionary Auto-Lookup** — controls whether the dictionary panel opens
- *    automatically after translation and which text it looks up.
+ * Dictionary auto-lookup used to live here. It is behaviour rather than language
+ * configuration, and now sits in [TranslationPanel] with the rest of it.
  */
 class LanguagesPanel(
     private val store: SettingsStore,
-    private val localizationManager: LocalizationManager
+    private val localizationManager: LocalizationManager,
+    /**
+     * Languages the active translator currently supports.
+     * Evaluated at render time so the pickers reflect the translator in use, not whichever one
+     * was active when the dialog was built.
+     */
+    private val availableLanguages: () -> List<LanguageCode> = { emptyList() }
 ) : SettingsPanel() {
 
-    private val dictAutoSources by lazy {
-        listOf(
-            DictionaryAutoSourceInfo(DictionaryAutoSource.OFF,        localizationManager.getString("settings_translation.dict_auto_source_off")),
-            DictionaryAutoSourceInfo(DictionaryAutoSource.TRANSLATED, localizationManager.getString("settings_translation.dict_auto_source_translated")),
-            DictionaryAutoSourceInfo(DictionaryAutoSource.SOURCE,     localizationManager.getString("settings_translation.dict_auto_source_source")),
-        )
-    }
+    /** Source may be Auto; the app detects the language in that case. */
+    private val defaultSourceCombo = LanguageComboBox(
+        onLanguageSelected = { lang ->
+            if (!isUpdatingFromState) applyDraft(store) { it.copy(preferredSourceLanguage = lang.tag) }
+        },
+        localizer = localizationManager
+    )
 
-    private lateinit var dictAutoSourceCombo: JComboBox<DictionaryAutoSourceInfo>
-    private lateinit var dictAutoPopupCheck: JCheckBox
+    /** Target may not be Auto: there is nothing to detect a target from. */
+    private val defaultTargetCombo = LanguageComboBox(
+        onLanguageSelected = { lang ->
+            if (!isUpdatingFromState) applyDraft(store) { it.copy(preferredTargetLanguage = lang.tag) }
+        },
+        localizer = localizationManager
+    )
 
     // Individual checkboxes — see class-level doc for why not JList
     private val languageCheckBoxes = mutableListOf<Pair<String, JCheckBox>>()
@@ -60,6 +73,21 @@ class LanguagesPanel(
     // -------------------------------------------------------------------------
 
     private fun buildUI() {
+
+        // ---- Defaults ----
+        // Moved here from General, where the default target language was the only language
+        // setting outside this page. Source sits beside it because a default for one side and
+        // not the other is an arbitrary half.
+        addSeparator(localizationManager.getString("settings_languages.defaults_group"))
+        addRow(
+            localizationManager.getString("settings_languages.default_source_language"),
+            defaultSourceCombo
+        )
+        addRow(
+            localizationManager.getString("settings_languages.default_target_language"),
+            defaultTargetCombo
+        )
+        addHint(localizationManager.getString("settings_languages.defaults_hint"))
 
         // ---- Pinned Languages ----
         addSeparator(localizationManager.getString("settings_languages.pinned_languages_group"))
@@ -181,26 +209,6 @@ class LanguagesPanel(
             })
 
         // ---- Dictionary Auto-Lookup ----
-        addSeparator(localizationManager.getString("settings_languages.dict_auto_lookup_group"))
-        addHint(localizationManager.getString("settings_languages.dict_auto_lookup_hint"))
-
-        dictAutoSourceCombo = JComboBox<DictionaryAutoSourceInfo>(dictAutoSources.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
-            addActionListener {
-                if (!isUpdatingFromState) {
-                    val src = (selectedItem as? DictionaryAutoSourceInfo)?.source ?: return@addActionListener
-                    applyDraft(store) { it.copy(dictionaryAutoSource = src) }
-                }
-            }
-        }
-        addRow(localizationManager.getString("settings_languages.dict_auto_lookup_source"), dictAutoSourceCombo)
-
-        dictAutoPopupCheck = addCheckbox(
-            text     = localizationManager.getString("settings_languages.dict_auto_popup_enabled"),
-            selected = true,
-            onChange = { enabled -> applyDraft(store) { it.copy(isDictionaryAutoPopupEnabled = enabled) } }
-        )
-
         finishLayout()
     }
 
@@ -283,10 +291,22 @@ class LanguagesPanel(
             }
             removeRuleBtn.isEnabled = rulesTable.selectedRow >= 0
 
-            // Dictionary auto-lookup
-            dictAutoSourceCombo.selectedItem = dictAutoSources.find { it.source == c.dictionaryAutoSource }
-            dictAutoPopupCheck.isSelected    = c.isDictionaryAutoPopupEnabled
-            dictAutoPopupCheck.isEnabled     = c.dictionaryAutoSource != DictionaryAutoSource.OFF
+            // Defaults
+            val supported = availableLanguages()
+            defaultSourceCombo.render(
+                availableLanguages   = supported,
+                selectedLanguage     = LanguageCode(c.preferredSourceLanguage),
+                autoDetectedLanguage = null,
+                isEnabled            = supported.isNotEmpty()
+            )
+            // AUTO is excluded: a default target must be a concrete language.
+            val targets = supported.filter { it.tag != LanguageCode.AUTO.tag }
+            defaultTargetCombo.render(
+                availableLanguages   = targets,
+                selectedLanguage     = LanguageCode(c.preferredTargetLanguage),
+                autoDetectedLanguage = null,
+                isEnabled            = targets.isNotEmpty()
+            )
         }
     }
 
@@ -300,7 +320,7 @@ class LanguagesPanel(
         return if (!name.isNullOrBlank() && name != code) name else code
     }
 
-    private data class DictionaryAutoSourceInfo(val source: DictionaryAutoSource, val displayName: String)
+
 
     companion object {
         val COMMON_LANGUAGES = LanguageCode.all().toTypedArray()

@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
 import com.github.ahatem.qtranslate.api.plugin.StandardOptions
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
@@ -21,14 +22,29 @@ import javax.swing.*
  * 2. **Extra Output** — selects the second output type (backward translation,
  *    summarise, or rewrite), with conditional sub-settings for summary length
  *    and rewrite style.
+ * 3. **Dictionary lookup** — what happens after a translation, and which side of it
+ *    gets looked up.
  *
- * Language-specific settings (pinned languages, translation rules, dictionary
- * auto-lookup) live in [LanguagesPanel].
+ * Language configuration itself (defaults, pinned languages, translation rules)
+ * lives in [LanguagesPanel].
  */
 class TranslationPanel(
     private val store: SettingsStore,
     private val localizationManager: LocalizationManager
 ) : SettingsPanel() {
+
+    private val dictAutoSources by lazy {
+        listOf(
+            DictionaryAutoSourceInfo(DictionaryAutoSource.OFF, localizationManager.getString("settings_translation.dict_auto_source_off")),
+            DictionaryAutoSourceInfo(DictionaryAutoSource.TRANSLATED, localizationManager.getString("settings_translation.dict_auto_source_translated")),
+            DictionaryAutoSourceInfo(DictionaryAutoSource.SOURCE, localizationManager.getString("settings_translation.dict_auto_source_source")),
+        )
+    }
+
+    private lateinit var dictAutoSourceCombo: JComboBox<DictionaryAutoSourceInfo>
+    private lateinit var dictAutoPopupCheck: JCheckBox
+
+    private data class DictionaryAutoSourceInfo(val source: DictionaryAutoSource, val displayName: String)
 
     /**
      * The standard vocabularies, not the active service's.
@@ -173,6 +189,30 @@ class TranslationPanel(
         gb.nextRow().add(JLabel(localizationManager.getString("settings_translation.extra_output_source")))
         gb.weightX(1.0).fill(GridBagConstraints.HORIZONTAL).anchor(GridBagConstraints.LINE_START).add(radioPanel)
 
+        // ── Dictionary lookup ────────────────────────────────────────────────
+        // Moved here from Languages. It decides what happens after a translation, which is
+        // behaviour; its localization keys were already `settings_translation.*`, so it had
+        // drifted away from where it was written to belong.
+        addSeparator(localizationManager.getString("settings_languages.dict_auto_lookup_group"))
+        addHint(localizationManager.getString("settings_languages.dict_auto_lookup_hint"))
+
+        dictAutoSourceCombo = JComboBox<DictionaryAutoSourceInfo>(dictAutoSources.toTypedArray()).apply {
+            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            addActionListener {
+                if (!isUpdatingFromState) {
+                    val src = (selectedItem as? DictionaryAutoSourceInfo)?.source ?: return@addActionListener
+                    applyDraft(store) { it.copy(dictionaryAutoSource = src) }
+                }
+            }
+        }
+        addRow(localizationManager.getString("settings_languages.dict_auto_lookup_source"), dictAutoSourceCombo)
+
+        dictAutoPopupCheck = addCheckbox(
+            text = localizationManager.getString("settings_languages.dict_auto_popup_enabled"),
+            selected = true,
+            onChange = { enabled -> applyDraft(store) { it.copy(isDictionaryAutoPopupEnabled = enabled) } }
+        )
+
         finishLayout()
     }
 
@@ -200,6 +240,10 @@ class TranslationPanel(
             rewriteStyleCombo.selectedItem  = rewriteStyles.find { it.id == c.rewriteStyle }
             summaryLengthRow.isVisible      = c.extraOutputType == ExtraOutputType.Summarize
             rewriteStyleRow.isVisible       = c.extraOutputType == ExtraOutputType.Rewrite
+
+            dictAutoSourceCombo.selectedItem = dictAutoSources.find { it.source == c.dictionaryAutoSource }
+            dictAutoPopupCheck.isSelected    = c.isDictionaryAutoPopupEnabled
+            dictAutoPopupCheck.isEnabled     = c.dictionaryAutoSource != DictionaryAutoSource.OFF
         }
     }
 

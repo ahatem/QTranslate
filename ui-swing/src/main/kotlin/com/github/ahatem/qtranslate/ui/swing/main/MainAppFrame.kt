@@ -1706,7 +1706,9 @@ class MainAppFrame(
             config = ImageSearchConfig(
                 lastKnownSize     = config.imageSearchLastKnownSize,
                 lastKnownPosition = config.imageSearchLastKnownPosition,
-                closeOnClickOutside = config.closePopupsOnClickOutside
+                positionNearMouse = config.isImageSearchAutoPositionEnabled,
+                closeOnClickOutside = config.closePopupsOnClickOutside,
+                transparencyPercentage = config.imageSearchTransparencyPercentage
             ),
             strings = ImageSearchStrings(
                 title             = localizer.getString("image_search_dialog.title"),

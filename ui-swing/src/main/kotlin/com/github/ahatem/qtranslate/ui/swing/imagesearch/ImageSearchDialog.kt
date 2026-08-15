@@ -282,6 +282,9 @@ class ImageSearchDialog(
                 rebuildGridIfChanged(state)
                 size = state.config.lastKnownSize.toDimension()
                 applyPosition(state.config)
+                // Before it is shown: changing opacity on a window already on screen repaints it
+                // at the new value, which reads as a flicker on open.
+                applyTransparency(state.config)
                 isVisible = true
                 // Queued rather than requested inline: focus cannot be taken until the window is
                 // actually on screen, so asking during the same event does nothing and the field
@@ -580,6 +583,17 @@ class ImageSearchDialog(
 
     private fun applyPosition(config: ImageSearchConfig) {
         if (config.positionNearMouse) popup.positionNearMouse() else popup.positionBesideOwner()
+    }
+
+    /**
+     * Applies the configured transparency.
+     *
+     * Guarded because a window that is not translucency-capable throws rather than declining, and
+     * an opacity of exactly 1 is rejected on some platforms after the window is displayable.
+     */
+    private fun applyTransparency(config: ImageSearchConfig) {
+        val target = ((100 - config.transparencyPercentage).coerceIn(1, 100)) / 100f
+        runCatching { opacity = target }
     }
 
     private fun saveGeometry() {

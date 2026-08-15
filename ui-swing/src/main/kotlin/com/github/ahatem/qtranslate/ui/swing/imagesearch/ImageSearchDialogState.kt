@@ -40,7 +40,14 @@ data class ImageSearchConfig(
     val lastKnownPosition: Position,
     val positionNearMouse: Boolean = true,
     /** Whether pressing outside the popup dismisses it; pinning overrides this. */
-    val closeOnClickOutside: Boolean = true
+    val closeOnClickOutside: Boolean = true,
+    /**
+     * How far to see through the popup, as a percentage.
+     *
+     * Applied as a resting opacity rather than through a fade, because this popup has no
+     * idle-hide to fade with: a grid of pictures is compared rather than read.
+     */
+    val transparencyPercentage: Int = 0
 )
 
 data class ImageSearchStrings(

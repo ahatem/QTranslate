@@ -55,31 +55,54 @@ class SettingsDialog(
         if (event.propertyName == "lookAndFeel") SwingUtilities.invokeLater { updateBorders() }
     }
 
-    // ── Nav items (ordered) ───────────────────────────────────────────────────
-    private val navItems = listOf(
-        localizationManager.getString("settings_dialog_sidebar.general"),
-        localizationManager.getString("settings_dialog_sidebar.appearance"),
-        localizationManager.getString("settings_dialog_sidebar.services"),
-        localizationManager.getString("settings_dialog_sidebar.plugins"),
-        localizationManager.getString("settings_dialog_sidebar.hotkeys"),
-        localizationManager.getString("settings_dialog_sidebar.translation"),
-        localizationManager.getString("settings_dialog_sidebar.languages"),
-        localizationManager.getString("settings_dialog_sidebar.window_layout")
+    /** A sidebar entry. Groups own children and have no page of their own. */
+    private sealed interface Nav {
+        val label: String
+
+        data class Page(override val label: String, val iconPath: String) : Nav
+        data class Group(override val label: String, val children: List<Page>) : Nav
+    }
+
+    private fun label(key: String) = localizationManager.getString("settings_dialog_sidebar.$key")
+
+    /**
+     * The sidebar, in order.
+     *
+     * Grouped only where sections genuinely cluster. Everything under one parent would be
+     * IntelliJ cosplay at this size, and a flat list left the three translation-related pages
+     * separated by Plugins and Hotkeys.
+     */
+    private val navTree: List<Nav> = listOf(
+        Nav.Page(label("general"), "icons/lucide/sliders-horizontal.svg"),
+        Nav.Page(label("appearance"), "icons/lucide/palette.svg"),
+        Nav.Group(
+            label("group_translation"), listOf(
+                Nav.Page(label("services"), "icons/lucide/zap.svg"),
+                Nav.Page(label("behavior"), "icons/lucide/languages.svg"),
+                Nav.Page(label("languages"), "icons/lucide/globe.svg"),
+            )
+        ),
+        Nav.Group(
+            label("group_interface"), listOf(
+                Nav.Page(label("layout"), "icons/lucide/layout-dashboard.svg"),
+                Nav.Page(label("popups"), "icons/lucide/message-square.svg"),
+            )
+        ),
+        Nav.Page(label("hotkeys"), "icons/lucide/keyboard.svg"),
+        Nav.Page(label("plugins"), "icons/lucide/package.svg"),
     )
 
-    /** SVG resource paths keyed by localized nav label. */
-    // @formatter:off
-    private val sidebarIconPaths: Map<String, String> = mapOf(
-        localizationManager.getString("settings_dialog_sidebar.general")       to "icons/lucide/sliders-horizontal.svg",
-        localizationManager.getString("settings_dialog_sidebar.appearance")    to "icons/lucide/palette.svg",
-        localizationManager.getString("settings_dialog_sidebar.services")      to "icons/lucide/zap.svg",
-        localizationManager.getString("settings_dialog_sidebar.plugins")       to "icons/lucide/package.svg",
-        localizationManager.getString("settings_dialog_sidebar.hotkeys")       to "icons/lucide/keyboard.svg",
-        localizationManager.getString("settings_dialog_sidebar.translation")   to "icons/lucide/languages.svg",
-        localizationManager.getString("settings_dialog_sidebar.languages")     to "icons/lucide/globe.svg",
-        localizationManager.getString("settings_dialog_sidebar.window_layout") to "icons/lucide/layout-dashboard.svg"
-    )
-    // @formatter:on
+    /** Every selectable page, flattened, in sidebar order. */
+    private val pages: List<Nav.Page> = navTree.flatMap {
+        when (it) {
+            is Nav.Page -> listOf(it)
+            is Nav.Group -> it.children
+        }
+    }
+
+    /** SVG resource paths keyed by localized nav label. Groups carry no icon of their own. */
+    private val sidebarIconPaths: Map<String, String> =
+        pages.associate { it.label to it.iconPath }
 
     /**
      * Theme-aware sidebar icons: 14 × 14 [FlatSVGIcon] with a [FlatSVGIcon.ColorFilter]
@@ -102,7 +125,7 @@ class SettingsDialog(
 
     private val contentArea = JPanel(BorderLayout())
 
-    private val panelTitle = JLabel(navItems.firstOrNull() ?: "").apply {
+    private val panelTitle = JLabel(pages.firstOrNull()?.label ?: "").apply {
         font = font.deriveFont(Font.BOLD, font.size + 3f)
     }
 
@@ -206,12 +229,19 @@ class SettingsDialog(
 
     private fun buildTree(): JTree {
         val root = DefaultMutableTreeNode("root")
-        navItems.forEach { root.add(DefaultMutableTreeNode(it)) }
+        navTree.forEach { nav ->
+            val node = DefaultMutableTreeNode(nav.label)
+            if (nav is Nav.Group) nav.children.forEach { node.add(DefaultMutableTreeNode(it.label)) }
+            root.add(node)
+        }
 
         return JTree(DefaultTreeModel(root)).apply {
             isRootVisible = false
             showsRootHandles = false
             selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
+            // Groups exist to label their children, not to hide them. Expanded and left that way;
+            // collapsing is still possible by clicking the handle.
+            for (row in rowCount - 1 downTo 0) expandRow(row)
 
             putClientProperty(
                 "FlatLaf.style",
@@ -239,14 +269,31 @@ class SettingsDialog(
                     iconTextGap = 8
                     border = BorderFactory.createEmptyBorder(0, 8, 0, 8)
 
-                    if (!sel) foreground = UIManager.getColor("Label.foreground")
+                    // A group is a heading for the rows beneath it, so it is styled as one
+                    // rather than competing with the pages it labels.
+                    val isGroup = navTree.any { it is Nav.Group && it.label == name }
+                    font = font.deriveFont(if (isGroup) Font.BOLD else Font.PLAIN)
+                    if (!sel) {
+                        foreground = UIManager.getColor(
+                            if (isGroup) "Label.disabledForeground" else "Label.foreground"
+                        )
+                    }
                     return this
                 }
             }
 
             addTreeSelectionListener { e ->
-                val name = (e.path.lastPathComponent as? DefaultMutableTreeNode)
-                    ?.userObject as? String ?: return@addTreeSelectionListener
+                val node = e.path.lastPathComponent as? DefaultMutableTreeNode
+                    ?: return@addTreeSelectionListener
+                val name = node.userObject as? String ?: return@addTreeSelectionListener
+
+                // Groups have no page. Selecting one opens its first child, which is more useful
+                // than doing nothing and avoids a selected row with a blank content area.
+                val group = navTree.firstOrNull { it is Nav.Group && it.label == name } as? Nav.Group
+                if (group != null) {
+                    selectPage(group.children.first().label)
+                    return@addTreeSelectionListener
+                }
                 showPanel(name)
             }
         }
@@ -267,6 +314,18 @@ class SettingsDialog(
     }
 
     // ── Panel management ──────────────────────────────────────────────────────
+
+    /** Moves the sidebar selection to [pageLabel], which in turn shows its panel. */
+    private fun selectPage(pageLabel: String) {
+        for (row in 0 until tree.rowCount) {
+            val node = tree.getPathForRow(row).lastPathComponent as? DefaultMutableTreeNode
+            if (node?.userObject == pageLabel) {
+                tree.setSelectionRow(row)
+                tree.scrollRowToVisible(row)
+                return
+            }
+        }
+    }
 
     private fun showPanel(name: String) {
         currentPanelName = name
@@ -294,29 +353,32 @@ class SettingsDialog(
     }
 
     private fun createPanel(name: String): JPanel = when (name) {
-        localizationManager.getString("settings_dialog_sidebar.general") ->
-            GeneralPanel(settingsStore, localizationManager, availableLanguages)
+        label("general") ->
+            GeneralPanel(settingsStore, localizationManager)
 
-        localizationManager.getString("settings_dialog_sidebar.appearance") ->
+        label("appearance") ->
             AppearancePanel(settingsStore, themeManager, localizationManager, scope)
 
-        localizationManager.getString("settings_dialog_sidebar.services") ->
+        label("services") ->
             ServicesPanel(settingsStore, pluginManager, localizationManager, scope)
 
-        localizationManager.getString("settings_dialog_sidebar.plugins") ->
+        label("plugins") ->
             PluginsPanel(iconManager, pluginManager, localizationManager, scope)
 
-        localizationManager.getString("settings_dialog_sidebar.hotkeys") ->
+        label("hotkeys") ->
             KeyboardPanel(settingsStore, localizationManager, pauseGlobalHotkeys, resumeGlobalHotkeys)
 
-        localizationManager.getString("settings_dialog_sidebar.translation") ->
+        label("behavior") ->
             TranslationPanel(settingsStore, localizationManager)
 
-        localizationManager.getString("settings_dialog_sidebar.languages") ->
-            LanguagesPanel(settingsStore, localizationManager)
+        label("languages") ->
+            LanguagesPanel(settingsStore, localizationManager, availableLanguages)
 
-        localizationManager.getString("settings_dialog_sidebar.window_layout") ->
-            WindowPanel(settingsStore, localizationManager)
+        label("layout") ->
+            LayoutPanel(settingsStore, localizationManager)
+
+        label("popups") ->
+            PopupsPanel(settingsStore, localizationManager)
 
         else -> JPanel()
     }

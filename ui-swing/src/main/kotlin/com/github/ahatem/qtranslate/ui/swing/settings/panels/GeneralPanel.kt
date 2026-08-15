@@ -1,21 +1,20 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
-import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
-import com.github.ahatem.qtranslate.ui.swing.shared.widgets.LanguageComboBox
 import javax.swing.JCheckBox
 
+/**
+ * Application-wide settings that belong to no other page: startup, updates, the selection
+ * button, and history.
+ *
+ * The default target language used to sit at the top of this page. It was the only language
+ * setting outside [LanguagesPanel], which is where it now lives alongside a default source.
+ */
 class GeneralPanel(
     private val store: SettingsStore,
-    private val localizationManager: LocalizationManager,
-    /**
-     * Returns the current list of languages supported by the active translator.
-     * Evaluated at render time so it is always up-to-date.
-     * AUTO is excluded — a default *target* language must be a concrete language.
-     */
-    private val availableLanguages: () -> List<LanguageCode>
+    private val localizationManager: LocalizationManager
 ) : SettingsPanel() {
 
     private lateinit var launchCheckbox:  JCheckBox
@@ -24,30 +23,9 @@ class GeneralPanel(
     private lateinit var clearCheckbox:   JCheckBox
     private lateinit var selectionIconCheckbox: JCheckBox
 
-    /**
-     * Picker for the default target language restored on every app startup.
-     * Uses the same [LanguageComboBox] as the main window so search-by-typing,
-     * RTL rendering, and display names are all consistent.
-     */
-    private val defaultLanguageCombo = LanguageComboBox(
-        onLanguageSelected = { lang ->
-            if (!isUpdatingFromState)
-                applyDraft(store) { it.copy(preferredTargetLanguage = lang.tag) }
-        },
-        localizer = localizationManager
-    )
-
     init { buildUI() }
 
     private fun buildUI() {
-        // ── Default Language
-        addSeparator(localizationManager.getString("settings_general.default_language_group"))
-        addRow(
-            localizationManager.getString("settings_general.default_target_language"),
-            defaultLanguageCombo
-        )
-        addHint(localizationManager.getString("settings_general.default_target_language_hint"))
-
         // ── Startup & Updates (merged — two closely related checkboxes, not two separate sections)
         addSeparator(localizationManager.getString("settings_general.startup_updates_group"))
 
@@ -96,18 +74,7 @@ class GeneralPanel(
     override fun render(state: SettingsState) {
         val c = state.workingConfiguration
 
-        // Exclude AUTO — a default target language must be a concrete language.
-        val langs = availableLanguages().filter { it.tag != "auto" }
-        val preferred = LanguageCode(c.preferredTargetLanguage)
-
         withoutTrigger {
-            defaultLanguageCombo.render(
-                availableLanguages    = langs,
-                selectedLanguage      = preferred,
-                autoDetectedLanguage  = null,
-                isEnabled             = langs.isNotEmpty()
-            )
-
             launchCheckbox.isSelected  = c.launchOnSystemStartup
             updatesCheckbox.isSelected = c.autoCheckForUpdates
             selectionIconCheckbox.isSelected = c.isSelectionIconEnabled

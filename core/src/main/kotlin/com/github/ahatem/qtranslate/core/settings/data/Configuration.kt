@@ -367,6 +367,8 @@ data class Configuration(
     /** Longer than the translate popup: definitions are read and compared, not glanced at. */
     val quickDictionaryIdleTimeoutSeconds: Int = 20,
     val quickDictionaryTransparencyPercentage: Int = 5,
+    val isImageSearchAutoPositionEnabled: Boolean = true,
+    val imageSearchTransparencyPercentage: Int = 5,
 
     // ---- Donation nudge ----
     /**
