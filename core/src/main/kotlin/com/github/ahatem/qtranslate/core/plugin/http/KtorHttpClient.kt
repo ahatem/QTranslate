@@ -27,6 +27,16 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.Closeable
 
+/**
+ * The methods RFC 9110 defines as idempotent: sending one twice has the same effect as once, so a
+ * response that may or may not have been acted on can safely be retried.
+ */
+private val IDEMPOTENT_METHODS = setOf(
+    HttpMethod.Get, HttpMethod.Head, HttpMethod.Options, HttpMethod.Put, HttpMethod.Delete
+)
+
+private const val TOO_MANY_REQUESTS = 429
+
 internal class KtorHttpClient(
     private val logger: Logger,
     private val json: Json = Json {
@@ -53,7 +63,23 @@ internal class KtorHttpClient(
         }
         if (config.enableRetry) {
             install(HttpRequestRetry) {
-                retryOnServerErrors(maxRetries = config.maxRetries)
+                // Not retryOnServerErrors, which retries every 5xx whatever the method. A 5xx may
+                // mean the server did the work and failed to say so, and replaying a POST then
+                // does it twice: a second translation billed, a second quota unit spent, and for
+                // anything with a real side effect, worse. Only the methods RFC 9110 defines as
+                // idempotent are safe to send again on a 5xx.
+                //
+                // 429 is different and is retried for any method: it says the server refused the
+                // request without acting on it, so there is nothing to duplicate. It is also the
+                // status a translation API actually returns under load, and the old rule excluded
+                // it entirely — the one case worth retrying was the one case that never was.
+                retryIf(maxRetries = config.maxRetries) { request, response ->
+                    val status = response.status.value
+                    status == TOO_MANY_REQUESTS || (status in 500..599 && request.method in IDEMPOTENT_METHODS)
+                }
+                // Honours Retry-After when the server sends it, falling back to backoff when it
+                // does not. Retrying sooner than a rate limiter asked for is how a rate limit
+                // becomes a longer one.
                 exponentialDelay()
             }
         }

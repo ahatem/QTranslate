@@ -198,6 +198,16 @@ class LanguageEditorDialog(
             border = BorderFactory.createEmptyBorder(10, 0, 8, 0)
             searchField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, text("search"))
             searchField.onEdit { applyFilter() }
+            // Enter here moves into the results rather than reaching the dialog's default button,
+            // which is Save. Typing a filter and pressing Enter wrote the file, which is not what
+            // anyone means by it, and the stated reason for that default never held anyway: a
+            // table consumes Enter itself while a cell is being edited.
+            searchField.addActionListener {
+                if (table.rowCount > 0) {
+                    table.requestFocusInWindow()
+                    table.setRowSelectionInterval(0, 0)
+                }
+            }
             untranslatedOnly.addActionListener { applyFilter() }
             // The two actions that operate on the selected rows, kept with the rows. In the footer
             // they sat beside Close and Save and read as if they acted on the whole dialog.
