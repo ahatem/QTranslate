@@ -94,16 +94,20 @@ fun main() = runBlocking {
         )
     }
 
-    val savedLanguage = if (initialConfig.interfaceLanguage == LanguageCode.ENGLISH.tag) {
+    // Only when the user has not chosen. Keying this off "en" meant an explicit choice of English
+    // was read as no choice at all, so detection ran again on every launch and put the interface
+    // back into the machine's language.
+    val savedLanguage = if (initialConfig.interfaceLanguage.isBlank()) {
         OsLanguageDetector.detect(deps.localizationManager.availableLanguages)
     } else {
         LanguageCode(initialConfig.interfaceLanguage)
     }
     runCatching {
         deps.localizationManager.loadLanguage(savedLanguage)
-        logger.info("Interface language loaded: ${initialConfig.interfaceLanguage}")
+        // The resolved tag, not the stored one, which is blank until the user chooses.
+        logger.info("Interface language loaded: ${savedLanguage.tag}")
     }.onFailure { e ->
-        logger.warn("Failed to load interface language '${initialConfig.interfaceLanguage}': ${e.message}")
+        logger.warn("Failed to load interface language '${savedLanguage.tag}': ${e.message}")
     }
 
     // The window is shown before plugins are loaded. Everything it needs to paint — theme,

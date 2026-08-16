@@ -90,6 +90,15 @@ class LocalizationManager(
 
     private fun loadAndCacheLanguage(code: LanguageCode) {
         if (translationCache.containsKey(code)) return
+
+        // English ships inside the JAR as the fallback every other language is completed from, so
+        // it has no file on disk and never needed one. Looking for it and warning made the app
+        // report its own base language as missing on every start, and on every switch to English.
+        if (code == LanguageCode.ENGLISH) {
+            translationCache[code] = embeddedFallback
+            return
+        }
+
         runCatching {
             val file = File(languagesDirectory, "${code.tag}.toml")
             if (!file.exists()) {

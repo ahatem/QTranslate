@@ -260,7 +260,19 @@ data class Configuration(
     val autoCheckForUpdates: Boolean = true,
     val isGlobalHotkeysEnabled: Boolean = true,
     val isSelectionIconEnabled: Boolean = false,
-    val interfaceLanguage: String = "en",
+    /**
+     * The interface language, or blank for "not chosen yet, follow the operating system".
+     *
+     * Blank rather than "en" because the two have to be told apart and previously could not be.
+     * Configuration is written without its default values, so a user who picked English stored
+     * nothing, which was indistinguishable from never having picked at all — and startup, seeing
+     * "en", ran operating-system detection and overrode them again on every launch. Choosing
+     * English on a non-English machine therefore never stuck.
+     *
+     * With a blank default, picking English stores "en", which differs from the default and so
+     * survives. Detection now runs only when nothing has been chosen, which is what it was for.
+     */
+    val interfaceLanguage: String = "",
     val isInstantTranslationEnabled: Boolean = false,
     val isSpellCheckingEnabled: Boolean = true,
     val extraOutputType: ExtraOutputType = ExtraOutputType.None,
@@ -338,7 +350,12 @@ data class Configuration(
     val useUnifiedTitleBar: Boolean = true,
     val layoutPresetId: String = "classic",
     val toolbarVisibility: ToolbarVisibility = ToolbarVisibility.DEFAULT,
-    val serviceSelectorStyle: ServiceSelectorStyle = ServiceSelectorStyle.CLASSIC,
+    /**
+     * Enhanced by default: it shows which service is active and lets one be swapped in place,
+     * where the classic selector only lists them. Classic remains for anyone who prefers the
+     * denser row.
+     */
+    val serviceSelectorStyle: ServiceSelectorStyle = ServiceSelectorStyle.ENHANCED,
     val serviceSelectorAppearance: ServiceSelectorAppearance = ServiceSelectorAppearance.ICONS_AND_TEXT,
 
     // ---- UI — Quick Panel (Popup) ----

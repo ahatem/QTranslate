@@ -25,6 +25,17 @@ class AppearancePanel(
 
     private val groupedItems: List<ThemeItem> = buildGroupedItems()
 
+    /**
+     * Which entry the language picker should show for a stored [configured] value.
+     *
+     * Blank means the user has never chosen and the interface is following the operating system,
+     * so the picker shows the language actually running rather than nothing at all. Reading the
+     * stored value alone left the control empty on a first run, which reads as a bug in a dialog
+     * whose whole job is to show current settings.
+     */
+    private fun selectedLanguageCode(configured: String): String =
+        configured.ifBlank { localizationManager.activeLanguage.tag }
+
     private lateinit var languageCombo:     JComboBox<LanguageInfo>
     private lateinit var themeCombo:        JComboBox<ThemeItem>
     private lateinit var syncWithOsCheck:   JCheckBox
@@ -149,7 +160,9 @@ class AppearancePanel(
                 withoutTrigger {
                     languageCombo.removeAllItems()
                     languages.forEach { languageCombo.addItem(it) }
-                    val currentCode = store.state.value.workingConfiguration.interfaceLanguage
+                    val currentCode = selectedLanguageCode(
+                        store.state.value.workingConfiguration.interfaceLanguage
+                    )
                     for (i in 0 until languageCombo.itemCount) {
                         if (languageCombo.getItemAt(i).code == currentCode) {
                             languageCombo.selectedIndex = i
@@ -330,7 +343,7 @@ class AppearancePanel(
         val c = state.workingConfiguration
         withoutTrigger {
             for (i in 0 until languageCombo.itemCount) {
-                if (languageCombo.getItemAt(i).code == c.interfaceLanguage) {
+                if (languageCombo.getItemAt(i).code == selectedLanguageCode(c.interfaceLanguage)) {
                     languageCombo.selectedIndex = i
                     break
                 }
