@@ -15,7 +15,7 @@ data class ParsedLanguageFile(
  * @property name The display name of the language in English (e.g., "Spanish", "Japanese")
  * @property nativeName The name of the language in its own script (e.g., "Español", "日本語")
  * @property locale The IETF BCP 47 language tag for this translation (e.g., "en-US", "es-ES", "ja-JP")
- * @property authors Everyone who has worked on this translation, oldest first. See below.
+ * @property translators Everyone who has worked on this translation, oldest first. See below.
  * @property isRtl Whether this language uses right-to-left text direction (true for Arabic, Hebrew, etc.)
  */
 data class LocalizedLanguageMeta(
@@ -38,9 +38,9 @@ data class LocalizedLanguageMeta(
      * The older `author` field is still read when this is absent, so a translation file written
      * against the previous format keeps working and keeps crediting whoever it named.
      */
-    val authors: List<String>,
+    val translators: List<String>,
     val isRtl: Boolean,
 ) {
     /** Empty when the file names nobody, which the UI shows as no credit rather than as "Unknown". */
-    val hasAuthors: Boolean get() = authors.isNotEmpty()
+    val hasTranslators: Boolean get() = translators.isNotEmpty()
 }

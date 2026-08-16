@@ -202,7 +202,7 @@ class AppearancePanel(
             .map { code ->
                 val meta    = localizationManager.readLanguageMeta(LanguageCode(code))
                 val display = if (meta != null) "${meta.name} (${meta.nativeName})" else code
-                LanguageInfo(code, display, meta?.authors.orEmpty())
+                LanguageInfo(code, display, meta?.translators.orEmpty())
             }
             .sortedBy { it.displayName }
 
@@ -303,7 +303,7 @@ class AppearancePanel(
      */
     private fun updateTranslatorCredit(info: LanguageInfo?) {
         translatorCredit.removeAll()
-        val handles = info?.authors.orEmpty()
+        val handles = info?.translators.orEmpty()
         translatorCredit.isVisible = handles.isNotEmpty()
 
         if (handles.isNotEmpty()) {
@@ -446,7 +446,7 @@ class AppearancePanel(
         val code: String,
         val displayName: String,
         /** GitHub handles of everyone who worked on this translation. Empty for the built-in. */
-        val authors: List<String> = emptyList()
+        val translators: List<String> = emptyList()
     ) {
         override fun toString() = displayName
     }

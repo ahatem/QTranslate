@@ -5,7 +5,7 @@
 name = "Italian"
 native_name = "Italiano"
 locale = "it-IT"
-authors = ["bovirus"]
+translators = ["bovirus"]
 rtl = false
 
 # ===================================================================

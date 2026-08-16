@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
  * requests replaced the existing name outright, and another updated a translation without touching
  * the field, so that work is still credited to someone else. A list removes the choice.
  */
-class LanguageAuthorsTest {
+class LanguageTranslatorsTest {
 
     private val parser = LanguageTomlParser()
 
@@ -23,17 +23,17 @@ class LanguageAuthorsTest {
 
     @Test
     fun `a list of handles is read in the order it was written`() {
-        val meta = parseMeta("""authors = ["ahatem", "bovirus"]""")
+        val meta = parseMeta("""translators = ["ahatem", "bovirus"]""")
 
         // Order is contribution order, so it must survive the parse rather than come back as a set.
-        assertEquals(listOf("ahatem", "bovirus"), meta.authors)
+        assertEquals(listOf("ahatem", "bovirus"), meta.translators)
     }
 
     @Test
     fun `spacing inside the list does not change who is credited`() {
         assertEquals(
             listOf("ahatem", "bovirus"),
-            parseMeta("""authors = [ "ahatem" ,"bovirus" ]""").authors
+            parseMeta("""translators = [ "ahatem" ,"bovirus" ]""").translators
         )
     }
 
@@ -41,14 +41,14 @@ class LanguageAuthorsTest {
     fun `a file still using the old single author keeps crediting them`() {
         // Third-party and in-flight translation files predate the list. Losing their author would
         // be the very thing this change exists to prevent.
-        assertEquals(listOf("John Fowler"), parseMeta("""author = "John Fowler"""").authors)
+        assertEquals(listOf("John Fowler"), parseMeta("""author = "John Fowler"""").translators)
     }
 
     @Test
     fun `a legacy address is not carried onto the screen`() {
         // The old format was `Name <email>`. The address was never meant to be displayed, and
         // putting someone's email in the interface is not a courtesy to them.
-        assertEquals(listOf("bovirus"), parseMeta("""author = "bovirus <bovirus@gmail.com>"""").authors)
+        assertEquals(listOf("bovirus"), parseMeta("""author = "bovirus <bovirus@gmail.com>"""").translators)
     }
 
     @Test
@@ -56,18 +56,18 @@ class LanguageAuthorsTest {
         val meta = parseMeta(
             """
             author = "QTranslate Team"
-            authors = ["ahatem", "bovirus"]
+            translators = ["ahatem", "bovirus"]
             """.trimIndent()
         )
-        assertEquals(listOf("ahatem", "bovirus"), meta.authors)
+        assertEquals(listOf("ahatem", "bovirus"), meta.translators)
     }
 
     @Test
     fun `a file crediting nobody says so rather than inventing a name`() {
         val meta = parseMeta("""locale = "xx-XX"""")
 
-        assertEquals(emptyList(), meta.authors)
-        assertTrue(!meta.hasAuthors, "an empty list must read as no credit, not as a placeholder")
+        assertEquals(emptyList(), meta.translators)
+        assertTrue(!meta.hasTranslators, "an empty list must read as no credit, not as a placeholder")
     }
 
     @Test
@@ -76,7 +76,7 @@ class LanguageAuthorsTest {
             File(repoRoot, "core/src/main/resources/localization/embedded_en.toml")
 
         val uncredited = files.filter { file ->
-            parser.parse(file.readText()).meta?.authors.isNullOrEmpty()
+            parser.parse(file.readText()).meta?.translators.isNullOrEmpty()
         }
 
         assertEquals(

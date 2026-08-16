@@ -5,7 +5,7 @@
 name = "English (UK)"
 native_name = "English (UK)"
 locale = "en-GB"
-authors = ["ahatem"]
+translators = ["ahatem"]
 rtl = false
 
 # ===================================================================

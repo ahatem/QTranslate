@@ -62,11 +62,11 @@ class LanguageTomlParser(private val logger: Logger? = null) {
 
         val metaData = if (meta.isNotEmpty()) {
             LocalizedLanguageMeta(
-                name       = meta["name"]        ?: "Unknown",
-                nativeName = meta["native_name"] ?: meta["name"] ?: "Unknown",
-                locale     = meta["locale"]      ?: "en-US",
-                authors    = parseAuthors(meta),
-                isRtl      = meta["rtl"]?.toBooleanStrictOrNull() ?: false
+                name        = meta["name"]        ?: "Unknown",
+                nativeName  = meta["native_name"] ?: meta["name"] ?: "Unknown",
+                locale      = meta["locale"]      ?: "en-US",
+                translators = parseTranslators(meta),
+                isRtl       = meta["rtl"]?.toBooleanStrictOrNull() ?: false
             )
         } else null
 
@@ -76,7 +76,7 @@ class LanguageTomlParser(private val logger: Logger? = null) {
     /**
      * Everyone credited for a translation, newest format first.
      *
-     * `authors` is a list because a translation outlives its first author. The older `author`
+     * `translators` is a list because a translation outlives its first author. The older `author`
      * field is a single string and is still read, so a file written against the previous format
      * keeps crediting whoever it names instead of silently losing them.
      *
@@ -84,8 +84,8 @@ class LanguageTomlParser(private val logger: Logger? = null) {
      * shown: it was never meant for display, and putting someone's email on screen is not a
      * courtesy to them.
      */
-    private fun parseAuthors(meta: Map<String, String>): List<String> {
-        meta["authors"]?.let { return parseInlineArray(it) }
+    private fun parseTranslators(meta: Map<String, String>): List<String> {
+        meta["translators"]?.let { return parseInlineArray(it) }
 
         return meta["author"]
             ?.substringBefore('<')
@@ -99,8 +99,7 @@ class LanguageTomlParser(private val logger: Logger? = null) {
      * Reads a single-line TOML array of strings, `["one", "two"]`.
      *
      * The parser keeps every value as the raw text after the `=`, which is enough for the strings
-     * that make up the rest of a language file. `authors` is the only array in the format, so it
-     * is split here rather than growing the parser a general array type it would use once.
+     * that make up the rest of a language file.      * is split here rather than growing the parser a general array type it would use once.
      */
     private fun parseInlineArray(raw: String): List<String> =
         raw.trim()

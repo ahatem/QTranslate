@@ -5,7 +5,7 @@
 name = "Portuguese (Brazil)"
 native_name = "Português (Brasil)"
 locale = "pt-BR"
-authors = ["ahatem"]
+translators = ["ahatem"]
 rtl = false
 
 # ===================================================================

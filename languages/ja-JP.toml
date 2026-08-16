@@ -5,7 +5,7 @@
 name = "Japanese"
 native_name = "日本語"
 locale = "ja-JP"
-authors = ["ahatem"]
+translators = ["ahatem"]
 rtl = false
 
 # ===================================================================

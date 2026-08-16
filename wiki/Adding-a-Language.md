@@ -71,7 +71,7 @@ This must be at the top of every file:
 name        = "Arabic"           # language name in English
 native_name = "العربية"          # language name in its own script
 locale      = "ar"               # IETF BCP 47 code
-authors     = ["your-handle"]    # GitHub handles — see below
+translators = ["your-handle"]    # GitHub handles — see below
 rtl         = true               # true for right-to-left languages, false otherwise
 ```
 
@@ -82,7 +82,7 @@ rtl         = true               # true for right-to-left languages, false other
 **If you are improving a translation someone else started, add your handle to the end of the list. Do not replace what is there.**
 
 ```toml
-authors = ["ahatem", "your-handle"]
+translators = ["ahatem", "your-handle"]
 ```
 
 A translation is rarely the work of one person for long, and everyone who has worked on it stays credited. QTranslate shows these names beside the language in Settings, so this is what the people using your work will see.

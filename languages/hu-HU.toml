@@ -5,7 +5,7 @@
 name = "Hungarian"
 native_name = "Magyar"
 locale = "hu-HU"
-authors = ["ahatem"]
+translators = ["ahatem"]
 rtl = false
 
 # ===================================================================

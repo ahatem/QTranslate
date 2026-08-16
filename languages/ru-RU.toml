@@ -5,7 +5,7 @@
 name = "Russian"
 native_name = "Русский"
 locale = "ru-RU"
-authors = ["ahatem"]
+translators = ["ahatem"]
 rtl = false
 
 # ===================================================================

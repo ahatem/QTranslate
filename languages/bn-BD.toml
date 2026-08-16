@@ -5,7 +5,7 @@
 name = "Bengali"
 native_name = "বাংলা"
 locale = "bn-BD"
-authors = ["ahatem"]
+translators = ["ahatem"]
 rtl = false
 
 # ===================================================================
