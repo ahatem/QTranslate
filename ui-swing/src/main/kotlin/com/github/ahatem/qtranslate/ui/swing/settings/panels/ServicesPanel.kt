@@ -50,21 +50,31 @@ class ServicesPanel(
                 }
             }
         }
-        addRow(localizationManager.getString("settings_services.current_preset"), presetCombo)
+        // The same shape as the interface-language picker, through the same helper. These two rows
+        // ask the identical question — a picker plus the actions that operate on it — and used to
+        // answer it differently, two clicks apart in one dialog: labelled buttons on a row below
+        // here, icon buttons inline there.
+        renameBtn = pickerAction(
+            "icons/lucide/pen-line.svg",
+            localizationManager.getString("settings_services.rename_preset_btn")
+        ) { onRename() }
+        deleteBtn = pickerAction(
+            "icons/lucide/trash.svg",
+            localizationManager.getString("settings_services.delete_preset_btn")
+        ) { onDelete() }
 
-        val newBtn = JButton(localizationManager.getString("settings_services.new_preset_btn"))
-            .apply { addActionListener { onNew() } }
-        renameBtn = JButton(localizationManager.getString("settings_services.rename_preset_btn"))
-            .apply { addActionListener { onRename() } }
-        deleteBtn = JButton(localizationManager.getString("settings_services.delete_preset_btn"))
-            .apply { addActionListener { onDelete() } }
-
-        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
-            .anchor(GridBagConstraints.LINE_START).insets(4, 0, 0, 0)
-            .add(JPanel(FlowLayout(FlowLayout.LEADING, 4, 0)).apply {
-                isOpaque = false
-                add(newBtn); add(renameBtn); add(deleteBtn)
-            })
+        addPickerRow(
+            localizationManager.getString("settings_services.current_preset"),
+            presetCombo,
+            listOf(
+                pickerAction(
+                    "icons/lucide/plus.svg",
+                    localizationManager.getString("settings_services.new_preset_btn")
+                ) { onNew() },
+                renameBtn,
+                deleteBtn
+            )
+        )
 
         addHint(localizationManager.getString("settings_services.preset_hint"))
 

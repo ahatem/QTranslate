@@ -216,8 +216,9 @@ edit_tooltip = "Edit this translation"
 new_tooltip = "Start a new translation"
 builtin_english = "English (built-in)"
 edit_english_tooltip = "English is the source translation and cannot be edited"
-translated_by = "Translated by"
-on_github = "on GitHub"
+# %1$s = comma separated list of GitHub handles
+translated_by = "Translated by %s on GitHub"
+name_separator = ", "
 # %1$s = percent translated, %2$s = number of strings still in English
 translation_incomplete = "%s%% translated — %s strings still show English"
 theme_group = "Theme"
@@ -694,6 +695,13 @@ rtl = "Right-to-left language"
 col_key = "Key"
 col_english = "English"
 col_translation = "Translation"
+show_details = "Details"
+hide_details = "Hide details"
+dir_ltr = "Left-to-right"
+dir_rtl = "Right-to-left"
+placeholder_mismatch = "The %s placeholders differ from the English text. This will fail when the string is used."
+# %1$s = number of rows with mismatched placeholders
+mismatch_warning = "%s strings have placeholders that do not match the English. They will fail when used."
 unreadable_title = "Translation could not be read"
 # %1$s = language code, %2$s = file path
 unreadable = "The translation for %s could not be read, so it cannot be edited safely.

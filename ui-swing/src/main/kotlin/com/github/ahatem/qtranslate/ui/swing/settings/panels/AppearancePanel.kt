@@ -1,7 +1,5 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
-import com.formdev.flatlaf.FlatClientProperties
-import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
@@ -13,16 +11,12 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager.Companion.OS_DEFAULT_THEME_ID
 import com.github.ahatem.qtranslate.ui.swing.shared.util.WrapLayout
-import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.withContext
 import java.awt.*
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
-import java.net.URI
 import javax.swing.*
 import javax.swing.DefaultListCellRenderer
 
@@ -51,30 +45,6 @@ class AppearancePanel(
      */
     private fun selectedLanguageCode(configured: String): String =
         configured.ifBlank { localizationManager.activeLanguage.tag }
-
-    /**
-     * A square, borderless button carrying only an icon.
-     *
-     * Sized to the combo beside it so the row reads as one control with its actions attached,
-     * rather than as a toolbar that happens to be nearby.
-     */
-    private fun iconButton(iconPath: String, tooltipKey: String, onClick: () -> Unit) =
-        JButton(FlatSVGIcon(iconPath, ICON_SIZE, ICON_SIZE, javaClass.classLoader)
-            .applyForegroundColorFilter()).apply {
-            toolTipText = localizationManager.getString("settings_appearance.$tooltipKey")
-            putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
-            // Square and identical, so neither reads as bigger than the other. Left to itself a
-            // toolbar button takes its size from the glyph inside it, and a dense one like the pen
-            // then sits visibly larger than a sparse one like the plus.
-            val side = UIScale.scale(BUTTON_SIDE)
-            preferredSize = Dimension(side, side)
-            minimumSize = preferredSize
-            maximumSize = preferredSize
-            // Focusable, because this is the only way into the translation editor and taking it
-            // off the tab order made the whole feature mouse-only. The uneven look that prompted
-            // removing focus was the fixed square above, not the ring.
-            addActionListener { onClick() }
-        }
 
     private lateinit var languageCombo:     JComboBox<LanguageInfo>
     private lateinit var translatorCredit:  JPanel
@@ -113,44 +83,43 @@ class AppearancePanel(
                 }
             }
         }
-        // The actions sit against the control they act on, so "edit" plainly means "edit this
-        // language". A labelled button on its own row below read as a separate feature, and it
-        // was: people expected the language they had selected and met a manager for all of them.
-        val languageRow = JPanel(BorderLayout(6, 0)).apply {
-            isOpaque = false
-            add(languageCombo, BorderLayout.CENTER)
-            if (openEditor != null) {
-                editButton = iconButton("icons/lucide/pen-line.svg", "edit_tooltip") {
-                    openEditor.invoke((languageCombo.selectedItem as? LanguageInfo)?.code)
-                    loadLanguageListAsync()
-                }
-                add(JPanel(FlowLayout(FlowLayout.LEADING, 4, 0)).apply {
-                    isOpaque = false
-                    add(editButton)
-                    add(iconButton("icons/lucide/plus.svg", "new_tooltip") {
-                        openEditor.invoke(null)
-                        loadLanguageListAsync()
-                    })
-                }, BorderLayout.LINE_END)
+        val actions = if (openEditor == null) emptyList() else listOf(
+            pickerAction(
+                "icons/lucide/pen-line.svg",
+                localizationManager.getString("settings_appearance.edit_tooltip")
+            ) {
+                openEditor.invoke((languageCombo.selectedItem as? LanguageInfo)?.code)
+                loadLanguageListAsync()
+            }.also { editButton = it },
+            pickerAction(
+                "icons/lucide/plus.svg",
+                localizationManager.getString("settings_appearance.new_tooltip")
+            ) {
+                openEditor.invoke(null)
+                loadLanguageListAsync()
             }
-        }
-        addRow(localizationManager.getString("settings_appearance.interface_language"), languageRow)
-        addHint(localizationManager.getString("settings_appearance.language_hint"))
+        )
+        addPickerRow(
+            localizationManager.getString("settings_appearance.interface_language"),
+            languageCombo,
+            actions
+        )
 
-        // Last in the section, and set apart from the hint above it. The hint explains the control
-        // and belongs beside it; this is an acknowledgement of whoever did the work. Run together
-        // as two dimmed lines they read as one paragraph, and the credit is the half that gets
-        // skipped — which defeats the point of showing it.
-        // WrapLayout, not FlowLayout. FlowLayout reports a single row's height whatever it holds,
-        // so the GridBag row is sized for one line and anything that wraps is clipped away. This
-        // line is longer in most languages than in English, and the half that disappeared was the
-        // warning that the translation is unfinished — in exactly the languages most likely to be.
+        // One line under the picker, and only when there is something to say.
+        //
+        // There were three, all in small dimmed text. The hint apologised permanently for a bug
+        // to every user on every visit and contradicted itself in one sentence. The credit is an
+        // acknowledgement rather than a setting, and now rides on the picker's own tooltip. What
+        // survives is the only one of the three the reader can act on.
+        //
+        // WrapLayout, not FlowLayout: FlowLayout reports a single row's height whatever it holds,
+        // so the GridBag row was sized for one line and anything that wrapped was clipped away.
         translatorCredit = JPanel(WrapLayout(FlowLayout.LEADING, 4, 2)).apply {
             isOpaque = false
             isVisible = false
         }
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
-            .insets(10, 2, 2, 0).add(translatorCredit)
+            .insets(6, 2, 2, 0).add(translatorCredit)
 
         // ---- Theme ----
         addSeparator(localizationManager.getString("settings_appearance.theme_group"))
@@ -390,13 +359,15 @@ class AppearancePanel(
         val handles = info?.translators.orEmpty()
         val coverage = info?.coverage
 
-        if (handles.isNotEmpty()) {
-            translatorCredit.add(creditText(localizationManager.getString("settings_appearance.translated_by")))
-            handles.forEachIndexed { index, handle ->
-                translatorCredit.add(handleLink(handle))
-                if (index < handles.lastIndex) translatorCredit.add(creditText(","))
-            }
-            translatorCredit.add(creditText(localizationManager.getString("settings_appearance.on_github")))
+        // The acknowledgement rides on the control rather than taking a line of its own. One
+        // format string, not a sentence assembled from fragments, so a translator can order the
+        // words as their language requires instead of being handed "Translated by" and "on
+        // GitHub" as fixed bookends.
+        languageCombo.toolTipText = if (handles.isEmpty()) null else {
+            localizationManager.getString(
+                "settings_appearance.translated_by",
+                handles.joinToString(localizationManager.getString("settings_appearance.name_separator"))
+            )
         }
 
         // Said plainly, and only when it is true. A missing string falls back to English, so an
@@ -460,29 +431,6 @@ class AppearancePanel(
                 g2.dispose()
             }
         }
-    }
-
-    /** Dimmed, slightly smaller than body text: this is an acknowledgement, not a setting. */
-    private fun creditText(text: String) = JLabel(text).apply {
-        foreground = UIManager.getColor("Label.disabledForeground")
-        font = font.deriveFont(font.size - 1f)
-    }
-
-    private fun handleLink(handle: String) = JLabel("<html><u>@$handle</u></html>").apply {
-        val url = "https://github.com/$handle"
-        cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        foreground = UIManager.getColor("Component.accentColor") ?: UIManager.getColor("Label.foreground")
-        font = font.deriveFont(font.size - 1f)
-        toolTipText = url
-        addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                runCatching {
-                    if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-                        Desktop.getDesktop().browse(URI(url))
-                    }
-                }
-            }
-        })
     }
 
     private fun loadFontsAsync() {
@@ -595,11 +543,4 @@ class AppearancePanel(
         override fun toString() = displayName
     }
 
-    private companion object {
-        /** Glyph size for the actions beside the language picker. */
-        const val ICON_SIZE = 14
-
-        /** Square side for those buttons, sized to sit level with the combo without towering. */
-        const val BUTTON_SIDE = 26
-    }
 }

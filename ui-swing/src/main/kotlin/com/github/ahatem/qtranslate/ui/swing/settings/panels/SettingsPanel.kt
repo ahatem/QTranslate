@@ -1,6 +1,9 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.formdev.flatlaf.FlatClientProperties
+import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
@@ -267,6 +270,52 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
     }
 
     /**
+     * A picker with the actions that operate on it, on one row.
+     *
+     * Two panels solved this independently and differently — one put labelled buttons on a row of
+     * its own beneath the combo, the other put icon buttons inline — so the settings dialog
+     * offered two answers to one question, two clicks apart. There was no helper for it, which is
+     * how the drift happened, so this is the helper.
+     *
+     * The actions sit against the control they act on, which is what makes "edit" read as "edit
+     * this one" rather than as a feature of the page.
+     */
+    protected fun addPickerRow(label: String, picker: JComponent, actions: List<JComponent>) {
+        val row = JPanel(BorderLayout(UIScale.scale(6), 0)).apply {
+            isOpaque = false
+            add(picker, BorderLayout.CENTER)
+            if (actions.isNotEmpty()) {
+                add(JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(4), 0)).apply {
+                    isOpaque = false
+                    actions.forEach { add(it) }
+                }, BorderLayout.LINE_END)
+            }
+        }
+        addRow(label, row)
+    }
+
+    /**
+     * A square, borderless action for [addPickerRow].
+     *
+     * Pinned to a fixed square because a toolbar button otherwise takes its size from the glyph
+     * inside it, and a dense icon then sits visibly larger than a sparse one beside it. Focusable,
+     * because these are sometimes the only route to a feature.
+     */
+    protected fun pickerAction(iconPath: String, tooltip: String, onClick: () -> Unit) =
+        JButton(
+            FlatSVGIcon(iconPath, UIScale.scale(PICKER_ICON), UIScale.scale(PICKER_ICON), javaClass.classLoader)
+                .applyForegroundColorFilter()
+        ).apply {
+            toolTipText = tooltip
+            putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
+            val side = UIScale.scale(PICKER_BUTTON)
+            preferredSize = Dimension(side, side)
+            minimumSize = preferredSize
+            maximumSize = preferredSize
+            addActionListener { onClick() }
+        }
+
+    /**
      * Adds a helper/description label below the current row in muted, smaller text.
      * Uses an HTML width constraint so long text wraps instead of growing the dialog.
      */
@@ -344,5 +393,11 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
 
         /** Separates a section from a sub-section in a search result's path. */
         const val SECTION_SEPARATOR = "›"
+
+        /** Glyph size for a picker's inline actions. */
+        const val PICKER_ICON = 14
+
+        /** Square side for those actions, so a dense glyph never outgrows a sparse one. */
+        const val PICKER_BUTTON = 26
     }
 }

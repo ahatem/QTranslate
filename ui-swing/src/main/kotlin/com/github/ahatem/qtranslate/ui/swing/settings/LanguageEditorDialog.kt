@@ -67,7 +67,8 @@ class LanguageEditorDialog(
     private val rows = english.map { (key, value) -> Row(key, value, "") }
     private val model = StringsModel(
         rows,
-        listOf(text("col_key"), text("col_english"), text("col_translation"))
+        listOf("", text("col_key"), text("col_english"), text("col_translation")),
+        text("placeholder_mismatch")
     )
     private val table = JTable(model)
     private val sorter = TableRowSorter(model)
@@ -81,6 +82,10 @@ class LanguageEditorDialog(
     private val localeField = JTextField()
     private val translatorsField = JTextField()
     private val rtlCheck = JCheckBox(text("rtl"))
+
+    private val detailsPanel = JPanel(GridBagLayout()).apply { isOpaque = false }
+    private val detailsSummary = JLabel()
+    private val detailsToggle = JButton()
 
     private var loadedCode: String? = null
     private var dirty = false
@@ -117,7 +122,7 @@ class LanguageEditorDialog(
     // ── Layout ────────────────────────────────────────────────────────────────
 
     private fun buildHeader(): JComponent {
-        val details = JPanel(GridBagLayout()).apply {
+        val details = detailsPanel.apply {
             val c = GridBagConstraints().apply {
                 insets = Insets(2, 0, 2, 8); anchor = GridBagConstraints.LINE_START
                 fill = GridBagConstraints.HORIZONTAL
@@ -154,11 +159,47 @@ class LanguageEditorDialog(
             }, BorderLayout.LINE_END)
         }
 
+        // Closed by default. These five fields are set once when a translation is started and
+        // never touched again, and open they took roughly a fifth of a window whose real content
+        // is 546 rows the user will scroll for an hour. Closing them buys four more rows a screen.
+        details.isVisible = false
+        val summary = JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
+            isOpaque = false
+            add(detailsSummary, BorderLayout.CENTER)
+            add(detailsToggle.apply {
+                text = detailsToggleLabel()
+                putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
+                addActionListener {
+                    details.isVisible = !details.isVisible
+                    text = detailsToggleLabel()
+                    revalidate()
+                }
+            }, BorderLayout.LINE_END)
+        }
+
         return JPanel(BorderLayout()).apply {
             border = BorderFactory.createEmptyBorder(12, 12, 0, 12)
-            add(details, BorderLayout.CENTER)
+            add(JPanel(BorderLayout()).apply {
+                isOpaque = false
+                add(summary, BorderLayout.NORTH)
+                add(details, BorderLayout.CENTER)
+            }, BorderLayout.CENTER)
             add(filters, BorderLayout.SOUTH)
         }
+    }
+
+    private fun detailsToggleLabel() =
+        text(if (detailsPanel.isVisible) "hide_details" else "show_details")
+
+    /** One line standing in for the closed metadata block, so nothing is hidden without trace. */
+    private fun updateDetailsSummary() {
+        val parts = listOfNotNull(
+            nameField.text.trim().takeIf { it.isNotEmpty() },
+            localeField.text.trim().takeIf { it.isNotEmpty() },
+            translatorsField.text.trim().takeIf { it.isNotEmpty() },
+            text(if (rtlCheck.isSelected) "dir_rtl" else "dir_ltr")
+        )
+        detailsSummary.text = parts.joinToString("  ·  ")
     }
 
     private fun buildTable(): JComponent {
@@ -168,9 +209,17 @@ class LanguageEditorDialog(
             autoResizeMode = JTable.AUTO_RESIZE_LAST_COLUMN
             fillsViewportHeight = true
             putClientProperty(FlatClientProperties.STYLE, "showHorizontalLines: true")
-            columnModel.getColumn(0).preferredWidth = UIScale.scale(220)
-            columnModel.getColumn(1).preferredWidth = UIScale.scale(300)
-            columnModel.getColumn(2).preferredWidth = UIScale.scale(300)
+            columnModel.getColumn(StringsModel.COL_DONE).apply {
+                val width = UIScale.scale(26)
+                preferredWidth = width; minWidth = width; maxWidth = width
+                cellRenderer = DoneRenderer(this@LanguageEditorDialog.model)
+            }
+            columnModel.getColumn(StringsModel.COL_KEY).preferredWidth = UIScale.scale(210)
+            columnModel.getColumn(StringsModel.COL_ENGLISH).preferredWidth = UIScale.scale(290)
+            columnModel.getColumn(StringsModel.COL_TRANSLATION).preferredWidth = UIScale.scale(310)
+            // Sorting would destroy the declaration order the file's structure depends on, and
+            // there is no way back from it.
+            (0 until columnCount).forEach { sorter.setSortable(it, false) }
             // A single click starts editing: this is a form to fill in, and making someone
             // double-click 159 times to do it is the difference between finishable and not.
             (getDefaultEditor(String::class.java) as? DefaultCellEditor)?.clickCountToStart = 1
@@ -258,6 +307,11 @@ class LanguageEditorDialog(
                 setEnabledForContent(true)
                 dirty = false
                 updateCoverage()
+                updateDetailsSummary()
+                // A translation being started has nothing to summarise and every field to fill,
+                // so it opens with them showing; an existing one opens on its strings.
+                detailsPanel.isVisible = parsed == null
+                detailsToggle.text = detailsToggleLabel()
             }
         }
     }
@@ -282,6 +336,21 @@ class LanguageEditorDialog(
 
     private fun save() {
         val code = loadedCode ?: return
+
+        // Warned about rather than blocked. A mismatch is nearly always a mistake, but the person
+        // editing knows their language better than this check does, and refusing the save would
+        // trap work that is otherwise finished.
+        val mismatched = model.mismatches()
+        if (mismatched.isNotEmpty()) {
+            val proceed = JOptionPane.showConfirmDialog(
+                this,
+                text("mismatch_warning", mismatched.size),
+                text("unreadable_title"),
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.WARNING_MESSAGE
+            )
+            if (proceed != JOptionPane.OK_OPTION) return
+        }
         val meta = LanguageFileMeta(
             name = nameField.text.trim(),
             nativeName = nativeNameField.text.trim().ifBlank { nameField.text.trim() },
@@ -406,6 +475,7 @@ class LanguageEditorDialog(
     private fun markDirty() {
         dirty = true
         updateCoverage()
+        updateDetailsSummary()
     }
 
     private fun setEnabledForContent(enabled: Boolean) {
@@ -435,12 +505,20 @@ class LanguageEditorDialog(
     }
 
     /**
-     * Marks the rows nobody has translated yet.
+     * Marks progress, and reserves the warning colour for actual problems.
      *
-     * The filter can hide everything else, but scrolling with the filter off is how someone reads
-     * a translation in context, and untranslated strings were indistinguishable from translated
-     * ones while doing it. Colouring them means the gaps are findable without changing what is on
-     * screen, and the untranslated cell reads "English" rather than sitting empty and ambiguous.
+     * This used to paint every untranslated row amber. On a translation nobody has started that is
+     * every row, so the colour described the default state and therefore said nothing, while
+     * fighting the one cell the reader is trying to work in. A warning that is always on is not a
+     * warning.
+     *
+     * Untranslated is now simply the plain state, and what gets marked is a row that is *wrong*:
+     * a translation whose format placeholders do not match the English. That is a genuine defect —
+     * `getString` runs the result through `format`, so a dropped `%s` throws when the string is
+     * next needed — and it is invisible without help.
+     *
+     * Colour is never the only signal: a mismatched row also carries a tooltip saying what is
+     * wrong, and the done column is a glyph rather than a shade.
      */
     private class UntranslatedAwareRenderer(
         private val model: StringsModel
@@ -451,38 +529,81 @@ class LanguageEditorDialog(
             hasFocus: Boolean, row: Int, column: Int
         ): java.awt.Component {
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
-            val untranslated = model.rowAt(table.convertRowIndexToModel(row)).translation.isBlank()
+            val entry = model.rowAt(table.convertRowIndexToModel(row))
+            val mismatch = entry.hasPlaceholderMismatch()
 
-            font = if (untranslated && column == StringsModel.COL_KEY) {
-                font.deriveFont(Font.BOLD)
-            } else {
-                font.deriveFont(Font.PLAIN)
-            }
+            font = font.deriveFont(Font.PLAIN)
+            toolTipText = if (mismatch) model.placeholderWarning else null
 
             // Selection paints its own foreground; overriding it would make the selected row
             // unreadable in exchange for a distinction the highlight has already made.
             if (!isSelected) {
                 foreground = when {
-                    untranslated -> table.warningColour()
+                    mismatch -> UIManager.getColor("Component.warning.focusedBorderColor")
+                        ?: UIManager.getColor("Label.foreground")
+                    // Reference material, so it recedes. The translation is what is being read.
                     column == StringsModel.COL_ENGLISH -> UIManager.getColor("Label.disabledForeground")
                     else -> UIManager.getColor("Table.foreground")
                 }
             }
             return this
         }
-
-        private fun JTable.warningColour() =
-            UIManager.getColor("Component.warning.focusedBorderColor")
-                ?: UIManager.getColor("Actions.Yellow")
-                ?: foreground
     }
 
-    private data class Row(val key: String, val english: String, var translation: String)
+    /** A tick against the rows that are done, so progress reads at a glance rather than absence. */
+    private class DoneRenderer(private val model: StringsModel) : DefaultTableCellRenderer() {
+        override fun getTableCellRendererComponent(
+            table: JTable, value: Any?, isSelected: Boolean,
+            hasFocus: Boolean, row: Int, column: Int
+        ): java.awt.Component {
+            super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
+            val done = model.rowAt(table.convertRowIndexToModel(row)).translation.isNotBlank()
+            text = if (done) "✓" else ""
+            horizontalAlignment = CENTER
+            if (!isSelected) {
+                foreground = UIManager.getColor("Actions.Green")
+                    ?: UIManager.getColor("Label.disabledForeground")
+            }
+            return this
+        }
+    }
+
+    private data class Row(val key: String, val english: String, var translation: String) {
+
+        /**
+         * Whether the translation's format placeholders differ from the English.
+         *
+         * `LocalizationManager.getString` finishes with `raw.format(*args)`, so a translation that
+         * drops a `%s`, invents one, or reorders positional ones throws when the string is next
+         * needed — from the middle of building whatever screen wanted it. The editor shows these
+         * as ordinary text in a narrow cell with nothing marking them as load-bearing, so a
+         * translator has no way to know. Comparing counts catches every case that actually throws.
+         */
+        fun hasPlaceholderMismatch(): Boolean {
+            if (translation.isBlank()) return false
+            return placeholdersOf(english) != placeholdersOf(translation)
+        }
+
+        private fun placeholdersOf(text: String): Map<String, Int> =
+            PLACEHOLDER.findAll(text)
+                .map { it.value }
+                // %% is an escaped literal percent, not an argument, so it cannot go missing.
+                .filterNot { it == "%%" }
+                .groupingBy { it }
+                .eachCount()
+
+        private companion object {
+            /** `%s`, `%d`, `%1$s` and the rest of what `String.format` will consume. */
+            val PLACEHOLDER = Regex("""%(?:\d+\$)?[-#+ 0,(]*\d*(?:\.\d+)?[a-zA-Z%]""")
+        }
+    }
 
     private class StringsModel(
         private val rows: List<Row>,
         /** Column headings are read by the same people the editor exists for, so they translate. */
-        private val headings: List<String>
+        private val headings: List<String>,
+        /** Shown as a tooltip on a row whose placeholders do not match the English. */
+        val placeholderWarning: String
     ) : AbstractTableModel() {
 
         override fun getRowCount() = rows.size
@@ -490,6 +611,7 @@ class LanguageEditorDialog(
         override fun getColumnName(column: Int) = headings[column]
 
         override fun getValueAt(row: Int, column: Int): String = when (column) {
+            COL_DONE -> ""
             COL_KEY -> rows[row].key
             COL_ENGLISH -> rows[row].english
             else -> rows[row].translation
@@ -515,14 +637,18 @@ class LanguageEditorDialog(
             fireTableDataChanged()
         }
 
+        /** Rows whose placeholders disagree with the English, which will throw at runtime. */
+        fun mismatches(): List<Row> = rows.filter { it.hasPlaceholderMismatch() }
+
         /** Only what has actually been translated: a blank cell means the key is left out. */
         fun translations(): Map<String, String> =
             rows.filter { it.translation.isNotBlank() }.associate { it.key to it.translation }
 
         companion object {
-            const val COL_KEY = 0
-            const val COL_ENGLISH = 1
-            const val COL_TRANSLATION = 2
+            const val COL_DONE = 0
+            const val COL_KEY = 1
+            const val COL_ENGLISH = 2
+            const val COL_TRANSLATION = 3
         }
     }
 }
