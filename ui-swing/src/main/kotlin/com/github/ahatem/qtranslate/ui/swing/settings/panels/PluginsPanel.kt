@@ -375,7 +375,15 @@ class PluginsPanel(
             add(JLabel("v${plugin.manifest.version} · $categories").apply {
                 font = font.deriveFont(font.size - 1f)
                 this.foreground = if (selected) foreground else UIManager.getColor("Label.disabledForeground")
-                border = BorderFactory.createEmptyBorder(3, 32, 0, 0)
+                // Indented to sit under the plugin's name rather than under its icon. That is a
+                // leading-edge inset, so it swaps sides with the layout: written absolutely, the
+                // line hung off the wrong edge in a right-to-left interface and stopped lining up
+                // with the name it belongs to.
+                border = if (componentOrientation.isLeftToRight) {
+                    BorderFactory.createEmptyBorder(3, NAME_INDENT, 0, 0)
+                } else {
+                    BorderFactory.createEmptyBorder(3, 0, 0, NAME_INDENT)
+                }
             })
         }
         val controls = JPanel(FlowLayout(FlowLayout.TRAILING, 2, 0)).apply {
@@ -859,6 +867,11 @@ class PluginsPanel(
             jars.forEach(::installPlugin)
             return true
         }
+    }
+
+    private companion object {
+        /** Aligns a plugin's version line under its name rather than under its icon. */
+        const val NAME_INDENT = 32
     }
 }
 

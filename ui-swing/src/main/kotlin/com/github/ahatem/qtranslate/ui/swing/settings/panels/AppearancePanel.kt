@@ -227,7 +227,18 @@ class AppearancePanel(
                     super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
                     text = item.displayName
                     // index < 0 = closed button cell — no extra padding so the combo height stays normal
-                    if (index >= 0) border = BorderFactory.createEmptyBorder(2, 12, 2, 4)
+                    //
+                    // The indent marks a theme as belonging to the header above it, so it goes on
+                    // the side the list reads from. EmptyBorder takes absolute sides, so a fixed
+                    // left inset put it on the trailing edge in a right-to-left interface, where
+                    // it read as ragged spacing rather than as grouping.
+                    if (index >= 0) {
+                        border = if (list?.componentOrientation?.isLeftToRight != false) {
+                            BorderFactory.createEmptyBorder(2, 12, 2, 4)
+                        } else {
+                            BorderFactory.createEmptyBorder(2, 4, 2, 12)
+                        }
+                    }
                 }
                 else -> super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
             }

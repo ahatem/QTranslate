@@ -283,12 +283,41 @@ class SettingsDialog(
         tree.setSelectionRow(0)
     }
 
+    /**
+     * Recomputes anything that depends on layout direction, after it is known.
+     *
+     * The caller applies an orientation once the dialog is built, so everything decided during
+     * construction was decided left-to-right. The sidebar's divider is the visible case: it is a
+     * `MatteBorder` on an absolute edge, chosen from the orientation, and without this it stayed
+     * on the edge it was given at construction and disappeared against the window frame.
+     */
+    override fun applyComponentOrientation(orientation: ComponentOrientation) {
+        super.applyComponentOrientation(orientation)
+        updateBorders()
+        // Pages already built were reached by super above; ones built later read the dialog's
+        // orientation in createPanel.
+        revalidate()
+        repaint()
+    }
+
     // ── Theme-aware borders ───────────────────────────────────────────────────
 
     private fun updateBorders() {
         val bc = UIManager.getColor("Component.borderColor") ?: Color.GRAY
 
-        sidebarPanel.border = MatteBorder(0, 0, 0, 1, bc)
+        // The divider goes on whichever edge faces the content, which swaps with the layout
+        // direction: the sidebar sits on the right in a right-to-left interface, so a border
+        // fixed to its right edge ends up on the outside of the window against nothing.
+        // MatteBorder takes absolute sides and knows nothing about orientation, so the side is
+        // chosen here.
+        val leftToRight = componentOrientation.isLeftToRight
+        sidebarPanel.border = MatteBorder(
+            0,
+            if (leftToRight) 0 else 1,
+            0,
+            if (leftToRight) 1 else 0,
+            bc
+        )
 
         // Divides the search box from the sections it searches, matching the rule under the
         // header strip on the other side of the sidebar so the two line up as one row of chrome.
@@ -367,7 +396,18 @@ class SettingsDialog(
                     val unit = UIManager.getInt("Tree.leftChildIndent") +
                         UIManager.getInt("Tree.rightChildIndent")
                     val extra = if (!isGroup && depth <= 1) unit else 0
-                    border = BorderFactory.createEmptyBorder(0, 8 + extra, 0, 8)
+
+                    // The indent belongs on the side the rows start from, which is the right in a
+                    // right-to-left interface. EmptyBorder takes absolute sides, so writing it
+                    // always on the left put the whole indent on the wrong edge — pages under a
+                    // group and pages without one stopped lining up, and the padding appeared to
+                    // vanish because it had moved to the far end of the row.
+                    val startInset = 8 + extra
+                    border = if (tree.componentOrientation.isLeftToRight) {
+                        BorderFactory.createEmptyBorder(0, startInset, 0, 8)
+                    } else {
+                        BorderFactory.createEmptyBorder(0, 8, 0, startInset)
+                    }
                     font = font.deriveFont(if (isGroup) Font.BOLD else Font.PLAIN)
                     if (!sel) {
                         foreground = UIManager.getColor(
@@ -709,7 +749,18 @@ class SettingsDialog(
         }
     }
 
-    private fun createPanel(name: String): JPanel = when (name) {
+    /**
+     * Builds a page and gives it the dialog's layout direction.
+     *
+     * Pages are built the first time they are opened, which is after the caller has applied an
+     * orientation to the dialog — and `applyComponentOrientation` only reaches the children that
+     * exist when it runs. So in a right-to-left interface every page except the one showing at
+     * open time was laid out left-to-right, which is why some looked mirrored and others did not.
+     */
+    private fun createPanel(name: String): JPanel =
+        buildPanel(name).apply { applyComponentOrientation(this@SettingsDialog.componentOrientation) }
+
+    private fun buildPanel(name: String): JPanel = when (name) {
         label("general") ->
             GeneralPanel(settingsStore, localizationManager)
 
