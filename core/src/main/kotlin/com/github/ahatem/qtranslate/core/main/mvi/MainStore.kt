@@ -266,7 +266,9 @@ class MainStore(
 
             MainIntent.CancelTranslation -> {
                 translateTextUseCase.cancel()
-                _state.update { it.copy(isLoading = false) }
+                // Both flags, because cancelling can land while the extra panel is still waiting
+                // on its own request and only the main one was ever cleared here.
+                _state.update { it.copy(isLoading = false, isExtraOutputLoading = false) }
                 scope.launch {
                     updateStatusBar(StatusCode.TranslationCancelled, NotificationType.INFO, true)
                 }

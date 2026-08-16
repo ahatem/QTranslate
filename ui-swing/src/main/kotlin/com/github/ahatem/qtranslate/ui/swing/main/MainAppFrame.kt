@@ -1061,6 +1061,10 @@ class MainAppFrame(
                 settingsStore.dispatch(
                     SettingsIntent.ToggleSetting { it.copy(extraOutputType = newType) }
                 )
+                // Turning the panel on used to reveal an empty one, which stayed empty until the
+                // next translation and read as broken. Filling it is the point of switching it on,
+                // and costs only the extra request, not a second translation.
+                mainStore.dispatch(MainIntent.RefreshExtraOutput)
             },
             onShowDictionary = { showDictionaryDialog() },
             onShowImageSearch = { showImageSearchDialog() },

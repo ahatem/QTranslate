@@ -468,13 +468,21 @@ class TranslateTextUseCase(
             return
         }
 
-        val extraOutput = handleExtraOutput(
-            targetText        = translatedText,
-            sourceForBackward = sourceForBackward,
-            targetForBackward = targetForBackward,
-            translator        = translator,
-            onStatusUpdate    = onStatusUpdate
-        )
+        val extraOutput = try {
+            handleExtraOutput(
+                targetText        = translatedText,
+                sourceForBackward = sourceForBackward,
+                targetForBackward = targetForBackward,
+                translator        = translator,
+                onStatusUpdate    = onStatusUpdate
+            )
+        } catch (cancellation: CancellationException) {
+            // Cancelling a translation while its extra output was still in flight left the panel
+            // spinning for an answer that had been abandoned, and only another translation cleared
+            // it. The flag belongs to the request, so it is lowered with the request.
+            updateState { copy(isExtraOutputLoading = false) }
+            throw cancellation
+        }
 
         val finalHistory = patchExtraOutput(history, extraOutput, extraOutputType.name)
 
