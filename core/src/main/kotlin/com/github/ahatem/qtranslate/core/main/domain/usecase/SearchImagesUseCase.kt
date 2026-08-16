@@ -9,7 +9,7 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.CancellationException
@@ -49,7 +49,7 @@ class SearchImagesUseCase(
             return
         }
 
-        val service = activeServiceManager.getActiveService<ImageSearch>(ServiceType.IMAGE_SEARCH)
+        val service = activeServiceManager.getActiveService<ImageSearch>(ServiceRole.IMAGE_SEARCH)
         if (service == null) {
             logger.warn("No image search service available")
             onStatusUpdate(StatusCode.NoImageSearchServiceActive, NotificationType.ERROR, true)

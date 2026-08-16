@@ -11,7 +11,7 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.CancellationException
@@ -42,7 +42,7 @@ class LookupWordUseCase(
             return
         }
 
-        val dictionary = activeServiceManager.getActiveService<Dictionary>(ServiceType.DICTIONARY)
+        val dictionary = activeServiceManager.getActiveService<Dictionary>(ServiceRole.DICTIONARY)
         if (dictionary == null) {
             logger.warn("No dictionary service available")
             onStatusUpdate(StatusCode.NoDictionaryServiceActive, NotificationType.ERROR, true)
@@ -71,7 +71,7 @@ class LookupWordUseCase(
 
                 val result = withTimeoutOrNull(AppConstants.TRANSLATION_TIMEOUT_MS) {
                     val bilingualRequest = targetLanguage?.let { target ->
-                        dictionary.getCapability(BilingualDictionary::class.java)?.let { it to target }
+                        (dictionary as? BilingualDictionary)?.let { it to target }
                     }
                     if (bilingualRequest != null) {
                         val (bilingual, target) = bilingualRequest

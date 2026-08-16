@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.plugins.bing
 
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
@@ -38,7 +37,6 @@ class BingTTSService(
     private val apiConfig: ApiConfig
 ) : TextToSpeech, VoiceSupport {
 
-    override val capabilities = setOf(ServiceCapability.TTS)
 
     override val key: String = "bing-tts"
     override val name: String = "Bing TTS"

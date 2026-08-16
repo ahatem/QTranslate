@@ -19,10 +19,10 @@ import com.github.michaelbull.result.Result
  * the same [key] and the host keeps them apart. It also removes the burden of inventing a
  * globally unique string from plugin authors.
  *
- * ### Capabilities
- * A service declares what it can do through [capabilities] rather than the host inferring it
- * from implemented interfaces. Inference cannot express a service that does two things, so a
- * service that both translates and defines words declares both and is offered under both.
+ * ### Roles
+ * What a service is for follows from the interfaces it implements. Implement [Translator] and it
+ * is offered as a translator; implement [Dictionary] too and it is offered as both. There is
+ * nothing to declare, and therefore nothing that can contradict the code. See [ServiceRole].
  *
  * ### Language support
  * [supportedLanguages] is a synchronous read the host may call freely while rendering. When the
@@ -30,9 +30,16 @@ import com.github.michaelbull.result.Result
  * [fetchSupportedLanguages] once and cache the result.
  *
  * ### Optional behaviour
- * Behaviour a service may or may not have — voice selection, batching, streaming — is expressed
- * as a separate interface discovered through [getCapability], not as another [ServiceCapability].
- * See [com.github.ahatem.qtranslate.api.tts.VoiceSupport].
+ * Behaviour a service may or may not have, such as voice selection or batching, is a separate
+ * interface it may also implement, and the host asks for it with an ordinary cast:
+ *
+ * ```kotlin
+ * val voices = (service as? VoiceSupport)?.voices.orEmpty()
+ * ```
+ *
+ * This is deliberately not a [ServiceRole]. A role is what the user selects a service *for*;
+ * optional behaviour only changes how it does that job. See
+ * [com.github.ahatem.qtranslate.api.tts.VoiceSupport].
  */
 interface Service {
 
@@ -50,9 +57,6 @@ interface Service {
 
     /** Version of this service implementation, distinct from the plugin's own version. */
     val version: String
-
-    /** What this service can do. Must not be empty. */
-    val capabilities: Set<ServiceCapability>
 
     /** Descriptive facts the host may show the user. Purely informational. */
     val metadata: ServiceMetadata
@@ -106,19 +110,6 @@ interface Service {
      * Defaults to success, which is correct for services needing no configuration.
      */
     suspend fun validate(): Result<Unit, ServiceError> = Ok(Unit)
-
-    /** Whether this service implements an optional behaviour interface. */
-    fun <T : Any> supports(capability: Class<T>): Boolean =
-        capability.isAssignableFrom(this::class.java)
-
-    /**
-     * Returns this service as an optional behaviour interface, or `null` if unsupported.
-     * Preferred over `is` checks so optional behaviour can be added without touching the host.
-     *
-     * Example: `service.getCapability(VoiceSupport::class.java)?.voices`
-     */
-    fun <T : Any> getCapability(capability: Class<T>): T? =
-        if (supports(capability)) capability.cast(this) else null
 }
 
 /**

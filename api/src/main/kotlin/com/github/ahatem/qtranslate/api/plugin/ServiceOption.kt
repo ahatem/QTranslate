@@ -34,7 +34,20 @@ data class ServiceOption(
     val values: List<ServiceOptionValue>,
 
     /** Id of the value used when the user has not chosen one. Must exist in [values]. */
-    val defaultValue: String
+    val defaultValue: String,
+
+    /**
+     * The role this option applies to, or `null` when it applies to all of them.
+     *
+     * Options hang off the service, but a service can hold several roles, and an option rarely
+     * means anything outside one of them. A service that both summarizes and rewrites declares
+     * length and style in one list, and without this the host would offer summary length while
+     * rewriting and rewrite style while summarizing.
+     *
+     * `null` is the default because most services hold a single role, where scoping an option
+     * would be noise.
+     */
+    val role: ServiceRole? = null
 ) {
     init {
         require(key.isNotBlank()) { "ServiceOption.key must not be blank." }
@@ -87,7 +100,8 @@ object StandardOptions {
             ServiceOptionValue("MEDIUM", DisplayText("settings_translation.summary_length_medium", "Medium")),
             ServiceOptionValue("LONG", DisplayText("settings_translation.summary_length_long", "Long"))
         ),
-        defaultValue = "MEDIUM"
+        defaultValue = "MEDIUM",
+        role = ServiceRole.SUMMARIZER
     )
 
     val REWRITE_STYLE: ServiceOption = ServiceOption(
@@ -100,7 +114,8 @@ object StandardOptions {
             ServiceOptionValue("DETAILED", DisplayText("settings_translation.rewrite_style_detailed", "Detailed")),
             ServiceOptionValue("SIMPLIFIED", DisplayText("settings_translation.rewrite_style_simplified", "Simplified"))
         ),
-        defaultValue = "FORMAL"
+        defaultValue = "FORMAL",
+        role = ServiceRole.REWRITER
     )
 }
 

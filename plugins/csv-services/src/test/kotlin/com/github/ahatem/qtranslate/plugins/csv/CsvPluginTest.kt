@@ -2,7 +2,7 @@ package com.github.ahatem.qtranslate.plugins.csv
 
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
 import com.github.ahatem.qtranslate.api.language.LanguageCode
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 import com.github.michaelbull.result.get
@@ -49,7 +49,7 @@ class CsvPluginTest {
 
         val service = plugin.getServices().single()
         assertEquals("csv-dictionary", service.key)
-        assertEquals(setOf(ServiceCapability.DICTIONARY), service.capabilities)
+        assertEquals(setOf(ServiceRole.DICTIONARY), ServiceRole.of(service))
     }
 
     @Test

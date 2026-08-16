@@ -1,23 +1,23 @@
 package com.github.ahatem.qtranslate.core.settings.data
 
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 
 private const val DISABLED_SERVICE_TYPE_PREFIX = "type:"
 
-fun ServiceType.disabledServiceKey(): String = "$DISABLED_SERVICE_TYPE_PREFIX$name"
+fun ServiceRole.disabledServiceKey(): String = "$DISABLED_SERVICE_TYPE_PREFIX$name"
 
-fun Configuration.isServiceTypeEnabled(serviceType: ServiceType): Boolean =
-    serviceType.disabledServiceKey() !in disabledServices
+fun Configuration.isServiceRoleEnabled(serviceRole: ServiceRole): Boolean =
+    serviceRole.disabledServiceKey() !in disabledServices
 
-fun Configuration.withServiceTypeEnabled(serviceType: ServiceType, enabled: Boolean): Configuration {
-    val key = serviceType.disabledServiceKey()
+fun Configuration.withServiceRoleEnabled(serviceRole: ServiceRole, enabled: Boolean): Configuration {
+    val key = serviceRole.disabledServiceKey()
     return copy(
         disabledServices = if (enabled) disabledServices - key else disabledServices + key
     )
 }
 
-fun Configuration.isServiceDisabled(serviceId: String, serviceType: ServiceType): Boolean =
-    serviceId in disabledServices || !isServiceTypeEnabled(serviceType)
+fun Configuration.isServiceDisabled(serviceId: String, serviceRole: ServiceRole): Boolean =
+    serviceId in disabledServices || !isServiceRoleEnabled(serviceRole)
 
 /**
  * Extension functions for working with [Configuration] immutably.
@@ -47,22 +47,22 @@ fun Configuration.withActivePreset(
 }
 
 /**
- * Returns a new configuration with [serviceId] selected for [serviceType]
+ * Returns a new configuration with [serviceId] selected for [serviceRole]
  * in the active preset. If there is no active preset, returns the configuration unchanged.
  *
  * Pass `null` for [serviceId] to clear the selection (fall back to first available).
  *
  * Example:
  * ```kotlin
- * config.withServiceSelection(ServiceType.TRANSLATOR, "google-translator")
+ * config.withServiceSelection(ServiceRole.TRANSLATOR, "google-translator")
  * ```
  */
 fun Configuration.withServiceSelection(
-    serviceType: ServiceType,
+    serviceRole: ServiceRole,
     serviceId: String?
 ): Configuration = withActivePreset { preset ->
     preset.copy(
-        selectedServices = preset.selectedServices + (serviceType to serviceId)
+        selectedServices = preset.selectedServices + (serviceRole to serviceId)
     )
 }
 

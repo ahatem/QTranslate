@@ -9,7 +9,7 @@ import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.withTimeoutOrNull
@@ -25,7 +25,7 @@ class SummarizeUseCase(
         config: Configuration,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
     ): String {
-        val summarizer = activeServiceManager.getActiveService<Summarizer>(ServiceType.SUMMARIZER)
+        val summarizer = activeServiceManager.getActiveService<Summarizer>(ServiceRole.SUMMARIZER)
         if (summarizer == null) {
             logger.warn("No summarizer service available")
             onStatusUpdate(StatusCode.NoSummarizerActive, NotificationType.WARNING, true)

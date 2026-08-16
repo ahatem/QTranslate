@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.plugins.bing
 
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -25,7 +24,6 @@ class BingSpellCheckerService(
     private val apiConfig: ApiConfig
 ) : SpellChecker {
 
-    override val capabilities = setOf(ServiceCapability.SPELL_CHECKER)
 
     override val key: String = "bing-spell-checker"
     override val name: String = "Bing Spell Checker"

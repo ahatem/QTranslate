@@ -1,7 +1,7 @@
 package com.github.ahatem.qtranslate.core.settings.data
 
 import com.github.ahatem.qtranslate.api.core.Logger
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -21,7 +21,7 @@ class ConfigMigratorTest {
     }
 
     private fun v3(
-        selected: Map<ServiceType, String?> = emptyMap(),
+        selected: Map<ServiceRole, String?> = emptyMap(),
         disabled: Set<String> = emptySet()
     ) = Configuration.DEFAULT.copy(
         configVersion = 3,
@@ -35,27 +35,27 @@ class ConfigMigratorTest {
         val migrated = ConfigMigrator.migrate(
             v3(
                 selected = mapOf(
-                    ServiceType.TRANSLATOR to "google-translator",
-                    ServiceType.DICTIONARY to "wikimedia-wiktionary",
-                    ServiceType.TTS to "bing-tts"
+                    ServiceRole.TRANSLATOR to "google-translator",
+                    ServiceRole.DICTIONARY to "wikimedia-wiktionary",
+                    ServiceRole.TTS to "bing-tts"
                 )
             ),
             logger
         )
 
         val selected = migrated.servicePresets.single().selectedServices
-        assertEquals("google-services:default:google-translator", selected[ServiceType.TRANSLATOR])
-        assertEquals("wikimedia-reference:default:wikimedia-wiktionary", selected[ServiceType.DICTIONARY])
-        assertEquals("bing-services:default:bing-tts", selected[ServiceType.TTS])
+        assertEquals("google-services:default:google-translator", selected[ServiceRole.TRANSLATOR])
+        assertEquals("wikimedia-reference:default:wikimedia-wiktionary", selected[ServiceRole.DICTIONARY])
+        assertEquals("bing-services:default:bing-tts", selected[ServiceRole.TTS])
     }
 
     @Test
     fun `a null selection stays null rather than becoming a broken id`() {
         val migrated = ConfigMigrator.migrate(
-            v3(selected = mapOf(ServiceType.OCR to null)),
+            v3(selected = mapOf(ServiceRole.OCR to null)),
             logger
         )
-        assertEquals(null, migrated.servicePresets.single().selectedServices[ServiceType.OCR])
+        assertEquals(null, migrated.servicePresets.single().selectedServices[ServiceRole.OCR])
     }
 
     @Test
@@ -75,12 +75,12 @@ class ConfigMigratorTest {
         // A third-party plugin, or one the user has since removed. Guessing at a plugin id would
         // produce a selection pointing at something that does not exist.
         val migrated = ConfigMigrator.migrate(
-            v3(selected = mapOf(ServiceType.TRANSLATOR to "someone-elses-translator")),
+            v3(selected = mapOf(ServiceRole.TRANSLATOR to "someone-elses-translator")),
             logger
         )
         assertEquals(
             "someone-elses-translator",
-            migrated.servicePresets.single().selectedServices[ServiceType.TRANSLATOR]
+            migrated.servicePresets.single().selectedServices[ServiceRole.TRANSLATOR]
         )
     }
 
@@ -88,7 +88,7 @@ class ConfigMigratorTest {
     fun `migrating twice changes nothing the second time`() {
         val once = ConfigMigrator.migrate(
             v3(
-                selected = mapOf(ServiceType.TRANSLATOR to "google-translator"),
+                selected = mapOf(ServiceRole.TRANSLATOR to "google-translator"),
                 disabled = setOf("google-ocr", "type:SUMMARIZER")
             ),
             logger
@@ -101,7 +101,7 @@ class ConfigMigratorTest {
     fun `a v1 config arrives at the current version with its ids rewritten`() {
         // The oldest shape still in the wild: it goes through every step in one pass.
         val migrated = ConfigMigrator.migrate(
-            v3(selected = mapOf(ServiceType.TRANSLATOR to "google-translator"))
+            v3(selected = mapOf(ServiceRole.TRANSLATOR to "google-translator"))
                 .copy(configVersion = 1, hotkeys = emptyList()),
             logger
         )
@@ -109,7 +109,7 @@ class ConfigMigratorTest {
         assertEquals(ConfigMigrator.CURRENT_VERSION, migrated.configVersion)
         assertEquals(
             "google-services:default:google-translator",
-            migrated.servicePresets.single().selectedServices[ServiceType.TRANSLATOR]
+            migrated.servicePresets.single().selectedServices[ServiceRole.TRANSLATOR]
         )
         // The hotkey steps still ran on the way through.
         assertEquals(HotkeyBinding.DEFAULTS.size, migrated.hotkeys.size)

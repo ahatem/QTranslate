@@ -5,7 +5,6 @@ import com.github.ahatem.qtranslate.api.dictionary.Dictionary
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryResponse
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.ServiceMetadata
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
@@ -26,7 +25,6 @@ class CsvDictionaryService(
     private val index: () -> CsvIndex?
 ) : Dictionary {
 
-    override val capabilities = setOf(ServiceCapability.DICTIONARY)
 
     override val key = "csv-dictionary"
     override val name = "CSV Dictionary"

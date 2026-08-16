@@ -5,13 +5,13 @@ import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
-import com.github.ahatem.qtranslate.core.settings.data.isServiceTypeEnabled
-import com.github.ahatem.qtranslate.core.settings.data.withServiceTypeEnabled
+import com.github.ahatem.qtranslate.core.settings.data.isServiceRoleEnabled
+import com.github.ahatem.qtranslate.core.settings.data.withServiceRoleEnabled
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
-import com.github.ahatem.qtranslate.core.shared.util.type
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
+import com.github.ahatem.qtranslate.core.shared.util.roles
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.awt.*
@@ -27,8 +27,8 @@ class ServicesPanel(
     private lateinit var presetCombo: JComboBox<PresetInfo>
     private lateinit var renameBtn: JButton
     private lateinit var deleteBtn: JButton
-    private val serviceComboBoxes = mutableMapOf<ServiceType, JComboBox<ServiceOption>>()
-    private val serviceEnabledChecks = mutableMapOf<ServiceType, JCheckBox>()
+    private val serviceComboBoxes = mutableMapOf<ServiceRole, JComboBox<ServiceOption>>()
+    private val serviceEnabledChecks = mutableMapOf<ServiceRole, JCheckBox>()
 
     init {
         buildUI()
@@ -82,7 +82,7 @@ class ServicesPanel(
 
     private fun buildServiceGrid(): JPanel {
         val grid = JPanel(GridLayout(0, 2, 12, 10)).apply { isOpaque = false }
-        ServiceType.entries.forEach { type ->
+        ServiceRole.entries.forEach { type ->
             val combo = buildServiceCombo(type)
             serviceComboBoxes[type] = combo
             grid.add(buildServiceCard(type, combo))
@@ -90,14 +90,14 @@ class ServicesPanel(
         return grid
     }
 
-    private fun buildServiceCard(type: ServiceType, combo: JComboBox<ServiceOption>): JPanel {
+    private fun buildServiceCard(type: ServiceRole, combo: JComboBox<ServiceOption>): JPanel {
         val icon = serviceIcon(type)
         val label = serviceLabel(type)
         val enabledCheck = JCheckBox(localizationManager.getString("settings_plugins.status_enabled"), true).apply {
             isOpaque = false
             addActionListener {
                 if (!isUpdatingFromState) {
-                    applyDraft(store) { it.withServiceTypeEnabled(type, isSelected) }
+                    applyDraft(store) { it.withServiceRoleEnabled(type, isSelected) }
                 }
             }
         }
@@ -120,7 +120,7 @@ class ServicesPanel(
         }
     }
 
-    private fun buildServiceCombo(type: ServiceType): JComboBox<ServiceOption> =
+    private fun buildServiceCombo(type: ServiceRole): JComboBox<ServiceOption> =
         JComboBox<ServiceOption>().apply {
             setRenderer { _, value, _, _, _ ->
                 JLabel(value?.name ?: localizationManager.getString("common.none"))
@@ -138,17 +138,17 @@ class ServicesPanel(
      * Loads a theme-aware 14×14 icon for [type] using [FlatSVGIcon] with a [FlatSVGIcon.ColorFilter]
      * that remaps all SVG colors to `Label.disabledForeground` at paint time.
      */
-    private fun serviceIcon(type: ServiceType): Icon? {
+    private fun serviceIcon(type: ServiceRole): Icon? {
         val path = when (type) {
-            ServiceType.TRANSLATOR -> "icons/lucide/languages.svg"
-            ServiceType.TTS -> "icons/lucide/volume.svg"
-            ServiceType.OCR -> "icons/lucide/scan-text.svg"
-            ServiceType.SPELL_CHECKER -> "icons/lucide/check.svg"
-            ServiceType.DICTIONARY -> "icons/lucide/book-open.svg"
-            ServiceType.SUMMARIZER -> "icons/lucide/text-align-start.svg"
-            ServiceType.REWRITER -> "icons/lucide/pen-line.svg"
+            ServiceRole.TRANSLATOR -> "icons/lucide/languages.svg"
+            ServiceRole.TTS -> "icons/lucide/volume.svg"
+            ServiceRole.OCR -> "icons/lucide/scan-text.svg"
+            ServiceRole.SPELL_CHECKER -> "icons/lucide/check.svg"
+            ServiceRole.DICTIONARY -> "icons/lucide/book-open.svg"
+            ServiceRole.SUMMARIZER -> "icons/lucide/text-align-start.svg"
+            ServiceRole.REWRITER -> "icons/lucide/pen-line.svg"
             // No service declares this yet; the generic icon is a placeholder until one does.
-            ServiceType.IMAGE_SEARCH -> "icons/lucide/search.svg"
+            ServiceRole.IMAGE_SEARCH -> "icons/lucide/search.svg"
         }
         return runCatching {
             val icon = FlatSVGIcon(path, 14, 14, javaClass.classLoader)
@@ -157,15 +157,15 @@ class ServicesPanel(
         }.getOrNull()
     }
 
-    private fun serviceLabel(type: ServiceType): String = when (type) {
-        ServiceType.TRANSLATOR -> localizationManager.getString("settings_services.translator")
-        ServiceType.TTS -> localizationManager.getString("settings_services.tts")
-        ServiceType.OCR -> localizationManager.getString("settings_services.ocr")
-        ServiceType.SPELL_CHECKER -> localizationManager.getString("settings_services.spell_checker")
-        ServiceType.DICTIONARY -> localizationManager.getString("settings_services.dictionary")
-        ServiceType.SUMMARIZER -> localizationManager.getString("settings_services.summarizer")
-        ServiceType.REWRITER -> localizationManager.getString("settings_services.rewriter")
-        ServiceType.IMAGE_SEARCH -> localizationManager.getString("settings_services.image_search")
+    private fun serviceLabel(type: ServiceRole): String = when (type) {
+        ServiceRole.TRANSLATOR -> localizationManager.getString("settings_services.translator")
+        ServiceRole.TTS -> localizationManager.getString("settings_services.tts")
+        ServiceRole.OCR -> localizationManager.getString("settings_services.ocr")
+        ServiceRole.SPELL_CHECKER -> localizationManager.getString("settings_services.spell_checker")
+        ServiceRole.DICTIONARY -> localizationManager.getString("settings_services.dictionary")
+        ServiceRole.SUMMARIZER -> localizationManager.getString("settings_services.summarizer")
+        ServiceRole.REWRITER -> localizationManager.getString("settings_services.rewriter")
+        ServiceRole.IMAGE_SEARCH -> localizationManager.getString("settings_services.image_search")
     }
 
     // ── Plugin observation ────────────────────────────────────────────────────
@@ -180,21 +180,21 @@ class ServicesPanel(
     }
 
     /**
-     * Groups by every capability a service declares, so one that both translates and defines
+     * Groups by every role a service declares, so one that both translates and defines
      * words is offered in both pickers. Takes the registry map rather than its values because
      * the key is the service's id, which the combo needs to store the selection.
      */
-    private fun groupByType(services: Map<String, Service>): Map<ServiceType, List<ServiceOption>> {
-        val result = mutableMapOf<ServiceType, MutableList<ServiceOption>>()
+    private fun groupByType(services: Map<String, Service>): Map<ServiceRole, List<ServiceOption>> {
+        val result = mutableMapOf<ServiceRole, MutableList<ServiceOption>>()
         services.forEach { (id, service) ->
-            service.capabilities.forEach { capability ->
-                result.getOrPut(capability) { mutableListOf() }.add(ServiceOption(id, service.name))
+            service.roles.forEach { role ->
+                result.getOrPut(role) { mutableListOf() }.add(ServiceOption(id, service.name))
             }
         }
         return result
     }
 
-    private fun populateCombos(servicesByType: Map<ServiceType, List<ServiceOption>>) {
+    private fun populateCombos(servicesByType: Map<ServiceRole, List<ServiceOption>>) {
         withoutTrigger {
             serviceComboBoxes.forEach { (type, combo) ->
                 val current = combo.selectedItem as? ServiceOption
@@ -227,8 +227,8 @@ class ServicesPanel(
             renameBtn.isEnabled = hasPreset
             deleteBtn.isEnabled = hasPreset && c.servicePresets.size > 1
 
-            ServiceType.entries.forEach { type ->
-                val enabled = c.isServiceTypeEnabled(type)
+            ServiceRole.entries.forEach { type ->
+                val enabled = c.isServiceRoleEnabled(type)
                 serviceEnabledChecks[type]?.isSelected = enabled
                 serviceComboBoxes[type]?.isEnabled = enabled
             }

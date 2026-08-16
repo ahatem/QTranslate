@@ -2,7 +2,7 @@ package com.github.ahatem.qtranslate.core.settings.data
 
 import com.github.ahatem.qtranslate.api.plugin.StandardOptions
 import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import kotlinx.serialization.Serializable
 import javax.swing.KeyStroke
 import kotlin.uuid.ExperimentalUuidApi
@@ -196,7 +196,7 @@ data class HotkeyBinding(
 data class ServicePreset(
     val id: String,
     val name: String,
-    val selectedServices: Map<ServiceType, String?>
+    val selectedServices: Map<ServiceRole, String?>
 ) {
     companion object {
 
@@ -216,11 +216,11 @@ data class ServicePreset(
             id = Uuid.random().toString(),
             name = name,
             selectedServices = mapOf(
-                ServiceType.TRANSLATOR    to DEFAULT_TRANSLATOR,
-                ServiceType.TTS           to DEFAULT_TTS,
-                ServiceType.SPELL_CHECKER to DEFAULT_SPELL_CHECKER,
-                ServiceType.OCR           to DEFAULT_OCR,
-                ServiceType.DICTIONARY    to DEFAULT_DICTIONARY
+                ServiceRole.TRANSLATOR    to DEFAULT_TRANSLATOR,
+                ServiceRole.TTS           to DEFAULT_TTS,
+                ServiceRole.SPELL_CHECKER to DEFAULT_SPELL_CHECKER,
+                ServiceRole.OCR           to DEFAULT_OCR,
+                ServiceRole.DICTIONARY    to DEFAULT_DICTIONARY
             )
         )
     }

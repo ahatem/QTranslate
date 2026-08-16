@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.plugins.mozhi
 
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
@@ -20,7 +19,6 @@ internal class MozhiTranslatorService(
     private val settings: () -> MozhiSettings
 ) : Translator {
 
-    override val capabilities = setOf(ServiceCapability.TRANSLATOR)
 
     override val key = "mozhi-services-translator"
     override val name = "Mozhi"

@@ -3,7 +3,6 @@ package com.github.ahatem.qtranslate.core.document
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.Service
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
@@ -353,7 +352,6 @@ class DocumentTranslationUseCaseTest {
         override val key = "test-translator"
         override val name = "Test Translator"
         override val version = "1.0.0"
-        override val capabilities = setOf(ServiceCapability.TRANSLATOR)
         override val supportedLanguages = SupportedLanguages.All
 
         override suspend fun translate(
@@ -371,7 +369,6 @@ class DocumentTranslationUseCaseTest {
         override val key = "test-batch-translator"
         override val name = "Test Batch Translator"
         override val version = "1.0.0"
-        override val capabilities = setOf(ServiceCapability.TRANSLATOR)
         override val supportedLanguages = SupportedLanguages.All
         val requests = mutableListOf<List<String>>()
 

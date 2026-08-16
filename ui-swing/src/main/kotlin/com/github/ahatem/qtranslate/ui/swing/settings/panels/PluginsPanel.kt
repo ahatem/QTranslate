@@ -9,8 +9,8 @@ import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
-import com.github.ahatem.qtranslate.core.shared.util.type
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
+import com.github.ahatem.qtranslate.core.shared.util.role
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import com.github.ahatem.qtranslate.ui.swing.shared.util.GridBag
@@ -741,30 +741,30 @@ class PluginsPanel(
         maximumSize = Dimension(Int.MAX_VALUE, 27)
         border = BorderFactory.createEmptyBorder(3, 0, 3, 0)
         val serviceIcon = service.iconPath?.let { iconManager.getIcon(serviceId, it, 15, 15) }
-            ?: service.type?.let(::capabilityIcon)
+            ?: service.role?.let(::capabilityIcon)
             ?: themedAppIcon("icons/lucide/package.svg", 15)
         add(JLabel(service.name, serviceIcon, SwingConstants.LEADING).apply {
             font = font.deriveFont(Font.BOLD, font.size - 0.5f)
             iconTextGap = 7
         }, BorderLayout.CENTER)
-        val typeName = service.type?.readableName(localizationManager)
+        val typeName = service.role?.readableName(localizationManager)
         if (typeName != null && typeName != service.name) add(JLabel(typeName).apply {
             foreground = UIManager.getColor("Label.disabledForeground")
             font = font.deriveFont(font.size - 1f)
         }, BorderLayout.LINE_END)
     }
 
-    private fun capabilityIcon(type: ServiceType): Icon = themedAppIcon(
+    private fun capabilityIcon(type: ServiceRole): Icon = themedAppIcon(
         when (type) {
-            ServiceType.TRANSLATOR -> "icons/lucide/languages.svg"
-            ServiceType.TTS -> "icons/lucide/volume.svg"
-            ServiceType.OCR -> "icons/lucide/scan-text.svg"
-            ServiceType.SPELL_CHECKER -> "icons/lucide/check.svg"
-            ServiceType.DICTIONARY -> "icons/lucide/book-open.svg"
-            ServiceType.SUMMARIZER -> "icons/lucide/text-align-start.svg"
-            ServiceType.REWRITER -> "icons/lucide/pen-line.svg"
+            ServiceRole.TRANSLATOR -> "icons/lucide/languages.svg"
+            ServiceRole.TTS -> "icons/lucide/volume.svg"
+            ServiceRole.OCR -> "icons/lucide/scan-text.svg"
+            ServiceRole.SPELL_CHECKER -> "icons/lucide/check.svg"
+            ServiceRole.DICTIONARY -> "icons/lucide/book-open.svg"
+            ServiceRole.SUMMARIZER -> "icons/lucide/text-align-start.svg"
+            ServiceRole.REWRITER -> "icons/lucide/pen-line.svg"
             // No service declares this yet; the generic icon is a placeholder until one does.
-            ServiceType.IMAGE_SEARCH -> "icons/lucide/search.svg"
+            ServiceRole.IMAGE_SEARCH -> "icons/lucide/search.svg"
         },
         15
     )
@@ -964,14 +964,14 @@ private class WrapLayout(
 
 // ── Extension ─────────────────────────────────────────────────────────────────
 
-fun ServiceType.readableName(localizationManager: LocalizationManager): String =
+fun ServiceRole.readableName(localizationManager: LocalizationManager): String =
     when (this) {
-        ServiceType.TRANSLATOR    -> localizationManager.getString("settings_services.translator").removeSuffix(":")
-        ServiceType.TTS           -> localizationManager.getString("settings_services.tts").removeSuffix(":")
-        ServiceType.OCR           -> localizationManager.getString("settings_services.ocr").removeSuffix(":")
-        ServiceType.SPELL_CHECKER -> localizationManager.getString("settings_services.spell_checker").removeSuffix(":")
-        ServiceType.DICTIONARY    -> localizationManager.getString("settings_services.dictionary").removeSuffix(":")
-        ServiceType.SUMMARIZER    -> localizationManager.getString("settings_services.summarizer").removeSuffix(":")
-        ServiceType.REWRITER      -> localizationManager.getString("settings_services.rewriter").removeSuffix(":")
-        ServiceType.IMAGE_SEARCH  -> localizationManager.getString("settings_services.image_search").removeSuffix(":")
+        ServiceRole.TRANSLATOR    -> localizationManager.getString("settings_services.translator").removeSuffix(":")
+        ServiceRole.TTS           -> localizationManager.getString("settings_services.tts").removeSuffix(":")
+        ServiceRole.OCR           -> localizationManager.getString("settings_services.ocr").removeSuffix(":")
+        ServiceRole.SPELL_CHECKER -> localizationManager.getString("settings_services.spell_checker").removeSuffix(":")
+        ServiceRole.DICTIONARY    -> localizationManager.getString("settings_services.dictionary").removeSuffix(":")
+        ServiceRole.SUMMARIZER    -> localizationManager.getString("settings_services.summarizer").removeSuffix(":")
+        ServiceRole.REWRITER      -> localizationManager.getString("settings_services.rewriter").removeSuffix(":")
+        ServiceRole.IMAGE_SEARCH  -> localizationManager.getString("settings_services.image_search").removeSuffix(":")
     }

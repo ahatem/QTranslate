@@ -1,7 +1,7 @@
 package com.github.ahatem.qtranslate.core.settings.data
 
 import com.github.ahatem.qtranslate.api.core.Logger
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -54,10 +54,10 @@ class RealConfigMigrationTest {
         // same providers. DeepL is the one to watch: it is the only non-Google choice.
         val selected = migrated.servicePresets.single().selectedServices
         assertTrue(
-            selected[ServiceType.TRANSLATOR]!!.contains("deepl"),
-            "Translator should still be DeepL, was ${selected[ServiceType.TRANSLATOR]}"
+            selected[ServiceRole.TRANSLATOR]!!.contains("deepl"),
+            "Translator should still be DeepL, was ${selected[ServiceRole.TRANSLATOR]}"
         )
-        listOf(ServiceType.TTS, ServiceType.SPELL_CHECKER, ServiceType.OCR, ServiceType.DICTIONARY)
+        listOf(ServiceRole.TTS, ServiceRole.SPELL_CHECKER, ServiceRole.OCR, ServiceRole.DICTIONARY)
             .forEach { type ->
                 assertTrue(
                     selected[type]!!.contains("google"),
@@ -88,11 +88,11 @@ class RealConfigMigrationTest {
         val selected = migrated.servicePresets.single().selectedServices
 
         assertEquals(ConfigMigrator.CURRENT_VERSION, migrated.configVersion)
-        assertEquals("ai-plugin:default:ai-translator", selected[ServiceType.TRANSLATOR])
-        assertEquals("google-services:default:google-tts", selected[ServiceType.TTS])
-        assertEquals("google-services:default:google-spell-checker", selected[ServiceType.SPELL_CHECKER])
-        assertEquals("google-services:default:google-ocr", selected[ServiceType.OCR])
-        assertEquals("google-services:default:google-dictionary", selected[ServiceType.DICTIONARY])
+        assertEquals("ai-plugin:default:ai-translator", selected[ServiceRole.TRANSLATOR])
+        assertEquals("google-services:default:google-tts", selected[ServiceRole.TTS])
+        assertEquals("google-services:default:google-spell-checker", selected[ServiceRole.SPELL_CHECKER])
+        assertEquals("google-services:default:google-ocr", selected[ServiceRole.OCR])
+        assertEquals("google-services:default:google-dictionary", selected[ServiceRole.DICTIONARY])
     }
 
     @Test
@@ -103,7 +103,7 @@ class RealConfigMigrationTest {
         assertEquals(ConfigMigrator.CURRENT_VERSION, migrated.configVersion)
         assertEquals(
             "google-services:default:google-translator",
-            migrated.servicePresets.single().selectedServices[ServiceType.TRANSLATOR]
+            migrated.servicePresets.single().selectedServices[ServiceRole.TRANSLATOR]
         )
     }
 

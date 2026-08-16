@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.plugins.deepl
 
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.DisplayText
@@ -32,7 +31,6 @@ internal class DeepLTranslatorService(
     private val rateLimitBackoffMillis: Long = 10_000,
     private val maxWebRetries: Int = 1
 ) : Translator {
-    override val capabilities = setOf(ServiceCapability.TRANSLATOR)
     override val key = "deepl-services-translator"
     override val name = "DeepL"
     override val version = "1.1.0"

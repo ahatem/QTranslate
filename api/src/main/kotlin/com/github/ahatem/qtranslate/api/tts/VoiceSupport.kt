@@ -3,7 +3,11 @@ package com.github.ahatem.qtranslate.api.tts
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 
 /**
- * Optional capability interface for [TextToSpeech] services that support explicit voice selection.
+ * Optional behaviour for [TextToSpeech] services that support explicit voice selection.
+ *
+ * This is not a [com.github.ahatem.qtranslate.api.plugin.ServiceRole]. The user selects a
+ * text-to-speech service, not a voice-supporting one; this only changes how that service is
+ * driven once chosen.
  *
  * ### How this connects to TTSRequest
  * [TTSRequest] is a sealed interface with two variants:
@@ -14,8 +18,7 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
  * **The core guarantees** that [TTSRequest.ByVoice] is only ever dispatched to a
  * [TextToSpeech] service that also implements [VoiceSupport]. A service that does not
  * implement [VoiceSupport] will never receive a [TTSRequest.ByVoice] request — the core
- * validates this via [com.github.ahatem.qtranslate.api.plugin.Service.getCapability]
- * before dispatching.
+ * checks with `service as? VoiceSupport` before dispatching.
  *
  * ### Implementing VoiceSupport
  * A service implements both [TextToSpeech] and [VoiceSupport]:
@@ -35,10 +38,8 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
  * ```
  *
  * ### Discovery
- * The core discovers this capability without casting:
  * ```kotlin
- * val voiceSupport = service.getCapability(VoiceSupport::class.java)
- * val availableVoices = voiceSupport?.voices ?: emptyList()
+ * val availableVoices = (service as? VoiceSupport)?.voices.orEmpty()
  * ```
  */
 interface VoiceSupport {

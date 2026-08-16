@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.plugins.google
 
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 
 import com.github.ahatem.qtranslate.api.dictionary.Definition
 import com.github.ahatem.qtranslate.api.dictionary.Dictionary
@@ -26,7 +25,6 @@ class GoogleDictionaryService(
     private val apiConfig: ApiConfig
 ) : Dictionary {
 
-    override val capabilities = setOf(ServiceCapability.DICTIONARY)
 
     override val key: String = "google-dictionary"
     override val name: String = "Google Dictionary"

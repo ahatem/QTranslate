@@ -1,6 +1,6 @@
 package com.github.ahatem.qtranslate.core.main.domain.model
 
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 
 /**
  * UI-facing metadata for a single loaded service.
@@ -11,5 +11,5 @@ data class ServiceInfo(
     val id: String,
     val name: String,
     val iconPath: String?,
-    val type: ServiceType
+    val type: ServiceRole
 )

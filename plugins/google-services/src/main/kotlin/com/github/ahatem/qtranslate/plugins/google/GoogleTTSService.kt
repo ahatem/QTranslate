@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.plugins.google
 
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
@@ -25,7 +24,6 @@ class GoogleTTSService(
     private val apiConfig: ApiConfig
 ) : TextToSpeech {
 
-    override val capabilities = setOf(ServiceCapability.TTS)
 
     override val key: String = "google-tts"
     override val name: String = "Google TTS"

@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.plugins.google
 
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.OCR
@@ -27,7 +26,6 @@ class GoogleOCRService(
     private val apiConfig: ApiConfig
 ) : OCR {
 
-    override val capabilities = setOf(ServiceCapability.OCR)
 
     override val key: String = "google-ocr"
     override val name: String = "Google OCR"

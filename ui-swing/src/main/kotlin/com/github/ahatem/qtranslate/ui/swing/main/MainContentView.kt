@@ -14,7 +14,7 @@ import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.ui.swing.main.history.TranslationHistoryBar
 import com.github.ahatem.qtranslate.ui.swing.main.history.TranslationHistoryBarState
 import com.github.ahatem.qtranslate.ui.swing.main.history.TranslationHistoryBarStrings
@@ -86,7 +86,7 @@ class MainContentView(
             dispatchSettings(
                 SettingsIntent.UpdateServiceInActivePreset(type, serviceId)
             )
-            if (type == ServiceType.TRANSLATOR) dispatch(MainIntent.Translate())
+            if (type == ServiceRole.TRANSLATOR) dispatch(MainIntent.Translate())
         },
         onConfigureService = onConfigureService
     )
@@ -171,7 +171,7 @@ class MainContentView(
         iconManager = iconManager,
         onLookup = { word -> dispatch(MainIntent.LookupWord(word, currentLookupLanguage)) },
         onServiceSelected = { serviceId ->
-            dispatchSettings(SettingsIntent.UpdateServiceInActivePreset(ServiceType.DICTIONARY, serviceId))
+            dispatchSettings(SettingsIntent.UpdateServiceInActivePreset(ServiceRole.DICTIONARY, serviceId))
             val word = lastDictionaryKey?.word ?: ""
             if (word.isNotBlank()) dispatch(MainIntent.LookupWord(word, currentLookupLanguage))
         },
@@ -345,11 +345,11 @@ class MainContentView(
         currentLookupLanguage = resolvedLang
 
         val availableDicts = mainState.getAvailableServicesFor(
-            com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY
+            com.github.ahatem.qtranslate.api.plugin.ServiceRole.DICTIONARY
         )
         val selectedDictId = lastState?.second?.workingConfiguration
             ?.getActivePreset()?.selectedServices
-            ?.get(com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY)
+            ?.get(com.github.ahatem.qtranslate.api.plugin.ServiceRole.DICTIONARY)
 
         val key = DictionaryKey(
             isVisible         = mainState.isDictionaryPanelVisible,
@@ -452,7 +452,7 @@ class MainContentView(
         val allLanguages = mainState.availableLanguages
 
         val activePreset = config.getActivePreset()
-        val selectedTranslatorId = activePreset?.selectedServices?.get(ServiceType.TRANSLATOR)
+        val selectedTranslatorId = activePreset?.selectedServices?.get(ServiceRole.TRANSLATOR)
         val selectedTranslator = mainState.availableServices.find { it.id == selectedTranslatorId }
 
         val statusText = localizer.getString(
@@ -479,7 +479,7 @@ class MainContentView(
 
         translatorSelector.render(
             TranslatorSelectorState(
-                availableTranslators = mainState.getAvailableServicesFor(ServiceType.TRANSLATOR),
+                availableTranslators = mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR),
                 selectedTranslatorId = selectedTranslatorId,
                 isLoading = mainState.isLoading,
                 availableServices = mainState.availableServices,
@@ -554,7 +554,7 @@ class MainContentView(
 
         // Nothing can be translated without a translator, and an empty window gives a new
         // user no clue why. Point them at the setting that fixes it.
-        val noService = if (mainState.getAvailableServicesFor(ServiceType.TRANSLATOR).isEmpty()) {
+        val noService = if (mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR).isEmpty()) {
             NoServiceState(
                 message = localizer.getString("main_window.no_service_message"),
                 actionLabel = localizer.getString("main_window.no_service_action"),
@@ -603,9 +603,9 @@ class MainContentView(
         // both come out as an empty list, which hides the configure button.
         val extraOutputOption = when (config.extraOutputType) {
             ExtraOutputType.Summarize ->
-                mainState.serviceOptions[ServiceType.SUMMARIZER]?.withKey(StandardOptions.KEY_SUMMARY_LENGTH)
+                mainState.serviceOptions[ServiceRole.SUMMARIZER]?.withKey(StandardOptions.KEY_SUMMARY_LENGTH)
             ExtraOutputType.Rewrite ->
-                mainState.serviceOptions[ServiceType.REWRITER]?.withKey(StandardOptions.KEY_REWRITE_STYLE)
+                mainState.serviceOptions[ServiceRole.REWRITER]?.withKey(StandardOptions.KEY_REWRITE_STYLE)
             else -> null
         }
         val extraOutputSelection = when (config.extraOutputType) {

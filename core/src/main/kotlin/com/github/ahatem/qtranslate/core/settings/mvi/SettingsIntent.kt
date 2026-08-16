@@ -2,7 +2,7 @@ package com.github.ahatem.qtranslate.core.settings.mvi
 
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
 
 /**
@@ -80,7 +80,7 @@ sealed interface SettingsIntent : UiIntent {
      * Emits [AppEvent.ServiceSelectionChanged] on the event bus.
      */
     data class UpdateServiceInActivePreset(
-        val type: ServiceType,
+        val type: ServiceRole,
         val serviceId: String?
     ) : SettingsIntent
 

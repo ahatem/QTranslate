@@ -1,35 +1,35 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.github.ahatem.qtranslate.core.plugin.PluginState
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
-import com.github.ahatem.qtranslate.core.shared.util.type
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
+import com.github.ahatem.qtranslate.core.shared.util.roles
 
-internal enum class PluginCategory(val serviceType: ServiceType?) {
+internal enum class PluginCategory(val serviceRole: ServiceRole?) {
     ALL(null),
-    TRANSLATORS(ServiceType.TRANSLATOR),
-    DICTIONARIES(ServiceType.DICTIONARY),
-    TTS(ServiceType.TTS),
-    OCR(ServiceType.OCR),
-    SPELL_CHECKERS(ServiceType.SPELL_CHECKER),
+    TRANSLATORS(ServiceRole.TRANSLATOR),
+    DICTIONARIES(ServiceRole.DICTIONARY),
+    TTS(ServiceRole.TTS),
+    OCR(ServiceRole.OCR),
+    SPELL_CHECKERS(ServiceRole.SPELL_CHECKER),
     AI(null),
     OTHER(null)
 }
 
 internal object PluginPanelModel {
     fun categories(plugin: PluginState): Set<PluginCategory> {
-        // Every capability, not one per service: a plugin whose single service both translates and
+        // Every role, not one per service: a plugin whose single service both translates and
         // defines words belongs in both categories, and filtering by either should find it.
         val serviceCategories = plugin.services.flatMap { service ->
-            service.capabilities.map { capability ->
-                when (capability) {
-                    ServiceType.TRANSLATOR -> PluginCategory.TRANSLATORS
-                    ServiceType.DICTIONARY -> PluginCategory.DICTIONARIES
-                    ServiceType.TTS -> PluginCategory.TTS
-                    ServiceType.OCR -> PluginCategory.OCR
-                    ServiceType.SPELL_CHECKER -> PluginCategory.SPELL_CHECKERS
-                    ServiceType.SUMMARIZER, ServiceType.REWRITER -> PluginCategory.AI
+            service.roles.map { role ->
+                when (role) {
+                    ServiceRole.TRANSLATOR -> PluginCategory.TRANSLATORS
+                    ServiceRole.DICTIONARY -> PluginCategory.DICTIONARIES
+                    ServiceRole.TTS -> PluginCategory.TTS
+                    ServiceRole.OCR -> PluginCategory.OCR
+                    ServiceRole.SPELL_CHECKER -> PluginCategory.SPELL_CHECKERS
+                    ServiceRole.SUMMARIZER, ServiceRole.REWRITER -> PluginCategory.AI
                     // No category of its own until something actually offers it.
-                    ServiceType.IMAGE_SEARCH -> PluginCategory.OTHER
+                    ServiceRole.IMAGE_SEARCH -> PluginCategory.OTHER
                 }
             }
         }.toSet()

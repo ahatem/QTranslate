@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.plugins.ai
 
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 import com.github.ahatem.qtranslate.api.plugin.ServiceMetadata
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
@@ -40,7 +39,6 @@ class AIVisionOcrService(
     private val client: AIServiceClient
 ) : OCR {
 
-    override val capabilities = setOf(ServiceCapability.OCR)
 
     // Nothing this plugin offers works until a key is set, which is what makes a connection
     // test worth offering here. The check itself is shared: one key, one endpoint, one model.

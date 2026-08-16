@@ -4,7 +4,7 @@ import com.github.ahatem.qtranslate.core.plugin.LoadedPluginResult
 import com.github.ahatem.qtranslate.core.plugin.PluginStatus
 import com.github.ahatem.qtranslate.core.plugin.ScopedPluginContext
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginContainer
-import com.github.ahatem.qtranslate.core.plugin.registry.CapabilityValidator
+import com.github.ahatem.qtranslate.core.plugin.registry.ServiceValidator
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginError
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
 import com.github.ahatem.qtranslate.core.plugin.text.PluginTextResolver
@@ -166,14 +166,13 @@ internal class PluginLifecycleHandler(
                     success = {
                         val declared = container.plugin.getServices()
 
-                        // Capabilities are declared rather than inferred, so a service can claim
-                        // one it does not implement. The host casts on the strength of that claim,
-                        // so an unchecked one surfaces as a ClassCastException the moment the user
-                        // selects the service. Dropping it here keeps the plugin's other services
-                        // usable and puts the reason in the log instead.
-                        val (valid, invalid) = declared.partition { CapabilityValidator.validate(it).isEmpty() }
+                        // A service with no key, or implementing no service interface, can never be
+                        // reached by the user. Dropping it here keeps the plugin's other services
+                        // usable and puts the reason in the log instead of leaving something
+                        // registered that nothing can ever select.
+                        val (valid, invalid) = declared.partition { ServiceValidator.validate(it).isEmpty() }
                         invalid.forEach { service ->
-                            CapabilityValidator.validate(service).forEach { problem ->
+                            ServiceValidator.validate(service).forEach { problem ->
                                 logger.error("Plugin '${container.id}': $problem — service not registered")
                             }
                         }
@@ -186,7 +185,7 @@ internal class PluginLifecycleHandler(
                             ?.let {
                                 PluginError.EnableFailure(
                                     pluginId = container.id,
-                                    message = "${it.size} service(s) declared capabilities they do not implement",
+                                    message = "${it.size} service(s) cannot be offered to the user",
                                     cause = null
                                 )
                             }

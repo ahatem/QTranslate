@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.plugins.bing
 
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
@@ -24,7 +23,6 @@ class BingTranslatorService(
     private val apiConfig: ApiConfig
 ) : Translator {
 
-    override val capabilities = setOf(ServiceCapability.TRANSLATOR)
 
     override val key: String = "bing-translator"
     override val name: String = "Bing Translate"

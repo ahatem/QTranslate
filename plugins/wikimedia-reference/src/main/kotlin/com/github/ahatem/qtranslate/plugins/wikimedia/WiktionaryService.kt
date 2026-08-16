@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.plugins.wikimedia
 
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 
 import com.github.ahatem.qtranslate.api.dictionary.Definition
 import com.github.ahatem.qtranslate.api.dictionary.Dictionary
@@ -15,7 +14,6 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
 
 internal class WiktionaryService(private val client: WikimediaClient) : Dictionary {
-    override val capabilities = setOf(ServiceCapability.DICTIONARY)
     override val key = "wikimedia-wiktionary"
     override val name = "Wiktionary"
     override val iconPath = "assets/wiktionary.svg"

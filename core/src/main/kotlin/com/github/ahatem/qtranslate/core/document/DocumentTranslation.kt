@@ -8,7 +8,7 @@ import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.shared.AppConstants
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.Dispatchers
@@ -110,7 +110,7 @@ class DocumentTranslationUseCase(
         onProgress: (DocumentTranslationProgress) -> Unit
     ): File = withContext(Dispatchers.IO) {
         validate(request)
-        val translator = activeServiceManager.getActiveService<Translator>(ServiceType.TRANSLATOR)
+        val translator = activeServiceManager.getActiveService<Translator>(ServiceRole.TRANSLATOR)
             ?: throw DocumentTranslationException("No translator is active. Enable a translator plugin first.")
         val format = DocumentFormat.from(request.inputFile)
             ?: throw DocumentTranslationException("Unsupported file type: .${request.inputFile.extension}")
@@ -567,7 +567,7 @@ class DocumentTranslationUseCase(
     ) {
         onProgress(DocumentTranslationProgress(0, items.size))
         val segments = items.map { it to getText(it) }.filter { it.second.isNotBlank() }
-        val batchTranslator = translator.getCapability(BatchTranslator::class.java)
+        val batchTranslator = translator as? BatchTranslator
         if (batchTranslator == null) {
             segments.forEachIndexed { position, (item, source) ->
                 coroutineContext.ensureActive()

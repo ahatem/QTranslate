@@ -9,8 +9,9 @@ import com.github.ahatem.qtranslate.core.main.domain.model.ServiceSelectionState
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.isServiceDisabled
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
+import com.github.ahatem.qtranslate.core.shared.util.roles
 import com.github.michaelbull.result.getOr
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -48,10 +49,10 @@ class SelectActiveServiceUseCase(
 
     private companion object {
         /**
-         * The capabilities whose services carry user-facing options today. Reading every
-         * capability would work but calls the resolver eight times per emission for two answers.
+         * The roles whose services carry user-facing options today. Reading every role would work
+         * but calls the resolver eight times per emission for two answers.
          */
-        val OPTION_BEARING_CAPABILITIES = listOf(ServiceType.SUMMARIZER, ServiceType.REWRITER)
+        val OPTION_BEARING_ROLES = listOf(ServiceRole.SUMMARIZER, ServiceRole.REWRITER)
     }
 
     // Cache for Dynamic language results, keyed by service ID.
@@ -68,26 +69,26 @@ class SelectActiveServiceUseCase(
      */
     fun observe(): Flow<ServiceSelectionState> =
         combine(activeServices, settingsState, dynamicLanguageCache) { services, config, langCache ->
-            // One entry per capability, not per service: a service that both translates and
-            // defines words is offered in both pickers, and can be disabled in one without
-            // losing the other.
+            // One entry per role, not per service: a service that both translates and defines
+            // words is offered in both pickers, and can be disabled in one without losing the
+            // other.
             val availableServices = services.entries.flatMap { (id, service) ->
-                service.capabilities
-                    .filterNot { capability -> config.isServiceDisabled(id, capability) }
-                    .map { capability ->
+                service.roles
+                    .filterNot { role -> config.isServiceDisabled(id, role) }
+                    .map { role ->
                         ServiceInfo(
                             id = id,
                             name = service.name,
                             iconPath = service.iconPath,
-                            type = capability
+                            type = role
                         )
                     }
             }
 
             val activePreset = config.getActivePreset() ?: config.servicePresets.firstOrNull()
-            val selectedTranslatorId = activePreset?.selectedServices?.get(ServiceType.TRANSLATOR)
+            val selectedTranslatorId = activePreset?.selectedServices?.get(ServiceRole.TRANSLATOR)
             val translator = selectedTranslatorId
-                ?.takeUnless { config.isServiceDisabled(it, ServiceType.TRANSLATOR) }
+                ?.takeUnless { config.isServiceDisabled(it, ServiceRole.TRANSLATOR) }
                 ?.let { services[it] as? Translator }
 
             val languages = if (translator != null && selectedTranslatorId != null) {
@@ -99,8 +100,14 @@ class SelectActiveServiceUseCase(
             ServiceSelectionState(
                 availableServices = availableServices,
                 availableLanguages = languages,
-                serviceOptions = OPTION_BEARING_CAPABILITIES.associateWith { capability ->
-                    activeServiceManager.getActive<Service>(capability)?.service?.options.orEmpty()
+                // Options are declared on the service, but a service can hold several roles and
+                // an option rarely means anything outside one of them. Without this filter, a
+                // service that both summarizes and rewrites would offer summary length while
+                // rewriting. An option that names no role applies to all of them.
+                serviceOptions = OPTION_BEARING_ROLES.associateWith { role ->
+                    activeServiceManager.getActive<Service>(role)?.service?.options
+                        ?.filter { it.role == null || it.role == role }
+                        .orEmpty()
                 }
             )
         }
@@ -113,7 +120,7 @@ class SelectActiveServiceUseCase(
     suspend fun getLanguagesFor(serviceId: String?): List<LanguageCode> {
         if (serviceId == null) return emptyList()
         val translator = activeServices.value[serviceId] as? Translator ?: return emptyList()
-        if (settingsState.value.isServiceDisabled(serviceId, ServiceType.TRANSLATOR)) return emptyList()
+        if (settingsState.value.isServiceDisabled(serviceId, ServiceRole.TRANSLATOR)) return emptyList()
         return resolveLanguagesSuspending(serviceId, translator)
     }
 

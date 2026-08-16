@@ -26,11 +26,14 @@ interface Dictionary : Service {
 }
 
 /**
- * Optional dictionary capability for providers that return bilingual definitions and
- * usage examples for a selected language pair.
+ * Optional behaviour for dictionaries that return bilingual definitions and usage examples for a
+ * selected language pair.
  *
- * The core discovers this through [Service.getCapability]. Existing dictionaries retain
- * the original [DictionaryRequest] ABI and continue to receive monolingual lookups.
+ * The core asks with `dictionary as? BilingualDictionary`. Dictionaries that do not implement it
+ * retain the original [DictionaryRequest] shape and continue to receive monolingual lookups.
+ *
+ * This is not a [com.github.ahatem.qtranslate.api.plugin.ServiceRole]: the user selects a
+ * dictionary, not a bilingual dictionary, and this only changes how the lookup is made.
  */
 interface BilingualDictionary : Dictionary {
     suspend fun lookupBilingual(

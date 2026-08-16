@@ -5,7 +5,6 @@ import com.github.ahatem.qtranslate.api.imagesearch.ImageSearch
 import com.github.ahatem.qtranslate.api.imagesearch.ImageSearchRequest
 import com.github.ahatem.qtranslate.api.imagesearch.ImageSearchResponse
 import com.github.ahatem.qtranslate.api.plugin.DisplayText
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.ServiceMetadata
 import com.github.ahatem.qtranslate.api.plugin.ServiceOption
@@ -29,7 +28,6 @@ import org.jsoup.Jsoup
  */
 internal class CommonsImageSearchService(private val client: WikimediaClient) : ImageSearch {
 
-    override val capabilities = setOf(ServiceCapability.IMAGE_SEARCH)
     override val key = "wikimedia-commons-images"
     override val name = "Wikimedia Commons"
     override val iconPath = "assets/commons.svg"

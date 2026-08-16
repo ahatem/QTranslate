@@ -15,7 +15,7 @@ import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.*
@@ -81,7 +81,7 @@ class TranslateTextUseCase(
 
         // Resolved with its id: history records which service produced each entry, and services
         // no longer carry their own — the host composes it and keys the registry by it.
-        val active = activeServiceManager.getActive<Translator>(ServiceType.TRANSLATOR)
+        val active = activeServiceManager.getActive<Translator>(ServiceRole.TRANSLATOR)
         if (active == null) {
             logger.warn("No translator service available")
             onStatusUpdate(StatusCode.NoTranslatorActive, NotificationType.ERROR, true)

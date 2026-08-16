@@ -21,11 +21,11 @@ import com.github.michaelbull.result.Result
  * to services that implement [VoiceSupport]. A service that does not implement
  * [VoiceSupport] will never receive a [TTSRequest.ByVoice] request.
  *
- * ### Optional Capability
- * Services with voice selection support should additionally implement [VoiceSupport].
- * The core discovers this via [Service.getCapability]:
+ * ### Optional behaviour
+ * Services with voice selection should additionally implement [VoiceSupport]. The core asks for
+ * it with an ordinary cast:
  * ```kotlin
- * val voiceSupport = service.getCapability(VoiceSupport::class.java)
+ * val voices = (service as? VoiceSupport)?.voices.orEmpty()
  * ```
  */
 interface TextToSpeech : Service {

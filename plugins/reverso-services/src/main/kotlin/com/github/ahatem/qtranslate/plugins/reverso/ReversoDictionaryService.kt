@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.plugins.reverso
 
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 
 import com.github.ahatem.qtranslate.api.dictionary.Definition
 import com.github.ahatem.qtranslate.api.dictionary.BilingualDictionary
@@ -18,7 +17,6 @@ import org.jsoup.Jsoup
 internal class ReversoDictionaryService(
     private val client: ReversoClient
 ) : BilingualDictionary {
-    override val capabilities = setOf(ServiceCapability.DICTIONARY)
     override val key = "reverso-services-dictionary"
     override val name = "Reverso Dictionary"
     override val version = "1.0.0"

@@ -29,9 +29,10 @@ interface Translator : Service {
 }
 
 /**
- * Optional translator capability for providers that can process multiple independent
- * text segments in one request. The core discovers this through
- * [Service.getCapability] and falls back to [Translator.translate] when absent.
+ * Optional behaviour for translators that can process multiple independent text segments in one
+ * request. The core asks with `translator as? BatchTranslator` and falls back to
+ * [Translator.translate] in a loop when absent, so this is an optimisation rather than a
+ * capability a user chooses.
  *
  * Implementations must preserve input order and return exactly one response per input.
  * Empty strings are intentionally rejected so result indexes always map unambiguously.

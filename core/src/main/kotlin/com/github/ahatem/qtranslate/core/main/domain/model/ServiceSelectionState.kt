@@ -2,7 +2,7 @@ package com.github.ahatem.qtranslate.core.main.domain.model
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceOption
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 
 /**
  * Snapshot of available services and the languages supported by the
@@ -28,5 +28,5 @@ data class ServiceSelectionState(
      * offering something the application has never heard of appears here and is rendered like any
      * other choice.
      */
-    val serviceOptions: Map<ServiceType, List<ServiceOption>> = emptyMap()
+    val serviceOptions: Map<ServiceRole, List<ServiceOption>> = emptyMap()
 )

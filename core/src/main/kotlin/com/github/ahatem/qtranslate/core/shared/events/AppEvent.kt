@@ -1,7 +1,7 @@
 package com.github.ahatem.qtranslate.core.shared.events
 
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -18,7 +18,7 @@ sealed interface AppEvent {
      * Emitted when a service selection changes in the active preset.
      */
     data class ServiceSelectionChanged(
-        val serviceType: ServiceType,
+        val serviceType: ServiceRole,
         val serviceId: String?
     ) : AppEvent
     

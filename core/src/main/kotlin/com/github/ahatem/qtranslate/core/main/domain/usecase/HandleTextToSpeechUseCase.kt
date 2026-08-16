@@ -15,7 +15,7 @@ import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.onErr
 import com.github.michaelbull.result.onOk
@@ -70,7 +70,7 @@ class HandleTextToSpeechUseCase(
             return
         }
 
-        val ttsService = activeServiceManager.getActiveService<TextToSpeech>(ServiceType.TTS)
+        val ttsService = activeServiceManager.getActiveService<TextToSpeech>(ServiceRole.TTS)
         if (ttsService == null) {
             logger.warn("No TTS service available")
             onStatusUpdate(StatusCode.NoTtsServiceActive, NotificationType.WARNING, true)

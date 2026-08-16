@@ -6,7 +6,6 @@ import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryResponse
 import com.github.ahatem.qtranslate.api.language.LanguageCode
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
@@ -127,7 +126,6 @@ class InlineDefinitionBudgetTest {
     )
 
     private class FakeDictionary(private val senses: List<String>) : Dictionary {
-        override val capabilities = setOf(ServiceCapability.DICTIONARY)
         override val key = "dictionary"
         override val name = "Fake"
         override val version = "1.0.0"

@@ -18,7 +18,7 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
@@ -162,7 +162,7 @@ class MainAppFrame(
             onDismiss = { mainStore.dispatch(MainIntent.HideQuickTranslate) },
             onTranslatorSelected = { serviceId ->
                 settingsStore.dispatch(
-                    SettingsIntent.UpdateServiceInActivePreset(ServiceType.TRANSLATOR, serviceId)
+                    SettingsIntent.UpdateServiceInActivePreset(ServiceRole.TRANSLATOR, serviceId)
                 )
                 mainStore.dispatch(MainIntent.Translate())
             },
@@ -590,7 +590,7 @@ class MainAppFrame(
                 settingsStore.state.map { settings ->
                     settings.workingConfiguration.getActivePreset()
                         ?.selectedServices
-                        ?.get(ServiceType.TRANSLATOR)
+                        ?.get(ServiceRole.TRANSLATOR)
                 }
             ) { languages, translatorId -> Triple(languages.first, languages.second, translatorId) }
                 .distinctUntilChanged()
@@ -1425,7 +1425,7 @@ class MainAppFrame(
         val displaySourceLanguage = mainState.detectedSourceLanguage ?: mainState.sourceLanguage
 
         val activePreset = config.getActivePreset()
-        val selectedTranslatorId = activePreset?.selectedServices?.get(ServiceType.TRANSLATOR)
+        val selectedTranslatorId = activePreset?.selectedServices?.get(ServiceRole.TRANSLATOR)
         val selectedTranslator = mainState.availableServices.find { it.id == selectedTranslatorId }
 
         return QuickTranslateDialogState(
@@ -1443,7 +1443,7 @@ class MainAppFrame(
             detectedSourceLanguage = mainState.detectedSourceLanguage,
 
             translatorSelectorState = QuickTranslateSelectorState(
-                availableTranslators = mainState.getAvailableServicesFor(ServiceType.TRANSLATOR),
+                availableTranslators = mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR),
                 selectedTranslatorId = selectedTranslator?.id
             ),
             actionsState = QuickTranslateActionsState(
@@ -1638,9 +1638,9 @@ class MainAppFrame(
     private fun buildDictionaryDialogState(): DictionaryDialogState {
         val s = mainStore.state.value
         val config = settingsStore.state.value.workingConfiguration
-        val availableDicts = s.getAvailableServicesFor(com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY)
+        val availableDicts = s.getAvailableServicesFor(com.github.ahatem.qtranslate.api.plugin.ServiceRole.DICTIONARY)
         val selectedDictId = config.getActivePreset()
-            ?.selectedServices?.get(com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY)
+            ?.selectedServices?.get(com.github.ahatem.qtranslate.api.plugin.ServiceRole.DICTIONARY)
 
         val resolvedLang = when {
             s.sourceLanguage != LanguageCode.AUTO -> s.sourceLanguage
@@ -1672,7 +1672,7 @@ class MainAppFrame(
             onDictionarySelected = { serviceId ->
                 settingsStore.dispatch(
                     SettingsIntent.UpdateServiceInActivePreset(
-                        com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY, serviceId
+                        com.github.ahatem.qtranslate.api.plugin.ServiceRole.DICTIONARY, serviceId
                     )
                 )
                 val currentWord = mainStore.state.value.dictionaryWord
@@ -1713,7 +1713,7 @@ class MainAppFrame(
         mainState: MainState,
         config: Configuration
     ): ImageSearchDialogState {
-        val serviceType = com.github.ahatem.qtranslate.core.shared.arch.ServiceType.IMAGE_SEARCH
+        val serviceType = com.github.ahatem.qtranslate.api.plugin.ServiceRole.IMAGE_SEARCH
         val available = mainState.getAvailableServicesFor(serviceType)
         val selectedId = config.getActivePreset()?.selectedServices?.get(serviceType)
         val language = resolvedLookupLanguage(mainState)
@@ -1783,10 +1783,10 @@ class MainAppFrame(
         config: Configuration
     ): QuickDictionaryDialogState {
         val availableDicts = mainState.getAvailableServicesFor(
-            com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY
+            com.github.ahatem.qtranslate.api.plugin.ServiceRole.DICTIONARY
         )
         val selectedDictId = config.getActivePreset()
-            ?.selectedServices?.get(com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY)
+            ?.selectedServices?.get(com.github.ahatem.qtranslate.api.plugin.ServiceRole.DICTIONARY)
 
         val resolvedLang = when {
             mainState.sourceLanguage != LanguageCode.AUTO -> mainState.sourceLanguage
@@ -1838,7 +1838,7 @@ class MainAppFrame(
             onDictionarySelected = { serviceId ->
                 settingsStore.dispatch(
                     SettingsIntent.UpdateServiceInActivePreset(
-                        com.github.ahatem.qtranslate.core.shared.arch.ServiceType.DICTIONARY, serviceId
+                        com.github.ahatem.qtranslate.api.plugin.ServiceRole.DICTIONARY, serviceId
                     )
                 )
                 val currentWord = mainStore.state.value.dictionaryWord

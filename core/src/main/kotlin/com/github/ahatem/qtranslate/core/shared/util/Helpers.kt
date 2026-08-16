@@ -1,24 +1,25 @@
 package com.github.ahatem.qtranslate.core.shared.util
 
 import com.github.ahatem.qtranslate.api.plugin.Service
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 
 /**
- * The capabilities a service declares.
+ * Every role a service holds, derived from the interfaces it implements.
  *
- * This used to test implemented interfaces in a fixed order, which meant a service that both
- * translated and defined words was silently filed under whichever check happened to run first —
- * so it could only ever be offered for one of the two. Services now declare what they can do and
- * are offered under every one of them.
+ * Roles used to be declared alongside those interfaces, which let the two disagree. Before that
+ * they were inferred by an ordered type test, which returned one answer and so filed a service
+ * that both translated and defined words under whichever branch ran first. Deriving over the whole
+ * set is neither: it cannot contradict the code, and it returns all of them.
  */
-val Service.types: Set<ServiceType> get() = capabilities
+val Service.roles: Set<ServiceRole> get() = ServiceRole.of(this)
 
 /**
- * A single representative capability, for the places that still assume one.
+ * A single representative role, for the places that still assume one.
  *
- * Returns `null` when a service declares none, which the host treats as "not selectable".
+ * Returns `null` when a service implements no role interface, which the host treats as
+ * "not selectable".
  */
-val Service.type: ServiceType? get() = capabilities.firstOrNull()
+val Service.role: ServiceRole? get() = roles.firstOrNull()
 
-/** Whether this service can act as [type]. */
-fun Service.hasType(type: ServiceType): Boolean = type in capabilities
+/** Whether this service can act as [role]. */
+fun Service.hasRole(role: ServiceRole): Boolean = role.isHeldBy(this)

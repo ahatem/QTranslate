@@ -6,7 +6,7 @@ import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.get
 import kotlinx.coroutines.CancellationException
@@ -42,7 +42,7 @@ class FetchInlineDefinitionUseCase(
         job?.cancel(CancellationException("New inline definition requested"))
         updateState { copy(inlineDefinition = "") }
 
-        val dictionary = activeServiceManager.getActiveService<Dictionary>(ServiceType.DICTIONARY)
+        val dictionary = activeServiceManager.getActiveService<Dictionary>(ServiceRole.DICTIONARY)
         if (dictionary == null) {
             logger.debug("No dictionary service active — no inline definition")
             return

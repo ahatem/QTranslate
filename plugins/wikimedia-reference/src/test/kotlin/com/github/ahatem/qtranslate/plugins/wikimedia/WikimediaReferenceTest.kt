@@ -3,7 +3,7 @@ package com.github.ahatem.qtranslate.plugins.wikimedia
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
-import com.github.ahatem.qtranslate.api.plugin.ServiceCapability
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
 import com.github.ahatem.qtranslate.api.imagesearch.ImageSearchRequest
@@ -143,11 +143,11 @@ class WikimediaReferenceTest {
         )
         assertEquals(
             listOf(
-                setOf(ServiceCapability.DICTIONARY),
-                setOf(ServiceCapability.DICTIONARY),
-                setOf(ServiceCapability.IMAGE_SEARCH)
+                setOf(ServiceRole.DICTIONARY),
+                setOf(ServiceRole.DICTIONARY),
+                setOf(ServiceRole.IMAGE_SEARCH)
             ),
-            plugin.getServices().map { it.capabilities }
+            plugin.getServices().map { ServiceRole.of(it) }
         )
         plugin.shutdown()
     }

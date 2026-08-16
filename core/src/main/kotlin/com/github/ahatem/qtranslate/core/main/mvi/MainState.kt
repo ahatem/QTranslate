@@ -8,7 +8,7 @@ import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationProgress
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
 
 /**
@@ -55,7 +55,7 @@ data class MainState(
      * them. Empty for a capability with no active service, which the UI renders as no choices
      * rather than as the host's own guess at what the choices should be.
      */
-    val serviceOptions: Map<ServiceType, List<ServiceOption>> = emptyMap(),
+    val serviceOptions: Map<ServiceRole, List<ServiceOption>> = emptyMap(),
     val history: List<HistorySnapshot> = emptyList(),
     val historyIndex: Int = 0,
     val dictionaryEntries: List<DictionaryEntry> = emptyList(),
@@ -129,6 +129,6 @@ data class MainState(
      * *selected* service. To determine the selected service, read
      * [com.github.ahatem.qtranslate.core.settings.data.Configuration.servicePresets].
      */
-    fun getAvailableServicesFor(type: ServiceType): List<ServiceInfo> =
+    fun getAvailableServicesFor(type: ServiceRole): List<ServiceInfo> =
         availableServices.filter { it.type == type }
 }

@@ -8,7 +8,7 @@ import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.shared.StatusCode
-import com.github.ahatem.qtranslate.core.shared.arch.ServiceType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.withTimeoutOrNull
@@ -35,7 +35,7 @@ class OcrAndTranslateUseCase(
         currentState: MainState,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
     ): String {
-        val ocrService = activeServiceManager.getActiveService<OCR>(ServiceType.OCR)
+        val ocrService = activeServiceManager.getActiveService<OCR>(ServiceRole.OCR)
         if (ocrService == null) {
             logger.warn("No OCR service available")
             onStatusUpdate(StatusCode.NoOcrServiceActive, NotificationType.ERROR, true)
