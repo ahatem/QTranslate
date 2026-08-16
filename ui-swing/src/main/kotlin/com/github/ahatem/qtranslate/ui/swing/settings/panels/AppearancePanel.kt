@@ -12,6 +12,7 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager.Companion.OS_DEFAULT_THEME_ID
+import com.github.ahatem.qtranslate.ui.swing.shared.util.WrapLayout
 import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -69,14 +70,16 @@ class AppearancePanel(
             preferredSize = Dimension(side, side)
             minimumSize = preferredSize
             maximumSize = preferredSize
-            // No focus ring. These sit against a combo, and the ring drew a box around one button
-            // and not the other, which read as the two being different sizes.
-            isFocusable = false
+            // Focusable, because this is the only way into the translation editor and taking it
+            // off the tab order made the whole feature mouse-only. The uneven look that prompted
+            // removing focus was the fixed square above, not the ring.
             addActionListener { onClick() }
         }
 
     private lateinit var languageCombo:     JComboBox<LanguageInfo>
     private lateinit var translatorCredit:  JPanel
+    /** Held so it can be disabled for English, which has no file to edit. */
+    private var editButton: JButton? = null
     private lateinit var themeCombo:        JComboBox<ThemeItem>
     private lateinit var syncWithOsCheck:   JCheckBox
     private lateinit var titleBarCheck:     JCheckBox
@@ -117,12 +120,13 @@ class AppearancePanel(
             isOpaque = false
             add(languageCombo, BorderLayout.CENTER)
             if (openEditor != null) {
+                editButton = iconButton("icons/lucide/pen-line.svg", "edit_tooltip") {
+                    openEditor.invoke((languageCombo.selectedItem as? LanguageInfo)?.code)
+                    loadLanguageListAsync()
+                }
                 add(JPanel(FlowLayout(FlowLayout.LEADING, 4, 0)).apply {
                     isOpaque = false
-                    add(iconButton("icons/lucide/pen-line.svg", "edit_tooltip") {
-                        openEditor.invoke((languageCombo.selectedItem as? LanguageInfo)?.code)
-                        loadLanguageListAsync()
-                    })
+                    add(editButton)
                     add(iconButton("icons/lucide/plus.svg", "new_tooltip") {
                         openEditor.invoke(null)
                         loadLanguageListAsync()
@@ -137,7 +141,11 @@ class AppearancePanel(
         // and belongs beside it; this is an acknowledgement of whoever did the work. Run together
         // as two dimmed lines they read as one paragraph, and the credit is the half that gets
         // skipped — which defeats the point of showing it.
-        translatorCredit = JPanel(FlowLayout(FlowLayout.LEADING, 4, 0)).apply {
+        // WrapLayout, not FlowLayout. FlowLayout reports a single row's height whatever it holds,
+        // so the GridBag row is sized for one line and anything that wraps is clipped away. This
+        // line is longer in most languages than in English, and the half that disappeared was the
+        // warning that the translation is unfinished — in exactly the languages most likely to be.
+        translatorCredit = JPanel(WrapLayout(FlowLayout.LEADING, 4, 2)).apply {
             isOpaque = false
             isVisible = false
         }
@@ -252,7 +260,11 @@ class AppearancePanel(
 
     private suspend fun buildLanguageList(): List<LanguageInfo> {
         val builtIn = listOf(
-            LanguageInfo("en", "English (built-in)", coverage = localizationManager.coverageOf(LanguageCode.ENGLISH))
+            LanguageInfo(
+                code = "en",
+                displayName = localizationManager.getString("settings_appearance.builtin_english"),
+                coverage = localizationManager.coverageOf(LanguageCode.ENGLISH)
+            )
         )
 
         val external = localizationManager.availableLanguages
@@ -365,6 +377,15 @@ class AppearancePanel(
      * rather than leaving a label with nothing after it.
      */
     private fun updateTranslatorCredit(info: LanguageInfo?) {
+        // English is the source every other translation is completed from and has no file on
+        // disk. Editing it opened a dialog with 546 empty rows, and saving that wrote a phantom
+        // file the picker then filtered out of sight.
+        editButton?.isEnabled = info != null && info.code != "en"
+        editButton?.toolTipText = localizationManager.getString(
+            if (info?.code == "en") "settings_appearance.edit_english_tooltip"
+            else "settings_appearance.edit_tooltip"
+        )
+
         translatorCredit.removeAll()
         val handles = info?.translators.orEmpty()
         val coverage = info?.coverage

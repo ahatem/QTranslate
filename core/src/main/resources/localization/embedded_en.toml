@@ -214,6 +214,8 @@ interface_language = "Interface Language:"
 language_hint = "Changes apply immediately. Some labels may require a restart to update fully."
 edit_tooltip = "Edit this translation"
 new_tooltip = "Start a new translation"
+builtin_english = "English (built-in)"
+edit_english_tooltip = "English is the source translation and cannot be edited"
 translated_by = "Translated by"
 on_github = "on GitHub"
 # %1$s = percent translated, %2$s = number of strings still in English
@@ -689,6 +691,15 @@ locale = "Locale:"
 translators = "Translators:"
 translators_placeholder = "GitHub handles, comma separated"
 rtl = "Right-to-left language"
+col_key = "Key"
+col_english = "English"
+col_translation = "Translation"
+unreadable_title = "Translation could not be read"
+# %1$s = language code, %2$s = file path
+unreadable = "The translation for %s could not be read, so it cannot be edited safely.
+
+The file is at:
+%s"
 search = "Search keys and text..."
 only_untranslated = "Only untranslated"
 # %1$s = translated count, %2$s = total, %3$s = percent

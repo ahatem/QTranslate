@@ -165,6 +165,15 @@ class LocalizationManager(
         translationCache.remove(code)
         languageMetaCache.remove(code)
         coverageCache.remove(code)
+
+        // Strings are served from activeTranslations, a snapshot taken when the language was
+        // loaded, so clearing the caches alone changed nothing on screen. Someone editing the
+        // language they were running saw none of their own work until they switched away and
+        // back, while the hint beside the picker promised changes applied immediately.
+        if (code == _activeLanguage.value) {
+            loadAndCacheLanguage(code)
+            activeTranslations = translationCache[code] ?: emptyMap()
+        }
     }
 
     private fun loadAndCacheLanguage(code: LanguageCode) {

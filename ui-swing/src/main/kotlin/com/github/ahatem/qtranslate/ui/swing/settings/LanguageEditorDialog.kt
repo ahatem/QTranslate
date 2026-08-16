@@ -65,7 +65,10 @@ class LanguageEditorDialog(
     private val english = localizationManager.englishStrings()
 
     private val rows = english.map { (key, value) -> Row(key, value, "") }
-    private val model = StringsModel(rows)
+    private val model = StringsModel(
+        rows,
+        listOf(text("col_key"), text("col_english"), text("col_translation"))
+    )
     private val table = JTable(model)
     private val sorter = TableRowSorter(model)
 
@@ -104,6 +107,10 @@ class LanguageEditorDialog(
 
         if (initialCode == null) createLanguage() else loadLanguage(initialCode)
         pack()
+        // A dialog does not inherit orientation from the window that opened it, and the default
+        // reads as left-to-right. Without this the editor was the one window in the application
+        // that stayed unmirrored in Arabic — including for someone editing the Arabic translation.
+        applyComponentOrientation(owner.componentOrientation)
         setLocationRelativeTo(owner)
     }
 
@@ -224,8 +231,17 @@ class LanguageEditorDialog(
     private fun loadLanguage(code: String) {
         scope.launch {
             val file = File(localizationManager.languagesDirectory, "$code.toml")
+            // Three outcomes, not two. A file that is absent is a translation nobody has started,
+            // and editing it is the point. A file that is present but unreadable is a translation
+            // that already exists, and treating that as empty is how saving destroyed it: the
+            // writer omits untranslated keys, and the save is a full overwrite.
+            val existed = withContext(Dispatchers.IO) { file.exists() }
             val parsed = withContext(Dispatchers.IO) {
-                runCatching { parser.parse(file.readText()) }.getOrNull()
+                if (!existed) null else runCatching { parser.parse(file.readText()) }.getOrNull()
+            }
+            if (existed && parsed == null) {
+                withContext(Dispatchers.Swing) { showUnreadable(code, file) }
+                return@launch
             }
             withContext(Dispatchers.Swing) {
                 loadedCode = code
@@ -246,13 +262,33 @@ class LanguageEditorDialog(
         }
     }
 
+    /**
+     * Refuses to edit a translation that could not be read.
+     *
+     * Opening it blank would look exactly like an unstarted translation, and one press of Save
+     * would then replace a complete file with an empty one. Closing is the only safe answer the
+     * editor can give without understanding what is wrong with the file.
+     */
+    private fun showUnreadable(code: String, file: File) {
+        JOptionPane.showMessageDialog(
+            this,
+            text("unreadable", code, file.absolutePath),
+            text("unreadable_title"),
+            JOptionPane.ERROR_MESSAGE
+        )
+        dirty = false
+        dispose()
+    }
+
     private fun save() {
         val code = loadedCode ?: return
         val meta = LanguageFileMeta(
             name = nameField.text.trim(),
             nativeName = nativeNameField.text.trim().ifBlank { nameField.text.trim() },
             locale = localeField.text.trim().ifBlank { code },
-            translators = translatorsField.text.split(',').map { it.trim() }.filter { it.isNotEmpty() },
+            translators = translatorsField.text.split(',')
+                .map { it.trim().removePrefix("@") }
+                .filter { it.isNotEmpty() },
             isRtl = rtlCheck.isSelected
         )
         scope.launch {
@@ -443,15 +479,15 @@ class LanguageEditorDialog(
 
     private data class Row(val key: String, val english: String, var translation: String)
 
-    private class StringsModel(private val rows: List<Row>) : AbstractTableModel() {
+    private class StringsModel(
+        private val rows: List<Row>,
+        /** Column headings are read by the same people the editor exists for, so they translate. */
+        private val headings: List<String>
+    ) : AbstractTableModel() {
 
         override fun getRowCount() = rows.size
-        override fun getColumnCount() = 3
-        override fun getColumnName(column: Int) = when (column) {
-            COL_KEY -> "Key"
-            COL_ENGLISH -> "English"
-            else -> "Translation"
-        }
+        override fun getColumnCount() = headings.size
+        override fun getColumnName(column: Int) = headings[column]
 
         override fun getValueAt(row: Int, column: Int): String = when (column) {
             COL_KEY -> rows[row].key
