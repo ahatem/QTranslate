@@ -12,6 +12,7 @@ import io.ktor.client.*
 // name, which beats the star import below, so Ktor's needs an alias to stay reachable.
 import io.ktor.client.HttpClient as KtorClient
 import io.ktor.client.call.*
+import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.compression.*
@@ -45,10 +46,24 @@ internal class KtorHttpClient(
         coerceInputValues = true
         explicitNulls = false
     },
-    private val config: HttpClientConfig = HttpClientConfig()
+    private val config: HttpClientConfig = HttpClientConfig(),
+    /**
+     * The engine to send on.
+     *
+     * Injectable so the retry, proxy and timeout rules can be tested against a scripted engine
+     * rather than a live server. They are the kind of behaviour that is invisible until it is
+     * wrong in production: nothing about a POST being replayed after a 500 shows up locally, and
+     * the bill for it arrives later. Production still gets CIO, built here by default.
+     */
+    private val engine: HttpClientEngine = CIO.create(),
+    /**
+     * Whether closing this also closes [engine]. False when the caller supplied one, since a test
+     * that shares an engine across clients should decide for itself when it dies.
+     */
+    private val ownsEngine: Boolean = true
 ) : HttpClient, Closeable {
 
-    private val client = KtorClient(CIO) {
+    private val client = KtorClient(engine) {
         install(ContentNegotiation) {
             json(json)
         }
@@ -306,6 +321,8 @@ internal class KtorHttpClient(
 
     override fun close() {
         client.close()
+        // The client does not close an engine it was handed, so an owned one is closed here.
+        if (ownsEngine) engine.close()
     }
 }
 
