@@ -30,7 +30,21 @@ A single JAR can include any combination of these:
 | `SpellChecker` | Returns spelling corrections |
 | `Dictionary` | Definitions, synonyms, examples |
 | `Summarizer` | Condenses text into a shorter form, configurable length |
-| `Rewriter` | Rewrites text in a different style (Formal, Casual, Concise, Detailed, Simplified) |
+| `Rewriter` | Rewrites text in a different style |
+| `ImageSearch` | Finds reference images for a term |
+
+**Implementing the interface is how a service is offered.** Each one corresponds to a
+`ServiceRole`, and the application works out which roles a service holds by asking whether it
+implements the matching interface. There is nothing to declare, so there is nothing that can
+disagree with your code.
+
+One service may implement several. A service that is both a `Translator` and a `Dictionary`
+appears in both pickers and can be turned off in one without losing the other. Splitting the work
+across separate service objects is equally valid, and is what most plugins here do.
+
+Optional behaviour is different from a role. `VoiceSupport`, `BatchTranslator` and
+`BilingualDictionary` change *how* a service does its job rather than what it is for, so the user
+never selects them; the application simply checks for them and uses them when present.
 
 ---
 
@@ -255,7 +269,11 @@ import java.io.IOException
 class MyTranslatorService(
     private val settings: MySettings
 ) : Translator {
-    override val id                 = "com.example.my-plugin.translator"
+    // Unique within this plugin, not globally. The application qualifies it with the plugin id
+    // and the instance the user created to build the identifier it stores, so never construct or
+    // persist a service id yourself. Keep the key stable: it is part of that identifier, and
+    // changing it silently resets the user's selection.
+    override val key                = "translator"
     override val name               = "My Translator"
     override val version            = "1.0.0"
     override val iconPath           = "assets/icon.svg"
@@ -268,7 +286,7 @@ class MyTranslatorService(
     ): Result<TranslationResponse, ServiceError> {
 
         if (settings.apiKey.isBlank())
-            return Err(ServiceError.AuthError("API key not configured"))
+            return Err(ServiceError.ConfigurationError("API key not configured"))
 
         return try {
             val text = callMyApi(
@@ -301,13 +319,22 @@ class MyTranslatorService(
 
 | Error type | When |
 |-----------|------|
-| `ServiceError.NetworkError` | Connectivity, timeout, DNS |
-| `ServiceError.AuthError` | Invalid or missing API key |
-| `ServiceError.RateLimitError` | Quota exceeded |
-| `ServiceError.InvalidResponseError` | API returned unexpected format |
+| `ServiceError.NetworkError` | Connectivity or DNS |
+| `ServiceError.TimeoutError` | The request took too long |
+| `ServiceError.ConfigurationError` | Not set up yet, such as a missing API key |
+| `ServiceError.AuthenticationError` | Set up, but the credentials were rejected |
+| `ServiceError.RateLimitError` | Quota exceeded. Carries `retryAfterSeconds` where the API reports it |
+| `ServiceError.ServiceUnavailableError` | The provider is down |
+| `ServiceError.UnsupportedLanguageError` | The language pair is out of range |
+| `ServiceError.InvalidInputError` | Blank or malformed input |
+| `ServiceError.InvalidResponseError` | The API returned an unexpected format |
 | `ServiceError.UnknownError` | Anything else |
 
-**Other service types** (`TextToSpeech`, `OCR`, `SpellChecker`, `Dictionary`) follow the exact same pattern — implement the interface, return `Ok`/`Err`. See the Google plugin for a complete TTS and OCR example.
+`ConfigurationError` and `AuthenticationError` are deliberately separate: the first means the user
+has not finished setting the service up, the second means they did and it was refused. The
+application words them differently because they call for different actions.
+
+**Other service types** (`TextToSpeech`, `OCR`, `SpellChecker`, `Dictionary`, `ImageSearch`) follow the exact same pattern — implement the interface, return `Ok`/`Err`. See the Google plugin for a complete TTS and OCR example.
 
 ---
 
@@ -322,13 +349,14 @@ class MyTranslatorService(
   "version":       "1.0.0",
   "author":        "Your Name",
   "description":   "Translates using the Example API.",
-  "minApiVersion": "1.0.0",
+  "minApiVersion": "2.0.0",
   "icon":          "assets/icon.svg"
 }
 ```
 
 - `id` must match your `Plugin` class exactly — this is your plugin's permanent identifier
-- `minApiVersion` — use `1.0.0` unless you know you need something newer
+- `minApiVersion` — `2.0.0` is the current API. The major version must match the host's, and the
+  minor must not exceed it, so declare the oldest version your plugin actually needs
 - `icon` — path inside your JAR resources
 
 ---

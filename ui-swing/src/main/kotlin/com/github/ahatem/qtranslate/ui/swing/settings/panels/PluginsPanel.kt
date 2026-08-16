@@ -741,7 +741,7 @@ class PluginsPanel(
         maximumSize = Dimension(Int.MAX_VALUE, 27)
         border = BorderFactory.createEmptyBorder(3, 0, 3, 0)
         val serviceIcon = service.iconPath?.let { iconManager.getIcon(serviceId, it, 15, 15) }
-            ?: service.role?.let(::capabilityIcon)
+            ?: service.role?.let(::roleIcon)
             ?: themedAppIcon("icons/lucide/package.svg", 15)
         add(JLabel(service.name, serviceIcon, SwingConstants.LEADING).apply {
             font = font.deriveFont(Font.BOLD, font.size - 0.5f)
@@ -754,7 +754,7 @@ class PluginsPanel(
         }, BorderLayout.LINE_END)
     }
 
-    private fun capabilityIcon(type: ServiceRole): Icon = themedAppIcon(
+    private fun roleIcon(type: ServiceRole): Icon = themedAppIcon(
         when (type) {
             ServiceRole.TRANSLATOR -> "icons/lucide/languages.svg"
             ServiceRole.TTS -> "icons/lucide/volume.svg"

@@ -28,7 +28,8 @@ internal object PluginPanelModel {
                     ServiceRole.OCR -> PluginCategory.OCR
                     ServiceRole.SPELL_CHECKER -> PluginCategory.SPELL_CHECKERS
                     ServiceRole.SUMMARIZER, ServiceRole.REWRITER -> PluginCategory.AI
-                    // No category of its own until something actually offers it.
+                    // Filed under Other rather than given a category of its own, since Wikimedia
+                    // is the only source and it already appears under Dictionaries.
                     ServiceRole.IMAGE_SEARCH -> PluginCategory.OTHER
                 }
             }

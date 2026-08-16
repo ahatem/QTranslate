@@ -147,7 +147,6 @@ class ServicesPanel(
             ServiceRole.DICTIONARY -> "icons/lucide/book-open.svg"
             ServiceRole.SUMMARIZER -> "icons/lucide/text-align-start.svg"
             ServiceRole.REWRITER -> "icons/lucide/pen-line.svg"
-            // No service declares this yet; the generic icon is a placeholder until one does.
             ServiceRole.IMAGE_SEARCH -> "icons/lucide/search.svg"
         }
         return runCatching {
@@ -171,10 +170,10 @@ class ServicesPanel(
     // ── Plugin observation ────────────────────────────────────────────────────
 
     private fun observePlugins() {
-        populateCombos(groupByType(pluginManager.activeServices.value))
+        populateCombos(groupByRole(pluginManager.activeServices.value))
         scope.launch {
             pluginManager.activeServices.collect { services ->
-                SwingUtilities.invokeLater { populateCombos(groupByType(services)) }
+                SwingUtilities.invokeLater { populateCombos(groupByRole(services)) }
             }
         }
     }
@@ -184,7 +183,7 @@ class ServicesPanel(
      * words is offered in both pickers. Takes the registry map rather than its values because
      * the key is the service's id, which the combo needs to store the selection.
      */
-    private fun groupByType(services: Map<String, Service>): Map<ServiceRole, List<ServiceOption>> {
+    private fun groupByRole(services: Map<String, Service>): Map<ServiceRole, List<ServiceOption>> {
         val result = mutableMapOf<ServiceRole, MutableList<ServiceOption>>()
         services.forEach { (id, service) ->
             service.roles.forEach { role ->
@@ -194,13 +193,13 @@ class ServicesPanel(
         return result
     }
 
-    private fun populateCombos(servicesByType: Map<ServiceRole, List<ServiceOption>>) {
+    private fun populateCombos(servicesByRole: Map<ServiceRole, List<ServiceOption>>) {
         withoutTrigger {
             serviceComboBoxes.forEach { (type, combo) ->
                 val current = combo.selectedItem as? ServiceOption
                 combo.removeAllItems()
                 combo.addItem(null) // "None" option
-                servicesByType[type]?.forEach { option -> combo.addItem(option) }
+                servicesByRole[type]?.forEach { option -> combo.addItem(option) }
                 if (current != null) {
                     for (i in 0 until combo.itemCount) {
                         if (combo.getItemAt(i)?.id == current.id) {

@@ -21,10 +21,10 @@ class ActiveServiceManager(
     /**
      * The service currently selected for [type], with its id.
      *
-     * Preference order is the active preset's choice, then any enabled service that declares the
-     * capability. A service is only considered if it actually declares [type] — the preset can
-     * name a service that has since stopped offering that capability, or been replaced by a
-     * different plugin under the same id.
+     * Preference order is the active preset's choice, then any enabled service holding the role.
+     * The preset's choice is still checked against [type] rather than trusted, because a preset
+     * can name a service that has since stopped offering the role, or been replaced by a
+     * different plugin registered under the same id.
      */
     @Suppress("UNCHECKED_CAST")
     fun <T : Service> getActive(type: ServiceRole): ActiveService<T>? {
@@ -45,9 +45,9 @@ class ActiveServiceManager(
                 }
                 ?.let { ActiveService(it.key, it.value) }
 
-        // Unchecked because T is erased. The capability check above is the real guard: a service
-        // is only returned for a capability it declares, and registration refuses to register a
-        // service whose declared capabilities it does not implement.
+        // Unchecked because T is erased. The hasRole check above is the real guard, and it is now
+        // an honest one: a role means the service implements that role's interface, so returning
+        // it as T is exactly the cast the type system would have made.
         return resolved as? ActiveService<T>
     }
 

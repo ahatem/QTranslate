@@ -21,7 +21,7 @@ data class ServiceSelectionState(
     val availableServices: List<ServiceInfo>,
     val availableLanguages: List<LanguageCode>,
     /**
-     * The options declared by whichever service is currently active for each capability.
+     * The options declared by whichever service is currently active for each role.
      *
      * The host no longer owns the vocabulary for things like summary length or rewrite style, so
      * the pickers that offer them are built from this rather than from a fixed enum. A service
