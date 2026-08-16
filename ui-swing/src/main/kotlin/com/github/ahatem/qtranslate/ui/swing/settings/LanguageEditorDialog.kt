@@ -112,11 +112,20 @@ class LanguageEditorDialog(
 
     private val detailsPanel = JPanel(GridBagLayout()).apply { isOpaque = false }
 
+    /** Row actions, held so they can be greyed out while nothing is selected. */
+    private var suggestButton: JButton? = null
+    private var resetButton: JButton? = null
+
+    /** Says "Saved" in the footer for a moment, in place of a dialog to dismiss. */
+    private val saveNotice = JLabel()
+
     private var loadedCode: String? = null
+    private var baseTitle: String = ""
     private var dirty = false
 
     init {
-        title = text("title")
+        baseTitle = text("title")
+        refreshTitle()
         defaultCloseOperation = DO_NOTHING_ON_CLOSE
         layout = BorderLayout()
         minimumSize = Dimension(UIScale.scale(820), UIScale.scale(560))
@@ -222,19 +231,35 @@ class LanguageEditorDialog(
             }, BorderLayout.SOUTH)
         }
 
+    /**
+     * Both act on the selected rows, so both are off until there are some.
+     *
+     * Left always enabled they were two buttons that could be pressed at any time and did nothing
+     * most of them, which reads as the feature being broken rather than as nothing being selected.
+     */
     private fun buildRowActions(): JComponent =
         JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(6), 0)).apply {
             isOpaque = false
             if (translateString != null) {
-                add(JButton(text("suggest")).apply {
+                suggestButton = JButton(text("suggest")).apply {
                     toolTipText = text("suggest_tooltip")
+                    isEnabled = false
                     addActionListener { suggestForSelection() }
-                })
+                }
+                add(suggestButton)
             }
-            add(JButton(text("reset_row")).apply {
+            resetButton = JButton(text("reset_row")).apply {
                 toolTipText = text("reset_row_tooltip")
+                isEnabled = false
                 addActionListener { resetSelection() }
-            })
+            }
+            add(resetButton)
+
+            table.selectionModel.addListSelectionListener {
+                val any = table.selectedRowCount > 0
+                suggestButton?.isEnabled = any
+                resetButton?.isEnabled = any
+            }
         }
 
     // ── Translator credits ────────────────────────────────────────────────────
@@ -411,6 +436,7 @@ class LanguageEditorDialog(
                 ),
                 BorderFactory.createEmptyBorder(10, 12, 12, 12)
             )
+            add(saveNotice.apply { foreground = UIManager.getColor("Label.disabledForeground") }, BorderLayout.LINE_START)
             add(buttons, BorderLayout.LINE_END)
         }
     }
@@ -438,7 +464,8 @@ class LanguageEditorDialog(
                 val meta = parsed?.meta
                 // Names the language being edited, so the dialog answers the question the user
                 // arrived with rather than presenting itself as a manager of all of them.
-                title = text("title_for", meta?.name ?: code, code)
+                baseTitle = text("title_for", meta?.name ?: code, code)
+                refreshTitle()
                 nameField.text = meta?.name.orEmpty()
                 nativeNameField.text = meta?.nativeName.orEmpty()
                 localeField.text = meta?.locale ?: code
@@ -506,9 +533,12 @@ class LanguageEditorDialog(
                 dirty = false
                 localizationManager.forget(LanguageCode(code))
                 updateCoverage()
-                JOptionPane.showMessageDialog(
-                    this@LanguageEditorDialog, text("saved"), title, JOptionPane.INFORMATION_MESSAGE
-                )
+                refreshTitle()
+                // Reported in place rather than through a dialog. Save is the action taken most
+                // often in this window, and a modal to dismiss every few minutes is a toll on the
+                // one thing the user does constantly.
+                saveNotice.text = text("saved")
+                Timer(2500) { saveNotice.text = "" }.apply { isRepeats = false }.start()
             }
         }
     }
@@ -612,8 +642,20 @@ class LanguageEditorDialog(
     }
 
     private fun markDirty() {
+        val wasClean = !dirty
         dirty = true
+        if (wasClean) refreshTitle()
         updateCoverage()
+    }
+
+    /**
+     * Marks unsaved work in the title bar with the same dot the settings window uses.
+     *
+     * Nothing else said the editor held changes. Someone could translate for twenty minutes and
+     * close it with no more warning than a confirmation they had no reason to expect.
+     */
+    private fun refreshTitle() {
+        title = if (dirty) "● $baseTitle" else baseTitle
     }
 
     private fun setEnabledForContent(enabled: Boolean) {
@@ -676,9 +718,14 @@ class LanguageEditorDialog(
             val untranslated = entry.translation.isBlank() && !isFilteredToUntranslated()
 
             font = font.deriveFont(Font.PLAIN)
+            // A warning if there is one, and otherwise the cell's own text. Keys run past the
+            // column and get an ellipsis, and a key you cannot read is a key you cannot look up in
+            // the English file — which is where the comments explaining its placeholders live.
+            val full = (value as? String).orEmpty()
             toolTipText = when {
                 mismatch -> model.placeholderWarning
                 untranslated -> untranslatedNote
+                full.isNotBlank() -> full
                 else -> null
             }
 

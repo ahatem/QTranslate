@@ -123,7 +123,7 @@ class AppearancePanel(
         //
         // WrapLayout, not FlowLayout: FlowLayout reports a single row's height whatever it holds,
         // so the GridBag row was sized for one line and anything that wrapped was clipped away.
-        translatorCredit = JPanel(WrapLayout(FlowLayout.LEADING, 4, 2)).apply {
+        translatorCredit = JPanel(WrapLayout(FlowLayout.LEADING, 0, 3)).apply {
             isOpaque = false
             isVisible = false
         }
@@ -380,12 +380,9 @@ class AppearancePanel(
         languageCombo.toolTipText = null
         if (handles.isNotEmpty()) creditSentence(handles).forEach { translatorCredit.add(it) }
 
-        if (handles.isNotEmpty() && coverage != null && !coverage.isComplete && coverage.total > 0) {
-            translatorCredit.add(JLabel("  ·  ").apply {
-                foreground = UIManager.getColor("Label.disabledForeground")
-                font = font.deriveFont(font.size - 1f)
-            })
-        }
+        // No separator dot between the credit and the warning. The two wrap independently, so the
+        // dot ended up stranded at the end of one line with the thing it was joining on the next.
+        // A line break says the same thing and cannot come apart.
 
         // Said plainly, and only when it is true. A missing string falls back to English, so an
         // unfinished translation works — it just quietly shows a language the user did not pick,
@@ -423,20 +420,40 @@ class AppearancePanel(
         val after = template.substringAfter(NAME_SLOT, missingDelimiterValue = "")
         val separator = localizationManager.getString("settings_appearance.name_separator")
 
+        // Named in full up to a point, then counted. Eight handles ran the whole width of the
+        // dialog and turned an acknowledgement into a wall; the rest are on the hover.
+        val named = handles.take(CREDIT_NAMES)
+        val remaining = handles.size - named.size
+
         val parts = mutableListOf<JComponent>()
-        if (before.isNotBlank()) parts += mutedLabel(before.trimEnd())
-        handles.forEachIndexed { index, handle ->
-            if (index > 0) parts += mutedLabel(separator.trim().ifEmpty { "," })
+        if (before.isNotBlank()) parts += mutedLabel(before.trimEnd(), gapAfter = true)
+        named.forEachIndexed { index, handle ->
             parts += profileLink(handle)
+            val isLast = index == named.lastIndex
+            // The separator hangs off the name before it with no gap in between, so it reads
+            // "@a, @b". Laid out as a free-standing label it took the row's gap on both sides and
+            // came out as "@a , @b".
+            if (!isLast || remaining > 0) {
+                parts += mutedLabel(separator.trim().ifEmpty { "," }, gapAfter = true)
+            }
         }
-        if (after.isNotBlank()) parts += mutedLabel(after.trimStart())
+        if (remaining > 0) {
+            parts += mutedLabel(
+                localizationManager.getString("settings_appearance.credit_more", remaining),
+                gapAfter = true
+            ).apply { toolTipText = handles.joinToString(", ") { "@$it" } }
+        }
+        if (after.isNotBlank()) parts += mutedLabel(after.trimStart(), gapBefore = true)
         return parts
     }
 
-    private fun mutedLabel(text: String) = JLabel(text).apply {
-        foreground = UIManager.getColor("Label.disabledForeground")
-        font = font.deriveFont(font.size - 1f)
-    }
+    private fun mutedLabel(text: String, gapBefore: Boolean = false, gapAfter: Boolean = false) =
+        JLabel(text).apply {
+            foreground = UIManager.getColor("Label.disabledForeground")
+            font = font.deriveFont(font.size - 1f)
+            val gap = UIScale.scale(4)
+            border = BorderFactory.createEmptyBorder(0, if (gapBefore) gap else 0, 0, if (gapAfter) gap else 0)
+        }
 
     /** One handle, as a link to the GitHub profile it names. */
     private fun profileLink(handle: String) = JLabel("@$handle").apply {
@@ -471,6 +488,9 @@ class AppearancePanel(
     private fun incompleteWarning(text: String) = JLabel(text).apply {
         icon = ScaledIcon(FlatOptionPaneWarningIcon(), UIScale.scale(13))
         iconTextGap = 5
+        // The row carries no gap of its own so the credit's commas sit tight against their names,
+        // which leaves this to space itself off whatever precedes it.
+        border = BorderFactory.createEmptyBorder(0, UIScale.scale(14), 0, 0)
         foreground = UIManager.getColor("Component.warning.focusedBorderColor")
             ?: UIManager.getColor("Label.foreground")
         font = font.deriveFont(font.size - 1f)
@@ -746,5 +766,8 @@ class AppearancePanel(
          * character, so it cannot collide with anything a translator would write.
          */
         const val NAME_SLOT = "\u0001"
+
+        /** How many handles the credit names before it starts counting the rest. */
+        const val CREDIT_NAMES = 3
     }
 }
