@@ -114,22 +114,6 @@ class KtorHttpClient(
         }
     }
 
-    /**
-     * POST request with typed body (automatically serialized to JSON).
-     *
-     * Unlike [fetchJson] and [sendJson], which are now extensions over the [HttpClient] contract,
-     * this one is not sugar: it hands the object to Ktor's content negotiation rather than
-     * encoding it first, so it still needs the engine. Its single caller is Google OCR.
-     */
-    suspend inline fun <reified T> postTyped(
-        url: String,
-        body: T,
-        headers: Map<String, String> = emptyMap(),
-        queryParams: Map<String, Any?> = emptyMap()
-    ): Result<String, ServiceError> {
-        return postTypedImpl(url, body, typeInfo<T>(), headers, queryParams)
-    }
-
     // ========== FORM DATA UTILITY METHODS ==========
 
     /**
@@ -231,37 +215,6 @@ class KtorHttpClient(
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
         } catch (e: Exception) {
             pluginContext.logger.error("GET bytes request failed for $url", e)
-            Err(ServiceError.NetworkError("Network error: ${e.message}", e))
-        }
-    }
-
-    // ========== INTERNAL IMPLEMENTATIONS ==========
-
-    @PublishedApi
-    internal suspend fun <T> postTypedImpl(
-        url: String,
-        body: T,
-        typeInfo: TypeInfo,
-        headers: Map<String, String>,
-        queryParams: Map<String, Any?>
-    ): Result<String, ServiceError> = withContext(Dispatchers.IO) {
-        try {
-            val response: HttpResponse = client.post(url) {
-                headers.forEach { (key, value) -> header(key, value) }
-                queryParams.forEach { (key, value) ->
-                    value?.let { parameter(key, it.toString()) }
-                }
-                contentType(ContentType.Application.Json)
-                setBody(body, typeInfo)
-            }
-            pluginContext.logger.info("POST typed request succeeded for ${response.request.url}")
-            pluginContext.logger.info("POST typed request succeeded for ${response.request.content}")
-            handleResponse(response, url)
-        } catch (e: HttpRequestTimeoutException) {
-            pluginContext.logger.error("POST typed request timeout for $url", e)
-            Err(ServiceError.TimeoutError("Request timed out: $url", e))
-        } catch (e: Exception) {
-            pluginContext.logger.error("POST typed request failed for $url", e)
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
