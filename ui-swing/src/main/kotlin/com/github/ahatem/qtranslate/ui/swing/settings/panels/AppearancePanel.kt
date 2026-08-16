@@ -13,6 +13,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.withContext
 import java.awt.*
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
+import java.net.URI
 import javax.swing.*
 import javax.swing.DefaultListCellRenderer
 
@@ -37,6 +40,7 @@ class AppearancePanel(
         configured.ifBlank { localizationManager.activeLanguage.tag }
 
     private lateinit var languageCombo:     JComboBox<LanguageInfo>
+    private lateinit var translatorCredit:  JPanel
     private lateinit var themeCombo:        JComboBox<ThemeItem>
     private lateinit var syncWithOsCheck:   JCheckBox
     private lateinit var titleBarCheck:     JCheckBox
@@ -61,6 +65,9 @@ class AppearancePanel(
             isEnabled = false
             renderer  = languageRenderer()
             addActionListener {
+                // Follows the selection whether or not the user made it, so the credit always
+                // describes the language actually showing rather than the last one chosen by hand.
+                updateTranslatorCredit(selectedItem as? LanguageInfo)
                 if (!isUpdatingFromState) {
                     val selected = selectedItem as? LanguageInfo ?: return@addActionListener
                     applyDraft(store) { it.copy(interfaceLanguage = selected.code) }
@@ -68,6 +75,14 @@ class AppearancePanel(
             }
         }
         addRow(localizationManager.getString("settings_appearance.interface_language"), languageCombo)
+
+        translatorCredit = JPanel(FlowLayout(FlowLayout.LEADING, 4, 0)).apply {
+            isOpaque = false
+            isVisible = false
+        }
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+            .insets(2, 2, 0, 0).add(translatorCredit)
+
         addHint(localizationManager.getString("settings_appearance.language_hint"))
 
         // ---- Theme ----
@@ -259,40 +274,69 @@ class AppearancePanel(
         }
     }
 
-    /**
-     * Names the people behind each translation, the way the plugins list names a plugin's author.
-     *
-     * Translators had no credit anywhere in the application: the file recorded a name and nothing
-     * ever read it. Showing it in the picker puts it where someone choosing a language is already
-     * looking, and it is the whole point of recording it.
-     *
-     * Only in the dropped-open list. The closed control shows the language alone, because the
-     * credit is worth reading once and would be noise on a row the user is only checking.
-     */
     private fun languageRenderer() = object : DefaultListCellRenderer() {
         override fun getListCellRendererComponent(
             list: JList<*>?, value: Any?,
             index: Int, isSelected: Boolean, cellHasFocus: Boolean
         ): Component {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-            val info = value as? LanguageInfo
-            val credit = info?.authors.orEmpty()
-
-            text = when {
-                info == null -> ""
-                // index -1 is the closed combo showing the current choice, not a row in the list.
-                index < 0 || credit.isEmpty() -> info.displayName
-                else -> {
-                    val names = credit.joinToString(", ")
-                    val colour = UIManager.getColor("Label.disabledForeground")?.let {
-                        String.format("#%02x%02x%02x", it.red, it.green, it.blue)
-                    } ?: "gray"
-                    "<html>${info.displayName}&nbsp;&nbsp;" +
-                        "<font color='$colour'>$names</font></html>"
-                }
-            }
+            text = (value as? LanguageInfo)?.displayName ?: ""
             return this
         }
+    }
+
+    /**
+     * Names the people behind the chosen translation, each linking to their GitHub profile.
+     *
+     * Translators had no credit anywhere in the application: the file recorded a name and nothing
+     * ever read it. An earlier attempt put the handles in the dropdown beside every language,
+     * which was worse than nothing: a bare word like `bovirus` next to a language does not read as
+     * a person, and nothing said where it came from or that it led anywhere.
+     *
+     * So it sits under the picker instead, describing the one language the user has chosen. The
+     * sentence says what the names are and which site they are on, each handle is a link with the
+     * profile address on hover, and the row disappears entirely when a translation credits nobody
+     * rather than leaving a label with nothing after it.
+     */
+    private fun updateTranslatorCredit(info: LanguageInfo?) {
+        translatorCredit.removeAll()
+        val handles = info?.authors.orEmpty()
+        translatorCredit.isVisible = handles.isNotEmpty()
+
+        if (handles.isNotEmpty()) {
+            translatorCredit.add(creditText(localizationManager.getString("settings_appearance.translated_by")))
+            handles.forEachIndexed { index, handle ->
+                translatorCredit.add(handleLink(handle))
+                if (index < handles.lastIndex) translatorCredit.add(creditText(","))
+            }
+            translatorCredit.add(creditText(localizationManager.getString("settings_appearance.on_github")))
+        }
+
+        translatorCredit.revalidate()
+        translatorCredit.repaint()
+    }
+
+    /** Dimmed, slightly smaller than body text: this is an acknowledgement, not a setting. */
+    private fun creditText(text: String) = JLabel(text).apply {
+        foreground = UIManager.getColor("Label.disabledForeground")
+        font = font.deriveFont(font.size - 1f)
+    }
+
+    private fun handleLink(handle: String) = JLabel("<html><u>@$handle</u></html>").apply {
+        val url = "https://github.com/$handle"
+        cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        foreground = UIManager.getColor("Component.accentColor") ?: UIManager.getColor("Label.foreground")
+        font = font.deriveFont(font.size - 1f)
+        toolTipText = url
+        addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                runCatching {
+                    if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                        Desktop.getDesktop().browse(URI(url))
+                    }
+                }
+            }
+        })
     }
 
     private fun loadFontsAsync() {
