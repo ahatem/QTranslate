@@ -7,6 +7,30 @@ data class ParsedLanguageFile(
 )
 
 /**
+ * How much of the interface a translation covers, against the English strings the application
+ * actually asks for.
+ *
+ * A missing key falls back to English, so an unfinished translation still works. The cost is that
+ * the gaps are invisible: nothing on screen distinguishes a language that is fully translated from
+ * one that is half English, and the person best placed to finish it never finds out it needs
+ * finishing.
+ */
+data class TranslationCoverage(
+    val translated: Int,
+    val total: Int
+) {
+    val missing: Int get() = (total - translated).coerceAtLeast(0)
+
+    val isComplete: Boolean get() = missing == 0
+
+    /**
+     * Rounded down, so a translation one string short never reads as 100%. Claiming completeness
+     * it has not reached is the one number that would make this worse than showing nothing.
+     */
+    val percent: Int get() = if (total == 0) 100 else translated * 100 / total
+}
+
+/**
  * Metadata about a localization file containing information about the language and translation.
  *
  * This data class holds essential information about a translation file that helps with

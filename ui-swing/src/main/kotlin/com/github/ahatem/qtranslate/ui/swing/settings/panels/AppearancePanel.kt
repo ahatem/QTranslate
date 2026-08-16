@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.core.localization.TranslationCoverage
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
@@ -195,14 +196,21 @@ class AppearancePanel(
 
 
     private suspend fun buildLanguageList(): List<LanguageInfo> {
-        val builtIn = listOf(LanguageInfo("en", "English (built-in)"))
+        val builtIn = listOf(
+            LanguageInfo("en", "English (built-in)", coverage = localizationManager.coverageOf(LanguageCode.ENGLISH))
+        )
 
         val external = localizationManager.availableLanguages
             .filter { it != "en" }
             .map { code ->
                 val meta    = localizationManager.readLanguageMeta(LanguageCode(code))
                 val display = if (meta != null) "${meta.name} (${meta.nativeName})" else code
-                LanguageInfo(code, display, meta?.translators.orEmpty())
+                LanguageInfo(
+                    code = code,
+                    displayName = display,
+                    translators = meta?.translators.orEmpty(),
+                    coverage = localizationManager.coverageOf(LanguageCode(code))
+                )
             }
             .sortedBy { it.displayName }
 
@@ -304,7 +312,7 @@ class AppearancePanel(
     private fun updateTranslatorCredit(info: LanguageInfo?) {
         translatorCredit.removeAll()
         val handles = info?.translators.orEmpty()
-        translatorCredit.isVisible = handles.isNotEmpty()
+        val coverage = info?.coverage
 
         if (handles.isNotEmpty()) {
             translatorCredit.add(creditText(localizationManager.getString("settings_appearance.translated_by")))
@@ -315,8 +323,40 @@ class AppearancePanel(
             translatorCredit.add(creditText(localizationManager.getString("settings_appearance.on_github")))
         }
 
+        // Said plainly, and only when it is true. A missing string falls back to English, so an
+        // unfinished translation works — it just quietly shows a language the user did not pick,
+        // and nothing anywhere admitted it.
+        if (coverage != null && !coverage.isComplete && coverage.total > 0) {
+            translatorCredit.add(
+                incompleteWarning(
+                    localizationManager.getString(
+                        "settings_appearance.translation_incomplete",
+                        coverage.percent,
+                        coverage.missing
+                    )
+                )
+            )
+        }
+
+        translatorCredit.isVisible = translatorCredit.componentCount > 0
         translatorCredit.revalidate()
         translatorCredit.repaint()
+    }
+
+    /**
+     * Sits beside the credit rather than in the dropdown.
+     *
+     * In the list it would be one more thing on every row, and the only moment it matters is when
+     * the user has settled on a language: this is the point at which "some of this will still be
+     * English" is worth knowing.
+     */
+    private fun incompleteWarning(text: String) = JLabel(text).apply {
+        // Coloured rather than iconised: none of the bundled icon sets carries a warning glyph,
+        // and a caution tint against the dimmed credit beside it is enough to separate the two.
+        foreground = UIManager.getColor("Component.warning.focusedBorderColor")
+            ?: UIManager.getColor("Actions.Yellow")
+            ?: UIManager.getColor("Label.foreground")
+        font = font.deriveFont(font.size - 1f)
     }
 
     /** Dimmed, slightly smaller than body text: this is an acknowledgement, not a setting. */
@@ -446,7 +486,8 @@ class AppearancePanel(
         val code: String,
         val displayName: String,
         /** GitHub handles of everyone who worked on this translation. Empty for the built-in. */
-        val translators: List<String> = emptyList()
+        val translators: List<String> = emptyList(),
+        val coverage: TranslationCoverage = TranslationCoverage(0, 0)
     ) {
         override fun toString() = displayName
     }

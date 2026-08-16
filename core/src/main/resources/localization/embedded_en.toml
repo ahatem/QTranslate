@@ -214,6 +214,8 @@ interface_language = "Interface Language:"
 language_hint = "Changes apply immediately. Some labels may require a restart to update fully."
 translated_by = "Translated by"
 on_github = "on GitHub"
+# %1$s = percent translated, %2$s = number of strings still in English
+translation_incomplete = "%s%% translated — %s strings still show English"
 theme_group = "Theme"
 theme_label = "Theme:"
 theme_sync_os = "Sync with OS (follow system dark/light)"

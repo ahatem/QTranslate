@@ -19,6 +19,7 @@ class LocalizationManager(
     // for reads since we only ever replace whole values (no partial updates).
     private val translationCache  = ConcurrentHashMap<LanguageCode, Map<String, String>>()
     private val languageMetaCache = ConcurrentHashMap<LanguageCode, LocalizedLanguageMeta>()
+    private val coverageCache     = ConcurrentHashMap<LanguageCode, TranslationCoverage>()
     private val embeddedFallback: Map<String, String>
 
     // @Volatile ensures EDT always sees the latest reference written by IO dispatcher.
@@ -87,6 +88,56 @@ class LocalizationManager(
             }.getOrNull()
         }
     }
+
+    /**
+     * How much of the interface a translation actually covers.
+     *
+     * Every missing key falls back to English, which is deliberate and keeps a half-finished
+     * translation usable. It also makes the gaps invisible: a language can be a third English on
+     * screen with nothing anywhere saying so, and the person who might fix it has no way to know
+     * there is anything to fix.
+     *
+     * Measured against the embedded English file, which is the full set of strings the
+     * application asks for.
+     */
+    suspend fun coverageOf(code: LanguageCode): TranslationCoverage =
+        withContext(Dispatchers.IO) {
+            coverageCache.getOrPut(code) {
+                if (code == LanguageCode.ENGLISH) {
+                    return@getOrPut TranslationCoverage(embeddedFallback.size, embeddedFallback.size)
+                }
+                val file = File(languagesDirectory, "${code.tag}.toml")
+                if (!file.exists()) return@getOrPut TranslationCoverage(0, embeddedFallback.size)
+
+                val translated = runCatching { parser.parse(file.readText()).entries }
+                    .getOrDefault(emptyMap())
+
+                // Counted against the English keys rather than the file's own, so a translation
+                // still carrying keys the application has since dropped is not credited for them.
+                TranslationCoverage(
+                    translated = embeddedFallback.keys.count { it in translated },
+                    total = embeddedFallback.size
+                )
+            }
+        }
+
+    /** The English keys a translation has no value for, in the order the application declares them. */
+    suspend fun missingKeysOf(code: LanguageCode): List<String> =
+        withContext(Dispatchers.IO) {
+            val file = File(languagesDirectory, "${code.tag}.toml")
+            val translated = if (file.exists()) {
+                runCatching { parser.parse(file.readText()).entries }.getOrDefault(emptyMap())
+            } else {
+                emptyMap()
+            }
+            embeddedFallback.keys.filterNot { it in translated }
+        }
+
+    /** The English text for [key], which is what an untranslated string falls back to. */
+    fun englishFor(key: String): String? = embeddedFallback[key]
+
+    /** Every string the application asks for, in declaration order. */
+    fun englishStrings(): Map<String, String> = embeddedFallback
 
     private fun loadAndCacheLanguage(code: LanguageCode) {
         if (translationCache.containsKey(code)) return
