@@ -53,7 +53,6 @@ class AppearancePanel(
     private lateinit var translatorCredit:  JPanel
     /** Held so it can be disabled for English, which has no file to edit. */
     private var editButton: JButton? = null
-    private var deleteButton: JButton? = null
     private lateinit var themeCombo:        JComboBox<ThemeItem>
     private lateinit var syncWithOsCheck:   JCheckBox
     private lateinit var titleBarCheck:     JCheckBox
@@ -87,34 +86,27 @@ class AppearancePanel(
                 }
             }
         }
-        // Four verbs on one row, the same shape the service preset picker uses: start one, edit
-        // the one showing, bring one in from a file, throw one away. Import and delete were the
-        // two you could not do from here at all — a translation someone sent you had to be copied
-        // into the languages folder by hand, and one you no longer wanted could only be removed by
-        // opening it for editing first.
+        // One named action and a menu, rather than four bare glyphs in a strip.
+        //
+        // Four monochrome icons of the same weight side by side is a row where no single icon has
+        // to be understood and all four have to be guessed at once, and the guessing gets no easier
+        // for the fact that three of them are rare. The common action says what it is in words; the
+        // other three are in a menu where they also get words, and no glyph has to carry a meaning
+        // on its own.
         val actions = if (openEditor == null) emptyList() else listOf(
-            pickerAction(
-                "icons/lucide/plus.svg",
-                localizationManager.getString("settings_appearance.new_tooltip")
-            ) {
-                openEditor.invoke(null)
-                loadLanguageListAsync()
-            },
-            pickerAction(
-                "icons/lucide/pen-line.svg",
-                localizationManager.getString("settings_appearance.edit_tooltip")
-            ) {
-                openEditor.invoke((languageCombo.selectedItem as? LanguageInfo)?.code)
-                loadLanguageListAsync()
+            JButton(localizationManager.getString("settings_appearance.edit_button")).apply {
+                toolTipText = localizationManager.getString("settings_appearance.edit_tooltip")
+                addActionListener {
+                    openEditor.invoke((languageCombo.selectedItem as? LanguageInfo)?.code)
+                    loadLanguageListAsync()
+                }
             }.also { editButton = it },
             pickerAction(
-                "icons/lucide/import.svg",
-                localizationManager.getString("settings_appearance.import_tooltip")
-            ) { importLanguage() },
-            pickerAction(
-                "icons/lucide/trash.svg",
-                localizationManager.getString("settings_appearance.delete_tooltip")
-            ) { deleteSelectedLanguage() }.also { deleteButton = it }
+                "icons/lucide/ellipsis-vertical.svg",
+                localizationManager.getString("settings_appearance.more_actions")
+            ) { }.also { more ->
+                more.addActionListener { languageMenu().show(more, 0, more.height) }
+            }
         )
         addPickerRow(
             localizationManager.getString("settings_appearance.interface_language"),
@@ -377,11 +369,6 @@ class AppearancePanel(
 
         // Deletable only when there is a file of ours to delete. The bundled translations live in
         // the jar, so offering to remove one promises something that cannot happen.
-        deleteButton?.isEnabled = info?.isRemovable == true
-        deleteButton?.toolTipText = localizationManager.getString(
-            if (info?.isRemovable == true) "settings_appearance.delete_tooltip"
-            else "settings_appearance.builtin_delete_tooltip"
-        )
 
         translatorCredit.removeAll()
         val handles = info?.translators.orEmpty()
@@ -627,6 +614,33 @@ class AppearancePanel(
         val isRemovable: Boolean = false
     ) {
         override fun toString() = displayName
+    }
+
+    /**
+     * The three rarer language actions, named.
+     *
+     * Rebuilt each time it opens so Delete reflects whatever is selected now, rather than whatever
+     * was selected when the row was first laid out.
+     */
+    private fun languageMenu(): JPopupMenu = JPopupMenu().apply {
+        add(JMenuItem(localizationManager.getString("settings_appearance.menu_new")).apply {
+            addActionListener {
+                openEditor?.invoke(null)
+                loadLanguageListAsync()
+            }
+        })
+        add(JMenuItem(localizationManager.getString("settings_appearance.menu_import")).apply {
+            addActionListener { importLanguage() }
+        })
+        addSeparator()
+        add(JMenuItem(localizationManager.getString("settings_appearance.menu_delete")).apply {
+            val info = languageCombo.selectedItem as? LanguageInfo
+            // Only a file of ours can be removed; the bundled translations are read out of the jar
+            // and would still be there afterwards.
+            isEnabled = info?.isRemovable == true
+            foreground = UIManager.getColor("Component.error.focusedBorderColor") ?: foreground
+            addActionListener { deleteSelectedLanguage() }
+        })
     }
 
     // ── Installing and removing translations ──────────────────────────────────

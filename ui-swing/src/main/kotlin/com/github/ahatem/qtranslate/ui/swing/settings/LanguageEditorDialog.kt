@@ -8,7 +8,6 @@ import com.github.ahatem.qtranslate.core.localization.LanguageFileMeta
 import com.github.ahatem.qtranslate.core.localization.LanguageFileWriter
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
-import com.github.ahatem.qtranslate.ui.swing.shared.util.WrapLayout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -21,7 +20,6 @@ import java.awt.Font
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.Insets
-import java.awt.Rectangle
 import java.io.File
 import javax.swing.*
 import javax.swing.table.AbstractTableModel
@@ -95,35 +93,21 @@ class LanguageEditorDialog(
      */
     private val translators = mutableListOf<String>()
 
-    /**
-     * The chips themselves.
-     *
-     * `Scrollable` with `getScrollableTracksViewportWidth() = true` is the part that makes this
-     * work inside a scroll pane: without it a wrapping layout has no width to wrap against and
-     * lays every chip out on one endless line. The same trick the plugin detail pane uses.
-     */
-    private val translatorsRow = object : JPanel(WrapLayout(FlowLayout.LEADING, UIScale.scale(4), UIScale.scale(3))), Scrollable {
-        override fun getPreferredScrollableViewportSize(): Dimension = preferredSize
-        override fun getScrollableUnitIncrement(r: Rectangle, o: Int, d: Int) = UIScale.scale(16)
-        override fun getScrollableBlockIncrement(r: Rectangle, o: Int, d: Int) = UIScale.scale(32)
-        override fun getScrollableTracksViewportWidth() = true
-        override fun getScrollableTracksViewportHeight() = false
-    }
+    /** Names the first few and counts the rest. Never more than one line, whatever it holds. */
+    private val translatorsSummary = JLabel()
 
     /**
-     * Holds the credits to two rows, and scrolls past that.
+     * One line, always, with the managing done somewhere that has room.
      *
-     * Unbounded, the chips wrap as far as they like and every extra row pushes the strings table
-     * further down: a dozen credits and the thing the dialog exists for is off the bottom of the
-     * window. Two rows fit any real translation, and anything beyond that scrolls rather than
-     * resizing the window around it.
+     * Chips in the form itself were the wrong shape twice over: unbounded they pushed the strings
+     * table off the window, and bounded they became a scrollbar inside a form field, which is a
+     * scrollbar in the last place anyone wants to find one. A form row should be a fixed height
+     * and say what the value is; editing a list of things belongs in a window that can be as tall
+     * as the list. This is how a repository host shows assignees or an issue tracker shows labels.
      */
-    private val translatorsScroll = JScrollPane(translatorsRow).apply {
-        border = BorderFactory.createEmptyBorder()
+    private val translatorsField = JPanel(BorderLayout(UIScale.scale(6), 0)).apply {
         isOpaque = false
-        viewport.isOpaque = false
-        horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
-        verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
+        add(translatorsSummary, BorderLayout.CENTER)
     }
 
     private val detailsPanel = JPanel(GridBagLayout()).apply { isOpaque = false }
@@ -184,7 +168,7 @@ class LanguageEditorDialog(
             field("name", nameField, 0, 0, 0.5)
             field("native_name", nativeNameField, 2, 0, 0.5)
             field("locale", localeField, 0, 1, 0.5)
-            field("translators", translatorsScroll, 2, 1, 0.5)
+            field("translators", translatorsField, 2, 1, 0.5)
 
             // Deleting the language is not an editing action and has no business in the window you
             // do the editing in — you would have to open a translation to throw it away. It lives
@@ -193,7 +177,10 @@ class LanguageEditorDialog(
             c.gridx = 0; c.gridy = 2; c.gridwidth = 4; c.weightx = 1.0
             add(rtlCheck, c)
         }
-        translatorsRow.isOpaque = false
+        translatorsField.add(JButton(text("translators_manage")).apply {
+            putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
+            addActionListener { manageTranslators() }
+        }, BorderLayout.LINE_END)
         listOf(nameField, nativeNameField, localeField).forEach { it.onEdit { markDirty() } }
         rtlCheck.addActionListener { markDirty() }
 
@@ -252,64 +239,91 @@ class LanguageEditorDialog(
 
     // ── Translator credits ────────────────────────────────────────────────────
 
-    /** Redraws the credit chips from [translators]. */
+    /** Restates the summary line from [translators]. */
     private fun rebuildTranslators() {
-        translatorsRow.removeAll()
+        val muted = UIManager.getColor("Label.disabledForeground")
         if (translators.isEmpty()) {
-            translatorsRow.add(JLabel(text("translators_empty")).apply {
-                foreground = UIManager.getColor("Label.disabledForeground")
-                font = font.deriveFont(font.size - 1f)
-            })
+            translatorsSummary.text = text("translators_empty")
+            translatorsSummary.foreground = muted
+            translatorsSummary.toolTipText = null
+            return
         }
-        translators.forEach { translatorsRow.add(translatorChip(it)) }
-        translatorsRow.add(JButton(text("add_translator")).apply {
-            putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
-            toolTipText = text("add_translator_tooltip")
-            addActionListener { addTranslator() }
-        })
-        translatorsRow.revalidate()
-
-        // GridBagLayout sizes a cell from its preferred height and ignores maximumSize, so the cap
-        // has to be applied to the preferred size itself, after the chips are in and their height
-        // is known.
-        val natural = translatorsRow.preferredSize.height.coerceAtLeast(UIScale.scale(26))
-        translatorsScroll.preferredSize = Dimension(0, minOf(natural, MAX_CREDIT_HEIGHT))
-        translatorsScroll.revalidate()
-        translatorsScroll.repaint()
+        val shown = translators.take(SUMMARY_NAMES).joinToString(", ") { "@$it" }
+        val rest = translators.size - SUMMARY_NAMES
+        translatorsSummary.text = if (rest > 0) "$shown  ${text("translators_more", rest)}" else shown
+        translatorsSummary.foreground = UIManager.getColor("Label.foreground")
+        // Everyone, on hover, so the count is never the only way to find out who is behind it.
+        translatorsSummary.toolTipText = translators.joinToString(", ") { "@$it" }
     }
 
-    /** One credited person: their handle, and the way to take it off again. */
-    private fun translatorChip(handle: String): JComponent =
-        JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(3), 0)).apply {
-            isOpaque = false
-            border = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(
-                    UIManager.getColor("Component.borderColor") ?: java.awt.Color.GRAY
-                ),
-                BorderFactory.createEmptyBorder(1, 6, 1, 2)
-            )
-            add(JLabel("@$handle"))
-            add(JButton("×").apply {
-                putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
-                toolTipText = text("remove_translator", handle)
-                margin = Insets(0, 2, 0, 2)
-                addActionListener {
-                    translators.remove(handle)
-                    markDirty()
-                    rebuildTranslators()
-                }
-            })
+    /**
+     * The list, in a window with room for it.
+     *
+     * Cancel leaves the credits exactly as they were, so this is somewhere you can look at the
+     * list without committing to having changed it.
+     */
+    private fun manageTranslators() {
+        val listModel = DefaultListModel<String>().apply { translators.forEach { addElement(it) } }
+        val list = JList(listModel).apply {
+            selectionMode = ListSelectionModel.SINGLE_SELECTION
+            visibleRowCount = 8
+            cellRenderer = object : DefaultListCellRenderer() {
+                override fun getListCellRendererComponent(
+                    l: JList<*>, value: Any?, index: Int, sel: Boolean, focus: Boolean
+                ): java.awt.Component =
+                    super.getListCellRendererComponent(l, "@$value", index, sel, focus)
+            }
         }
 
-    private fun addTranslator() {
-        val handle = JOptionPane.showInputDialog(
-            this, text("add_translator_prompt"), text("add_translator"), JOptionPane.PLAIN_MESSAGE
-        )?.trim()?.removePrefix("@")?.takeIf { it.isNotEmpty() } ?: return
+        val removeButton = JButton(text("translators_remove")).apply {
+            isEnabled = false
+            addActionListener {
+                val index = list.selectedIndex
+                if (index >= 0) {
+                    listModel.remove(index)
+                    list.selectedIndex = index.coerceAtMost(listModel.size() - 1)
+                }
+            }
+        }
+        list.addListSelectionListener { removeButton.isEnabled = list.selectedIndex >= 0 }
 
-        // Appended, and only once. Order is the record of who arrived when, so an existing name
-        // keeps its place rather than jumping to the end.
-        if (translators.none { it.equals(handle, ignoreCase = true) }) {
-            translators += handle
+        val addButton = JButton(text("add_translator")).apply {
+            addActionListener {
+                val handle = JOptionPane.showInputDialog(
+                    this@LanguageEditorDialog, text("add_translator_prompt"),
+                    text("translators_title"), JOptionPane.PLAIN_MESSAGE
+                )?.trim()?.removePrefix("@")?.takeIf { it.isNotEmpty() } ?: return@addActionListener
+
+                // Appended, and only once. The order records who arrived when, so someone already
+                // on the list keeps their place instead of jumping to the end.
+                val already = (0 until listModel.size()).any { listModel[it].equals(handle, ignoreCase = true) }
+                if (!already) listModel.addElement(handle)
+            }
+        }
+
+        val panel = JPanel(BorderLayout(UIScale.scale(8), UIScale.scale(8))).apply {
+            preferredSize = Dimension(UIScale.scale(320), UIScale.scale(240))
+            add(JScrollPane(list).apply {
+                border = BorderFactory.createLineBorder(
+                    UIManager.getColor("Component.borderColor") ?: java.awt.Color.GRAY
+                )
+            }, BorderLayout.CENTER)
+            add(JPanel(FlowLayout(FlowLayout.TRAILING, UIScale.scale(6), 0)).apply {
+                isOpaque = false
+                add(addButton)
+                add(removeButton)
+            }, BorderLayout.SOUTH)
+        }
+
+        val result = JOptionPane.showConfirmDialog(
+            this, panel, text("translators_title"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE
+        )
+        if (result != JOptionPane.OK_OPTION) return
+
+        val updated = (0 until listModel.size()).map { listModel[it] }
+        if (updated != translators) {
+            translators.clear()
+            translators += updated
             markDirty()
             rebuildTranslators()
         }
@@ -603,7 +617,7 @@ class LanguageEditorDialog(
     }
 
     private fun setEnabledForContent(enabled: Boolean) {
-        listOf<JComponent>(nameField, nativeNameField, localeField, translatorsRow, rtlCheck, table)
+        listOf<JComponent>(nameField, nativeNameField, localeField, translatorsField, rtlCheck, table)
             .forEach { it.isEnabled = enabled }
     }
 
@@ -828,7 +842,7 @@ class LanguageEditorDialog(
     }
 
     private companion object {
-        /** Two rows of credit chips. Past that the list scrolls instead of growing the block. */
-        val MAX_CREDIT_HEIGHT = UIScale.scale(62)
+        /** How many handles the one-line summary names before it starts counting the rest. */
+        const val SUMMARY_NAMES = 2
     }
 }
