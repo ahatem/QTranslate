@@ -139,6 +139,34 @@ class LocalizationManager(
     /** Every string the application asks for, in declaration order. */
     fun englishStrings(): Map<String, String> = embeddedFallback
 
+    /**
+     * The English file verbatim, comments and all.
+     *
+     * The editor writes translations against this rather than against [englishStrings], because
+     * the structure is the part worth copying: a file assembled from a map would be valid and
+     * unreadable. See [LanguageFileWriter].
+     */
+    fun englishTemplate(): String = runCatching {
+        checkNotNull(
+            this::class.java.classLoader.getResourceAsStream(EMBEDDED_RESOURCE)
+        ).bufferedReader().readText()
+    }.getOrElse {
+        logger.error("Failed to read the embedded English file", it)
+        ""
+    }
+
+    /**
+     * Drops everything cached for [code], so the next read comes from disk.
+     *
+     * Called after the editor writes a file. Without it the application would keep serving the
+     * translation it loaded at startup, and someone editing a string would see nothing change.
+     */
+    fun forget(code: LanguageCode) {
+        translationCache.remove(code)
+        languageMetaCache.remove(code)
+        coverageCache.remove(code)
+    }
+
     private fun loadAndCacheLanguage(code: LanguageCode) {
         if (translationCache.containsKey(code)) return
 
@@ -193,11 +221,15 @@ class LocalizationManager(
     private fun loadEmbeddedFallback(): Map<String, String> =
         runCatching {
             val stream = checkNotNull(
-                this::class.java.classLoader.getResourceAsStream("localization/embedded_en.toml")
-            ) { "Missing embedded localization file: localization/embedded_en.toml" }
+                this::class.java.classLoader.getResourceAsStream(EMBEDDED_RESOURCE)
+            ) { "Missing embedded localization file: $EMBEDDED_RESOURCE" }
             parser.parse(stream.bufferedReader().readText()).entries
         }.getOrElse {
             logger.error("Failed to load embedded fallback localization", it)
             emptyMap()
         }
+
+    private companion object {
+        const val EMBEDDED_RESOURCE = "localization/embedded_en.toml"
+    }
 }

@@ -78,7 +78,12 @@ class MainAppFrame(
     private val themeManager: ThemeManager,
     private val pluginManager: PluginManager,
     private val localizer: LocalizationManager,
-    private val notificationBus: com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
+    private val notificationBus: com.github.ahatem.qtranslate.core.shared.notification.NotificationBus,
+    /**
+     * Translates one string, used by the language editor to offer a suggestion for an untranslated
+     * key. Optional so a frame can be built without a translator, which simply hides the action.
+     */
+    private val translateString: (suspend (String, com.github.ahatem.qtranslate.api.language.LanguageCode) -> Result<String>)? = null
 ) : JFrame("QTranslate") {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("MainAppFrame"))
@@ -214,6 +219,7 @@ class MainAppFrame(
         themeManager = themeManager,
         localizationManager = localizer,
         availableLanguages = { mainStore.state.value.availableLanguages },
+        translateString = translateString,
         pauseGlobalHotkeys  = { globalKeyListener.setHotkeysEnabled(false) },
         resumeGlobalHotkeys = {
             globalKeyListener.setHotkeysEnabled(

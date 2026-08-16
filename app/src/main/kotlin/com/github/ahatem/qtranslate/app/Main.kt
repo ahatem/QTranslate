@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.ui.swing.main.MainAppFrame
+import com.github.michaelbull.result.fold
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -123,7 +124,13 @@ fun main() = runBlocking {
             themeManager     = deps.themeManager,
             localizer        = deps.localizationManager,
             pluginManager    = deps.pluginManager,
-            notificationBus  = deps.notificationBus
+            notificationBus  = deps.notificationBus,
+            translateString  = { text, target ->
+                deps.translateStringUseCase(text, target).fold(
+                    success = { Result.success(it) },
+                    failure = { Result.failure(IllegalStateException(it.message)) }
+                )
+            }
         )
         logger.info("Main window launched")
     }

@@ -5,6 +5,7 @@ import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.icons.FlatSearchIcon
 import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
@@ -50,6 +51,11 @@ class SettingsDialog(
     private val pauseGlobalHotkeys:  (() -> Unit)? = null,
     /** Invoked after the recorder closes; should restore the global hotkey state. */
     private val resumeGlobalHotkeys: (() -> Unit)? = null,
+    /**
+     * Translates one string, for the language editor's suggestion action. Absent when nothing can
+     * translate, which hides the action rather than offering one that fails.
+     */
+    private val translateString: (suspend (String, LanguageCode) -> Result<String>)? = null,
 ) : JDialog(owner, "Settings", true) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -775,7 +781,10 @@ class SettingsDialog(
             GeneralPanel(settingsStore, localizationManager)
 
         label("appearance") ->
-            AppearancePanel(settingsStore, themeManager, localizationManager, scope)
+            AppearancePanel(
+                settingsStore, themeManager, localizationManager, scope,
+                openEditor = { openLanguageEditor() }
+            )
 
         label("services") ->
             ServicesPanel(settingsStore, pluginManager, localizationManager, scope)
@@ -933,5 +942,20 @@ class SettingsDialog(
          * makes up the difference when that comes out too small to read as nesting.
          */
         const val NEST_INDENT = 18
+    }
+
+    /**
+     * Opens the language editor over this dialog and blocks until it closes.
+     *
+     * Modal on purpose: it writes the files this dialog is reading from, so letting both be used
+     * at once would show settings that no longer match what is on disk.
+     */
+    private fun openLanguageEditor() {
+        LanguageEditorDialog(
+            owner = this,
+            localizationManager = localizationManager,
+            scope = scope,
+            translateString = translateString
+        ).isVisible = true
     }
 }

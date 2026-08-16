@@ -26,7 +26,13 @@ class AppearancePanel(
     private val store: SettingsStore,
     private val themeManager: ThemeManager,
     private val localizationManager: LocalizationManager,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    /**
+     * Opens the language editor, and returns once it closes so the picker can pick up whatever
+     * changed. Absent in contexts that have no dialog to parent it to, which hides the button
+     * rather than offering one that does nothing.
+     */
+    private val openEditor: (() -> Unit)? = null
 ) : SettingsPanel() {
 
     private val groupedItems: List<ThemeItem> = buildGroupedItems()
@@ -79,6 +85,19 @@ class AppearancePanel(
         }
         addRow(localizationManager.getString("settings_appearance.interface_language"), languageCombo)
         addHint(localizationManager.getString("settings_appearance.language_hint"))
+
+        // Beside the picker, because the two questions arrive together: someone who has just seen
+        // that a translation is unfinished is the person most likely to want to finish it.
+        openEditor?.let { open ->
+            gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+                .insets(6, 2, 0, 0)
+                .add(JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)).apply {
+                    isOpaque = false
+                    add(JButton(localizationManager.getString("language_editor.open_button")).apply {
+                        addActionListener { open() ; loadLanguageListAsync() }
+                    })
+                })
+        }
 
         // Last in the section, and set apart from the hint above it. The hint explains the control
         // and belongs beside it; this is an acknowledgement of whoever did the work. Run together

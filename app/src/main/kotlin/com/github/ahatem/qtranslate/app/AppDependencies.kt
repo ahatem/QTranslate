@@ -14,6 +14,7 @@ import com.github.ahatem.qtranslate.core.main.domain.usecase.SearchImagesUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.FetchInlineDefinitionUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.RewriteUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SummarizeUseCase
+import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateStringUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateTextUseCase
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
@@ -58,6 +59,7 @@ import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 class AppDependencies(
     val appScope: CoroutineScope,
     val mainStore: MainStore,
+    val translateStringUseCase: TranslateStringUseCase,
     val settingsStore: SettingsStore,
     val pluginManager: PluginManager,
     val iconManager: IconManager,
@@ -218,6 +220,8 @@ suspend fun buildDependencies(
         loggerFactory        = loggerFactory
     )
 
+    val translateStringUseCase = TranslateStringUseCase(activeServiceManager)
+
     val translateUseCase = TranslateTextUseCase(
         scope                = appScope,
         settingsState        = configState,
@@ -276,6 +280,7 @@ suspend fun buildDependencies(
     return AppDependencies(
         appScope            = appScope,
         mainStore           = mainStore,
+        translateStringUseCase = translateStringUseCase,
         settingsStore       = settingsStore,
         pluginManager       = pluginManager,
         iconManager         = iconManager,
