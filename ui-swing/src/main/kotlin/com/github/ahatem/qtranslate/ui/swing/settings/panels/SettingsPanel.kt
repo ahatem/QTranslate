@@ -62,6 +62,9 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
     private val entries = mutableListOf<SettingEntry>()
     private var currentSection: String = ""
 
+    /** Every hint and its source text, so the markup can be regenerated per layout direction. */
+    private val hintLabels = mutableListOf<Pair<JLabel, String>>()
+
     @Volatile
     protected var isUpdatingFromState = false
 
@@ -202,12 +205,23 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
                 // Read the label center after layout — this is the Y coordinate of the
                 // separator line that makes it appear visually aligned with the text.
                 val centerY = titleLabel.y + titleLabel.height / 2
-                val startX  = titleLabel.x + titleLabel.width + gap
-                if (startX >= width) return
+
+                // The line fills whatever the label leaves, so it runs from the label's
+                // trailing edge to the panel's trailing edge. FlowLayout.LEADING puts the
+                // label on the right in a right-to-left interface, so measuring from the
+                // label's right edge and drawing to `width` produced a start beyond the
+                // panel: the guard below returned every time and the line simply never
+                // appeared, leaving the heading looking unfinished.
+                val (startX, endX) = if (componentOrientation.isLeftToRight) {
+                    (titleLabel.x + titleLabel.width + gap) to width
+                } else {
+                    0 to (titleLabel.x - gap)
+                }
+                if (endX <= startX) return
                 g.color = UIManager.getColor("Separator.foreground")
                     ?: UIManager.getColor("Component.borderColor")
                     ?: Color.GRAY
-                g.drawLine(startX, centerY, width, centerY)
+                g.drawLine(startX, centerY, endX, centerY)
             }
         }
     }
@@ -257,14 +271,11 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      * Uses an HTML width constraint so long text wraps instead of growing the dialog.
      */
     protected fun addHint(text: String) {
-        val html = text.replace("\n", "<br>")
-        // Swing does not scale pixel widths inside HTML, so an unscaled figure here wraps the
-        // hint at half the intended measure on a 200% display while the font around it doubles.
-        val width = UIScale.scale(HINT_WIDTH)
-        val hint = JLabel("<html><body style='width:${width}px'><i>$html</i></body></html>").apply {
+        val hint = JLabel(hintHtml(text)).apply {
             foreground = UIManager.getColor("Label.disabledForeground")
             font = font.deriveFont(font.size - 1f)
         }
+        hintLabels += hint to text
         gb.nextRow()
             .spanLine()
             .weightX(1.0)
@@ -275,6 +286,43 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
         // Attached to the setting above rather than indexed on its own, so searching for a word
         // that only appears in the explanation still finds the control it explains.
         entries.lastOrNull()?.let { entries[entries.lastIndex] = it.copy(hint = text) }
+    }
+
+    /**
+     * Renders a hint's HTML for the current layout direction.
+     *
+     * The fixed measure is what made this direction-sensitive. The label stretches across the row
+     * but the HTML block inside it does not, so the block sits at the leading edge while the text
+     * inside it stays aligned to the left whatever the component does. In Arabic that left the
+     * words starting a full measure in from the right edge, which reads as centred rather than as
+     * text that has simply been aligned the wrong way.
+     *
+     * `dir` is set as well as `text-align` so punctuation and any embedded Latin resolve against
+     * the right base direction instead of being reordered at the end of the line.
+     */
+    private fun hintHtml(text: String): String {
+        val html = text.replace("\n", "<br>")
+        // Swing does not scale pixel widths inside HTML, so an unscaled figure here wraps the
+        // hint at half the intended measure on a 200% display while the font around it doubles.
+        val width = UIScale.scale(HINT_WIDTH)
+        val leftToRight = componentOrientation.isLeftToRight
+        val dir = if (leftToRight) "ltr" else "rtl"
+        val align = if (leftToRight) "left" else "right"
+        return "<html><body dir='$dir' style='width:${width}px; text-align:$align'>" +
+            "<i>$html</i></body></html>"
+    }
+
+    /**
+     * Rebuilds anything whose rendering was derived from the layout direction.
+     *
+     * Panels are built before the dialog flips them, so every hint is first laid out
+     * left-to-right. `applyComponentOrientation` moves components but cannot know that a string of
+     * HTML was generated from the old direction, so the markup is regenerated here. This also
+     * covers the user changing the interface language while the dialog is open.
+     */
+    override fun applyComponentOrientation(orientation: ComponentOrientation) {
+        super.applyComponentOrientation(orientation)
+        hintLabels.forEach { (label, text) -> label.text = hintHtml(text) }
     }
 
     /**

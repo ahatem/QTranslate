@@ -261,12 +261,20 @@ class DynamicPluginSettingsDialog(
             override fun paintComponent(g: Graphics) {
                 super.paintComponent(g)
                 val centerY = label.y + label.height / 2
-                val startX = label.x + label.width + gap
-                if (startX >= width) return
+
+                // Runs from the label's trailing edge to the panel's, which is the left in a
+                // right-to-left interface. Measuring only from the label's right edge put the
+                // start beyond the panel there, so the line never drew at all.
+                val (startX, endX) = if (componentOrientation.isLeftToRight) {
+                    (label.x + label.width + gap) to width
+                } else {
+                    0 to (label.x - gap)
+                }
+                if (endX <= startX) return
                 g.color = UIManager.getColor("Separator.foreground")
                     ?: UIManager.getColor("Component.borderColor")
                             ?: Color.GRAY
-                g.drawLine(startX, centerY, width, centerY)
+                g.drawLine(startX, centerY, endX, centerY)
             }
         }.apply { alignmentX = Component.LEFT_ALIGNMENT }
     }

@@ -97,6 +97,24 @@ class PluginsPanel(
         }
     }
 
+    /**
+     * Recomputes everything whose side depends on the layout direction.
+     *
+     * The panel is built before the dialog flips it, so the constructor's call to
+     * [refreshLeftBorder] always ran while this was still left-to-right. The divider was baked
+     * onto the list's right edge and nothing revisited it, which left the line on the wrong side
+     * of the list in Arabic. `applyComponentOrientation` sets the property and repaints; it does
+     * not know that a border was derived from it, so the derivation has to run again here.
+     */
+    override fun applyComponentOrientation(orientation: ComponentOrientation) {
+        super.applyComponentOrientation(orientation)
+        // Guarded because a superclass constructor may reach this before the fields it touches
+        // have been assigned.
+        if (!::listHeaderPanel.isInitialized) return
+        refreshLeftBorder()
+        refreshPluginRows()
+    }
+
     init {
         // PluginsPanel overrides the SettingsPanel GridBag layout
         removeAll()
@@ -379,7 +397,12 @@ class PluginsPanel(
                 // leading-edge inset, so it swaps sides with the layout: written absolutely, the
                 // line hung off the wrong edge in a right-to-left interface and stopped lining up
                 // with the name it belongs to.
-                border = if (componentOrientation.isLeftToRight) {
+                //
+                // The direction is read from the panel, not from this label. A component that has
+                // not been added to anything yet reports ComponentOrientation.UNKNOWN, whose
+                // isLeftToRight is true, so asking the label always answered left-to-right and the
+                // indent never moved.
+                border = if (this@PluginsPanel.componentOrientation.isLeftToRight) {
                     BorderFactory.createEmptyBorder(3, NAME_INDENT, 0, 0)
                 } else {
                     BorderFactory.createEmptyBorder(3, 0, 0, NAME_INDENT)
