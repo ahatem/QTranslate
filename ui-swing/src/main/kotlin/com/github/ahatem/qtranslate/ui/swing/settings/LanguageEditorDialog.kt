@@ -1,12 +1,14 @@
 package com.github.ahatem.qtranslate.ui.swing.settings
 
 import com.formdev.flatlaf.FlatClientProperties
+import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LanguageFileMeta
 import com.github.ahatem.qtranslate.core.localization.LanguageFileWriter
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.ui.swing.shared.util.WrapLayout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -19,6 +21,7 @@ import java.awt.Font
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.Insets
+import java.awt.Rectangle
 import java.io.File
 import javax.swing.*
 import javax.swing.table.AbstractTableModel
@@ -80,12 +83,50 @@ class LanguageEditorDialog(
     private val nameField = JTextField()
     private val nativeNameField = JTextField()
     private val localeField = JTextField()
-    private val translatorsField = JTextField()
     private val rtlCheck = JCheckBox(text("rtl"))
 
+    /**
+     * Who has worked on this translation, in the order they arrived.
+     *
+     * Held as a list and edited by adding and removing, never as one editable string. A comma
+     * separated field invites replacing what is in it, and the one rule this list has is that you
+     * append to it: a translation is rarely one person's work for long and everyone who has
+     * touched it stays credited.
+     */
+    private val translators = mutableListOf<String>()
+
+    /**
+     * The chips themselves.
+     *
+     * `Scrollable` with `getScrollableTracksViewportWidth() = true` is the part that makes this
+     * work inside a scroll pane: without it a wrapping layout has no width to wrap against and
+     * lays every chip out on one endless line. The same trick the plugin detail pane uses.
+     */
+    private val translatorsRow = object : JPanel(WrapLayout(FlowLayout.LEADING, UIScale.scale(4), UIScale.scale(3))), Scrollable {
+        override fun getPreferredScrollableViewportSize(): Dimension = preferredSize
+        override fun getScrollableUnitIncrement(r: Rectangle, o: Int, d: Int) = UIScale.scale(16)
+        override fun getScrollableBlockIncrement(r: Rectangle, o: Int, d: Int) = UIScale.scale(32)
+        override fun getScrollableTracksViewportWidth() = true
+        override fun getScrollableTracksViewportHeight() = false
+    }
+
+    /**
+     * Holds the credits to two rows, and scrolls past that.
+     *
+     * Unbounded, the chips wrap as far as they like and every extra row pushes the strings table
+     * further down: a dozen credits and the thing the dialog exists for is off the bottom of the
+     * window. Two rows fit any real translation, and anything beyond that scrolls rather than
+     * resizing the window around it.
+     */
+    private val translatorsScroll = JScrollPane(translatorsRow).apply {
+        border = BorderFactory.createEmptyBorder()
+        isOpaque = false
+        viewport.isOpaque = false
+        horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+        verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
+    }
+
     private val detailsPanel = JPanel(GridBagLayout()).apply { isOpaque = false }
-    private val detailsSummary = JLabel()
-    private val detailsToggle = JButton()
 
     private var loadedCode: String? = null
     private var dirty = false
@@ -121,14 +162,21 @@ class LanguageEditorDialog(
 
     // ── Layout ────────────────────────────────────────────────────────────────
 
+    /**
+     * The block describing the language itself, above the strings.
+     *
+     * Always open. It used to collapse behind a borderless "Details" button in the top-right, to
+     * buy four more rows a screen — but nobody found the button, so what it actually bought was a
+     * window whose language had no name on it. Four rows are cheaper than that.
+     */
     private fun buildHeader(): JComponent {
         val details = detailsPanel.apply {
             val c = GridBagConstraints().apply {
-                insets = Insets(2, 0, 2, 8); anchor = GridBagConstraints.LINE_START
+                insets = Insets(3, 0, 3, 8); anchor = GridBagConstraints.LINE_START
                 fill = GridBagConstraints.HORIZONTAL
             }
             fun field(label: String, comp: JComponent, x: Int, y: Int, weight: Double) {
-                c.gridx = x; c.gridy = y; c.weightx = 0.0
+                c.gridx = x; c.gridy = y; c.weightx = 0.0; c.gridwidth = 1
                 add(JLabel(text(label)), c)
                 c.gridx = x + 1; c.weightx = weight
                 add(comp, c)
@@ -136,70 +184,135 @@ class LanguageEditorDialog(
             field("name", nameField, 0, 0, 0.5)
             field("native_name", nativeNameField, 2, 0, 0.5)
             field("locale", localeField, 0, 1, 0.5)
-            field("translators", translatorsField, 2, 1, 0.5)
+            field("translators", translatorsScroll, 2, 1, 0.5)
+
+            // Deleting the language is not an editing action and has no business in the window you
+            // do the editing in — you would have to open a translation to throw it away. It lives
+            // in the language picker in Settings, beside the rest of the actions that add and
+            // remove translations.
             c.gridx = 0; c.gridy = 2; c.gridwidth = 4; c.weightx = 1.0
             add(rtlCheck, c)
         }
-        listOf(nameField, nativeNameField, localeField, translatorsField).forEach { it.onEdit { markDirty() } }
+        translatorsRow.isOpaque = false
+        listOf(nameField, nativeNameField, localeField).forEach { it.onEdit { markDirty() } }
         rtlCheck.addActionListener { markDirty() }
-        translatorsField.putClientProperty(
-            FlatClientProperties.PLACEHOLDER_TEXT, text("translators_placeholder")
-        )
 
-        val filters = JPanel(BorderLayout(8, 0)).apply {
-            border = BorderFactory.createEmptyBorder(8, 0, 4, 0)
+        val filters = JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
+            isOpaque = false
+            border = BorderFactory.createEmptyBorder(10, 0, 8, 0)
             searchField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, text("search"))
             searchField.onEdit { applyFilter() }
             untranslatedOnly.addActionListener { applyFilter() }
+            // The two actions that operate on the selected rows, kept with the rows. In the footer
+            // they sat beside Close and Save and read as if they acted on the whole dialog.
+            add(buildRowActions(), BorderLayout.LINE_START)
             add(searchField, BorderLayout.CENTER)
-            add(JPanel(FlowLayout(FlowLayout.TRAILING, 8, 0)).apply {
+            add(JPanel(FlowLayout(FlowLayout.TRAILING, UIScale.scale(8), 0)).apply {
                 isOpaque = false
                 add(untranslatedOnly)
                 add(coverageLabel.apply { font = font.deriveFont(Font.BOLD) })
             }, BorderLayout.LINE_END)
         }
 
-        // Closed by default. These five fields are set once when a translation is started and
-        // never touched again, and open they took roughly a fifth of a window whose real content
-        // is 546 rows the user will scroll for an hour. Closing them buys four more rows a screen.
-        details.isVisible = false
-        val summary = JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
-            isOpaque = false
-            add(detailsSummary, BorderLayout.CENTER)
-            add(detailsToggle.apply {
-                text = detailsToggleLabel()
-                putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
-                addActionListener {
-                    details.isVisible = !details.isVisible
-                    text = detailsToggleLabel()
-                    revalidate()
-                }
-            }, BorderLayout.LINE_END)
-        }
-
         return JPanel(BorderLayout()).apply {
             border = BorderFactory.createEmptyBorder(12, 12, 0, 12)
-            add(JPanel(BorderLayout()).apply {
-                isOpaque = false
-                add(summary, BorderLayout.NORTH)
-                add(details, BorderLayout.CENTER)
-            }, BorderLayout.CENTER)
+            add(details.withRuleBelow(), BorderLayout.CENTER)
             add(filters, BorderLayout.SOUTH)
         }
     }
 
-    private fun detailsToggleLabel() =
-        text(if (detailsPanel.isVisible) "hide_details" else "show_details")
+    /** Wraps [this] with the standard rule underneath, dividing it from what follows. */
+    private fun JComponent.withRuleBelow(): JComponent =
+        JPanel(BorderLayout()).apply {
+            isOpaque = false
+            add(this@withRuleBelow, BorderLayout.CENTER)
+            add(JPanel().apply {
+                isOpaque = false
+                border = BorderFactory.createMatteBorder(
+                    1, 0, 0, 0, UIManager.getColor("Component.borderColor") ?: java.awt.Color.GRAY
+                )
+                preferredSize = Dimension(0, 1)
+            }, BorderLayout.SOUTH)
+        }
 
-    /** One line standing in for the closed metadata block, so nothing is hidden without trace. */
-    private fun updateDetailsSummary() {
-        val parts = listOfNotNull(
-            nameField.text.trim().takeIf { it.isNotEmpty() },
-            localeField.text.trim().takeIf { it.isNotEmpty() },
-            translatorsField.text.trim().takeIf { it.isNotEmpty() },
-            text(if (rtlCheck.isSelected) "dir_rtl" else "dir_ltr")
-        )
-        detailsSummary.text = parts.joinToString("  ·  ")
+    private fun buildRowActions(): JComponent =
+        JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(6), 0)).apply {
+            isOpaque = false
+            if (translateString != null) {
+                add(JButton(text("suggest")).apply {
+                    toolTipText = text("suggest_tooltip")
+                    addActionListener { suggestForSelection() }
+                })
+            }
+            add(JButton(text("reset_row")).apply {
+                toolTipText = text("reset_row_tooltip")
+                addActionListener { resetSelection() }
+            })
+        }
+
+    // ── Translator credits ────────────────────────────────────────────────────
+
+    /** Redraws the credit chips from [translators]. */
+    private fun rebuildTranslators() {
+        translatorsRow.removeAll()
+        if (translators.isEmpty()) {
+            translatorsRow.add(JLabel(text("translators_empty")).apply {
+                foreground = UIManager.getColor("Label.disabledForeground")
+                font = font.deriveFont(font.size - 1f)
+            })
+        }
+        translators.forEach { translatorsRow.add(translatorChip(it)) }
+        translatorsRow.add(JButton(text("add_translator")).apply {
+            putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
+            toolTipText = text("add_translator_tooltip")
+            addActionListener { addTranslator() }
+        })
+        translatorsRow.revalidate()
+
+        // GridBagLayout sizes a cell from its preferred height and ignores maximumSize, so the cap
+        // has to be applied to the preferred size itself, after the chips are in and their height
+        // is known.
+        val natural = translatorsRow.preferredSize.height.coerceAtLeast(UIScale.scale(26))
+        translatorsScroll.preferredSize = Dimension(0, minOf(natural, MAX_CREDIT_HEIGHT))
+        translatorsScroll.revalidate()
+        translatorsScroll.repaint()
+    }
+
+    /** One credited person: their handle, and the way to take it off again. */
+    private fun translatorChip(handle: String): JComponent =
+        JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(3), 0)).apply {
+            isOpaque = false
+            border = BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(
+                    UIManager.getColor("Component.borderColor") ?: java.awt.Color.GRAY
+                ),
+                BorderFactory.createEmptyBorder(1, 6, 1, 2)
+            )
+            add(JLabel("@$handle"))
+            add(JButton("×").apply {
+                putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
+                toolTipText = text("remove_translator", handle)
+                margin = Insets(0, 2, 0, 2)
+                addActionListener {
+                    translators.remove(handle)
+                    markDirty()
+                    rebuildTranslators()
+                }
+            })
+        }
+
+    private fun addTranslator() {
+        val handle = JOptionPane.showInputDialog(
+            this, text("add_translator_prompt"), text("add_translator"), JOptionPane.PLAIN_MESSAGE
+        )?.trim()?.removePrefix("@")?.takeIf { it.isNotEmpty() } ?: return
+
+        // Appended, and only once. Order is the record of who arrived when, so an existing name
+        // keeps its place rather than jumping to the end.
+        if (translators.none { it.equals(handle, ignoreCase = true) }) {
+            translators += handle
+            markDirty()
+            rebuildTranslators()
+        }
     }
 
     private fun buildTable(): JComponent {
@@ -212,7 +325,10 @@ class LanguageEditorDialog(
             columnModel.getColumn(StringsModel.COL_DONE).apply {
                 val width = UIScale.scale(26)
                 preferredWidth = width; minWidth = width; maxWidth = width
-                cellRenderer = DoneRenderer(this@LanguageEditorDialog.model)
+                cellRenderer = DoneRenderer(
+                    this@LanguageEditorDialog.model,
+                    isFilteredToUntranslated = { untranslatedOnly.isSelected }
+                )
             }
             columnModel.getColumn(StringsModel.COL_KEY).preferredWidth = UIScale.scale(210)
             columnModel.getColumn(StringsModel.COL_ENGLISH).preferredWidth = UIScale.scale(290)
@@ -252,27 +368,15 @@ class LanguageEditorDialog(
         }
     }
 
+    /**
+     * Only the two actions that finish with the dialog.
+     *
+     * It used to hold five buttons of three different scopes in a row: two that acted on the
+     * selected table rows, one that destroyed the file, and two that closed the window. Sorting
+     * them by what they act on put the row actions with the rows and the delete with the rest of
+     * the language's own settings, and left this bar saying one thing.
+     */
     private fun buildFooter(): JComponent {
-        val actions = JPanel(FlowLayout(FlowLayout.LEADING, 6, 0)).apply {
-            if (translateString != null) {
-                add(JButton(text("suggest")).apply {
-                    toolTipText = text("suggest_tooltip")
-                    addActionListener { suggestForSelection() }
-                })
-            }
-            add(JButton(text("reset_row")).apply {
-                toolTipText = text("reset_row_tooltip")
-                addActionListener { resetSelection() }
-            })
-        }
-        // Deliberately far from Save. It destroys the file, and one slip beside the button people
-        // reach for constantly is how that happens.
-        actions.add(Box.createHorizontalStrut(UIScale.scale(16)))
-        actions.add(JButton(text("delete")).apply {
-            foreground = UIManager.getColor("Component.error.focusedBorderColor") ?: foreground
-            addActionListener { deleteLanguage() }
-        })
-
         val saveButton = JButton(text("save")).apply { addActionListener { save() } }
         // Enter saves, which is what someone who has just typed a translation expects. Set on the
         // dialog's own root pane, and only once there is one: a button that is not yet in a
@@ -293,7 +397,6 @@ class LanguageEditorDialog(
                 ),
                 BorderFactory.createEmptyBorder(10, 12, 12, 12)
             )
-            add(actions, BorderLayout.LINE_START)
             add(buttons, BorderLayout.LINE_END)
         }
     }
@@ -325,17 +428,14 @@ class LanguageEditorDialog(
                 nameField.text = meta?.name.orEmpty()
                 nativeNameField.text = meta?.nativeName.orEmpty()
                 localeField.text = meta?.locale ?: code
-                translatorsField.text = meta?.translators?.joinToString(", ").orEmpty()
+                translators.clear()
+                translators += meta?.translators.orEmpty()
+                rebuildTranslators()
                 rtlCheck.isSelected = meta?.isRtl == true
                 model.replaceTranslations(parsed?.entries.orEmpty())
                 setEnabledForContent(true)
                 dirty = false
                 updateCoverage()
-                updateDetailsSummary()
-                // A translation being started has nothing to summarise and every field to fill,
-                // so it opens with them showing; an existing one opens on its strings.
-                detailsPanel.isVisible = parsed == null
-                detailsToggle.text = detailsToggleLabel()
             }
         }
     }
@@ -379,9 +479,7 @@ class LanguageEditorDialog(
             name = nameField.text.trim(),
             nativeName = nativeNameField.text.trim().ifBlank { nameField.text.trim() },
             locale = localeField.text.trim().ifBlank { code },
-            translators = translatorsField.text.split(',')
-                .map { it.trim().removePrefix("@") }
-                .filter { it.isNotEmpty() },
+            translators = translators.toList(),
             isRtl = rtlCheck.isSelected
         )
         scope.launch {
@@ -502,11 +600,10 @@ class LanguageEditorDialog(
     private fun markDirty() {
         dirty = true
         updateCoverage()
-        updateDetailsSummary()
     }
 
     private fun setEnabledForContent(enabled: Boolean) {
-        listOf<JComponent>(nameField, nativeNameField, localeField, translatorsField, rtlCheck, table)
+        listOf<JComponent>(nameField, nativeNameField, localeField, translatorsRow, rtlCheck, table)
             .forEach { it.isEnabled = enabled }
     }
 
@@ -588,21 +685,50 @@ class LanguageEditorDialog(
         }
     }
 
-    /** A tick against the rows that are done, so progress reads at a glance rather than absence. */
-    private class DoneRenderer(private val model: StringsModel) : DefaultTableCellRenderer() {
+    /**
+     * The state of the row as a mark, so it survives being the only signal.
+     *
+     * A tick for done, and a warning triangle for a row that needs attention — the same two states
+     * [StatusRenderer] colours, on the same terms, so the icon and the colour never disagree.
+     * Someone who cannot separate the amber from the surrounding text still sees the triangle.
+     */
+    private class DoneRenderer(
+        private val model: StringsModel,
+        private val isFilteredToUntranslated: () -> Boolean
+    ) : DefaultTableCellRenderer() {
+
+        private val doneIcon = themedIcon("icons/lucide/check.svg", "Actions.Green")
+        private val warnIcon = themedIcon("icons/lucide/triangle-alert.svg", "Component.warning.focusedBorderColor")
+        private val errorIcon = themedIcon("icons/lucide/triangle-alert.svg", "Component.error.focusedBorderColor")
+
         override fun getTableCellRendererComponent(
             table: JTable, value: Any?, isSelected: Boolean,
             hasFocus: Boolean, row: Int, column: Int
         ): java.awt.Component {
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
-            val done = model.rowAt(table.convertRowIndexToModel(row)).translation.isNotBlank()
-            text = if (done) "✓" else ""
+            val entry = model.rowAt(table.convertRowIndexToModel(row))
+            text = ""
             horizontalAlignment = CENTER
-            if (!isSelected) {
-                foreground = UIManager.getColor("Actions.Green")
-                    ?: UIManager.getColor("Label.disabledForeground")
+            icon = when {
+                entry.hasPlaceholderMismatch() -> errorIcon
+                entry.translation.isNotBlank() -> doneIcon
+                // With the filter on every row here is untranslated, so a column of identical
+                // triangles would only repeat what the checkbox already said.
+                isFilteredToUntranslated() -> null
+                else -> warnIcon
             }
             return this
+        }
+
+        private companion object {
+            /** A 14px lucide glyph repainted in [colorKey], resolved from the theme at paint time. */
+            fun themedIcon(path: String, colorKey: String): Icon? = runCatching {
+                FlatSVGIcon(path, 14, 14, DoneRenderer::class.java.classLoader).apply {
+                    colorFilter = FlatSVGIcon.ColorFilter {
+                        UIManager.getColor(colorKey) ?: UIManager.getColor("Label.foreground")
+                    }
+                } as Icon
+            }.getOrNull()
         }
     }
 
@@ -688,5 +814,10 @@ class LanguageEditorDialog(
             const val COL_ENGLISH = 2
             const val COL_TRANSLATION = 3
         }
+    }
+
+    private companion object {
+        /** Two rows of credit chips. Past that the list scrolls instead of growing the block. */
+        val MAX_CREDIT_HEIGHT = UIScale.scale(62)
     }
 }
