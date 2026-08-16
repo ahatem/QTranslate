@@ -75,15 +75,18 @@ class AppearancePanel(
             }
         }
         addRow(localizationManager.getString("settings_appearance.interface_language"), languageCombo)
+        addHint(localizationManager.getString("settings_appearance.language_hint"))
 
+        // Last in the section, and set apart from the hint above it. The hint explains the control
+        // and belongs beside it; this is an acknowledgement of whoever did the work. Run together
+        // as two dimmed lines they read as one paragraph, and the credit is the half that gets
+        // skipped — which defeats the point of showing it.
         translatorCredit = JPanel(FlowLayout(FlowLayout.LEADING, 4, 0)).apply {
             isOpaque = false
             isVisible = false
         }
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
-            .insets(2, 2, 0, 0).add(translatorCredit)
-
-        addHint(localizationManager.getString("settings_appearance.language_hint"))
+            .insets(10, 2, 2, 0).add(translatorCredit)
 
         // ---- Theme ----
         addSeparator(localizationManager.getString("settings_appearance.theme_group"))
