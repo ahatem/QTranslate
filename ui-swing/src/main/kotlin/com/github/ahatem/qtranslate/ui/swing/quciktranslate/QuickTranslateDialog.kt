@@ -3,8 +3,11 @@ package com.github.ahatem.qtranslate.ui.swing.quciktranslate
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.extras.FlatSVGIcon
+import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.Position
 import com.github.ahatem.qtranslate.core.settings.data.Size
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.LanguageComboBox
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorPopupButton
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
@@ -32,6 +35,7 @@ class QuickTranslateDialog(
      */
     private val owner: Frame,
     private val iconManager: IconManager,
+    private val localizationManager: LocalizationManager,
     private val onDismiss: () -> Unit,
     onTranslatorSelected: (String) -> Unit,
     private val onListen: () -> Unit,
@@ -39,7 +43,10 @@ class QuickTranslateDialog(
     private val onCopy: () -> Unit,
     private val onSavePosition: (Position) -> Unit,
     private val onSaveSize: (Size) -> Unit,
-    private val onPinToggled: () -> Unit
+    private val onPinToggled: () -> Unit,
+    private val onSourceLanguageSelected: (LanguageCode) -> Unit = {},
+    private val onTargetLanguageSelected: (LanguageCode) -> Unit = {},
+    private val onSwapLanguages: () -> Unit = {}
 ) : JDialog(null as Frame?, ModalityType.MODELESS), Renderable<QuickTranslateDialogState> {
 
     private companion object {
@@ -88,7 +95,29 @@ class QuickTranslateDialog(
     }
 
     // title + controls
-    private val languagePairLabel = JLabel().apply { putClientProperty("FlatLaf.styleClass", "h4") }
+    /**
+     * The language pair, as pickers rather than the label this used to be.
+     *
+     * Changing where a translation is going was previously a trip to the main window, which is a
+     * long way round for the most common follow-up thought: "yes, but into French".
+     *
+     * Guarded by [isRenderingLanguages] because assigning a combo's selection fires its listener,
+     * which would translate again on every render.
+     */
+    private val sourceLanguageCombo = LanguageComboBox(
+        onLanguageSelected = { if (!isRenderingLanguages) onSourceLanguageSelected(it) },
+        localizer = localizationManager
+    )
+
+    private val targetLanguageCombo = LanguageComboBox(
+        onLanguageSelected = { if (!isRenderingLanguages) onTargetLanguageSelected(it) },
+        localizer = localizationManager
+    )
+
+    private val swapButton = createButtonWithIcon(iconManager, "icons/lucide/swap.svg", 13)
+        .apply { addActionListener { onSwapLanguages() } }
+
+    private var isRenderingLanguages = false
     private val translatorComboBox = TranslatorPopupButton(iconManager, onTranslatorSelected)
 
     private val pinButton = createButtonWithIcon(iconManager, "icons/lucide/pin.svg", 14)
@@ -317,9 +346,27 @@ class QuickTranslateDialog(
         // Only for single words; the state carries it empty otherwise, so the strip hides itself.
         definitionStrip.render(state.definition)
 
-        val source = state.sourceLanguage.tag.uppercase()
-        val target = state.targetLanguage.tag.uppercase()
-        languagePairLabel.text = "$source → $target"
+        // Guarded: assigning a combo's selection fires its listener, which would ask for another
+        // translation on every render and loop.
+        isRenderingLanguages = true
+        try {
+            sourceLanguageCombo.render(
+                availableLanguages   = state.availableLanguages,
+                selectedLanguage     = state.sourceLanguage,
+                autoDetectedLanguage = state.detectedSourceLanguage,
+                isEnabled            = state.availableLanguages.isNotEmpty()
+            )
+            // A target of Auto means nothing, so it is not offered on that side.
+            val targets = state.availableLanguages.filter { it != LanguageCode.AUTO }
+            targetLanguageCombo.render(
+                availableLanguages   = targets,
+                selectedLanguage     = state.targetLanguage,
+                autoDetectedLanguage = null,
+                isEnabled            = targets.isNotEmpty()
+            )
+        } finally {
+            isRenderingLanguages = false
+        }
 
         translatorComboBox.render(
             TranslatorSelectorState(
@@ -329,8 +376,12 @@ class QuickTranslateDialog(
             )
         )
 
-        pinButton.toolTipText = if (state.isPinned) state.strings.unpinTooltip else state.strings.pinTooltip
-        copyButton.toolTipText = state.strings.copyTooltip
+        pinButton.toolTipText = withShortcut(
+            if (state.isPinned) state.strings.unpinTooltip else state.strings.pinTooltip,
+            KeyEvent.VK_P
+        )
+        copyButton.toolTipText = withShortcut(state.strings.copyTooltip, KeyEvent.VK_C)
+        swapButton.toolTipText = withShortcut(state.strings.swapTooltip, KeyEvent.VK_S)
         closeButton.toolTipText = state.strings.closeTooltip
 
         // Becomes a stop button while speech is playing, as it does in the main window. Pressing
@@ -343,8 +394,10 @@ class QuickTranslateDialog(
             14,
             14
         )
-        listenButton.toolTipText =
-            if (playing) state.strings.stopListeningTooltip else state.strings.listenTooltip
+        listenButton.toolTipText = withShortcut(
+            if (playing) state.strings.stopListeningTooltip else state.strings.listenTooltip,
+            KeyEvent.VK_E
+        )
 
         listenButton.isEnabled = playing || (state.actionsState.canListen && !state.isLoading)
         copyButton.isEnabled = state.actionsState.canCopy && !state.isLoading
@@ -611,9 +664,12 @@ class QuickTranslateDialog(
             isOpaque = false
         }
 
-        val leftPanel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+        val leftPanel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
             isOpaque = false
-            add(languagePairLabel)
+            add(sourceLanguageCombo)
+            add(swapButton)
+            add(targetLanguageCombo)
+            add(Box.createRigidArea(Dimension(4, 0)))
             add(translatorComboBox)
         }
 
@@ -750,6 +806,48 @@ class QuickTranslateDialog(
             KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
             JComponent.WHEN_IN_FOCUSED_WINDOW
         )
+
+        // Escape was the only key this popup answered to, so every action needed the mouse.
+        //
+        // Registered WHEN_IN_FOCUSED_WINDOW, which Swing consults *after* the focused component's
+        // own bindings. That matters for Ctrl+C: with a selection in the output pane the pane's
+        // own copy wins, and this one only takes over when nothing is selected, which is when
+        // "copy" can only sensibly mean the whole translation.
+        val menuMask = Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx
+        rootPane.registerKeyboardAction(
+            { onCopy(); showCopyFeedback() },
+            KeyStroke.getKeyStroke(KeyEvent.VK_C, menuMask),
+            JComponent.WHEN_IN_FOCUSED_WINDOW
+        )
+        rootPane.registerKeyboardAction(
+            { if (currentIsTtsPlaying) onStopListening() else onListen() },
+            KeyStroke.getKeyStroke(KeyEvent.VK_E, menuMask),
+            JComponent.WHEN_IN_FOCUSED_WINDOW
+        )
+        rootPane.registerKeyboardAction(
+            { onSwapLanguages() },
+            KeyStroke.getKeyStroke(KeyEvent.VK_S, menuMask),
+            JComponent.WHEN_IN_FOCUSED_WINDOW
+        )
+        rootPane.registerKeyboardAction(
+            { onPinToggled() },
+            KeyStroke.getKeyStroke(KeyEvent.VK_P, menuMask),
+            JComponent.WHEN_IN_FOCUSED_WINDOW
+        )
+    }
+
+    /**
+     * Appends a shortcut to a tooltip, in the platform's own notation.
+     *
+     * Shown on the control rather than left to be discovered, since a shortcut nobody knows about
+     * is the same as no shortcut. Built from the KeyStroke so it reads Cmd on macOS without a
+     * second string to keep in step.
+     */
+    private fun withShortcut(tooltip: String, keyCode: Int): String {
+        val stroke = KeyStroke.getKeyStroke(keyCode, Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx)
+        val modifiers = InputEvent.getModifiersExText(stroke.modifiers)
+        val key = KeyEvent.getKeyText(stroke.keyCode)
+        return "$tooltip  ($modifiers+$key)"
     }
 
     private fun autoHideStopForDrag() {

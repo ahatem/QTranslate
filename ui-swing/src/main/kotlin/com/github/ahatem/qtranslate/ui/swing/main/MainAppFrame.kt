@@ -158,6 +158,7 @@ class MainAppFrame(
         QuickTranslateDialog(
             owner = this,
             iconManager = iconManager,
+            localizationManager = localizer,
             onDismiss = { mainStore.dispatch(MainIntent.HideQuickTranslate) },
             onTranslatorSelected = { serviceId ->
                 settingsStore.dispatch(
@@ -180,7 +181,28 @@ class MainAppFrame(
                     SettingsIntent.ToggleSetting { it.copy(popupLastKnownSize = size) }
                 )
             },
-            onPinToggled = { mainStore.dispatch(MainIntent.ToggleQuickTranslateDialogPin) }
+            onPinToggled = { mainStore.dispatch(MainIntent.ToggleQuickTranslateDialogPin) },
+            // Changing either language re-runs the translation, which is the only reason anyone
+            // changes it here. The same intents the main window's own picker dispatches, so the
+            // two stay in step and the choice is remembered the same way.
+            onSourceLanguageSelected = { language ->
+                mainStore.dispatch(MainIntent.SelectSourceLanguage(language))
+                settingsStore.dispatch(
+                    SettingsIntent.ToggleSetting { it.copy(preferredSourceLanguage = language.tag) }
+                )
+                mainStore.dispatch(MainIntent.Translate())
+            },
+            onTargetLanguageSelected = { language ->
+                mainStore.dispatch(MainIntent.SelectTargetLanguage(language))
+                settingsStore.dispatch(
+                    SettingsIntent.ToggleSetting { it.copy(preferredTargetLanguage = language.tag) }
+                )
+                mainStore.dispatch(MainIntent.Translate())
+            },
+            onSwapLanguages = {
+                mainStore.dispatch(MainIntent.SwapLanguages)
+                mainStore.dispatch(MainIntent.Translate())
+            }
         )
     }
 
@@ -1417,6 +1439,8 @@ class MainAppFrame(
 
             sourceLanguage = displaySourceLanguage,
             targetLanguage = mainState.targetLanguage,
+            availableLanguages = mainState.availableLanguages,
+            detectedSourceLanguage = mainState.detectedSourceLanguage,
 
             translatorSelectorState = QuickTranslateSelectorState(
                 availableTranslators = mainState.getAvailableServicesFor(ServiceType.TRANSLATOR),
@@ -1444,6 +1468,7 @@ class MainAppFrame(
                 stopListeningTooltip = localizer.getString("common.stop"),
                 pinTooltip = localizer.getString("common.pin"),
                 unpinTooltip = localizer.getString("common.unpin"),
+                swapTooltip = localizer.getString("main_window_language_bar.swap_languages_tooltip"),
                 loadingText = localizer.getString("common.loading")
             )
         )

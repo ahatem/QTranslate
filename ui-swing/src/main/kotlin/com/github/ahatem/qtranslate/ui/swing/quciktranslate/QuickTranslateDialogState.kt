@@ -30,6 +30,15 @@ data class QuickTranslateDialogState(
     // --- The Data is now a first-class citizen ---
     val sourceLanguage: LanguageCode,
     val targetLanguage: LanguageCode,
+    /**
+     * Languages the active translator offers, for the popup's own pickers.
+     *
+     * The pair used to be shown as static text, so retargeting a translation meant opening the
+     * main window — a context switch for the most common follow-up thought there is.
+     */
+    val availableLanguages: List<LanguageCode> = emptyList(),
+    /** Detected source, shown beside Auto so the picker says what it settled on. */
+    val detectedSourceLanguage: LanguageCode? = null,
 
     val translatorSelectorState: QuickTranslateSelectorState,
     val actionsState: QuickTranslateActionsState,
@@ -73,5 +82,6 @@ data class DialogStrings(
     val stopListeningTooltip: String,
     val pinTooltip: String,
     val unpinTooltip: String,
+    val swapTooltip: String = "",
     val loadingText: String
 )
