@@ -1,7 +1,7 @@
-package com.github.ahatem.qtranslate.plugins.common
+package com.github.ahatem.qtranslate.core.plugin.http
 
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
-import com.github.ahatem.qtranslate.api.plugin.PluginContext
+import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -26,9 +26,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
-class KtorHttpClient(
-    private val pluginContext: PluginContext,
-    @PublishedApi internal val json: Json = Json {
+internal class KtorHttpClient(
+    private val logger: Logger,
+    private val json: Json = Json {
         ignoreUnknownKeys = true
         isLenient = true
         coerceInputValues = true
@@ -80,10 +80,10 @@ class KtorHttpClient(
             }
             handleResponse(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            pluginContext.logger.error("POST request timeout for $url", e)
+            logger.error("POST request timeout for $url", e)
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
         } catch (e: Exception) {
-            pluginContext.logger.error("POST request failed for $url", e)
+            logger.error("POST request failed for $url", e)
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -106,10 +106,10 @@ class KtorHttpClient(
             }
             handleResponse(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            pluginContext.logger.error("GET request timeout for $url", e)
+            logger.error("GET request timeout for $url", e)
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
         } catch (e: Exception) {
-            pluginContext.logger.error("GET request failed for $url", e)
+            logger.error("GET request failed for $url", e)
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -145,10 +145,10 @@ class KtorHttpClient(
 
             handleResponse(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            pluginContext.logger.error("POST form request timeout for $url", e)
+            logger.error("POST form request timeout for $url", e)
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
         } catch (e: Exception) {
-            pluginContext.logger.error("POST form request failed for $url", e)
+            logger.error("POST form request failed for $url", e)
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -186,10 +186,10 @@ class KtorHttpClient(
 
             handleResponseBytes(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            pluginContext.logger.error("POST form bytes request timeout for $url", e)
+            logger.error("POST form bytes request timeout for $url", e)
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
         } catch (e: Exception) {
-            pluginContext.logger.error("POST form bytes request failed for $url", e)
+            logger.error("POST form bytes request failed for $url", e)
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -211,10 +211,10 @@ class KtorHttpClient(
             }
             handleResponseBytes(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            pluginContext.logger.error("GET bytes request timeout for $url", e)
+            logger.error("GET bytes request timeout for $url", e)
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
         } catch (e: Exception) {
-            pluginContext.logger.error("GET bytes request failed for $url", e)
+            logger.error("GET bytes request failed for $url", e)
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -237,7 +237,7 @@ class KtorHttpClient(
 
             HttpStatusCode.PaymentRequired -> {
                 val errorBody = runCatching { response.bodyAsText() }.getOrDefault("")
-                pluginContext.logger.error("HTTP 402 (Payment Required) for $url — $errorBody")
+                logger.error("HTTP 402 (Payment Required) for $url — $errorBody")
                 Err(
                     ServiceError.AuthenticationError(
                         "Insufficient credits. " +
@@ -249,7 +249,7 @@ class KtorHttpClient(
 
             else -> {
                 val errorBody = runCatching { response.bodyAsText() }.getOrDefault("")
-                pluginContext.logger.error("HTTP ${response.status.value} for $url — $errorBody")
+                logger.error("HTTP ${response.status.value} for $url — $errorBody")
                 Err(ServiceError.ServiceUnavailableError("HTTP ${response.status.value} for $url\n$errorBody"))
             }
         }
@@ -271,7 +271,7 @@ class KtorHttpClient(
 
             else -> {
                 val errorBody = runCatching { response.bodyAsText() }.getOrDefault("")
-                pluginContext.logger.error("HTTP ${response.status.value} for $url — $errorBody")
+                logger.error("HTTP ${response.status.value} for $url — $errorBody")
                 Err(ServiceError.ServiceUnavailableError("HTTP ${response.status.value} for $url\n$errorBody"))
             }
         }

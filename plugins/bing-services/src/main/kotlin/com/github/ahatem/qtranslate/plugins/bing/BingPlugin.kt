@@ -1,12 +1,12 @@
 package com.github.ahatem.qtranslate.plugins.bing
 
 import com.github.ahatem.qtranslate.api.plugin.Plugin
+import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
-import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 
@@ -17,7 +17,7 @@ import com.github.michaelbull.result.Result
 class BingPlugin : Plugin<PluginSettings.None> {
 
     private lateinit var pluginContext: PluginContext
-    private lateinit var httpClient: KtorHttpClient
+    private val httpClient: HttpClient get() = pluginContext.http
     private lateinit var authManager: BingAuthManager
 
     private var activeServices: List<Service> = emptyList()
@@ -26,8 +26,7 @@ class BingPlugin : Plugin<PluginSettings.None> {
     private val apiConfig = ApiConfig()
 
     override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> {
-        this.pluginContext = context
-        this.httpClient = KtorHttpClient(context)
+        this.pluginContext = context
         this.authManager = BingAuthManager(context, httpClient)
 
         pluginContext.logger.info("Bing Plugin initialized")
@@ -50,8 +49,7 @@ class BingPlugin : Plugin<PluginSettings.None> {
     }
 
     override suspend fun shutdown() {
-        pluginContext.logger.info("Bing Plugin shutting down")
-        httpClient.close()
+        pluginContext.logger.info("Bing Plugin shutting down")
     }
 
     override fun getServices(): List<Service> = activeServices

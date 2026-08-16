@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.google
 
 import com.github.ahatem.qtranslate.api.plugin.Plugin
+import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
 import com.github.ahatem.qtranslate.api.plugin.Service
@@ -8,7 +9,6 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.settings.Setting
 import com.github.ahatem.qtranslate.api.settings.SettingType
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
-import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -16,7 +16,7 @@ import com.github.michaelbull.result.Result
 class GooglePlugin : Plugin<GoogleSettings> {
 
     private lateinit var pluginContext: PluginContext
-    private lateinit var httpClient: KtorHttpClient
+    private val httpClient: HttpClient get() = pluginContext.http
 
     private lateinit var settings: GoogleSettings
     private var activeServices: List<Service> = emptyList()
@@ -30,8 +30,7 @@ class GooglePlugin : Plugin<GoogleSettings> {
         this.settings = GoogleSettings(
             visionApiKey = context.secrets.get("visionApiKey") ?: "",
             translateApiKey = context.secrets.get("translateApiKey") ?: ""
-        )
-        this.httpClient = KtorHttpClient(context)
+        )
         pluginContext.logger.info("Google Plugin initialized")
         return Ok(Unit)
     }
@@ -73,8 +72,7 @@ class GooglePlugin : Plugin<GoogleSettings> {
     }
 
     override suspend fun shutdown() {
-        pluginContext.logger.info("Google Plugin shutting down")
-        httpClient.close()
+        pluginContext.logger.info("Google Plugin shutting down")
     }
 
     override fun getServices(): List<Service> = activeServices

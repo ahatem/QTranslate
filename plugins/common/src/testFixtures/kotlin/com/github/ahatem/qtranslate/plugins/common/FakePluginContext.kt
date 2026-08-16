@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.plugins.common
 
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.DisplayText
+import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.SecretStore
@@ -24,13 +25,23 @@ import java.nio.file.Files
  */
 class FakePluginContext(
     override val logger: Logger = SilentLogger,
-    private val dataDirectory: File = Files.createTempDirectory("qtranslate-plugin-test").toFile()
+    private val dataDirectory: File = Files.createTempDirectory("qtranslate-plugin-test").toFile(),
+    httpClient: HttpClient = UnreachableHttpClient
 ) : PluginContext {
 
     override val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override val settings: SettingsStore = InMemorySettingsStore()
     override val secrets: SecretStore = InMemorySecretStore()
+
+    /**
+     * The client the plugin under test will reach for.
+     *
+     * Defaults to one that throws on every call. A test that wants a request arranged passes its
+     * own; a test that does not is asserting about lifecycle or settings, and a real request
+     * escaping into it would reach the network from a unit test.
+     */
+    override val http: HttpClient = httpClient
 
     /** Every notification the plugin raised, oldest first. */
     val notifications: List<Notification> get() = _notifications

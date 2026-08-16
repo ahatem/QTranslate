@@ -42,3 +42,28 @@ abstract class TextHttpClient : HttpClient {
     private fun notArranged(call: String, url: String): Nothing =
         error("${this::class.simpleName} received an unarranged $call for $url")
 }
+
+/**
+ * The client a [FakePluginContext] carries when the test did not supply one.
+ *
+ * Throws on every call. Returning an empty success instead would let a plugin under test make a
+ * request nobody arranged and carry on, and returning a network error would be worse still: the
+ * test would exercise the plugin's failure path while looking like it had tested the happy one.
+ */
+object UnreachableHttpClient : TextHttpClient() {
+
+    override suspend fun get(
+        url: String,
+        headers: Map<String, String>,
+        queryParams: Map<String, Any?>
+    ): Result<String, ServiceError> =
+        error("This test's PluginContext has no HTTP client arranged, but a GET was made to $url")
+
+    override suspend fun post(
+        url: String,
+        headers: Map<String, String>,
+        body: String?,
+        queryParams: Map<String, Any?>
+    ): Result<String, ServiceError> =
+        error("This test's PluginContext has no HTTP client arranged, but a POST was made to $url")
+}

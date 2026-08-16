@@ -1,9 +1,9 @@
 package com.github.ahatem.qtranslate.plugins.ai
 
 import com.github.ahatem.qtranslate.api.ocr.ImageData
+import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
-import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
 import com.github.ahatem.qtranslate.plugins.common.sendJson
 import com.github.michaelbull.result.Err
@@ -38,7 +38,7 @@ import java.util.Base64
  */
 class AIServiceClient(
     private val pluginContext: PluginContext,
-    private val httpClient: KtorHttpClient,
+    private val httpClient: HttpClient,
     private val settings: () -> AISettings
 ) {
     private val responseParser = createJsonParser<ChatCompletionResponse>(pluginContext)

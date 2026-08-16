@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.libretranslate
 
 import com.github.ahatem.qtranslate.api.plugin.Plugin
+import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
 import com.github.ahatem.qtranslate.api.plugin.Service
@@ -10,7 +11,6 @@ import com.github.ahatem.qtranslate.api.settings.Setting
 import com.github.ahatem.qtranslate.api.settings.SettingType
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
-import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -20,7 +20,7 @@ import java.net.URI
 
 class LibreTranslatePlugin : Plugin<LibreTranslateSettings> {
     private lateinit var context: PluginContext
-    private lateinit var httpClient: KtorHttpClient
+    private val httpClient: HttpClient get() = context.http
     private var settings = LibreTranslateSettings()
     private var services: List<Service> = emptyList()
 
@@ -29,8 +29,7 @@ class LibreTranslatePlugin : Plugin<LibreTranslateSettings> {
         settings = LibreTranslateSettings(
             instanceUrl = context.settings.getString(KEY_INSTANCE_URL) ?: DEFAULT_INSTANCE_URL,
             apiKey = context.secrets.get(KEY_API_KEY).orEmpty()
-        )
-        httpClient = KtorHttpClient(context)
+        )
         settings.attach(context) { httpClient }
         return Ok(Unit)
     }
@@ -59,8 +58,7 @@ class LibreTranslatePlugin : Plugin<LibreTranslateSettings> {
     }
 
     override suspend fun shutdown() {
-        services = emptyList()
-        httpClient.close()
+        services = emptyList()
     }
 
     override fun getServices(): List<Service> = services
@@ -92,11 +90,11 @@ data class LibreTranslateSettings(
     var apiKey: String = ""
 ) : PluginSettings.Configurable() {
     @Transient private var context: PluginContext? = null
-    @Transient private var clientProvider: (() -> KtorHttpClient)? = null
+    @Transient private var clientProvider: (() -> HttpClient)? = null
 
     internal fun attach(
         context: PluginContext,
-        clientProvider: () -> KtorHttpClient
+        clientProvider: () -> HttpClient
     ): LibreTranslateSettings = apply {
         this.context = context
         this.clientProvider = clientProvider

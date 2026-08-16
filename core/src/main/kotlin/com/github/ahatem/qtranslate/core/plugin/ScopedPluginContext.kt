@@ -2,8 +2,10 @@ package com.github.ahatem.qtranslate.core.plugin
 
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.DisplayText
+import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
+import com.github.ahatem.qtranslate.core.plugin.http.KtorHttpClient
 import com.github.ahatem.qtranslate.api.plugin.SecretStore
 import com.github.ahatem.qtranslate.api.plugin.SettingsStore
 import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
@@ -66,6 +68,21 @@ internal class ScopedPluginContext(
         ScopedSecretStore(pluginId, instanceId, pluginKeyValueStore)
 
     // -------------------------------------------------------------------------
+    // Network
+    // -------------------------------------------------------------------------
+
+    /**
+     * One client per plugin, which is the number there were before this moved here: every plugin
+     * built its own in `initialize`. Keeping the count the same means this change is about
+     * ownership only, and pooling can be reconsidered on its own rather than riding along with a
+     * relocation.
+     *
+     * Built with the plugin's own logger, so a failed request is still attributed to the plugin
+     * that made it.
+     */
+    override val http: HttpClient = KtorHttpClient(logger)
+
+    // -------------------------------------------------------------------------
     // Notifications
     // -------------------------------------------------------------------------
 
@@ -111,6 +128,19 @@ internal class ScopedPluginContext(
      */
     internal fun resetScope() {
         _scope = createFreshScope()
+    }
+
+    /**
+     * Releases the connection pool. Called once the plugin is finished with, not on disable,
+     * since the same context serves the next enable cycle.
+     *
+     * Plugins used to close the client they built themselves. Now that they are handed one, the
+     * closing moved here with the ownership rather than being dropped: an unclosed pool keeps its
+     * selector threads alive, which on a plugin the user uninstalls would leak for the rest of
+     * the session.
+     */
+    internal fun closeHttp() {
+        (http as? KtorHttpClient)?.close()
     }
 
     private fun createFreshScope() =

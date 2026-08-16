@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.plugins.google
 
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
@@ -11,7 +12,6 @@ import com.github.ahatem.qtranslate.api.tts.TTSRequest
 import com.github.ahatem.qtranslate.api.tts.TTSResponse
 import com.github.ahatem.qtranslate.api.tts.TextToSpeech
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
-import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
@@ -19,7 +19,7 @@ import com.github.michaelbull.result.getOrElse
 
 class GoogleTTSService(
     private val pluginContext: PluginContext,
-    private val httpClient: KtorHttpClient,
+    private val httpClient: HttpClient,
     private val languageMapper: GoogleLanguageMapper,
     private val apiConfig: ApiConfig
 ) : TextToSpeech {

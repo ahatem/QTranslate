@@ -1,10 +1,10 @@
 package com.github.ahatem.qtranslate.plugins.ai
 
 import com.github.ahatem.qtranslate.api.plugin.Plugin
+import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
-import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -39,7 +39,7 @@ import com.github.michaelbull.result.Result
 class AIPlugin : Plugin<AISettings> {
 
     private lateinit var pluginContext: PluginContext
-    private lateinit var httpClient: KtorHttpClient
+    private val httpClient: HttpClient get() = pluginContext.http
     private lateinit var serviceClient: AIServiceClient
 
     private var settings: AISettings = AISettings()
@@ -55,9 +55,7 @@ class AIPlugin : Plugin<AISettings> {
             temperature   = context.settings.getDouble(KEY_TEMPERATURE, 0.3),
             maxTokens     = context.settings.getInt(KEY_MAX_TOKENS, 4096),
             customHeaders = context.settings.getString(KEY_CUSTOM_HEADERS) ?: AISettings().customHeaders
-        )
-
-        httpClient = KtorHttpClient(context)
+        )
 
         serviceClient = AIServiceClient(
             pluginContext = context,
@@ -107,8 +105,7 @@ class AIPlugin : Plugin<AISettings> {
     }
 
     override suspend fun shutdown() {
-        pluginContext.logger.info("AI Plugin shutting down")
-        httpClient.close()
+        pluginContext.logger.info("AI Plugin shutting down")
     }
 
     override fun getServices(): List<Service> = activeServices

@@ -115,6 +115,22 @@ interface PluginContext {
     val secrets: SecretStore
 
     // -------------------------------------------------------------------------
+    // Network
+    // -------------------------------------------------------------------------
+
+    /**
+     * Makes HTTP requests, configured and owned by the application.
+     *
+     * Use this rather than building a client. Settings that have to hold everywhere, a proxy
+     * above all, are only dependable if every request goes through a client the application
+     * configured; a plugin that constructs its own opts out of them without meaning to, and the
+     * user has no way to tell which plugins honoured a setting and which ignored it.
+     *
+     * Its lifetime is the plugin's. There is no need to close it, and closing is not offered.
+     */
+    val http: HttpClient
+
+    // -------------------------------------------------------------------------
     // File System
     // -------------------------------------------------------------------------
 

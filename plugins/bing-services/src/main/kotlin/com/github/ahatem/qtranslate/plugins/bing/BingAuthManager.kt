@@ -1,9 +1,9 @@
 package com.github.ahatem.qtranslate.plugins.bing
 
+import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
-import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -28,7 +28,7 @@ import kotlin.time.Duration.Companion.hours
  */
 class BingAuthManager(
     private val pluginContext: PluginContext,
-    private val httpClient: KtorHttpClient
+    private val httpClient: HttpClient
 ) {
     private val authRef = AtomicReference<AuthState?>(null)
     private val json = Json { ignoreUnknownKeys = true }

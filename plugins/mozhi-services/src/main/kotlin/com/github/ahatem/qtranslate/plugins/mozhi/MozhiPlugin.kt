@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.plugins.mozhi
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.Plugin
+import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
 import com.github.ahatem.qtranslate.api.plugin.Service
@@ -10,7 +11,6 @@ import com.github.ahatem.qtranslate.api.settings.PluginAction
 import com.github.ahatem.qtranslate.api.settings.Setting
 import com.github.ahatem.qtranslate.api.settings.SettingType
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
-import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -24,7 +24,7 @@ import kotlinx.coroutines.withTimeout
 
 class MozhiPlugin : Plugin<MozhiSettings> {
     private lateinit var context: PluginContext
-    private lateinit var httpClient: KtorHttpClient
+    private val httpClient: HttpClient get() = context.http
     private var settings = MozhiSettings()
     private var services: List<Service> = emptyList()
 
@@ -38,8 +38,7 @@ class MozhiPlugin : Plugin<MozhiSettings> {
                 savedInstance.takeUnless { it in PUBLIC_INSTANCES || it in LEGACY_CUSTOM_VALUES }.orEmpty()
             },
             engine = context.settings.getString(KEY_ENGINE) ?: DEFAULT_ENGINE
-        ).attach(context) { httpClient }
-        httpClient = KtorHttpClient(context)
+        ).attach(context) { httpClient }
         return Ok(Unit)
     }
 
@@ -72,8 +71,7 @@ class MozhiPlugin : Plugin<MozhiSettings> {
         services = emptyList()
     }
 
-    override suspend fun shutdown() {
-        httpClient.close()
+    override suspend fun shutdown() {
     }
 
     override fun getServices(): List<Service> = services
@@ -119,9 +117,9 @@ data class MozhiSettings(
     var engine: String = DEFAULT_ENGINE
 ) : PluginSettings.Configurable() {
     @Transient private var context: PluginContext? = null
-    @Transient private var clientProvider: (() -> KtorHttpClient)? = null
+    @Transient private var clientProvider: (() -> HttpClient)? = null
 
-    internal fun attach(context: PluginContext, clientProvider: () -> KtorHttpClient): MozhiSettings = apply {
+    internal fun attach(context: PluginContext, clientProvider: () -> HttpClient): MozhiSettings = apply {
         this.context = context
         this.clientProvider = clientProvider
     }

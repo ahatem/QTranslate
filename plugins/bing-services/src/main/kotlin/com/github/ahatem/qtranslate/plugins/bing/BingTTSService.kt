@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.plugins.bing
 
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
@@ -14,7 +15,6 @@ import com.github.ahatem.qtranslate.api.tts.TextToSpeech
 import com.github.ahatem.qtranslate.api.tts.Voice
 import com.github.ahatem.qtranslate.api.tts.VoiceSupport
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
-import com.github.ahatem.qtranslate.plugins.common.KtorHttpClient
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
@@ -31,7 +31,7 @@ data class VoiceInfo(
 
 class BingTTSService(
     private val pluginContext: PluginContext,
-    private val httpClient: KtorHttpClient,
+    private val httpClient: HttpClient,
     private val authManager: BingAuthManager,
     private val languageMapper: BingLanguageMapper,
     private val apiConfig: ApiConfig

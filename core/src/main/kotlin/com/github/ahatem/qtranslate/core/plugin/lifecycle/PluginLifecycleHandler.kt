@@ -266,6 +266,9 @@ internal class PluginLifecycleHandler(
                 runCatching { container.plugin.shutdown() }
             } ?: logger.error("Plugin '${container.id}' shutdown timed out")
 
+            // After the plugin has had its say, since it may still make requests on the way out.
+            (container.context as? ScopedPluginContext)?.closeHttp()
+
         } catch (e: Throwable) {
             logger.error("Unexpected exception shutting down plugin '${container.id}'", e)
         }
