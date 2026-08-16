@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.formdev.flatlaf.FlatClientProperties
+import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
@@ -10,6 +12,7 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager.Companion.OS_DEFAULT_THEME_ID
+import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -32,7 +35,7 @@ class AppearancePanel(
      * changed. Absent in contexts that have no dialog to parent it to, which hides the button
      * rather than offering one that does nothing.
      */
-    private val openEditor: (() -> Unit)? = null
+    private val openEditor: ((languageCode: String?) -> Unit)? = null
 ) : SettingsPanel() {
 
     private val groupedItems: List<ThemeItem> = buildGroupedItems()
@@ -47,6 +50,20 @@ class AppearancePanel(
      */
     private fun selectedLanguageCode(configured: String): String =
         configured.ifBlank { localizationManager.activeLanguage.tag }
+
+    /**
+     * A square, borderless button carrying only an icon.
+     *
+     * Sized to the combo beside it so the row reads as one control with its actions attached,
+     * rather than as a toolbar that happens to be nearby.
+     */
+    private fun iconButton(iconPath: String, tooltipKey: String, onClick: () -> Unit) =
+        JButton(FlatSVGIcon(iconPath, UIScale.scale(15), UIScale.scale(15), javaClass.classLoader)
+            .applyForegroundColorFilter()).apply {
+            toolTipText = localizationManager.getString("settings_appearance.$tooltipKey")
+            putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
+            addActionListener { onClick() }
+        }
 
     private lateinit var languageCombo:     JComboBox<LanguageInfo>
     private lateinit var translatorCredit:  JPanel
@@ -83,21 +100,28 @@ class AppearancePanel(
                 }
             }
         }
-        addRow(localizationManager.getString("settings_appearance.interface_language"), languageCombo)
-        addHint(localizationManager.getString("settings_appearance.language_hint"))
-
-        // Beside the picker, because the two questions arrive together: someone who has just seen
-        // that a translation is unfinished is the person most likely to want to finish it.
-        openEditor?.let { open ->
-            gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
-                .insets(6, 2, 0, 0)
-                .add(JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)).apply {
+        // The actions sit against the control they act on, so "edit" plainly means "edit this
+        // language". A labelled button on its own row below read as a separate feature, and it
+        // was: people expected the language they had selected and met a manager for all of them.
+        val languageRow = JPanel(BorderLayout(6, 0)).apply {
+            isOpaque = false
+            add(languageCombo, BorderLayout.CENTER)
+            if (openEditor != null) {
+                add(JPanel(FlowLayout(FlowLayout.LEADING, 4, 0)).apply {
                     isOpaque = false
-                    add(JButton(localizationManager.getString("language_editor.open_button")).apply {
-                        addActionListener { open() ; loadLanguageListAsync() }
+                    add(iconButton("icons/lucide/pen-line.svg", "edit_tooltip") {
+                        openEditor.invoke((languageCombo.selectedItem as? LanguageInfo)?.code)
+                        loadLanguageListAsync()
                     })
-                })
+                    add(iconButton("icons/lucide/plus.svg", "new_tooltip") {
+                        openEditor.invoke(null)
+                        loadLanguageListAsync()
+                    })
+                }, BorderLayout.LINE_END)
+            }
         }
+        addRow(localizationManager.getString("settings_appearance.interface_language"), languageRow)
+        addHint(localizationManager.getString("settings_appearance.language_hint"))
 
         // Last in the section, and set apart from the hint above it. The hint explains the control
         // and belongs beside it; this is an acknowledgement of whoever did the work. Run together

@@ -783,7 +783,7 @@ class SettingsDialog(
         label("appearance") ->
             AppearancePanel(
                 settingsStore, themeManager, localizationManager, scope,
-                openEditor = { openLanguageEditor() }
+                openEditor = { code -> openLanguageEditor(code) }
             )
 
         label("services") ->
@@ -950,12 +950,13 @@ class SettingsDialog(
      * Modal on purpose: it writes the files this dialog is reading from, so letting both be used
      * at once would show settings that no longer match what is on disk.
      */
-    private fun openLanguageEditor() {
+    private fun openLanguageEditor(languageCode: String?) {
         LanguageEditorDialog(
             owner = this,
             localizationManager = localizationManager,
             scope = scope,
-            translateString = translateString
+            translateString = translateString,
+            initialCode = languageCode
         ).isVisible = true
     }
 }

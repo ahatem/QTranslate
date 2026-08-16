@@ -22,6 +22,7 @@ import java.awt.Insets
 import java.io.File
 import javax.swing.*
 import javax.swing.table.AbstractTableModel
+import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.TableRowSorter
 
 /**
@@ -49,7 +50,15 @@ class LanguageEditorDialog(
      * Translates one string, for the per-row suggestion. Absent when no translator is configured,
      * which hides the action rather than offering something that cannot work.
      */
-    private val translateString: (suspend (String, LanguageCode) -> Result<String>)? = null
+    private val translateString: (suspend (String, LanguageCode) -> Result<String>)? = null,
+    /**
+     * The language to open on, or null to start a new one.
+     *
+     * The dialog is reached from a specific language's row, so it opens on that language and says
+     * so in its title. Opening on a list of every translation made people think they had pressed
+     * the wrong thing: they asked to edit the language in front of them and met a manager.
+     */
+    private val initialCode: String? = null
 ) : JDialog(owner, true) {
 
     private val parser = LanguageTomlParser()
@@ -60,7 +69,6 @@ class LanguageEditorDialog(
     private val table = JTable(model)
     private val sorter = TableRowSorter(model)
 
-    private val languagePicker = JComboBox<String>()
     private val searchField = JTextField()
     private val untranslatedOnly = JCheckBox(text("only_untranslated"))
     private val coverageLabel = JLabel()
@@ -94,7 +102,7 @@ class LanguageEditorDialog(
             JComponent.WHEN_IN_FOCUSED_WINDOW
         )
 
-        reloadLanguageList(select = localizationManager.activeLanguage.tag)
+        if (initialCode == null) createLanguage() else loadLanguage(initialCode)
         pack()
         setLocationRelativeTo(owner)
     }
@@ -102,21 +110,7 @@ class LanguageEditorDialog(
     // ── Layout ────────────────────────────────────────────────────────────────
 
     private fun buildHeader(): JComponent {
-        val picker = JPanel(FlowLayout(FlowLayout.LEADING, 6, 0)).apply {
-            add(JLabel(text("language")))
-            add(languagePicker.apply {
-                prototypeDisplayValue = "xx-XX  ————————————"
-                addActionListener {
-                    val code = selectedItem as? String ?: return@addActionListener
-                    if (code != loadedCode) loadLanguage(code)
-                }
-            })
-            add(JButton(text("new")).apply { addActionListener { createLanguage() } })
-            add(JButton(text("delete")).apply { addActionListener { deleteLanguage() } })
-        }
-
         val details = JPanel(GridBagLayout()).apply {
-            border = BorderFactory.createEmptyBorder(4, 0, 0, 0)
             val c = GridBagConstraints().apply {
                 insets = Insets(2, 0, 2, 8); anchor = GridBagConstraints.LINE_START
                 fill = GridBagConstraints.HORIZONTAL
@@ -155,7 +149,6 @@ class LanguageEditorDialog(
 
         return JPanel(BorderLayout()).apply {
             border = BorderFactory.createEmptyBorder(12, 12, 0, 12)
-            add(picker, BorderLayout.NORTH)
             add(details, BorderLayout.CENTER)
             add(filters, BorderLayout.SOUTH)
         }
@@ -174,6 +167,10 @@ class LanguageEditorDialog(
             // A single click starts editing: this is a form to fill in, and making someone
             // double-click 159 times to do it is the difference between finishable and not.
             (getDefaultEditor(String::class.java) as? DefaultCellEditor)?.clickCountToStart = 1
+            setDefaultRenderer(
+                String::class.java,
+                UntranslatedAwareRenderer(this@LanguageEditorDialog.model)
+            )
         }
         model.addTableModelListener { if (it.column == StringsModel.COL_TRANSLATION) markDirty() }
 
@@ -195,9 +192,21 @@ class LanguageEditorDialog(
                 addActionListener { resetSelection() }
             })
         }
+        // Deliberately far from Save. It destroys the file, and one slip beside the button people
+        // reach for constantly is how that happens.
+        actions.add(Box.createHorizontalStrut(UIScale.scale(16)))
+        actions.add(JButton(text("delete")).apply {
+            foreground = UIManager.getColor("Component.error.focusedBorderColor") ?: foreground
+            addActionListener { deleteLanguage() }
+        })
+
         val buttons = JPanel(FlowLayout(FlowLayout.TRAILING, 6, 0)).apply {
-            add(JButton(text("save")).apply { addActionListener { save() } })
             add(JButton(text("close")).apply { addActionListener { closeWithGuard() } })
+            add(JButton(text("save")).apply {
+                addActionListener { save() }
+                // Enter saves, which is what someone who has just typed a translation expects.
+                rootPane.defaultButton = this
+            })
         }
         return JPanel(BorderLayout()).apply {
             border = BorderFactory.createEmptyBorder(10, 12, 12, 12)
@@ -208,18 +217,6 @@ class LanguageEditorDialog(
 
     // ── Loading and saving ────────────────────────────────────────────────────
 
-    private fun reloadLanguageList(select: String?) {
-        val codes = localizationManager.availableLanguages.filter { it != "en" }.sorted()
-        languagePicker.model = DefaultComboBoxModel(codes.toTypedArray())
-        val target = select?.takeIf { it in codes } ?: codes.firstOrNull()
-        if (target != null) {
-            languagePicker.selectedItem = target
-            loadLanguage(target)
-        } else {
-            loadedCode = null
-            setEnabledForContent(false)
-        }
-    }
 
     private fun loadLanguage(code: String) {
         scope.launch {
@@ -230,6 +227,9 @@ class LanguageEditorDialog(
             withContext(Dispatchers.Swing) {
                 loadedCode = code
                 val meta = parsed?.meta
+                // Names the language being edited, so the dialog answers the question the user
+                // arrived with rather than presenting itself as a manager of all of them.
+                title = text("title_for", meta?.name ?: code, code)
                 nameField.text = meta?.name.orEmpty()
                 nativeNameField.text = meta?.nativeName.orEmpty()
                 localeField.text = meta?.locale ?: code
@@ -270,14 +270,17 @@ class LanguageEditorDialog(
     }
 
     private fun createLanguage() {
-        val code = JOptionPane.showInputDialog(this, text("new_prompt"), title, JOptionPane.QUESTION_MESSAGE)
+        val code = JOptionPane.showInputDialog(this, text("new_prompt"), text("new_title"), JOptionPane.QUESTION_MESSAGE)
             ?.trim()
             ?.takeIf { it.isNotEmpty() }
-            ?: return
+            // Cancelled before anything existed, so there is nothing to edit and no reason to
+            // leave an empty editor on screen.
+            ?: return run { if (loadedCode == null) dispose() }
 
         val file = File(localizationManager.languagesDirectory, "$code.toml")
         if (file.exists()) {
-            JOptionPane.showMessageDialog(this, text("new_exists"), title, JOptionPane.WARNING_MESSAGE)
+            JOptionPane.showMessageDialog(this, text("new_exists"), text("new_title"), JOptionPane.WARNING_MESSAGE)
+            if (loadedCode == null) dispose()
             return
         }
         scope.launch {
@@ -288,7 +291,7 @@ class LanguageEditorDialog(
                 emptyMap()
             )
             withContext(Dispatchers.IO) { file.writeText(body) }
-            withContext(Dispatchers.Swing) { reloadLanguageList(select = code) }
+            withContext(Dispatchers.Swing) { loadLanguage(code) }
         }
     }
 
@@ -305,7 +308,8 @@ class LanguageEditorDialog(
             }
             withContext(Dispatchers.Swing) {
                 localizationManager.forget(LanguageCode(code))
-                reloadLanguageList(select = null)
+                dirty = false
+                dispose()
             }
         }
     }
@@ -389,6 +393,49 @@ class LanguageEditorDialog(
             override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = action()
             override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = action()
         })
+    }
+
+    /**
+     * Marks the rows nobody has translated yet.
+     *
+     * The filter can hide everything else, but scrolling with the filter off is how someone reads
+     * a translation in context, and untranslated strings were indistinguishable from translated
+     * ones while doing it. Colouring them means the gaps are findable without changing what is on
+     * screen, and the untranslated cell reads "English" rather than sitting empty and ambiguous.
+     */
+    private class UntranslatedAwareRenderer(
+        private val model: StringsModel
+    ) : DefaultTableCellRenderer() {
+
+        override fun getTableCellRendererComponent(
+            table: JTable, value: Any?, isSelected: Boolean,
+            hasFocus: Boolean, row: Int, column: Int
+        ): java.awt.Component {
+            super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
+            val untranslated = model.rowAt(table.convertRowIndexToModel(row)).translation.isBlank()
+
+            font = if (untranslated && column == StringsModel.COL_KEY) {
+                font.deriveFont(Font.BOLD)
+            } else {
+                font.deriveFont(Font.PLAIN)
+            }
+
+            // Selection paints its own foreground; overriding it would make the selected row
+            // unreadable in exchange for a distinction the highlight has already made.
+            if (!isSelected) {
+                foreground = when {
+                    untranslated -> table.warningColour()
+                    column == StringsModel.COL_ENGLISH -> UIManager.getColor("Label.disabledForeground")
+                    else -> UIManager.getColor("Table.foreground")
+                }
+            }
+            return this
+        }
+
+        private fun JTable.warningColour() =
+            UIManager.getColor("Component.warning.focusedBorderColor")
+                ?: UIManager.getColor("Actions.Yellow")
+                ?: foreground
     }
 
     private data class Row(val key: String, val english: String, var translation: String)
