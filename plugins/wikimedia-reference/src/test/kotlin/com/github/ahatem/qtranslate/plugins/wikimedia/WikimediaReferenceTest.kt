@@ -7,7 +7,7 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
 import com.github.ahatem.qtranslate.api.imagesearch.ImageSearchRequest
-import com.github.ahatem.qtranslate.plugins.common.HttpClient
+import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result

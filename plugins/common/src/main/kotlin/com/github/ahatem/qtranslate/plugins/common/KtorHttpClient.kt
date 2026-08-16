@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.plugins.common
 
+import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.michaelbull.result.Err
@@ -7,6 +8,9 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.getOrElse
 import io.ktor.client.*
+// Both this file's supertype and Ktor's own client are called HttpClient. Ours is now imported by
+// name, which beats the star import below, so Ktor's needs an alias to stay reachable.
+import io.ktor.client.HttpClient as KtorClient
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
@@ -33,7 +37,7 @@ class KtorHttpClient(
     private val config: HttpClientConfig = HttpClientConfig()
 ) : HttpClient {
 
-    private val client = HttpClient(CIO) {
+    private val client = KtorClient(CIO) {
         install(ContentNegotiation) {
             json(json)
         }

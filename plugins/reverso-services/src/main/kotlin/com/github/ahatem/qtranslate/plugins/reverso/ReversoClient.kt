@@ -3,7 +3,7 @@ package com.github.ahatem.qtranslate.plugins.reverso
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
-import com.github.ahatem.qtranslate.plugins.common.HttpClient
+import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
