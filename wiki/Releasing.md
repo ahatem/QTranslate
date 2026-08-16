@@ -28,8 +28,14 @@ git pull --ff-only origin develop
 git status --short
 ```
 
-3. Update `CHANGELOG.md`: move the relevant entries from `Unreleased` into a versioned section such as `## [1.3.0] - 2026-08-14`, then update the comparison links at the bottom.
-4. Open a focused release-preparation PR against `develop` and let all required checks pass.
+3. **Update `AppConstants.APP_VERSION`** in `core/src/main/kotlin/com/github/ahatem/qtranslate/core/shared/AppConstants.kt` to the version being released, without the `v`.
+
+   This is separate from the version the artifacts carry, which comes from the tag. It is the version compiled into the app: shown in About, written to the log, and — the reason it matters — compared by the in-app updater against the latest GitHub release. Leave it behind and every fresh install of the new version reports that an update is available, because it is comparing the old number against the release it was just downloaded from.
+
+   The Release workflow refuses to build when this does not match the tag, so a mistake here costs a failed workflow rather than a published release that has to be withdrawn.
+
+4. Update `CHANGELOG.md`: move the relevant entries from `Unreleased` into a versioned section such as `## [1.3.0] - 2026-08-14`, then update the comparison links at the bottom.
+5. Open a focused release-preparation PR against `develop` and let all required checks pass.
 
 ### 2. Run automated verification
 
@@ -150,7 +156,8 @@ Prerelease tags containing `-alpha`, `-beta`, or `-rc` are marked as GitHub prer
 3. Download the assets from GitHub, not from the local build, and verify their checksums.
 4. Run the downloaded Windows package and one portable ZIP.
 5. Confirm the in-app updater sees the new version from an older installation.
-6. Check that release notes and the Full changelog link render correctly.
+6. **Confirm a fresh install of the new version does *not* report an update.** It is the same mechanism as step 5 pointed the other way, and the only thing that catches a stale `APP_VERSION` at runtime: an app left on the previous number compares itself against the release it was just downloaded from and offers to update to what it already is. Check the About dialog shows the new version too.
+7. Check that release notes and the Full changelog link render correctly.
 
 If verification fails, do not move or reuse the tag. Fix the issue, increment the version (or prerelease number), and publish a new tag. Delete a published release or tag only when absolutely necessary and communicate why, because users may already have downloaded it.
 

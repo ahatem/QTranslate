@@ -15,7 +15,16 @@ object AppConstants {
      * Used by [com.github.ahatem.qtranslate.core.main.domain.usecase.CheckForUpdatesUseCase]
      * to compare against the latest release.
      */
-    const val APP_VERSION = "1.3.0"
+    /**
+     * Kept in step with the release tag by a check in the Release workflow, which fails the build
+     * if the two disagree.
+     *
+     * They are separate values: artifacts take their version from the tag, this one is compiled
+     * in, and nothing connected them. So this sat at 1.3.0 through the whole 1.4.0 cycle — which
+     * would have shipped an app that compares its own 1.3.0 against the 1.4.0 release it came
+     * from and tells every new user an update is waiting.
+     */
+    const val APP_VERSION = "1.4.0"
 
     // ============================================================
     // Timing

@@ -33,6 +33,37 @@ jobs:
           $version = "${{ github.ref_name }}" -replace '^v', ''
           "version=$version" >> $env:GITHUB_OUTPUT
 
+      # Artifacts take their version from the tag while AppConstants.APP_VERSION is compiled in,
+      # and nothing kept the two together. The constant sat at 1.3.0 through the whole 1.4.0
+      # cycle, which would have shipped an app comparing its own version against the release it
+      # came from and telling every new user an update was waiting.
+      #
+      # Checked before anything is built, so a mismatch costs seconds rather than a published
+      # release that has to be withdrawn.
+      - name: Verify APP_VERSION matches the tag
+        shell: pwsh
+        run: |
+          $expected = "${{ steps.version.outputs.version }}"
+          $constants = "core/src/main/kotlin/com/github/ahatem/qtranslate/core/shared/AppConstants.kt"
+          $match = Select-String -Path $constants -Pattern 'const val APP_VERSION = "([^"]+)"'
+          if (-not $match) {
+            Write-Error "Could not find APP_VERSION in $constants"
+            exit 1
+          }
+          $actual = $match.Matches[0].Groups[1].Value
+          if ($actual -ne $expected) {
+            Write-Error @"
+          APP_VERSION does not match the release tag.
+            tag:          $expected
+            APP_VERSION:  $actual
+          Update $constants and push a new tag. The compiled-in version is what the
+          in-app updater compares against, so a mismatch tells every new install that an
+          update is already available.
+          "@
+            exit 1
+          }
+          Write-Host "APP_VERSION $actual matches the tag."
+
       - name: Build full distribution
         shell: pwsh
         # The property must be quoted: PowerShell otherwise splits the argument at the
