@@ -200,13 +200,16 @@ class LanguageEditorDialog(
             addActionListener { deleteLanguage() }
         })
 
+        val saveButton = JButton(text("save")).apply { addActionListener { save() } }
+        // Enter saves, which is what someone who has just typed a translation expects. Set on the
+        // dialog's own root pane, and only once there is one: a button that is not yet in a
+        // hierarchy has no root pane, and reaching for it through the button threw before the
+        // dialog could open at all.
+        SwingUtilities.invokeLater { rootPane.defaultButton = saveButton }
+
         val buttons = JPanel(FlowLayout(FlowLayout.TRAILING, 6, 0)).apply {
             add(JButton(text("close")).apply { addActionListener { closeWithGuard() } })
-            add(JButton(text("save")).apply {
-                addActionListener { save() }
-                // Enter saves, which is what someone who has just typed a translation expects.
-                rootPane.defaultButton = this
-            })
+            add(saveButton)
         }
         return JPanel(BorderLayout()).apply {
             border = BorderFactory.createEmptyBorder(10, 12, 12, 12)

@@ -58,10 +58,20 @@ class AppearancePanel(
      * rather than as a toolbar that happens to be nearby.
      */
     private fun iconButton(iconPath: String, tooltipKey: String, onClick: () -> Unit) =
-        JButton(FlatSVGIcon(iconPath, UIScale.scale(15), UIScale.scale(15), javaClass.classLoader)
+        JButton(FlatSVGIcon(iconPath, ICON_SIZE, ICON_SIZE, javaClass.classLoader)
             .applyForegroundColorFilter()).apply {
             toolTipText = localizationManager.getString("settings_appearance.$tooltipKey")
             putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
+            // Square and identical, so neither reads as bigger than the other. Left to itself a
+            // toolbar button takes its size from the glyph inside it, and a dense one like the pen
+            // then sits visibly larger than a sparse one like the plus.
+            val side = UIScale.scale(BUTTON_SIDE)
+            preferredSize = Dimension(side, side)
+            minimumSize = preferredSize
+            maximumSize = preferredSize
+            // No focus ring. These sit against a combo, and the ring drew a box around one button
+            // and not the other, which read as the two being different sizes.
+            isFocusable = false
             addActionListener { onClick() }
         }
 
@@ -562,5 +572,13 @@ class AppearancePanel(
         val coverage: TranslationCoverage = TranslationCoverage(0, 0)
     ) {
         override fun toString() = displayName
+    }
+
+    private companion object {
+        /** Glyph size for the actions beside the language picker. */
+        const val ICON_SIZE = 14
+
+        /** Square side for those buttons, sized to sit level with the combo without towering. */
+        const val BUTTON_SIDE = 26
     }
 }
