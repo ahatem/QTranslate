@@ -225,13 +225,30 @@ class LanguageEditorDialog(
             (getDefaultEditor(String::class.java) as? DefaultCellEditor)?.clickCountToStart = 1
             setDefaultRenderer(
                 String::class.java,
-                UntranslatedAwareRenderer(this@LanguageEditorDialog.model)
+                StatusRenderer(
+                    this@LanguageEditorDialog.model,
+                    text("untranslated_row"),
+                    // Whether the untranslated rows are the only ones on screen. See
+                    // [StatusRenderer] for why that decides the colour.
+                    isFilteredToUntranslated = { untranslatedOnly.isSelected }
+                )
             )
         }
         model.addTableModelListener { if (it.column == StringsModel.COL_TRANSLATION) markDirty() }
 
-        return JScrollPane(table).apply {
-            border = BorderFactory.createEmptyBorder(0, 12, 0, 12)
+        val line = UIManager.getColor("Component.borderColor") ?: java.awt.Color.GRAY
+        val scroll = JScrollPane(table).apply {
+            // The table is the content of this window and it was drawn floating on the dialog
+            // background with nothing to say where it began. Every other panel in the application
+            // that holds a list draws this same line.
+            border = BorderFactory.createLineBorder(line)
+        }
+        return JPanel(BorderLayout()).apply {
+            isOpaque = false
+            // Bottom margin so the table's own line and the footer's rule do not meet as a
+            // double stripe.
+            border = BorderFactory.createEmptyBorder(0, 12, 12, 12)
+            add(scroll, BorderLayout.CENTER)
         }
     }
 
@@ -268,7 +285,14 @@ class LanguageEditorDialog(
             add(saveButton)
         }
         return JPanel(BorderLayout()).apply {
-            border = BorderFactory.createEmptyBorder(10, 12, 12, 12)
+            // The same rule the status bar and the document dialog's action bar draw: a button bar
+            // is a separate region from the content above it and says so with a line.
+            border = BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(
+                    1, 0, 0, 0, UIManager.getColor("Component.borderColor") ?: java.awt.Color.GRAY
+                ),
+                BorderFactory.createEmptyBorder(10, 12, 12, 12)
+            )
             add(actions, BorderLayout.LINE_START)
             add(buttons, BorderLayout.LINE_END)
         }
@@ -464,6 +488,9 @@ class LanguageEditorDialog(
                     needle in row.translation.lowercase()
             }
         }
+        // The untranslated-only checkbox decides a colour as well as a filter, so the rows that
+        // survive it have to be redrawn, not just re-selected. See [StatusRenderer].
+        table.repaint()
     }
 
     private fun updateCoverage() {
@@ -505,23 +532,27 @@ class LanguageEditorDialog(
     }
 
     /**
-     * Marks progress, and reserves the warning colour for actual problems.
+     * Colours a row by what is wrong with it, in two grades.
      *
-     * This used to paint every untranslated row amber. On a translation nobody has started that is
-     * every row, so the colour described the default state and therefore said nothing, while
-     * fighting the one cell the reader is trying to work in. A warning that is always on is not a
-     * warning.
+     * **Red — a translation that will throw.** Its format placeholders do not match the English.
+     * `getString` runs the result through `format`, so a dropped `%s` fails when the string is next
+     * needed, from the middle of building whatever screen wanted it, and nothing about the cell
+     * says the text is load-bearing.
      *
-     * Untranslated is now simply the plain state, and what gets marked is a row that is *wrong*:
-     * a translation whose format placeholders do not match the English. That is a genuine defect —
-     * `getString` runs the result through `format`, so a dropped `%s` throws when the string is
-     * next needed — and it is invisible without help.
+     * **Amber — not translated yet.** Only while the untranslated-only filter is *off*. Amber here
+     * means "this one, among these", and with the filter on every visible row is untranslated, so
+     * the colour would describe the whole screen and therefore say nothing while fighting the cell
+     * being worked in. Turning the filter on is already the stronger statement of the same thing,
+     * which is why the colour steps out of the way when it does.
      *
-     * Colour is never the only signal: a mismatched row also carries a tooltip saying what is
-     * wrong, and the done column is a glyph rather than a shade.
+     * Colour is never the only signal: both states carry a tooltip saying what they mean, and the
+     * done column is a glyph rather than a shade.
      */
-    private class UntranslatedAwareRenderer(
-        private val model: StringsModel
+    private class StatusRenderer(
+        private val model: StringsModel,
+        /** Shown as a tooltip on a row nobody has translated. */
+        private val untranslatedNote: String,
+        private val isFilteredToUntranslated: () -> Boolean
     ) : DefaultTableCellRenderer() {
 
         override fun getTableCellRendererComponent(
@@ -531,15 +562,22 @@ class LanguageEditorDialog(
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
             val entry = model.rowAt(table.convertRowIndexToModel(row))
             val mismatch = entry.hasPlaceholderMismatch()
+            val untranslated = entry.translation.isBlank() && !isFilteredToUntranslated()
 
             font = font.deriveFont(Font.PLAIN)
-            toolTipText = if (mismatch) model.placeholderWarning else null
+            toolTipText = when {
+                mismatch -> model.placeholderWarning
+                untranslated -> untranslatedNote
+                else -> null
+            }
 
             // Selection paints its own foreground; overriding it would make the selected row
             // unreadable in exchange for a distinction the highlight has already made.
             if (!isSelected) {
                 foreground = when {
-                    mismatch -> UIManager.getColor("Component.warning.focusedBorderColor")
+                    mismatch -> UIManager.getColor("Component.error.focusedBorderColor")
+                        ?: UIManager.getColor("Label.foreground")
+                    untranslated -> UIManager.getColor("Component.warning.focusedBorderColor")
                         ?: UIManager.getColor("Label.foreground")
                     // Reference material, so it recedes. The translation is what is being read.
                     column == StringsModel.COL_ENGLISH -> UIManager.getColor("Label.disabledForeground")

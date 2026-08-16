@@ -700,6 +700,7 @@ hide_details = "Hide details"
 dir_ltr = "Left-to-right"
 dir_rtl = "Right-to-left"
 placeholder_mismatch = "The %s placeholders differ from the English text. This will fail when the string is used."
+untranslated_row = "Not translated yet. The English text is shown until this is filled in."
 # %1$s = number of rows with mismatched placeholders
 mismatch_warning = "%s strings have placeholders that do not match the English. They will fail when used."
 unreadable_title = "Translation could not be read"
