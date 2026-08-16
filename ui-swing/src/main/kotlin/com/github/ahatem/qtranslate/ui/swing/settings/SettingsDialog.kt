@@ -387,26 +387,36 @@ class SettingsDialog(
                     // rather than competing with the pages it labels.
                     val isGroup = navTree.any { it is Nav.Group && it.label == name }
 
-                    // Every page shares one left edge, whether or not it happens to sit under a
-                    // group, and only the two headings outdent. The tree indents its children by
-                    // one unit on its own, so the pages that have no group are given that unit
-                    // back here. Read from the look and feel rather than hard-coded, since the
-                    // tree's own indent comes from the same numbers.
+                    // Headings and ungrouped pages sit at the base; a page inside a group sits
+                    // further in, so the nesting is visible at a glance.
+                    //
+                    // An earlier version pushed ungrouped pages *out* to meet the grouped ones so
+                    // every page shared one left edge. That reads as a flat list with two stray
+                    // headings in it — the grouping is there in the markup and invisible on
+                    // screen. The hierarchy is the point, so it is the thing to show.
+                    //
+                    // The tree indents its own children, but by an amount the look and feel
+                    // chooses, which can be too small to read as nesting. Whatever it gives is
+                    // topped up to a minimum rather than replaced, so this neither fights the
+                    // look and feel nor depends on it.
                     val depth = (value as? DefaultMutableTreeNode)?.level ?: 1
-                    val unit = UIManager.getInt("Tree.leftChildIndent") +
+                    val treeIndent = UIManager.getInt("Tree.leftChildIndent") +
                         UIManager.getInt("Tree.rightChildIndent")
-                    val extra = if (!isGroup && depth <= 1) unit else 0
-
-                    // The indent belongs on the side the rows start from, which is the right in a
-                    // right-to-left interface. EmptyBorder takes absolute sides, so writing it
-                    // always on the left put the whole indent on the wrong edge — pages under a
-                    // group and pages without one stopped lining up, and the padding appeared to
-                    // vanish because it had moved to the far end of the row.
-                    val startInset = 8 + extra
-                    border = if (tree.componentOrientation.isLeftToRight) {
-                        BorderFactory.createEmptyBorder(0, startInset, 0, 8)
+                    val nesting = if (depth > 1) {
+                        (UIScale.scale(NEST_INDENT) - treeIndent).coerceAtLeast(0)
                     } else {
-                        BorderFactory.createEmptyBorder(0, 8, 0, startInset)
+                        0
+                    }
+
+                    // EmptyBorder takes absolute sides and knows nothing about direction, so the
+                    // leading edge is picked here. Written always on the left, the indent moved to
+                    // the far end of the row in a right-to-left interface.
+                    val base = UIScale.scale(ROW_INSET)
+                    val leading = base + nesting
+                    border = if (tree.componentOrientation.isLeftToRight) {
+                        BorderFactory.createEmptyBorder(0, leading, 0, base)
+                    } else {
+                        BorderFactory.createEmptyBorder(0, base, 0, leading)
                     }
                     font = font.deriveFont(if (isGroup) Font.BOLD else Font.PLAIN)
                     if (!sel) {
@@ -912,5 +922,16 @@ class SettingsDialog(
         const val FLASH_TICK_MILLIS = 30
         /** How much of the flash is held at full strength before it starts fading. */
         const val FLASH_HOLD_FRACTION = 0.6f
+
+        /** Breathing room at the leading and trailing edge of every sidebar row. */
+        const val ROW_INSET = 8
+
+        /**
+         * Smallest gap between an ungrouped page and one nested under a heading.
+         *
+         * A floor, not a fixed value: the tree indents its own children first, and this only
+         * makes up the difference when that comes out too small to read as nesting.
+         */
+        const val NEST_INDENT = 18
     }
 }
