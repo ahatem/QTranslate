@@ -15,17 +15,32 @@ data class ParsedLanguageFile(
  * @property name The display name of the language in English (e.g., "Spanish", "Japanese")
  * @property nativeName The name of the language in its own script (e.g., "Español", "日本語")
  * @property locale The IETF BCP 47 language tag for this translation (e.g., "en-US", "es-ES", "ja-JP")
- * @property version The version of the translation file, useful for updates and compatibility
- * @property author The person or organization who created/maintains the translation
- * @property lastUpdate The date when this translation was last updated (ISO format recommended: "2024-01-15")
+ * @property authors Everyone who has worked on this translation, oldest first. See below.
  * @property isRtl Whether this language uses right-to-left text direction (true for Arabic, Hebrew, etc.)
  */
 data class LocalizedLanguageMeta(
     val name: String,
     val nativeName: String,
     val locale: String,
-    val version: String,
-    val author: String,
-    val lastUpdate: String,
+    /**
+     * GitHub handles, in the order they were added.
+     *
+     * A list because a translation outlives its first author. The single `author` field it
+     * replaced forced everyone after the first to either erase the previous name or leave
+     * themselves out, and the contribution history shows both happening: two pull requests
+     * replaced the existing name, another updated a translation and never touched the field, so
+     * the work was credited to someone else.
+     *
+     * Handles rather than names and addresses. A handle is unique, links to a profile, and keeps
+     * personal email out of a public repository where it is only a spam harvest and is already
+     * recorded in the Git history anyway.
+     *
+     * The older `author` field is still read when this is absent, so a translation file written
+     * against the previous format keeps working and keeps crediting whoever it named.
+     */
+    val authors: List<String>,
     val isRtl: Boolean,
-)
+) {
+    /** Empty when the file names nobody, which the UI shows as no credit rather than as "Unknown". */
+    val hasAuthors: Boolean get() = authors.isNotEmpty()
+}

@@ -5,9 +5,7 @@
 name = "Chinese (Simplified)"
 native_name = "简体中文"
 locale = "zh-CN"
-version = "1.0.0"
-author = "QTranslate Team <ahatem925@gmail.com>"
-last_updated = "2026-08-15"
+authors = ["ahatem"]
 rtl = false
 
 # ===================================================================

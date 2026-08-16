@@ -184,7 +184,7 @@ class AppearancePanel(
             .map { code ->
                 val meta    = localizationManager.readLanguageMeta(LanguageCode(code))
                 val display = if (meta != null) "${meta.name} (${meta.nativeName})" else code
-                LanguageInfo(code, display)
+                LanguageInfo(code, display, meta?.authors.orEmpty())
             }
             .sortedBy { it.displayName }
 
@@ -259,13 +259,38 @@ class AppearancePanel(
         }
     }
 
+    /**
+     * Names the people behind each translation, the way the plugins list names a plugin's author.
+     *
+     * Translators had no credit anywhere in the application: the file recorded a name and nothing
+     * ever read it. Showing it in the picker puts it where someone choosing a language is already
+     * looking, and it is the whole point of recording it.
+     *
+     * Only in the dropped-open list. The closed control shows the language alone, because the
+     * credit is worth reading once and would be noise on a row the user is only checking.
+     */
     private fun languageRenderer() = object : DefaultListCellRenderer() {
         override fun getListCellRendererComponent(
             list: JList<*>?, value: Any?,
             index: Int, isSelected: Boolean, cellHasFocus: Boolean
         ): Component {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-            text = (value as? LanguageInfo)?.displayName ?: ""
+            val info = value as? LanguageInfo
+            val credit = info?.authors.orEmpty()
+
+            text = when {
+                info == null -> ""
+                // index -1 is the closed combo showing the current choice, not a row in the list.
+                index < 0 || credit.isEmpty() -> info.displayName
+                else -> {
+                    val names = credit.joinToString(", ")
+                    val colour = UIManager.getColor("Label.disabledForeground")?.let {
+                        String.format("#%02x%02x%02x", it.red, it.green, it.blue)
+                    } ?: "gray"
+                    "<html>${info.displayName}&nbsp;&nbsp;" +
+                        "<font color='$colour'>$names</font></html>"
+                }
+            }
             return this
         }
     }
@@ -370,7 +395,12 @@ class AppearancePanel(
         }
     }
 
-    private data class LanguageInfo(val code: String, val displayName: String) {
+    private data class LanguageInfo(
+        val code: String,
+        val displayName: String,
+        /** GitHub handles of everyone who worked on this translation. Empty for the built-in. */
+        val authors: List<String> = emptyList()
+    ) {
         override fun toString() = displayName
     }
 }

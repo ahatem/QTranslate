@@ -5,9 +5,7 @@
 name = "Hungarian"
 native_name = "Magyar"
 locale = "hu-HU"
-version = "1.0.0"
-author = "QTranslate Team <ahatem925@gmail.com>"
-last_updated = "2026-08-15"
+authors = ["ahatem"]
 rtl = false
 
 # ===================================================================

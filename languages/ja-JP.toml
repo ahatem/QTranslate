@@ -5,9 +5,7 @@
 name = "Japanese"
 native_name = "日本語"
 locale = "ja-JP"
-version = "1.0.0"
-author = "QTranslate Team <ahatem925@gmail.com>"
-last_updated = "2026-08-15"
+authors = ["ahatem"]
 rtl = false
 
 # ===================================================================

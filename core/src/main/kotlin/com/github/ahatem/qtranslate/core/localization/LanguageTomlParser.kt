@@ -65,15 +65,49 @@ class LanguageTomlParser(private val logger: Logger? = null) {
                 name       = meta["name"]        ?: "Unknown",
                 nativeName = meta["native_name"] ?: meta["name"] ?: "Unknown",
                 locale     = meta["locale"]      ?: "en-US",
-                version    = meta["version"]     ?: "1.0.0",
-                author     = meta["author"]      ?: "Community",
-                lastUpdate = meta["last_updated"] ?: meta["last_update"] ?: LocalDate.now().toString(),
+                authors    = parseAuthors(meta),
                 isRtl      = meta["rtl"]?.toBooleanStrictOrNull() ?: false
             )
         } else null
 
         return ParsedLanguageFile(resolveReferences(entries), metaData)
     }
+
+    /**
+     * Everyone credited for a translation, newest format first.
+     *
+     * `authors` is a list because a translation outlives its first author. The older `author`
+     * field is a single string and is still read, so a file written against the previous format
+     * keeps crediting whoever it names instead of silently losing them.
+     *
+     * A legacy value is often `Name <email@example.com>`. The address is dropped rather than
+     * shown: it was never meant for display, and putting someone's email on screen is not a
+     * courtesy to them.
+     */
+    private fun parseAuthors(meta: Map<String, String>): List<String> {
+        meta["authors"]?.let { return parseInlineArray(it) }
+
+        return meta["author"]
+            ?.substringBefore('<')
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { listOf(it) }
+            .orEmpty()
+    }
+
+    /**
+     * Reads a single-line TOML array of strings, `["one", "two"]`.
+     *
+     * The parser keeps every value as the raw text after the `=`, which is enough for the strings
+     * that make up the rest of a language file. `authors` is the only array in the format, so it
+     * is split here rather than growing the parser a general array type it would use once.
+     */
+    private fun parseInlineArray(raw: String): List<String> =
+        raw.trim()
+            .removeSurrounding("[", "]")
+            .split(',')
+            .map { it.trim().removeSurrounding("\"").trim() }
+            .filter { it.isNotBlank() }
 
     private fun processEscapes(value: String): String =
         value
