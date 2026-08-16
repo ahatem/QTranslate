@@ -106,12 +106,14 @@ class QuickTranslateDialog(
      */
     private val sourceLanguageCombo = LanguageComboBox(
         onLanguageSelected = { if (!isRenderingLanguages) onSourceLanguageSelected(it) },
-        localizer = localizationManager
+        localizer = localizationManager,
+        compact = true
     )
 
     private val targetLanguageCombo = LanguageComboBox(
         onLanguageSelected = { if (!isRenderingLanguages) onTargetLanguageSelected(it) },
-        localizer = localizationManager
+        localizer = localizationManager,
+        compact = true
     )
 
     private val swapButton = createButtonWithIcon(iconManager, "icons/lucide/swap.svg", 13)
