@@ -114,41 +114,12 @@ class KtorHttpClient(
         }
     }
 
-    // ========== JSON UTILITY METHODS ==========
-
-    /**
-     * Performs a GET request and parses the JSON response into type [T].
-     */
-    suspend inline fun <reified T> fetchJson(
-        url: String,
-        headers: Map<String, String> = emptyMap(),
-        queryParams: Map<String, Any> = emptyMap()
-    ): Result<T, ServiceError> {
-        val responseString = get(url, headers, queryParams).getOrElse { return Err(it) }
-
-        return runCatching {
-            Ok(json.decodeFromString<T>(responseString))
-        }.getOrElse { error ->
-            Err(ServiceError.InvalidResponseError("Failed to parse JSON response", error))
-        }
-    }
-
-    /**
-     * Performs a POST request with JSON body.
-     */
-    suspend inline fun <reified T> sendJson(
-        url: String,
-        headers: Map<String, String> = emptyMap(),
-        body: T? = null,
-        queryParams: Map<String, Any?> = emptyMap()
-    ): Result<String, ServiceError> {
-        val encodedBody = body?.let { json.encodeToString(it) }
-        val jsonHeaders = headers + ("Content-Type" to "application/json")
-        return post(url, jsonHeaders, encodedBody, queryParams)
-    }
-
     /**
      * POST request with typed body (automatically serialized to JSON).
+     *
+     * Unlike [fetchJson] and [sendJson], which are now extensions over the [HttpClient] contract,
+     * this one is not sugar: it hands the object to Ktor's content negotiation rather than
+     * encoding it first, so it still needs the engine. Its single caller is Google OCR.
      */
     suspend inline fun <reified T> postTyped(
         url: String,
@@ -164,12 +135,12 @@ class KtorHttpClient(
     /**
      * Performs a POST request with form-urlencoded data.
      */
-    suspend fun postForm(
+    override suspend fun postForm(
         url: String,
         formData: Map<String, String>,
-        headers: Map<String, String> = emptyMap(),
-        queryParams: Map<String, Any?> = emptyMap(),
-        cookies: Map<String, String> = emptyMap()
+        headers: Map<String, String>,
+        queryParams: Map<String, Any?>,
+        cookies: Map<String, String>
     ): Result<String, ServiceError> = withContext(Dispatchers.IO) {
         try {
 
@@ -201,45 +172,17 @@ class KtorHttpClient(
 
     // ========== SPECIALIZED POST METHODS ==========
 
-    /**
-     * POST request with raw text content.
-     */
-    suspend fun postText(
-        url: String,
-        text: String,
-        contentType: String = "text/plain",
-        headers: Map<String, String> = emptyMap(),
-        queryParams: Map<String, Any?> = emptyMap()
-    ): Result<String, ServiceError> {
-        val textHeaders = headers + ("Content-Type" to contentType)
-        return post(url, textHeaders, text, queryParams)
-    }
-
-    /**
-     * POST request with XML content.
-     */
-    suspend fun postXml(
-        url: String,
-        xml: String,
-        headers: Map<String, String> = emptyMap(),
-        queryParams: Map<String, Any?> = emptyMap()
-    ): Result<String, ServiceError> {
-        val xmlHeaders = headers + ("Content-Type" to "application/xml")
-        return post(url, xmlHeaders, xml, queryParams)
-    }
-
-
     // ========== OTHER UTILITY METHODS ==========
 
     /**
      * Performs a POST request with form-urlencoded data, returning raw bytes (useful for audio, etc.).
      */
-    suspend fun postFormBytes(
+    override suspend fun postFormBytes(
         url: String,
         formData: Map<String, String>,
-        headers: Map<String, String> = emptyMap(),
-        queryParams: Map<String, Any?> = emptyMap(),
-        cookies: Map<String, String> = emptyMap()
+        headers: Map<String, String>,
+        queryParams: Map<String, Any?>,
+        cookies: Map<String, String>
     ): Result<ByteArray, ServiceError> = withContext(Dispatchers.IO) {
         try {
             val response: HttpResponse = client.post(url) {
@@ -270,10 +213,10 @@ class KtorHttpClient(
     /**
      * GET request that returns raw bytes (useful for audio, images, etc.)
      */
-    suspend fun getBytes(
+    override suspend fun getBytes(
         url: String,
-        headers: Map<String, String> = emptyMap(),
-        queryParams: Map<String, Any?> = emptyMap()
+        headers: Map<String, String>,
+        queryParams: Map<String, Any?>
     ): Result<ByteArray, ServiceError> = withContext(Dispatchers.IO) {
         try {
             val response: HttpResponse = client.get(url) {

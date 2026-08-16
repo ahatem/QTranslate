@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
+import com.github.ahatem.qtranslate.plugins.common.TextHttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -135,7 +136,7 @@ class YandexWebTranslatorServiceTest {
     private class FakeHttpClient(
         private val result: Result<String, ServiceError>,
         private val getResult: Result<String, ServiceError> = result
-    ) : HttpClient {
+    ) : TextHttpClient() {
         var lastBody: String? = null
         var lastGetUrl: String? = null
         var lastQueryParams: Map<String, Any?> = emptyMap()

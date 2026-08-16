@@ -9,6 +9,7 @@ import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
+import com.github.ahatem.qtranslate.plugins.common.TextHttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -180,7 +181,7 @@ class DeepLTranslatorServiceTest {
 
 private class ScriptedHttpClient(
     private val responses: MutableList<Result<String, ServiceError>>
-) : HttpClient {
+) : TextHttpClient() {
     val urls = mutableListOf<String>()
     val headers = mutableListOf<Map<String, String>>()
     val bodies = mutableListOf<String>()
@@ -210,7 +211,7 @@ private class ScriptedHttpClient(
     }
 }
 
-private class EchoWebHttpClient : HttpClient {
+private class EchoWebHttpClient : TextHttpClient() {
     var requestCount = 0
 
     override suspend fun get(

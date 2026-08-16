@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
 import com.github.ahatem.qtranslate.api.imagesearch.ImageSearchRequest
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
+import com.github.ahatem.qtranslate.plugins.common.TextHttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -250,7 +251,7 @@ class WikimediaReferenceTest {
             put("html", kotlinx.serialization.json.JsonPrimitive(html))
         }.toString()
 
-    private class QueueHttpClient(responses: List<Result<String, ServiceError>>) : HttpClient {
+    private class QueueHttpClient(responses: List<Result<String, ServiceError>>) : TextHttpClient() {
         private val responses = ArrayDeque(responses)
         val urls = mutableListOf<String>()
         val params = mutableListOf<Map<String, Any?>>()

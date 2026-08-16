@@ -12,6 +12,7 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
+import com.github.ahatem.qtranslate.plugins.common.TextHttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -187,7 +188,7 @@ class ReversoServicesTest {
 
 private class RecordingHttpClient(
     private val response: Result<String, ServiceError>
-) : HttpClient {
+) : TextHttpClient() {
     var lastUrl: String? = null
     var lastBody: String = ""
 
