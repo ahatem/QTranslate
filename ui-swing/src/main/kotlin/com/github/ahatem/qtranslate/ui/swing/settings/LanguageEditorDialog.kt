@@ -774,6 +774,17 @@ class LanguageEditorDialog(
         override fun getColumnCount() = headings.size
         override fun getColumnName(column: Int) = headings[column]
 
+        /**
+         * Every cell here holds a string, and saying so is what makes the row colouring work.
+         *
+         * `AbstractTableModel` answers `Object` unless told otherwise, and `JTable` picks a
+         * renderer by asking the model for the column's class. So a renderer registered for
+         * `String` was never once consulted: the status icons appeared, because that renderer is
+         * attached to its column directly, while the key and English cells stayed the default
+         * colour and the amber never showed.
+         */
+        override fun getColumnClass(columnIndex: Int): Class<*> = String::class.java
+
         override fun getValueAt(row: Int, column: Int): String = when (column) {
             COL_DONE -> ""
             COL_KEY -> rows[row].key
