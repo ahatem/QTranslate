@@ -87,8 +87,13 @@ val prepareManualQaPlugins by tasks.registering(Sync::class) {
     into(manualQaDirectory.map { it.dir("app-data/plugins") })
 
     manualQaPluginProjects.forEach { pluginProject ->
+        // The name is read now, at configuration time, rather than inside rename. A lambda that
+        // reads pluginProject.name runs during execution and so holds on to the Project itself,
+        // which the configuration cache cannot serialize — that made this task fail the build
+        // before it ever launched the app.
+        val stagedName = "${pluginProject.name}-plugin.jar"
         from(pluginProject.tasks.named<Jar>("jar").flatMap { it.archiveFile }) {
-            rename { "${pluginProject.name}-plugin.jar" }
+            rename { stagedName }
         }
     }
     from(externalPluginsDirectory) {
