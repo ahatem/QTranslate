@@ -20,6 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import java.io.Closeable
 import java.io.File
 
 /**
@@ -45,7 +46,13 @@ internal class ScopedPluginContext(
     pluginKeyValueStore: PluginKeyValueStore,
     private val notificationBus: NotificationBus,
     private val textResolver: PluginTextResolver,
-    override val logger: Logger
+    override val logger: Logger,
+    /**
+     * How the context builds its client. Only tests pass anything else, so they can observe that
+     * one client is built per plugin rather than per enable, and that it is closed when the plugin
+     * is finished with and not before.
+     */
+    httpFactory: (Logger) -> HttpClient = ::KtorHttpClient
 ) : PluginContext {
 
     // A fresh SupervisorJob-backed scope on IO dispatcher.
@@ -80,7 +87,7 @@ internal class ScopedPluginContext(
      * Built with the plugin's own logger, so a failed request is still attributed to the plugin
      * that made it.
      */
-    override val http: HttpClient = KtorHttpClient(logger)
+    override val http: HttpClient = httpFactory(logger)
 
     // -------------------------------------------------------------------------
     // Notifications
@@ -140,7 +147,7 @@ internal class ScopedPluginContext(
      * the session.
      */
     internal fun closeHttp() {
-        (http as? KtorHttpClient)?.close()
+        (http as? Closeable)?.close()
     }
 
     private fun createFreshScope() =

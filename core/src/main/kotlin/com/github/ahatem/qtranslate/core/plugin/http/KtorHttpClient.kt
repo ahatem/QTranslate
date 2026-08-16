@@ -25,6 +25,7 @@ import io.ktor.util.reflect.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import java.io.Closeable
 
 internal class KtorHttpClient(
     private val logger: Logger,
@@ -35,7 +36,7 @@ internal class KtorHttpClient(
         explicitNulls = false
     },
     private val config: HttpClientConfig = HttpClientConfig()
-) : HttpClient {
+) : HttpClient, Closeable {
 
     private val client = KtorClient(CIO) {
         install(ContentNegotiation) {
@@ -277,7 +278,7 @@ internal class KtorHttpClient(
         }
     }
 
-    fun close() {
+    override fun close() {
         client.close()
     }
 }
