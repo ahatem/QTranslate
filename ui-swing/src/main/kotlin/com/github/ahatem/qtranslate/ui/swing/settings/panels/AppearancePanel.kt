@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.localization.TranslationCoverage
@@ -351,12 +353,39 @@ class AppearancePanel(
      * English" is worth knowing.
      */
     private fun incompleteWarning(text: String) = JLabel(text).apply {
-        // Coloured rather than iconised: none of the bundled icon sets carries a warning glyph,
-        // and a caution tint against the dimmed credit beside it is enough to separate the two.
+        icon = ScaledIcon(FlatOptionPaneWarningIcon(), UIScale.scale(13))
+        iconTextGap = 5
         foreground = UIManager.getColor("Component.warning.focusedBorderColor")
-            ?: UIManager.getColor("Actions.Yellow")
             ?: UIManager.getColor("Label.foreground")
         font = font.deriveFont(font.size - 1f)
+    }
+
+    /**
+     * Draws an icon at a size it was not built for.
+     *
+     * FlatLaf's warning icon is the one the option pane uses, so it comes at that size and offers
+     * no way to ask for another. It is drawn rather than bitmapped, so scaling it costs nothing in
+     * quality, and borrowing the look and feel's own glyph keeps this consistent with every other
+     * warning in the application and correct in whatever theme is loaded.
+     */
+    private class ScaledIcon(private val delegate: Icon, private val size: Int) : Icon {
+        override fun getIconWidth() = size
+        override fun getIconHeight() = size
+
+        override fun paintIcon(c: Component?, g: Graphics, x: Int, y: Int) {
+            val g2 = g.create() as Graphics2D
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                g2.translate(x, y)
+                // Against the delegate's own reported width, which the look and feel has already
+                // scaled for the display, so this does not scale a second time on top of that.
+                val factor = size.toDouble() / delegate.iconWidth
+                g2.scale(factor, factor)
+                delegate.paintIcon(c, g2, 0, 0)
+            } finally {
+                g2.dispose()
+            }
+        }
     }
 
     /** Dimmed, slightly smaller than body text: this is an acknowledgement, not a setting. */
