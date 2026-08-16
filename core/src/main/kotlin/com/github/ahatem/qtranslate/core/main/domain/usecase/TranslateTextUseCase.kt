@@ -345,6 +345,78 @@ class TranslateTextUseCase(
     // -------------------------------------------------------------------------
 
     /**
+     * Recomputes only the extra output, leaving the translation on screen untouched.
+     *
+     * Switching the extra panel between backward, summary and rewrite used to dispatch a full
+     * translation. That wiped the translation the user was reading, showed a spinner over it, and
+     * spent a second request on the translator for a result already on screen — on the unofficial
+     * endpoints, a rate limit risked for nothing. Changing summary length or rewrite style did the
+     * same, which is harder still to justify, since only the extra panel's own parameter moved.
+     *
+     * Nothing about the extra output needs the translation to be redone: [handleExtraOutput] takes
+     * the translated text as a parameter, so it can be fed the text already in state.
+     *
+     * Returns false when there is nothing to work from, leaving the caller to fall back to a real
+     * translation rather than showing an empty panel.
+     */
+    suspend fun refreshExtraOutput(
+        getState: () -> MainState,
+        updateState: (MainState.() -> MainState) -> Unit,
+        onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
+    ): Boolean {
+        currentGetState = getState
+        val state = getState()
+        val extraOutputType = settingsState.value.extraOutputType
+
+        if (extraOutputType == ExtraOutputType.None) {
+            updateState { copy(extraOutputText = "", isExtraOutputLoading = false) }
+            return true
+        }
+
+        // Nothing translated yet, so there is no result to derive from. Summarising the input
+        // would still need the input, and backward translation needs the output either way.
+        if (state.translatedText.isBlank()) return false
+
+        val translator = activeServiceManager.getActive<Translator>(ServiceRole.TRANSLATOR)?.service
+            ?: run {
+                logger.warn("No translator service available")
+                onStatusUpdate(StatusCode.NoTranslatorActive, NotificationType.ERROR, true)
+                return true
+            }
+
+        // Cancels any extra-output request still in flight, so switching type twice quickly
+        // cannot land the first answer under the second choice.
+        translationJob?.cancel(CancellationException("Extra output type changed"))
+        translationJob = scope.launch {
+            updateState { copy(extraOutputText = "", isExtraOutputLoading = true) }
+            try {
+                val extraOutput = handleExtraOutput(
+                    targetText        = state.translatedText,
+                    sourceForBackward = state.detectedSourceLanguage ?: state.sourceLanguage,
+                    targetForBackward = state.targetLanguage,
+                    translator        = translator,
+                    onStatusUpdate    = onStatusUpdate
+                )
+
+                val patched = patchExtraOutput(getState().history, extraOutput, extraOutputType.name)
+                updateState {
+                    copy(
+                        extraOutputText      = extraOutput,
+                        isExtraOutputLoading = false,
+                        history              = patched
+                    )
+                }
+                if (settingsState.value.isHistoryEnabled) historyRepository.saveHistory(patched)
+            } finally {
+                // Switching type twice quickly cancels the first request. Without this the panel
+                // would keep the spinner of a request whose answer is never coming.
+                updateState { copy(isExtraOutputLoading = false) }
+            }
+        }
+        return true
+    }
+
+    /**
      * Publishes the primary translation immediately, then fills in the extra output when it
      * arrives.
      *

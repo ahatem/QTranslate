@@ -36,6 +36,17 @@ sealed interface MainIntent : UiIntent {
     data class Translate(val text: String? = null) : MainIntent
 
     /**
+     * The extra panel's type or option changed, so only its content needs recomputing.
+     *
+     * Distinct from [Translate] because the translation on screen is still correct and still
+     * wanted. Asking for a full translation here threw away a result the user was reading and
+     * spent another request to fetch the same text back.
+     *
+     * Falls back to a full translation when there is nothing translated yet to derive from.
+     */
+    data object RefreshExtraOutput : MainIntent
+
+    /**
      * User cancelled an in-flight translation.
      * Clears [MainState.isLoading] and shows a brief status bar message.
      * No-op if no translation is running.

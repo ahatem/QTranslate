@@ -640,7 +640,10 @@ class MainContentView(
                             config.copy(extraOutputType = type)
                         )
                     )
-                    dispatch(MainIntent.Translate())
+                    // Only this panel changed. The translation beside it is still correct, so
+                    // asking for a new one would discard what the user is reading and pay for
+                    // the same text twice.
+                    dispatch(MainIntent.RefreshExtraOutput)
                 },
                 onOptionSelected = { id ->
                     // Which setting the id belongs to follows from the active type; the panel
@@ -651,7 +654,7 @@ class MainContentView(
                         else -> config
                     }
                     dispatchSettings(SettingsIntent.UpdateDraft(updated))
-                    dispatch(MainIntent.Translate())
+                    dispatch(MainIntent.RefreshExtraOutput)
                 },
 
                 actionsState = TextActionsState(
