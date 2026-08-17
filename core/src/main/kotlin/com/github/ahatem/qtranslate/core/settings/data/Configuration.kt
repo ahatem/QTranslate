@@ -467,6 +467,14 @@ data class NetworkConfig(
 
     val retryEnabled: Boolean = true,
     val maxRetries: Int = 2,
+    /**
+     * Seconds before the first retry. Each attempt after waits twice the last, plus jitter.
+     *
+     * One number rather than a written-out ladder: a fixed interval is the wrong answer for
+     * a rate limit, and a hand-written 5/10/15 is four more values to get wrong that a
+     * server's Retry-After overrides anyway whenever it appears.
+     */
+    val retryInitialDelaySeconds: Int = 1,
 
     val maxConnectionsPerHost: Int = 8,
     val maxConnectionsTotal: Int = 64,

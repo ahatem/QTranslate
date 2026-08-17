@@ -20,6 +20,7 @@ fun NetworkConfig.toHttpClientConfig(proxyPassword: String? = null): HttpClientC
         socketTimeoutMillis = socketTimeoutSeconds.coerceAtLeast(1).seconds(),
         enableRetry = retryEnabled,
         maxRetries = maxRetries.coerceIn(0, 10),
+        retryInitialDelayMillis = retryInitialDelaySeconds.coerceIn(1, 60).seconds(),
         // Absent unless it is both switched on and actually filled in. A proxy enabled with a blank
         // address would send every request to nowhere, which is a worse outcome than the switch
         // appearing not to work.

@@ -112,7 +112,7 @@ internal class KtorHttpClient(
                 // Honours Retry-After when the server sends it, falling back to backoff when it
                 // does not. Retrying sooner than a rate limiter asked for is how a rate limit
                 // becomes a longer one.
-                exponentialDelay()
+                exponentialDelay(baseDelayMs = config.retryInitialDelayMillis.coerceAtLeast(1))
             }
         }
     }
@@ -381,6 +381,17 @@ data class HttpClientConfig(
     val socketTimeoutMillis: Long = 15_000,
     val enableRetry: Boolean = true,
     val maxRetries: Int = 2,
+    /**
+     * How long to wait before the first retry. Each attempt after that waits twice the last,
+     * capped, with jitter added.
+     *
+     * Doubling rather than a fixed interval, because the thing most worth retrying is a rate
+     * limit, and retrying a rate limit at a fixed interval is knocking at the same door at the
+     * same speed. The jitter is not configurable and matters more than it looks: without it,
+     * every plugin that failed on one network blip retries in the same instant, together,
+     * forever. A server's Retry-After overrides all of this whenever it sends one.
+     */
+    val retryInitialDelayMillis: Long = 1_000,
     val proxy: ProxyConfiguration? = null,
     /**
      * Timeouts for particular hosts, overriding the values above.

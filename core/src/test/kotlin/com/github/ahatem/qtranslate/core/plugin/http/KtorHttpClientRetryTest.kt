@@ -93,7 +93,7 @@ class KtorHttpClientRetryTest {
         // Measured on the clock rather than the test scheduler: the client sends inside
         // withContext(Dispatchers.IO), which leaves runTest's virtual time behind, so this delay
         // is a real one. Five seconds sits clearly above what backoff alone asks for at the first
-        // retry, two seconds plus up to one of jitter, so a pass here cannot be explained by the
+        // retry, one second plus up to one of jitter, so a pass here cannot be explained by the
         // backoff having been slow anyway. That makes this the slow test in the file, on purpose.
         val startedAt = System.nanoTime()
         clientOn(engine, maxRetries = 1).use { it.get("https://example.invalid/languages") }
@@ -127,5 +127,34 @@ class KtorHttpClientRetryTest {
         clientOn(engine).use { it.post("https://example.invalid/translate", body = "{}") }
 
         assertEquals(HttpMethod.Post, engine.requestHistory.single().method)
+    }
+
+    @Test
+    fun `the configured first delay is what is actually waited`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(HttpStatusCode.TooManyRequests, calls)
+
+        // Real clock again, for the same reason: the send happens on Dispatchers.IO, outside the
+        // test scheduler. Three seconds is far enough above the one-second default that a pass
+        // cannot be the default having been used instead.
+        val client = KtorHttpClient(
+            logger = silentLogger,
+            config = HttpClientConfig(
+                enableRetry = true,
+                maxRetries = 1,
+                retryInitialDelayMillis = 3_000
+            ),
+            engine = engine,
+            ownsEngine = false
+        )
+        val startedAt = System.nanoTime()
+        client.use { it.get("https://example.invalid/languages") }
+        val waitedMillis = (System.nanoTime() - startedAt) / 1_000_000
+
+        assertEquals(2, calls.get())
+        assertTrue(
+            waitedMillis >= 2_500,
+            "expected to wait the configured 3s before retrying, waited only ${waitedMillis}ms"
+        )
     }
 }

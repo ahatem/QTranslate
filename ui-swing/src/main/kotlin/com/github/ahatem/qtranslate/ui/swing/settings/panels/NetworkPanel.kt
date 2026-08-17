@@ -1,12 +1,16 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.formdev.flatlaf.FlatClientProperties
+import com.formdev.flatlaf.extras.FlatSVGIcon
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.NetworkConfig
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
+import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import java.awt.FlowLayout
 import javax.swing.JCheckBox
+import javax.swing.JLabel
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JPasswordField
@@ -57,6 +61,7 @@ class NetworkPanel(
 
     private lateinit var retryEnabled: JCheckBox
     private lateinit var maxRetries: JSpinner
+    private lateinit var retryDelay: JSpinner
 
     private lateinit var perHostCap: JSpinner
     private lateinit var totalCap: JSpinner
@@ -111,15 +116,15 @@ class NetworkPanel(
 
         addRow(
             localizationManager.getString("settings_network.request_timeout"),
-            withSecondsSuffix(requestTimeout)
+            withSecondsSuffix(requestTimeout, "settings_network.request_timeout_info")
         )
         addRow(
             localizationManager.getString("settings_network.connect_timeout"),
-            withSecondsSuffix(connectTimeout)
+            withSecondsSuffix(connectTimeout, "settings_network.connect_timeout_info")
         )
         addRow(
             localizationManager.getString("settings_network.socket_timeout"),
-            withSecondsSuffix(socketTimeout)
+            withSecondsSuffix(socketTimeout, "settings_network.socket_timeout_info")
         )
         addHint(localizationManager.getString("settings_network.timeouts_hint"))
 
@@ -131,6 +136,7 @@ class NetworkPanel(
             selected = true,
             onChange = { enabled ->
                 maxRetries.isEnabled = enabled
+                retryDelay.isEnabled = enabled
                 applyNetwork { it.copy(retryEnabled = enabled) }
             }
         )
@@ -138,7 +144,21 @@ class NetworkPanel(
             (editor as? JSpinner.NumberEditor)?.textField?.columns = 3
             addChangeListener { if (!isUpdatingFromState) applyNetwork { it.copy(maxRetries = value as Int) } }
         }
-        addRow(localizationManager.getString("settings_network.max_retries"), compact(maxRetries))
+        addRow(localizationManager.getString("settings_network.max_retries"), compact(maxRetries, info("settings_network.max_retries_info")))
+        retryDelay = JSpinner(SpinnerNumberModel(1, 1, 60, 1)).apply {
+            (editor as? JSpinner.NumberEditor)?.textField?.columns = 3
+            addChangeListener {
+                if (!isUpdatingFromState) applyNetwork { it.copy(retryInitialDelaySeconds = value as Int) }
+            }
+        }
+        addRow(
+            localizationManager.getString("settings_network.retry_delay"),
+            compact(
+                retryDelay,
+                mutedLabel(localizationManager.getString("settings_network.seconds_suffix")),
+                info("settings_network.retry_delay_info")
+            )
+        )
         addHint(localizationManager.getString("settings_network.retry_hint"))
 
         // ── Connections ───────────────────────────────────────────────────────
@@ -156,8 +176,8 @@ class NetworkPanel(
                 if (!isUpdatingFromState) applyNetwork { it.copy(maxConnectionsTotal = value as Int) }
             }
         }
-        addRow(localizationManager.getString("settings_network.per_host_connections"), compact(perHostCap))
-        addRow(localizationManager.getString("settings_network.total_connections"), compact(totalCap))
+        addRow(localizationManager.getString("settings_network.per_host_connections"), compact(perHostCap, info("settings_network.per_host_connections_info")))
+        addRow(localizationManager.getString("settings_network.total_connections"), compact(totalCap, info("settings_network.total_connections_info")))
         addHint(localizationManager.getString("settings_network.connections_hint"))
 
         addSeparator(localizationManager.getString("settings_network.applies_group"))
@@ -180,8 +200,29 @@ class NetworkPanel(
             addChangeListener { if (!isUpdatingFromState) onChange(value as Int) }
         }
 
-    private fun withSecondsSuffix(spinner: JSpinner): JComponent =
-        compact(spinner, mutedLabel(localizationManager.getString("settings_network.seconds_suffix")))
+    /**
+     * A small (i) carrying the explanation for the control beside it.
+     *
+     * These four numbers all sound like each other and are not: a whole-request timeout is not the
+     * sum of a connect and a socket timeout, and someone raising the wrong one gets no benefit and
+     * no error either. The hint under each group says what the group is for; this says what the
+     * individual number does, which is where the confusion actually lives.
+     */
+    private fun info(key: String): JComponent =
+        JLabel(runCatching<javax.swing.Icon?> {
+            FlatSVGIcon("icons/lucide/info.svg", UIScale.scale(13), UIScale.scale(13), javaClass.classLoader)
+                .applyForegroundColorFilter()
+        }.getOrNull()).apply {
+            toolTipText = "<html><body style='width:280px'>" +
+                localizationManager.getString(key).replace("<", "&lt;") + "</body></html>"
+        }
+
+    private fun withSecondsSuffix(spinner: JSpinner, infoKey: String): JComponent =
+        compact(
+            spinner,
+            mutedLabel(localizationManager.getString("settings_network.seconds_suffix")),
+            info(infoKey)
+        )
 
     /**
      * Keeps a spinner at the width it asks for.
@@ -223,6 +264,8 @@ class NetworkPanel(
             retryEnabled.isSelected = network.retryEnabled
             maxRetries.value = network.maxRetries.coerceIn(0, 10)
             maxRetries.isEnabled = network.retryEnabled
+            retryDelay.value = network.retryInitialDelaySeconds.coerceIn(1, 60)
+            retryDelay.isEnabled = network.retryEnabled
 
             perHostCap.value = network.maxConnectionsPerHost.coerceIn(1, 64)
             totalCap.value = network.maxConnectionsTotal.coerceIn(1, 512)
