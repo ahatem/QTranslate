@@ -26,6 +26,7 @@ import javax.swing.*
 import javax.swing.border.EmptyBorder
 import kotlin.math.abs
 import kotlin.math.max
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 
 class QuickTranslateDialog(
@@ -116,16 +117,16 @@ class QuickTranslateDialog(
         compact = true
     )
 
-    private val swapButton = createButtonWithIcon(iconManager, "icons/lucide/swap.svg", 13)
+    private val swapButton = createButtonWithIcon(iconManager, Icons.SWAP, 13)
         .apply { addActionListener { onSwapLanguages() } }
 
     private var isRenderingLanguages = false
     private val translatorComboBox = TranslatorPopupButton(iconManager, onTranslatorSelected)
 
-    private val pinButton = createButtonWithIcon(iconManager, "icons/lucide/pin.svg", 14)
-    private val listenButton = createButtonWithIcon(iconManager, "icons/lucide/volume.svg", 14)
-    private val copyButton = createButtonWithIcon(iconManager, "icons/lucide/copy-text.svg", 14)
-    private val closeButton = createButtonWithIcon(iconManager, "icons/lucide/close.svg", 16)
+    private val pinButton = createButtonWithIcon(iconManager, Icons.PIN, 14)
+    private val listenButton = createButtonWithIcon(iconManager, Icons.SPEAK, 14)
+    private val copyButton = createButtonWithIcon(iconManager, Icons.COPY, 14)
+    private val closeButton = createButtonWithIcon(iconManager, Icons.CLOSE, 16)
 
     // content
     private val outputTextArea = AdvancedTextPane(
@@ -392,7 +393,7 @@ class QuickTranslateDialog(
         val playing = state.isTtsPlaying
         currentIsTtsPlaying = playing
         listenButton.icon = iconManager.getIcon(
-            if (playing) "icons/lucide/close.svg" else "icons/lucide/volume.svg",
+            if (playing) Icons.CLOSE else Icons.SPEAK,
             14,
             14
         )
@@ -598,7 +599,7 @@ class QuickTranslateDialog(
         copyFeedbackTimer?.stop()
 
         val originalIcon = copyButton.icon
-        val checkIcon = iconManager.getIcon("icons/lucide/check.svg", 13, 13)
+        val checkIcon = iconManager.getIcon(Icons.CHECK, 13, 13)
         copyButton.icon = (checkIcon as FlatSVGIcon).applyForegroundColorFilter()
         copyButton.foreground = UIManager.getColor("Button.successForeground") ?: Color(34, 197, 94)
 

@@ -24,6 +24,7 @@ import javax.swing.Timer
 import javax.swing.UIManager
 import kotlin.math.abs
 import kotlin.math.max
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 /**
  * A small floating button shown next to text the user selected in another application.
@@ -300,7 +301,7 @@ internal class SelectionTranslateButton(
     }
 
     private companion object {
-        const val ICON_PATH = "icons/lucide/languages.svg"
+        val ICON_PATH = Icons.TRANSLATE
         const val ICON_SIZE = 16
 
         /** Visible button body; the window is larger to leave room for the shadow. */

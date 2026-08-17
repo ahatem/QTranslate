@@ -12,6 +12,7 @@ import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.*
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 class TranslatorSelector(
     private val iconManager: IconManager,
@@ -30,9 +31,9 @@ class TranslatorSelector(
         mouseWheelListeners.forEach(::removeMouseWheelListener)
         addMouseWheelListener { e -> scrollClassic(e.wheelRotation * horizontalScrollBar.unitIncrement) }
     }
-    private val scrollBack = createScrollButton("icons/lucide/arrow-left.svg", -96, "Previous services")
-    private val scrollForward = createScrollButton("icons/lucide/arrow-right.svg", 96, "More services")
-    private val configureActive = JButton(iconManager.getIcon("icons/lucide/settings.svg", 16, 16)).apply {
+    private val scrollBack = createScrollButton(Icons.NAV_BACK, -96, "Previous services")
+    private val scrollForward = createScrollButton(Icons.NAV_FORWARD, 96, "More services")
+    private val configureActive = JButton(iconManager.getIcon(Icons.SETTINGS, 16, 16)).apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
         toolTipText = "Configure active translation service"; isFocusable = false
         addActionListener { state.selectedTranslatorId?.let(onConfigureService) }
@@ -105,7 +106,7 @@ class TranslatorSelector(
             minimumSize = Dimension(0, preferredSize.height)
             addActionListener { (selectedItem as? ServiceInfo)?.let { onServiceSelected(type, it.id) } }
         }
-        val gear = JButton(iconManager.getIcon("icons/lucide/settings.svg", 16, 16)).apply {
+        val gear = JButton(iconManager.getIcon(Icons.SETTINGS, 16, 16)).apply {
             putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton"); toolTipText = "Configure selected $label service"; isFocusable = false
             addActionListener { (combo.selectedItem as? ServiceInfo)?.let { onConfigureService(it.id) } }
         }

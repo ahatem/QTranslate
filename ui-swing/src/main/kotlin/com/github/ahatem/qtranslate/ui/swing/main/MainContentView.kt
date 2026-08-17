@@ -55,6 +55,7 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.KeyStroke
 import javax.swing.UIManager
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 class MainContentView(
     private val iconManager: IconManager,
@@ -512,12 +513,12 @@ class MainContentView(
         val isTtsPlaying = mainState.isTtsPlaying
         val listenStopTooltip = if (isTtsPlaying)
             localizer.getString("common.stop") else localizer.getString("main_window_editor_context_menu.listen")
-        val listenStopIcon = if (isTtsPlaying) "icons/lucide/close.svg" else "icons/lucide/volume.svg"
+        val listenStopIcon = if (isTtsPlaying) Icons.CLOSE else Icons.SPEAK
         val inputActionsState = TextActionsState(
             actions = listOf(
                 Action(
                     id = "copy_input",
-                    iconPath = "icons/lucide/copy-text.svg",
+                    iconPath = Icons.COPY,
                     tooltip = localizer.getString("main_window_editor_context_menu.copy"),
                     isEnabled = hasInputText && !mainState.isLoading,
                     isVisible = true,
@@ -576,7 +577,7 @@ class MainContentView(
                     listOf(
                         Action(
                             id = "copy_output",
-                            iconPath = "icons/lucide/copy-text.svg",
+                            iconPath = Icons.COPY,
                             tooltip = localizer.getString("main_window_editor_context_menu.copy"),
                             isEnabled = hasOutputText && !mainState.isLoading,
                             isVisible = true,
@@ -661,7 +662,7 @@ class MainContentView(
                     listOf(
                         Action(
                             id = "copy_extra",
-                            iconPath = "icons/lucide/copy-text.svg",
+                            iconPath = Icons.COPY,
                             tooltip = localizer.getString("main_window_editor_context_menu.copy"),
                             isEnabled = hasExtraText && !mainState.isLoading,
                             isVisible = true,

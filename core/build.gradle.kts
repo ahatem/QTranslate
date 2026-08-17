@@ -24,5 +24,8 @@ dependencies {
     implementation(libs.pdfbox)
 
     testImplementation(kotlin("test"))
+    // Scripts responses so retry, proxy and timeout rules can be asserted without a live server.
+    testImplementation(libs.ktor.client.mock)
+    testImplementation(libs.kotlinxCoroutinesTest)
 
 }

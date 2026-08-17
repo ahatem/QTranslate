@@ -9,6 +9,8 @@ import java.awt.CardLayout
 import java.awt.Color
 import java.awt.Dimension
 import javax.swing.*
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.component.ServiceInfoRenderer
 
 class DictionaryPanel(
     private val iconManager: IconManager,
@@ -29,7 +31,7 @@ class DictionaryPanel(
 
     private val serviceCombo = JComboBox<ServiceInfo>().apply {
         putClientProperty("JComboBox.isTableCellEditor", true)
-        setRenderer { _, value, _, _, _ -> JLabel(value?.name ?: "") }
+        renderer = ServiceInfoRenderer(iconManager)
     }
     private val serviceRow = JPanel(BorderLayout(6, 0)).apply {
         isOpaque = false
@@ -46,9 +48,9 @@ class DictionaryPanel(
     private var updatingFromState = false
 
     private val activeLinkIconBase: FlatSVGIcon =
-        iconManager.getIcon("icons/lucide/link-2.svg", 13, 13) as FlatSVGIcon
+        iconManager.getIcon(Icons.NETWORK, 13, 13) as FlatSVGIcon
     private val offUnlinkIconBase: FlatSVGIcon =
-        iconManager.getIcon("icons/lucide/unlink.svg", 13, 13) as FlatSVGIcon
+        iconManager.getIcon(Icons.UNPIN, 13, 13) as FlatSVGIcon
 
     private val autoSourceButton = JButton().apply {
         putClientProperty("JButton.buttonType", "toolBarButton")

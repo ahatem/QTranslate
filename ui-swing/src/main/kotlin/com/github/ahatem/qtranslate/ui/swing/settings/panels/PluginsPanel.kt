@@ -28,6 +28,8 @@ import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.filechooser.FileNameExtensionFilter
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
 /**
  * Settings panel for installed plugins.
@@ -125,7 +127,7 @@ class PluginsPanel(
             putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT,
                 localizationManager.getString("settings_plugins.search_placeholder"))
             putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON,
-                themedAppIcon("icons/lucide/search.svg", 15))
+                themedAppIcon(Icons.SEARCH, 15))
             document.addDocumentListener(object : DocumentListener {
                 override fun insertUpdate(e: DocumentEvent?) = refreshPluginRows()
                 override fun removeUpdate(e: DocumentEvent?) = refreshPluginRows()
@@ -173,7 +175,7 @@ class PluginsPanel(
 
         val installBtn = JButton(
             localizationManager.getString("settings_plugins.install_plugin"),
-            themedAppIcon("icons/lucide/package.svg", 16)
+            themedAppIcon(Icons.PLUGIN, 16)
         ).apply { addActionListener { onInstall() } }
 
         val browseLink = JLabel(
@@ -193,7 +195,7 @@ class PluginsPanel(
         val dropHint = JLabel(localizationManager.getString("settings_plugins.drop_hint"), SwingConstants.CENTER).apply {
             foreground = UIManager.getColor("Label.disabledForeground")
             font = font.deriveFont(font.size - 1f)
-            icon = themedAppIcon("icons/lucide/package.svg", 13)
+            icon = themedAppIcon(Icons.PLUGIN, 13)
             iconTextGap = 6
             border = BorderFactory.createCompoundBorder(
                 BorderFactory.createDashedBorder(
@@ -380,7 +382,7 @@ class PluginsPanel(
         val foreground = if (selected) UIManager.getColor("List.selectionForeground") else UIManager.getColor("Label.foreground")
         val serviceId = plugin.services.firstOrNull()?.let(plugin::serviceIdOf)
         val icon = plugin.manifest.icon?.let { path -> serviceId?.let { iconManager.getIcon(it, path, 24, 24) } }
-            ?: themedAppIcon("icons/lucide/package.svg", 24)
+            ?: themedAppIcon(Icons.PLUGIN, 24)
         val categories = PluginPanelModel.categories(plugin).joinToString(" · ") { categoryName(it) }
         val text = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -424,7 +426,7 @@ class PluginsPanel(
                         }
                     }
                 })
-                add(JButton(themedAppIcon("icons/lucide/settings.svg", 15)).apply {
+                add(JButton(themedAppIcon(Icons.SETTINGS, 15)).apply {
                     putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
                     toolTipText = localizationManager.getString("settings_plugins.btn_configure")
                     addActionListener { onConfigure(plugin) }
@@ -452,7 +454,7 @@ class PluginsPanel(
     )
 
     private fun themedAppIcon(path: String, size: Int): Icon =
-        FlatSVGIcon(path, size, size, javaClass.classLoader).applyForegroundColorFilter()
+        IconSet.load(path, size, size).applyForegroundColorFilter()
 
     // ── Detail rebuild ────────────────────────────────────────────────────────
 
@@ -483,7 +485,7 @@ class PluginsPanel(
         val headerIcon: Icon = if (pluginIconPath != null && serviceId != null)
             iconManager.getIcon(serviceId, pluginIconPath, 24, 24)
         else
-            themedAppIcon("icons/lucide/package.svg", 24)
+            themedAppIcon(Icons.PLUGIN, 24)
 
         val nameLabel = JLabel(plugin.manifest.name).apply {
             font = font.deriveFont(Font.BOLD, font.size + 2f)
@@ -615,7 +617,7 @@ class PluginsPanel(
                 insets = Insets(6, 0, 6, 0)
             }
             val pkgIcon = runCatching {
-                val ico = FlatSVGIcon("icons/lucide/package.svg", 36, 36, javaClass.classLoader)
+                val ico = IconSet.load(Icons.PLUGIN, 36, 36)
                 ico.colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") ?: Color.GRAY }
                 ico as Icon
             }.getOrNull()
@@ -742,7 +744,7 @@ class PluginsPanel(
         border = BorderFactory.createEmptyBorder(3, 0, 3, 0)
         val serviceIcon = service.iconPath?.let { iconManager.getIcon(serviceId, it, 15, 15) }
             ?: service.role?.let(::roleIcon)
-            ?: themedAppIcon("icons/lucide/package.svg", 15)
+            ?: themedAppIcon(Icons.PLUGIN, 15)
         add(JLabel(service.name, serviceIcon, SwingConstants.LEADING).apply {
             font = font.deriveFont(Font.BOLD, font.size - 0.5f)
             iconTextGap = 7
@@ -756,15 +758,15 @@ class PluginsPanel(
 
     private fun roleIcon(type: ServiceRole): Icon = themedAppIcon(
         when (type) {
-            ServiceRole.TRANSLATOR -> "icons/lucide/languages.svg"
-            ServiceRole.TTS -> "icons/lucide/volume.svg"
-            ServiceRole.OCR -> "icons/lucide/scan-text.svg"
-            ServiceRole.SPELL_CHECKER -> "icons/lucide/check.svg"
-            ServiceRole.DICTIONARY -> "icons/lucide/book-open.svg"
-            ServiceRole.SUMMARIZER -> "icons/lucide/text-align-start.svg"
-            ServiceRole.REWRITER -> "icons/lucide/pen-line.svg"
+            ServiceRole.TRANSLATOR -> Icons.TRANSLATE
+            ServiceRole.TTS -> Icons.SPEAK
+            ServiceRole.OCR -> Icons.OCR
+            ServiceRole.SPELL_CHECKER -> Icons.CHECK
+            ServiceRole.DICTIONARY -> Icons.DICTIONARY
+            ServiceRole.SUMMARIZER -> Icons.SUMMARIZE
+            ServiceRole.REWRITER -> Icons.EDIT
             // No service declares this yet; the generic icon is a placeholder until one does.
-            ServiceRole.IMAGE_SEARCH -> "icons/lucide/search.svg"
+            ServiceRole.IMAGE_SEARCH -> Icons.SEARCH
         },
         15
     )

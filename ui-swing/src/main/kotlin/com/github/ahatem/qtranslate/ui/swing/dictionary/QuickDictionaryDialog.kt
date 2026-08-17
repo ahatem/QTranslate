@@ -18,6 +18,8 @@ import java.awt.event.*
 import javax.swing.*
 import javax.swing.border.EmptyBorder
 import kotlin.math.abs
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.component.ServiceInfoRenderer
 
 /**
  * Floating, always-on-top dictionary popup.
@@ -75,14 +77,14 @@ class QuickDictionaryDialog(
     private val titleLabel = JLabel("").apply {
         putClientProperty("FlatLaf.styleClass", "h4")
     }
-    private val pinButton = createButtonWithIcon(iconManager, "icons/lucide/pin.svg", 14)
-    private val closeButton = createButtonWithIcon(iconManager, "icons/lucide/close.svg", 16)
+    private val pinButton = createButtonWithIcon(iconManager, Icons.PIN, 14)
+    private val closeButton = createButtonWithIcon(iconManager, Icons.CLOSE, 16)
 
     // Auto-source cycling button — mirrors DictionaryPanel
     private val activeLinkIcon: FlatSVGIcon =
-        (iconManager.getIcon("icons/lucide/link-2.svg", 13, 13) as FlatSVGIcon).applyForegroundColorFilter()
+        (iconManager.getIcon(Icons.NETWORK, 13, 13) as FlatSVGIcon).applyForegroundColorFilter()
     private val offUnlinkIcon: FlatSVGIcon =
-        (iconManager.getIcon("icons/lucide/unlink.svg", 13, 13) as FlatSVGIcon).apply {
+        (iconManager.getIcon(Icons.UNPIN, 13, 13) as FlatSVGIcon).apply {
             colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") }
         }
     private val autoSourceButton = JButton().apply {
@@ -104,7 +106,7 @@ class QuickDictionaryDialog(
     private var updatingFromState = false
     private val serviceCombo = JComboBox<ServiceInfo>().apply {
         putClientProperty("JComboBox.isTableCellEditor", true)
-        setRenderer { _, value, _, _, _ -> JLabel(value?.name ?: "") }
+        renderer = ServiceInfoRenderer(iconManager)
     }
     private val serviceRow = JPanel(BorderLayout(6, 0)).apply {
         isOpaque = false

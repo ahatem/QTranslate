@@ -3,11 +3,14 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 import com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.localization.TranslationCoverage
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSetInfo
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager.Companion.OS_DEFAULT_THEME_ID
 import com.github.ahatem.qtranslate.ui.swing.shared.util.WrapLayout
@@ -17,8 +20,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.withContext
 import java.awt.*
+import java.io.File
 import javax.swing.*
 import javax.swing.DefaultListCellRenderer
+import javax.swing.filechooser.FileNameExtensionFilter
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 class AppearancePanel(
     private val store: SettingsStore,
@@ -51,6 +57,7 @@ class AppearancePanel(
     /** Held so it can be disabled for English, which has no file to edit. */
     private var editButton: JButton? = null
     private lateinit var themeCombo:        JComboBox<ThemeItem>
+    private lateinit var iconSetCombo:      JComboBox<IconSetInfo>
     private lateinit var syncWithOsCheck:   JCheckBox
     private lateinit var titleBarCheck:     JCheckBox
     private lateinit var scaleSpinner:      JSpinner
@@ -83,20 +90,26 @@ class AppearancePanel(
                 }
             }
         }
+        // One named action and a menu, rather than four bare glyphs in a strip.
+        //
+        // Four monochrome icons of the same weight side by side is a row where no single icon has
+        // to be understood and all four have to be guessed at once, and the guessing gets no easier
+        // for the fact that three of them are rare. The common action says what it is in words; the
+        // other three are in a menu where they also get words, and no glyph has to carry a meaning
+        // on its own.
         val actions = if (openEditor == null) emptyList() else listOf(
-            pickerAction(
-                "icons/lucide/pen-line.svg",
-                localizationManager.getString("settings_appearance.edit_tooltip")
-            ) {
-                openEditor.invoke((languageCombo.selectedItem as? LanguageInfo)?.code)
-                loadLanguageListAsync()
+            JButton(localizationManager.getString("settings_appearance.edit_button")).apply {
+                toolTipText = localizationManager.getString("settings_appearance.edit_tooltip")
+                addActionListener {
+                    openEditor.invoke((languageCombo.selectedItem as? LanguageInfo)?.code)
+                    loadLanguageListAsync()
+                }
             }.also { editButton = it },
             pickerAction(
-                "icons/lucide/plus.svg",
-                localizationManager.getString("settings_appearance.new_tooltip")
-            ) {
-                openEditor.invoke(null)
-                loadLanguageListAsync()
+                Icons.MORE,
+                localizationManager.getString("settings_appearance.more_actions")
+            ) { }.also { more ->
+                more.addActionListener { languageMenu().show(more, 0, more.height) }
             }
         )
         addPickerRow(
@@ -114,7 +127,7 @@ class AppearancePanel(
         //
         // WrapLayout, not FlowLayout: FlowLayout reports a single row's height whatever it holds,
         // so the GridBag row was sized for one line and anything that wrapped was clipped away.
-        translatorCredit = JPanel(WrapLayout(FlowLayout.LEADING, 4, 2)).apply {
+        translatorCredit = JPanel(WrapLayout(FlowLayout.LEADING, 0, 3)).apply {
             isOpaque = false
             isVisible = false
         }
@@ -135,6 +148,18 @@ class AppearancePanel(
         }
 
         addRow(localizationManager.getString("settings_appearance.theme_label"), themeCombo)
+
+        iconSetCombo = JComboBox(IconSet.available().toTypedArray()).apply {
+            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            addActionListener {
+                if (!isUpdatingFromState) {
+                    val chosen = selectedItem as? IconSetInfo ?: return@addActionListener
+                    applyDraft(store) { it.copy(iconSetId = chosen.id) }
+                }
+            }
+        }
+        addRow(localizationManager.getString("settings_appearance.icon_set"), iconSetCombo)
+        addHint(localizationManager.getString("settings_appearance.icon_set_hint"))
 
         syncWithOsCheck = addCheckbox(
             text     = localizationManager.getString("settings_appearance.theme_sync_os"),
@@ -245,7 +270,10 @@ class AppearancePanel(
                     code = code,
                     displayName = display,
                     translators = meta?.translators.orEmpty(),
-                    coverage = localizationManager.coverageOf(LanguageCode(code))
+                    coverage = localizationManager.coverageOf(LanguageCode(code)),
+                    // Only a file in the user's own languages folder can be removed. The bundled
+                    // ones are read out of the jar and will still be there after any delete.
+                    isRemovable = File(localizationManager.languagesDirectory, "$code.toml").exists()
                 )
             }
             .sortedBy { it.displayName }
@@ -284,6 +312,12 @@ class AppearancePanel(
     }
 
     private fun groupedThemeRenderer() = object : DefaultListCellRenderer() {
+        // Derived once. This component is reused for every row, so deriving from its own font
+        // shrank the headers a little more on each repaint and dragged the entries down with them.
+        private val baseFont: Font =
+            (UIManager.getFont("List.font") ?: UIManager.getFont("Label.font")).deriveFont(Font.PLAIN)
+        private val headerFont: Font = baseFont.deriveFont(Font.BOLD, baseFont.size - 1f)
+
         override fun getListCellRendererComponent(
             list: JList<*>?, value: Any?,
             index: Int, isSelected: Boolean, cellHasFocus: Boolean
@@ -292,7 +326,7 @@ class AppearancePanel(
                 is ThemeItem.Header -> {
                     super.getListCellRendererComponent(list, value, index, false, false)
                     text = item.label
-                    font = font.deriveFont(Font.BOLD, font.size - 1f)
+                    font = headerFont
                     foreground = UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
                     border = BorderFactory.createEmptyBorder(if (index <= 1) 4 else 10, 6, 2, 4)
                     background = list?.background ?: background
@@ -300,6 +334,7 @@ class AppearancePanel(
                 }
                 is ThemeItem.Entry -> {
                     super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+                    font = baseFont
                     text = item.displayName
                     // index < 0 = closed button cell — no extra padding so the combo height stays normal
                     //
@@ -355,20 +390,22 @@ class AppearancePanel(
             else "settings_appearance.edit_tooltip"
         )
 
+        // Deletable only when there is a file of ours to delete. The bundled translations live in
+        // the jar, so offering to remove one promises something that cannot happen.
+
         translatorCredit.removeAll()
         val handles = info?.translators.orEmpty()
         val coverage = info?.coverage
 
-        // The acknowledgement rides on the control rather than taking a line of its own. One
-        // format string, not a sentence assembled from fragments, so a translator can order the
-        // words as their language requires instead of being handed "Translated by" and "on
-        // GitHub" as fixed bookends.
-        languageCombo.toolTipText = if (handles.isEmpty()) null else {
-            localizationManager.getString(
-                "settings_appearance.translated_by",
-                handles.joinToString(localizationManager.getString("settings_appearance.name_separator"))
-            )
-        }
+        // Said out loud, on its own line. It spent a while as the picker's tooltip, which is a
+        // place credit goes to be never read: you have to already suspect it is there and hover to
+        // find out. Thanking someone where nobody looks is not thanking them.
+        languageCombo.toolTipText = null
+        if (handles.isNotEmpty()) creditSentence(handles).forEach { translatorCredit.add(it) }
+
+        // No separator dot between the credit and the warning. The two wrap independently, so the
+        // dot ended up stranded at the end of one line with the thing it was joining on the next.
+        // A line break says the same thing and cannot come apart.
 
         // Said plainly, and only when it is true. A missing string falls back to English, so an
         // unfinished translation works — it just quietly shows a language the user did not pick,
@@ -391,6 +428,80 @@ class AppearancePanel(
     }
 
     /**
+     * "Translated by @a, @b on GitHub", with each handle a link to that profile.
+     *
+     * Built by splitting the one format string around its `%s` rather than gluing "Translated by"
+     * to a list and "on GitHub" to the end. A translator can then put the words in whatever order
+     * their language needs, and the handles land wherever the sentence puts them.
+     */
+    private fun creditSentence(handles: List<String>): List<JComponent> {
+        // Formatted with a sentinel and split on that. The raw template cannot be read back:
+        // getString ends in String.format and throws if the %s is left unfilled, and splitting
+        // the formatted text on whitespace instead cuts "Translated by" in half.
+        val template = localizationManager.getString("settings_appearance.translated_by", NAME_SLOT)
+        val before = template.substringBefore(NAME_SLOT, missingDelimiterValue = "")
+        val after = template.substringAfter(NAME_SLOT, missingDelimiterValue = "")
+        val separator = localizationManager.getString("settings_appearance.name_separator")
+
+        // Named in full up to a point, then counted. Eight handles ran the whole width of the
+        // dialog and turned an acknowledgement into a wall; the rest are on the hover.
+        val named = handles.take(CREDIT_NAMES)
+        val remaining = handles.size - named.size
+
+        val parts = mutableListOf<JComponent>()
+        if (before.isNotBlank()) parts += mutedLabel(before.trimEnd(), gapAfter = true)
+        named.forEachIndexed { index, handle ->
+            parts += profileLink(handle)
+            val isLast = index == named.lastIndex
+            // The separator hangs off the name before it with no gap in between, so it reads
+            // "@a, @b". Laid out as a free-standing label it took the row's gap on both sides and
+            // came out as "@a , @b".
+            if (!isLast || remaining > 0) {
+                parts += mutedLabel(separator.trim().ifEmpty { "," }, gapAfter = true)
+            }
+        }
+        if (remaining > 0) {
+            parts += mutedLabel(
+                localizationManager.getString("settings_appearance.credit_more", remaining),
+                gapAfter = true
+            ).apply { toolTipText = handles.joinToString(", ") { "@$it" } }
+        }
+        if (after.isNotBlank()) parts += mutedLabel(after.trimStart(), gapBefore = true)
+        return parts
+    }
+
+    private fun mutedLabel(text: String, gapBefore: Boolean = false, gapAfter: Boolean = false) =
+        JLabel(text).apply {
+            foreground = UIManager.getColor("Label.disabledForeground")
+            font = font.deriveFont(font.size - 1f)
+            val gap = UIScale.scale(4)
+            border = BorderFactory.createEmptyBorder(0, if (gapBefore) gap else 0, 0, if (gapAfter) gap else 0)
+        }
+
+    /** One handle, as a link to the GitHub profile it names. */
+    private fun profileLink(handle: String) = JLabel("@$handle").apply {
+        val url = "https://github.com/$handle"
+        foreground = UIManager.getColor("Component.linkColor")
+            ?: UIManager.getColor("Component.accentColor")
+            ?: UIManager.getColor("Label.foreground")
+        font = font.deriveFont(font.size - 1f)
+        // The address itself, so it is clear where this goes before it is clicked.
+        toolTipText = url
+        cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mouseClicked(e: java.awt.event.MouseEvent) = openUrl(url)
+        })
+    }
+
+    private fun openUrl(url: String) {
+        runCatching {
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                Desktop.getDesktop().browse(java.net.URI(url))
+            }
+        }
+    }
+
+    /**
      * Sits beside the credit rather than in the dropdown.
      *
      * In the list it would be one more thing on every row, and the only moment it matters is when
@@ -400,6 +511,9 @@ class AppearancePanel(
     private fun incompleteWarning(text: String) = JLabel(text).apply {
         icon = ScaledIcon(FlatOptionPaneWarningIcon(), UIScale.scale(13))
         iconTextGap = 5
+        // The row carries no gap of its own so the credit's commas sit tight against their names,
+        // which leaves this to space itself off whatever precedes it.
+        border = BorderFactory.createEmptyBorder(0, UIScale.scale(14), 0, 0)
         foreground = UIManager.getColor("Component.warning.focusedBorderColor")
             ?: UIManager.getColor("Label.foreground")
         font = font.deriveFont(font.size - 1f)
@@ -505,6 +619,9 @@ class AppearancePanel(
     override fun render(state: SettingsState) {
         val c = state.workingConfiguration
         withoutTrigger {
+            val setId = state.workingConfiguration.iconSetId
+            iconSetCombo.selectedItem = IconSet.available().firstOrNull { it.id == setId }
+                ?: IconSet.available().first()
             for (i in 0 until languageCombo.itemCount) {
                 if (languageCombo.getItemAt(i).code == selectedLanguageCode(c.interfaceLanguage)) {
                     languageCombo.selectedIndex = i
@@ -538,9 +655,145 @@ class AppearancePanel(
         val displayName: String,
         /** GitHub handles of everyone who worked on this translation. Empty for the built-in. */
         val translators: List<String> = emptyList(),
-        val coverage: TranslationCoverage = TranslationCoverage(0, 0)
+        val coverage: TranslationCoverage = TranslationCoverage(0, 0),
+        /** Whether a file of ours backs this, and so whether deleting it can do anything. */
+        val isRemovable: Boolean = false
     ) {
         override fun toString() = displayName
     }
 
+    /**
+     * The three rarer language actions, named.
+     *
+     * Rebuilt each time it opens so Delete reflects whatever is selected now, rather than whatever
+     * was selected when the row was first laid out.
+     */
+    private fun languageMenu(): JPopupMenu = JPopupMenu().apply {
+        add(JMenuItem(localizationManager.getString("settings_appearance.menu_new")).apply {
+            addActionListener {
+                openEditor?.invoke(null)
+                loadLanguageListAsync()
+            }
+        })
+        add(JMenuItem(localizationManager.getString("settings_appearance.menu_import")).apply {
+            addActionListener { importLanguage() }
+        })
+        addSeparator()
+        add(JMenuItem(localizationManager.getString("settings_appearance.menu_delete")).apply {
+            val info = languageCombo.selectedItem as? LanguageInfo
+            // Only a file of ours can be removed; the bundled translations are read out of the jar
+            // and would still be there afterwards.
+            isEnabled = info?.isRemovable == true
+            foreground = UIManager.getColor("Component.error.focusedBorderColor") ?: foreground
+            addActionListener { deleteSelectedLanguage() }
+        })
+    }
+
+    // ── Installing and removing translations ──────────────────────────────────
+
+    /**
+     * Copies a translation file into the languages folder.
+     *
+     * Parsed before it is copied, and refused if it will not parse. The alternative is a file that
+     * lands successfully and then fails at load, leaving someone to work out why the language they
+     * just installed is not in the list.
+     */
+    private fun importLanguage() {
+        val chooser = JFileChooser().apply {
+            dialogTitle = localizationManager.getString("settings_appearance.import_title")
+            fileFilter = FileNameExtensionFilter(
+                localizationManager.getString("settings_appearance.import_filter"), "toml"
+            )
+            isAcceptAllFileFilterUsed = false
+        }
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return
+        val source = chooser.selectedFile ?: return
+
+        scope.launch {
+            val meta = withContext(Dispatchers.IO) {
+                runCatching { LanguageTomlParser().parse(source.readText()).meta }.getOrNull()
+            }
+            // The locale inside the file wins over the filename: the name is whatever it picked up
+            // being emailed around, the locale is what the translation says it is.
+            val code = meta?.locale?.trim()?.takeIf { it.isNotEmpty() } ?: source.nameWithoutExtension
+            if (meta == null || !LOCALE.matches(code)) {
+                withContext(Dispatchers.Swing) { importFailed("settings_appearance.import_invalid") }
+                return@launch
+            }
+
+            val target = File(localizationManager.languagesDirectory, "$code.toml")
+            if (withContext(Dispatchers.IO) { target.exists() }) {
+                val replace = JOptionPane.showConfirmDialog(
+                    this@AppearancePanel,
+                    localizationManager.getString("settings_appearance.import_exists", code),
+                    localizationManager.getString("settings_appearance.import_title"),
+                    JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE
+                )
+                if (replace != JOptionPane.YES_OPTION) return@launch
+            }
+
+            val copied = withContext(Dispatchers.IO) {
+                runCatching {
+                    target.parentFile?.mkdirs()
+                    source.copyTo(target, overwrite = true)
+                }.isSuccess
+            }
+            withContext(Dispatchers.Swing) {
+                if (!copied) { importFailed("settings_appearance.import_failed"); return@withContext }
+                localizationManager.forget(LanguageCode(code))
+                loadLanguageListAsync()
+            }
+        }
+    }
+
+    private fun importFailed(messageKey: String) {
+        JOptionPane.showMessageDialog(
+            this,
+            localizationManager.getString(messageKey),
+            localizationManager.getString("settings_appearance.import_title"),
+            JOptionPane.ERROR_MESSAGE
+        )
+    }
+
+    private fun deleteSelectedLanguage() {
+        val info = languageCombo.selectedItem as? LanguageInfo ?: return
+        if (!info.isRemovable) return
+
+        val confirm = JOptionPane.showConfirmDialog(
+            this,
+            localizationManager.getString("settings_appearance.delete_confirm", info.displayName),
+            localizationManager.getString("settings_appearance.delete_title"),
+            JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE
+        )
+        if (confirm != JOptionPane.YES_OPTION) return
+
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching { File(localizationManager.languagesDirectory, "${info.code}.toml").delete() }
+            }
+            withContext(Dispatchers.Swing) {
+                localizationManager.forget(LanguageCode(info.code))
+                // Falls back to the built-in rather than leaving the interface pointed at a
+                // translation that is no longer on disk.
+                if (selectedLanguageCode(store.state.value.workingConfiguration.interfaceLanguage) == info.code) {
+                    applyDraft(store) { it.copy(interfaceLanguage = "en") }
+                }
+                loadLanguageListAsync()
+            }
+        }
+    }
+
+    private companion object {
+        /** A BCP 47 tag, loosely: enough to keep an imported filename out of trouble. */
+        val LOCALE = Regex("""[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*""")
+
+        /**
+         * Stands in for the name list while the credit sentence is taken apart. A control
+         * character, so it cannot collide with anything a translator would write.
+         */
+        const val NAME_SLOT = "\u0001"
+
+        /** How many handles the credit names before it starts counting the rest. */
+        const val CREDIT_NAMES = 3
+    }
 }

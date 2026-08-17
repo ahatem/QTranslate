@@ -9,6 +9,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
 import java.awt.*
 import javax.swing.*
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 /**
  * Scrollable panel that renders dictionary entries using native FlatLaf Swing components.
@@ -268,8 +269,8 @@ class DictionaryResultView(private val iconManager: IconManager) : JScrollPane()
     }
 
     private companion object {
-        const val LISTEN_ICON = "icons/lucide/volume.svg"
-        const val STOP_ICON = "icons/lucide/close.svg"
+        val LISTEN_ICON = Icons.SPEAK
+        val STOP_ICON = Icons.CLOSE
         const val LISTEN_ICON_SIZE = 14
     }
 }

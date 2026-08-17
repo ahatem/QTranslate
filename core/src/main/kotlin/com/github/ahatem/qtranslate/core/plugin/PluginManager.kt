@@ -11,6 +11,11 @@ import com.github.ahatem.qtranslate.core.plugin.settings.PluginSettingsManager
 import com.github.ahatem.qtranslate.core.plugin.settings.PluginSettingsModel
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprint
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprintRepository
+import com.github.ahatem.qtranslate.core.plugin.http.HttpClientConfig
+import com.github.ahatem.qtranslate.core.plugin.http.toHttpClientConfig
+import com.github.ahatem.qtranslate.core.plugin.storage.AppSecretStore
+import com.github.ahatem.qtranslate.core.settings.data.NetworkConfig
+import kotlinx.coroutines.runBlocking
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
 import com.github.ahatem.qtranslate.core.plugin.text.PluginTextResolver
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
@@ -75,12 +80,29 @@ class PluginManager(
 
     private val registry = PluginRegistry()
 
+    private val appSecrets = AppSecretStore(pluginKeyValueStore)
+
+    /**
+     * The network settings every plugin's client is built from.
+     *
+     * Read fresh each time a context is made, so a plugin enabled after the user changes
+     * their proxy gets the new one. Blocking is safe here and nowhere near the event thread:
+     * contexts are created while loading or enabling a plugin, both already off it.
+     */
+    private fun currentHttpConfig(): HttpClientConfig = runBlocking {
+        val network = settingsRepository.loadInitialConfiguration().network
+        network.toHttpClientConfig(
+            proxyPassword = appSecrets.get(NetworkConfig.proxyPasswordKey)
+        )
+    }
+
     private val lifecycleHandler = PluginLifecycleHandler(
         appDataDirectory = appDataDirectory,
         pluginKeyValueStore = pluginKeyValueStore,
         notificationBus = notificationBus,
         textResolver = textResolver,
-        loggerFactory = loggerFactory
+        loggerFactory = loggerFactory,
+        httpConfig = ::currentHttpConfig
     )
 
     private val installer = PluginInstaller(

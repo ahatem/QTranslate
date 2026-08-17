@@ -17,6 +17,8 @@ import com.github.ahatem.qtranslate.ui.swing.settings.panels.*
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
+import com.github.ahatem.qtranslate.core.plugin.storage.AppSecretStore
+import com.github.ahatem.qtranslate.core.settings.data.NetworkConfig
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
@@ -33,6 +35,8 @@ import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeCellRenderer
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreeSelectionModel
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
 class SettingsDialog(
     owner: JFrame,
@@ -56,9 +60,24 @@ class SettingsDialog(
      * translate, which hides the action rather than offering one that fails.
      */
     private val translateString: (suspend (String, LanguageCode) -> Result<String>)? = null,
+    /**
+     * The application's own secrets, for the proxy password. Absent in contexts that have no
+     * store, which hides the field rather than offering one that forgets what is typed in it.
+     */
+    private val appSecrets: AppSecretStore? = null,
 ) : JDialog(owner, "Settings", true) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * The proxy password, loaded once when the dialog opens.
+     *
+     * Held here because the secret store is suspending and the Network panel is built on the
+     * event thread. Blocking there to read one value would freeze the dialog opening; the
+     * page is built lazily on first navigation, by which time this has long since arrived.
+     */
+    @Volatile private var proxyPassword: String = ""
+
 
     /** Held as a field so it can be removed again — a lambda passed inline never can be. */
     private val themeListener = java.beans.PropertyChangeListener { event ->
@@ -83,23 +102,24 @@ class SettingsDialog(
      * separated by Plugins and Hotkeys.
      */
     private val navTree: List<Nav> = listOf(
-        Nav.Page(label("general"), "icons/lucide/sliders-horizontal.svg"),
-        Nav.Page(label("appearance"), "icons/lucide/palette.svg"),
+        Nav.Page(label("general"), Icons.GENERAL),
+        Nav.Page(label("appearance"), Icons.APPEARANCE),
         Nav.Group(
             label("group_translation"), listOf(
-                Nav.Page(label("services"), "icons/lucide/zap.svg"),
-                Nav.Page(label("behavior"), "icons/lucide/languages.svg"),
-                Nav.Page(label("languages"), "icons/lucide/globe.svg"),
+                Nav.Page(label("services"), Icons.SERVICE),
+                Nav.Page(label("behavior"), Icons.TRANSLATE),
+                Nav.Page(label("languages"), Icons.LANGUAGE),
             )
         ),
         Nav.Group(
             label("group_interface"), listOf(
-                Nav.Page(label("layout"), "icons/lucide/layout-dashboard.svg"),
-                Nav.Page(label("popups"), "icons/lucide/message-square.svg"),
+                Nav.Page(label("layout"), Icons.LAYOUT),
+                Nav.Page(label("popups"), Icons.POPUP),
             )
         ),
-        Nav.Page(label("hotkeys"), "icons/lucide/keyboard.svg"),
-        Nav.Page(label("plugins"), "icons/lucide/package.svg"),
+        Nav.Page(label("hotkeys"), Icons.KEYBOARD),
+        Nav.Page(label("plugins"), Icons.PLUGIN),
+        Nav.Page(label("network"), Icons.NETWORK),
     )
 
     /** Every selectable page, flattened, in sidebar order. */
@@ -122,7 +142,7 @@ class SettingsDialog(
     private val sidebarIcons: Map<String, Icon> by lazy {
         sidebarIconPaths.mapNotNull { (name, path) ->
             runCatching {
-                val icon = FlatSVGIcon(path, 14, 14, javaClass.classLoader)
+                val icon = IconSet.load(path, 14, 14)
                 icon.colorFilter =
                     FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") ?: Color.GRAY }
                 name to (icon as Icon)
@@ -132,6 +152,9 @@ class SettingsDialog(
 
     // ── Widgets ───────────────────────────────────────────────────────────────
     private val tree: JTree
+
+    /** Row under the pointer, or -1. Drives the sidebar's hover shape. */
+    private var hoveredRow: Int = -1
 
     private val searchField = JTextField()
 
@@ -225,7 +248,14 @@ class SettingsDialog(
 
     // ─────────────────────────────────────────────────────────────────────────
 
+    /** Fetches the stored proxy password so the Network page can show it when opened. */
+    private fun loadProxyPassword() {
+        val secrets = appSecrets ?: return
+        scope.launch { proxyPassword = secrets.get(NetworkConfig.proxyPasswordKey).orEmpty() }
+    }
+
     init {
+        loadProxyPassword()
         com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons.applyTo(this)
         title = localizationManager.getString("settings_dialog.title")
         layout = BorderLayout()
@@ -356,7 +386,65 @@ class SettingsDialog(
             root.add(node)
         }
 
-        return JTree(DefaultTreeModel(root)).apply {
+        return object : JTree(DefaultTreeModel(root)) {
+            /**
+             * Draws the rollover behind the row, across the tree's whole width.
+             *
+             * It has to happen here rather than in the cell renderer: Swing clips a component's
+             * painting to its own bounds, and a renderer is only as wide as its icon and text, so
+             * a pill drawn there came out short for "General" and long for "Services & Presets"
+             * and started at the indent on grouped rows. The tree owns the full width, so the
+             * hover and the selection can finally land on the same pixels.
+             *
+             * The tree is left non-opaque and its background painted here by hand. Painting the
+             * hover before `super` and leaving the tree opaque does not work: `paintComponent`
+             * delegates to `ui.update`, which fills the background first and erased the shape on
+             * every repaint. Painting after `super` would cover the label instead. Filling the
+             * background here puts the hover between the two, which is the only place it belongs.
+             */
+            override fun paintComponent(g: java.awt.Graphics) {
+                g.color = background
+                g.fillRect(0, 0, width, height)
+
+                val row = hoveredRow
+                if (row >= 0 && !isRowSelected(row)) {
+                    getRowBounds(row)?.let { bounds ->
+                        val g2 = g.create() as java.awt.Graphics2D
+                        try {
+                            g2.setRenderingHint(
+                                java.awt.RenderingHints.KEY_ANTIALIASING,
+                                java.awt.RenderingHints.VALUE_ANTIALIAS_ON
+                            )
+                            g2.color = UIManager.getColor("Tree.selectionInactiveBackground")
+                                ?: UIManager.getColor("Component.borderColor")
+                            // The same insets and radius FlatLaf uses for the selection.
+                            val side = UIScale.scale(5)
+                            val top = UIScale.scale(1)
+                            val arc = UIScale.scale(8)
+                            g2.fillRoundRect(
+                                side, bounds.y + top,
+                                (width - side * 2).coerceAtLeast(0), bounds.height - top * 2,
+                                arc, arc
+                            )
+                        } finally {
+                            g2.dispose()
+                        }
+                    }
+                }
+                super.paintComponent(g)
+            }
+        }.apply {
+            // Painted by hand above, so the look and feel must not fill it again.
+            isOpaque = false
+
+            // The tree adds no indent of its own. It had two sources — the look and feel's child
+            // indents plus a top-up in the renderer that subtracted the *unscaled* default from a
+            // scaled one — so the real indent was neither number and could not be reasoned about.
+            // Zero here leaves NEST_INDENT as the only thing that decides it.
+            (ui as? javax.swing.plaf.basic.BasicTreeUI)?.let {
+                it.leftChildIndent = 0
+                it.rightChildIndent = 0
+            }
             isRootVisible = false
             showsRootHandles = false
             selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
@@ -364,10 +452,29 @@ class SettingsDialog(
             // collapsing is still possible by clicking the handle.
             for (row in rowCount - 1 downTo 0) expandRow(row)
 
+            // A tree has no rollover state of its own. Without one this was the only
+            // navigation in the application that stayed inert under the pointer, which is most
+            // of why it read as a list rather than as something to click.
+            addMouseMotionListener(object : java.awt.event.MouseMotionAdapter() {
+                override fun mouseMoved(e: java.awt.event.MouseEvent) {
+                    val row = getRowForLocation(e.x, e.y)
+                    if (row != hoveredRow) {
+                        hoveredRow = row
+                        repaint()
+                    }
+                }
+            })
+            addMouseListener(object : java.awt.event.MouseAdapter() {
+                override fun mouseExited(e: java.awt.event.MouseEvent) {
+                    hoveredRow = -1
+                    repaint()
+                }
+            })
+
             putClientProperty(
                 "FlatLaf.style",
-                // Compact rows: 32px height, minimal selection arc, tight insets
-                "rowHeight: 32; selectionArc: 6; selectionInsets: 1,6,1,6; " +
+                // Compact rows, and a selection shape the hover state matches exactly.
+                "rowHeight: 26; selectionArc: 8; selectionInsets: 1,5,1,5; " +
                         $$"selectionBackground: $Table.selectionBackground"
             )
 
@@ -375,6 +482,15 @@ class SettingsDialog(
                 init {
                     leafIcon = null; closedIcon = null; openIcon = null
                 }
+
+                // Derived once from a stable base. A cell renderer is a single component reused for
+                // every row, so deriving from its *current* font compounds: each heading shrank the
+                // shared font by a pixel and every row drawn afterwards inherited the smaller one,
+                // until the labels vanished entirely.
+                private val itemFont: Font =
+                    (UIManager.getFont("Tree.font") ?: UIManager.getFont("Label.font"))
+                        .deriveFont(Font.PLAIN)
+                private val groupFont: Font = itemFont.deriveFont(Font.BOLD, itemFont.size - 1f)
 
                 override fun getTreeCellRendererComponent(
                     tree: JTree, value: Any, sel: Boolean,
@@ -406,13 +522,7 @@ class SettingsDialog(
                     // topped up to a minimum rather than replaced, so this neither fights the
                     // look and feel nor depends on it.
                     val depth = (value as? DefaultMutableTreeNode)?.level ?: 1
-                    val treeIndent = UIManager.getInt("Tree.leftChildIndent") +
-                        UIManager.getInt("Tree.rightChildIndent")
-                    val nesting = if (depth > 1) {
-                        (UIScale.scale(NEST_INDENT) - treeIndent).coerceAtLeast(0)
-                    } else {
-                        0
-                    }
+                    val nesting = if (depth > 1) UIScale.scale(NEST_INDENT) else 0
 
                     // EmptyBorder takes absolute sides and knows nothing about direction, so the
                     // leading edge is picked here. Written always on the left, the indent moved to
@@ -424,12 +534,20 @@ class SettingsDialog(
                     } else {
                         BorderFactory.createEmptyBorder(0, base, 0, leading)
                     }
-                    font = font.deriveFont(if (isGroup) Font.BOLD else Font.PLAIN)
+                    // A heading labels the rows beneath it, so it is quieter and smaller than
+                    // they are. Set at the same size and weight it competed with them, and the
+                    // sidebar read as one long list with two odd entries in it.
+                    font = if (isGroup) groupFont else itemFont
                     if (!sel) {
                         foreground = UIManager.getColor(
                             if (isGroup) "Label.disabledForeground" else "Label.foreground"
                         )
                     }
+
+                    // Headings carry no icon. Giving them one made them look selectable, and the
+                    // blank space where an icon would be is what tells the eye they are not.
+                    if (isGroup) icon = null
+
                     return this
                 }
             }
@@ -807,6 +925,21 @@ class SettingsDialog(
         label("popups") ->
             PopupsPanel(settingsStore, localizationManager)
 
+        label("network") ->
+            NetworkPanel(
+                settingsStore,
+                localizationManager,
+                proxyPassword = appSecrets?.let { secrets ->
+                    object : NetworkPanel.PasswordAccess {
+                        override fun read(): String = proxyPassword
+                        override fun write(value: String) {
+                            proxyPassword = value
+                            scope.launch { secrets.put(NetworkConfig.proxyPasswordKey, value) }
+                        }
+                    }
+                }
+            )
+
         else -> JPanel()
     }
 
@@ -941,7 +1074,7 @@ class SettingsDialog(
          * A floor, not a fixed value: the tree indents its own children first, and this only
          * makes up the difference when that comes out too small to read as nesting.
          */
-        const val NEST_INDENT = 18
+        const val NEST_INDENT = 12
     }
 
     /**

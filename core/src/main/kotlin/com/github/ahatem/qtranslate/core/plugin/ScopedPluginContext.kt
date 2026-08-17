@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.api.plugin.DisplayText
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
+import com.github.ahatem.qtranslate.core.plugin.http.HttpClientConfig
 import com.github.ahatem.qtranslate.core.plugin.http.KtorHttpClient
 import com.github.ahatem.qtranslate.api.plugin.SecretStore
 import com.github.ahatem.qtranslate.api.plugin.SettingsStore
@@ -52,7 +53,18 @@ internal class ScopedPluginContext(
      * one client is built per plugin rather than per enable, and that it is closed when the plugin
      * is finished with and not before.
      */
-    httpFactory: (Logger) -> HttpClient = ::KtorHttpClient
+    /**
+     * How the shared client is configured: proxy, timeouts, retries, connection caps.
+     * Supplied by the host from the user's network settings, so that no plugin has to know
+     * any of it exists.
+     */
+    httpConfig: HttpClientConfig = HttpClientConfig(),
+    /**
+     * Takes the config as well as the logger, so a test can observe which settings the client
+     * was actually built with. Handed only the logger, the config was unobservable and the
+     * wiring from the settings page down to here could not be asserted at all.
+     */
+    httpFactory: (Logger, HttpClientConfig) -> HttpClient = ::KtorHttpClientOf
 ) : PluginContext {
 
     // A fresh SupervisorJob-backed scope on IO dispatcher.
@@ -87,7 +99,7 @@ internal class ScopedPluginContext(
      * Built with the plugin's own logger, so a failed request is still attributed to the plugin
      * that made it.
      */
-    override val http: HttpClient = httpFactory(logger)
+    override val http: HttpClient = httpFactory(logger, httpConfig)
 
     // -------------------------------------------------------------------------
     // Notifications
@@ -153,3 +165,12 @@ internal class ScopedPluginContext(
     private fun createFreshScope() =
         CoroutineScope(Dispatchers.IO + SupervisorJob())
 }
+
+/**
+ * The production client, as a named function so it can be a default factory value.
+ *
+ * A lambda would close over the constructor parameter and hide the config from anything trying to
+ * observe it; a function reference keeps the two arguments visible in the signature.
+ */
+internal fun KtorHttpClientOf(logger: Logger, config: HttpClientConfig): HttpClient =
+    KtorHttpClient(logger = logger, config = config)

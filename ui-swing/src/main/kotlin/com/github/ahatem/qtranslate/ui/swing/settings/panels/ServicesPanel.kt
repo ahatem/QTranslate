@@ -16,6 +16,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.awt.*
 import javax.swing.*
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
 class ServicesPanel(
     private val store: SettingsStore,
@@ -55,11 +57,11 @@ class ServicesPanel(
         // answer it differently, two clicks apart in one dialog: labelled buttons on a row below
         // here, icon buttons inline there.
         renameBtn = pickerAction(
-            "icons/lucide/pen-line.svg",
+            Icons.EDIT,
             localizationManager.getString("settings_services.rename_preset_btn")
         ) { onRename() }
         deleteBtn = pickerAction(
-            "icons/lucide/trash.svg",
+            Icons.DELETE,
             localizationManager.getString("settings_services.delete_preset_btn")
         ) { onDelete() }
 
@@ -68,7 +70,7 @@ class ServicesPanel(
             presetCombo,
             listOf(
                 pickerAction(
-                    "icons/lucide/plus.svg",
+                    Icons.ADD,
                     localizationManager.getString("settings_services.new_preset_btn")
                 ) { onNew() },
                 renameBtn,
@@ -150,17 +152,17 @@ class ServicesPanel(
      */
     private fun serviceIcon(type: ServiceRole): Icon? {
         val path = when (type) {
-            ServiceRole.TRANSLATOR -> "icons/lucide/languages.svg"
-            ServiceRole.TTS -> "icons/lucide/volume.svg"
-            ServiceRole.OCR -> "icons/lucide/scan-text.svg"
-            ServiceRole.SPELL_CHECKER -> "icons/lucide/check.svg"
-            ServiceRole.DICTIONARY -> "icons/lucide/book-open.svg"
-            ServiceRole.SUMMARIZER -> "icons/lucide/text-align-start.svg"
-            ServiceRole.REWRITER -> "icons/lucide/pen-line.svg"
-            ServiceRole.IMAGE_SEARCH -> "icons/lucide/search.svg"
+            ServiceRole.TRANSLATOR -> Icons.TRANSLATE
+            ServiceRole.TTS -> Icons.SPEAK
+            ServiceRole.OCR -> Icons.OCR
+            ServiceRole.SPELL_CHECKER -> Icons.CHECK
+            ServiceRole.DICTIONARY -> Icons.DICTIONARY
+            ServiceRole.SUMMARIZER -> Icons.SUMMARIZE
+            ServiceRole.REWRITER -> Icons.EDIT
+            ServiceRole.IMAGE_SEARCH -> Icons.SEARCH
         }
         return runCatching {
-            val icon = FlatSVGIcon(path, 14, 14, javaClass.classLoader)
+            val icon = IconSet.load(path, 14, 14)
             icon.colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") ?: Color.GRAY }
             icon as Icon
         }.getOrNull()

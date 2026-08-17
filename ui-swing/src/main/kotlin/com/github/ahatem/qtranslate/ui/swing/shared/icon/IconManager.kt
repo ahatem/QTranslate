@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import java.net.URL
 import javax.swing.Icon
 import javax.swing.ImageIcon
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
 class IconManager(private val pluginManager: PluginManager) {
 
@@ -36,7 +37,21 @@ class IconManager(private val pluginManager: PluginManager) {
         }
     }
 
+    /**
+     * Loads an SVG, from the icon set or from wherever the caller says.
+     *
+     * The two are not interchangeable. The application's own icons are named for the vocabulary and
+     * resolve against the chosen set, which may be a folder on disk. A plugin's icons live inside
+     * that plugin's JAR and are reachable only through its own class loader; sending those through
+     * the set resolver looks for them on the application's classpath, finds nothing, and returns
+     * the missing-icon glyph — which is precisely what happened, and why every plugin in the list
+     * turned into a red square.
+     */
     private fun loadSvgIcon(path: String, width: Int, height: Int, loader: ClassLoader): Icon {
+        if (loader === this::class.java.classLoader && path.startsWith(APP_ICON_PREFIX)) {
+            val icon = IconSet.load(path, width, height)
+            return if (icon.iconWidth > 0) icon else getMissingIcon(width, height)
+        }
         val icon = FlatSVGIcon(path, width, height, loader)
         return if (icon.iconWidth > 0) icon else getMissingIcon(width, height)
     }
@@ -61,5 +76,10 @@ class IconManager(private val pluginManager: PluginManager) {
             height,
             loader
         )
+    }
+
+    private companion object {
+        /** Only paths under this belong to the application's own icon sets. */
+        const val APP_ICON_PREFIX = "icons/"
     }
 }

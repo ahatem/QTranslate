@@ -7,6 +7,7 @@ import java.awt.Component
 import java.awt.FlowLayout
 import java.awt.Insets
 import javax.swing.*
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 data class PresetSelectorState(
     val availablePresets: List<ServicePreset>,
@@ -31,7 +32,7 @@ class PresetSelector(
         isOpaque = false
         presetComboBox.renderer = PresetRenderer()
 
-        settingsButton = JButton(iconManager.getIcon("icons/lucide/settings.svg", 18, 18)).apply {
+        settingsButton = JButton(iconManager.getIcon(Icons.SETTINGS, 18, 18)).apply {
             toolTipText = localizationManager.getString("preset_selector.manage_tooltip")
             isFocusable = false
             putClientProperty("JButton.buttonType", "toolBarButton")
