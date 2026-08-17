@@ -59,7 +59,12 @@ internal class ScopedPluginContext(
      * any of it exists.
      */
     httpConfig: HttpClientConfig = HttpClientConfig(),
-    httpFactory: (Logger) -> HttpClient = { KtorHttpClient(it, config = httpConfig) }
+    /**
+     * Takes the config as well as the logger, so a test can observe which settings the client
+     * was actually built with. Handed only the logger, the config was unobservable and the
+     * wiring from the settings page down to here could not be asserted at all.
+     */
+    httpFactory: (Logger, HttpClientConfig) -> HttpClient = ::KtorHttpClientOf
 ) : PluginContext {
 
     // A fresh SupervisorJob-backed scope on IO dispatcher.
@@ -94,7 +99,7 @@ internal class ScopedPluginContext(
      * Built with the plugin's own logger, so a failed request is still attributed to the plugin
      * that made it.
      */
-    override val http: HttpClient = httpFactory(logger)
+    override val http: HttpClient = httpFactory(logger, httpConfig)
 
     // -------------------------------------------------------------------------
     // Notifications
@@ -160,3 +165,12 @@ internal class ScopedPluginContext(
     private fun createFreshScope() =
         CoroutineScope(Dispatchers.IO + SupervisorJob())
 }
+
+/**
+ * The production client, as a named function so it can be a default factory value.
+ *
+ * A lambda would close over the constructor parameter and hide the config from anything trying to
+ * observe it; a function reference keeps the two arguments visible in the signature.
+ */
+internal fun KtorHttpClientOf(logger: Logger, config: HttpClientConfig): HttpClient =
+    KtorHttpClient(logger = logger, config = config)

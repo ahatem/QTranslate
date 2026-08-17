@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.DisplayText
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.core.plugin.http.HttpClientConfig
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
 import com.github.ahatem.qtranslate.core.plugin.text.PluginTextResolver
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
@@ -109,7 +110,8 @@ class ScopedPluginContextHttpTest {
     private fun context(
         pluginId: String = "test-plugin",
         store: PluginKeyValueStore = PluginKeyValueStore(tempDir()),
-        factory: CountingFactory = CountingFactory()
+        factory: CountingFactory = CountingFactory(),
+        httpConfig: HttpClientConfig = HttpClientConfig()
     ) = ScopedPluginContext(
         pluginId = pluginId,
         appDataDirectory = tempDir(),
@@ -117,6 +119,7 @@ class ScopedPluginContextHttpTest {
         notificationBus = NotificationBus(),
         textResolver = NoTextResolver,
         logger = SilentLogger,
+        httpConfig = httpConfig,
         httpFactory = factory::build
     )
 
@@ -124,7 +127,12 @@ class ScopedPluginContextHttpTest {
         var built = 0
             private set
 
-        fun build(@Suppress("UNUSED_PARAMETER") logger: Logger): HttpClient {
+        /** The config the last client was built with, so the wiring can be asserted. */
+        var lastConfig: HttpClientConfig? = null
+            private set
+
+        fun build(@Suppress("UNUSED_PARAMETER") logger: Logger, config: HttpClientConfig): HttpClient {
+            lastConfig = config
             built++
             return RecordingHttpClient()
         }
