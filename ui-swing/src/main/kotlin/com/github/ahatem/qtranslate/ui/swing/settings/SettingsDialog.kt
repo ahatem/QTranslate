@@ -17,6 +17,8 @@ import com.github.ahatem.qtranslate.ui.swing.settings.panels.*
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
+import com.github.ahatem.qtranslate.core.plugin.storage.AppSecretStore
+import com.github.ahatem.qtranslate.core.settings.data.NetworkConfig
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
@@ -56,9 +58,24 @@ class SettingsDialog(
      * translate, which hides the action rather than offering one that fails.
      */
     private val translateString: (suspend (String, LanguageCode) -> Result<String>)? = null,
+    /**
+     * The application's own secrets, for the proxy password. Absent in contexts that have no
+     * store, which hides the field rather than offering one that forgets what is typed in it.
+     */
+    private val appSecrets: AppSecretStore? = null,
 ) : JDialog(owner, "Settings", true) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * The proxy password, loaded once when the dialog opens.
+     *
+     * Held here because the secret store is suspending and the Network panel is built on the
+     * event thread. Blocking there to read one value would freeze the dialog opening; the
+     * page is built lazily on first navigation, by which time this has long since arrived.
+     */
+    @Volatile private var proxyPassword: String = ""
+
 
     /** Held as a field so it can be removed again — a lambda passed inline never can be. */
     private val themeListener = java.beans.PropertyChangeListener { event ->
@@ -226,7 +243,14 @@ class SettingsDialog(
 
     // ─────────────────────────────────────────────────────────────────────────
 
+    /** Fetches the stored proxy password so the Network page can show it when opened. */
+    private fun loadProxyPassword() {
+        val secrets = appSecrets ?: return
+        scope.launch { proxyPassword = secrets.get(NetworkConfig.proxyPasswordKey).orEmpty() }
+    }
+
     init {
+        loadProxyPassword()
         com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons.applyTo(this)
         title = localizationManager.getString("settings_dialog.title")
         layout = BorderLayout()
@@ -809,7 +833,19 @@ class SettingsDialog(
             PopupsPanel(settingsStore, localizationManager)
 
         label("network") ->
-            NetworkPanel(settingsStore, localizationManager)
+            NetworkPanel(
+                settingsStore,
+                localizationManager,
+                proxyPassword = appSecrets?.let { secrets ->
+                    object : NetworkPanel.PasswordAccess {
+                        override fun read(): String = proxyPassword
+                        override fun write(value: String) {
+                            proxyPassword = value
+                            scope.launch { secrets.put(NetworkConfig.proxyPasswordKey, value) }
+                        }
+                    }
+                }
+            )
 
         else -> JPanel()
     }

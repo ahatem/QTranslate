@@ -21,6 +21,7 @@ import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.plugin.text.LocalizedPluginTextResolver
 import com.github.ahatem.qtranslate.core.plugin.text.PluginLocalization
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprintRepository
+import com.github.ahatem.qtranslate.core.plugin.storage.AppSecretStore
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
@@ -65,7 +66,9 @@ class AppDependencies(
     val iconManager: IconManager,
     val themeManager: ThemeManager,
     val localizationManager: LocalizationManager,
-    val notificationBus: NotificationBus
+    val notificationBus: NotificationBus,
+    /** The application's own secrets, distinct from any plugin's. */
+    val appSecrets: AppSecretStore
 )
 
 /**
@@ -127,11 +130,16 @@ suspend fun buildDependencies(
         logger           = loggerFactory.getLogger("LocalizationManager")
     )
 
+    // One instance, shared: the settings dialog writes the proxy password and the plugin
+    // manager reads it back when building each plugin's client.
+    val keyValueStore = PluginKeyValueStore(appData)
+    val appSecrets = AppSecretStore(keyValueStore)
+
     val pluginManager = PluginManager(
         appDataDirectory            = appData,
         settingsRepository          = settingsRepo,
         pluginFingerprintRepository = PluginFingerprintRepository(appData, Json { ignoreUnknownKeys = true; isLenient = true }),
-        pluginKeyValueStore         = PluginKeyValueStore(appData),
+        pluginKeyValueStore         = keyValueStore,
         loggerFactory               = loggerFactory,
         notificationBus             = notificationBus,
         textResolver                = LocalizedPluginTextResolver(
@@ -283,6 +291,7 @@ suspend fun buildDependencies(
         translateStringUseCase = translateStringUseCase,
         settingsStore       = settingsStore,
         pluginManager       = pluginManager,
+        appSecrets          = appSecrets,
         iconManager         = iconManager,
         themeManager        = themeManager,
         localizationManager = localizationManager,

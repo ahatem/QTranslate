@@ -12,6 +12,7 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
+import com.github.ahatem.qtranslate.core.plugin.storage.AppSecretStore
 import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
 import com.github.ahatem.qtranslate.core.settings.data.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
@@ -83,7 +84,9 @@ class MainAppFrame(
      * Translates one string, used by the language editor to offer a suggestion for an untranslated
      * key. Optional so a frame can be built without a translator, which simply hides the action.
      */
-    private val translateString: (suspend (String, com.github.ahatem.qtranslate.api.language.LanguageCode) -> Result<String>)? = null
+    private val translateString: (suspend (String, com.github.ahatem.qtranslate.api.language.LanguageCode) -> Result<String>)? = null,
+    /** The application's own secrets, for the proxy password on the Network settings page. */
+    private val appSecrets: AppSecretStore? = null
 ) : JFrame("QTranslate") {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("MainAppFrame"))
@@ -220,6 +223,7 @@ class MainAppFrame(
         localizationManager = localizer,
         availableLanguages = { mainStore.state.value.availableLanguages },
         translateString = translateString,
+        appSecrets = appSecrets,
         pauseGlobalHotkeys  = { globalKeyListener.setHotkeysEnabled(false) },
         resumeGlobalHotkeys = {
             globalKeyListener.setHotkeysEnabled(

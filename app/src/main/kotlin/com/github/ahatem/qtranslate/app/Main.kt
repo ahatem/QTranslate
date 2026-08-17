@@ -125,6 +125,7 @@ fun main() = runBlocking {
             localizer        = deps.localizationManager,
             pluginManager    = deps.pluginManager,
             notificationBus  = deps.notificationBus,
+            appSecrets       = deps.appSecrets,
             translateString  = { text, target ->
                 deps.translateStringUseCase(text, target).fold(
                     success = { Result.success(it) },

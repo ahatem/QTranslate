@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.api.plugin.DisplayText
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
+import com.github.ahatem.qtranslate.core.plugin.http.HttpClientConfig
 import com.github.ahatem.qtranslate.core.plugin.http.KtorHttpClient
 import com.github.ahatem.qtranslate.api.plugin.SecretStore
 import com.github.ahatem.qtranslate.api.plugin.SettingsStore
@@ -52,7 +53,13 @@ internal class ScopedPluginContext(
      * one client is built per plugin rather than per enable, and that it is closed when the plugin
      * is finished with and not before.
      */
-    httpFactory: (Logger) -> HttpClient = ::KtorHttpClient
+    /**
+     * How the shared client is configured: proxy, timeouts, retries, connection caps.
+     * Supplied by the host from the user's network settings, so that no plugin has to know
+     * any of it exists.
+     */
+    httpConfig: HttpClientConfig = HttpClientConfig(),
+    httpFactory: (Logger) -> HttpClient = { KtorHttpClient(it, config = httpConfig) }
 ) : PluginContext {
 
     // A fresh SupervisorJob-backed scope on IO dispatcher.

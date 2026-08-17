@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.core.plugin.ScopedPluginContext
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginContainer
 import com.github.ahatem.qtranslate.core.plugin.registry.ServiceValidator
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginError
+import com.github.ahatem.qtranslate.core.plugin.http.HttpClientConfig
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
 import com.github.ahatem.qtranslate.core.plugin.text.PluginTextResolver
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
@@ -29,7 +30,14 @@ internal class PluginLifecycleHandler(
     private val notificationBus: NotificationBus,
     private val textResolver: PluginTextResolver,
 
-    private val loggerFactory: LoggerFactory
+    private val loggerFactory: LoggerFactory,
+    /**
+     * The network settings to build each plugin's client from, read at the moment a context
+     * is created rather than captured once. A plugin installed or re-enabled after the user
+     * changes their proxy then gets the new one without a restart; the ones already running
+     * keep the client they were handed, which is what the settings page says happens.
+     */
+    private val httpConfig: () -> HttpClientConfig = { HttpClientConfig() }
 ) {
     private val logger = loggerFactory.getLogger("PluginLifecycleHandler")
 
@@ -59,7 +67,8 @@ internal class PluginLifecycleHandler(
             pluginKeyValueStore = pluginKeyValueStore,
             notificationBus = notificationBus,
             textResolver = textResolver,
-            logger = loggerFactory.getLogger(result.manifest.id)
+            logger = loggerFactory.getLogger(result.manifest.id),
+            httpConfig = httpConfig()
         )
     }
 
