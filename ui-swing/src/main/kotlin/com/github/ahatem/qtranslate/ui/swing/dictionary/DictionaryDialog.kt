@@ -7,6 +7,7 @@ import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.Frame
 import javax.swing.*
+import com.github.ahatem.qtranslate.ui.swing.shared.component.ServiceInfoRenderer
 
 class DictionaryDialog(owner: Frame, iconManager: IconManager) : JDialog(null as Frame?, false) {
 
@@ -28,7 +29,7 @@ class DictionaryDialog(owner: Frame, iconManager: IconManager) : JDialog(null as
 
     private val serviceCombo = JComboBox<ServiceInfo>().apply {
         putClientProperty("JComboBox.isTableCellEditor", true)
-        setRenderer { _, value, _, _, _ -> JLabel(value?.name ?: "") }
+        renderer = ServiceInfoRenderer(iconManager)
     }
     private val serviceRow = JPanel(BorderLayout(6, 0)).apply {
         isOpaque = false

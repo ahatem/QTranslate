@@ -153,6 +153,9 @@ class SettingsDialog(
     // ── Widgets ───────────────────────────────────────────────────────────────
     private val tree: JTree
 
+    /** Row under the pointer, or -1. Drives the sidebar's hover shape. */
+    private var hoveredRow: Int = -1
+
     private val searchField = JTextField()
 
     /** Swaps between the section tree and the search results in the same space. */
@@ -391,16 +394,74 @@ class SettingsDialog(
             // collapsing is still possible by clicking the handle.
             for (row in rowCount - 1 downTo 0) expandRow(row)
 
+            // A tree has no rollover state of its own. Without one this was the only
+            // navigation in the application that stayed inert under the pointer, which is most
+            // of why it read as a list rather than as something to click.
+            addMouseMotionListener(object : java.awt.event.MouseMotionAdapter() {
+                override fun mouseMoved(e: java.awt.event.MouseEvent) {
+                    val row = getRowForLocation(e.x, e.y)
+                    if (row != hoveredRow) {
+                        hoveredRow = row
+                        repaint()
+                    }
+                }
+            })
+            addMouseListener(object : java.awt.event.MouseAdapter() {
+                override fun mouseExited(e: java.awt.event.MouseEvent) {
+                    hoveredRow = -1
+                    repaint()
+                }
+            })
+
             putClientProperty(
                 "FlatLaf.style",
                 // Compact rows: 32px height, minimal selection arc, tight insets
-                "rowHeight: 32; selectionArc: 6; selectionInsets: 1,6,1,6; " +
+                "rowHeight: 34; selectionArc: 10; selectionInsets: 2,6,2,6; " +
                         $$"selectionBackground: $Table.selectionBackground"
             )
 
             cellRenderer = object : DefaultTreeCellRenderer() {
                 init {
                     leafIcon = null; closedIcon = null; openIcon = null
+                }
+
+                /** Whether this row should draw the rollover shape. */
+                private var hovered = false
+
+                // Derived once from a stable base. A cell renderer is a single component reused for
+                // every row, so deriving from its *current* font compounds: each heading shrank the
+                // shared font by a pixel and every row drawn afterwards inherited the smaller one,
+                // until the labels vanished entirely. The same trap as the translation editor's row
+                // renderer, which is why the base is read from the look and feel rather than self.
+                private val itemFont: Font =
+                    (UIManager.getFont("Tree.font") ?: UIManager.getFont("Label.font"))
+                        .deriveFont(Font.PLAIN)
+                private val groupFont: Font = itemFont.deriveFont(Font.BOLD, itemFont.size - 1f)
+
+                /**
+                 * Draws the hover shape, matched to the selection pill.
+                 *
+                 * Inset and rounded exactly as `selectionInsets` and `selectionArc` are, so moving
+                 * the pointer onto the selected row does not shift anything by a pixel.
+                 */
+                override fun paintComponent(g: java.awt.Graphics) {
+                    if (hovered) {
+                        val g2 = g.create() as java.awt.Graphics2D
+                        try {
+                            g2.setRenderingHint(
+                                java.awt.RenderingHints.KEY_ANTIALIASING,
+                                java.awt.RenderingHints.VALUE_ANTIALIAS_ON
+                            )
+                            g2.color = UIManager.getColor("Tree.selectionInactiveBackground")
+                                ?: UIManager.getColor("Component.borderColor")
+                            val inset = UIScale.scale(2)
+                            val arc = UIScale.scale(10)
+                            g2.fillRoundRect(0, inset, width, height - inset * 2, arc, arc)
+                        } finally {
+                            g2.dispose()
+                        }
+                    }
+                    super.paintComponent(g)
                 }
 
                 override fun getTreeCellRendererComponent(
@@ -451,12 +512,21 @@ class SettingsDialog(
                     } else {
                         BorderFactory.createEmptyBorder(0, base, 0, leading)
                     }
-                    font = font.deriveFont(if (isGroup) Font.BOLD else Font.PLAIN)
+                    // A heading labels the rows beneath it, so it is quieter and smaller than
+                    // they are. Set at the same size and weight it competed with them, and the
+                    // sidebar read as one long list with two odd entries in it.
+                    font = if (isGroup) groupFont else itemFont
                     if (!sel) {
                         foreground = UIManager.getColor(
                             if (isGroup) "Label.disabledForeground" else "Label.foreground"
                         )
                     }
+
+                    // Headings carry no icon. Giving them one made them look selectable, and the
+                    // blank space where an icon would be is what tells the eye they are not.
+                    if (isGroup) icon = null
+
+                    hovered = !sel && !isGroup && row == hoveredRow
                     return this
                 }
             }

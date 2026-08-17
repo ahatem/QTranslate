@@ -312,6 +312,12 @@ class AppearancePanel(
     }
 
     private fun groupedThemeRenderer() = object : DefaultListCellRenderer() {
+        // Derived once. This component is reused for every row, so deriving from its own font
+        // shrank the headers a little more on each repaint and dragged the entries down with them.
+        private val baseFont: Font =
+            (UIManager.getFont("List.font") ?: UIManager.getFont("Label.font")).deriveFont(Font.PLAIN)
+        private val headerFont: Font = baseFont.deriveFont(Font.BOLD, baseFont.size - 1f)
+
         override fun getListCellRendererComponent(
             list: JList<*>?, value: Any?,
             index: Int, isSelected: Boolean, cellHasFocus: Boolean
@@ -320,7 +326,7 @@ class AppearancePanel(
                 is ThemeItem.Header -> {
                     super.getListCellRendererComponent(list, value, index, false, false)
                     text = item.label
-                    font = font.deriveFont(Font.BOLD, font.size - 1f)
+                    font = headerFont
                     foreground = UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
                     border = BorderFactory.createEmptyBorder(if (index <= 1) 4 else 10, 6, 2, 4)
                     background = list?.background ?: background
@@ -328,6 +334,7 @@ class AppearancePanel(
                 }
                 is ThemeItem.Entry -> {
                     super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+                    font = baseFont
                     text = item.displayName
                     // index < 0 = closed button cell — no extra padding so the combo height stays normal
                     //

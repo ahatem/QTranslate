@@ -19,6 +19,7 @@ import javax.swing.*
 import javax.swing.border.EmptyBorder
 import kotlin.math.abs
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.component.ServiceInfoRenderer
 
 /**
  * Floating, always-on-top dictionary popup.
@@ -105,7 +106,7 @@ class QuickDictionaryDialog(
     private var updatingFromState = false
     private val serviceCombo = JComboBox<ServiceInfo>().apply {
         putClientProperty("JComboBox.isTableCellEditor", true)
-        setRenderer { _, value, _, _, _ -> JLabel(value?.name ?: "") }
+        renderer = ServiceInfoRenderer(iconManager)
     }
     private val serviceRow = JPanel(BorderLayout(6, 0)).apply {
         isOpaque = false
