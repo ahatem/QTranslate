@@ -396,9 +396,16 @@ class SettingsDialog(
              * and started at the indent on grouped rows. The tree owns the full width, so the
              * hover and the selection can finally land on the same pixels.
              *
-             * Before super, so a selected row keeps its own background.
+             * The tree is left non-opaque and its background painted here by hand. Painting the
+             * hover before `super` and leaving the tree opaque does not work: `paintComponent`
+             * delegates to `ui.update`, which fills the background first and erased the shape on
+             * every repaint. Painting after `super` would cover the label instead. Filling the
+             * background here puts the hover between the two, which is the only place it belongs.
              */
             override fun paintComponent(g: java.awt.Graphics) {
+                g.color = background
+                g.fillRect(0, 0, width, height)
+
                 val row = hoveredRow
                 if (row >= 0 && !isRowSelected(row)) {
                     getRowBounds(row)?.let { bounds ->
@@ -411,7 +418,7 @@ class SettingsDialog(
                             g2.color = UIManager.getColor("Tree.selectionInactiveBackground")
                                 ?: UIManager.getColor("Component.borderColor")
                             // The same insets and radius FlatLaf uses for the selection.
-                            val side = UIScale.scale(6)
+                            val side = UIScale.scale(5)
                             val top = UIScale.scale(1)
                             val arc = UIScale.scale(8)
                             g2.fillRoundRect(
@@ -427,6 +434,8 @@ class SettingsDialog(
                 super.paintComponent(g)
             }
         }.apply {
+            // Painted by hand above, so the look and feel must not fill it again.
+            isOpaque = false
             isRootVisible = false
             showsRootHandles = false
             selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
@@ -456,7 +465,7 @@ class SettingsDialog(
             putClientProperty(
                 "FlatLaf.style",
                 // Compact rows, and a selection shape the hover state matches exactly.
-                "rowHeight: 28; selectionArc: 8; selectionInsets: 1,6,1,6; " +
+                "rowHeight: 26; selectionArc: 8; selectionInsets: 1,5,1,5; " +
                         $$"selectionBackground: $Table.selectionBackground"
             )
 

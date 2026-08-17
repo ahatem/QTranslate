@@ -404,10 +404,10 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
         const val ROW_GAP = 3
 
         /** Space above a section title. The only gap meant to be noticed. */
-        const val SECTION_GAP = 14
+        const val SECTION_GAP = 11
 
         /** Padding around the page itself. */
-        const val EDGE = 12
+        const val EDGE = 10
 
         const val HINT_WIDTH = 460
 
