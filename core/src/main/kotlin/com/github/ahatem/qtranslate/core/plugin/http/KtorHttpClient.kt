@@ -60,6 +60,8 @@ internal class KtorHttpClient(
      */
     private val engine: HttpClientEngine = CIO.create {
         config.proxy?.let { proxy = ProxyBuilder.http(it.url) }
+        maxConnectionsCount = config.maxConnectionsTotal
+        endpoint.maxConnectionsPerRoute = config.maxConnectionsPerHost
     },
     /**
      * Whether closing this also closes [engine]. False when the caller supplied one, since a test
@@ -388,7 +390,31 @@ data class HttpClientConfig(
      * model on `127.0.0.1` may think for a minute before its first token and should not be cut off
      * at thirty seconds, while a cloud endpoint that has not answered in ten is not going to.
      */
-    val hostTimeouts: Map<String, HostTimeout> = emptyMap()
+    val hostTimeouts: Map<String, HostTimeout> = emptyMap(),
+    /**
+     * The most connections to open to any single host at once.
+     *
+     * CIO's own default is 100 per route, which is a server's number. A desktop application that
+     * opens a hundred sockets to one translation API is not going faster, it is announcing itself
+     * to a rate limiter, and on a metered or mobile connection it is doing so expensively. Eight
+     * is more than the handful of overlapping requests this application ever really has in flight.
+     *
+     * The limit is approximate, not a hard ceiling. `Endpoint.makePipelineRequest` reads the
+     * connection count, compares it to this, and only increments later inside `connect`, with a
+     * suspend boundary in between, so a burst can slip several past the same stale check. It
+     * holds concurrency near the number rather than strictly under it, which is all that is
+     * wanted here: the point is not to flood one endpoint, not to guarantee an exact count.
+     *
+     * The cap is uniform: CIO enforces it per route with a counter on each endpoint, and there is
+     * no way to say "two for this host, eight for that one" on a single engine. Differing per-host
+     * caps would need an engine each, which means a connection pool each, and that trade is not
+     * worth making for a limit nothing here comes close to.
+     */
+    val maxConnectionsPerHost: Int = 8,
+    /**
+     * The most connections to hold open across every host at once. CIO defaults this to 1000.
+     */
+    val maxConnectionsTotal: Int = 64
 )
 
 /**
