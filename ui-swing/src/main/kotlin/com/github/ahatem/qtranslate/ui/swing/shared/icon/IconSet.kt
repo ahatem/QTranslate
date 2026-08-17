@@ -36,11 +36,8 @@ object IconSet {
      */
     private val known = listOf(
         IconSetInfo(DEFAULT_ID, "Lucide"),
-        // Both of these were already in the repository, partial and wired to nothing. They are
-        // roughly a third complete, which the fallback makes perfectly usable.
-        IconSetInfo("material", "Material"),
-        IconSetInfo("tabler", "Tabler"),
         IconSetInfo("material-symbols", "Material Symbols"),
+        IconSetInfo("tabler", "Tabler"),
         IconSetInfo("phosphor", "Phosphor"),
         IconSetInfo("heroicons", "Heroicons"),
     )

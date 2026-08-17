@@ -1,8 +1,8 @@
 <!--
-tags: [next, proceed, swipe, arrow, right, direction, pointer, navigation, flow, navigate]
-category: Arrows
+category: Design
+tags: [energy, power, electricity, storm, lightning, flash, bolt, quick, fast, speed]
 version: "1.0"
-unicode: "ea1f"
+unicode: "ea38"
 -->
 <svg
   xmlns="http://www.w3.org/2000/svg"
@@ -15,7 +15,5 @@ unicode: "ea1f"
   stroke-linecap="round"
   stroke-linejoin="round"
 >
-  <path d="M5 12l14 0" />
-  <path d="M13 18l6 -6" />
-  <path d="M13 6l6 6" />
+  <path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11" />
 </svg>

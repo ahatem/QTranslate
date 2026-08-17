@@ -1,8 +1,8 @@
 <!--
-tags: [next, proceed, swipe, arrow, right, direction, pointer, navigation, flow, navigate]
-category: Arrows
+tags: [text, alignment, position, align, left, typography, writing, font, character, word]
+category: Text
 version: "1.0"
-unicode: "ea1f"
+unicode: "ea09"
 -->
 <svg
   xmlns="http://www.w3.org/2000/svg"
@@ -15,7 +15,7 @@ unicode: "ea1f"
   stroke-linecap="round"
   stroke-linejoin="round"
 >
-  <path d="M5 12l14 0" />
-  <path d="M13 18l6 -6" />
-  <path d="M13 6l6 6" />
+  <path d="M4 6l16 0" />
+  <path d="M4 12l10 0" />
+  <path d="M4 18l14 0" />
 </svg>

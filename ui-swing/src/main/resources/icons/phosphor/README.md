@@ -1,6 +1,6 @@
 # phosphor
 
-32 of the 32 semantic names, taken from the set's own published glyphs.
+All 32 semantic names, taken from the set's own published glyphs.
 
 The names are QTranslate's vocabulary, not the set's, so `edit.svg` is whichever glyph this set
 uses for editing. The full list is the `Icons` object in

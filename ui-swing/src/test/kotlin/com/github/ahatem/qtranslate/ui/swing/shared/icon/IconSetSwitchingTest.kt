@@ -24,12 +24,12 @@ class IconSetSwitchingTest {
 
     @Test
     fun `a partial set serves what it has and falls back for the rest`() {
-        IconSet.use("material")
+        IconSet.use("heroicons")
 
-        // Material has this one, so it should win.
-        assertEquals("icons/material/copy.svg", IconSet.path("copy"))
-        // It has no 'edit', so Lucide covers it rather than leaving a blank.
-        assertEquals("icons/lucide/edit.svg", IconSet.path("edit"))
+        // Heroicons publishes this one, so it wins.
+        assertEquals("icons/heroicons/edit.svg", IconSet.path("edit"))
+        // It publishes no push-pin, so Lucide covers it rather than leaving a blank.
+        assertEquals("icons/lucide/pin.svg", IconSet.path("pin"))
     }
 
     @Test
