@@ -115,6 +115,30 @@ internal class KtorHttpClient(
         }
     }
 
+    /**
+     * Applies whatever [HttpClientConfig.hostTimeouts] says about [url]'s host, if anything.
+     *
+     * One client serves every host. `HttpTimeout` merges a per-request value over the client-wide
+     * one with `?:`, so a host that names only a socket timeout keeps the shared request and
+     * connect values rather than silently resetting them to the plugin's defaults. That merge is
+     * also why per-host timeouts need no second client and no second connection pool: the pooling
+     * question is a separate one, and this does not decide it.
+     */
+    private fun HttpRequestBuilder.applyHostTimeout(url: String) {
+        if (config.hostTimeouts.isEmpty()) return
+        val host = runCatching { Url(url).host }.getOrNull() ?: return
+        val override = config.hostTimeouts.entries
+            .firstOrNull { it.key.equals(host, ignoreCase = true) }
+            ?.value
+            ?: return
+
+        timeout {
+            override.requestTimeoutMillis?.let { requestTimeoutMillis = it }
+            override.connectTimeoutMillis?.let { connectTimeoutMillis = it }
+            override.socketTimeoutMillis?.let { socketTimeoutMillis = it }
+        }
+    }
+
     // Main POST method with flexible content type support
     override suspend fun post(
         url: String,
@@ -124,6 +148,7 @@ internal class KtorHttpClient(
     ): Result<String, ServiceError> = withContext(Dispatchers.IO) {
         try {
             val response: HttpResponse = client.post(url) {
+                applyHostTimeout(url)
                 headers.forEach { (key, value) -> header(key, value) }
                 queryParams.forEach { (key, value) ->
                     value?.let { parameter(key, it.toString()) }
@@ -152,6 +177,7 @@ internal class KtorHttpClient(
     ): Result<String, ServiceError> = withContext(Dispatchers.IO) {
         try {
             val response: HttpResponse = client.get(url) {
+                applyHostTimeout(url)
                 headers.forEach { (key, value) -> header(key, value) }
                 queryParams.forEach { (key, value) ->
                     parametersOf()
@@ -186,6 +212,7 @@ internal class KtorHttpClient(
         try {
 
             val response: HttpResponse = client.post(url) {
+                applyHostTimeout(url)
                 cookies.forEach { (key, value) -> cookie(key, value) }
 
                 headers.forEach { (key, value) -> header(key, value) }
@@ -227,6 +254,7 @@ internal class KtorHttpClient(
     ): Result<ByteArray, ServiceError> = withContext(Dispatchers.IO) {
         try {
             val response: HttpResponse = client.post(url) {
+                applyHostTimeout(url)
                 cookies.forEach { (key, value) -> cookie(key, value) }
 
                 headers.forEach { (key, value) -> header(key, value) }
@@ -261,6 +289,7 @@ internal class KtorHttpClient(
     ): Result<ByteArray, ServiceError> = withContext(Dispatchers.IO) {
         try {
             val response: HttpResponse = client.get(url) {
+                applyHostTimeout(url)
                 headers.forEach { (key, value) -> header(key, value) }
                 queryParams.forEach { (key, value) ->
                     value?.let { parameter(key, it.toString()) }
@@ -350,7 +379,34 @@ data class HttpClientConfig(
     val socketTimeoutMillis: Long = 15_000,
     val enableRetry: Boolean = true,
     val maxRetries: Int = 2,
-    val proxy: ProxyConfiguration? = null
+    val proxy: ProxyConfiguration? = null,
+    /**
+     * Timeouts for particular hosts, overriding the values above.
+     *
+     * Keyed by hostname, matched without regard to case and without the scheme or port: one entry
+     * covers a host however it is reached. The point is that these services are not alike. A local
+     * model on `127.0.0.1` may think for a minute before its first token and should not be cut off
+     * at thirty seconds, while a cloud endpoint that has not answered in ten is not going to.
+     */
+    val hostTimeouts: Map<String, HostTimeout> = emptyMap()
+)
+
+/**
+ * Timeouts for one host. Every field is optional, and an unset one keeps the client-wide value.
+ *
+ * Nullable rather than defaulted, because "not specified" and "specified as the default" are
+ * different statements: a host that only needs a longer socket timeout should not have its request
+ * and connect timeouts reset by mentioning it.
+ *
+ * The fallback itself is Ktor's, not ours. `HttpTimeout` merges in its Send phase with
+ * `this.x = this.x ?: clientWideX`, so a null per-request field takes the client-wide value
+ * regardless of how it came to be null. Writing the nulls through explicitly would behave
+ * identically; the guards below are there to say so at the call site rather than to cause it.
+ */
+data class HostTimeout(
+    val requestTimeoutMillis: Long? = null,
+    val connectTimeoutMillis: Long? = null,
+    val socketTimeoutMillis: Long? = null
 )
 
 /**
