@@ -6,9 +6,7 @@ object RubikSansFont {
 
     const val FAMILY = "Rubik"
     const val FAMILY_LIGHT = "Rubik Light"
-    const val FAMILY_MEDIUM = "Rubik Text"
     const val FAMILY_SEMI_BOLD = "Rubik SemiBold"
-    const val FAMILY_BOLD = "Rubik Bold"
 
     const val STYLE_REGULAR = "/fonts/sans/rubik/Rubik-Regular.ttf"
     const val STYLE_REGULAR_ITALIC = "/fonts/sans/rubik/Rubik-Italic.ttf"
@@ -24,13 +22,8 @@ object RubikSansFont {
         FontUtils.registerFontFamilyLoader(FAMILY) { installAll() }
     }
 
-    /** Loads all styles immediately. */
-    fun install() {
-        installAll()
-    }
-
     /** Loads every available font style. */
-    fun installAll() {
+    private fun installAll() {
         listOf(
             STYLE_REGULAR,
             STYLE_REGULAR_ITALIC,
@@ -44,7 +37,7 @@ object RubikSansFont {
     }
 
     /** Installs a specific font style. */
-    fun installStyle(name: String): Boolean {
+    private fun installStyle(name: String): Boolean {
         val url = RubikSansFont::class.java.getResource(name)
         return url?.let { FontUtils.installFont(it) } ?: false
     }

@@ -69,19 +69,12 @@ object AppConstants {
     const val MIN_WINDOW_WIDTH = 450
     const val MIN_WINDOW_HEIGHT = 260
 
-    /** Default quick translate popup dimensions. */
-    const val DEFAULT_POPUP_WIDTH = 450
-    const val DEFAULT_POPUP_HEIGHT = 250
-
     // ============================================================
     // Plugins
     // ============================================================
 
     /** Plugin directory name within the app data folder. */
     const val PLUGIN_DIRECTORY = "plugins"
-
-    /** Maximum plugin load timeout. */
-    const val PLUGIN_LOAD_TIMEOUT_MS = 10_000L
 
     // ============================================================
     // Storage

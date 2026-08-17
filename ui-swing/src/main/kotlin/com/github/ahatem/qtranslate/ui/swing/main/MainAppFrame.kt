@@ -4,6 +4,7 @@ import com.formdev.flatlaf.FlatLaf
 import com.formdev.flatlaf.extras.components.FlatButton
 import com.formdev.flatlaf.util.FontUtils
 import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
@@ -20,8 +21,9 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
+import com.github.ahatem.qtranslate.core.shared.notification.AppNotification
+import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
-import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.ui.swing.about.InfoDialog
 import com.github.ahatem.qtranslate.ui.swing.about.InfoDialogState
@@ -49,7 +51,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
 import com.github.ahatem.qtranslate.ui.swing.main.menus.*
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBar
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBarState
-import com.github.ahatem.qtranslate.ui.swing.quciktranslate.*
+import com.github.ahatem.qtranslate.ui.swing.quicktranslate.*
 import com.github.ahatem.qtranslate.ui.swing.settings.SettingsDialog
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.DynamicPluginSettingsDialog
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
@@ -60,11 +62,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.swing.Swing
 import java.awt.*
-import com.github.ahatem.qtranslate.core.document.DocumentFormat
 import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
-import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
-import java.io.File
 import java.awt.event.*
 import java.net.URI
 import java.util.*
@@ -80,12 +79,13 @@ class MainAppFrame(
     private val themeManager: ThemeManager,
     private val pluginManager: PluginManager,
     private val localizer: LocalizationManager,
-    private val notificationBus: com.github.ahatem.qtranslate.core.shared.notification.NotificationBus,
+    private val notificationBus: NotificationBus,
+    private val logger: Logger,
     /**
      * Translates one string, used by the language editor to offer a suggestion for an untranslated
      * key. Optional so a frame can be built without a translator, which simply hides the action.
      */
-    private val translateString: (suspend (String, com.github.ahatem.qtranslate.api.language.LanguageCode) -> Result<String>)? = null,
+    private val translateString: (suspend (String, LanguageCode) -> Result<String>)? = null,
     /** The application's own secrets, for the proxy password on the Network settings page. */
     private val appSecrets: AppSecretStore? = null
 ) : JFrame("QTranslate") {
@@ -299,6 +299,7 @@ class MainAppFrame(
 
     private val globalKeyListener = MainGlobalKeyListener(
         scope = appScope,
+        logger = logger,
         onShowApp = { text ->
             mainStore.dispatch(MainIntent.UpdateInputText(text))
             mainStore.dispatch(MainIntent.Translate(text))
@@ -322,12 +323,7 @@ class MainAppFrame(
                 // No longer a toggle. Pressing the hotkey again with the popup open refreshes it
                 // in place and restarts its countdown — hiding it meant the popup vanished when
                 // the user was asking for more of it, and threw away a pin they had set.
-                val s = mainStore.state.value
-                val lang = when {
-                    s.sourceLanguage != LanguageCode.AUTO -> s.sourceLanguage
-                    s.detectedSourceLanguage != null      -> s.detectedSourceLanguage!!
-                    else                                  -> LanguageCode("en")
-                }
+                val lang = mainStore.state.value.resolvedSourceLanguage
                 quickDictionaryPositionNearMouse = true   // hotkey — position near cursor
                 mainStore.dispatch(MainIntent.ShowQuickDictionary(selectedText, lang))
             }
@@ -335,7 +331,7 @@ class MainAppFrame(
         onShowImages = { selectedText ->
             // Refreshes in place when already open, for the same reason as the dictionary.
             appScope.launch {
-                mainStore.dispatch(MainIntent.ShowImageSearch(selectedText, resolvedLookupLanguage()))
+                mainStore.dispatch(MainIntent.ShowImageSearch(selectedText, mainStore.state.value.resolvedSourceLanguage))
             }
         },
         onTranslate = { mainStore.dispatch(MainIntent.Translate()) },
@@ -465,8 +461,7 @@ class MainAppFrame(
 
     private fun observeStateAndEvents() {
         val handler = CoroutineExceptionHandler { _, throwable ->
-            System.err.println("Unhandled exception in MainAppFrame coroutine: ${throwable.message}")
-            throwable.printStackTrace()
+            logger.error("Unhandled exception in a MainAppFrame coroutine", throwable)
         }
 
         // Theme and font updates — observe originalConfiguration (saved state only).
@@ -497,8 +492,7 @@ class MainAppFrame(
 
                             FlatLaf.updateUI()
                         } catch (e: Exception) {
-                            System.err.println("Failed to apply theme: ${e.message}")
-                            e.printStackTrace()
+                            logger.error("Failed to apply theme", e)
                         }
                     }
                 }
@@ -562,8 +556,7 @@ class MainAppFrame(
                                 )
                             }
                         } catch (e: Exception) {
-                            System.err.println("Failed to render UI: ${e.message}")
-                            e.printStackTrace()
+                            logger.error("Failed to render UI", e)
                         }
                     }
                 }
@@ -743,7 +736,7 @@ class MainAppFrame(
                 .collect { languageCode ->
                     withContext(Dispatchers.IO) {
                         localizer.loadLanguage(
-                            com.github.ahatem.qtranslate.api.language.LanguageCode(languageCode)
+                            LanguageCode(languageCode)
                         )
                     }
                     withContext(Dispatchers.Swing) {
@@ -774,11 +767,7 @@ class MainAppFrame(
                         inputText      = m.inputText.trim(),
                         translatedText = m.translatedText.trim(),
                         targetLang     = m.targetLanguage,
-                        resolvedSourceLang = when {
-                            m.sourceLanguage != LanguageCode.AUTO -> m.sourceLanguage
-                            m.detectedSourceLanguage != null      -> m.detectedSourceLanguage!!
-                            else                                  -> LanguageCode("en")
-                        },
+                        resolvedSourceLang = m.resolvedSourceLanguage,
                         autoSource     = s.workingConfiguration.dictionaryAutoSource,
                         mainVisible    = isVisible,
                         isQuickDictionaryVisible = m.isQuickDictionaryVisible,
@@ -832,7 +821,7 @@ class MainAppFrame(
                     // Arabic and defining only the Arabic would ask Google Dictionary for a
                     // language it barely holds, and produce nothing every single time.
                     val preferSource =
-                        key.autoSource == com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource.SOURCE
+                        key.autoSource == DictionaryAutoSource.SOURCE
                     val (word, lang) =
                         if (preferSource) key.inputText to key.resolvedSourceLang
                         else key.translatedText to key.targetLang
@@ -1004,7 +993,7 @@ class MainAppFrame(
                 robot.keyRelease(KeyEvent.VK_V)
                 robot.keyRelease(KeyEvent.VK_CONTROL)
             }.onFailure {
-                System.err.println("Failed to paste translation: ${it.message}")
+                logger.warn("Failed to paste translation: ${it.message}")
             }
         }
     }
@@ -1163,7 +1152,7 @@ class MainAppFrame(
             ImageIO.read(javaClass.classLoader.getResourceAsStream("icons/app/32.png"))
                 ?: throw IllegalStateException("Tray icon not found")
         } catch (e: Exception) {
-            println("Failed to load tray icon: ${e.message}")
+            logger.error("Failed to load tray icon", e)
             return
         }
 
@@ -1197,7 +1186,7 @@ class MainAppFrame(
         try {
             tray.add(trayIcon!!)
         } catch (e: AWTException) {
-            println("Failed to add tray icon: ${e.message}")
+            logger.error("Failed to add tray icon", e)
             trayIcon = null
         }
     }
@@ -1430,7 +1419,7 @@ class MainAppFrame(
             try {
                 ImageIO.read(javaClass.classLoader.getResourceAsStream("icons/app/$size.png"))
             } catch (e: Exception) {
-                println("Failed to load icon ($size): ${e.message}")
+                logger.warn("Failed to load window icon ($size): ${e.message}")
                 null
             }
         }
@@ -1585,9 +1574,9 @@ class MainAppFrame(
     private fun showDonationNudge() {
         val message = localizer.getString("about_dialog.donation_nudge")
         statusBarController.addToPopover(
-            com.github.ahatem.qtranslate.core.shared.notification.AppNotification(
-                type = com.github.ahatem.qtranslate.api.plugin.NotificationType.INFO,
-                code = com.github.ahatem.qtranslate.core.shared.notification.NotificationCode.Custom(
+            AppNotification(
+                type = NotificationType.INFO,
+                code = NotificationCode.Custom(
                     title = "",
                     body = message
                 )
@@ -1622,7 +1611,7 @@ class MainAppFrame(
     private fun showImageSearchDialog() {
         val term = mainStore.state.value.inputText.trim()
             .takeIf { it.isNotBlank() && !it.contains(' ') } ?: ""
-        mainStore.dispatch(MainIntent.ShowImageSearch(term, resolvedLookupLanguage()))
+        mainStore.dispatch(MainIntent.ShowImageSearch(term, mainStore.state.value.resolvedSourceLanguage))
     }
 
     private fun showDictionaryDialog() {
@@ -1653,15 +1642,11 @@ class MainAppFrame(
     private fun buildDictionaryDialogState(): DictionaryDialogState {
         val s = mainStore.state.value
         val config = settingsStore.state.value.workingConfiguration
-        val availableDicts = s.getAvailableServicesFor(com.github.ahatem.qtranslate.api.plugin.ServiceRole.DICTIONARY)
+        val availableDicts = s.getAvailableServicesFor(ServiceRole.DICTIONARY)
         val selectedDictId = config.getActivePreset()
-            ?.selectedServices?.get(com.github.ahatem.qtranslate.api.plugin.ServiceRole.DICTIONARY)
+            ?.selectedServices?.get(ServiceRole.DICTIONARY)
 
-        val resolvedLang = when {
-            s.sourceLanguage != LanguageCode.AUTO -> s.sourceLanguage
-            s.detectedSourceLanguage != null      -> s.detectedSourceLanguage!!
-            else                                  -> LanguageCode("en")
-        }
+        val resolvedLang = s.resolvedSourceLanguage
 
         return DictionaryDialogState(
             title                 = localizer.getString("dictionary_dialog.title"),
@@ -1687,7 +1672,7 @@ class MainAppFrame(
             onDictionarySelected = { serviceId ->
                 settingsStore.dispatch(
                     SettingsIntent.UpdateServiceInActivePreset(
-                        com.github.ahatem.qtranslate.api.plugin.ServiceRole.DICTIONARY, serviceId
+                        ServiceRole.DICTIONARY, serviceId
                     )
                 )
                 val currentWord = mainStore.state.value.dictionaryWord
@@ -1712,26 +1697,14 @@ class MainAppFrame(
         )
     }
 
-    /**
-     * The language a looked-up term should be treated as.
-     *
-     * The chosen source language when there is one, otherwise whatever detection found, otherwise
-     * English. "Auto" is not a language a dictionary or an image search can be asked about.
-     */
-    private fun resolvedLookupLanguage(state: MainState = mainStore.state.value): LanguageCode = when {
-        state.sourceLanguage != LanguageCode.AUTO -> state.sourceLanguage
-        state.detectedSourceLanguage != null      -> state.detectedSourceLanguage!!
-        else                                      -> LanguageCode("en")
-    }
-
     private fun buildImageSearchDialogState(
         mainState: MainState,
         config: Configuration
     ): ImageSearchDialogState {
-        val serviceType = com.github.ahatem.qtranslate.api.plugin.ServiceRole.IMAGE_SEARCH
+        val serviceType = ServiceRole.IMAGE_SEARCH
         val available = mainState.getAvailableServicesFor(serviceType)
         val selectedId = config.getActivePreset()?.selectedServices?.get(serviceType)
-        val language = resolvedLookupLanguage(mainState)
+        val language = mainState.resolvedSourceLanguage
 
         return ImageSearchDialogState(
             isVisible         = mainState.isImageSearchVisible,
@@ -1798,16 +1771,12 @@ class MainAppFrame(
         config: Configuration
     ): QuickDictionaryDialogState {
         val availableDicts = mainState.getAvailableServicesFor(
-            com.github.ahatem.qtranslate.api.plugin.ServiceRole.DICTIONARY
+            ServiceRole.DICTIONARY
         )
         val selectedDictId = config.getActivePreset()
-            ?.selectedServices?.get(com.github.ahatem.qtranslate.api.plugin.ServiceRole.DICTIONARY)
+            ?.selectedServices?.get(ServiceRole.DICTIONARY)
 
-        val resolvedLang = when {
-            mainState.sourceLanguage != LanguageCode.AUTO -> mainState.sourceLanguage
-            mainState.detectedSourceLanguage != null      -> mainState.detectedSourceLanguage!!
-            else                                          -> LanguageCode("en")
-        }
+        val resolvedLang = mainState.resolvedSourceLanguage
 
         return QuickDictionaryDialogState(
             isVisible            = mainState.isQuickDictionaryVisible,
@@ -1853,7 +1822,7 @@ class MainAppFrame(
             onDictionarySelected = { serviceId ->
                 settingsStore.dispatch(
                     SettingsIntent.UpdateServiceInActivePreset(
-                        com.github.ahatem.qtranslate.api.plugin.ServiceRole.DICTIONARY, serviceId
+                        ServiceRole.DICTIONARY, serviceId
                     )
                 )
                 val currentWord = mainStore.state.value.dictionaryWord
@@ -1981,7 +1950,7 @@ class MainAppFrame(
         }
 
         /** Called for background/system events — adds to popover, updates bell badge. */
-        fun addToPopover(notification: com.github.ahatem.qtranslate.core.shared.notification.AppNotification) {
+        fun addToPopover(notification: AppNotification) {
             val message = resolveNotificationMessage(notification.code)
             notificationPopover.addNotification(NotificationPopover.NotificationEntry(message, notification.type))
             unreadCount++
@@ -2157,7 +2126,7 @@ private data class AutoLookupKey(
     val translatedText: String,
     val targetLang: LanguageCode,
     val resolvedSourceLang: LanguageCode,
-    val autoSource: com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource,
+    val autoSource: DictionaryAutoSource,
     val mainVisible: Boolean,
     val isQuickDictionaryVisible: Boolean,
     val isQuickDictionaryPinned: Boolean,

@@ -16,12 +16,6 @@ kotlin {
     compilerOptions {
         // Target Java 11 bytecode — the output JAR runs on Java 11+.
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
-
-        // Strict API mode for :api module is set per-module, not here.
-
-        freeCompilerArgs.addAll(
-            "-Xcontext-parameters",      // context parameters (used in ui-swing)
-        )
     }
 }
 

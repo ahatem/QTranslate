@@ -192,7 +192,7 @@ class SettingsDialog(
             }
         }
         addListSelectionListener { e ->
-            if (!e.valueIsAdjusting) (selectedValue as? SearchHit)?.let { openHit(it) }
+            if (!e.valueIsAdjusting) selectedValue?.let { openHit(it) }
         }
 
         // Selection listeners only fire on a change, so clicking the row you are already on did

@@ -48,11 +48,6 @@ class GridBag(
         return this
     }
 
-    fun defaultInsets(insets: Insets): GridBag {
-        defaultConstraints.insets = insets
-        return this
-    }
-
     // --- Temporary per-component settings ---
     fun width(cells: Int): GridBag {
         temporaryConstraints.gridwidth = cells

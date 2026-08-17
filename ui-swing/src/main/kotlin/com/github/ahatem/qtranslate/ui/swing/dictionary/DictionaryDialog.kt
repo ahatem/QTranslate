@@ -7,7 +7,7 @@ import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.Frame
 import javax.swing.*
-import com.github.ahatem.qtranslate.ui.swing.shared.component.ServiceInfoRenderer
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ServiceInfoRenderer
 
 class DictionaryDialog(owner: Frame, iconManager: IconManager) : JDialog(null as Frame?, false) {
 

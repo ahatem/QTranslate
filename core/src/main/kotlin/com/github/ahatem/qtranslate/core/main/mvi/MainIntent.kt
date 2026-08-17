@@ -166,7 +166,7 @@ sealed interface MainIntent : UiIntent {
      */
     data class LookupWord(
         val word: String,
-        val language: LanguageCode = LanguageCode("en")
+        val language: LanguageCode = LanguageCode.ENGLISH
     ) : MainIntent
 
     /** User toggled the inline dictionary panel open or closed. */
@@ -179,7 +179,7 @@ sealed interface MainIntent : UiIntent {
      */
     data class ShowQuickDictionary(
         val selectedText: String,
-        val language: LanguageCode = LanguageCode("en")
+        val language: LanguageCode = LanguageCode.ENGLISH
     ) : MainIntent
 
     /** User dismissed the floating dictionary popup. */
@@ -198,7 +198,7 @@ sealed interface MainIntent : UiIntent {
      */
     data class SearchImages(
         val term: String,
-        val language: LanguageCode = LanguageCode("en")
+        val language: LanguageCode = LanguageCode.ENGLISH
     ) : MainIntent
 
     /**
@@ -209,7 +209,7 @@ sealed interface MainIntent : UiIntent {
      */
     data class ShowImageSearch(
         val selectedText: String,
-        val language: LanguageCode = LanguageCode("en")
+        val language: LanguageCode = LanguageCode.ENGLISH
     ) : MainIntent
 
     /** User dismissed the floating image popup. */
@@ -224,7 +224,7 @@ sealed interface MainIntent : UiIntent {
      */
     data class UpdateInlineDefinition(
         val word: String,
-        val language: LanguageCode = LanguageCode("en"),
+        val language: LanguageCode = LanguageCode.ENGLISH,
         /**
          * The other word worth defining, tried when [word] yields nothing.
          *
@@ -234,6 +234,6 @@ sealed interface MainIntent : UiIntent {
          * — the lookup is simply asking a dictionary for a language it does not hold.
          */
         val alternateWord: String = "",
-        val alternateLanguage: LanguageCode = LanguageCode("en")
+        val alternateLanguage: LanguageCode = LanguageCode.ENGLISH
     ) : MainIntent
 }

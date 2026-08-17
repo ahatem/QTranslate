@@ -140,7 +140,7 @@ class ImageSearchDialog(
     private var preview: ImageResult? = null
 
     /** Kept as a field because it is both the drag handle and the title row. */
-    private lateinit var header: JComponent
+    private var header: JComponent
 
     private var currentState: ImageSearchDialogState? = null
     private var isPinned = false

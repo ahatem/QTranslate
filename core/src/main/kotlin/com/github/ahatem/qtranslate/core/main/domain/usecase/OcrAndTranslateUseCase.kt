@@ -12,6 +12,7 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.withTimeoutOrNull
+import com.github.ahatem.qtranslate.core.shared.util.shortSummary
 
 class OcrAndTranslateUseCase(
     private val activeServiceManager: ActiveServiceManager,
@@ -72,7 +73,7 @@ class OcrAndTranslateUseCase(
             },
             failure = { error ->
                 logger.error("OCR failed: ${error.message}", error.cause)
-                val summary = error.message?.lines()?.firstOrNull()?.take(120) ?: "Unknown error"
+                val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.OcrFailed(summary), NotificationType.ERROR, true)
                 ""
             }

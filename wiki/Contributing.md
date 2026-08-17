@@ -107,7 +107,7 @@ We don't enforce a strict formatter, but please follow these conventions:
 | `:core` | `:api`, kotlinx, DataStore, Ktor | `:ui-swing`, Swing |
 | `:ui-swing` | `:api`, `:core`, Swing, FlatLaf | `:app` |
 | `:app` | everything | — |
-| `:plugins:*` | `:api` only | `:core`, `:ui-swing` |
+| `:plugins:*` | `:api`, `:plugins:common` | `:core`, `:ui-swing` |
 
 Plugins importing `:core` is the most common mistake — if you find yourself needing something from `:core` in a plugin, it probably belongs in `:api` instead.
 
@@ -115,19 +115,27 @@ Plugins importing `:core` is the most common mistake — if you find yourself ne
 
 ## Tests
 
-QTranslate does not have a test suite yet — this is one of the most impactful ways to contribute.
+```bash
+./gradlew test
+```
+
+CI runs the suite on every push and a failure blocks the PR.
+
+**Test stack:**
+- JUnit 5 for test structure
+- `kotlinx-coroutines-test` for suspend functions and flows
+- `ktor-client-mock` for scripting HTTP responses
+- `FakePluginContext`, published as a test fixture from `:plugins:common`, for plugin tests
+
+**Where coverage is thin:** most use cases in `core/main/domain/usecase`, the Swing panels, and
+both MVI stores. Good places to start.
 
 **How to contribute a test:**
 
-1. Pick a class to test — good candidates are use cases (`TranslateTextUseCase`, `PerformSpellCheckUseCase`, etc.), repositories (`HistoryRepository`, `SettingsRepository`), or utilities (`LanguageTomlParser`, `ApiVersion`)
+1. Pick a class with no direct coverage — check `src/test/kotlin` in the relevant module first
 2. Open an issue: `test: add tests for <ClassName>` — a maintainer will label it `good first issue`
 3. Add tests under `src/test/kotlin` in the relevant module
 4. Open a PR — even a single well-written test is a meaningful contribution
-
-**Planned test stack:**
-- JUnit 5 for test structure
-- `kotlinx-coroutines-test` for suspend functions and flows
-- MockK for mocking (when needed)
 
 **Useful resources:**
 - [Kotlin coroutines testing guide](https://kotlinlang.org/docs/coroutines-testing.html)
@@ -143,9 +151,9 @@ For UI changes, attach before/after screenshots to the PR — we do not have aut
 If you want to add a completely new service category (e.g. a grammar checker) rather than a new plugin for an existing category:
 
 1. Add the interface to `:api` — discuss in an issue first since this is a breaking change surface
-2. Add the `ServiceType` enum value in `:core/shared`
-3. Add the `mapServiceToType` case in `Helpers.kt`
-4. Add the use case in `:core/main/domain/usecase/`
+2. Add the `ServiceRole` enum entry in `:api`, pointing `contract` at that interface. Roles are
+   derived from the interfaces a service implements, so there is no separate mapping to keep in step
+3. Add the use case in `:core/main/domain/usecase/`
 5. Add the intent and state fields to `MainStore`
 6. Add the UI surface in `:ui-swing`
 

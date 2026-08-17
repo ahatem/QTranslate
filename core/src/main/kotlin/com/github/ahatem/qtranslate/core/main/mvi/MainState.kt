@@ -68,7 +68,7 @@ data class MainState(
      * can come from either side of a translation, so neither the source nor the target language
      * is a reliable stand-in.
      */
-    val dictionaryLanguage: LanguageCode = LanguageCode("en"),
+    val dictionaryLanguage: LanguageCode = LanguageCode.ENGLISH,
     val dictionaryFailed: Boolean = false,
     val isDictionaryPanelVisible: Boolean = false,
     val spellCheckCorrections: List<Correction> = emptyList(),
@@ -108,9 +108,16 @@ data class MainState(
     val documentTranslationProgress: DocumentTranslationProgress? = null
 ) : UiState {
 
-    /** `true` when [sourceLanguage] is [LanguageCode.AUTO]. */
-    val isAutoDetectingSourceLanguage: Boolean
-        get() = sourceLanguage == LanguageCode.AUTO
+    /**
+     * The language the text should be treated as.
+     *
+     * The chosen source language when there is one, otherwise whatever detection found, otherwise
+     * English. "Auto" is not a language a dictionary or an image search can be asked about.
+     */
+    val resolvedSourceLanguage: LanguageCode
+        get() = sourceLanguage.takeIf { it != LanguageCode.AUTO }
+            ?: detectedSourceLanguage
+            ?: LanguageCode.ENGLISH
 
     /** `true` when there is a previous history entry to restore. */
     val canUndo: Boolean

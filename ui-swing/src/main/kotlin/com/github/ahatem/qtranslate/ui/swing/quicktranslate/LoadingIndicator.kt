@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.ui.swing.quciktranslate
+package com.github.ahatem.qtranslate.ui.swing.quicktranslate
 
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable

@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main
 
+import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
@@ -32,7 +33,7 @@ import java.util.UUID
  *   Swing InputMap/ActionMap; this listener only provides the binding list
  *   via [getLocalBindings]. Local bindings never intercept keys from other apps.
  *
- * ### Per-action scope (Dinar's request)
+ * ### Per-action scope
  * Users can choose per action whether it should be global or local. This prevents
  * shortcuts like Ctrl+L from being stolen from browsers when set to LOCAL.
  *
@@ -45,6 +46,7 @@ import java.util.UUID
  */
 class MainGlobalKeyListener(
     private val scope: CoroutineScope,
+    private val logger: Logger,
     private val onShowApp: (String) -> Unit,
     private val onShowQuickTranslate: (String) -> Unit,
     private val onListenToText: (String) -> Unit,
@@ -80,8 +82,7 @@ class MainGlobalKeyListener(
             initJNativeHook()
         } catch (e: Exception) {
             initialized.set(false)   // allow retry if initialization itself failed
-            System.err.println("Hotkey initialization failed: ${e.message}")
-            e.printStackTrace()
+            logger.error("Hotkey initialization failed", e)
         }
     }
 
@@ -92,7 +93,7 @@ class MainGlobalKeyListener(
             provider?.reset()
             registerGlobalHotkeys()
         } catch (e: Exception) {
-            System.err.println("Failed to update hotkey bindings: ${e.message}")
+            logger.error("Failed to update hotkey bindings", e)
         }
     }
 
@@ -101,8 +102,6 @@ class MainGlobalKeyListener(
         if (hotkeysEnabled.getAndSet(enabled) == enabled) return
         if (enabled) enableHotkeys() else disableHotkeys()
     }
-
-    fun areHotkeysEnabled(): Boolean = hotkeysEnabled.get()
 
     /** Enables or disables the floating translate button shown after a text selection. */
     fun setSelectionIconEnabled(enabled: Boolean) {
@@ -130,7 +129,7 @@ class MainGlobalKeyListener(
                 nativeHookRegistered = false
             }
         } catch (e: Exception) {
-            System.err.println("Hotkey manager shutdown error: ${e.message}")
+            logger.error("Hotkey manager shutdown error", e)
         } finally {
             initialized.set(false)
         }
@@ -163,10 +162,10 @@ class MainGlobalKeyListener(
                         if (!hotkeysEnabled.get()) return@register
                         dispatchAction(action)
                     }
-                    println("[Hotkeys] Registered GLOBAL ${action.name}: $keyStroke")
+                    logger.debug("Registered global hotkey ${action.name}: $keyStroke")
                 }.onFailure { ex ->
-                    System.err.println(
-                        "[Hotkeys] Failed to register GLOBAL ${action.name} ($keyStroke): ${ex.message}"
+                    logger.warn(
+                        "Failed to register global hotkey ${action.name} ($keyStroke): ${ex.message}"
                     )
                 }
             }
@@ -214,12 +213,12 @@ class MainGlobalKeyListener(
 
     private fun enableHotkeys() {
         try { provider?.reset(); registerGlobalHotkeys() }
-        catch (e: Exception) { System.err.println("Enable hotkeys failed: ${e.message}") }
+        catch (e: Exception) { logger.error("Enable hotkeys failed", e) }
     }
 
     private fun disableHotkeys() {
         try { provider?.reset() }
-        catch (e: Exception) { System.err.println("Disable hotkeys failed: ${e.message}") }
+        catch (e: Exception) { logger.error("Disable hotkeys failed", e) }
     }
 
     private fun initJNativeHook() {
@@ -403,7 +402,7 @@ class MainGlobalKeyListener(
             robot.keyRelease(KeyEvent.VK_C)
             robot.keyRelease(copyModifier)
             robot.waitForIdle()
-        }.onFailure { System.err.println("Copy simulation failed: ${it.message}") }
+        }.onFailure { logger.warn("Copy simulation failed: ${it.message}") }
     }
 
     private companion object {

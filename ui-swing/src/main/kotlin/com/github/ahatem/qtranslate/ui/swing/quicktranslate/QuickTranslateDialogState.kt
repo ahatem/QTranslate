@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.ui.swing.quciktranslate
+package com.github.ahatem.qtranslate.ui.swing.quicktranslate
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo

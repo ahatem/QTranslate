@@ -51,17 +51,5 @@ data class SettingsState(
             isDirty = false,
             loadError = null
         )
-
-        /**
-         * Creates the initial state when loading failed and the app fell back to defaults.
-         * The [loadError] message will be shown as a warning banner in the UI.
-         */
-        fun initialWithError(errorMessage: String): SettingsState = SettingsState(
-            isSaving = false,
-            originalConfiguration = Configuration.DEFAULT,
-            workingConfiguration = Configuration.DEFAULT,
-            isDirty = false,
-            loadError = errorMessage
-        )
     }
 }

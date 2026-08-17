@@ -418,20 +418,6 @@ class ComponentMover private constructor(
         }
 
         /**
-         * Adds a custom drag constraint.
-         */
-        fun addConstraint(constraint: DragConstraint) = apply {
-            this.constraints += constraint
-        }
-
-        /**
-         * Adds multiple custom drag constraints.
-         */
-        fun addConstraints(vararg constraints: DragConstraint) = apply {
-            this.constraints += constraints
-        }
-
-        /**
          * Builds the ComponentMover instance.
          */
         fun build() = ComponentMover(

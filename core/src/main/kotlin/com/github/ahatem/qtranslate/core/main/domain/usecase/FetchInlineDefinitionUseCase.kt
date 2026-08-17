@@ -85,7 +85,7 @@ class FetchInlineDefinitionUseCase(
             .filter { it.isNotEmpty() }
         if (meanings.isEmpty()) return null
 
-        val partOfSpeech = entry.partOfSpeech?.trim().orEmpty()
+        val partOfSpeech = entry.partOfSpeech.trim()
         val body = withinBudget(meanings)
         return if (partOfSpeech.isEmpty()) body else "$partOfSpeech — $body"
     }

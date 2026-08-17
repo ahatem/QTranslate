@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.ui.swing.shared.component
+package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager

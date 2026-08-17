@@ -1,8 +1,5 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.util
 
-import com.github.ahatem.qtranslate.core.localization.LocalizationManager
-import java.awt.ComponentOrientation
-import java.awt.Container
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.text.Bidi
@@ -56,22 +53,5 @@ fun String.isRTL(): Boolean {
 fun String.copyToClipboard() {
     val clipboard = Toolkit.getDefaultToolkit().systemClipboard
     clipboard.setContents(StringSelection(this), null)
-}
-
-/**
- * Utility function to apply component orientation based on the active language's RTL status.
- */
-context(container: Container)
-fun LocalizationManager.applyOrientationForActiveLanguage() {
-    val orientation = if (activeLanguage?.let { getLanguageMeta(it)?.isRtl } == true) {
-        ComponentOrientation.RIGHT_TO_LEFT
-    } else {
-        ComponentOrientation.LEFT_TO_RIGHT
-    }
-    container.applyComponentOrientation(orientation)
-}
-
-fun LocalizationManager.isActiveLanguageRtl(): Boolean {
-    return activeLanguage?.let { getLanguageMeta(it) }?.isRtl == true
 }
 

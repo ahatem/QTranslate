@@ -132,6 +132,7 @@ fun main() = runBlocking {
             localizer        = deps.localizationManager,
             pluginManager    = deps.pluginManager,
             notificationBus  = deps.notificationBus,
+            logger           = logFactory.getLogger("MainAppFrame"),
             appSecrets       = deps.appSecrets,
             translateString  = { text, target ->
                 deps.translateStringUseCase(text, target).fold(

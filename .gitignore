@@ -3,6 +3,8 @@
 # =============================================================================
 build/
 .gradle/
+# Kotlin 2.x build-session state
+.kotlin/
 
 # Kotlin/Java compiled files
 *.class

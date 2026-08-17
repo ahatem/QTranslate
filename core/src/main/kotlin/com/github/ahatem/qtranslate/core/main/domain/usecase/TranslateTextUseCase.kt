@@ -20,6 +20,7 @@ import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
+import com.github.ahatem.qtranslate.core.shared.util.shortSummary
 
 /**
  * Translates the current input text and updates the [MainState] with the result.
@@ -199,7 +200,7 @@ class TranslateTextUseCase(
                     failure = { error ->
                         logger.error("Translation failed: ${error.message}", error.cause)
                         updateState { copy(isLoading = false, isExtraOutputLoading = false) }
-                        val summary = error.message?.lines()?.firstOrNull()?.take(120) ?: "Unknown error"
+                        val summary = error.shortSummary()
                         onStatusUpdate(StatusCode.TranslationFailed(summary), NotificationType.ERROR, true)
                     }
                 )
@@ -210,7 +211,7 @@ class TranslateTextUseCase(
             } catch (e: Exception) {
                 logger.error("Unexpected error during translation", e)
                 updateState { copy(isLoading = false, isExtraOutputLoading = false) }
-                val summary = e.message?.lines()?.firstOrNull()?.take(120) ?: "Unknown error"
+                val summary = e.shortSummary()
                 onStatusUpdate(StatusCode.UnexpectedError(summary), NotificationType.ERROR, true)
             }
         }
@@ -276,7 +277,7 @@ class TranslateTextUseCase(
             failure = { error ->
                 logger.error("Re-translation failed: ${error.message}", error.cause)
                 updateState { copy(isLoading = false, isExtraOutputLoading = false) }
-                val summary = error.message?.lines()?.firstOrNull()?.take(120) ?: "Unknown error"
+                val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.TranslationFailed(summary), NotificationType.ERROR, true)
             }
         )

@@ -13,7 +13,7 @@ Thank you for taking the time to contribute. This document covers everything you
 - [Commit Messages](#commit-messages)
 - [Opening a Pull Request](#opening-a-pull-request)
 - [Architecture Overview](#architecture-overview)
-- [Running Tests](#running-tests)
+- [Tests](#tests)
 
 ---
 
@@ -38,9 +38,13 @@ Be respectful. Disagreements about code are fine; personal attacks are not. We a
 ## Development Setup
 
 **Requirements**
-- Java 11 or later (we recommend [Temurin](https://adoptium.net))
-- Kotlin 1.9+
-- Gradle 8+ (the wrapper is included — use `./gradlew`)
+- JDK 17 or later to build (we recommend [Temurin](https://adoptium.net)). Gradle's toolchain
+  provisions JDK 21 for compilation, and CI builds on 17.
+- Gradle (the wrapper is included — use `./gradlew`)
+
+Kotlin and every other dependency come from the wrapper and the version catalog in
+`gradle/libs.versions.toml`; nothing needs installing separately. The built JAR targets Java 11
+bytecode, so users can run it on a Java 11 runtime.
 
 **Steps**
 
@@ -139,7 +143,7 @@ The summary line should be under 72 characters and written in the imperative moo
    git fetch upstream
    git rebase upstream/develop
    ```
-2. Run the full build and tests locally: `./gradlew build test`
+2. Run the full build locally: `./gradlew build` (this runs the tests too)
 3. Push your branch and open a PR against `develop` on GitHub
 4. Fill in the PR template — describe what changed and why
 5. Link any related issues with `Closes #123`
@@ -165,7 +169,8 @@ QTranslate follows Clean Architecture with MVI for the UI layer. The full archit
 - **`:core`** — business logic, use cases, stores, repositories. No Swing imports.
 - **`:ui-swing`** — Swing UI components. Implements `Renderable<State>`, dispatches `Intent`s.
 - **`:app`** — composition root. Wires everything together. As thin as possible.
-- **`:plugins/*`** — plugin implementations. Depend only on `:api`.
+- **`:plugins/*`** — plugin implementations. Depend on `:api`, and on `:plugins:common` for shared
+  HTTP, JSON and language-mapping helpers. Never on `:core` or `:ui-swing`.
 
 UI components must be "dumb" — they render state and dispatch intents, nothing more.
 
@@ -173,14 +178,25 @@ UI components must be "dumb" — they render state and dispatch intents, nothing
 
 ## Tests
 
-QTranslate does not have a test suite yet — this is a known gap and one of the best ways to contribute right now.
+```bash
+./gradlew test
+```
 
-If you want to help:
+Tests run on JUnit 5, with `kotlinx-coroutines-test` for suspend functions. CI runs them on every
+push and a failure blocks the PR.
 
-- Pick a use case or repository class (e.g. `TranslateTextUseCase`, `PluginLoader`, `SettingsRepository`) and write unit tests for it
-- Open an issue titled `test: add tests for <class name>` so others know what you are working on — we will label it [`good first issue`](https://github.com/ahatem/qtranslate/labels/good%20first%20issue)
-- We plan to use **JUnit 5** with **`kotlinx-coroutines-test`** for testing suspend functions
+The suite is strongest where a mistake is quiet and expensive: configuration migration and
+recovery, plugin loading and validation, the HTTP client's proxy/timeout/retry rules, the
+localization file format, and document translation. Plugin modules test their own parsing and
+language mapping against recorded responses rather than a live service. `plugins/common` publishes
+a `FakePluginContext` test fixture for that, so a plugin test needs no network.
 
-If you are new to testing Kotlin coroutines, the [official testing guide](https://kotlinlang.org/docs/coroutines-testing.html) is a good starting point.
+Thinner, and worth contributing to:
 
-> **CI note:** The test step in CI currently runs with `continue-on-error: true` so it does not block PRs. This flag will be removed once a meaningful test suite is in place.
+- **Use cases in `:core`** — most of `core/main/domain/usecase` has no direct coverage
+- **Swing panels** — only the icon, theme and plugin-list models are covered
+- **Stores** — `MainStore` and `SettingsStore` are exercised only indirectly
+
+Open an issue titled `test: add tests for <class name>` before starting something substantial, so
+two people don't write it twice. If you are new to testing Kotlin coroutines, the
+[official testing guide](https://kotlinlang.org/docs/coroutines-testing.html) is a good start.

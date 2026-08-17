@@ -445,14 +445,6 @@ class ComponentResizer private constructor(
             this.maximumSize = Dimension(width, height)
         }
 
-        fun addConstraint(constraint: ResizeConstraint) = apply {
-            this.constraints += constraint
-        }
-
-        fun addConstraints(vararg constraints: ResizeConstraint) = apply {
-            this.constraints += constraints
-        }
-
         /**
          * Sets callback for when resize starts
          */
@@ -502,31 +494,3 @@ fun Collection<Component>.makeResizable(
     return resizer
 }
 
-fun Component.makeDraggableAndResizable(
-    moverConfig: ComponentMover.Builder.() -> Unit = {},
-    resizerConfig: ComponentResizer.Builder.() -> Unit = {}
-): Pair<ComponentMover, ComponentResizer> {
-    val mover = makeDraggable(moverConfig)
-    val resizer = makeResizable(resizerConfig)
-    return mover to resizer
-}
-
-data class InteractiveComponent(
-    val mover: ComponentMover,
-    val resizer: ComponentResizer
-) : AutoCloseable {
-    override fun close() {
-        mover.close()
-        resizer.close()
-    }
-}
-
-fun Component.makeInteractive(
-    moverConfig: ComponentMover.Builder.() -> Unit = {},
-    resizerConfig: ComponentResizer.Builder.() -> Unit = {}
-): InteractiveComponent {
-    return InteractiveComponent(
-        mover = makeDraggable(moverConfig),
-        resizer = makeResizable(resizerConfig)
-    )
-}

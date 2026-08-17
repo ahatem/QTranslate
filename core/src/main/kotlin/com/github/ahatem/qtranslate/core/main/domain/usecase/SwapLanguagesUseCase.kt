@@ -34,7 +34,7 @@ class SwapLanguagesUseCase {
         // When source is AUTO, use the detected language as the new target (if known).
         val effectiveSource = when {
             currentState.sourceLanguage != LanguageCode.AUTO -> currentState.sourceLanguage
-            currentState.detectedSourceLanguage != null      -> currentState.detectedSourceLanguage!!
+            currentState.detectedSourceLanguage != null      -> currentState.detectedSourceLanguage
             else                                             -> return
         }
 

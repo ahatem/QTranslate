@@ -207,11 +207,6 @@ class FloatingPopupBehavior(
         )
     }
 
-    fun applyStoredPosition(position: Position) {
-        if (wasManuallyMoved) return
-        window.setLocation(position.x, position.y)
-    }
-
     fun centreOnOwner() = window.setLocationRelativeTo(owner)
 
     /** Forgets that the window was dragged, so the next open positions itself again. */
@@ -396,13 +391,6 @@ class FloatingPopupBehavior(
         pointerListener?.let { Toolkit.getDefaultToolkit().removeAWTEventListener(it) }
         pointerListener = null
         isPointerOver = false
-    }
-
-    /** Everything a popup must let go of when it is hidden. */
-    fun onHidden() {
-        stopIdleHide()
-        fadeTimer?.stop()
-        uninstallPointerTracking()
     }
 
     private companion object {

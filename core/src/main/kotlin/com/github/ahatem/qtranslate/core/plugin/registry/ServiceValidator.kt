@@ -37,7 +37,4 @@ internal object ServiceValidator {
 
         return problems
     }
-
-    /** Validates every service, returning problems keyed by the service that caused them. */
-    fun validateAll(services: List<Service>): List<String> = services.flatMap(::validate)
 }

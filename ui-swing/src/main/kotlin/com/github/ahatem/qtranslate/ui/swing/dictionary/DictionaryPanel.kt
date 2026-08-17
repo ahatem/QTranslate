@@ -10,7 +10,7 @@ import java.awt.Color
 import java.awt.Dimension
 import javax.swing.*
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
-import com.github.ahatem.qtranslate.ui.swing.shared.component.ServiceInfoRenderer
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ServiceInfoRenderer
 
 class DictionaryPanel(
     private val iconManager: IconManager,

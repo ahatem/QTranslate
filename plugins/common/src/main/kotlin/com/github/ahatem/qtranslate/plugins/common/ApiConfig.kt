@@ -5,7 +5,6 @@ package com.github.ahatem.qtranslate.plugins.common
  */
 data class ApiConfig(
     val defaultUserAgents: List<String> = DEFAULT_USER_AGENTS,
-    val defaultTimeoutSeconds: Int = 30,
     val defaultHeaders: Map<String, String> = DEFAULT_HEADERS
 ) {
     /**

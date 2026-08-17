@@ -23,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import com.github.ahatem.qtranslate.core.shared.util.shortSummary
 
 class HandleTextToSpeechUseCase(
     private val activeServiceManager: ActiveServiceManager,
@@ -138,7 +139,7 @@ class HandleTextToSpeechUseCase(
             }
             .onErr { error ->
                 logger.error("TTS failed: ${error.message}", error.cause)
-                val summary = error.message?.lines()?.firstOrNull()?.take(120) ?: "Unknown error"
+                val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.TtsFailed(summary), NotificationType.ERROR, true)
             }
     }

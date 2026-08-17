@@ -71,7 +71,7 @@ class GoogleSpellCheckerService(
                 }
 
                 val result = checkSentence(sentence, request.language)
-                result.onSuccess {
+                result.onOk {
                     cache[sentence] = Ok(it)
                 }
                 result to sentenceOffset

@@ -144,7 +144,4 @@ data class PluginSettingsModel(
     val settingsClass: Class<*>,
     val schema: List<SettingSchema>,
     val groups: List<PluginSettingsGroup> = emptyList()
-) {
-    fun getSetting(propertyName: String): SettingSchema? =
-        schema.find { it.propertyName == propertyName }
-}
+)

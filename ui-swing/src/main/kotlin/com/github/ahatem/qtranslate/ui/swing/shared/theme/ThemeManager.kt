@@ -85,8 +85,6 @@ class ThemeManager(
     fun getDarkThemes(): List<Theme> = allThemes.filter { it.isDark }
     fun getLightThemes(): List<Theme> = allThemes.filter { !it.isDark }
 
-    fun getCurrentTheme(): Theme? = currentTheme
-
     fun findThemeById(id: String?): Theme {
         val resolvedId = if (id == OS_DEFAULT_THEME_ID) systemDefaultThemeId else id
 
@@ -109,9 +107,6 @@ class ThemeManager(
             }
         )
     }
-
-    fun themeExists(id: String): Boolean =
-        id == OS_DEFAULT_THEME_ID || themeCache.containsKey(id) || allThemes.any { it.id == id }
 
     // ── Apply (runtime) ─────────────────────────────────────────────────────
 
@@ -160,12 +155,6 @@ class ThemeManager(
 
     // ── Convenience ─────────────────────────────────────────────────────────
 
-    fun toggleDarkLight() {
-        val next = if (currentTheme?.isDark == true) findThemeById(defaultLightThemeId)
-        else findThemeById(defaultDarkThemeId)
-        applyTheme(next)
-    }
-
     fun applySystemTheme() = applyTheme(findThemeById(systemDefaultThemeId))
 
     fun reload() {
@@ -176,12 +165,6 @@ class ThemeManager(
         logger.info("Loaded ${allThemes.size} themes (dark=${getDarkThemes().size}, light=${getLightThemes().size})")
     }
 
-    fun getThemeSummary(): String = buildString {
-        appendLine("Themes: ${allThemes.size} total")
-        appendLine("  Dark: ${getDarkThemes().size}  Light: ${getLightThemes().size}")
-        appendLine("  Current: ${currentTheme?.name ?: "none"}")
-        appendLine("  System: ${if (isSystemInDarkMode()) "dark" else "light"}")
-    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // External theme discovery
@@ -267,7 +250,6 @@ class ThemeManager(
         private val os: String = System.getProperty("os.name", "").lowercase()
 
         fun isMacOs():     Boolean = os.contains("mac")
-        fun isLinuxOs():   Boolean = os.contains("linux") || os.contains("nix") || os.contains("nux")
         fun isWindowsOs(): Boolean = os.contains("win")
 
         /**

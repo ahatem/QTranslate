@@ -6,7 +6,6 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.getOrElse
 import io.ktor.client.*
 // Both this file's supertype and Ktor's own client are called HttpClient. Ours is now imported by
 // name, which beats the star import below, so Ktor's needs an alias to stay reachable.
@@ -473,6 +472,3 @@ data class ProxyConfiguration(
         return "Basic " + Base64.getEncoder().encodeToString(raw.toByteArray(Charsets.UTF_8))
     }
 }
-
-// Extension function to create form data from pairs
-fun formDataOf(vararg pairs: Pair<String, String>): Map<String, String> = mapOf(*pairs)

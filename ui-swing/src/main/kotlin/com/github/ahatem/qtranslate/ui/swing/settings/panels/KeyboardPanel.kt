@@ -430,18 +430,6 @@ class KeyboardPanel(
         }
     }
 
-    companion object {
-        fun formatBinding(binding: HotkeyBinding): String {
-            if (!binding.hasBinding) return ""
-            val mods = buildString {
-                if (binding.modifiers and InputEvent.CTRL_DOWN_MASK  != 0) append("Ctrl + ")
-                if (binding.modifiers and InputEvent.ALT_DOWN_MASK   != 0) append("Alt + ")
-                if (binding.modifiers and InputEvent.SHIFT_DOWN_MASK != 0) append("Shift + ")
-                if (binding.modifiers and InputEvent.META_DOWN_MASK  != 0) append("⌘ + ")
-            }
-            return mods + KeyEvent.getKeyText(binding.keyCode)
-        }
-    }
 }
 
 object HotkeyRecorderDialog {

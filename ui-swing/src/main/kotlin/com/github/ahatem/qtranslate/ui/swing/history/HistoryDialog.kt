@@ -141,8 +141,6 @@ class HistoryDialog(owner: Frame) : JDialog(null as Frame?, false) {
             fireTableDataChanged()
         }
 
-        fun getEntry(row: Int): HistoryEntryState = entries[row]
-
         override fun getRowCount() = entries.size
         override fun getColumnCount() = columns.size
         override fun getColumnName(col: Int) = columns[col]

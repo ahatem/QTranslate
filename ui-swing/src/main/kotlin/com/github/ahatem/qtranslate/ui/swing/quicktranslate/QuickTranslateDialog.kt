@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.ui.swing.quciktranslate
+package com.github.ahatem.qtranslate.ui.swing.quicktranslate
 
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.formdev.flatlaf.FlatClientProperties
@@ -51,14 +51,11 @@ class QuickTranslateDialog(
 ) : JDialog(null as Frame?, ModalityType.MODELESS), Renderable<QuickTranslateDialogState> {
 
     private companion object {
-        const val MAX_WIDTH_SCALE = 0.40
-        const val MAX_HEIGHT_SCALE = 0.30
         const val RESIZE_HANDLE_SIZE = 8
         const val PINNED_BORDER_WIDTH = 4
         const val COPY_FEEDBACK_DURATION_MS = 1000
         const val FADE_MS = 160
         const val FADE_STEPS = 8
-        const val IDLE_HIDE_MS_DEFAULT = 3000
         const val RESIZE_SAVE_DEBOUNCE_MS = 180
     }
 
@@ -466,10 +463,6 @@ class QuickTranslateDialog(
      * had this fixed; this one never did.
      */
     private fun fadeTo(targetOpacity: Float, durationMs: Int) = popup.fadeTo(targetOpacity, durationMs)
-
-    private fun setOpacityIfDifferent(value: Float) {
-        if (abs(opacity - value) > 0.01f) opacity = value
-    }
 
     private fun showDialog() {
         // apply initial opacity from config (without animation)

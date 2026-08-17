@@ -13,12 +13,7 @@ import kotlinx.serialization.json.Json
  */
 class JsonResponseParser<T>(
     private val pluginContext: PluginContext,
-    private val deserializer: (String) -> T,
-    val json: Json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-        coerceInputValues = true
-    }
+    private val deserializer: (String) -> T
 ) : ResponseParser<T> {
 
     override suspend fun parse(jsonString: String): Result<T, ServiceError> {
@@ -47,9 +42,6 @@ inline fun <reified T> createJsonParser(
 ): JsonResponseParser<T> {
     return JsonResponseParser(
         pluginContext = pluginContext,
-        deserializer = { jsonString -> json.decodeFromString<T>(jsonString) },
-        json = json
+        deserializer = { jsonString -> json.decodeFromString<T>(jsonString) }
     )
 }
-
-inline fun <reified T> JsonResponseParser<T>.jsonEncodeToString(value: T): String = json.encodeToString(value)

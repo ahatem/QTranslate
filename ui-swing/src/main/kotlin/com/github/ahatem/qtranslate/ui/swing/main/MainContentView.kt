@@ -164,9 +164,9 @@ class MainContentView(
     )
 
     // Resolved at render time; captured by lambdas so every lookup uses the current language.
-    private var currentLookupLanguage: LanguageCode = LanguageCode("en")
-    private var currentTargetLanguage: LanguageCode = LanguageCode("en")
-    private var currentExtraOutputLanguage: LanguageCode = LanguageCode("en")
+    private var currentLookupLanguage: LanguageCode = LanguageCode.ENGLISH
+    private var currentTargetLanguage: LanguageCode = LanguageCode.ENGLISH
+    private var currentExtraOutputLanguage: LanguageCode = LanguageCode.ENGLISH
 
     private val dictionaryPanel = DictionaryPanel(
         iconManager = iconManager,
@@ -337,12 +337,7 @@ class MainContentView(
     }
 
     private fun renderDictionaryPanel(mainState: MainState, config: Configuration) {
-        // Resolve source language — never pass AUTO to the dictionary API.
-        val resolvedLang = when {
-            mainState.sourceLanguage != LanguageCode.AUTO -> mainState.sourceLanguage
-            mainState.detectedSourceLanguage != null      -> mainState.detectedSourceLanguage!!
-            else                                          -> LanguageCode("en")
-        }
+        val resolvedLang = mainState.resolvedSourceLanguage
         currentLookupLanguage = resolvedLang
 
         val availableDicts = mainState.getAvailableServicesFor(

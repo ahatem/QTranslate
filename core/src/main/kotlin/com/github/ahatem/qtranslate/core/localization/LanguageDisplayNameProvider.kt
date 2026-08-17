@@ -31,5 +31,4 @@ fun LanguageCode.getDisplayName(
     }
 }
 
-fun LanguageCode.toLocal(): Locale = Locale.forLanguageTag(tag)
 fun Locale.toLanguageCode(): LanguageCode = LanguageCode(tag = language)

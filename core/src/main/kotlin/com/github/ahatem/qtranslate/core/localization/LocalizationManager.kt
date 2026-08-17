@@ -121,21 +121,6 @@ class LocalizationManager(
             }
         }
 
-    /** The English keys a translation has no value for, in the order the application declares them. */
-    suspend fun missingKeysOf(code: LanguageCode): List<String> =
-        withContext(Dispatchers.IO) {
-            val file = File(languagesDirectory, "${code.tag}.toml")
-            val translated = if (file.exists()) {
-                runCatching { parser.parse(file.readText()).entries }.getOrDefault(emptyMap())
-            } else {
-                emptyMap()
-            }
-            embeddedFallback.keys.filterNot { it in translated }
-        }
-
-    /** The English text for [key], which is what an untranslated string falls back to. */
-    fun englishFor(key: String): String? = embeddedFallback[key]
-
     /** Every string the application asks for, in declaration order. */
     fun englishStrings(): Map<String, String> = embeddedFallback
 
@@ -215,13 +200,6 @@ class LocalizationManager(
 
     fun getLanguageMeta(language: LanguageCode): LocalizedLanguageMeta? =
         languageMetaCache[language]
-
-    fun clearCache() {
-        translationCache.clear()
-        languageMetaCache.clear()
-        activeTranslations    = emptyMap()
-        _activeLanguage.value = LanguageCode.ENGLISH
-    }
 
     // -------------------------------------------------------------------------
     // Embedded fallback

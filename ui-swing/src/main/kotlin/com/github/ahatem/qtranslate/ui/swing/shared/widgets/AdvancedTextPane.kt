@@ -6,13 +6,11 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.isRTL
 import com.github.ahatem.qtranslate.ui.swing.shared.util.DroppedContent
 import com.github.ahatem.qtranslate.ui.swing.shared.util.DroppedContentClassifier
 import java.awt.*
-import java.awt.datatransfer.DataFlavor
 import java.awt.event.*
 import java.awt.font.FontRenderContext
 import java.awt.geom.AffineTransform
 import java.awt.image.BufferedImage
 import java.io.File
-import javax.imageio.ImageIO
 import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
@@ -274,15 +272,6 @@ class FontFallbackDocumentListener(
 
 /** Shared because it is only ever read; a fresh one per paint was pure garbage. */
 private val EMPTY_INSETS = Insets(0, 0, 0, 0)
-
-private fun toBufferedImage(image: Image): BufferedImage {
-    if (image is BufferedImage) return image
-    val buffered = BufferedImage(image.getWidth(null), image.getHeight(null), BufferedImage.TYPE_INT_ARGB)
-    val g = buffered.createGraphics()
-    g.drawImage(image, 0, 0, null)
-    g.dispose()
-    return buffered
-}
 
 private fun File.isImageFile(): Boolean =
     extension.lowercase() in setOf("png", "jpg", "jpeg", "bmp", "gif", "tiff", "tif", "webp")
@@ -819,15 +808,15 @@ class AdvancedTextPane(
                 ctxClearItem.isEnabled    = isEditable && hasText
 
                 getContextMenuLabel?.let { get ->
-                    get("undo")?.let      { ctxUndoItem.text      = it }
-                    get("redo")?.let      { ctxRedoItem.text      = it }
-                    get("cut")?.let       { ctxCutItem.text       = it }
-                    get("copy")?.let      { ctxCopyItem.text      = it }
-                    get("paste")?.let     { ctxPasteItem.text     = it }
-                    get("select_all")?.let { ctxSelectAllItem.text = it }
-                    get("clear")?.let     { ctxClearItem.text     = it }
-                    get("translate")?.let { ctxTranslateItem.text = it }
-                    get("listen")?.let    { ctxListenItem.text    = it }
+                    ctxUndoItem.text      = get("undo")
+                    ctxRedoItem.text      = get("redo")
+                    ctxCutItem.text       = get("cut")
+                    ctxCopyItem.text      = get("copy")
+                    ctxPasteItem.text     = get("paste")
+                    ctxSelectAllItem.text = get("select_all")
+                    ctxClearItem.text     = get("clear")
+                    ctxTranslateItem.text = get("translate")
+                    ctxListenItem.text    = get("listen")
                 }
             }
             override fun popupMenuWillBecomeInvisible(e: PopupMenuEvent?) {}

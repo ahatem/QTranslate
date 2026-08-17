@@ -17,9 +17,8 @@ import java.awt.*
 import java.awt.event.*
 import javax.swing.*
 import javax.swing.border.EmptyBorder
-import kotlin.math.abs
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
-import com.github.ahatem.qtranslate.ui.swing.shared.component.ServiceInfoRenderer
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ServiceInfoRenderer
 
 /**
  * Floating, always-on-top dictionary popup.
@@ -47,7 +46,6 @@ class QuickDictionaryDialog(
         const val PINNED_BORDER_WIDTH = 4
         const val FADE_MS = 160
         const val FADE_STEPS = 8
-        const val IDLE_HIDE_MS = 8000
         const val RESIZE_SAVE_DEBOUNCE_MS = 180
     }
 

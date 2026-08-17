@@ -52,19 +52,6 @@ class Updater(
         "https://api.github.com/repos/$repoOwner/$repoName/releases/latest"
 
     /**
-     * Fetches the latest release from GitHub and returns the full [VersionInfo].
-     *
-     * Use this when you need the raw release data regardless of whether it is
-     * newer than the running version (e.g. for displaying the changelog).
-     *
-     * @return [Ok] with [VersionInfo] on success, or [Err] with an [UpdaterError].
-     */
-    suspend fun getLatestVersionInfo(): Result<VersionInfo, UpdaterError> =
-        withContext(Dispatchers.IO) {
-            fetchRelease()
-        }
-
-    /**
      * Checks whether a newer version is available and returns a [UpdateCheckResult].
      *
      * Compares the latest GitHub release tag against [currentVersion] using

@@ -69,10 +69,7 @@ class LayoutPresetsMenu(
         for (layout in availableLayouts) {
             add(JCheckBoxMenuItem(layout.name).apply {
                 isSelected = layout.id == activeLayoutId
-                addActionListener {
-                    println("clicked on layout ${layout.id}")
-                    onLayoutSelected(layout.id)
-                }
+                addActionListener { onLayoutSelected(layout.id) }
             })
         }
     }

@@ -175,7 +175,7 @@ QTranslate/
         └── ...
 ```
 
-Bundled plugins: Google, Bing, AI Services, DeepL, Mozhi, MyMemory, LibreTranslate Local, Reverso, Yandex Web, and Wikimedia Reference. Configure a service from the service selector or **Settings → Plugins**.
+Bundled plugins: Google, Bing, AI Services, DeepL, Mozhi, MyMemory, LibreTranslate Local, Reverso, Yandex Web, Wikimedia Reference, and CSV Dictionary. Configure a service from the service selector or **Settings → Plugins**.
 
 > **Individual plugin JARs** are also attached to each release. They are only for adding or
 > updating a single plugin in an existing install — you do not need them for a fresh setup.
@@ -241,11 +241,11 @@ All bundled plugins are open source under `plugins/`. They provide real-world ex
 
 ## Translate the interface
 
-QTranslate ships with 13 languages built in:
+QTranslate ships with 14 languages built in:
 
-**Arabic · Bengali · Chinese · English · French · German · Hungarian · Italian · Japanese · Portuguese · Russian · Spanish · Turkish**
+**Arabic · Bengali · Chinese · English · French · German · Hungarian · Italian · Japanese · Portuguese · Russian · Spanish · Turkish · Vietnamese**
 
-Want another language? Copy `languages/en.toml`, rename it to your language code, translate the values. No code needed.
+Want another language? Copy `languages/en-GB.toml`, rename it to your language code, translate the values. No code needed.
 
 **Guide** → [Adding a Language](wiki/Adding-a-Language.md)
 

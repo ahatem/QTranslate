@@ -73,7 +73,4 @@ data class PluginLoadResult(
      * These are distinct from failures — the JAR is valid but was intentionally excluded.
      */
     val skipped: List<PluginError>
-) {
-    val totalAttempted: Int = successful.size + failed.size + skipped.size
-    val successRate: Float = if (totalAttempted > 0) successful.size.toFloat() / totalAttempted else 0f
-}
+)

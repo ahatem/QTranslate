@@ -581,25 +581,6 @@ class LanguageEditorDialog(
         }
     }
 
-    private fun deleteLanguage() {
-        val code = loadedCode ?: return
-        val confirm = JOptionPane.showConfirmDialog(
-            this, text("delete_confirm", code), title, JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE
-        )
-        if (confirm != JOptionPane.YES_OPTION) return
-
-        scope.launch {
-            withContext(Dispatchers.IO) {
-                File(localizationManager.languagesDirectory, "$code.toml").delete()
-            }
-            withContext(Dispatchers.Swing) {
-                localizationManager.forget(LanguageCode(code))
-                dirty = false
-                dispose()
-            }
-        }
-    }
-
     // ── Row actions ───────────────────────────────────────────────────────────
 
     private fun suggestForSelection() {
