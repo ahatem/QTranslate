@@ -10,6 +10,7 @@ import java.awt.event.MouseEvent
 import java.awt.geom.RoundRectangle2D
 import javax.swing.*
 import javax.swing.border.MatteBorder
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 class StatusBar(
     iconManager: IconManager,
@@ -37,7 +38,7 @@ class StatusBar(
         isOpaque = false
     }
 
-    private val notificationButton = createButtonWithIcon(iconManager, "icons/lucide/notification.svg", 14).apply {
+    private val notificationButton = createButtonWithIcon(iconManager, Icons.NOTIFICATION, 14).apply {
         putClientProperty("JButton.buttonType", "toolBarButton")
         isFocusable = false
         addActionListener { onNotificationsClicked() }

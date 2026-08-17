@@ -345,6 +345,13 @@ data class Configuration(
     val uiFontConfig: FontConfig = FontConfig(name = "Rubik", size = 13),
     val uiScale: Int = 100,
     val themeId: String = "os_default",
+    /**
+     * Which icon set to draw with, by folder name under `icons/`.
+     *
+     * A name rather than an index, so adding or reordering sets cannot silently change
+     * somebody's choice, and an unknown one falls back rather than leaving no icons at all.
+     */
+    val iconSetId: String = "lucide",
     val editorFontConfig: FontConfig = FontConfig(name = "Rubik", size = 15),
     val editorFallbackFontConfig: FontConfig = FontConfig(name = "Rubik", size = 15),
     val useUnifiedTitleBar: Boolean = true,

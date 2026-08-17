@@ -18,6 +18,7 @@ import java.awt.event.*
 import javax.swing.*
 import javax.swing.border.EmptyBorder
 import kotlin.math.abs
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 /**
  * Floating, always-on-top dictionary popup.
@@ -75,14 +76,14 @@ class QuickDictionaryDialog(
     private val titleLabel = JLabel("").apply {
         putClientProperty("FlatLaf.styleClass", "h4")
     }
-    private val pinButton = createButtonWithIcon(iconManager, "icons/lucide/pin.svg", 14)
-    private val closeButton = createButtonWithIcon(iconManager, "icons/lucide/close.svg", 16)
+    private val pinButton = createButtonWithIcon(iconManager, Icons.PIN, 14)
+    private val closeButton = createButtonWithIcon(iconManager, Icons.CLOSE, 16)
 
     // Auto-source cycling button — mirrors DictionaryPanel
     private val activeLinkIcon: FlatSVGIcon =
-        (iconManager.getIcon("icons/lucide/network.svg", 13, 13) as FlatSVGIcon).applyForegroundColorFilter()
+        (iconManager.getIcon(Icons.NETWORK, 13, 13) as FlatSVGIcon).applyForegroundColorFilter()
     private val offUnlinkIcon: FlatSVGIcon =
-        (iconManager.getIcon("icons/lucide/unpin.svg", 13, 13) as FlatSVGIcon).apply {
+        (iconManager.getIcon(Icons.UNPIN, 13, 13) as FlatSVGIcon).apply {
             colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") }
         }
     private val autoSourceButton = JButton().apply {

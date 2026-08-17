@@ -25,6 +25,7 @@ import javax.swing.*
 import javax.swing.table.AbstractTableModel
 import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.TableRowSorter
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 /**
  * Edits a translation file: its strings, its metadata, and whether it exists at all.
@@ -768,9 +769,9 @@ class LanguageEditorDialog(
         private val isFilteredToUntranslated: () -> Boolean
     ) : DefaultTableCellRenderer() {
 
-        private val doneIcon = themedIcon("icons/lucide/check.svg", "Actions.Green")
-        private val warnIcon = themedIcon("icons/lucide/warning.svg", "Component.warning.focusedBorderColor")
-        private val errorIcon = themedIcon("icons/lucide/warning.svg", "Component.error.focusedBorderColor")
+        private val doneIcon = themedIcon(Icons.CHECK, "Actions.Green")
+        private val warnIcon = themedIcon(Icons.WARNING, "Component.warning.focusedBorderColor")
+        private val errorIcon = themedIcon(Icons.WARNING, "Component.error.focusedBorderColor")
 
         override fun getTableCellRendererComponent(
             table: JTable, value: Any?, isSelected: Boolean,

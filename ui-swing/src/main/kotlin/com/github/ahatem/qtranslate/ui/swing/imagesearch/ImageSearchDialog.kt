@@ -49,6 +49,7 @@ import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
 import javax.swing.UIManager
 import javax.swing.border.EmptyBorder
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 /**
  * Floating popup showing pictures for a term.
@@ -99,8 +100,8 @@ class ImageSearchDialog(
 
 
     private val titleLabel = JLabel("").apply { putClientProperty("FlatLaf.styleClass", "h4") }
-    private val pinButton = createButtonWithIcon(iconManager, "icons/lucide/pin.svg", 14)
-    private val closeButton = createButtonWithIcon(iconManager, "icons/lucide/close.svg", 16)
+    private val pinButton = createButtonWithIcon(iconManager, Icons.PIN, 14)
+    private val closeButton = createButtonWithIcon(iconManager, Icons.CLOSE, 16)
 
     /**
      * A search field in the look and feel's own idiom rather than a bare text box.

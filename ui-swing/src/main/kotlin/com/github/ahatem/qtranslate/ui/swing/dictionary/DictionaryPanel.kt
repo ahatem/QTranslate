@@ -9,6 +9,7 @@ import java.awt.CardLayout
 import java.awt.Color
 import java.awt.Dimension
 import javax.swing.*
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 class DictionaryPanel(
     private val iconManager: IconManager,
@@ -46,9 +47,9 @@ class DictionaryPanel(
     private var updatingFromState = false
 
     private val activeLinkIconBase: FlatSVGIcon =
-        iconManager.getIcon("icons/lucide/network.svg", 13, 13) as FlatSVGIcon
+        iconManager.getIcon(Icons.NETWORK, 13, 13) as FlatSVGIcon
     private val offUnlinkIconBase: FlatSVGIcon =
-        iconManager.getIcon("icons/lucide/unpin.svg", 13, 13) as FlatSVGIcon
+        iconManager.getIcon(Icons.UNPIN, 13, 13) as FlatSVGIcon
 
     private val autoSourceButton = JButton().apply {
         putClientProperty("JButton.buttonType", "toolBarButton")

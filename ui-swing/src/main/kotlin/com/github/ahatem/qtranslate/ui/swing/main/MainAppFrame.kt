@@ -71,6 +71,7 @@ import java.util.*
 import javax.imageio.ImageIO
 import javax.swing.*
 import kotlin.system.exitProcess
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 class MainAppFrame(
     private val mainStore: MainStore,
@@ -1409,7 +1410,7 @@ class MainAppFrame(
     }
 
     private fun setupMenuBar() {
-        val settingsButton = createButtonWithIcon(iconManager, "icons/lucide/settings.svg", 18).apply {
+        val settingsButton = createButtonWithIcon(iconManager, Icons.SETTINGS, 18).apply {
             buttonType = FlatButton.ButtonType.toolBarButton
             toolTipText = localizer.getString("main_window_main_menu.settings")
             addActionListener {

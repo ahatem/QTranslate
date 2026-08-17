@@ -9,6 +9,8 @@ import com.github.ahatem.qtranslate.core.localization.TranslationCoverage
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSetInfo
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager.Companion.OS_DEFAULT_THEME_ID
 import com.github.ahatem.qtranslate.ui.swing.shared.util.WrapLayout
@@ -22,6 +24,7 @@ import java.io.File
 import javax.swing.*
 import javax.swing.DefaultListCellRenderer
 import javax.swing.filechooser.FileNameExtensionFilter
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 class AppearancePanel(
     private val store: SettingsStore,
@@ -54,6 +57,7 @@ class AppearancePanel(
     /** Held so it can be disabled for English, which has no file to edit. */
     private var editButton: JButton? = null
     private lateinit var themeCombo:        JComboBox<ThemeItem>
+    private lateinit var iconSetCombo:      JComboBox<IconSetInfo>
     private lateinit var syncWithOsCheck:   JCheckBox
     private lateinit var titleBarCheck:     JCheckBox
     private lateinit var scaleSpinner:      JSpinner
@@ -102,7 +106,7 @@ class AppearancePanel(
                 }
             }.also { editButton = it },
             pickerAction(
-                "icons/lucide/more.svg",
+                Icons.MORE,
                 localizationManager.getString("settings_appearance.more_actions")
             ) { }.also { more ->
                 more.addActionListener { languageMenu().show(more, 0, more.height) }
@@ -144,6 +148,18 @@ class AppearancePanel(
         }
 
         addRow(localizationManager.getString("settings_appearance.theme_label"), themeCombo)
+
+        iconSetCombo = JComboBox(IconSet.available().toTypedArray()).apply {
+            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            addActionListener {
+                if (!isUpdatingFromState) {
+                    val chosen = selectedItem as? IconSetInfo ?: return@addActionListener
+                    applyDraft(store) { it.copy(iconSetId = chosen.id) }
+                }
+            }
+        }
+        addRow(localizationManager.getString("settings_appearance.icon_set"), iconSetCombo)
+        addHint(localizationManager.getString("settings_appearance.icon_set_hint"))
 
         syncWithOsCheck = addCheckbox(
             text     = localizationManager.getString("settings_appearance.theme_sync_os"),
@@ -596,6 +612,9 @@ class AppearancePanel(
     override fun render(state: SettingsState) {
         val c = state.workingConfiguration
         withoutTrigger {
+            val setId = state.workingConfiguration.iconSetId
+            iconSetCombo.selectedItem = IconSet.available().firstOrNull { it.id == setId }
+                ?: IconSet.available().first()
             for (i in 0 until languageCombo.itemCount) {
                 if (languageCombo.getItemAt(i).code == selectedLanguageCode(c.interfaceLanguage)) {
                     languageCombo.selectedIndex = i

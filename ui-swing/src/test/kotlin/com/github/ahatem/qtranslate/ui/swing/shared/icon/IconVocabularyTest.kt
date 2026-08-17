@@ -65,10 +65,28 @@ class IconVocabularyTest {
         assertTrue("edit" in referencedNames(), "Expected the vocabulary to include 'edit'")
     }
 
+    @Test
+    fun `no call site hardcodes a set`() {
+        // The point of the constants. A literal path pins one set in place and quietly ignores the
+        // user's choice, which is invisible until somebody switches set and half the icons do not.
+        val offenders = File("src/main/kotlin").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" && it.name != "IconSet.kt" }
+            .flatMap { f -> HARDCODED.findAll(f.readText()).map { "${f.name}: ${it.value}" } }
+            .toList()
+        assertTrue(offenders.isEmpty(), "Use an Icons constant instead of a literal path: $offenders")
+    }
+
+    /**
+     * The vocabulary, read from the one place that defines it.
+     *
+     * Taken from the `IconSet.path("...")` calls rather than from string literals at the call
+     * sites, because there are no longer any: every use goes through a constant in `Icons`, so
+     * that object is the whole list of what a set has to supply.
+     */
     private fun referencedNames(): Set<String> =
         File("src/main/kotlin").walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
-            .flatMap { REFERENCE.findAll(it.readText()).map { m -> m.groupValues[1] } }
+            .flatMap { LOOKUP.findAll(it.readText()).map { m -> m.groupValues[1] } }
             .toSet()
 
     private fun fileNames(): Set<String> =
@@ -80,7 +98,9 @@ class IconVocabularyTest {
 
     private companion object {
         const val DEFAULT_SET = "lucide"
-        val REFERENCE = Regex("""icons/[a-z0-9-]+/([a-z0-9-]+)\.svg""")
+        val LOOKUP = Regex("""IconSet\.path\("([a-z0-9-]+)"\)""")
+        /** Any hardcoded set path left at a call site, which the constants replaced. */
+        val HARDCODED = Regex(""""icons/[a-z-]+/[a-z0-9-]+\.svg"""")
         val NAME = Regex("""[a-z0-9]+(-[a-z0-9]+)*""")
 
         /** Lucide's own names, kept as a guard against drifting back to them. */

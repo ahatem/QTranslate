@@ -35,6 +35,7 @@ import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeCellRenderer
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreeSelectionModel
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 class SettingsDialog(
     owner: JFrame,
@@ -100,24 +101,24 @@ class SettingsDialog(
      * separated by Plugins and Hotkeys.
      */
     private val navTree: List<Nav> = listOf(
-        Nav.Page(label("general"), "icons/lucide/general.svg"),
-        Nav.Page(label("appearance"), "icons/lucide/appearance.svg"),
+        Nav.Page(label("general"), Icons.GENERAL),
+        Nav.Page(label("appearance"), Icons.APPEARANCE),
         Nav.Group(
             label("group_translation"), listOf(
-                Nav.Page(label("services"), "icons/lucide/service.svg"),
-                Nav.Page(label("behavior"), "icons/lucide/translate.svg"),
-                Nav.Page(label("languages"), "icons/lucide/language.svg"),
+                Nav.Page(label("services"), Icons.SERVICE),
+                Nav.Page(label("behavior"), Icons.TRANSLATE),
+                Nav.Page(label("languages"), Icons.LANGUAGE),
             )
         ),
         Nav.Group(
             label("group_interface"), listOf(
-                Nav.Page(label("layout"), "icons/lucide/layout.svg"),
-                Nav.Page(label("popups"), "icons/lucide/popup.svg"),
+                Nav.Page(label("layout"), Icons.LAYOUT),
+                Nav.Page(label("popups"), Icons.POPUP),
             )
         ),
-        Nav.Page(label("hotkeys"), "icons/lucide/keyboard.svg"),
-        Nav.Page(label("plugins"), "icons/lucide/plugin.svg"),
-        Nav.Page(label("network"), "icons/lucide/network.svg"),
+        Nav.Page(label("hotkeys"), Icons.KEYBOARD),
+        Nav.Page(label("plugins"), Icons.PLUGIN),
+        Nav.Page(label("network"), Icons.NETWORK),
     )
 
     /** Every selectable page, flattened, in sidebar order. */

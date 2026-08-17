@@ -17,6 +17,7 @@ import java.awt.Point
 import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
 import javax.swing.*
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 /**
  * Why callbacks on the state, not constructor lambdas?
@@ -53,7 +54,7 @@ class ExtraOutputPanel(
         }
     }
 
-    private val gearBtn = createButtonWithIcon(iconManager, "icons/lucide/settings.svg", 16).apply {
+    private val gearBtn = createButtonWithIcon(iconManager, Icons.SETTINGS, 16).apply {
         buttonType = FlatButton.ButtonType.toolBarButton
         isFocusable = false
         isVisible = false

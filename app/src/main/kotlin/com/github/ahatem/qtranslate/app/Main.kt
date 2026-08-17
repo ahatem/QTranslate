@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.ui.swing.main.MainAppFrame
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -117,6 +118,10 @@ fun main() = runBlocking {
     // their own as plugins finish initialising. Waiting here instead would leave the screen
     // empty for as long as the slowest plugin takes, and several do network work at startup.
     SwingUtilities.invokeLater {
+        // Chosen before anything is drawn: icons are built once and held by the components
+        // showing them, so this has to be set while there is still nothing on screen.
+        IconSet.use(deps.settingsStore.state.value.workingConfiguration.iconSetId)
+
         frame = MainAppFrame(
             mainStore        = deps.mainStore,
             settingsStore    = deps.settingsStore,

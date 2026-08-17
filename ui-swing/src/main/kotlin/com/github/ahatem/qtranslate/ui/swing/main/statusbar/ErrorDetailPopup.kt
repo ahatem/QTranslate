@@ -9,6 +9,7 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.*
 import javax.swing.border.MatteBorder
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 /**
  * A lightweight, non-blocking popup anchored to the status-bar chip that
@@ -65,7 +66,7 @@ class ErrorDetailPopup(private val iconManager: IconManager) {
         font = UIManager.getFont("Label.font")?.deriveFont(Font.BOLD) ?: font?.deriveFont(Font.BOLD)
     }
 
-    private val closeButton = createButtonWithIcon(iconManager, "icons/lucide/close.svg", 14).apply {
+    private val closeButton = createButtonWithIcon(iconManager, Icons.CLOSE, 14).apply {
         putClientProperty("JButton.buttonType", "toolBarButton")
         isFocusable = false
         addMouseListener(object : MouseAdapter() {
