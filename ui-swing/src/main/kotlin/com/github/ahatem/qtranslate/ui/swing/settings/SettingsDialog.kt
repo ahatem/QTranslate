@@ -386,7 +386,47 @@ class SettingsDialog(
             root.add(node)
         }
 
-        return JTree(DefaultTreeModel(root)).apply {
+        return object : JTree(DefaultTreeModel(root)) {
+            /**
+             * Draws the rollover behind the row, across the tree's whole width.
+             *
+             * It has to happen here rather than in the cell renderer: Swing clips a component's
+             * painting to its own bounds, and a renderer is only as wide as its icon and text, so
+             * a pill drawn there came out short for "General" and long for "Services & Presets"
+             * and started at the indent on grouped rows. The tree owns the full width, so the
+             * hover and the selection can finally land on the same pixels.
+             *
+             * Before super, so a selected row keeps its own background.
+             */
+            override fun paintComponent(g: java.awt.Graphics) {
+                val row = hoveredRow
+                if (row >= 0 && !isRowSelected(row)) {
+                    getRowBounds(row)?.let { bounds ->
+                        val g2 = g.create() as java.awt.Graphics2D
+                        try {
+                            g2.setRenderingHint(
+                                java.awt.RenderingHints.KEY_ANTIALIASING,
+                                java.awt.RenderingHints.VALUE_ANTIALIAS_ON
+                            )
+                            g2.color = UIManager.getColor("Tree.selectionInactiveBackground")
+                                ?: UIManager.getColor("Component.borderColor")
+                            // The same insets and radius FlatLaf uses for the selection.
+                            val side = UIScale.scale(6)
+                            val top = UIScale.scale(1)
+                            val arc = UIScale.scale(8)
+                            g2.fillRoundRect(
+                                side, bounds.y + top,
+                                (width - side * 2).coerceAtLeast(0), bounds.height - top * 2,
+                                arc, arc
+                            )
+                        } finally {
+                            g2.dispose()
+                        }
+                    }
+                }
+                super.paintComponent(g)
+            }
+        }.apply {
             isRootVisible = false
             showsRootHandles = false
             selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
@@ -415,8 +455,8 @@ class SettingsDialog(
 
             putClientProperty(
                 "FlatLaf.style",
-                // Compact rows: 32px height, minimal selection arc, tight insets
-                "rowHeight: 34; selectionArc: 10; selectionInsets: 2,6,2,6; " +
+                // Compact rows, and a selection shape the hover state matches exactly.
+                "rowHeight: 28; selectionArc: 8; selectionInsets: 1,6,1,6; " +
                         $$"selectionBackground: $Table.selectionBackground"
             )
 
@@ -425,44 +465,14 @@ class SettingsDialog(
                     leafIcon = null; closedIcon = null; openIcon = null
                 }
 
-                /** Whether this row should draw the rollover shape. */
-                private var hovered = false
-
                 // Derived once from a stable base. A cell renderer is a single component reused for
                 // every row, so deriving from its *current* font compounds: each heading shrank the
                 // shared font by a pixel and every row drawn afterwards inherited the smaller one,
-                // until the labels vanished entirely. The same trap as the translation editor's row
-                // renderer, which is why the base is read from the look and feel rather than self.
+                // until the labels vanished entirely.
                 private val itemFont: Font =
                     (UIManager.getFont("Tree.font") ?: UIManager.getFont("Label.font"))
                         .deriveFont(Font.PLAIN)
                 private val groupFont: Font = itemFont.deriveFont(Font.BOLD, itemFont.size - 1f)
-
-                /**
-                 * Draws the hover shape, matched to the selection pill.
-                 *
-                 * Inset and rounded exactly as `selectionInsets` and `selectionArc` are, so moving
-                 * the pointer onto the selected row does not shift anything by a pixel.
-                 */
-                override fun paintComponent(g: java.awt.Graphics) {
-                    if (hovered) {
-                        val g2 = g.create() as java.awt.Graphics2D
-                        try {
-                            g2.setRenderingHint(
-                                java.awt.RenderingHints.KEY_ANTIALIASING,
-                                java.awt.RenderingHints.VALUE_ANTIALIAS_ON
-                            )
-                            g2.color = UIManager.getColor("Tree.selectionInactiveBackground")
-                                ?: UIManager.getColor("Component.borderColor")
-                            val inset = UIScale.scale(2)
-                            val arc = UIScale.scale(10)
-                            g2.fillRoundRect(0, inset, width, height - inset * 2, arc, arc)
-                        } finally {
-                            g2.dispose()
-                        }
-                    }
-                    super.paintComponent(g)
-                }
 
                 override fun getTreeCellRendererComponent(
                     tree: JTree, value: Any, sel: Boolean,
@@ -526,7 +536,6 @@ class SettingsDialog(
                     // blank space where an icon would be is what tells the eye they are not.
                     if (isGroup) icon = null
 
-                    hovered = !sel && !isGroup && row == hoveredRow
                     return this
                 }
             }

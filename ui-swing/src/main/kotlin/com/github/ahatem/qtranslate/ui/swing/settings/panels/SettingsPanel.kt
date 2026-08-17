@@ -72,10 +72,10 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
     @Volatile
     protected var isUpdatingFromState = false
 
-    protected val gb = GridBag(this, horizontalGap = 8, verticalGap = 4)
+    protected val gb = GridBag(this, horizontalGap = 8, verticalGap = ROW_GAP)
 
     init {
-        border = BorderFactory.createEmptyBorder(16, 16, 16, 16)
+        border = BorderFactory.createEmptyBorder(EDGE, EDGE, EDGE, EDGE)
         gb.defaultAnchor(GridBagConstraints.LINE_START)
         gb.defaultFill(GridBagConstraints.NONE)
     }
@@ -148,7 +148,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
             .spanLine()
             .weightX(1.0)
             .fill(GridBagConstraints.HORIZONTAL)
-            .insets(if (isFirst) 0 else 22, 0, 6, 0)
+            .insets(if (isFirst) 0 else SECTION_GAP, 0, 4, 0)
             .add(buildSeparatorRow(title, bold = true, muted = false, gap = 10))
     }
 
@@ -174,7 +174,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
             .spanLine()
             .weightX(1.0)
             .fill(GridBagConstraints.HORIZONTAL)
-            .insets(14, 4, 2, 0)
+            .insets(SECTION_GAP - 4, 4, 2, 0)
             .add(label)
     }
 
@@ -333,7 +333,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
             .spanLine()
             .weightX(1.0)
             .fill(GridBagConstraints.HORIZONTAL)
-            .insets(0, 2, 4, 0)
+            .insets(0, 2, 3, 0)
             .add(hint)
 
         // Attached to the setting above rather than indexed on its own, so searching for a word
@@ -393,6 +393,22 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
 
     protected companion object {
         /** Measure a hint wraps at, before scaling. Roughly a comfortable line of prose. */
+        /**
+         * The vertical rhythm, in one place.
+         *
+         * Four numbers were chosen separately at four call sites and drifted: a section break sat
+         * twenty-six pixels above its title while the rows under it sat four apart, which at 150%
+         * scale is a forty-pixel hole between groups and a cramped list inside them. They are one
+         * scale now — attached, separated, sectioned — and the page reads tighter for it.
+         */
+        const val ROW_GAP = 3
+
+        /** Space above a section title. The only gap meant to be noticed. */
+        const val SECTION_GAP = 14
+
+        /** Padding around the page itself. */
+        const val EDGE = 12
+
         const val HINT_WIDTH = 460
 
         /** Separates a section from a sub-section in a search result's path. */
