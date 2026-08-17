@@ -9,6 +9,8 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import java.awt.FlowLayout
+import java.awt.GridBagConstraints
+import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JLabel
 import javax.swing.JComponent
@@ -17,6 +19,7 @@ import javax.swing.JPasswordField
 import javax.swing.JSpinner
 import javax.swing.JTextField
 import javax.swing.SpinnerNumberModel
+import javax.swing.UIManager
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 
@@ -58,6 +61,10 @@ class NetworkPanel(
     private lateinit var requestTimeout: JSpinner
     private lateinit var connectTimeout: JSpinner
     private lateinit var socketTimeout: JSpinner
+    private val envelopeWarning = JLabel()
+    private val hostTimeoutsSummary = JLabel()
+    /** Host to seconds, edited in its own window and written back on OK. */
+    private val hostTimeouts = linkedMapOf<String, Int>()
 
     private lateinit var retryEnabled: JCheckBox
     private lateinit var maxRetries: JSpinner
@@ -128,6 +135,29 @@ class NetworkPanel(
         )
         addHint(localizationManager.getString("settings_network.timeouts_hint"))
 
+        envelopeWarning.apply {
+            icon = ScaledWarningIcon()
+            iconTextGap = 5
+            foreground = UIManager.getColor("Component.warning.focusedBorderColor")
+                ?: UIManager.getColor("Label.foreground")
+            font = font.deriveFont(font.size - 1f)
+            isVisible = false
+        }
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+            .insets(2, 2, 4, 0).add(envelopeWarning)
+
+        addRow(
+            localizationManager.getString("settings_network.host_timeouts"),
+            compact(
+                hostTimeoutsSummary,
+                JButton(localizationManager.getString("settings_network.host_timeouts_edit")).apply {
+                    putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
+                    addActionListener { editHostTimeouts() }
+                },
+                info("settings_network.host_timeouts_info")
+            )
+        )
+
         // ── Retries ───────────────────────────────────────────────────────────
         addSeparator(localizationManager.getString("settings_network.retry_group"))
 
@@ -197,7 +227,10 @@ class NetworkPanel(
     private fun secondsSpinner(onChange: (Int) -> Unit) =
         JSpinner(SpinnerNumberModel(30, 1, 600, 5)).apply {
             (editor as? JSpinner.NumberEditor)?.textField?.columns = 4
-            addChangeListener { if (!isUpdatingFromState) onChange(value as Int) }
+            addChangeListener {
+                if (!isUpdatingFromState) onChange(value as Int)
+                updateEnvelopeWarning()
+            }
         }
 
     /**
@@ -210,8 +243,16 @@ class NetworkPanel(
      */
     private fun info(key: String): JComponent =
         JLabel(runCatching<javax.swing.Icon?> {
-            FlatSVGIcon("icons/lucide/info.svg", UIScale.scale(13), UIScale.scale(13), javaClass.classLoader)
-                .applyForegroundColorFilter()
+            // Ten, not the fourteen the toolbar icons use. This glyph is a circle filling its whole
+            // viewBox where a pen or a plus leaves whitespace around itself, so at a matching
+            // nominal size it reads as much larger than they do. Muted too: it is an aside, and it
+            // sat brighter than the number it was explaining.
+            FlatSVGIcon("icons/lucide/info.svg", UIScale.scale(10), UIScale.scale(10), javaClass.classLoader)
+                .apply {
+                    colorFilter = FlatSVGIcon.ColorFilter {
+                        UIManager.getColor("Label.disabledForeground") ?: it
+                    }
+                }
         }.getOrNull()).apply {
             toolTipText = "<html><body style='width:280px'>" +
                 localizationManager.getString(key).replace("<", "&lt;") + "</body></html>"
@@ -249,6 +290,145 @@ class NetworkPanel(
         proxyPasswordField?.isEnabled = enabled
     }
 
+
+    /**
+     * Says so when the whole-request timeout is below one of the two it contains.
+     *
+     * The three are not additive: connecting and waiting-for-data both run inside the whole-request
+     * envelope, so setting the envelope smaller than either does not shorten that phase, it makes
+     * it unreachable. The setting stays where it was put and this explains what it now means,
+     * rather than the page silently raising a number the user did not touch.
+     */
+    private fun updateEnvelopeWarning() {
+        val whole = requestTimeout.value as? Int ?: return
+        val connect = connectTimeout.value as? Int ?: return
+        val socket = socketTimeout.value as? Int ?: return
+        val shadowed = maxOf(connect, socket)
+
+        envelopeWarning.isVisible = whole < shadowed
+        if (envelopeWarning.isVisible) {
+            envelopeWarning.text =
+                localizationManager.getString("settings_network.envelope_warning", whole, shadowed)
+        }
+    }
+
+    private fun updateHostTimeoutsSummary() {
+        hostTimeoutsSummary.text = when (hostTimeouts.size) {
+            0 -> localizationManager.getString("settings_network.host_timeouts_none")
+            else -> localizationManager.getString("settings_network.host_timeouts_count", hostTimeouts.size)
+        }
+        hostTimeoutsSummary.foreground = UIManager.getColor(
+            if (hostTimeouts.isEmpty()) "Label.disabledForeground" else "Label.foreground"
+        )
+        hostTimeoutsSummary.toolTipText = hostTimeouts.entries
+            .joinToString("<br>") { "${it.key}: ${it.value}s" }
+            .takeIf { it.isNotEmpty() }
+            ?.let { "<html>$it</html>" }
+    }
+
+    /**
+     * The per-host list, in a window with room for it.
+     *
+     * Not inline: this is empty for almost everyone and unbounded for the few who use it, which is
+     * the same shape as the translator credits and gets the same answer. The settings row states
+     * how many there are and the editing happens somewhere that can grow.
+     */
+    private fun editHostTimeouts() {
+        val model = object : javax.swing.table.DefaultTableModel(
+            arrayOf(
+                localizationManager.getString("settings_network.host_column"),
+                localizationManager.getString("settings_network.seconds_column")
+            ),
+            0
+        ) {
+            override fun getColumnClass(columnIndex: Int): Class<*> =
+                if (columnIndex == 1) Integer::class.java else String::class.java
+        }
+        hostTimeouts.forEach { (host, seconds) -> model.addRow(arrayOf<Any>(host, seconds)) }
+
+        val table = javax.swing.JTable(model).apply {
+            rowHeight = UIScale.scale(24)
+            putClientProperty(FlatClientProperties.STYLE, "showHorizontalLines: true")
+        }
+        val removeButton = JButton(localizationManager.getString("settings_network.host_remove")).apply {
+            isEnabled = false
+            addActionListener {
+                val row = table.selectedRow
+                if (row >= 0) {
+                    if (table.isEditing) table.cellEditor?.stopCellEditing()
+                    model.removeRow(row)
+                }
+            }
+        }
+        table.selectionModel.addListSelectionListener { removeButton.isEnabled = table.selectedRow >= 0 }
+
+        val addButton = JButton(localizationManager.getString("settings_network.host_add")).apply {
+            addActionListener {
+                model.addRow(arrayOf<Any>("", 60))
+                val row = model.rowCount - 1
+                table.setRowSelectionInterval(row, row)
+                table.editCellAt(row, 0)
+                table.editorComponent?.requestFocusInWindow()
+            }
+        }
+
+        val panel = JPanel(java.awt.BorderLayout(UIScale.scale(8), UIScale.scale(8))).apply {
+            preferredSize = java.awt.Dimension(UIScale.scale(380), UIScale.scale(260))
+            add(javax.swing.JScrollPane(table).apply {
+                border = javax.swing.BorderFactory.createLineBorder(
+                    UIManager.getColor("Component.borderColor") ?: java.awt.Color.GRAY
+                )
+            }, java.awt.BorderLayout.CENTER)
+            add(JPanel(FlowLayout(FlowLayout.TRAILING, UIScale.scale(6), 0)).apply {
+                isOpaque = false
+                add(addButton)
+                add(removeButton)
+            }, java.awt.BorderLayout.SOUTH)
+        }
+
+        val result = javax.swing.JOptionPane.showConfirmDialog(
+            this, panel,
+            localizationManager.getString("settings_network.host_timeouts_title"),
+            javax.swing.JOptionPane.OK_CANCEL_OPTION, javax.swing.JOptionPane.PLAIN_MESSAGE
+        )
+        if (result != javax.swing.JOptionPane.OK_OPTION) return
+        // A cell still being edited has not written its value back to the model yet, and OK while
+        // typing would otherwise drop whatever was just entered.
+        if (table.isEditing) table.cellEditor?.stopCellEditing()
+
+        val edited = linkedMapOf<String, Int>()
+        for (row in 0 until model.rowCount) {
+            val host = (model.getValueAt(row, 0) as? String)?.trim().orEmpty()
+            val seconds = (model.getValueAt(row, 1) as? Number)?.toInt() ?: continue
+            // A half-filled row is dropped rather than saved as an entry matching nothing.
+            if (host.isNotEmpty()) edited[host] = seconds.coerceIn(1, 3600)
+        }
+        if (edited != hostTimeouts) {
+            hostTimeouts.clear()
+            hostTimeouts.putAll(edited)
+            updateHostTimeoutsSummary()
+            applyNetwork { it.copy(hostTimeoutSeconds = edited.toMap()) }
+        }
+    }
+
+    /** FlatLaf's warning glyph, drawn at the size a hint line wants rather than a dialog's. */
+    private inner class ScaledWarningIcon : javax.swing.Icon {
+        private val delegate = com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon()
+        private val side = UIScale.scale(13)
+        override fun getIconWidth() = side
+        override fun getIconHeight() = side
+        override fun paintIcon(c: java.awt.Component?, g: java.awt.Graphics?, x: Int, y: Int) {
+            val g2 = (g?.create() as? java.awt.Graphics2D) ?: return
+            try {
+                g2.translate(x, y)
+                g2.scale(side.toDouble() / delegate.iconWidth, side.toDouble() / delegate.iconHeight)
+                delegate.paintIcon(c, g2, 0, 0)
+            } finally {
+                g2.dispose()
+            }
+        }
+    }
+
     override fun render(state: SettingsState) {
         val network = state.workingConfiguration.network
         withoutTrigger {
@@ -269,6 +449,11 @@ class NetworkPanel(
 
             perHostCap.value = network.maxConnectionsPerHost.coerceIn(1, 64)
             totalCap.value = network.maxConnectionsTotal.coerceIn(1, 512)
+
+            hostTimeouts.clear()
+            hostTimeouts.putAll(network.hostTimeoutSeconds)
+            updateHostTimeoutsSummary()
+            updateEnvelopeWarning()
         }
     }
 
