@@ -13,7 +13,7 @@ import com.github.michaelbull.result.Result
  * [com.github.ahatem.qtranslate.api.plugin.SupportedLanguages.All], indicates that
  * the service can detect the language of the input automatically.
  */
-interface SpellChecker : Service {
+public interface SpellChecker : Service {
 
     /**
      * Checks the text in [request] for errors and returns corrections.
@@ -26,7 +26,7 @@ interface SpellChecker : Service {
      * @return `Ok` with a [SpellCheckResponse] on success, or an `Err` with a [ServiceError].
      *         Returns [ServiceError.InvalidInputError] if the text is blank.
      */
-    suspend fun check(request: SpellCheckRequest): Result<SpellCheckResponse, ServiceError>
+    public suspend fun check(request: SpellCheckRequest): Result<SpellCheckResponse, ServiceError>
 }
 
 /**
@@ -36,7 +36,7 @@ interface SpellChecker : Service {
  * @param language The language of [text]. Defaults to [LanguageCode.AUTO] for
  *                 services that support language auto-detection.
  */
-data class SpellCheckRequest(
+public data class SpellCheckRequest(
     val text: String,
     val language: LanguageCode = LanguageCode.AUTO
 ) {
@@ -53,7 +53,7 @@ data class SpellCheckRequest(
  * @param corrections   A list of individual corrections, each pointing to a specific
  *                      span in the original text. Empty if no issues were found.
  */
-data class SpellCheckResponse(
+public data class SpellCheckResponse(
     val correctedText: String,
     val corrections: List<Correction>
 )
@@ -69,7 +69,7 @@ data class SpellCheckResponse(
  * @param message     An optional human-readable explanation of the issue, suitable
  *                    for display in a tooltip (e.g. `"Use 'affect' as a verb here."`).
  */
-data class Correction(
+public data class Correction(
     val original: String,
     val startIndex: Int,
     val endIndex: Int,

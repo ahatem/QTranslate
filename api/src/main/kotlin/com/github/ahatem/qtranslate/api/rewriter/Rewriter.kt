@@ -22,14 +22,14 @@ import com.github.michaelbull.result.Result
  * impossible, since the host owned the vocabulary and offered every value regardless of what
  * the service actually supported.
  */
-interface Rewriter : Service {
+public interface Rewriter : Service {
 
     /**
      * Rewrites the text in [request].
      *
      * @return `Ok` with a [RewriteResponse], or `Err` with a [ServiceError].
      */
-    suspend fun rewrite(request: RewriteRequest): Result<RewriteResponse, ServiceError>
+    public suspend fun rewrite(request: RewriteRequest): Result<RewriteResponse, ServiceError>
 }
 
 /**
@@ -40,7 +40,7 @@ interface Rewriter : Service {
  *   [com.github.ahatem.qtranslate.api.plugin.ServiceOptionValue.id] values. Absent keys mean the
  *   service should use its own default.
  */
-data class RewriteRequest(
+public data class RewriteRequest(
     val text: String,
     val options: Map<String, String> = emptyMap()
 ) {
@@ -62,7 +62,7 @@ data class RewriteRequest(
  * @property alternatives Further rewrites, when the service can produce more than one. Empty
  *   when unsupported.
  */
-data class RewriteResponse(
+public data class RewriteResponse(
     val rewrittenText: String,
     val alternatives: List<String> = emptyList()
 )

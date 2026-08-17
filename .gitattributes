@@ -1,0 +1,28 @@
+# Normalise line endings in the repository regardless of a contributor's core.autocrlf setting.
+#
+# Without this, whether a file is stored with LF or CRLF depends on how each person happens to
+# have git configured, and a Windows contributor and a Linux one can produce whole-file diffs
+# that contain no actual change.
+* text=auto
+
+# Never touched, whatever they contain.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.svg  text
+*.ttf  binary
+*.otf  binary
+*.jar  binary
+*.gz   binary
+*.zip  binary
+
+# Must stay CRLF to run on Windows.
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+gradlew.bat text eol=crlf
+
+# Must stay LF to run on a Unix shell.
+gradlew text eol=lf
+*.sh    text eol=lf

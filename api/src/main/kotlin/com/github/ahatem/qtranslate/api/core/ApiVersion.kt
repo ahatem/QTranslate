@@ -51,18 +51,18 @@ package com.github.ahatem.qtranslate.api.core
  * The core application calls [isCompatible] with the `minApiVersion` value and rejects the
  * plugin with a user-visible error if the result is [CompatibilityResult.Incompatible].
  */
-object ApiVersion {
+public object ApiVersion {
     /** The major version. Incrementing this signals a breaking API change. */
-    const val MAJOR = 2
+    public const val MAJOR: Int = 2
 
     /** The minor version. Incrementing this signals new backwards-compatible features. */
-    const val MINOR = 0
+    public const val MINOR: Int = 0
 
     /** The patch version. Incrementing this signals backwards-compatible bug fixes. */
-    const val PATCH = 0
+    public const val PATCH: Int = 0
 
     /** The full version string in `MAJOR.MINOR.PATCH` format. */
-    const val VERSION = "$MAJOR.$MINOR.$PATCH"
+    public const val VERSION: String = "$MAJOR.$MINOR.$PATCH"
 
     /**
      * Determines whether a plugin compiled against [pluginApiVersion] is compatible
@@ -76,7 +76,7 @@ object ApiVersion {
      * @param pluginApiVersion The version string declared by the plugin (e.g. `"1.0.0"`).
      * @return A [CompatibilityResult] describing whether the plugin is compatible and why not if rejected.
      */
-    fun isCompatible(pluginApiVersion: String): CompatibilityResult {
+    public fun isCompatible(pluginApiVersion: String): CompatibilityResult {
         val parts = pluginApiVersion.trim().split(".")
         if (parts.size != 3) {
             return CompatibilityResult.Incompatible(
@@ -112,14 +112,14 @@ object ApiVersion {
     /**
      * Represents the outcome of an API compatibility check.
      */
-    sealed class CompatibilityResult {
-        abstract val pluginVersion: String
+    public sealed class CompatibilityResult {
+        public abstract val pluginVersion: String
 
         /**
          * The plugin is compatible with this host's API version.
          * @param pluginVersion The version string declared by the plugin.
          */
-        data class Compatible(override val pluginVersion: String) : CompatibilityResult()
+        public data class Compatible(override val pluginVersion: String) : CompatibilityResult()
 
         /**
          * The plugin is incompatible with this host's API version and must be rejected.
@@ -127,7 +127,7 @@ object ApiVersion {
          * @param reason A human-readable explanation of why the plugin was rejected,
          *               suitable for display in the UI and logs.
          */
-        data class Incompatible(
+        public data class Incompatible(
             override val pluginVersion: String,
             val reason: String
         ) : CompatibilityResult()

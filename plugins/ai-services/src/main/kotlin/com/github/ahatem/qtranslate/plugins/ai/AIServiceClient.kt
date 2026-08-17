@@ -45,12 +45,6 @@ class AIServiceClient(
     private val headersJson = Json { ignoreUnknownKeys = true; isLenient = true }
 
     /**
-     * Sends a chat-completion request and returns the model's text response.
-     *
-     * @param system      The system-level instruction (becomes the first "system" message).
-     * @param userContent The user turn content.
-     */
-    /**
      * Checks that the configured endpoint, key and model actually work together.
      *
      * Sends the smallest real request rather than only inspecting the settings: an endpoint that
@@ -64,6 +58,12 @@ class AIServiceClient(
             .map { }
     }
 
+    /**
+     * Sends a chat-completion request and returns the model's text response.
+     *
+     * @param system      The system-level instruction (becomes the first "system" message).
+     * @param userContent The user turn content.
+     */
     suspend fun complete(
         system: String,
         userContent: String

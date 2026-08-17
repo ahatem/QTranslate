@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.app
 import com.formdev.flatlaf.FlatLaf
 import com.formdev.flatlaf.util.FontUtils
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.ui.swing.shared.fonts.NotoNaskhArabicFont
 import com.github.ahatem.qtranslate.ui.swing.shared.fonts.RubikSansFont
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledUiFont
@@ -40,6 +41,10 @@ object AppUiSetup {
         FlatLaf.setPreferredFontFamily(RubikSansFont.FAMILY)
         FlatLaf.setPreferredLightFontFamily(RubikSansFont.FAMILY_LIGHT)
         FlatLaf.setPreferredSemiboldFontFamily(RubikSansFont.FAMILY_SEMI_BOLD)
+
+        // Eagerly, unlike Rubik above. See NotoNaskhArabicFont for why a lazy family loader is
+        // not enough for a face selected by name in the editor's fallback setting.
+        NotoNaskhArabicFont.install()
     }
 
     private fun applyTheme(config: Configuration, themeManager: ThemeManager) {

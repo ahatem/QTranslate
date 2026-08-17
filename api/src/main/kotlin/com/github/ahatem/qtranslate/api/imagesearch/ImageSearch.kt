@@ -17,7 +17,7 @@ import com.github.michaelbull.result.Result
  * suited to this are usually openly licensed, and those licences require credit to be shown
  * rather than merely recorded.
  */
-interface ImageSearch : Service {
+public interface ImageSearch : Service {
 
     /**
      * Searches for images matching [request].
@@ -25,7 +25,7 @@ interface ImageSearch : Service {
      * Finding nothing is not a failure: return an empty [ImageSearchResponse.results] so the host
      * can say "no images found", and reserve `Err` for searches that could not be performed.
      */
-    suspend fun searchImages(request: ImageSearchRequest): Result<ImageSearchResponse, ServiceError>
+    public suspend fun searchImages(request: ImageSearchRequest): Result<ImageSearchResponse, ServiceError>
 }
 
 /**
@@ -39,7 +39,7 @@ interface ImageSearch : Service {
  *   [com.github.ahatem.qtranslate.api.plugin.ServiceOption.key] — safe search, media type, and
  *   anything else the service declares.
  */
-data class ImageSearchRequest(
+public data class ImageSearchRequest(
     val query: String,
     val language: LanguageCode,
     val maxResults: Int = 12,
@@ -52,7 +52,7 @@ data class ImageSearchRequest(
 }
 
 /** The results of an image search, empty when nothing matched. */
-data class ImageSearchResponse(
+public data class ImageSearchResponse(
     val results: List<ImageResult>
 )
 
@@ -69,7 +69,7 @@ data class ImageSearchResponse(
  *   host shows it beneath the image rather than hiding it behind an action.
  * @property license Licence name, e.g. `"CC BY-SA 4.0"`.
  */
-data class ImageResult(
+public data class ImageResult(
     val thumbnailUrl: String,
     val fullUrl: String,
     val sourceUrl: String? = null,

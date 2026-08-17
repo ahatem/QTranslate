@@ -3,7 +3,7 @@ package com.github.ahatem.qtranslate.api.plugin
 /**
  * Defines the severity level of a notification shown to the user.
  */
-enum class NotificationType {
+public enum class NotificationType {
     /** General information. */
     INFO,
 

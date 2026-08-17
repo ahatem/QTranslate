@@ -12,7 +12,7 @@ import com.github.michaelbull.result.Result
  * services support a fixed set of languages — use
  * [com.github.ahatem.qtranslate.api.plugin.SupportedLanguages.Specific] for these.
  */
-interface Dictionary : Service {
+public interface Dictionary : Service {
 
     /**
      * Looks up the definition and related metadata for the word in [request].
@@ -22,7 +22,7 @@ interface Dictionary : Service {
      *         Returns [ServiceError.InvalidInputError] if the word is blank.
      *         Returns [ServiceError.UnsupportedLanguageError] if the language is not supported.
      */
-    suspend fun lookup(request: DictionaryRequest): Result<DictionaryResponse, ServiceError>
+    public suspend fun lookup(request: DictionaryRequest): Result<DictionaryResponse, ServiceError>
 }
 
 /**
@@ -35,13 +35,13 @@ interface Dictionary : Service {
  * This is not a [com.github.ahatem.qtranslate.api.plugin.ServiceRole]: the user selects a
  * dictionary, not a bilingual dictionary, and this only changes how the lookup is made.
  */
-interface BilingualDictionary : Dictionary {
-    suspend fun lookupBilingual(
+public interface BilingualDictionary : Dictionary {
+    public suspend fun lookupBilingual(
         request: BilingualDictionaryRequest
     ): Result<DictionaryResponse, ServiceError>
 }
 
-data class BilingualDictionaryRequest(
+public data class BilingualDictionaryRequest(
     val word: String,
     val sourceLanguage: LanguageCode,
     val targetLanguage: LanguageCode
@@ -60,7 +60,7 @@ data class BilingualDictionaryRequest(
  * @param word     The word to look up. Must not be blank.
  * @param language The language of [word].
  */
-data class DictionaryRequest(
+public data class DictionaryRequest(
     val word: String,
     val language: LanguageCode
 ) {
@@ -78,7 +78,7 @@ data class DictionaryRequest(
  * @param entries The list of dictionary entries found for the word. May be empty
  *                if the word exists but has no entries in this service's database.
  */
-data class DictionaryResponse(
+public data class DictionaryResponse(
     val entries: List<DictionaryEntry>
 )
 
@@ -91,7 +91,7 @@ data class DictionaryResponse(
  * @param synonyms     Optional list of synonyms.
  * @param phonetic     Optional phonetic representation (e.g. IPA notation: `"/bæs/"`).
  */
-data class DictionaryEntry(
+public data class DictionaryEntry(
     val word: String,
     val partOfSpeech: String,
     val definitions: List<Definition>,
@@ -105,7 +105,7 @@ data class DictionaryEntry(
  * @param text    The definition text.
  * @param example An optional example sentence illustrating the word's usage.
  */
-data class Definition(
+public data class Definition(
     val text: String,
     val example: String? = null
 )

@@ -733,12 +733,6 @@ class MainContentView(
     }
 
     /**
-     * Opens the floating image popup for [word].
-     *
-     * A popup rather than an inline panel: the pictures are a glance on the way through a text,
-     * not something to keep half the window reserved for.
-     */
-    /**
      * Gives every text pane the same drop handling as the window around them.
      *
      * Needed because Swing consults only the deepest component under the pointer: a handler on the
@@ -757,6 +751,12 @@ class MainContentView(
         ).forEach { it.installContentDropHandler(onContent, onDragOver, onDropped) }
     }
 
+    /**
+     * Opens the floating image popup for [word].
+     *
+     * A popup rather than an inline panel: the pictures are a glance on the way through a text,
+     * not something to keep half the window reserved for.
+     */
     private fun showImagesForWord(word: String, language: LanguageCode = currentLookupLanguage) {
         dispatch(MainIntent.ShowImageSearch(word, language))
     }

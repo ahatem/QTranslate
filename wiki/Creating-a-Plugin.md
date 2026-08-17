@@ -86,7 +86,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    kotlin("jvm") version "2.0.0"
+    kotlin("jvm") version "2.4.10"
 }
 
 group   = "com.example"
@@ -96,19 +96,16 @@ dependencies {
     // compileOnly — available at compile time, NOT bundled in your JAR.
     // QTranslate provides this at runtime. Never use "implementation" here —
     // it causes classloader conflicts and bloats your JAR.
-    compileOnly("com.github.ahatem:qtranslate-api:1.0.0")
+    compileOnly("com.github.ahatem:qtranslate-api:2.0.0")
 
     // Your own dependencies go as "implementation" — they ARE bundled
-    implementation("io.ktor:ktor-client-core:2.3.7")
-    implementation("io.ktor:ktor-client-cio:2.3.7")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    implementation("io.ktor:ktor-client-core:3.5.2")
+    implementation("io.ktor:ktor-client-cio:3.5.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 }
 
 // Fat JAR — bundles all your "implementation" dependencies into one installable file
 tasks.jar {
-    manifest {
-        attributes["Plugin-Class"] = "com.example.myplugin.MyPlugin"
-    }
     from(configurations.runtimeClasspath.get().map {
         if (it.isDirectory) it else zipTree(it)
     })
@@ -147,7 +144,8 @@ class MyPlugin : Plugin<PluginSettings.None> {
     override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> {
         // context.logger  — write to the app log
         // context.scope   — coroutine scope tied to plugin lifecycle; cancelled on disable
-        // context.storeValue / getValue — persistent key-value storage, survives restarts
+        // context.settings — typed per-plugin storage, survives restarts
+        // context.secrets  — the same, for API keys and tokens
         return Ok(Unit)
     }
 }
@@ -409,7 +407,13 @@ Then restart QTranslate. Much faster than reinstalling through the UI every time
 **`PluginContext`** — `onInitialize` gives you everything you need:
 - `context.logger` — writes to the app log file, visible in dev mode
 - `context.scope` — coroutine scope, cancelled when the plugin is disabled
-- `context.storeValue(key, value)` / `context.getValue(key)` — persistent per-plugin storage
+- `context.settings` — typed per-plugin storage: `put(key, value)` and `getString`/`getInt`/
+  `getLong`/`getDouble`/`getBoolean`, all suspend. Survives restarts
+- `context.secrets` — the same shape for API keys and tokens, kept apart so the host can protect
+  them with the platform keychain
+- `context.http` — the host's configured HTTP client. Use it rather than building your own, or the
+  user's proxy and timeout settings will not apply to your plugin
+- `context.getPluginDataDirectory()` — your sandboxed folder on disk
 
 **Never import `:core` or `:ui-swing`** — your plugin must only depend on `:api`. If you need something that isn't in the API, open an issue.
 
@@ -496,7 +500,7 @@ This forward-compatible file records metadata that a future catalog can consume:
   "author":        "your-github-username",
   "description":   "One-sentence plugin description.",
   "serviceTypes":  ["TRANSLATOR"],
-  "minApiVersion": "1.0.0",
+  "minApiVersion": "2.0.0",
   "sha256":        "abc123...",
   "icon":          "assets/icon.svg"
 }
@@ -504,7 +508,7 @@ This forward-compatible file records metadata that a future catalog can consume:
 
 **Notes:**
 - `id` must match the `id` in your `Plugin` class and `plugin.json` exactly
-- `serviceTypes`: one or more of `TRANSLATOR` `TTS` `OCR` `SPELL_CHECKER` `DICTIONARY` `SUMMARIZER` `REWRITER`
+- `serviceTypes`: one or more of `TRANSLATOR` `TTS` `OCR` `SPELL_CHECKER` `DICTIONARY` `SUMMARIZER` `REWRITER` `IMAGE_SEARCH`
 - `sha256`: strongly recommended — the SHA-256 hash of the release JAR. Generate it with `sha256sum my-plugin.jar` (Linux/macOS) or `Get-FileHash my-plugin.jar -Algorithm SHA256` (PowerShell).
 - `icon`: path to an SVG inside your repo (not your JAR). Reserved for catalog presentation.
 

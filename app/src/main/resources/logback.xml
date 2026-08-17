@@ -24,16 +24,23 @@
 
     <!-- ================================================================
          Rolling file appender — for production
-         Rotates daily, keeps 30 days, max 50MB per file, 500MB total
+         Rotates daily or at 10MB, keeps 14 days, 50MB total.
+
+         Sized for the job it exists to do: being attached to a bug report.
+         The previous 500MB over 30 days was a quantity of log nobody reads and
+         nobody can upload, and its "max 50MB per file" was never enforced,
+         because a plain TimeBasedRollingPolicy has no per-file cap at all. One
+         chatty day could produce a single unopenable file.
          ================================================================ -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_DIR}/qtranslate.log</file>
 
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <!-- Daily rollover, gzip compressed -->
-            <fileNamePattern>${LOG_DIR}/qtranslate.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
-            <maxHistory>30</maxHistory>
-            <totalSizeCap>500MB</totalSizeCap>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Daily rollover, gzip compressed. %i is required for the size cap. -->
+            <fileNamePattern>${LOG_DIR}/qtranslate.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>50MB</totalSizeCap>
         </rollingPolicy>
 
         <encoder>

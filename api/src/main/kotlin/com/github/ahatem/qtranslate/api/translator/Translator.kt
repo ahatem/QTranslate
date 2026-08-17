@@ -13,7 +13,7 @@ import com.github.michaelbull.result.Result
  * set, or using [com.github.ahatem.qtranslate.api.plugin.SupportedLanguages.All], indicates
  * that auto-detection of the source language is supported.
  */
-interface Translator : Service {
+public interface Translator : Service {
 
     /**
      * Translates the text in [request] from the source language to the target language.
@@ -25,7 +25,7 @@ interface Translator : Service {
      * @param request The translation parameters including text and language pair.
      * @return `Ok` with the [TranslationResponse] on success, or an `Err` with a [ServiceError].
      */
-    suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError>
+    public suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError>
 }
 
 /**
@@ -37,13 +37,13 @@ interface Translator : Service {
  * Implementations must preserve input order and return exactly one response per input.
  * Empty strings are intentionally rejected so result indexes always map unambiguously.
  */
-interface BatchTranslator : Translator {
+public interface BatchTranslator : Translator {
     /** Maximum items accepted by one provider request. */
-    val maxBatchSize: Int
+    public val maxBatchSize: Int
         get() = 50
 
     /** Conservative character limit for one provider request. */
-    val maxBatchCharacters: Int
+    public val maxBatchCharacters: Int
         get() = 100_000
 
     /**
@@ -51,7 +51,7 @@ interface BatchTranslator : Translator {
      *
      * @return one translation for every input segment in the same order, or a service error.
      */
-    suspend fun translateBatch(
+    public suspend fun translateBatch(
         request: BatchTranslationRequest
     ): Result<BatchTranslationResponse, ServiceError>
 }
@@ -63,7 +63,7 @@ interface BatchTranslator : Translator {
  * @param sourceLanguage source language, or [LanguageCode.AUTO] for provider detection.
  * @param targetLanguage target language; must not be [LanguageCode.AUTO].
  */
-data class BatchTranslationRequest(
+public data class BatchTranslationRequest(
     val texts: List<String>,
     val sourceLanguage: LanguageCode,
     val targetLanguage: LanguageCode
@@ -82,7 +82,7 @@ data class BatchTranslationRequest(
  *
  * [translations] must contain one item for every requested segment in the same order.
  */
-data class BatchTranslationResponse(
+public data class BatchTranslationResponse(
     val translations: List<TranslationResponse>
 ) {
     init {
@@ -99,7 +99,7 @@ data class BatchTranslationResponse(
  * @param targetLanguage The language to translate [text] into.
  *                       Must not be [LanguageCode.AUTO].
  */
-data class TranslationRequest(
+public data class TranslationRequest(
     val text: String,
     val sourceLanguage: LanguageCode,
     val targetLanguage: LanguageCode
@@ -122,7 +122,7 @@ data class TranslationRequest(
  * @param transliteration   Optional romanisation or phonetic representation of the
  *                          translated text (e.g. pinyin for Chinese).
  */
-data class TranslationResponse(
+public data class TranslationResponse(
     val translatedText: String,
     val detectedLanguage: LanguageCode? = null,
     val alternatives: List<String> = emptyList(),

@@ -42,9 +42,9 @@ import kotlin.reflect.KClass
  * needs a MINOR version bump rather than a MAJOR one. See
  * [com.github.ahatem.qtranslate.api.core.ApiVersion].
  */
-enum class ServiceRole(
+public enum class ServiceRole(
     /** The interface a service implements to hold this role. */
-    val contract: KClass<out Service>
+    public val contract: KClass<out Service>
 ) {
     TRANSLATOR(Translator::class),
     TTS(TextToSpeech::class),
@@ -61,9 +61,9 @@ enum class ServiceRole(
     IMAGE_SEARCH(ImageSearch::class);
 
     /** Whether [service] fulfils this role's contract. */
-    fun isHeldBy(service: Service): Boolean = contract.isInstance(service)
+    public fun isHeldBy(service: Service): Boolean = contract.isInstance(service)
 
-    companion object {
+    public companion object {
 
         /**
          * Every role [service] holds.
@@ -71,7 +71,7 @@ enum class ServiceRole(
          * Empty when it implements no role interface, which the host reads as "never selectable".
          * That is a plugin bug rather than a state to design around, and it is reported at load.
          */
-        fun of(service: Service): Set<ServiceRole> =
+        public fun of(service: Service): Set<ServiceRole> =
             entries.filterTo(LinkedHashSet()) { it.isHeldBy(service) }
     }
 }

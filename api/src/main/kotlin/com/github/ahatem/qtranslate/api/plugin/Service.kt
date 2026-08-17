@@ -41,7 +41,7 @@ import com.github.michaelbull.result.Result
  * optional behaviour only changes how it does that job. See
  * [com.github.ahatem.qtranslate.api.tts.VoiceSupport].
  */
-interface Service {
+public interface Service {
 
     /**
      * Identifies this service within its plugin, e.g. `"translator"`, `"dictionary"`.
@@ -50,16 +50,16 @@ interface Service {
      * changing it silently resets the user's selection. It does **not** need to be globally
      * unique; the host qualifies it with the plugin and instance.
      */
-    val key: String
+    public val key: String
 
     /** Human-readable name shown in the UI, e.g. `"Google Translate"`. */
-    val name: String
+    public val name: String
 
     /** Version of this service implementation, distinct from the plugin's own version. */
-    val version: String
+    public val version: String
 
     /** Descriptive facts the host may show the user. Purely informational. */
-    val metadata: ServiceMetadata
+    public val metadata: ServiceMetadata
         get() = ServiceMetadata()
 
     /**
@@ -69,14 +69,14 @@ interface Service {
      * Declaring nothing means the service takes no modifiers and the host shows no controls —
      * which is itself useful information it previously had no way to obtain.
      */
-    val options: List<ServiceOption>
+    public val options: List<ServiceOption>
         get() = emptyList()
 
     /**
      * Path to an icon inside the plugin JAR, relative to its resource root. SVG preferred.
      * Falls back to the plugin's icon, then to a generated placeholder.
      */
-    val iconPath: String?
+    public val iconPath: String?
         get() = null
 
     /**
@@ -85,13 +85,13 @@ interface Service {
      * Return [SupportedLanguages.All] for broad coverage, [SupportedLanguages.Specific] for a
      * fixed set, or [SupportedLanguages.Dynamic] when it must be fetched.
      */
-    val supportedLanguages: SupportedLanguages
+    public val supportedLanguages: SupportedLanguages
 
     /**
      * Called once, and only when [supportedLanguages] is [SupportedLanguages.Dynamic]. The host
      * caches the result, so this is not invoked per render.
      */
-    suspend fun fetchSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> {
+    public suspend fun fetchSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> {
         throw UnsupportedOperationException(
             "Service '$key' declared SupportedLanguages.Dynamic but did not override fetchSupportedLanguages()."
         )
@@ -109,26 +109,26 @@ interface Service {
      *
      * Defaults to success, which is correct for services needing no configuration.
      */
-    suspend fun validate(): Result<Unit, ServiceError> = Ok(Unit)
+    public suspend fun validate(): Result<Unit, ServiceError> = Ok(Unit)
 }
 
 /**
  * Which languages a [Service] handles, in a form the host can read synchronously while
  * rendering language pickers and validating requests.
  */
-sealed interface SupportedLanguages {
+public sealed interface SupportedLanguages {
 
     /** Every language, including auto-detection. Typical of broad cloud APIs. */
-    data object All : SupportedLanguages
+    public data object All : SupportedLanguages
 
     /**
      * A fixed, known set. Including [LanguageCode.AUTO] signals auto-detection support.
      */
-    data class Specific(val languages: Set<LanguageCode>) : SupportedLanguages
+    public data class Specific(val languages: Set<LanguageCode>) : SupportedLanguages
 
     /**
      * Only knowable at runtime. The host calls [Service.fetchSupportedLanguages] once, caches
      * the result, and shows a loading state until it arrives.
      */
-    data object Dynamic : SupportedLanguages
+    public data object Dynamic : SupportedLanguages
 }

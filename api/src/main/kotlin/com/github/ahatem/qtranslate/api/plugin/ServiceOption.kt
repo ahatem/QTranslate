@@ -23,7 +23,7 @@ package com.github.ahatem.qtranslate.api.plugin
  * survives restarts even when the value was invented by a plugin. Ids must therefore be stable
  * across versions of a service.
  */
-data class ServiceOption(
+public data class ServiceOption(
     /** Identifies the option within its service. Used as the key in a request's option map. */
     val key: String,
 
@@ -65,7 +65,7 @@ data class ServiceOption(
  *   existing value — doing so silently resets everyone's saved choice.
  * @property label What the user sees.
  */
-data class ServiceOptionValue(
+public data class ServiceOptionValue(
     val id: String,
     val label: DisplayText
 ) {
@@ -87,12 +87,12 @@ data class ServiceOptionValue(
  * are already translated in every language the application ships, and pointing at them means a
  * service using the standard vocabulary inherits all of that rather than starting from English.
  */
-object StandardOptions {
+public object StandardOptions {
 
-    const val KEY_SUMMARY_LENGTH = "length"
-    const val KEY_REWRITE_STYLE = "style"
+    public const val KEY_SUMMARY_LENGTH: String = "length"
+    public const val KEY_REWRITE_STYLE: String = "style"
 
-    val SUMMARY_LENGTH: ServiceOption = ServiceOption(
+    public val SUMMARY_LENGTH: ServiceOption = ServiceOption(
         key = KEY_SUMMARY_LENGTH,
         label = DisplayText("settings_translation.summary_length", "Length"),
         values = listOf(
@@ -104,7 +104,7 @@ object StandardOptions {
         role = ServiceRole.SUMMARIZER
     )
 
-    val REWRITE_STYLE: ServiceOption = ServiceOption(
+    public val REWRITE_STYLE: ServiceOption = ServiceOption(
         key = KEY_REWRITE_STYLE,
         label = DisplayText("settings_translation.rewrite_style", "Style"),
         values = listOf(
@@ -125,7 +125,7 @@ object StandardOptions {
  *
  * Saves every implementation from repeating the same null-and-default dance.
  */
-fun Map<String, String>.optionOrDefault(
+public fun Map<String, String>.optionOrDefault(
     option: ServiceOption?,
     key: String,
     fallback: String

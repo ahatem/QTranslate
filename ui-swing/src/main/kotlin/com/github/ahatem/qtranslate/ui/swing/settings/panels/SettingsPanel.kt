@@ -392,7 +392,6 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
     }
 
     protected companion object {
-        /** Measure a hint wraps at, before scaling. Roughly a comfortable line of prose. */
         /**
          * The vertical rhythm, in one place.
          *
@@ -409,6 +408,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
         /** Padding around the page itself. */
         const val EDGE = 10
 
+        /** Measure a hint wraps at, before scaling. Roughly a comfortable line of prose. */
         const val HINT_WIDTH = 460
 
         /** Separates a section from a sub-section in a search result's path. */

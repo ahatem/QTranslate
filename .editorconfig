@@ -1,0 +1,42 @@
+# Editor settings for QTranslate.
+#
+# These match what the codebase already does, measured rather than assumed: four-space indents,
+# no tabs anywhere, UTF-8. Line endings are deliberately not set here — git normalises them (see
+# .gitattributes) and pinning them in both places only creates a fight.
+#
+# https://editorconfig.org
+
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{kt,kts}]
+# No column limit. Several files line up enum tables, hotkey defaults and colour constants into
+# columns and read far better for it; a margin here would invite a reformat that destroys them.
+# Where alignment matters the code already fences it with `// @formatter:off`.
+max_line_length = off
+ij_kotlin_allow_trailing_comma = true
+ij_kotlin_allow_trailing_comma_on_call_site = true
+ij_kotlin_name_count_to_use_star_import = 5
+ij_kotlin_name_count_to_use_star_import_for_members = 5
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.{json,toml}]
+indent_size = 2
+
+[*.md]
+# Two trailing spaces are a hard line break in Markdown.
+trim_trailing_whitespace = false
+
+[*.{bat,cmd}]
+end_of_line = crlf
+
+[gradlew.bat]
+end_of_line = crlf

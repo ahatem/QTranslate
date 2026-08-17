@@ -18,7 +18,7 @@ import java.io.File
  *
  * @see Plugin
  */
-interface PluginContext {
+public interface PluginContext {
 
     // -------------------------------------------------------------------------
     // Core Resources
@@ -31,7 +31,7 @@ interface PluginContext {
      * plugin's ID, making them easy to filter in the application's log output.
      * Thread-safe; may be called from any thread or coroutine.
      */
-    val logger: Logger
+    public val logger: Logger
 
     /**
      * A [CoroutineScope] managed by the core application, tied to this plugin's lifecycle.
@@ -63,7 +63,7 @@ interface PluginContext {
      * }
      * ```
      */
-    val scope: CoroutineScope
+    public val scope: CoroutineScope
 
     // -------------------------------------------------------------------------
     // User Notifications
@@ -87,7 +87,7 @@ interface PluginContext {
      * @param body  The main message, providing context or a suggested action.
      * @param type  Severity, which affects appearance. Defaults to [NotificationType.INFO].
      */
-    suspend fun notify(title: DisplayText, body: DisplayText, type: NotificationType = NotificationType.INFO)
+    public suspend fun notify(title: DisplayText, body: DisplayText, type: NotificationType = NotificationType.INFO)
 
     // -------------------------------------------------------------------------
     // Storage
@@ -103,7 +103,7 @@ interface PluginContext {
      *
      * For credentials use [secrets] instead.
      */
-    val settings: SettingsStore
+    public val settings: SettingsStore
 
     /**
      * Credentials — API keys, tokens, anything damaging to leak.
@@ -112,7 +112,7 @@ interface PluginContext {
      * one exists, and so sensitive values are visible as such in plugin code rather than
      * blending into ordinary configuration.
      */
-    val secrets: SecretStore
+    public val secrets: SecretStore
 
     // -------------------------------------------------------------------------
     // Network
@@ -128,7 +128,7 @@ interface PluginContext {
      *
      * Its lifetime is the plugin's. There is no need to close it, and closing is not offered.
      */
-    val http: HttpClient
+    public val http: HttpClient
 
     // -------------------------------------------------------------------------
     // File System
@@ -148,5 +148,5 @@ interface PluginContext {
      *
      * @return A [File] pointing to the root of this plugin's sandboxed data directory.
      */
-    fun getPluginDataDirectory(): File
+    public fun getPluginDataDirectory(): File
 }

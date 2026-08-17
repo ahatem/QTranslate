@@ -28,7 +28,7 @@ import com.github.michaelbull.result.Result
  * val voices = (service as? VoiceSupport)?.voices.orEmpty()
  * ```
  */
-interface TextToSpeech : Service {
+public interface TextToSpeech : Service {
 
     /**
      * Synthesizes speech audio from the given [request].
@@ -40,23 +40,23 @@ interface TextToSpeech : Service {
      * @param request Either a [TTSRequest.ByLanguage] or [TTSRequest.ByVoice] request.
      * @return `Ok` containing the synthesized [TTSResponse], or an `Err` with a [ServiceError].
      */
-    suspend fun synthesize(request: TTSRequest): Result<TTSResponse, ServiceError>
+    public suspend fun synthesize(request: TTSRequest): Result<TTSResponse, ServiceError>
 }
 
 /**
  * Describes a speech synthesis request. Use the appropriate subtype based on
  * whether the caller is selecting a language or a specific voice.
  */
-sealed interface TTSRequest {
+public sealed interface TTSRequest {
 
     /** The text to synthesize. Must not be blank. */
-    val text: String
+    public val text: String
 
     /**
      * Playback speed multiplier. `1.0` is normal speed.
      * Acceptable range is typically `0.5` to `2.0`, though service limits may vary.
      */
-    val speed: Float
+    public val speed: Float
 
     /**
      * A request for a basic TTS service that does not support voice selection.
@@ -68,7 +68,7 @@ sealed interface TTSRequest {
      * @param language The target language for synthesis.
      * @param speed    Playback speed multiplier. Defaults to `1.0` (normal speed).
      */
-    data class ByLanguage(
+    public data class ByLanguage(
         override val text: String,
         val language: LanguageCode,
         override val speed: Float = 1.0f
@@ -90,7 +90,7 @@ sealed interface TTSRequest {
      * @param voice The specific voice to use, sourced from [VoiceSupport.voices].
      * @param speed Playback speed multiplier. Defaults to `1.0` (normal speed).
      */
-    data class ByVoice(
+    public data class ByVoice(
         override val text: String,
         val voice: Voice,
         override val speed: Float = 1.0f
@@ -107,7 +107,7 @@ sealed interface TTSRequest {
  *
  * @param audio The synthesized audio, either as raw [TTSAudio.Bytes] or a [TTSAudio.StreamUrl].
  */
-data class TTSResponse(
+public data class TTSResponse(
     val audio: TTSAudio
 )
 
@@ -117,15 +117,15 @@ data class TTSResponse(
  * - [Bytes] — for APIs that return a complete audio file in the response body.
  * - [StreamUrl] — for APIs that return a URL to stream or download the audio from.
  */
-sealed class TTSAudio {
-    abstract val format: AudioFormat
+public sealed class TTSAudio {
+    public abstract val format: AudioFormat
 
     /**
      * A complete audio file returned as raw bytes.
      * @param data   The raw audio bytes.
      * @param format The encoding format of the audio.
      */
-    data class Bytes(val data: ByteArray, override val format: AudioFormat) : TTSAudio() {
+    public data class Bytes(val data: ByteArray, override val format: AudioFormat) : TTSAudio() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (javaClass != other?.javaClass) return false
@@ -140,10 +140,10 @@ sealed class TTSAudio {
      * @param url    The fully qualified URL.
      * @param format The encoding format of the audio at the URL.
      */
-    data class StreamUrl(val url: String, override val format: AudioFormat) : TTSAudio()
+    public data class StreamUrl(val url: String, override val format: AudioFormat) : TTSAudio()
 }
 
 /** The audio encoding format of a [TTSAudio] payload. */
-enum class AudioFormat {
+public enum class AudioFormat {
     MP3, WAV, OGG
 }

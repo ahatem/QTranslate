@@ -5,6 +5,13 @@ plugins {
     `maven-publish`
 }
 
+// This module is the contract third-party plugins compile against, so every visibility in it is a
+// decision rather than a default. Strict mode makes the compiler ask for that decision explicitly
+// and refuses to let a helper become part of the published surface by omission.
+kotlin {
+    explicitApi()
+}
+
 dependencies {
     api(libs.kotlinxCoroutines)
     api(libs.bundles.result)

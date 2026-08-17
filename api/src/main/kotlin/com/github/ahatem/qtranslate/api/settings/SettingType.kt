@@ -3,7 +3,7 @@ package com.github.ahatem.qtranslate.api.settings
 /**
  * Defines the type of UI control to be rendered for a [@Setting][Setting].
  */
-enum class SettingType {
+public enum class SettingType {
     /** A single-line text input field. */
     TEXT,
 

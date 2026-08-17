@@ -46,7 +46,7 @@ package com.github.ahatem.qtranslate.api.settings
  */
 @Target(AnnotationTarget.FIELD)
 @Retention(AnnotationRetention.RUNTIME)
-annotation class Setting(
+public annotation class Setting(
     /** The human-readable label displayed next to the UI component. */
     val label: String,
 
@@ -226,7 +226,7 @@ annotation class Setting(
  */
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
-annotation class SettingGroup(
+public annotation class SettingGroup(
     /** Unique key referenced by [@Setting.group][Setting.group]. */
     val key: String,
     /** Human-readable section title rendered as a header above the group's fields. */
@@ -254,7 +254,7 @@ annotation class SettingGroup(
  */
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
-annotation class SettingGroups(vararg val groups: SettingGroup)
+public annotation class SettingGroups(vararg val groups: SettingGroup)
 
 // =============================================================================
 // Plugin action — standalone buttons that invoke a method on the settings class
@@ -280,7 +280,7 @@ annotation class SettingGroups(vararg val groups: SettingGroup)
  */
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.RUNTIME)
-annotation class PluginAction(
+public annotation class PluginAction(
     /** Button label shown in the settings panel. */
     val label: String,
     /** Key of the [@SettingGroup][SettingGroup] this action appears in. Empty = top of form. */

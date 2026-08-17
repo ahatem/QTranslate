@@ -7,7 +7,7 @@ package com.github.ahatem.qtranslate.api.plugin
  * version bump. Nothing here affects behaviour — it exists so the host can explain a service
  * rather than presenting an opaque name.
  */
-data class ServiceMetadata(
+public data class ServiceMetadata(
 
     /**
      * Whether the service needs configuration — typically an API key — before it can be used.
@@ -44,7 +44,7 @@ data class ServiceMetadata(
  * Advisory only — the host does not enforce it. Its purpose is to let the UI warn a user before
  * they run into [ServiceError.RateLimitError], which is a far worse way to learn.
  */
-data class RateLimit(
+public data class RateLimit(
     val requests: Int,
     val perSeconds: Int,
     val note: DisplayText? = null

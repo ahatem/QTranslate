@@ -1478,14 +1478,6 @@ class MainAppFrame(
         )
     }
 
-    /**
-     * Opens the document translation dialog when a supported file is dropped on the window.
-     *
-     * Document translation was otherwise reachable only through a menu item and a toolbar
-     * button, even though dropping a file on the window is the obvious gesture for it.
-     * Unsupported files are ignored so dropping an image or an archive does nothing rather
-     * than opening a dialog that cannot proceed.
-     */
     /** Opens Settings with the correct orientation. Shared by the menu and the Ctrl+Comma binding. */
     private fun openSettingsDialog() {
         val dialog = createSettingsDialog()

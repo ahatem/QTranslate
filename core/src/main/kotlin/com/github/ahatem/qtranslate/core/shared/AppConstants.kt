@@ -10,12 +10,6 @@ object AppConstants {
     // ============================================================
 
     /**
-     * The current application version string.
-     * Must match the tag format used in GitHub Releases (e.g. "1.0.0" or "v1.0.0").
-     * Used by [com.github.ahatem.qtranslate.core.main.domain.usecase.CheckForUpdatesUseCase]
-     * to compare against the latest release.
-     */
-    /**
      * Kept in step with the release tag by a check in the Release workflow, which fails the build
      * if the two disagree.
      *

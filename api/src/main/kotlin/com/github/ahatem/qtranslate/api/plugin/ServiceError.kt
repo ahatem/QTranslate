@@ -15,19 +15,19 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
  * Always return errors via `Err(ServiceError.NetworkError(...))` from the
  * `kotlin-result` library. Never throw raw exceptions for expected failures.
  */
-sealed class ServiceError {
+public sealed class ServiceError {
     /** A human-readable description of what went wrong. */
-    abstract val message: String
+    public abstract val message: String
 
     /** The underlying exception, if one caused this error. Used for logging. */
-    abstract val cause: Throwable?
+    public abstract val cause: Throwable?
 
     /**
      * Whether the core should consider automatically retrying the operation.
      * Transient failures (network, timeout, rate limit, unavailability) are
      * retryable. Permanent failures (auth, bad input, unsupported language) are not.
      */
-    abstract val isRetryable: Boolean
+    public abstract val isRetryable: Boolean
 
     // -------------------------------------------------------------------------
     // Transient errors — isRetryable = true
@@ -37,33 +37,33 @@ sealed class ServiceError {
      * A network connectivity issue, such as no internet or a DNS failure.
      * The operation may succeed if retried once connectivity is restored.
      */
-    data class NetworkError(
+    public data class NetworkError(
         override val message: String,
         override val cause: Throwable? = null
     ) : ServiceError() {
-        override val isRetryable = true
+        override val isRetryable: Boolean = true
     }
 
     /**
      * The request did not complete within the expected time window.
      * May succeed on retry if the service was temporarily slow.
      */
-    data class TimeoutError(
+    public data class TimeoutError(
         override val message: String,
         override val cause: Throwable? = null
     ) : ServiceError() {
-        override val isRetryable = true
+        override val isRetryable: Boolean = true
     }
 
     /**
      * The service is temporarily unavailable (e.g. maintenance, overload).
      * The operation may succeed after a short delay.
      */
-    data class ServiceUnavailableError(
+    public data class ServiceUnavailableError(
         override val message: String,
         override val cause: Throwable? = null
     ) : ServiceError() {
-        override val isRetryable = true
+        override val isRetryable: Boolean = true
     }
 
     /**
@@ -72,12 +72,12 @@ sealed class ServiceError {
      * @param retryAfterSeconds A hint from the service for how long to wait before
      *                          retrying, or `null` if not provided.
      */
-    data class RateLimitError(
+    public data class RateLimitError(
         override val message: String,
         val retryAfterSeconds: Int? = null,
         override val cause: Throwable? = null
     ) : ServiceError() {
-        override val isRetryable = true
+        override val isRetryable: Boolean = true
     }
 
     // -------------------------------------------------------------------------
@@ -92,77 +92,77 @@ sealed class ServiceError {
      * The host words them differently because they call for different actions: one sends the
      * user to settings to fill something in, the other tells them what they entered is wrong.
      */
-    data class ConfigurationError(
+    public data class ConfigurationError(
         override val message: String,
         override val cause: Throwable? = null
     ) : ServiceError() {
-        override val isRetryable = false
+        override val isRetryable: Boolean = false
     }
 
     /**
      * Authentication failed. The API key or credentials are invalid or expired.
      * Retrying with the same credentials will always fail.
      */
-    data class AuthenticationError(
+    public data class AuthenticationError(
         override val message: String,
         override val cause: Throwable? = null
     ) : ServiceError() {
-        override val isRetryable = false
+        override val isRetryable: Boolean = false
     }
 
     /**
      * The requested language is not supported by this service.
      * @param language The [LanguageCode] that was rejected.
      */
-    data class UnsupportedLanguageError(
+    public data class UnsupportedLanguageError(
         val language: LanguageCode,
         override val message: String,
         override val cause: Throwable? = null
     ) : ServiceError() {
-        override val isRetryable = false
+        override val isRetryable: Boolean = false
     }
 
     /**
      * The input was invalid (e.g. empty text, a corrupted image, out-of-range values).
      * The caller must fix the input before retrying.
      */
-    data class InvalidInputError(
+    public data class InvalidInputError(
         override val message: String,
         override val cause: Throwable? = null
     ) : ServiceError() {
-        override val isRetryable = false
+        override val isRetryable: Boolean = false
     }
 
     /**
      * The service returned a response that could not be parsed or understood.
      * This typically indicates an API contract change on the service's side.
      */
-    data class InvalidResponseError(
+    public data class InvalidResponseError(
         override val message: String,
         override val cause: Throwable? = null
     ) : ServiceError() {
-        override val isRetryable = false
+        override val isRetryable: Boolean = false
     }
 
     /**
      * Validation failed for a specific field or parameter.
      * The caller must correct the input before retrying.
      */
-    data class ValidationError(
+    public data class ValidationError(
         override val message: String,
         override val cause: Throwable? = null
     ) : ServiceError() {
-        override val isRetryable = false
+        override val isRetryable: Boolean = false
     }
 
     /**
      * An unexpected or unknown error occurred.
      * Use this as a last resort when no other subclass fits.
      */
-    data class UnknownError(
+    public data class UnknownError(
         override val message: String,
         override val cause: Throwable? = null
     ) : ServiceError() {
-        override val isRetryable = false
+        override val isRetryable: Boolean = false
     }
 }

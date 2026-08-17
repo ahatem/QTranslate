@@ -23,7 +23,7 @@ package com.github.ahatem.qtranslate.api.core
  *
  * @see com.github.ahatem.qtranslate.api.plugin.PluginContext
  */
-interface Logger {
+public interface Logger {
     /**
      * Logs a message at the DEBUG level for detailed developer diagnostics.
      *
@@ -33,7 +33,7 @@ interface Logger {
      *
      * @param message A concise, descriptive message explaining the event or state.
      */
-    fun debug(message: String)
+    public fun debug(message: String)
 
     /**
      * Logs a message at the INFO level for general operational messages.
@@ -44,7 +44,7 @@ interface Logger {
      *
      * @param message A concise, descriptive message summarizing the event.
      */
-    fun info(message: String)
+    public fun info(message: String)
 
     /**
      * Logs a message at the WARN level for potential issues that are not critical errors.
@@ -55,7 +55,7 @@ interface Logger {
      *
      * @param message A concise, descriptive message detailing the potential issue.
      */
-    fun warn(message: String)
+    public fun warn(message: String)
 
     /**
      * Logs a message at the ERROR level for critical failures, optionally with a stack trace.
@@ -68,5 +68,5 @@ interface Logger {
      * @param error An optional [Throwable] providing additional context, such as a stack trace.
      *              Defaults to `null` if no exception is available.
      */
-    fun error(message: String, error: Throwable? = null)
+    public fun error(message: String, error: Throwable? = null)
 }

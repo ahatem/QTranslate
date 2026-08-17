@@ -3,8 +3,6 @@ package com.github.ahatem.qtranslate.core.settings.mvi
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.settings.data.*
-import com.github.ahatem.qtranslate.core.shared.events.AppEvent
-import com.github.ahatem.qtranslate.core.shared.events.AppEventBus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.launch
@@ -22,15 +20,12 @@ import kotlin.uuid.ExperimentalUuidApi
  *
  * @property applyUpdate Called with the new [Configuration] after each operation.
  *   The store uses this to update its working copy and trigger a save.
- * @property eventBus Used to emit domain events ([AppEvent.ActivePresetChanged],
- *   [AppEvent.ServiceSelectionChanged]) so other parts of the app can react.
  * @property eventChannel Used to send one-shot UI events (e.g. error messages).
  * @property scope Coroutine scope for launching event emissions.
  * @property logger Logger scoped to this component.
  */
 internal class PresetManager(
     private val applyUpdate: (Configuration) -> Unit,
-    private val eventBus: AppEventBus,
     private val eventChannel: SendChannel<SettingsEvent>,
     private val scope: CoroutineScope,
     private val logger: Logger
@@ -49,9 +44,6 @@ internal class PresetManager(
         logger.info("Setting active preset: '$presetId' (${preset.name})")
         applyUpdate(current.withActivePresetId(presetId))
 
-        scope.launch {
-            eventBus.emit(AppEvent.ActivePresetChanged(presetId, preset.name))
-        }
     }
 
     // -------------------------------------------------------------------------
@@ -70,9 +62,6 @@ internal class PresetManager(
         logger.info("Updating service: ${intent.type} → ${intent.serviceId ?: "none"}")
         applyUpdate(current.withServiceSelection(intent.type, intent.serviceId))
 
-        scope.launch {
-            eventBus.emit(AppEvent.ServiceSelectionChanged(intent.type, intent.serviceId))
-        }
     }
 
     // -------------------------------------------------------------------------
@@ -86,9 +75,6 @@ internal class PresetManager(
         val updated = current.withPreset(newPreset).withActivePresetId(newPreset.id)
         applyUpdate(updated)
 
-        scope.launch {
-            eventBus.emit(AppEvent.ActivePresetChanged(newPreset.id, newPreset.name))
-        }
     }
 
     fun deletePreset(current: Configuration, presetId: String) {
@@ -106,13 +92,6 @@ internal class PresetManager(
         val updated = current.withoutPreset(presetId)
         applyUpdate(updated)
 
-        // If active preset changed, notify the rest of the app
-        if (updated.activeServicePresetId != current.activeServicePresetId) {
-            val newActive = updated.getActivePreset() ?: return
-            scope.launch {
-                eventBus.emit(AppEvent.ActivePresetChanged(newActive.id, newActive.name))
-            }
-        }
     }
 
     fun renamePreset(current: Configuration, presetId: String, newName: String) {

@@ -5,16 +5,17 @@ import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import org.slf4j.LoggerFactory as Slf4jFactory
 
 /**
- * Production [LoggerFactory] backed by SLF4J + Logback.
+ * The application's [LoggerFactory], backed by SLF4J and Logback.
  *
- * Logback is configured via `logback.xml` in the app resources.
- * That file controls:
- * - Console output format and colours
- * - Rolling file appender (daily rotation, 30-day retention)
- * - Log level per package
+ * Configured by `logback.xml` in the app resources: console output as well as a file that rolls
+ * daily and is kept for thirty days. Both, deliberately — the console is what a developer watches,
+ * and the file is what a user can attach to a bug report.
  *
- * Swap this for [ConsoleLoggerFactory] during unit tests or in environments
- * where Logback is not on the classpath.
+ * ### The log directory is set by the caller
+ * `logback.xml` reads it from the `logDir` system property, which [main] sets from the resolved
+ * app data directory. Logback configures itself on the first logger request, so anything that
+ * asks for a logger before that property is set sends the whole session to the relative fallback
+ * path instead.
  */
 class LogbackLoggerFactory : LoggerFactory {
     override fun getLogger(name: String): Logger = LogbackLogger(Slf4jFactory.getLogger(name))

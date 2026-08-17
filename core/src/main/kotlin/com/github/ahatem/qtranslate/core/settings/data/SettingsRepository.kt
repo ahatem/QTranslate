@@ -17,6 +17,14 @@ import java.io.File
 import java.io.IOException
 
 /**
+ * What happened when a stored configuration could not be read.
+ *
+ * @param backupFile where the unreadable configuration was copied, so nothing is lost.
+ * @param reason the failure, for showing to the user.
+ */
+data class ConfigRecovery(val backupFile: File?, val reason: String)
+
+/**
  * Persistence layer for application configuration and plugin state.
  *
  * All configuration reads and writes go through this class.
@@ -31,14 +39,6 @@ import java.io.IOException
  * Write failures return a typed [SettingsError] via the `Result` type — callers
  * decide how to surface them to the user.
  */
-/**
- * What happened when a stored configuration could not be read.
- *
- * @param backupFile where the unreadable configuration was copied, so nothing is lost.
- * @param reason the failure, for showing to the user.
- */
-data class ConfigRecovery(val backupFile: File?, val reason: String)
-
 class SettingsRepository(
     private val appDataDirectory: File,
     private val json: Json,

@@ -49,11 +49,6 @@ internal class ScopedPluginContext(
     private val textResolver: PluginTextResolver,
     override val logger: Logger,
     /**
-     * How the context builds its client. Only tests pass anything else, so they can observe that
-     * one client is built per plugin rather than per enable, and that it is closed when the plugin
-     * is finished with and not before.
-     */
-    /**
      * How the shared client is configured: proxy, timeouts, retries, connection caps.
      * Supplied by the host from the user's network settings, so that no plugin has to know
      * any of it exists.

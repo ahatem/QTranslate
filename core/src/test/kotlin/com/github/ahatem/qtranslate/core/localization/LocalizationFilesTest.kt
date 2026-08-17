@@ -132,6 +132,54 @@ class LocalizationFilesTest {
     }
 
     /**
+     * Nothing in the fallback is unreachable from the code.
+     *
+     * The mirror of the check above, and the one that was missing: keys were verified to exist for
+     * the code, never that the code still wants them. So a string outlived the feature that asked
+     * for it and stayed, was translated into fourteen languages by people who had no way to know
+     * it was dead, and cost real volunteer effort every time a new language was added.
+     *
+     * Deliberately scanned with [ANY_KEY_LITERAL] rather than the narrower [LITERAL_KEY] the check
+     * above uses. Plenty of keys never appear inside a `getString(...)` call: `PluginsPanel` maps
+     * a category to a key name and resolves it later, `NetworkPanel` passes one through a variable.
+     * Matching any key-shaped literal errs towards keeping a string, which is the safe direction
+     * for a test whose failure message says "delete this".
+     *
+     * [RUNTIME_KEY_SECTIONS] covers what no scan can see: sections whose keys are interpolated,
+     * and `[meta]`, which is parsed into a structure instead of being looked up by name.
+     */
+    @Test
+    fun `every key in the embedded fallback is asked for by the code`() {
+        // :api and the plugins are in scope as well as the application modules. StandardOptions
+        // names host keys in DisplayText, so a scan of the application alone reports the summary
+        // and rewrite labels as dead while they are on screen.
+        val sourceRoots = sequenceOf("api", "core", "ui-swing", "app")
+            .map { File(repoRoot, "$it/src/main/kotlin") } +
+            (File(repoRoot, "plugins").listFiles().orEmpty().asSequence()
+                .map { File(it, "src/main/kotlin") })
+
+        val referenced = sourceRoots
+            .filter { it.isDirectory }
+            .flatMap { it.walkTopDown().filter { f -> f.extension == "kt" } }
+            .flatMap { file -> ANY_KEY_LITERAL.findAll(file.readText()).map { it.groupValues[1] } }
+            .toSortedSet()
+
+        assertTrue(referenced.size > 100, "Found only ${referenced.size} keys; the scan is probably broken")
+
+        val orphans = keysOf(embedded)
+            .filterNot { key -> key.substringBefore('.') in RUNTIME_KEY_SECTIONS }
+            .filterNot { it in referenced }
+
+        if (orphans.isNotEmpty()) {
+            fail(
+                "These strings are in embedded_en.toml but nothing asks for them. Delete them here " +
+                    "and from every file in languages/, or add the section to RUNTIME_KEY_SECTIONS " +
+                    "if the key is assembled at runtime:\n" + orphans.sorted().joinToString("\n") { "  $it" }
+            )
+        }
+    }
+
+    /**
      * A translated string takes the same number of arguments as the English it replaces.
      *
      * `getString` passes its arguments to `String.format`, which throws when a specifier has no
@@ -193,7 +241,27 @@ class LocalizationFilesTest {
     }
 
     private companion object {
+        /**
+         * Sections whose keys are built by interpolation, so a literal scan cannot see them.
+         *
+         * Each one has a `getString("section.$key")` behind it: the editor context menus, the
+         * layout preset names, the language editor, and the settings sidebar. Keep this list as
+         * short as it can be — every section on it is a section where a dead string can hide.
+         */
+        val RUNTIME_KEY_SECTIONS = setOf(
+            "main_window_editor_context_menu",
+            "main_window_main_menu",
+            "language_editor",
+            "settings_dialog_sidebar",
+            // Not looked up by name at all: LanguageTomlParser reads this section into
+            // LocalizedLanguageMeta, and its keys are too generic for any scan to judge.
+            "meta",
+        )
+
         val LITERAL_KEY = Regex("""getString\("([a-zA-Z0-9_]+\.[a-zA-Z0-9_]+)"""")
+
+        /** Any key-shaped string literal, however it is later used. */
+        val ANY_KEY_LITERAL = Regex(""""([a-zA-Z0-9_]+\.[a-zA-Z0-9_]+)"""")
         val KEY_LINE = Regex("""^([A-Za-z_][A-Za-z0-9_]*)\s*=""")
         val VALUE_LINE = Regex("""^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$""")
 

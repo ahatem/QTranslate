@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
+import java.io.File
 import javax.swing.SwingUtilities
 
 fun main() = runBlocking {
@@ -39,8 +40,15 @@ fun main() = runBlocking {
     AppUiSetup.setSystemProperties()
     AppUiSetup.setRenderingHints()
 
-    val appData    = AppDataDirectory.resolve()
-    val logFactory = ConsoleLoggerFactory(ConsoleLoggerFactory.LogLevel.DEBUG)
+    val appData = AppDataDirectory.resolve()
+
+    // Before the first logger is asked for. Logback reads its configuration lazily, on the first
+    // SLF4J call, and `logback.xml` resolves the log directory from this property with a fallback
+    // of a relative `logs/`. Setting it late means the fallback wins and the log lands in whatever
+    // the working directory happens to be, which for a double-clicked JAR is anyone's guess.
+    System.setProperty("logDir", File(appData, "logs").absolutePath)
+
+    val logFactory = LogbackLoggerFactory()
     val logger     = logFactory.getLogger("Main")
 
     logger.info("QTranslate ${AppConstants.APP_VERSION} starting...")

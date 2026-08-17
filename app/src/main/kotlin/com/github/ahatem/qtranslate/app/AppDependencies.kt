@@ -28,7 +28,6 @@ import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.core.shared.AppConstants
-import com.github.ahatem.qtranslate.core.shared.events.AppEventBus
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
 import com.github.ahatem.qtranslate.core.updater.Updater
@@ -122,7 +121,6 @@ suspend fun buildDependencies(
     // ---- 3. Infrastructure ----
 
     val notificationBus = NotificationBus()
-    val appEventBus     = AppEventBus()
 
     // Built before the plugin manager, which needs it to resolve the DisplayText plugins hand
     // back for notifications and option labels.
@@ -157,7 +155,6 @@ suspend fun buildDependencies(
 
     val settingsStore = SettingsStore(
         settingsRepository   = settingsRepo,
-        eventBus             = appEventBus,
         logger               = loggerFactory.getLogger("SettingsStore"),
         scope                = appScope,
         initialConfiguration = initialConfig

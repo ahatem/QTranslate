@@ -42,7 +42,7 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
  * val availableVoices = (service as? VoiceSupport)?.voices.orEmpty()
  * ```
  */
-interface VoiceSupport {
+public interface VoiceSupport {
     /**
      * The complete list of voices this service can synthesize with.
      *
@@ -51,7 +51,7 @@ interface VoiceSupport {
      * be determined at runtime (e.g. fetched from an API), fetch and cache it during
      * [com.github.ahatem.qtranslate.api.plugin.Plugin.onEnable] and return the cached list here.
      */
-    val voices: List<Voice>
+    public val voices: List<Voice>
 }
 
 /**
@@ -64,7 +64,7 @@ interface VoiceSupport {
  * @param language The primary language this voice speaks, as a [LanguageCode].
  * @param gender   The voice's gender, or `null` if unknown or not applicable.
  */
-data class Voice(
+public data class Voice(
     val id: String,
     val name: String,
     val language: LanguageCode,
@@ -72,6 +72,6 @@ data class Voice(
 )
 
 /** The gender of a [Voice], used for filtering and display in the UI. */
-enum class Gender {
+public enum class Gender {
     MALE, FEMALE, NEUTRAL
 }

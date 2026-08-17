@@ -21,14 +21,14 @@ import com.github.michaelbull.result.Result
  * "abstract" — declares its own option and the host renders that instead. Declaring no length
  * option at all is valid and tells the host not to show the control.
  */
-interface Summarizer : Service {
+public interface Summarizer : Service {
 
     /**
      * Summarizes the text in [request].
      *
      * @return `Ok` with a [SummarizeResponse], or `Err` with a [ServiceError].
      */
-    suspend fun summarize(request: SummarizeRequest): Result<SummarizeResponse, ServiceError>
+    public suspend fun summarize(request: SummarizeRequest): Result<SummarizeResponse, ServiceError>
 }
 
 /**
@@ -39,7 +39,7 @@ interface Summarizer : Service {
  *   [com.github.ahatem.qtranslate.api.plugin.ServiceOptionValue.id] values. Absent keys mean the
  *   service should use its own default.
  */
-data class SummarizeRequest(
+public data class SummarizeRequest(
     val text: String,
     val options: Map<String, String> = emptyMap()
 ) {
@@ -59,6 +59,6 @@ data class SummarizeRequest(
  *
  * @property summary The condensed text.
  */
-data class SummarizeResponse(
+public data class SummarizeResponse(
     val summary: String
 )

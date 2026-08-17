@@ -13,7 +13,7 @@ import com.github.michaelbull.result.Result
  * hint in [OCRRequest.language] can improve accuracy for services that support it,
  * but is not required if [LanguageCode.AUTO] is used.
  */
-interface OCR : Service {
+public interface OCR : Service {
 
     /**
      * Extracts text from the image described by [request].
@@ -22,7 +22,7 @@ interface OCR : Service {
      * @return `Ok` with the [OCRResponse] on success, or an `Err` with a [ServiceError].
      *         Returns [ServiceError.InvalidInputError] for corrupted or unsupported image data.
      */
-    suspend fun extractText(request: OCRRequest): Result<OCRResponse, ServiceError>
+    public suspend fun extractText(request: OCRRequest): Result<OCRResponse, ServiceError>
 }
 
 /**
@@ -33,7 +33,7 @@ interface OCR : Service {
  * @param width  The image width in pixels.
  * @param height The image height in pixels.
  */
-data class ImageData(
+public data class ImageData(
     val bytes: ByteArray,
     val format: String,
     val width: Int,
@@ -66,7 +66,7 @@ data class ImageData(
  *                 Defaults to [LanguageCode.AUTO] (the service detects the language).
  *                 Ignored by services that do not support language hints.
  */
-data class OCRRequest(
+public data class OCRRequest(
     val image: ImageData,
     val language: LanguageCode = LanguageCode.AUTO
 )
@@ -82,7 +82,7 @@ data class OCRRequest(
  * @param detectedLanguage  The language detected in the image text, if the service
  *                          supports language detection. `null` otherwise.
  */
-data class OCRResponse(
+public data class OCRResponse(
     val text: String,
     val confidence: Float? = null,
     val detectedLanguage: LanguageCode? = null

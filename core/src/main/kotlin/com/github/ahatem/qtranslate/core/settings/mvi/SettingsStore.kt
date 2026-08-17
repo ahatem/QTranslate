@@ -5,8 +5,6 @@ import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.arch.Store
-import com.github.ahatem.qtranslate.core.shared.events.AppEvent
-import com.github.ahatem.qtranslate.core.shared.events.AppEventBus
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
@@ -21,7 +19,6 @@ import kotlinx.coroutines.sync.withLock
  * ### Responsibilities
  * - Maintaining the draft/working configuration pattern (see [SettingsState])
  * - Persisting changes via [SettingsRepository]
- * - Emitting domain events via [AppEventBus] on significant state changes
  * - Delegating all preset CRUD operations to [PresetManager]
  *
  * ### Threading
@@ -31,7 +28,6 @@ import kotlinx.coroutines.sync.withLock
  * [scope] and are serialized by [saveMutex] to prevent concurrent saves.
  *
  * @property settingsRepository Persistence layer for [Configuration].
- * @property eventBus Application-wide event bus for cross-store communication.
  * @property logger Logger scoped to this store.
  * @property scope Coroutine scope for all async operations.
  * @property initialConfiguration The configuration loaded at startup, used to
@@ -39,7 +35,6 @@ import kotlinx.coroutines.sync.withLock
  */
 class SettingsStore(
     private val settingsRepository: SettingsRepository,
-    private val eventBus: AppEventBus,
     private val logger: Logger,
     private val scope: CoroutineScope,
     initialConfiguration: Configuration
@@ -57,7 +52,6 @@ class SettingsStore(
 
     private val presetManager = PresetManager(
         applyUpdate = { newConfig -> applyWorkingUpdate(newConfig) },
-        eventBus = eventBus,
         eventChannel = _eventChannel,
         scope = scope,
         logger = logger
@@ -246,7 +240,6 @@ class SettingsStore(
                                 isSaving = false
                             )
                         }
-                        eventBus.emit(AppEvent.ConfigurationSaved(configToSave))
                         _eventChannel.send(
                             SettingsEvent.ShowMessage("Settings saved", NotificationType.SUCCESS)
                         )

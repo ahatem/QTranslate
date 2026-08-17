@@ -18,22 +18,22 @@ package com.github.ahatem.qtranslate.api.plugin
  * plugin offered. Reads fall back to the plugin-wide value when no service-specific one exists,
  * so plugins that do not need this can ignore it entirely.
  */
-interface SettingsStore {
+public interface SettingsStore {
 
-    suspend fun getString(key: String, default: String? = null, serviceKey: String? = null): String?
-    suspend fun getInt(key: String, default: Int, serviceKey: String? = null): Int
-    suspend fun getLong(key: String, default: Long, serviceKey: String? = null): Long
-    suspend fun getDouble(key: String, default: Double, serviceKey: String? = null): Double
-    suspend fun getBoolean(key: String, default: Boolean, serviceKey: String? = null): Boolean
+    public suspend fun getString(key: String, default: String? = null, serviceKey: String? = null): String?
+    public suspend fun getInt(key: String, default: Int, serviceKey: String? = null): Int
+    public suspend fun getLong(key: String, default: Long, serviceKey: String? = null): Long
+    public suspend fun getDouble(key: String, default: Double, serviceKey: String? = null): Double
+    public suspend fun getBoolean(key: String, default: Boolean, serviceKey: String? = null): Boolean
 
-    suspend fun put(key: String, value: String, serviceKey: String? = null)
-    suspend fun put(key: String, value: Int, serviceKey: String? = null)
-    suspend fun put(key: String, value: Long, serviceKey: String? = null)
-    suspend fun put(key: String, value: Double, serviceKey: String? = null)
-    suspend fun put(key: String, value: Boolean, serviceKey: String? = null)
+    public suspend fun put(key: String, value: String, serviceKey: String? = null)
+    public suspend fun put(key: String, value: Int, serviceKey: String? = null)
+    public suspend fun put(key: String, value: Long, serviceKey: String? = null)
+    public suspend fun put(key: String, value: Double, serviceKey: String? = null)
+    public suspend fun put(key: String, value: Boolean, serviceKey: String? = null)
 
     /** Removes a value. No-op when absent. */
-    suspend fun remove(key: String, serviceKey: String? = null)
+    public suspend fun remove(key: String, serviceKey: String? = null)
 }
 
 /**
@@ -47,15 +47,15 @@ interface SettingsStore {
  * Where no platform keychain is available the host falls back to its own storage; a plugin
  * should assume a secret is protected as well as the platform allows, and no better.
  */
-interface SecretStore {
+public interface SecretStore {
 
     /** Returns the stored secret, or `null` when unset. */
-    suspend fun get(key: String): String?
+    public suspend fun get(key: String): String?
 
-    suspend fun put(key: String, value: String)
+    public suspend fun put(key: String, value: String)
 
     /** Removes a secret. No-op when absent. */
-    suspend fun remove(key: String)
+    public suspend fun remove(key: String)
 
     /**
      * Whether a secret is present, without reading it.
@@ -63,5 +63,5 @@ interface SecretStore {
      * Lets a plugin report [ServiceError.ConfigurationError] for "no key set" without pulling the
      * value into memory only to discard it.
      */
-    suspend fun contains(key: String): Boolean
+    public suspend fun contains(key: String): Boolean
 }

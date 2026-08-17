@@ -26,7 +26,7 @@ import com.github.michaelbull.result.Result
  * in particular, is built on top of these as extension functions rather than widening the
  * contract, so adding a convenience never obliges an implementation to grow a method.
  */
-interface HttpClient {
+public interface HttpClient {
 
     /**
      * Performs a GET request and returns the response body as text.
@@ -34,7 +34,7 @@ interface HttpClient {
      * A list value in [queryParams] is expanded into one repeated parameter per element. A null
      * value is omitted rather than sent empty.
      */
-    suspend fun get(
+    public suspend fun get(
         url: String,
         headers: Map<String, String> = emptyMap(),
         queryParams: Map<String, Any?> = emptyMap()
@@ -45,7 +45,7 @@ interface HttpClient {
      *
      * [body] is sent as `application/json` unless [headers] carries a different `Content-Type`.
      */
-    suspend fun post(
+    public suspend fun post(
         url: String,
         headers: Map<String, String> = emptyMap(),
         body: String? = null,
@@ -58,7 +58,7 @@ interface HttpClient {
      * For audio, images and anything else that is not text. Decoding a binary body through
      * [get] would corrupt it, which is why this is a method rather than a convenience.
      */
-    suspend fun getBytes(
+    public suspend fun getBytes(
         url: String,
         headers: Map<String, String> = emptyMap(),
         queryParams: Map<String, Any?> = emptyMap()
@@ -72,7 +72,7 @@ interface HttpClient {
      * misreads. [cookies] is supported because several providers require a session cookie
      * alongside the form.
      */
-    suspend fun postForm(
+    public suspend fun postForm(
         url: String,
         formData: Map<String, String>,
         headers: Map<String, String> = emptyMap(),
@@ -81,7 +81,7 @@ interface HttpClient {
     ): Result<String, ServiceError>
 
     /** As [postForm], for a response that is binary rather than text. */
-    suspend fun postFormBytes(
+    public suspend fun postFormBytes(
         url: String,
         formData: Map<String, String>,
         headers: Map<String, String> = emptyMap(),

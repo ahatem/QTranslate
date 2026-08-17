@@ -6,11 +6,11 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 /**
- * A [LoggerFactory] that writes coloured, timestamped log lines to stdout.
+ * A [LoggerFactory] that writes coloured, timestamped log lines to stdout and nowhere else.
  *
- * Intended for development and debugging. Replace with a file-backed or
- * framework-backed implementation (SLF4J, Log4j etc.) for production builds
- * by swapping the factory in [buildDependencies] — no other code changes needed.
+ * Used by the plugin smoke test, which runs headless in CI where the output is the build log and
+ * a rotating file on disk would be thrown away with the runner. The application itself uses
+ * [LogbackLoggerFactory], because a user reporting a bug needs a file to send.
  *
  * @property minLogLevel The minimum severity to emit. Messages below this level
  *   are silently discarded.

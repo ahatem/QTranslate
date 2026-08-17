@@ -1,6 +1,6 @@
 package com.github.ahatem.qtranslate.api.spellchecker
 
-enum class CorrectionType {
+public enum class CorrectionType {
     SPELLING,
     GRAMMAR,
     STYLE,

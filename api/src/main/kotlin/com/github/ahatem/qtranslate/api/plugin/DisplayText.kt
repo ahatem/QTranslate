@@ -27,7 +27,7 @@ package com.github.ahatem.qtranslate.api.plugin
  *   readable, e.g. `option.style.academic`.
  * @property fallback English text shown when no bundle provides [key]. Required — never blank.
  */
-data class DisplayText(
+public data class DisplayText(
     val key: String,
     val fallback: String,
     /**
@@ -44,7 +44,7 @@ data class DisplayText(
         require(fallback.isNotBlank()) { "DisplayText.fallback must not be blank; it is what the user sees when a translation is missing." }
     }
 
-    companion object {
+    public companion object {
         /**
          * Text with no translation key — shown exactly as given.
          *
@@ -52,6 +52,6 @@ data class DisplayText(
          * provider's name. Prefer a real key for anything a reader would want in their own
          * language.
          */
-        fun literal(text: String): DisplayText = DisplayText(key = text, fallback = text)
+        public fun literal(text: String): DisplayText = DisplayText(key = text, fallback = text)
     }
 }
