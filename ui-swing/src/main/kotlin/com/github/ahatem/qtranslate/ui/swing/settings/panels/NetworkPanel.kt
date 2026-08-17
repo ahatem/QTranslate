@@ -23,6 +23,7 @@ import javax.swing.UIManager
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
 /**
  * How the application reaches the network: the proxy, how long it waits, and how hard it tries.
@@ -248,7 +249,7 @@ class NetworkPanel(
             // viewBox where a pen or a plus leaves whitespace around itself, so at a matching
             // nominal size it reads as much larger than they do. Muted too: it is an aside, and it
             // sat brighter than the number it was explaining.
-            FlatSVGIcon(Icons.INFO, 10, 10, javaClass.classLoader)
+            IconSet.load(Icons.INFO, 10, 10)
                 .apply {
                     colorFilter = FlatSVGIcon.ColorFilter {
                         UIManager.getColor("Label.disabledForeground") ?: it

@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import java.awt.*
 import javax.swing.*
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
 class ServicesPanel(
     private val store: SettingsStore,
@@ -161,7 +162,7 @@ class ServicesPanel(
             ServiceRole.IMAGE_SEARCH -> Icons.SEARCH
         }
         return runCatching {
-            val icon = FlatSVGIcon(path, 14, 14, javaClass.classLoader)
+            val icon = IconSet.load(path, 14, 14)
             icon.colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") ?: Color.GRAY }
             icon as Icon
         }.getOrNull()

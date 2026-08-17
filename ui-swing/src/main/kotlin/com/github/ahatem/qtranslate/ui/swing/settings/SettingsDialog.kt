@@ -36,6 +36,7 @@ import javax.swing.tree.DefaultTreeCellRenderer
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreeSelectionModel
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
 class SettingsDialog(
     owner: JFrame,
@@ -141,7 +142,7 @@ class SettingsDialog(
     private val sidebarIcons: Map<String, Icon> by lazy {
         sidebarIconPaths.mapNotNull { (name, path) ->
             runCatching {
-                val icon = FlatSVGIcon(path, 14, 14, javaClass.classLoader)
+                val icon = IconSet.load(path, 14, 14)
                 icon.colorFilter =
                     FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") ?: Color.GRAY }
                 name to (icon as Icon)

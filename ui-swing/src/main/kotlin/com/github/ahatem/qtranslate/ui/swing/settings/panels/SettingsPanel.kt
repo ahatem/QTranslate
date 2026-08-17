@@ -13,6 +13,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.*
 import javax.swing.*
 import javax.swing.border.AbstractBorder
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
 /**
  * Base class for all settings panels.
@@ -306,7 +307,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
             // Unscaled on purpose. FlatSVGIcon scales the size it is given by the user scale
             // factor itself, in scaleSize(), so passing UIScale.scale() here applies it twice:
             // correct at 100% and half again too big at 150%, crammed into a button sized once.
-            FlatSVGIcon(iconPath, PICKER_ICON, PICKER_ICON, javaClass.classLoader)
+            IconSet.load(iconPath, PICKER_ICON, PICKER_ICON)
                 .applyForegroundColorFilter()
         ).apply {
             toolTipText = tooltip

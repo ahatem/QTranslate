@@ -29,6 +29,7 @@ import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.filechooser.FileNameExtensionFilter
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
 /**
  * Settings panel for installed plugins.
@@ -453,7 +454,7 @@ class PluginsPanel(
     )
 
     private fun themedAppIcon(path: String, size: Int): Icon =
-        FlatSVGIcon(path, size, size, javaClass.classLoader).applyForegroundColorFilter()
+        IconSet.load(path, size, size).applyForegroundColorFilter()
 
     // ── Detail rebuild ────────────────────────────────────────────────────────
 
@@ -616,7 +617,7 @@ class PluginsPanel(
                 insets = Insets(6, 0, 6, 0)
             }
             val pkgIcon = runCatching {
-                val ico = FlatSVGIcon(Icons.PLUGIN, 36, 36, javaClass.classLoader)
+                val ico = IconSet.load(Icons.PLUGIN, 36, 36)
                 ico.colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") ?: Color.GRAY }
                 ico as Icon
             }.getOrNull()

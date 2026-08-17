@@ -1,5 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.icon
 
+import com.formdev.flatlaf.extras.FlatSVGIcon
+import java.io.File
+
 /**
  * An icon set the application can be dressed in.
  *
@@ -60,15 +63,65 @@ object IconSet {
      * Probed rather than assumed: a set counts as present once it holds any icon at all, so the
      * empty folders waiting to be filled do not show up in Settings offering nothing.
      */
-    fun available(): List<IconSetInfo> = known.filter { set ->
-        set.id == DEFAULT_ID || PROBES.any { loader.getResource("icons/${set.id}/$it.svg") != null }
+    fun available(): List<IconSetInfo> = installed().filter { it.id == DEFAULT_ID || it.id != DEFAULT_ID }
+
+    /** Known sets that actually have icons, whether bundled or dropped into the icons folder. */
+    private fun installed(): List<IconSetInfo> = known.filter { set ->
+        set.id == DEFAULT_ID || PROBES.any { exists("icons/${set.id}/$it.svg") }
+    }
+
+    /**
+     * Where sets other than the default live, mirroring the languages and themes folders.
+     *
+     * Set once at startup. Until it is, only the bundled default resolves, which is the right
+     * behaviour for anything constructing icons before the application has found its data
+     * directory rather than a reason to fail.
+     */
+    @Volatile
+    private var externalRoot: File? = null
+
+    fun installTo(appDataDirectory: File) {
+        externalRoot = File(appDataDirectory, "icons").also { it.mkdirs() }
+    }
+
+    /** Whether [path] exists, on the classpath or under the icons folder. */
+    private fun exists(path: String): Boolean =
+        loader.getResource(path) != null || externalFile(path)?.isFile == true
+
+    private fun externalFile(path: String): File? =
+        externalRoot?.let { File(it, path.removePrefix("icons/")) }
+
+    /**
+     * Loads [path] from wherever it actually is.
+     *
+     * The default set is bundled in the module's resources, the way the English strings are, so
+     * the application is never iconless however the data directory looks. Every other set is a
+     * folder on disk that the user can add to, the way languages and themes are, and neither the
+     * call sites nor the path shape have to know which of the two they are getting.
+     */
+    fun load(path: String, width: Int, height: Int): FlatSVGIcon {
+        if (loader.getResource(path) != null) return FlatSVGIcon(path, width, height, loader)
+
+        externalFile(path)?.takeIf { it.isFile }?.let { return FlatSVGIcon(it).derive(width, height) }
+
+        // Non-null on purpose. The default set is bundled and complete, so a name that resolved
+        // nowhere means the path was wrong rather than the set being thin, and every call site
+        // wants an icon it can style. Returning the default's copy keeps a button from going blank
+        // over a mistake somewhere else.
+        val name = path.substringAfterLast('/')
+        val bundled = "icons/$DEFAULT_ID/$name"
+        return if (loader.getResource(bundled) != null) {
+            FlatSVGIcon(bundled, width, height, loader)
+        } else {
+            FlatSVGIcon("ui/icons/missing_icon.svg", width, height, loader)
+        }
     }
 
     /** The classpath location of [name] in the active set, or in Lucide when it has no such icon. */
     fun path(name: String): String {
         val preferred = "icons/$activeId/$name.svg"
         if (activeId == DEFAULT_ID) return preferred
-        return if (loader.getResource(preferred) != null) preferred else "icons/$DEFAULT_ID/$name.svg"
+        return if (exists(preferred)) preferred else "icons/$DEFAULT_ID/$name.svg"
     }
 
     /**

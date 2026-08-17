@@ -37,6 +37,7 @@ import javax.swing.UIManager
 import javax.swing.border.MatteBorder
 import javax.swing.filechooser.FileNameExtensionFilter
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
 data class DocumentTranslationStrings(
     val title: String,
@@ -429,7 +430,7 @@ class DocumentTranslationDialog(
         accessibleContext.accessibleName = tooltip
     }
 
-    private fun themeIcon(path: String) = FlatSVGIcon(path, 16, 16, javaClass.classLoader).apply {
+    private fun themeIcon(path: String) = IconSet.load(path, 16, 16).apply {
         colorFilter = FlatSVGIcon.ColorFilter {
             UIManager.getColor("Button.foreground") ?: UIManager.getColor("Label.foreground") ?: Color.DARK_GRAY
         }

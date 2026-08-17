@@ -68,7 +68,9 @@ class AppDependencies(
     val localizationManager: LocalizationManager,
     val notificationBus: NotificationBus,
     /** The application's own secrets, distinct from any plugin's. */
-    val appSecrets: AppSecretStore
+    val appSecrets: AppSecretStore,
+    /** Where languages, themes and icon sets are read from. */
+    val appDataDirectory: File
 )
 
 /**
@@ -292,6 +294,7 @@ suspend fun buildDependencies(
         settingsStore       = settingsStore,
         pluginManager       = pluginManager,
         appSecrets          = appSecrets,
+        appDataDirectory    = appData,
         iconManager         = iconManager,
         themeManager        = themeManager,
         localizationManager = localizationManager,

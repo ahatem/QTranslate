@@ -26,6 +26,7 @@ import javax.swing.table.AbstractTableModel
 import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.TableRowSorter
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
 /**
  * Edits a translation file: its strings, its metadata, and whether it exists at all.
@@ -795,7 +796,7 @@ class LanguageEditorDialog(
         private companion object {
             /** A 14px lucide glyph repainted in [colorKey], resolved from the theme at paint time. */
             fun themedIcon(path: String, colorKey: String): Icon? = runCatching {
-                FlatSVGIcon(path, 14, 14, DoneRenderer::class.java.classLoader).apply {
+                IconSet.load(path, 14, 14).apply {
                     colorFilter = FlatSVGIcon.ColorFilter {
                         UIManager.getColor(colorKey) ?: UIManager.getColor("Label.foreground")
                     }

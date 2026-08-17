@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.icon
 
 import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -16,11 +17,23 @@ import kotlin.test.assertTrue
  */
 class IconSetSwitchingTest {
 
+    /**
+     * Points the resolver at the repository's own icons folder.
+     *
+     * At runtime that folder is staged into the data directory beside languages and themes; from a
+     * test the repository copy is the same content, and the module runs one level below the root.
+     * Without this only the bundled default resolves and every other set looks empty.
+     */
+    @BeforeTest
+    fun installSets() = IconSet.installTo(java.io.File(".."))
+
     @AfterTest
     fun restoreDefault() = IconSet.use(IconSet.DEFAULT_ID)
 
+    /** Mirrors what the resolver does: bundled on the classpath, everything else on disk. */
     private fun resourceExists(path: String) =
-        IconSet::class.java.classLoader.getResource(path) != null
+        IconSet::class.java.classLoader.getResource(path) != null ||
+            java.io.File("..", path).isFile
 
     @Test
     fun `a partial set serves what it has and falls back for the rest`() {

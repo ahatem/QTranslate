@@ -126,8 +126,17 @@ val prepareManualQaThemes by tasks.registering(Sync::class) {
     into(manualQaDirectory.map { it.dir("app-data/themes") })
 }
 
+val prepareManualQaIcons by tasks.registering(Sync::class) {
+    group = "application"
+    description = "Stages the icon sets for manual QA."
+    // Only the sets that are not bundled. Lucide ships inside the module's resources, the way the
+    // English strings do, so the application is never iconless however the data directory looks.
+    from(rootProject.layout.projectDirectory.dir("icons"))
+    into(manualQaDirectory.map { it.dir("app-data/icons") })
+}
+
 val prepareManualQaRuntime by tasks.registering(Delete::class) {
-    dependsOn(prepareManualQaPlugins, prepareManualQaLanguages, prepareManualQaThemes)
+    dependsOn(prepareManualQaPlugins, prepareManualQaLanguages, prepareManualQaThemes, prepareManualQaIcons)
     // Always inspect freshly staged JARs while retaining the tester's other settings.
     delete(manualQaDirectory.map { it.file("app-data/datastore/plugin_registry.preferences_pb") })
 }

@@ -120,6 +120,8 @@ fun main() = runBlocking {
     SwingUtilities.invokeLater {
         // Chosen before anything is drawn: icons are built once and held by the components
         // showing them, so this has to be set while there is still nothing on screen.
+        // The folder the extra sets live in, beside languages and themes.
+        IconSet.installTo(deps.appDataDirectory)
         IconSet.use(deps.settingsStore.state.value.workingConfiguration.iconSetId)
 
         frame = MainAppFrame(

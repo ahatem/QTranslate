@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import java.net.URL
 import javax.swing.Icon
 import javax.swing.ImageIcon
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
 class IconManager(private val pluginManager: PluginManager) {
 
@@ -37,7 +38,7 @@ class IconManager(private val pluginManager: PluginManager) {
     }
 
     private fun loadSvgIcon(path: String, width: Int, height: Int, loader: ClassLoader): Icon {
-        val icon = FlatSVGIcon(path, width, height, loader)
+        val icon = IconSet.load(path, width, height)
         return if (icon.iconWidth > 0) icon else getMissingIcon(width, height)
     }
 
