@@ -303,7 +303,10 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      */
     protected fun pickerAction(iconPath: String, tooltip: String, onClick: () -> Unit) =
         JButton(
-            FlatSVGIcon(iconPath, UIScale.scale(PICKER_ICON), UIScale.scale(PICKER_ICON), javaClass.classLoader)
+            // Unscaled on purpose. FlatSVGIcon scales the size it is given by the user scale
+            // factor itself, in scaleSize(), so passing UIScale.scale() here applies it twice:
+            // correct at 100% and half again too big at 150%, crammed into a button sized once.
+            FlatSVGIcon(iconPath, PICKER_ICON, PICKER_ICON, javaClass.classLoader)
                 .applyForegroundColorFilter()
         ).apply {
             toolTipText = tooltip

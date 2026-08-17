@@ -247,7 +247,7 @@ class NetworkPanel(
             // viewBox where a pen or a plus leaves whitespace around itself, so at a matching
             // nominal size it reads as much larger than they do. Muted too: it is an aside, and it
             // sat brighter than the number it was explaining.
-            FlatSVGIcon("icons/lucide/info.svg", UIScale.scale(10), UIScale.scale(10), javaClass.classLoader)
+            FlatSVGIcon("icons/lucide/info.svg", 10, 10, javaClass.classLoader)
                 .apply {
                     colorFilter = FlatSVGIcon.ColorFilter {
                         UIManager.getColor("Label.disabledForeground") ?: it
