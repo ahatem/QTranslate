@@ -436,6 +436,15 @@ class SettingsDialog(
         }.apply {
             // Painted by hand above, so the look and feel must not fill it again.
             isOpaque = false
+
+            // The tree adds no indent of its own. It had two sources — the look and feel's child
+            // indents plus a top-up in the renderer that subtracted the *unscaled* default from a
+            // scaled one — so the real indent was neither number and could not be reasoned about.
+            // Zero here leaves NEST_INDENT as the only thing that decides it.
+            (ui as? javax.swing.plaf.basic.BasicTreeUI)?.let {
+                it.leftChildIndent = 0
+                it.rightChildIndent = 0
+            }
             isRootVisible = false
             showsRootHandles = false
             selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
@@ -513,13 +522,7 @@ class SettingsDialog(
                     // topped up to a minimum rather than replaced, so this neither fights the
                     // look and feel nor depends on it.
                     val depth = (value as? DefaultMutableTreeNode)?.level ?: 1
-                    val treeIndent = UIManager.getInt("Tree.leftChildIndent") +
-                        UIManager.getInt("Tree.rightChildIndent")
-                    val nesting = if (depth > 1) {
-                        (UIScale.scale(NEST_INDENT) - treeIndent).coerceAtLeast(0)
-                    } else {
-                        0
-                    }
+                    val nesting = if (depth > 1) UIScale.scale(NEST_INDENT) else 0
 
                     // EmptyBorder takes absolute sides and knows nothing about direction, so the
                     // leading edge is picked here. Written always on the left, the indent moved to
@@ -1071,7 +1074,7 @@ class SettingsDialog(
          * A floor, not a fixed value: the tree indents its own children first, and this only
          * makes up the difference when that comes out too small to read as nesting.
          */
-        const val NEST_INDENT = 18
+        const val NEST_INDENT = 12
     }
 
     /**
