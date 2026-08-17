@@ -66,11 +66,17 @@ class IconSetSwitchingTest {
 
     @Test
     fun `the sets on offer are the ones that hold icons`() {
-        val offered = IconSet.available().map { it.id }
-        assertTrue(IconSet.DEFAULT_ID in offered, "The default set must always be offered")
-        // The folders waiting to be populated must not appear as choices that do nothing.
-        assertTrue("phosphor" !in offered, "An empty set was offered: phosphor")
-        assertTrue("heroicons" !in offered, "An empty set was offered: heroicons")
+        val offered = IconSet.available()
+        assertTrue(offered.any { it.id == IconSet.DEFAULT_ID }, "The default set must always be offered")
+
+        // The invariant, rather than a list of which sets happen to be populated today: an earlier
+        // version of this named phosphor and heroicons as absent and started failing the moment
+        // they were filled in, which is a test describing a moment instead of a rule.
+        offered.forEach { set ->
+            val names = vocabulary()
+            val present = names.count { resourceExists("icons/${set.id}/$it.svg") }
+            assertTrue(present > 0, "Set '${set.id}' is offered but holds no icons at all")
+        }
     }
 
     @Test

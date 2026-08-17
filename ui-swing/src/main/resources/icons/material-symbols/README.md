@@ -1,14 +1,13 @@
 # material-symbols
 
-Drop the SVGs for this set here, named for the vocabulary in
-`ui-swing/.../shared/icon/IconSet.kt` — `edit.svg`, `delete.svg`, `ocr.svg` and so on.
-The full list of names is the `Icons` object in that file.
+32 of the 32 semantic names, taken from the set's own published glyphs.
 
-The set does not have to be complete. Anything missing falls back to Lucide, so the set is usable
-from its first icon. It only appears in Settings once it holds at least one of
-`settings`, `close`, `search` or `edit`, so this folder is invisible until it has something in it.
+The names are QTranslate's vocabulary, not the set's, so `edit.svg` is whichever glyph this set
+uses for editing. The full list is the `Icons` object in
+`ui-swing/.../shared/icon/IconSet.kt`.
 
-Two names are easy to get wrong when picking glyphs:
+Three are easy to mismatch when replacing a glyph:
 
 - `language` is the interface-language setting (a globe). `translate` is the translator service.
-- `check` is used both for the spell-checker service and for the done tick in the translation editor.
+- `check` serves both the spell-checker service and the done tick in the translation editor.
+- `service` is the Services & Presets section, not a generic gear.
