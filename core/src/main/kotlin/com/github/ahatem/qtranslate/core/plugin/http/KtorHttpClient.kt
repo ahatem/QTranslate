@@ -13,6 +13,8 @@ import io.ktor.client.*
 import io.ktor.client.HttpClient as KtorClient
 import io.ktor.client.call.*
 import io.ktor.client.engine.HttpClientEngine
+import io.ktor.client.engine.ProxyBuilder
+import io.ktor.client.engine.http
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.compression.*
@@ -27,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.Closeable
+import java.util.Base64
 
 /**
  * The methods RFC 9110 defines as idempotent: sending one twice has the same effect as once, so a
@@ -55,7 +58,9 @@ internal class KtorHttpClient(
      * wrong in production: nothing about a POST being replayed after a 500 shows up locally, and
      * the bill for it arrives later. Production still gets CIO, built here by default.
      */
-    private val engine: HttpClientEngine = CIO.create(),
+    private val engine: HttpClientEngine = CIO.create {
+        config.proxy?.let { proxy = ProxyBuilder.http(it.url) }
+    },
     /**
      * Whether closing this also closes [engine]. False when the caller supplied one, since a test
      * that shares an engine across clients should decide for itself when it dies.
@@ -66,6 +71,16 @@ internal class KtorHttpClient(
     private val client = KtorClient(engine) {
         install(ContentNegotiation) {
             json(json)
+        }
+        // Attached to every request, which is the only place it works. CIO's startTunnel copies
+        // Proxy-Authorization onto the CONNECT it sends for an HTTPS request, but only when the
+        // header is already on the request; it never derives one from the proxy address. A plain
+        // HTTP request goes to the proxy directly and carries the header in its ordinary place.
+        // One installation covers both.
+        config.proxy?.authorizationHeader()?.let { credentials ->
+            install(DefaultRequest) {
+                header(HttpHeaders.ProxyAuthorization, credentials)
+            }
         }
         install(ContentEncoding) {
             gzip()
@@ -334,8 +349,37 @@ data class HttpClientConfig(
     val connectTimeoutMillis: Long = 15_000,
     val socketTimeoutMillis: Long = 15_000,
     val enableRetry: Boolean = true,
-    val maxRetries: Int = 2
+    val maxRetries: Int = 2,
+    val proxy: ProxyConfiguration? = null
 )
+
+/**
+ * An HTTP proxy to send through, and the credentials for it.
+ *
+ * ### Why the credentials are ours to send
+ * Ktor's [io.ktor.client.engine.ProxyConfig] carries an address and nothing else, and CIO never
+ * derives credentials from the proxy URL's userinfo. Its `startTunnel` forwards
+ * `Proxy-Authorization` onto the CONNECT request only when that header is already on the request
+ * being sent, so putting `user:pass@` in the proxy address authenticates nothing. The header has to
+ * be attached to every request, which is what [KtorHttpClient] does with this.
+ *
+ * That covers both shapes at once: an HTTPS request tunnels through CONNECT and the header is
+ * copied onto it, and a plain HTTP request goes to the proxy directly with the header already in
+ * its normal place.
+ */
+data class ProxyConfiguration(
+    /** The proxy's own address, for example `http://proxy.example:3128`. Credentials go below. */
+    val url: String,
+    val username: String? = null,
+    val password: String? = null
+) {
+    /** The `Proxy-Authorization` value, or null when the proxy takes no credentials. */
+    fun authorizationHeader(): String? {
+        if (username.isNullOrEmpty()) return null
+        val raw = "$username:${password.orEmpty()}"
+        return "Basic " + Base64.getEncoder().encodeToString(raw.toByteArray(Charsets.UTF_8))
+    }
+}
 
 // Extension function to create form data from pairs
 fun formDataOf(vararg pairs: Pair<String, String>): Map<String, String> = mapOf(*pairs)
