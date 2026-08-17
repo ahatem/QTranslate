@@ -769,8 +769,8 @@ class LanguageEditorDialog(
     ) : DefaultTableCellRenderer() {
 
         private val doneIcon = themedIcon("icons/lucide/check.svg", "Actions.Green")
-        private val warnIcon = themedIcon("icons/lucide/triangle-alert.svg", "Component.warning.focusedBorderColor")
-        private val errorIcon = themedIcon("icons/lucide/triangle-alert.svg", "Component.error.focusedBorderColor")
+        private val warnIcon = themedIcon("icons/lucide/warning.svg", "Component.warning.focusedBorderColor")
+        private val errorIcon = themedIcon("icons/lucide/warning.svg", "Component.error.focusedBorderColor")
 
         override fun getTableCellRendererComponent(
             table: JTable, value: Any?, isSelected: Boolean,

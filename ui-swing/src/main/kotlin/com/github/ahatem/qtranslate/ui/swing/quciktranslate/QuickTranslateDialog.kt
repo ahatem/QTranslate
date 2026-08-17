@@ -123,8 +123,8 @@ class QuickTranslateDialog(
     private val translatorComboBox = TranslatorPopupButton(iconManager, onTranslatorSelected)
 
     private val pinButton = createButtonWithIcon(iconManager, "icons/lucide/pin.svg", 14)
-    private val listenButton = createButtonWithIcon(iconManager, "icons/lucide/volume.svg", 14)
-    private val copyButton = createButtonWithIcon(iconManager, "icons/lucide/copy-text.svg", 14)
+    private val listenButton = createButtonWithIcon(iconManager, "icons/lucide/speak.svg", 14)
+    private val copyButton = createButtonWithIcon(iconManager, "icons/lucide/copy.svg", 14)
     private val closeButton = createButtonWithIcon(iconManager, "icons/lucide/close.svg", 16)
 
     // content
@@ -392,7 +392,7 @@ class QuickTranslateDialog(
         val playing = state.isTtsPlaying
         currentIsTtsPlaying = playing
         listenButton.icon = iconManager.getIcon(
-            if (playing) "icons/lucide/close.svg" else "icons/lucide/volume.svg",
+            if (playing) "icons/lucide/close.svg" else "icons/lucide/speak.svg",
             14,
             14
         )

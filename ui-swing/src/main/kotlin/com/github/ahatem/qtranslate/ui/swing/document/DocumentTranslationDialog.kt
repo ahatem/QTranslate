@@ -385,7 +385,7 @@ class DocumentTranslationDialog(
         pdfModeCombo.isEnabled = !running
         primaryButton.isEnabled = !running && inputFile != null && outputFile != null
         primaryButton.text = if (state == ViewState.COMPLETED) strings.open else strings.translate
-        primaryButton.icon = if (state == ViewState.COMPLETED) themeIcon("icons/lucide/book-open.svg") else null
+        primaryButton.icon = if (state == ViewState.COMPLETED) themeIcon("icons/lucide/dictionary.svg") else null
         cancelButton.text = if (running) strings.cancel else strings.close
         statusLabel.text = message
         statusLabel.toolTipText = tooltip
@@ -422,7 +422,7 @@ class DocumentTranslationDialog(
     // other button in QTranslate.
     private fun filePickerButton(tooltip: String) = JButton(
         strings.browse,
-        themeIcon("icons/lucide/file-scan.svg")
+        themeIcon("icons/lucide/document.svg")
     ).apply {
         toolTipText = tooltip
         accessibleContext.accessibleName = tooltip

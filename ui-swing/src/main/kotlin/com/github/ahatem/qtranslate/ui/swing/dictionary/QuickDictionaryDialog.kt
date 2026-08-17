@@ -80,9 +80,9 @@ class QuickDictionaryDialog(
 
     // Auto-source cycling button — mirrors DictionaryPanel
     private val activeLinkIcon: FlatSVGIcon =
-        (iconManager.getIcon("icons/lucide/link-2.svg", 13, 13) as FlatSVGIcon).applyForegroundColorFilter()
+        (iconManager.getIcon("icons/lucide/network.svg", 13, 13) as FlatSVGIcon).applyForegroundColorFilter()
     private val offUnlinkIcon: FlatSVGIcon =
-        (iconManager.getIcon("icons/lucide/unlink.svg", 13, 13) as FlatSVGIcon).apply {
+        (iconManager.getIcon("icons/lucide/unpin.svg", 13, 13) as FlatSVGIcon).apply {
             colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") }
         }
     private val autoSourceButton = JButton().apply {

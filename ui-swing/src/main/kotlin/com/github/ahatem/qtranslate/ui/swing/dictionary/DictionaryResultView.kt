@@ -268,7 +268,7 @@ class DictionaryResultView(private val iconManager: IconManager) : JScrollPane()
     }
 
     private companion object {
-        const val LISTEN_ICON = "icons/lucide/volume.svg"
+        const val LISTEN_ICON = "icons/lucide/speak.svg"
         const val STOP_ICON = "icons/lucide/close.svg"
         const val LISTEN_ICON_SIZE = 14
     }

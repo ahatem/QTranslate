@@ -30,8 +30,8 @@ class TranslatorSelector(
         mouseWheelListeners.forEach(::removeMouseWheelListener)
         addMouseWheelListener { e -> scrollClassic(e.wheelRotation * horizontalScrollBar.unitIncrement) }
     }
-    private val scrollBack = createScrollButton("icons/lucide/arrow-left.svg", -96, "Previous services")
-    private val scrollForward = createScrollButton("icons/lucide/arrow-right.svg", 96, "More services")
+    private val scrollBack = createScrollButton("icons/lucide/nav-back.svg", -96, "Previous services")
+    private val scrollForward = createScrollButton("icons/lucide/nav-forward.svg", 96, "More services")
     private val configureActive = JButton(iconManager.getIcon("icons/lucide/settings.svg", 16, 16)).apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
         toolTipText = "Configure active translation service"; isFocusable = false

@@ -512,12 +512,12 @@ class MainContentView(
         val isTtsPlaying = mainState.isTtsPlaying
         val listenStopTooltip = if (isTtsPlaying)
             localizer.getString("common.stop") else localizer.getString("main_window_editor_context_menu.listen")
-        val listenStopIcon = if (isTtsPlaying) "icons/lucide/close.svg" else "icons/lucide/volume.svg"
+        val listenStopIcon = if (isTtsPlaying) "icons/lucide/close.svg" else "icons/lucide/speak.svg"
         val inputActionsState = TextActionsState(
             actions = listOf(
                 Action(
                     id = "copy_input",
-                    iconPath = "icons/lucide/copy-text.svg",
+                    iconPath = "icons/lucide/copy.svg",
                     tooltip = localizer.getString("main_window_editor_context_menu.copy"),
                     isEnabled = hasInputText && !mainState.isLoading,
                     isVisible = true,
@@ -576,7 +576,7 @@ class MainContentView(
                     listOf(
                         Action(
                             id = "copy_output",
-                            iconPath = "icons/lucide/copy-text.svg",
+                            iconPath = "icons/lucide/copy.svg",
                             tooltip = localizer.getString("main_window_editor_context_menu.copy"),
                             isEnabled = hasOutputText && !mainState.isLoading,
                             isVisible = true,
@@ -661,7 +661,7 @@ class MainContentView(
                     listOf(
                         Action(
                             id = "copy_extra",
-                            iconPath = "icons/lucide/copy-text.svg",
+                            iconPath = "icons/lucide/copy.svg",
                             tooltip = localizer.getString("main_window_editor_context_menu.copy"),
                             isEnabled = hasExtraText && !mainState.isLoading,
                             isVisible = true,

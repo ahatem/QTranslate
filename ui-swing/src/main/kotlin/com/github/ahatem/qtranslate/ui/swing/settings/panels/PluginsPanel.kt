@@ -173,7 +173,7 @@ class PluginsPanel(
 
         val installBtn = JButton(
             localizationManager.getString("settings_plugins.install_plugin"),
-            themedAppIcon("icons/lucide/package.svg", 16)
+            themedAppIcon("icons/lucide/plugin.svg", 16)
         ).apply { addActionListener { onInstall() } }
 
         val browseLink = JLabel(
@@ -193,7 +193,7 @@ class PluginsPanel(
         val dropHint = JLabel(localizationManager.getString("settings_plugins.drop_hint"), SwingConstants.CENTER).apply {
             foreground = UIManager.getColor("Label.disabledForeground")
             font = font.deriveFont(font.size - 1f)
-            icon = themedAppIcon("icons/lucide/package.svg", 13)
+            icon = themedAppIcon("icons/lucide/plugin.svg", 13)
             iconTextGap = 6
             border = BorderFactory.createCompoundBorder(
                 BorderFactory.createDashedBorder(
@@ -380,7 +380,7 @@ class PluginsPanel(
         val foreground = if (selected) UIManager.getColor("List.selectionForeground") else UIManager.getColor("Label.foreground")
         val serviceId = plugin.services.firstOrNull()?.let(plugin::serviceIdOf)
         val icon = plugin.manifest.icon?.let { path -> serviceId?.let { iconManager.getIcon(it, path, 24, 24) } }
-            ?: themedAppIcon("icons/lucide/package.svg", 24)
+            ?: themedAppIcon("icons/lucide/plugin.svg", 24)
         val categories = PluginPanelModel.categories(plugin).joinToString(" · ") { categoryName(it) }
         val text = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -483,7 +483,7 @@ class PluginsPanel(
         val headerIcon: Icon = if (pluginIconPath != null && serviceId != null)
             iconManager.getIcon(serviceId, pluginIconPath, 24, 24)
         else
-            themedAppIcon("icons/lucide/package.svg", 24)
+            themedAppIcon("icons/lucide/plugin.svg", 24)
 
         val nameLabel = JLabel(plugin.manifest.name).apply {
             font = font.deriveFont(Font.BOLD, font.size + 2f)
@@ -615,7 +615,7 @@ class PluginsPanel(
                 insets = Insets(6, 0, 6, 0)
             }
             val pkgIcon = runCatching {
-                val ico = FlatSVGIcon("icons/lucide/package.svg", 36, 36, javaClass.classLoader)
+                val ico = FlatSVGIcon("icons/lucide/plugin.svg", 36, 36, javaClass.classLoader)
                 ico.colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") ?: Color.GRAY }
                 ico as Icon
             }.getOrNull()
@@ -742,7 +742,7 @@ class PluginsPanel(
         border = BorderFactory.createEmptyBorder(3, 0, 3, 0)
         val serviceIcon = service.iconPath?.let { iconManager.getIcon(serviceId, it, 15, 15) }
             ?: service.role?.let(::roleIcon)
-            ?: themedAppIcon("icons/lucide/package.svg", 15)
+            ?: themedAppIcon("icons/lucide/plugin.svg", 15)
         add(JLabel(service.name, serviceIcon, SwingConstants.LEADING).apply {
             font = font.deriveFont(Font.BOLD, font.size - 0.5f)
             iconTextGap = 7
@@ -756,13 +756,13 @@ class PluginsPanel(
 
     private fun roleIcon(type: ServiceRole): Icon = themedAppIcon(
         when (type) {
-            ServiceRole.TRANSLATOR -> "icons/lucide/languages.svg"
-            ServiceRole.TTS -> "icons/lucide/volume.svg"
-            ServiceRole.OCR -> "icons/lucide/scan-text.svg"
+            ServiceRole.TRANSLATOR -> "icons/lucide/translate.svg"
+            ServiceRole.TTS -> "icons/lucide/speak.svg"
+            ServiceRole.OCR -> "icons/lucide/ocr.svg"
             ServiceRole.SPELL_CHECKER -> "icons/lucide/check.svg"
-            ServiceRole.DICTIONARY -> "icons/lucide/book-open.svg"
-            ServiceRole.SUMMARIZER -> "icons/lucide/text-align-start.svg"
-            ServiceRole.REWRITER -> "icons/lucide/pen-line.svg"
+            ServiceRole.DICTIONARY -> "icons/lucide/dictionary.svg"
+            ServiceRole.SUMMARIZER -> "icons/lucide/summarize.svg"
+            ServiceRole.REWRITER -> "icons/lucide/edit.svg"
             // No service declares this yet; the generic icon is a placeholder until one does.
             ServiceRole.IMAGE_SEARCH -> "icons/lucide/search.svg"
         },

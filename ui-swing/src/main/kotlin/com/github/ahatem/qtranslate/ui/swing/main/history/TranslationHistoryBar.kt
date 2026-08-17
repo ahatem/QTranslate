@@ -18,10 +18,10 @@ class TranslationHistoryBar(
     private val onDocumentTranslate: () -> Unit,
 ) : JPanel(BorderLayout()), Renderable<TranslationHistoryBarState> {
 
-    private val backwardButton = createButtonWithIcon(iconManager, "icons/lucide/arrow-left.svg", 16)
-    private val forwardButton = createButtonWithIcon(iconManager, "icons/lucide/arrow-right.svg", 16)
-    private val imageTranslateButton = createButtonWithIcon(iconManager, "icons/lucide/scan-text.svg", 16)
-    private val documentTranslateButton = createButtonWithIcon(iconManager, "icons/lucide/file-scan.svg", 16)
+    private val backwardButton = createButtonWithIcon(iconManager, "icons/lucide/nav-back.svg", 16)
+    private val forwardButton = createButtonWithIcon(iconManager, "icons/lucide/nav-forward.svg", 16)
+    private val imageTranslateButton = createButtonWithIcon(iconManager, "icons/lucide/ocr.svg", 16)
+    private val documentTranslateButton = createButtonWithIcon(iconManager, "icons/lucide/document.svg", 16)
 
     private val statusLabel = JLabel().apply {
         border = BorderFactory.createEmptyBorder(0, 8, 0, 8)
@@ -59,11 +59,11 @@ class TranslationHistoryBar(
 
         val isRtl = orientation == java.awt.ComponentOrientation.RIGHT_TO_LEFT
         backwardButton.icon = iconManager.getIcon(
-            if (isRtl) "icons/lucide/arrow-right.svg" else "icons/lucide/arrow-left.svg",
+            if (isRtl) "icons/lucide/nav-forward.svg" else "icons/lucide/nav-back.svg",
             16, 16
         )
         forwardButton.icon = iconManager.getIcon(
-            if (isRtl) "icons/lucide/arrow-left.svg" else "icons/lucide/arrow-right.svg",
+            if (isRtl) "icons/lucide/nav-back.svg" else "icons/lucide/nav-forward.svg",
             16, 16
         )
     }

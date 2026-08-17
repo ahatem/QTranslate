@@ -100,24 +100,24 @@ class SettingsDialog(
      * separated by Plugins and Hotkeys.
      */
     private val navTree: List<Nav> = listOf(
-        Nav.Page(label("general"), "icons/lucide/sliders-horizontal.svg"),
-        Nav.Page(label("appearance"), "icons/lucide/palette.svg"),
+        Nav.Page(label("general"), "icons/lucide/general.svg"),
+        Nav.Page(label("appearance"), "icons/lucide/appearance.svg"),
         Nav.Group(
             label("group_translation"), listOf(
-                Nav.Page(label("services"), "icons/lucide/zap.svg"),
-                Nav.Page(label("behavior"), "icons/lucide/languages.svg"),
-                Nav.Page(label("languages"), "icons/lucide/globe.svg"),
+                Nav.Page(label("services"), "icons/lucide/service.svg"),
+                Nav.Page(label("behavior"), "icons/lucide/translate.svg"),
+                Nav.Page(label("languages"), "icons/lucide/language.svg"),
             )
         ),
         Nav.Group(
             label("group_interface"), listOf(
-                Nav.Page(label("layout"), "icons/lucide/layout-dashboard.svg"),
-                Nav.Page(label("popups"), "icons/lucide/message-square.svg"),
+                Nav.Page(label("layout"), "icons/lucide/layout.svg"),
+                Nav.Page(label("popups"), "icons/lucide/popup.svg"),
             )
         ),
         Nav.Page(label("hotkeys"), "icons/lucide/keyboard.svg"),
-        Nav.Page(label("plugins"), "icons/lucide/package.svg"),
-        Nav.Page(label("network"), "icons/lucide/link-2.svg"),
+        Nav.Page(label("plugins"), "icons/lucide/plugin.svg"),
+        Nav.Page(label("network"), "icons/lucide/network.svg"),
     )
 
     /** Every selectable page, flattened, in sidebar order. */

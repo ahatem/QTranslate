@@ -46,9 +46,9 @@ class DictionaryPanel(
     private var updatingFromState = false
 
     private val activeLinkIconBase: FlatSVGIcon =
-        iconManager.getIcon("icons/lucide/link-2.svg", 13, 13) as FlatSVGIcon
+        iconManager.getIcon("icons/lucide/network.svg", 13, 13) as FlatSVGIcon
     private val offUnlinkIconBase: FlatSVGIcon =
-        iconManager.getIcon("icons/lucide/unlink.svg", 13, 13) as FlatSVGIcon
+        iconManager.getIcon("icons/lucide/unpin.svg", 13, 13) as FlatSVGIcon
 
     private val autoSourceButton = JButton().apply {
         putClientProperty("JButton.buttonType", "toolBarButton")

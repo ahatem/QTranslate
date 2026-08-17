@@ -300,7 +300,7 @@ internal class SelectionTranslateButton(
     }
 
     private companion object {
-        const val ICON_PATH = "icons/lucide/languages.svg"
+        const val ICON_PATH = "icons/lucide/translate.svg"
         const val ICON_SIZE = 16
 
         /** Visible button body; the window is larger to leave room for the shadow. */

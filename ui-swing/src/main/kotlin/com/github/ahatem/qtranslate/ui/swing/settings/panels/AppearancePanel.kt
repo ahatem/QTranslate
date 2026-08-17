@@ -102,7 +102,7 @@ class AppearancePanel(
                 }
             }.also { editButton = it },
             pickerAction(
-                "icons/lucide/ellipsis-vertical.svg",
+                "icons/lucide/more.svg",
                 localizationManager.getString("settings_appearance.more_actions")
             ) { }.also { more ->
                 more.addActionListener { languageMenu().show(more, 0, more.height) }
