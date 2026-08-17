@@ -1,0 +1,100 @@
+package com.github.ahatem.qtranslate.ui.swing.shared.icon
+
+import kotlin.test.AfterTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+
+/**
+ * That choosing a set actually changes which file is loaded, and that a gap in it is covered.
+ *
+ * Run against the real resources rather than a stub, because the thing worth checking is not the
+ * `if` in [IconSet.path] but whether the files it names are genuinely on the classpath. A resolver
+ * that returns a tidy path to nothing loads a blank button, which is the failure this whole
+ * arrangement exists to avoid.
+ */
+class IconSetSwitchingTest {
+
+    @AfterTest
+    fun restoreDefault() = IconSet.use(IconSet.DEFAULT_ID)
+
+    private fun resourceExists(path: String) =
+        IconSet::class.java.classLoader.getResource(path) != null
+
+    @Test
+    fun `a partial set serves what it has and falls back for the rest`() {
+        IconSet.use("material")
+
+        // Material has this one, so it should win.
+        assertEquals("icons/material/copy.svg", IconSet.path("copy"))
+        // It has no 'edit', so Lucide covers it rather than leaving a blank.
+        assertEquals("icons/lucide/edit.svg", IconSet.path("edit"))
+    }
+
+    @Test
+    fun `every name resolves to a file that is really there, in every installed set`() {
+        val names = vocabulary()
+        assertTrue(names.size >= 25, "Vocabulary looks wrong: ${names.size} names")
+
+        IconSet.available().forEach { set ->
+            IconSet.use(set.id)
+            val broken = names.map { it to IconSet.path(it) }.filterNot { resourceExists(it.second) }
+            assertTrue(
+                broken.isEmpty(),
+                "Set '${set.id}' resolves names to files that do not exist: $broken"
+            )
+        }
+    }
+
+    @Test
+    fun `switching sets actually changes something`() {
+        // Guards the case where a set is registered but its folder is empty or misnamed: every
+        // lookup would fall back and the setting would appear to do nothing at all.
+        val names = vocabulary()
+        IconSet.use(IconSet.DEFAULT_ID)
+        val baseline = names.associateWith { IconSet.path(it) }
+
+        IconSet.available()
+            .filter { it.id != IconSet.DEFAULT_ID }
+            .forEach { set ->
+                IconSet.use(set.id)
+                val changed = names.count { IconSet.path(it) != baseline[it] }
+                assertTrue(changed > 0, "Choosing '${set.id}' changed no icon at all")
+            }
+    }
+
+    @Test
+    fun `the sets on offer are the ones that hold icons`() {
+        val offered = IconSet.available().map { it.id }
+        assertTrue(IconSet.DEFAULT_ID in offered, "The default set must always be offered")
+        // The folders waiting to be populated must not appear as choices that do nothing.
+        assertTrue("phosphor" !in offered, "An empty set was offered: phosphor")
+        assertTrue("heroicons" !in offered, "An empty set was offered: heroicons")
+    }
+
+    @Test
+    fun `an unknown set falls back rather than leaving no icons`() {
+        IconSet.use("does-not-exist")
+        assertEquals(IconSet.DEFAULT_ID, IconSet.activeId())
+        assertNotNull(IconSet::class.java.classLoader.getResource(IconSet.path("edit")))
+    }
+
+    /**
+     * The vocabulary, read from the `IconSet.path("...")` calls that define it.
+     *
+     * Read rather than listed, so this cannot drift from the real list, and taken from the source
+     * rather than exposed as test-only API on [IconSet], which would put a hole in production code
+     * for the sake of a test.
+     */
+    private fun vocabulary(): List<String> =
+        java.io.File("src/main/kotlin").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .flatMap { LOOKUP.findAll(it.readText()).map { m -> m.groupValues[1] } }
+            .distinct()
+            .toList()
+
+    private companion object {
+        val LOOKUP = Regex("""IconSet\.path\("([a-z0-9-]+)"\)""")
+    }
+}
