@@ -100,6 +100,7 @@ class SettingsDialog(
         ),
         Nav.Page(label("hotkeys"), "icons/lucide/keyboard.svg"),
         Nav.Page(label("plugins"), "icons/lucide/package.svg"),
+        Nav.Page(label("network"), "icons/lucide/link-2.svg"),
     )
 
     /** Every selectable page, flattened, in sidebar order. */
@@ -806,6 +807,9 @@ class SettingsDialog(
 
         label("popups") ->
             PopupsPanel(settingsStore, localizationManager)
+
+        label("network") ->
+            NetworkPanel(settingsStore, localizationManager)
 
         else -> JPanel()
     }
