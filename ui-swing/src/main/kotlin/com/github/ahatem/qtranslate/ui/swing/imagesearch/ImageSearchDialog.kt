@@ -598,7 +598,7 @@ class ImageSearchDialog(
     }
 
     private fun saveGeometry() {
-        currentState?.onSavePosition?.invoke(Position(location.x.coerceAtLeast(0), location.y.coerceAtLeast(0)))
+        currentState?.onSavePosition?.invoke(Position(location.x, location.y))
         currentState?.onSaveSize?.invoke(Size(size.width, size.height))
     }
 

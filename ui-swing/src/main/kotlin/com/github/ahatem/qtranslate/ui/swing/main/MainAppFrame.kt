@@ -71,6 +71,8 @@ import javax.imageio.ImageIO
 import javax.swing.*
 import kotlin.system.exitProcess
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.util.connectedScreenBounds
+import com.github.ahatem.qtranslate.ui.swing.shared.util.isPositionReachable
 
 class MainAppFrame(
     private val mainStore: MainStore,
@@ -425,15 +427,13 @@ class MainAppFrame(
                 )
             }
 
-            val savedPosition = config.mainWindowPosition
-            if (savedPosition != null) {
-                setLocation(savedPosition.x, savedPosition.y)
-            }
             iconImages = loadIcons()
 
             mainContentView.render(mainStore.state.value, settingsStore.state.value)
             pack()
-            if (config.mainWindowPosition == null) setLocationRelativeTo(null)
+            // After pack, because deciding whether a position is still reachable needs the size
+            // the window actually ended up with.
+            restorePosition(config.mainWindowPosition)
 
             // Enforce Input → Output → Extra (→ Input) Tab cycle across all layouts.
             // In Compact layout the policy also switches tabs so hidden panes become
@@ -1270,10 +1270,30 @@ class MainAppFrame(
             SettingsIntent.ToggleSetting {
                 it.copy(
                     mainWindowSize = Size(s.width, s.height),
-                    mainWindowPosition = Position(p.x.coerceAtLeast(0), p.y.coerceAtLeast(0))
+                    mainWindowPosition = Position(p.x, p.y)
                 )
             }
         )
+    }
+
+    /**
+     * Puts the window back where it was left, unless that is nowhere the user could see it.
+     *
+     * A position saved on a display that is no longer attached restores a window that is running
+     * and focusable and entirely invisible, which is indistinguishable from the application having
+     * failed to start.
+     */
+    private fun restorePosition(saved: Position?) {
+        if (saved == null) {
+            setLocationRelativeTo(null)
+            return
+        }
+        if (isPositionReachable(Rectangle(saved.x, saved.y, width, height), connectedScreenBounds())) {
+            setLocation(saved.x, saved.y)
+        } else {
+            logger.info("Saved window position (${saved.x}, ${saved.y}) is off every connected display; centring instead")
+            setLocationRelativeTo(null)
+        }
     }
 
     /**

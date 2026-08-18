@@ -27,6 +27,8 @@ import javax.swing.border.EmptyBorder
 import kotlin.math.abs
 import kotlin.math.max
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.util.connectedScreenBounds
+import com.github.ahatem.qtranslate.ui.swing.shared.util.isPositionReachable
 
 
 class QuickTranslateDialog(
@@ -583,7 +585,12 @@ class QuickTranslateDialog(
 
             setLocation(x, y)
         } else {
-            location = config.lastKnownPosition.toPoint()
+            val saved = config.lastKnownPosition
+            if (isPositionReachable(Rectangle(saved.x, saved.y, width, height), connectedScreenBounds())) {
+                location = saved.toPoint()
+            } else {
+                setLocationRelativeTo(owner)
+            }
         }
     }
 

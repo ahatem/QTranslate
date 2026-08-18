@@ -19,6 +19,8 @@ import javax.swing.*
 import javax.swing.border.EmptyBorder
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ServiceInfoRenderer
+import com.github.ahatem.qtranslate.ui.swing.shared.util.connectedScreenBounds
+import com.github.ahatem.qtranslate.ui.swing.shared.util.isPositionReachable
 
 /**
  * Floating, always-on-top dictionary popup.
@@ -550,7 +552,7 @@ class QuickDictionaryDialog(
         focusableWindowState = false
         val pos = location
         val sz = size
-        currentState?.onSavePosition?.invoke(Position(pos.x.coerceAtLeast(0), pos.y.coerceAtLeast(0)))
+        currentState?.onSavePosition?.invoke(Position(pos.x, pos.y))
         currentState?.onSaveSize?.invoke(Size(sz.width, sz.height))
     }
 
@@ -609,7 +611,12 @@ class QuickDictionaryDialog(
         }
         when {
             !config.autoPositionEnabled -> {
-                location = config.lastKnownPosition.toPoint()
+                val saved = config.lastKnownPosition
+                if (isPositionReachable(Rectangle(saved.x, saved.y, width, height), connectedScreenBounds())) {
+                    location = saved.toPoint()
+                } else {
+                    setLocationRelativeTo(owner)
+                }
             }
             !config.positionNearMouse -> {
                 // Auto-triggered from translation — position adjacent to the owner window
@@ -687,7 +694,7 @@ class QuickDictionaryDialog(
                 isDragging = false
                 val pos = location
                 currentState?.onSavePosition?.invoke(
-                    Position(pos.x.coerceAtLeast(0), pos.y.coerceAtLeast(0))
+                    Position(pos.x, pos.y)
                 )
                 if (!isPinned) startIdleHide()
             }

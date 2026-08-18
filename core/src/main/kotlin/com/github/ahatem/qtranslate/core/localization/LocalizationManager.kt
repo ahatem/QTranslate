@@ -25,6 +25,9 @@ class LocalizationManager(
     // @Volatile ensures EDT always sees the latest reference written by IO dispatcher.
     @Volatile private var activeTranslations: Map<String, String> = emptyMap()
 
+    /** Keys already reported as unformattable, so one bad string is logged once, not per repaint. */
+    private val brokenStringsReported = ConcurrentHashMap.newKeySet<String>()
+
     private val _activeLanguage = MutableStateFlow(LanguageCode.ENGLISH)
     val activeLanguageFlow: StateFlow<LanguageCode> = _activeLanguage.asStateFlow()
     val activeLanguage: LanguageCode get() = _activeLanguage.value
@@ -151,6 +154,10 @@ class LocalizationManager(
         languageMetaCache.remove(code)
         coverageCache.remove(code)
 
+        // A language just edited may have had its broken string fixed, and the report is only
+        // useful if the fixed version can earn a new one.
+        brokenStringsReported.clear()
+
         // Strings are served from activeTranslations, a snapshot taken when the language was
         // loaded, so clearing the caches alone changed nothing on screen. Someone editing the
         // language they were running saw none of their own work until they switched away and
@@ -190,12 +197,56 @@ class LocalizationManager(
     // String resolution
     // -------------------------------------------------------------------------
 
+    /**
+     * The string for [key] in the active language, formatted with [args] when there are any.
+     *
+     * ### Why the formatting is guarded
+     * `format` throws when a string's placeholders do not match the arguments given, and these
+     * strings come from files anyone can write. The language editor warns about a mismatch but
+     * deliberately does not block one, and a file dropped into `languages/` by hand never passes
+     * the editor at all. It does not even take a mistake: a translator writing an ordinary percent
+     * sign, as in "(100%)", produces an unknown conversion. Unguarded, that throws from the middle
+     * of building whatever screen asked for the string, so one careless character in one
+     * translation takes out a window.
+     *
+     * A translation that cannot be formatted therefore falls back to the English text, and English
+     * that cannot be formatted either falls back to the unformatted string. A label reading "%s" is
+     * a bug report someone can act on; a stack trace out of a paint call is a broken application.
+     */
     fun getString(key: String, vararg args: Any): String {
         val raw = activeTranslations[key]
             ?: translationCache[LanguageCode.ENGLISH]?.get(key)
             ?: embeddedFallback[key]
             ?: key
-        return if (args.isEmpty()) raw else raw.format(*args)
+        if (args.isEmpty()) return raw
+
+        formatOrNull(raw, args)?.let { return it }
+        reportBrokenString(key, raw)
+
+        // English is the one text whose placeholders are checked by a test, so it is worth trying
+        // before giving up on formatting entirely.
+        val english = embeddedFallback[key]
+        if (english != null && english != raw) {
+            formatOrNull(english, args)?.let { return it }
+        }
+        return raw
+    }
+
+    private fun formatOrNull(template: String, args: Array<out Any>): String? =
+        runCatching { template.format(*args) }.getOrNull()
+
+    /**
+     * Logs a broken string the first time it is seen.
+     *
+     * [getString] is called while building and repainting the interface, so logging on every call
+     * would fill the log file with a single bad label and bury whatever the user was reporting.
+     */
+    private fun reportBrokenString(key: String, template: String) {
+        if (!brokenStringsReported.add(key)) return
+        logger.warn(
+            "Localization: '$key' could not be formatted in '${_activeLanguage.value.tag}' " +
+                "and fell back to English. Its placeholders do not match the arguments: \"$template\""
+        )
     }
 
     fun getLanguageMeta(language: LanguageCode): LocalizedLanguageMeta? =
