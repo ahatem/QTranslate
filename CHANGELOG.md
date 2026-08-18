@@ -9,6 +9,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-08-18
+
 ### Added
 - **Choose how the icons look.** Settings → Appearance offers five icon sets: Lucide, Material Symbols, Phosphor, Tabler and Heroicons. A set that does not draw a particular icon falls back to Lucide, so a partial one still works, and your own set can be added as a folder of SVGs under `icons/` beside the languages and themes folders. Restart to change the icons already on screen
 - **Network settings.** A new page in Settings covering how QTranslate reaches the internet, in one place rather than once per plugin. Send everything through an **HTTP proxy**, with a username and password if yours asks for them; the password is kept in the secret store beside your API keys rather than in the settings file. Set how long to wait — for the whole request, for connecting, and between pieces of data — with an explanation beside each, since the three sound alike and are not: the whole-request limit contains the other two rather than adding to them, and the page warns you when it is set so low that one of them can never take effect. Give a **particular service its own longer timeout**, which is what a local AI model needs: it can think for minutes where a cloud service would be considered dead. Choose whether failed requests are **retried**, how many times, and how long to wait first. Cap how many **connections** are opened to one service at once
@@ -33,6 +35,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - **Settings says when a translation is unfinished**, and how much of it is. Any string a translation has not covered falls back to English, which keeps a half-finished translation usable and hides its gaps: a language could be a third English on screen with nothing anywhere admitting it
 - **A translation editor**, so working on a language no longer means finding the data directory and editing a file by hand. It lists every string the application asks for with its English text beside your translation, filters to the ones still missing, marks what is done, and can fill in a suggestion from your active translation service for you to check and correct. Language details and starting a new translation from scratch are there too. Files are written to your own languages folder in the same shape as the English one, so a saved translation reads like a hand-written file and can be sent on or opened as a pull request unchanged
 - **Import a translation someone sent you**, and delete one you no longer want, from Settings → Appearance. A `.toml` file had to be copied into the languages folder by hand, and a translation could only be removed by opening it for editing first. The file is parsed before it is copied and refused if it will not load, so an import cannot leave a language that fails quietly later. Built-in translations cannot be deleted, since they are read from inside the application
+- **A log file you can attach to a bug report.** QTranslate now writes its log to `logs/qtranslate.log` in the app data folder, rotating daily or at 10 MB and keeping a fortnight of it. Everything previously went to a standard output that a double-clicked application discards, so when something went wrong there was nothing to send
 
 ### Changed
 - ⚠️ **Plugin API v2. Third-party plugins built against v1 are refused at load and must be rebuilt.** There are no known third-party plugins, so in practice this affects nobody today, but it breaks a documented contract and is stated plainly for that reason. All bundled plugins are migrated, and existing service selections are converted automatically on first launch.
@@ -87,6 +90,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - Line and paragraph spacing in the text panes opened up from Swing's default, which sets lines directly against one another and is tiring to read a paragraph in
 - Vision OCR refused to run against a local AI endpoint, reporting a missing API key that a local server does not need
 - Focusing a field in the document dialog showed a focus ring clipped along the edge of the panel holding it
+- **A single translated string could take down a window.** Every localized string is run through a formatter, and a translation whose placeholders did not match the values passed to it threw from the middle of building whatever screen had asked for it. It did not take a mistake: writing an ordinary percent sign, as in "(100%)", was enough, and the translation editor's own mismatch check does not flag that, because it looks for a letter after the percent. A string that cannot be formatted now falls back to the English text, and the failure is recorded once in the log rather than on every repaint
+- **A window on a second monitor no longer fails when its position is saved.** A display arranged to the left of or above the main one occupies negative coordinates, which the stored position type rejected outright. Dragging the Quick Translate popup onto such a display and releasing it left the popup stuck open, because the error interrupted the code that restarts its auto-hide, and hiding it lost the window size. Positions on those displays are now kept as they are rather than clamped to zero, which had been moving windows back to the main display on the next launch
+- **A window saved on a monitor that is no longer plugged in comes back into view**, instead of being restored somewhere invisible and looking as though the application had failed to start. A window deliberately pushed half off the edge stays where it was put
+- **The keyboard shortcut chips look the same on every platform.** They asked for a generic monospaced font, a name each operating system maps to a different face, so an identical shortcut row rendered differently on Windows, macOS and Linux. An unassigned shortcut also drew no chip at all and read as loose text rather than an empty key
 
 ### Performance
 - Font fallback scanned the remaining text again for every font run, making a document with many scripts quadratic in allocation
@@ -94,6 +101,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - Thumbnails from an abandoned image search were fetched to completion, so four terms typed quickly downloaded four full grids with the wanted one last
 - The text pane allocated a font, a string and an insets object on every caret blink
 - **Right-to-left text lays out far faster.** Setting the direction rewrote attributes across every character in the document and forced a full re-layout; it now touches each paragraph once and skips those already correct. Laying out a large Arabic document falls from roughly 200ms to about 1ms, and a page-sized one from 40ms to nothing measurable
+- **The download is roughly 3 MB smaller.** A browser component that nothing used pulled in a platform-specific library, and both were being packaged into every build
 
 ---
 
@@ -254,7 +262,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-[Unreleased]: https://github.com/ahatem/QTranslate/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/ahatem/QTranslate/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/ahatem/QTranslate/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/ahatem/QTranslate/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/ahatem/QTranslate/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/ahatem/QTranslate/compare/v1.1.0...v1.2.0
