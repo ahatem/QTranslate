@@ -78,7 +78,3 @@ logs/
 # =============================================================================
 # Add local IDE or tool config files that should not be committed
 local.properties
-
-
-old-core/.claude/
-launcher.ps1
