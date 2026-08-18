@@ -348,40 +348,92 @@ class KeyboardPanel(
 
     /**
      * A single keyboard key rendered as a rounded-rectangle badge.
-     *
-     * Extends [JLabel] so all text is drawn by Swing's own text pipeline (correct
-     * ClearType / LCD hints, FlatLaf rendering context) instead of a raw
-     * [Graphics2D.drawString] call, which skips those hints and renders poorly.
-     * The rounded background is painted in [paintComponent] *before* calling super,
-     * so the label's text lands on top of it.
+     * Multi-platform friendly + FlatLaf compatible.
+     * Clean single-border style (no nested box effect).
      */
     private inner class KeyChip(label: String, private val muted: Boolean) : JLabel(label) {
-        private val arc = 6
+
+        private val arc = 8
+        private val borderAlpha = if (muted) 90 else 150
 
         init {
-            isOpaque          = false
+            isOpaque = false
             horizontalAlignment = CENTER
-            font      = Font(Font.MONOSPACED, if (muted) Font.ITALIC else Font.PLAIN,
-                             this@KeyboardPanel.font.size - 1)
-            foreground = if (muted) UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
-                         else       UIManager.getColor("Label.foreground")          ?: Color.BLACK
-            border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
+            verticalAlignment = CENTER
+
+            // Multi-platform mono font selection
+            font = createMonoFont(
+                size = this@KeyboardPanel.font.size - 1,
+                style = if (muted) Font.ITALIC else Font.PLAIN
+            )
+
+            foreground = if (muted) {
+                UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
+            } else {
+                UIManager.getColor("Label.foreground") ?: Color.BLACK
+            }
+
+            // Balanced padding
+            border = BorderFactory.createEmptyBorder(4, 9, 4, 9)
+        }
+
+        private fun createMonoFont(size: Int, style: Int): Font {
+            val candidates = arrayOf(
+                "JetBrains Mono",
+                "Cascadia Mono",
+                "Cascadia Code",
+                "Menlo",
+                "Monaco",
+                "Consolas",
+                "DejaVu Sans Mono",
+                "Liberation Mono",
+                "Courier New",
+                "Courier",
+                Font.MONOSPACED
+            )
+
+            for (name in candidates) {
+                val f = Font(name, style, size)
+                if (f.family != "Dialog") {
+                    return f
+                }
+            }
+            return Font(Font.MONOSPACED, style, size)
         }
 
         override fun paintComponent(g: Graphics) {
-            if (!muted) {
-                val g2 = g as Graphics2D
+            val g2 = g.create() as Graphics2D
+            try {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-                val chipBg     = UIManager.getColor("Button.background")     ?: Color(235, 235, 235)
-                val chipBorder = UIManager.getColor("Component.borderColor") ?: Color(180, 180, 180)
-                g2.color = chipBg
+                g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE)
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+
+                val bg = if (muted) {
+                    UIManager.getColor("Panel.background")?.let {
+                        Color(it.red, it.green, it.blue, 35)
+                    } ?: Color(0, 0, 0, 20)
+                } else {
+                    UIManager.getColor("Button.background") ?: Color(235, 235, 235)
+                }
+
+                val borderColor = (UIManager.getColor("Component.borderColor") ?: Color(160, 160, 160))
+                    .let { Color(it.red, it.green, it.blue, borderAlpha) }
+
+                // Background
+                g2.color = bg
                 g2.fillRoundRect(0, 0, width, height, arc, arc)
-                g2.color = Color(chipBorder.red, chipBorder.green, chipBorder.blue, 180)
+
+                // Single clean border
+                g2.color = borderColor
                 g2.stroke = BasicStroke(1f)
                 g2.drawRoundRect(0, 0, width - 1, height - 1, arc, arc)
+
+            } finally {
+                g2.dispose()
             }
-            super.paintComponent(g)   // Swing text pipeline handles the label text
+
+            // Let Swing + FlatLaf handle the text rendering
+            super.paintComponent(g)
         }
     }
 
