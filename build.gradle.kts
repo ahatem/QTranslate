@@ -81,6 +81,40 @@ tasks.register<JavaExec>("smokeTestAllPlugins") {
     systemProperty("java.awt.headless", "true")
 }
 
+val screenshotDirectory = layout.buildDirectory.dir("screenshots")
+
+// The same layout the portable bundle ships. Without `languages/` the localizer falls back to the
+// embedded English strings, so a right-to-left interface never actually loads.
+val prepareScreenshotAppData by tasks.registering(Sync::class) {
+    dependsOn(bundledPlugins.map { "${it.projectPath}:jar" })
+    into(screenshotDirectory.map { it.dir("app-data") })
+    into("plugins") {
+        bundledPlugins.forEach { plugin ->
+            from(plugin.thinArchiveFile) { rename { plugin.bundledFileName } }
+        }
+    }
+    into("languages") { from(rootProject.file("languages")) }
+    into("themes") { from(rootProject.file("themes")) }
+}
+
+tasks.register<JavaExec>("captureScreenshots") {
+    group = "documentation"
+    description = "Captures screenshots of the running application for the README."
+    dependsOn(prepareScreenshotAppData, ":app:classes")
+    classpath(
+        appProject.layout.buildDirectory.dir("classes/kotlin/main"),
+        appProject.layout.buildDirectory.dir("resources/main"),
+        appProject.configurations.named("runtimeClasspath")
+    )
+    mainClass.set("com.github.ahatem.qtranslate.app.screenshots.ScreenshotMainKt")
+    val root = screenshotDirectory.get().asFile
+    args(root.resolve("app-data").absolutePath, root.absolutePath)
+    // Scaling is driven by the Configuration each scene writes (uiScale), so the app zooms its own
+    // fonts, icons and window the way a high-density display would. Needs a display — this drives
+    // the actual application window.
+    systemProperty("java.awt.headless", "false")
+}
+
 fun Zip.configurePortableBundle(plugins: List<BundledPlugin>) {
     group = "distribution"
     description = "Builds the portable QTranslate distribution."
