@@ -7,6 +7,7 @@
 **The translation tool that Questsoft abandoned. Rebuilt from scratch. Built to last.**
 
 [![Release](https://img.shields.io/github/v/release/ahatem/QTranslate?style=flat-square&color=4A90D9&label=latest)](https://github.com/ahatem/QTranslate/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/ahatem/QTranslate/total?style=flat-square&color=4A90D9&label=downloads)](https://github.com/ahatem/QTranslate/releases)
 [![License](https://img.shields.io/github/license/ahatem/QTranslate?style=flat-square)](LICENSE)
 [![Build](https://img.shields.io/github/actions/workflow/status/ahatem/QTranslate/ci.yml?branch=develop&style=flat-square&label=build)](https://github.com/ahatem/QTranslate/actions)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
