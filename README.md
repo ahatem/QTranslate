@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/app-icon.png" alt="QTranslate" width="96" height="96">
+<img src="docs/images/app-icon.png" alt="QTranslate" width="128" height="128">
 
 # QTranslate
 

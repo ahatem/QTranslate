@@ -4,7 +4,7 @@ Every image here is a capture of the running application — real plugins, real 
 requests, real dictionary lookups. Nothing is staged or mocked up, and nothing is an upscale:
 they are rendered at twice the size natively, so they stay sharp on high-density displays.
 
-The six images one level up (`docs/images/screenshot-*.png`) are the subset the README uses.
+The eight images one level up (`docs/images/screenshot-*.png`) are the subset the README uses.
 This folder is the full set, and is what the website gallery draws from.
 
 ## The set
