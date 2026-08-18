@@ -21,14 +21,18 @@ This folder is the full set, and is what the website gallery draws from.
 | `rtl-main`, `rtl-compact`, `rtl-dictionary` | The Arabic interface, mirrored right to left |
 | `history` | The translation history |
 | `document-translation` | Translating a document while preserving its structure |
-| `settings-*-dark`, `settings-*-light` | All eight settings pages, in both themes |
+| `settings-appearance-*`, `settings-behavior-*`, `settings-general-*`, `settings-hotkeys-*`, `settings-languages-*`, `settings-layout-*`, `settings-network-*`, `settings-plugins-*`, `settings-popups-*`, `settings-services-*` | All ten settings pages, in both themes |
 
 ## Regenerating
 
 These are produced by a capture harness that drives the real application window and paints it to
-a PNG. The harness is kept out of the repository — it exists to maintain this folder, not to ship
-with the app — so regenerating them is a maintainer task rather than something a contributor
-needs to run.
+a PNG. The harness lives in the repository under
+`app/src/main/kotlin/com/github/ahatem/qtranslate/app/screenshots/` — it exists to maintain this
+folder, not to ship with the app — and is run with:
 
-If a screenshot is out of date, open an issue rather than replacing it by hand: a hand-taken
+```
+gradlew :app:captureScreenshots
+```
+
+If a screenshot is out of date, re-run the harness rather than replacing it by hand: a hand-taken
 screenshot will not match the rest of the set on scale, window size or content.
