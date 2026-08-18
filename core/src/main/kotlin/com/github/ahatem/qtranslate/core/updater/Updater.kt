@@ -80,6 +80,29 @@ class Updater(
     // Internal
     // -------------------------------------------------------------------------
 
+
+    /**
+     * The asset to offer for download, or the release page when none can be identified.
+     *
+     * Falling back to the page rather than to some asset is the point. An unrecognised name is far
+     * more likely to be one of the eleven plugin JARs than the application, and handing someone a
+     * plugin while calling it an update is worse than asking them to choose.
+     */
+    private fun downloadUrlFor(response: GitHubReleaseResponse): String? {
+        val chosen = ReleaseAssets.selectDownload(
+            assetNames = response.assets.map { it.name },
+            onWindows = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
+        )
+        if (chosen == null) {
+            logger.warn(
+                "No recognisable application asset in ${response.tagName} " +
+                    "(saw ${response.assets.size}); offering the release page instead"
+            )
+            return response.htmlUrl.takeIf { it.isNotBlank() }
+        }
+        return response.assets.first { it.name == chosen }.downloadUrl
+    }
+
     private suspend fun fetchRelease(): Result<VersionInfo, UpdaterError> =
         try {
             val response: GitHubReleaseResponse = httpClient.get(releasesUrl) {
@@ -92,7 +115,7 @@ class Updater(
                     versionTag   = response.tagName,
                     releaseName  = response.name,
                     releaseNotes = response.releaseNotes,
-                    downloadUrl  = response.assets.firstOrNull()?.downloadUrl,
+                    downloadUrl  = downloadUrlFor(response),
                     releaseUrl   = response.htmlUrl.takeIf { it.isNotBlank() }
                 )
             )

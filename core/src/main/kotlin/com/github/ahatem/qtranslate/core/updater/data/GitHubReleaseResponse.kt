@@ -21,5 +21,6 @@ internal data class GitHubReleaseResponse(
 
 @Serializable
 internal data class GitHubAsset(
+    @SerialName("name") val name: String = "",
     @SerialName("browser_download_url") val downloadUrl: String
 )
