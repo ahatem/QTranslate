@@ -18,7 +18,7 @@ object AppConstants {
      * would have shipped an app that compares its own 1.3.0 against the 1.4.0 release it came
      * from and tells every new user an update is waiting.
      */
-    const val APP_VERSION = "1.4.0"
+    const val APP_VERSION = "1.4.1"
 
     // ============================================================
     // Timing

@@ -9,6 +9,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.1] — 2026-08-18
+
+### Fixed
+- **The update dialog offered a plugin, not the application.** Clicking **Download** handed over `ai-plugin-2.0.0.jar` — the API sorts release assets by name and every release ships a JAR for each bundled plugin, so the "first asset" was always a plugin. Downloads are now matched by name: Windows gets the self-contained build, everywhere else the portable archive, and the bare application JAR is the last resort. Nothing ever falls back to "the first asset" again, because an unrecognisable name is far likelier to be a plugin than the application; a release that does not resolve offers the release page instead. The old behaviour had been there for at least two releases
+- The **app icon set was missing from the downloads.** Releases ship the languages and themes folders beside the JAR but not the icon sets, so every released build could only ever offer the bundled Lucide set. The portable ZIP and the Windows package now carry the four extra sets — Material Symbols, Tabler, Phosphor and Heroicons — plus the folder of licenses for every bundled font, icon set and theme
+
+### Changed
+- **The application icon is a single multi-resolution set** with sizes from 16 to 1024 pixels, named `icon-N.png`. The window and the tray load it through a multi-resolution image so Windows picks the size that suits its context — a tray icon that used to be scaled up from one small copy is now drawn at a native size
+
 ## [1.4.0] — 2026-08-18
 
 ### Added
@@ -262,7 +271,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-[Unreleased]: https://github.com/ahatem/QTranslate/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/ahatem/QTranslate/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/ahatem/QTranslate/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/ahatem/QTranslate/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/ahatem/QTranslate/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/ahatem/QTranslate/compare/v1.2.0...v1.2.1
