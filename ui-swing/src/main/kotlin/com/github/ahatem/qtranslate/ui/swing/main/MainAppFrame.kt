@@ -1148,15 +1148,16 @@ class MainAppFrame(
         if (!SystemTray.isSupported()) return
 
         val tray = SystemTray.getSystemTray()
-        val image = try {
-            ImageIO.read(javaClass.classLoader.getResourceAsStream("icons/app/32.png"))
-                ?: throw IllegalStateException("Tray icon not found")
-        } catch (e: Exception) {
-            logger.error("Failed to load tray icon", e)
+        val iconsList = loadIcons()
+
+        if (iconsList.isEmpty()) {
+            logger.error("Failed to load any tray icons")
             return
         }
 
-        trayIcon = TrayIcon(image, "QTranslate").apply {
+        val multiResImage = java.awt.image.BaseMultiResolutionImage(*iconsList.toTypedArray())
+
+        trayIcon = TrayIcon(multiResImage, "QTranslate").apply {
             isImageAutoSize = true
             toolTip = "QTranslate"
 
@@ -1435,9 +1436,9 @@ class MainAppFrame(
     }
 
     private fun loadIcons(): List<Image> {
-        return listOf(16, 32, 64, 128).mapNotNull { size ->
+        return listOf(16, 20, 24, 32, 48, 64, 128, 256, 512).mapNotNull { size ->
             try {
-                ImageIO.read(javaClass.classLoader.getResourceAsStream("icons/app/$size.png"))
+                ImageIO.read(javaClass.classLoader.getResourceAsStream("icons/app/icon-$size.png"))
             } catch (e: Exception) {
                 logger.warn("Failed to load window icon ($size): ${e.message}")
                 null

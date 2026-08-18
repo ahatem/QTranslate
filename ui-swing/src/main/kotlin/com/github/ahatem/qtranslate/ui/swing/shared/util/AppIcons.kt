@@ -20,7 +20,7 @@ object AppIcons {
         listOf(16, 32, 64, 128).mapNotNull { size ->
             runCatching {
                 AppIcons::class.java.classLoader
-                    .getResourceAsStream("icons/app/$size.png")
+                    .getResourceAsStream("icons/app/icon-$size.png")
                     ?.use(ImageIO::read)
             }.getOrNull()
         }
