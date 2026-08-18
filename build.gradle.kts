@@ -99,6 +99,12 @@ fun Zip.configurePortableBundle(plugins: List<BundledPlugin>) {
         from(rootProject.file("themes")) {
             into("themes")
         }
+        from(rootProject.file("icons")) {
+            into("icons")
+        }
+        from(rootProject.file("THIRD_PARTY_LICENSES")) {
+            into("THIRD_PARTY_LICENSES")
+        }
         plugins.forEach { plugin ->
             from(plugin.thinArchiveFile) {
                 into("plugins")

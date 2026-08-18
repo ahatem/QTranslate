@@ -169,11 +169,20 @@ QTranslate/
   │     └── ...
   ├── themes/
   │     └── kokedera.theme.json       ← community theme included; drop more .theme.json files here
-  └── languages/
-        ├── ar-SA.toml
-        ├── zh-CN.toml
-        ├── de-DE.toml
-        └── ...
+  ├── languages/
+  │     ├── ar-SA.toml
+  │     ├── zh-CN.toml
+  │     ├── de-DE.toml
+  │     └── ...
+  ├── icons/
+  │     ├── material-symbols/
+  │     ├── tabler/
+  │     ├── phosphor/
+  │     └── heroicons/                ← extra icon sets; drop a set's folder in to add it
+  └── THIRD_PARTY_LICENSES/
+        ├── Lucide-ISC.txt
+        ├── MaterialSymbols-Apache-2.0.txt
+        └── ...                       ← licenses for every bundled font, icon set and theme
 ```
 
 Bundled plugins: Google, Bing, AI Services, DeepL, Mozhi, MyMemory, LibreTranslate Local, Reverso, Yandex Web, Wikimedia Reference, and CSV Dictionary. Configure a service from the service selector or **Settings → Plugins**.

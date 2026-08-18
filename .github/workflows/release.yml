@@ -130,6 +130,8 @@ jobs:
           Copy-Item portable-distribution/QTranslate/plugins windows-package/QTranslate/plugins -Recurse
           Copy-Item portable-distribution/QTranslate/languages windows-package/QTranslate/languages -Recurse
           Copy-Item portable-distribution/QTranslate/themes windows-package/QTranslate/themes -Recurse
+          Copy-Item portable-distribution/QTranslate/icons windows-package/QTranslate/icons -Recurse
+          Copy-Item portable-distribution/QTranslate/THIRD_PARTY_LICENSES windows-package/QTranslate/THIRD_PARTY_LICENSES -Recurse
           Compress-Archive -Path windows-package/QTranslate -DestinationPath "QTranslate-$version-windows-x64.zip"
 
       - name: Upload Windows package
