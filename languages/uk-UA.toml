@@ -1,0 +1,728 @@
+# ===================================================================
+# META SECTION
+# ===================================================================
+[meta]
+name = "Ukrainian"
+native_name = "Українська"
+locale = "uk-UA"
+translators = ["AOgit"]
+rtl = false
+
+# ===================================================================
+# COMMON STRINGS
+# ===================================================================
+[common]
+ok = "OK"
+cancel = "Скасувати"
+apply = "Застосувати"
+save = "Зберегти"
+close = "Закрити"
+copy = "Копіювати"
+version = "Версія %s"
+listen = "Прослухати"
+stop = "Стоп"
+pin = "Закріпити"
+unpin = "Відкріпити"
+loading = "Завантаження..."
+none = "Немає"
+browse = "Огляд..."
+new = "Створити..."
+configure = "Налаштувати"
+clear_all = "Очистити все"
+auto_detect = "Автовизначення"
+
+# ===================================================================
+# MAIN APPLICATION WINDOW
+# ===================================================================
+[main_window]
+status_format = "Використовується %s: %s → %s"
+no_translator = "Перекладач не вибрано"
+drop_hint = "Перетягніть зображення або документ для перекладу"
+no_service_message = "Службу перекладу не налаштовано."
+no_service_action = "Відкрити налаштування служб"
+
+[main_window_history_bar]
+backward_tooltip = "Назад в історії перекладів"
+forward_tooltip = "Вперед в історії перекладів"
+image_translate_tooltip = "Захопити та перекласти текст з області екрана"
+document_translate_tooltip = "Перекласти документ зі збереженням форматування"
+
+[main_window_language_bar]
+clear_tooltip = "Очистити текст вводу"
+swap_languages_tooltip = "Змінити напрямок перекладу"
+translate_button = "Перекласти"
+cancel_button = "Скасувати"
+
+[main_window_editor_context_menu]
+spelling_suggestions = "Варіанти виправлення"
+undo = "@common.undo"
+redo = "@common.redo"
+cut = "@common.cut"
+cut_all = "@common.cut_all"
+copy = "@common.copy"
+copy_all = "@common.copy_all"
+paste = "@common.paste"
+translate = "@main_window_language_bar.translate_button"
+listen = "@common.listen"
+select_all = "@common.select_all"
+clear = "@common.clear_all"
+spell_check = "Перевірка орфографії"
+find_in_dictionary = "Знайти в словнику"
+search_images = "Шукати зображення"
+set_as_input = "Встановити як джерело"
+input_hint = "Введіть текст для перекладу..."
+output_hint = "Переклад з'явиться тут…"
+
+
+[main_window_main_menu]
+layout_presets = "Пресети макета"
+layout_preset_classic = "Класичний"
+layout_preset_side_by_side = "Поруч"
+layout_preset_compact = "Компактний"
+instant_translation = "Миттєвий переклад"
+show_extra_output = "Показувати додатковий результат"
+spell_check = "Перевірка орфографії"
+options_submenu = "Опції"
+show_history_bar = "Показати панель історії"
+show_language_bar = "Показати панель мов"
+show_services_panel = "Показати панель служб"
+show_status_bar = "Показати рядок стану"
+settings = "Налаштування..."
+translate_document = "Перекласти документ..."
+help_submenu = "Довідка"
+how_to_use = "Як користуватися"
+contact_us = "Зв'язатися з нами"
+auto_check_for_updates = "Автоматично перевіряти оновлення"
+check_for_updates = "Перевірити оновлення"
+about_qtranslate = "Про QTranslate"
+exit = "Вихід"
+
+[document_translation]
+title = "Переклад документа"
+input_file = "Вихідний документ"
+output_file = "Перекладений документ"
+translate = "Перекласти"
+open = "Відкрити"
+open_failed = "Не вдалося відкрити перекладений документ: %s"
+ready = "Виберіть файл DOCX, PDF, TXT, SRT або VTT."
+pdf_mode = "Вивід у PDF"
+layout_aware = "Зберігати вигляд сторінки"
+layout_aware_description = "Найкраще можливе збереження — вигляд зберігається там, де це можливо. Перекладений текст залишається чітким і виділюваним."
+text_only = "Лише текст"
+text_only_description = "Витягує та перекладає текст, що читається, у файл TXT у кодуванні UTF-8, з розділенням за сторінками."
+choose_input = "Виберіть документ для перекладу."
+choose_output = "Виберіть, куди зберегти перекладений документ."
+preparing = "Підготовка документа..."
+translating = "Переклад фрагмента %d з %d"
+completed = "Переклад збережено в %s"
+cancelled = "Переклад скасовано."
+
+[main_window_status_bar]
+ready_message = "Готово"
+notifications_tooltip = "Сповіщення"
+notifications_empty_tooltip = "Немає нових сповіщень"
+error_detail_error = "Помилка"
+error_detail_warning = "Попередження"
+error_detail_copy = "Копіювати"
+error_detail_copied = "Скопійовано!"
+
+# ===================================================================
+# SYSTEM TRAY MENU
+# ===================================================================
+[system_tray_menu]
+show_application = "Показати QTranslate"
+recognize_text = "Розпізнавання тексту (OCR)"
+dictionary = "Словник"
+image_search = "Пошук зображень"
+history = "Історія"
+settings = "@main_window_main_menu.settings"
+enable_hotkeys = "Увімкнути глобальні клавіші"
+exit = "@main_window_main_menu.exit"
+
+# ===================================================================
+# SETTINGS DIALOG (SHELL & NAVIGATION)
+# ===================================================================
+[settings_dialog]
+title = "Налаштування"
+saving = "Збереження..."
+save_failed_title = "Помилка збереження"
+reset_defaults_button = "Скинути до типових"
+reset_confirmation_title = "Скидання налаштувань"
+reset_confirmation_message = "Скинути всі налаштування до типових значень?\nЦю дію неможливо скасувати."
+search_placeholder = "Фільтр налаштувань..."
+search_no_results = "Немає налаштувань, що відповідають '%s'"
+
+[settings_dialog_sidebar]
+network = "Мережа"
+general = "Загальні"
+appearance = "Зовнішній вигляд"
+services = "Служби та пресети"
+plugins = "Плагіни"
+hotkeys = "Клавіатура та гарячі клавіші"
+translation = "Переклад"
+languages = "Мови"
+window_layout = "Вікно та макет"
+# Group parents. Selecting one opens its first child rather than a page of its own.
+group_translation = "Переклад"
+group_interface = "Інтерфейс"
+behavior = "Поведінка"
+layout = "Макет"
+popups = "Спливаючі вікна"
+
+# ===================================================================
+# SETTINGS PAGES
+# ===================================================================
+
+[settings_general]
+startup_updates_group = "Запуск і оновлення"
+launch_on_startup = "Запускати під час старту системи"
+auto_check_updates = "Автоматично перевіряти оновлення"
+selection_group = "Виділення тексту"
+selection_icon = "Показувати кнопку перекладу після виділення тексту"
+selection_icon_hint = "Показує невелику кнопку біля тексту, який ви виділяєте перетягуванням в інших застосунках. Натисніть її, щоб перекласти виділене."
+history_group = "Історія"
+enable_history = "Увімкнути історію перекладів"
+clear_history_on_exit = "Очищати історію під час закриття"
+clear_history_hint = "Коли цю опцію ввімкнено, збережені переклади безповоротно видаляються під час виходу з застосунку."
+
+[settings_appearance]
+language_group = "Мова"
+interface_language = "Мова інтерфейсу:"
+edit_tooltip = "Редагувати цей переклад"
+edit_button = "Редагувати…"
+# %1$s = how many further translators are credited
+credit_more = "+%s ще"
+more_actions = "Інші дії з мовою"
+menu_new = "Новий переклад…"
+menu_import = "Імпортувати з файлу…"
+menu_delete = "Видалити переклад"
+import_title = "Імпорт перекладу"
+import_filter = "Файли перекладів (*.toml)"
+import_invalid = "Цей файл не вдалося прочитати як переклад."
+import_failed = "Не вдалося скопіювати переклад у папку мов."
+# %1$s = language code
+import_exists = "Переклад для %s уже встановлено. Замінити його?"
+delete_title = "Видалити переклад"
+# %1$s = language display name
+delete_confirm = "Видалити переклад «%s»? Його файл буде видалено з папки мов."
+builtin_english = "Англійська (вбудована)"
+edit_english_tooltip = "Англійська — це вихідний переклад, і його не можна редагувати"
+# %1$s = comma separated list of GitHub handles
+translated_by = "Перекладено %s на GitHub"
+name_separator = ", "
+# %1$s = percent translated, %2$s = number of strings still in English
+translation_incomplete = "Перекладено %s%%, %s рядків досі англійською"
+theme_group = "Тема"
+theme_label = "Тема:"
+icon_set = "Значки:"
+icon_set_hint = "Який набір значків використовувати. Якщо набір не містить певного значка, використовується Lucide, тому неповний набір усе одно працює. Перезапустіть QTranslate, щоб змінити значки, які вже відображаються на екрані."
+theme_sync_os = "Синхронізувати з ОС (слідувати системній темній/світлій темі)"
+theme_group_light = "Світлі теми"
+theme_group_dark = "Темні теми"
+theme_group_installed = "Встановлені теми"
+unified_title_bar = "Використовувати уніфіковану панель заголовка"
+scale_group = "Масштаб інтерфейсу"
+scale_label = "Масштаб:"
+scale_hint = "Перезапустіть застосунок, щоб повністю застосувати зміни масштабу."
+fonts_group = "Шрифти"
+ui_font = "Шрифт інтерфейсу:"
+editor_font = "Шрифт редактора:"
+fallback_font = "Резервний шрифт:"
+fallback_hint = "Резервний шрифт використовується для символів, які не може відобразити шрифт редактора."
+loading_fonts = "<Завантаження шрифтів...>"
+font_preview_text = "Байрактар кружляє. Трон тріщить. Болото плаче — 大きな茶色の狐が怠け者の犬を飛び越えた"
+
+[settings_services]
+presets_group = "Активний пресет"
+current_preset = "Поточний пресет:"
+preset_hint = "Пресети дають змогу зберігати різні комбінації служб і швидко перемикатися між ними."
+default_preset_name = "Типовий"
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+config_group = "Налаштування служб"
+translator = "Перекладач:"
+tts = "Синтез мовлення (TTS):"
+ocr = "OCR (розпізнавання тексту):"
+spell_checker = "Перевірка орфографії:"
+dictionary = "Словник:"
+summarizer = "Резюмувальник:"
+rewriter = "Переписувач:"
+image_search = "Пошук зображень:"
+# Dialogs
+new_preset_title = "Новий пресет"
+new_preset_prompt = "Введіть назву нового пресета:"
+rename_preset_title = "Перейменувати пресет"
+rename_preset_prompt = "Введіть нову назву:"
+delete_preset_title = "Видалити пресет"
+delete_preset_confirm = "Видалити пресет «%s»?\nЦю дію неможливо скасувати."
+
+[settings_plugins]
+install_plugin = "Встановити плагін..."
+browse_on_github = "Переглянути плагіни на GitHub ↗"
+search_placeholder = "Пошук плагінів"
+drop_hint = "Перетягніть сюди JAR-файли плагінів"
+no_results = "Немає плагінів, що відповідають запиту"
+result_count = "%d з %d плагінів"
+empty_title = "Плагіни не встановлено"
+empty_description = "Встановіть JAR-файл плагіна або перетягніть його в список плагінів."
+empty_selection_hint = "Виберіть плагін, щоб переглянути подробиці"
+category_all = "Усі категорії"
+category_translators = "Перекладачі"
+category_dictionaries = "Словники"
+category_tts = "Синтез мовлення"
+category_ocr = "OCR"
+category_spell_checkers = "Перевірка орфографії"
+category_ai = "Інструменти ШІ"
+category_other = "Інше"
+detail_category = "Категорія"
+detail_api = "Сумісність"
+detail_file = "Встановлений файл"
+detail_languages = "Мови"
+not_available = "Недоступно"
+languages_all = "Усі мови"
+languages_dynamic = "Надається службою"
+languages_count = "%d мов"
+section_services = "Надані служби"
+plugin_error_label = "Помилка"
+status_enabled = "Увімкнено"
+status_disabled = "Вимкнено"
+status_failed = "Помилка"
+status_verification = "Очікує перевірки"
+# Actions
+btn_disable = "Вимкнути"
+btn_enable = "Увімкнути"
+btn_configure = "Налаштувати..."
+btn_accept_update = "Прийняти оновлення"
+btn_clean_install = "Чисте встановлення"
+btn_uninstall = "Видалити"
+tip_accept_update = "Зберегти наявні дані та знову увімкнути плагін"
+tip_clean_install = "Стерти всі дані плагіна перед повторним увімкненням"
+# Dialogs
+install_dialog_title = "Виберіть JAR-файл плагіна"
+install_dialog_filter = "Плагін QTranslate (*.jar)"
+install_success_title = "Плагін встановлено"
+install_success_msg = "Плагін успішно встановлено."
+install_fail_title = "Помилка встановлення"
+uninstall_confirm_title = "Видалити плагін"
+uninstall_confirm_msg = "Видалити «%s»?\nУсі дані плагіна буде безповоротно видалено."
+no_settings_msg = "Цей плагін не має параметрів для налаштування."
+
+[settings_hotkeys]
+global_group = "Глобальні гарячі клавіші"
+enable_global = "Увімкнути глобальні гарячі клавіші"
+assignments_group = "Призначення гарячих клавіш"
+column_action = "Дія"
+column_hotkey = "Гаряча клавіша"
+column_scope = "Область дії"
+scope_global = "Глобальна"
+scope_local = "Локальна"
+# Default Actions
+action_show_main = "Показати головне вікно"
+action_quick_translate = "Швидкий переклад"
+action_listen = "Прослухати виділене"
+action_ocr = "OCR з екрана"
+action_replace = "Замінити виділене перекладом (експериментально)"
+action_cycle_language = "Перемкнути цільову мову"
+action_show_dictionary = "Показати словник"
+action_show_images = "Показати зображення"
+action_translate = "Перекласти"
+action_focus_input = "Фокус на панелі вводу"
+action_focus_output = "Фокус на панелі виводу"
+action_focus_extra_output = "Фокус на панелі додаткового виводу"
+action_copy_translation = "Копіювати переклад"
+action_clear_input = "Очистити ввід"
+action_swap_languages = "Поміняти мови місцями"
+action_open_settings = "Відкрити налаштування"
+action_show_history = "Показати історію"
+action_translate_document = "Перекласти документ"
+scope_toggle_hint = "Натисніть, щоб перемкнути між Глобальною та Локальною"
+
+
+edit_hint = "Двічі клацніть рядок або виберіть його й натисніть «Редагувати», щоб змінити комбінацію."
+edit_button = "Редагувати…"
+clear_button = "Очистити"
+reset_button = "Скинути все до типових"
+no_binding = "(немає)"
+reset_confirmation = "Скинути всі гарячі клавіші до типових значень?"
+reset_title = "Скидання гарячих клавіш"
+recorder_title = "Запис гарячої клавіші"
+double_ctrl = "Подвійний Ctrl"
+show_main_tooltip = "Подвійне натискання Ctrl завжди активне. За бажанням можна додати ще одну гарячу клавішу."
+double_ctrl_on = "⊕ Подвійний Ctrl"
+double_ctrl_off = "⊖ Подвійний Ctrl"
+double_ctrl_toggle_hint = "Натисніть, щоб увімкнути / вимкнути тригер подвійного натискання Ctrl. Корисно, якщо подвійний Ctrl заважає іншим застосункам."
+recorder_waiting = "— натисніть комбінацію клавіш —"
+recorder_hint = "Натисніть комбінацію клавіш, потім натисніть OK · Esc для скасування"
+recorder_modifier_hint = "Тепер натисніть букву, цифру або функціональну клавішу"
+recorder_hint_confirm = "Натисніть іншу комбінацію, щоб змінити · Esc для очищення"
+recorder_invalid_key = "Цю клавішу не можна використовувати як комбінацію"
+
+
+[settings_translation]
+behavior_group = "Поведінка"
+instant_translation = "Миттєвий переклад (під час набору тексту)"
+instant_hint = "Автоматично запускає переклад після того, як ви перестаєте набирати текст."
+spell_check_input = "Увімкнути перевірку орфографії під час вводу"
+extra_output_group = "Додатковий вивід"
+extra_output_type = "Тип:"
+extra_output_hint = "Показує панель другого результату під основним виводом перекладу."
+extra_output_source = "Джерело:"
+source_use_translated = "Використовувати перекладений текст"
+source_use_input = "Використовувати текст вводу"
+remove_line_breaks = "Видаляти розриви рядків з вводу"
+remove_line_breaks_hint = "Корисно під час копіювання з PDF, де кожен рядок закінчується символом нового рядка"
+dict_auto_source_off = "Вимкнено"
+dict_auto_source_translated = "Перекладений текст"
+dict_auto_source_source = "Вихідний текст"
+# Types
+type_none = "@common.none"
+type_backward = "Зворотний переклад"
+type_summarize = "Резюмування"
+type_rewrite = "Переписування"
+# Summary length options (shown when type = Summarization)
+summary_length = "Довжина резюме:"
+summary_length_short = "Коротко (одне речення)"
+summary_length_medium = "Середньо (кілька речень)"
+summary_length_long = "Детально"
+# Rewrite style options (shown when type = Rewriting)
+rewrite_style = "Стиль переписування:"
+rewrite_style_formal = "Офіційний"
+rewrite_style_casual = "Розмовний"
+rewrite_style_concise = "Лаконічний"
+rewrite_style_detailed = "Детальний"
+rewrite_style_simplified = "Спрощений"
+
+[settings_languages]
+defaults_group = "Мови за замовчуванням"
+default_source_language = "Вихідна за замовчуванням:"
+default_target_language = "Цільова за замовчуванням:"
+defaults_hint = "Мови, що вибираються під час запуску застосунку. Виберіть «Автовизначення» як вихідну, щоб визначати її за введеним текстом."
+pinned_languages_group = "Закріплені мови"
+pinned_languages_hint = "Виберіть мови для показу в списку вибору цільової мови. Залиште все без позначок, щоб показати всі доступні мови."
+pinned_languages_clear = "Очистити вибір (показати всі)"
+rules_group = "Правила перекладу"
+rules_hint = "Автоматично вибирає цільову мову на основі визначеної вихідної мови. Якщо жодне правило не збігається, використовується вручну вибрана цільова мова."
+rules_col_source = "Вихідна мова"
+rules_col_target = "Цільова мова"
+rules_add_btn = "Додати правило"
+rules_remove_btn = "Видалити правило"
+rules_dialog_title = "Додати правило перекладу"
+rules_dialog_source = "Якщо джерело:"
+rules_dialog_target = "Перекласти на:"
+rules_error_same_title = "Недопустиме правило"
+rules_error_same = "Вихідна та цільова мови мають відрізнятися."
+rules_error_duplicate_title = "Дубльоване правило"
+rules_error_duplicate = "Правило для «%s» вже існує."
+dict_auto_lookup_group = "Автопошук у словнику"
+dict_auto_lookup_source = "Джерело автопошуку:"
+dict_auto_lookup_hint = "Автоматично шукати окремі слова в словнику під час перекладу."
+dict_auto_popup_enabled = "Показувати спливаюче вікно для окремих слів"
+
+[settings_window]
+layout_group = "Макет"
+layout_preset = "Пресет макета:"
+toolbars_group = "Панелі інструментів"
+show_history_bar = "Показувати панель навігації історії"
+show_language_bar = "Показувати панель вибору мов"
+show_services_panel = "Показувати панель служб"
+service_selector_style = "Вибір служби:"
+service_selector_classic = "Класична нижня смуга"
+service_selector_enhanced = "Розширені вибірники служб"
+service_selector_appearance = "Класичний вигляд:"
+service_selector_icons = "Лише значки"
+service_selector_icons_text = "Значки й текст"
+service_selector_text = "Лише текст"
+show_status_bar = "Показувати рядок стану"
+show_dictionary_panel = "Показувати панель словника"
+service_selector_sub = "Вибір служби"
+popup_group = "Спливаючі вікна"
+translation_popup_sub = "Спливаюче вікно перекладу"
+dict_popup_sub = "Спливаюче вікно словника"
+image_popup_sub = "Спливаюче вікно пошуку зображень"
+auto_size = "Автопідбір розміру спливаючого вікна під вміст"
+auto_position = "Автопозиціювання спливаючого вікна біля курсора"
+transparency = "Прозорість фону:"
+popup_idle_timeout = "Приховувати після бездіяльності:"
+image_popup_no_idle_hint = "Спливаюче вікно зображень залишається відкритим, доки ви його не закриєте. Зображення порівнюють, а не читають, тому воно не зникає саме."
+popup_idle_hint = "Спливаюче вікно зникає після вказаної кількості секунд бездіяльності. Наведіть на нього курсор миші, щоб скинути таймер."
+close_popup_on_click_outside = "Закривати спливаючі вікна під час клацання в іншому місці"
+close_popup_on_click_outside_hint = "Клацання поза межами спливаючого вікна закриває його. Закріплені спливаючі вікна завжди залишаються відкритими."
+seconds_unit = "секунд"
+# Close button
+close_behavior_group   = "Поведінка кнопки закриття"
+close_button           = "Під час закриття:"
+close_behavior_ask     = "Питати щоразу"
+close_behavior_minimize = "Згортати в трей"
+close_behavior_exit    = "Вийти із застосунку"
+close_behavior_hint    = "Визначає, що відбувається під час натискання кнопки ×. Це також можна налаштувати з самого діалогу закриття."
+
+# ===================================================================
+# DYNAMIC PLUGIN CONFIGURATION
+# ===================================================================
+[plugin_config]
+title_format = "Налаштування — %s"
+required_fields_error_title = "Обов'язкові поля"
+required_fields_error_msg = "Будь ласка, заповніть обов'язкові поля:"
+test_connection = "Перевірити з'єднання"
+testing = "Перевірка…"
+test_ok = "Готово — відповіли служб: %d"
+test_failed = "Перевірку не пройдено"
+test_nothing_to_check = "Нема чого перевіряти"
+
+# ===================================================================
+# OTHER DIALOGS
+# ===================================================================
+[about_dialog]
+title = "Про QTranslate"
+description = "Оригінальний QTranslate було покинуто. Це повне переписування — та сама ідея, але на основі плагінів, щоб застосунок ніколи не застарівав."
+support_button = "Підтримати цей проєкт ♥"
+donation_nudge = "Ви багато перекладали з QTranslate! Якщо він вам корисний, розгляньте можливість підтримати проєкт (Про програму → Підтримати ♥)"
+
+[history_dialog]
+title = "Історія перекладів"
+column_date = "Дата й час"
+column_source = "Джерело"
+column_translation = "Переклад"
+column_languages = "Мови"
+column_service = "Служба"
+empty_message = "В історії ще немає перекладів."
+restore_tooltip = "Двічі клацніть, щоб відновити цей переклад"
+
+[dictionary_dialog]
+title = "Словник"
+lookup_button = "Знайти"
+hint_message = "Введіть слово вище, щоб знайти його."
+not_found_message = "Визначень для «%s» не знайдено."
+loading_message = "Пошук…"
+error_message = "Пошук не вдався. Спробуйте ще раз."
+synonyms_label = "Синоніми"
+auto_source_off = "Авто: вимкнено"
+auto_source_translated = "Перекладений"
+auto_source_source = "Вихідний"
+
+[image_search_dialog]
+title = "Зображення"
+search_button = "Шукати"
+hint_message = "Введіть слово вище, щоб побачити зображення до нього."
+not_found_message = "Зображень для «%s» не знайдено."
+loading_message = "Пошук…"
+error_message = "Не вдалося виконати пошук зображень. Спробуйте ще раз."
+open_tooltip = "Відкрити сторінку джерела в браузері"
+open_source = "Сторінка джерела"
+back = "Назад"
+
+[preset_selector]
+manage_tooltip  = "Керувати пресетами служб"
+# %s = preset name
+edit_preset     = "Редагувати «%s»..."
+manage_presets  = "Керувати пресетами..."
+
+[update_dialog]
+title = "Доступне оновлення"
+header = "Доступна нова версія QTranslate!"
+# %1$s = new version number, %2$s = current version number
+details_format = "Версія %s уже доступна (у вас %s). Бажаєте оновити?"
+skip_button = "Пропустити цю версію"
+remind_later_button = "Нагадати пізніше"
+download_button = "Завантажити"
+view_on_github_button = "Переглянути на GitHub"
+
+# ===================================================================
+# CLOSE DIALOG
+# ===================================================================
+[close_dialog]
+title           = "Закрити QTranslate"
+message         = "Що ви хочете зробити?"
+minimize_to_tray = "Згорнути в трей"
+exit            = "Вийти"
+remember_choice = "Запам'ятати мій вибір"
+
+# ===================================================================
+# EXTRA OUTPUT PANEL
+# ===================================================================
+[extra_output]
+label_backward = "Зворотний переклад"
+label_summary = "Резюме"
+label_rewrite = "Переписаний текст"
+
+# ===================================================================
+# NOTIFICATIONS & ERRORS
+# ===================================================================
+[notifications]
+language_not_supported_format = "Мова '%s' не підтримується службою %s."
+tts_not_supported_format = "Синтез мовлення не підтримується службою %s."
+unknown_error = "Сталася невідома помилка."
+
+# ===================================================================
+# STATUS BAR MESSAGES
+# ===================================================================
+[status_bar]
+# Translation
+translating = "Переклад..."
+translation_complete = "Переклад завершено."
+translation_cancelled = "Переклад скасовано."
+translation_timeout = "Час очікування перекладу минув. Спробуйте ще раз."
+translation_failed = "Помилка перекладу: %s"
+no_translator_active = "Жодна служба перекладу не активна."
+performing_backward_translation = "Виконання зворотного перекладу..."
+unexpected_error = "Неочікувана помилка: %s"
+# Text-to-Speech
+no_text_to_speak = "Немає тексту для озвучення."
+cannot_determine_language = "Не вдається визначити мову вибраного тексту."
+no_tts_active = "Жодна служба синтезу мовлення не активна."
+tts_language_not_supported = "Активна служба TTS (%s) не підтримує вибрану мову."
+converting_to_speech = "Перетворення тексту на мовлення..."
+tts_timeout = "Час очікування синтезу мовлення минув. Спробуйте ще раз."
+playing_audio = "Відтворення аудіо..."
+audio_playback_complete = "Відтворення аудіо завершено."
+tts_stopped = "Аудіо зупинено."
+downloading_audio = "Завантаження аудіо..."
+audio_download_failed = "Не вдалося завантажити аудіопотік."
+tts_failed = "Помилка синтезу мовлення: %s"
+# OCR
+no_ocr_active = "Жодна служба OCR (розпізнавання тексту) не активна."
+recognizing_text = "Розпізнавання тексту із зображення..."
+ocr_timeout = "Час очікування OCR минув. Спробуйте з меншим зображенням."
+no_text_in_image = "На захопленому зображенні не знайдено тексту."
+ocr_complete = "Текст успішно розпізнано!"
+ocr_text_copied = "Текст розпізнано й скопійовано в буфер обміну."
+text_copied = "Скопійовано в буфер обміну."
+ocr_failed = "Помилка розпізнавання тексту: %s"
+# Summarize
+no_summarizer_active = "Жодна служба резюмування не активна. Встановіть і налаштуйте плагін резюмування."
+summarizing = "Резюмування..."
+summarize_timeout = "Час очікування резюмування минув."
+summary_ready = "Резюме готове."
+summarize_failed = "Помилка резюмування: %s"
+# Rewrite
+no_rewriter_active = "Жодна служба переписування не активна. Встановіть і налаштуйте плагін переписування."
+rewriting = "Переписування..."
+rewrite_timeout = "Час очікування переписування минув."
+rewrite_ready = "Переписаний текст готовий."
+rewrite_failed = "Помилка переписування: %s"
+# Spell Check
+spell_check_timeout = "Час очікування перевірки орфографії минув."
+spell_check_failed = "Помилка перевірки орфографії: %s"
+# Updates
+already_up_to_date = "Ви використовуєте найновішу версію (%s)."
+update_check_network_error = "Не вдалося перевірити оновлення. Перевірте підключення до інтернету й спробуйте ще раз."
+update_check_parse_error = "Не вдалося перевірити оновлення. Сервер повернув неочікувані дані. Спробуйте пізніше."
+update_check_unknown_error = "Не вдалося перевірити оновлення. Сталася неочікувана помилка. Спробуйте пізніше."
+# Dictionary
+no_word_to_lookup = "Будь ласка, введіть слово для пошуку."
+no_dictionary_active = "Жодна служба словника не активна."
+looking_up_word = "Пошук…"
+dictionary_ready = "Визначення знайдено."
+dictionary_not_found = "Визначень для «%s» не знайдено."
+dictionary_timeout = "Час очікування пошуку в словнику минув."
+dictionary_failed = "Помилка пошуку в словнику: %s"
+# Image search
+no_term_to_illustrate = "Будь ласка, введіть слово для пошуку зображень."
+no_image_search_active = "Жодна служба пошуку зображень не активна."
+searching_images = "Пошук зображень…"
+image_search_ready = "Зображення знайдено."
+images_not_found = "Зображень для «%s» не знайдено."
+image_search_timeout = "Час очікування пошуку зображень минув."
+image_search_failed = "Помилка пошуку зображень: %s"
+
+[layout_compact]
+tab_input_tooltip = "Вихідний текст (%s)"
+tab_output_tooltip = "Переклад (%s)"
+tab_extra_tooltip = "Додатковий вивід (%s)"
+# ===================================================================
+# LANGUAGE EDITOR
+# ===================================================================
+[language_editor]
+title = "Редактор мов"
+# %1$s = language name, %2$s = language code
+title_for = "Редагування перекладу: %s (%s)"
+new_title = "Новий переклад"
+delete = "Видалити"
+name = "Назва:"
+native_name = "Рідна назва:"
+locale = "Локаль:"
+translators = "Перекладачі:"
+rtl = "Мова з письмом справа наліво"
+col_key = "Ключ"
+col_english = "Англійська"
+col_translation = "Переклад"
+placeholder_mismatch = "Плейсхолдери %s відрізняються від англійського тексту. Це призведе до помилки під час використання рядка."
+untranslated_row = "Ще не перекладено. Показано англійський текст, доки це поле не заповнено."
+translators_empty = "Поки що нікого не вказано"
+translators_title = "Перекладачі"
+translators_manage = "Редагувати"
+translators_remove = "Видалити"
+# %1$s = how many further translators are credited
+translators_more = "+%s ще"
+add_translator = "Додати"
+add_translator_prompt = "Обліковий запис GitHub:"
+# %1$s = number of rows with mismatched placeholders
+mismatch_warning = "%s рядків мають плейсхолдери, що не відповідають англійським. Вони не працюватимуть під час використання."
+unreadable_title = "Не вдалося прочитати переклад"
+# %1$s = language code, %2$s = file path
+unreadable = "Переклад для %s не вдалося прочитати, тому його неможливо безпечно редагувати.
+
+Файл розташовано за адресою:
+%s"
+search = "Пошук ключів і тексту..."
+only_untranslated = "Лише неперекладені"
+# %1$s = translated count, %2$s = total, %3$s = percent
+coverage = "%s / %s  (%s%%)"
+suggest = "Запропонувати переклад"
+suggest_tooltip = "Перекласти вибрані рядки за допомогою активної служби. Пропозиції можна редагувати, і вони не зберігаються, доки ви не натиснете «Зберегти»."
+reset_row = "Очистити"
+reset_row_tooltip = "Очистити вибрані рядки, щоб вони повернулися до англійської"
+save = "Зберегти"
+close = "Закрити"
+saved = "Переклад збережено."
+new_prompt = "Код мови для нового перекладу, наприклад vi-VN:"
+new_exists = "Переклад із таким кодом уже існує."
+discard_confirm = "Відхилити незбережені зміни?"
+
+# -- Settings > Network -------------------------------------------------------
+[settings_network]
+proxy_group = "Проксі"
+proxy_enabled = "Надсилати запити через проксі"
+proxy_url = "Адреса проксі:"
+proxy_url_placeholder = "http://proxy.example.com:3128"
+proxy_username = "Ім'я користувача:"
+proxy_password = "Пароль:"
+proxy_hint = "Залиште ім'я користувача порожнім, якщо проксі не вимагає облікових даних. Пароль зберігається в сховищі секретів, а не у файлі налаштувань."
+timeouts_group = "Тайм-аути"
+request_timeout = "Весь запит:"
+connect_timeout = "З'єднання:"
+socket_timeout = "Очікування даних:"
+seconds_suffix = "секунд"
+timeouts_hint = "Локальна модель ШІ може довго обдумувати відповідь. Якщо ви використовуєте таку модель, збільшуйте тайм-аут усього запиту, а не два інших, які описують досягнення служби, а не очікування відповіді від неї."
+host_timeouts = "Повільніші хости:"
+host_timeouts_edit = "Редагувати"
+host_timeouts_title = "Тайм-аути для окремих хостів"
+host_timeouts_none = "Немає"
+# %1$s = how many hosts have their own timeout
+host_timeouts_count = "Налаштовано: %s"
+host_timeouts_info = "Встановіть окремий тайм-аут усього запиту для певної служби. Це призначено для локальної моделі ШІ, яка може відповідати кілька хвилин, тоді як хмарна служба за такий час вважалася б непрацездатною. Для кожного хоста задається лише тайм-аут усього запиту; з'єднання та очікування даних залишаються спільними значеннями, оскільки повільність локальної моделі полягає в часі обдумування, а не в мережі до неї."
+host_column = "Хост"
+seconds_column = "Секунди"
+host_add = "Додати"
+host_remove = "Видалити"
+# %1$s = the whole-request timeout, %2$s = the larger of the other two
+envelope_warning = "Тайм-аут усього запиту становить %sс, що коротше за %sс нижче. Довше значення ніколи не спрацює, оскільки воно діє всередині всього запиту, а не після нього."
+retry_group = "Повторні спроби"
+retry_enabled = "Повторювати невдалі запити"
+max_retries = "Спроб після першої:"
+retry_delay = "Перший повтор через:"
+request_timeout_info = "Весь виклик, від надсилання запиту до отримання відповіді. Це загальне обмеження, а не сума двох наведених нижче: вони діють у його межах. Якщо це значення менше за будь-яке з них, те значення ніколи не спрацює. Збільшуйте це значення для локальної моделі ШІ, яка миттєво відповідає на мережевому рівні, а потім обдумує відповідь."
+connect_timeout_info = "Лише відкриття з'єднання зі службою. Він завершується в момент встановлення з'єднання, до початку перекладу, тому не має бути тривалим. Служба, яка не працює або заблокована, дає збій саме тут."
+socket_timeout_info = "Найдовший допустимий проміжок між двома фрагментами даних. Він скидається щоразу, коли щось надходить, тому повільна відповідь, яка надходить потроху, ніколи його не спричиняє. Це виявляє службу, яка прийняла з'єднання, а потім замовкла."
+max_retries_info = "Скільки ще спроб робити після невдачі першої. Повторюються лише запити, які безпечно надсилати двічі: повторний запит перекладу безпечний, якщо служба відмовила в ньому, і небезпечний, якщо служба вже могла виконати роботу."
+retry_delay_info = "Скільки часу чекати перед повторною спробою. Кожна наступна спроба чекає вдвічі довше за попередню, з невеликою випадковістю, щоб кілька служб, які відмовили одночасно, не повторювали спроби в одну й ту саму мить. Якщо служба вказує, скільки чекати, це значення враховується замість налаштованого."
+per_host_connections_info = "Скільки з'єднань може бути відкрито до однієї служби одночасно. Більше не означає швидше й може призвести до обмеження частоти запитів. Обмеження приблизне: раптовий сплеск може ненадовго його перевищити."
+total_connections_info = "Скільки з'єднань може бути відкрито до всіх служб одночасно загалом. Має значення, лише якщо ви використовуєте багато служб одночасно."
+retry_hint = "Повторюються лише запити, які безпечно повторити. Запит, обмежений за частотою, повторюється завжди, а служба, що просить залишити її в спокої на деякий час, чекає завершення цього часу."
+connections_group = "З'єднання"
+per_host_connections = "До однієї служби одночасно:"
+total_connections = "Загалом:"
+connections_hint = "Відкриття багатьох з'єднань до однієї служби не пришвидшує роботу і може призвести до обмеження частоти запитів. Обмеження приблизне."
+applies_group = "Застосування змін"
+applies_hint = "Мережеві налаштування застосовуються до запитів, зроблених після їх збереження. Перезапустіть QTranslate, якщо здається, що служба досі використовує старі налаштування."
