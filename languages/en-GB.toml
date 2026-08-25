@@ -660,10 +660,7 @@ add_translator_prompt = "GitHub handle:"
 mismatch_warning = "%s strings have placeholders that do not match the English. They will fail when used."
 unreadable_title = "Translation could not be read"
 # %1$s = language code, %2$s = file path
-unreadable = "The translation for %s could not be read, so it cannot be edited safely.
-
-The file is at:
-%s"
+unreadable = "The translation for %s could not be read, so it cannot be edited safely.\n\nThe file is at:\n%s"
 search = "Search keys and text..."
 only_untranslated = "Only untranslated"
 # %1$s = translated count, %2$s = total, %3$s = percent
