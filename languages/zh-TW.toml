@@ -1,0 +1,608 @@
+﻿# ===================================================================
+# META SECTION
+# ===================================================================
+[meta]
+name = "Chinese (Traditional)"
+native_name = "繁體中文"
+locale = "zh-TW"
+translators = ["afunnyfrog"]
+rtl = false
+
+# ===================================================================
+# COMMON STRINGS
+# ===================================================================
+[common]
+ok = "確定"
+cancel = "取消"
+apply = "套用"
+save = "儲存"
+close = "關閉"
+copy = "複製"
+version = "版本 %s"
+listen = "朗讀"
+stop = "停止"
+pin = "固定"
+unpin = "取消固定"
+loading = "載入中..."
+none = "無"
+browse = "瀏覽..."
+new = "新增..."
+configure = "設定"
+clear_all = "全部清除"
+auto_detect = "自動偵測"
+
+# ===================================================================
+# MAIN APPLICATION WINDOW
+# ===================================================================
+[main_window]
+status_format = "正在使用 %s: %s → %s"
+no_translator = "未選擇翻譯器"
+drop_hint = "拖曳圖片或文件至此進行翻譯"
+no_service_message = "未設定翻譯服務。"
+no_service_action = "開啟服務設定"
+
+[main_window_history_bar]
+backward_tooltip = "返回翻譯歷史紀錄"
+forward_tooltip = "前進翻譯歷史紀錄"
+image_translate_tooltip = "擷取螢幕區域並翻譯文字"
+document_translate_tooltip = "翻譯文件並保留其格式"
+
+[main_window_language_bar]
+clear_tooltip = "清除輸入文字"
+swap_languages_tooltip = "切換翻譯方向"
+translate_button = "翻譯"
+cancel_button = "取消"
+
+[main_window_editor_context_menu]
+spelling_suggestions = "拼字建議"
+undo = "@common.undo"
+redo = "@common.redo"
+cut = "@common.cut"
+cut_all = "@common.cut_all"
+copy = "@common.copy"
+copy_all = "@common.copy_all"
+paste = "@common.paste"
+translate = "@main_window_language_bar.translate_button"
+listen = "@common.listen"
+select_all = "@common.select_all"
+clear = "@common.clear_all"
+spell_check = "拼字檢查"
+find_in_dictionary = "在字典中尋找"
+search_images = "搜尋圖片"
+set_as_input = "設為輸入"
+input_hint = "輸入要翻譯的文字..."
+output_hint = "翻譯結果將在此處顯示…"
+
+
+[main_window_main_menu]
+layout_presets = "版面配置預設"
+layout_preset_classic = "經典"
+layout_preset_side_by_side = "並排"
+layout_preset_compact = "緊湊"
+instant_translation = "即時翻譯"
+show_extra_output = "顯示額外輸出"
+spell_check = "拼字檢查"
+options_submenu = "選項"
+show_history_bar = "顯示歷史列"
+show_language_bar = "顯示語言列"
+show_services_panel = "顯示服務面板"
+show_status_bar = "顯示狀態列"
+settings = "設定..."
+translate_document = "翻譯文件…"
+help_submenu = "說明"
+how_to_use = "使用指南"
+contact_us = "聯絡我們"
+auto_check_for_updates = "自動檢查更新"
+check_for_updates = "檢查更新"
+about_qtranslate = "關於 QTranslate"
+exit = "結束"
+
+[document_translation]
+title = "翻譯文件"
+input_file = "原始文件"
+output_file = "翻譯後的文件"
+translate = "翻譯"
+open = "開啟"
+open_failed = "無法開啟翻譯後的文件：%s"
+ready = "請選擇 DOCX、PDF、TXT、SRT 或 VTT 檔案。"
+pdf_mode = "PDF 輸出"
+layout_aware = "保留頁面外觀"
+layout_aware_description = "盡力而為：在可行之處保留原有外觀。翻譯後的文字仍然清晰且可選取。"
+text_only = "純文字"
+text_only_description = "擷取並翻譯可讀文字，輸出為按頁分隔的 UTF-8 TXT 檔案。"
+choose_input = "請選擇要翻譯的文件。"
+choose_output = "請選擇翻譯後文件的儲存位置。"
+preparing = "正在準備文件…"
+translating = "正在翻譯第 %d 段，共 %d 段"
+completed = "翻譯已儲存至 %s"
+cancelled = "翻譯已取消。"
+
+[main_window_status_bar]
+ready_message = "就緒"
+notifications_tooltip = "通知"
+notifications_empty_tooltip = "暫無新通知"
+error_detail_error = "錯誤"
+error_detail_warning = "警告"
+error_detail_copy = "複製"
+error_detail_copied = "已複製！"
+
+# ===================================================================
+# SYSTEM TRAY MENU
+# ===================================================================
+[system_tray_menu]
+show_application = "顯示 QTranslate"
+recognize_text = "文字辨識 (OCR)"
+dictionary = "字典"
+image_search = "圖片搜尋"
+history = "歷史紀錄"
+settings = "@main_window_main_menu.settings"
+enable_hotkeys = "啟用全域快捷鍵"
+exit = "@main_window_main_menu.exit"
+
+# ===================================================================
+# SETTINGS DIALOG (SHELL & NAVIGATION)
+# ===================================================================
+[settings_dialog]
+title = "設定"
+saving = "正在儲存..."
+save_failed_title = "儲存失敗"
+reset_defaults_button = "恢復預設值"
+reset_confirmation_title = "恢復預設值"
+reset_confirmation_message = "確認要將所有設定恢復為預設值嗎？
+此操作無法復原。"
+search_placeholder = "篩選設定..."
+search_no_results = "沒有與 '%s' 匹配的設定"
+
+[settings_dialog_sidebar]
+general = "一般"
+appearance = "外觀"
+services = "服務與預設"
+plugins = "外掛"
+hotkeys = "鍵盤與快捷鍵"
+translation = "翻譯"
+languages = "語言"
+window_layout = "視窗與版面配置"
+# Group parents. Selecting one opens its first child rather than a page of its own.
+group_translation = "翻譯"
+group_interface = "介面"
+behavior = "行為"
+layout = "版面配置"
+popups = "彈出視窗"
+
+# ===================================================================
+# SETTINGS PAGES
+# ===================================================================
+
+[settings_general]
+startup_updates_group = "啟動與更新"
+launch_on_startup = "開機自動啟動"
+auto_check_updates = "自動檢查更新"
+selection_group = "文字選取"
+selection_icon = "選取文字後顯示翻譯按鈕"
+selection_icon_hint = "在其他應用程式中拖曳選取文字時，會在附近顯示一個小按鈕。點擊即可翻譯所選內容。"
+history_group = "歷史紀錄"
+enable_history = "啟用翻譯歷史紀錄"
+clear_history_on_exit = "關閉程式時清除歷史紀錄"
+clear_history_hint = "開啟此項後，儲存的翻譯將在結束時永久刪除。"
+
+[settings_appearance]
+language_group = "語言"
+interface_language = "介面語言："
+theme_group = "佈景主題"
+theme_label = "佈景主題："
+theme_sync_os = "與系統同步（跟隨系統深色/淺色模式）"
+theme_group_light = "淺色主題"
+theme_group_dark = "深色主題"
+theme_group_installed = "已安裝主題"
+unified_title_bar = "使用整合標題列"
+scale_group = "介面縮放"
+scale_label = "比例："
+scale_hint = "重新啟動應用程式以完全套用縮放變更。"
+fonts_group = "字型"
+ui_font = "介面字型："
+editor_font = "編輯器字型："
+fallback_font = "備用字型："
+fallback_hint = "當編輯器字型無法顯示某些字元時，將使用備用字型。"
+loading_fonts = "<正在載入字型...>"
+font_preview_text = "中文測試：敏捷的棕色狐狸跳過了懶狗 — 大きな茶色の狐が怠け者の犬を飛び越えた"
+
+[settings_services]
+presets_group = "目前預設"
+current_preset = "目前預設："
+preset_hint = "透過預設，您可以儲存不同的服務組合並快速切換。"
+default_preset_name = "預設"
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+config_group = "服務設定"
+translator = "翻譯器："
+tts = "語音合成 (TTS)："
+ocr = "文字辨識 (OCR)："
+spell_checker = "拼字檢查器："
+dictionary = "字典："
+summarizer = "摘要產生器："
+rewriter = "改寫器："
+image_search = "圖片搜尋："
+# Dialogs
+new_preset_title = "新增預設"
+new_preset_prompt = "輸入新預設的名稱："
+rename_preset_title = "重新命名預設"
+rename_preset_prompt = "輸入新名稱："
+delete_preset_title = "刪除預設"
+delete_preset_confirm = "確定要刪除預設 "%s" 嗎？
+此操作無法復原。"
+
+[settings_plugins]
+install_plugin = "安裝外掛..."
+browse_on_github = "在 GitHub 上瀏覽外掛 ↗"
+search_placeholder = "搜尋外掛"
+drop_hint = "將外掛 JAR 拖曳至此處"
+no_results = "沒有與此搜尋匹配的外掛"
+result_count = "%d / %d 個外掛"
+empty_title = "未安裝任何外掛"
+empty_description = "請安裝外掛 JAR，或將其拖曳入外掛列表。"
+empty_selection_hint = "選擇一個外掛以查看其詳細資訊"
+category_all = "所有類別"
+category_translators = "翻譯服務"
+category_dictionaries = "字典"
+category_tts = "語音朗讀"
+category_ocr = "文字辨識"
+category_spell_checkers = "拼字檢查"
+category_ai = "AI 工具"
+category_other = "其他"
+detail_category = "類別"
+detail_api = "相容性"
+detail_file = "已安裝檔案"
+detail_languages = "語言"
+not_available = "不可用"
+languages_all = "所有語言"
+languages_dynamic = "由服務提供"
+languages_count = "%d 種語言"
+section_services = "提供的服務"
+plugin_error_label = "錯誤"
+status_enabled = "已啟用"
+status_disabled = "已停用"
+status_failed = "失敗"
+status_verification = "等待驗證"
+# Actions
+btn_disable = "停用"
+btn_enable = "啟用"
+btn_configure = "設定..."
+btn_accept_update = "接受更新"
+btn_clean_install = "全新安裝"
+btn_uninstall = "解除安裝"
+tip_accept_update = "保留現有資料並重新啟用外掛"
+tip_clean_install = "在重新啟用前清除所有外掛資料"
+# Dialogs
+install_dialog_title = "選擇外掛 JAR 檔案"
+install_dialog_filter = "QTranslate 外掛 (*.jar)"
+install_success_title = "外掛已安裝"
+install_success_msg = "外掛安裝成功。"
+install_fail_title = "安裝失敗"
+uninstall_confirm_title = "解除安裝外掛"
+uninstall_confirm_msg = "確定要解除安裝 "%s" 嗎？
+所有外掛資料將被永久刪除。"
+no_settings_msg = "此外掛沒有可設定的選項。"
+
+[settings_hotkeys]
+global_group = "全域快捷鍵"
+enable_global = "啟用全域快捷鍵"
+assignments_group = "快捷鍵指派"
+column_action = "操作"
+column_hotkey = "快捷鍵"
+column_scope = "範圍"
+scope_global = "全域"
+scope_local = "區域"
+# Default Actions
+action_show_main = "顯示主視窗"
+action_quick_translate = "快速翻譯"
+action_listen = "朗讀所選內容"
+action_ocr = "螢幕 OCR"
+action_replace = "用翻譯取代選取文字 (實驗性)"
+action_cycle_language = "循環切換目標語言"
+action_show_dictionary = "顯示字典"
+action_show_images = "顯示圖片"
+action_translate = "翻譯"
+action_focus_input = "聚焦輸入窗格"
+action_focus_output = "聚焦輸出窗格"
+action_focus_extra_output = "聚焦額外輸出窗格"
+action_copy_translation = "複製譯文"
+action_clear_input = "清除輸入"
+action_swap_languages = "交換語言"
+action_open_settings = "開啟設定"
+action_show_history = "顯示歷史紀錄"
+action_translate_document = "翻譯文件"
+scope_toggle_hint = "點擊在全域和區域範圍之間切換"
+
+
+edit_hint = "雙擊一行或選中後點擊編輯來更改綁定。"
+edit_button = "編輯…"
+clear_button = "清除"
+reset_button = "全部恢復預設"
+no_binding = "(無)"
+reset_confirmation = "確定要將所有快捷鍵恢復為預設值嗎？"
+reset_title = "重設快捷鍵"
+recorder_title = "錄製快捷鍵"
+double_ctrl = "連按兩次 Ctrl"
+show_main_tooltip = "連按兩次 Ctrl 始終有效。您可以在此處選擇性地加入額外的快捷鍵。"
+double_ctrl_on = "⊕ 雙擊 Ctrl"
+double_ctrl_off = "⊖ 雙擊 Ctrl"
+double_ctrl_toggle_hint = "點擊以啟用 / 停用雙擊 Ctrl 觸發器。如果雙擊 Ctrl 干擾其他應用程式，此選項會很有用。"
+recorder_waiting = "— 按下一個按鍵組合 —"
+recorder_hint = "按下組合鍵，然後點擊 OK · Esc 取消"
+recorder_modifier_hint = "現在按一個字母、數字或功能鍵"
+recorder_hint_confirm = "按另一個組合鍵更改 · Esc 清除"
+recorder_invalid_key = "此鍵不能用作快捷鍵"
+
+
+[settings_translation]
+behavior_group = "行為"
+instant_translation = "即時翻譯 (隨打隨譯)"
+instant_hint = "在您停止輸入後自動觸發翻譯。"
+spell_check_input = "啟用輸入框拼字檢查"
+extra_output_group = "額外輸出"
+extra_output_type = "類型："
+extra_output_hint = "在主翻譯輸出下方顯示次要結果面板。"
+extra_output_source = "來源："
+source_use_translated = "使用翻譯後的文字"
+source_use_input = "使用輸入的原文"
+remove_line_breaks = "刪除輸入文字中的換行符"
+remove_line_breaks_hint = "從 PDF 複製文字時非常有用，因為 PDF 的每行通常以換行符結尾。"
+dict_auto_source_off = "關閉"
+dict_auto_source_translated = "譯文"
+dict_auto_source_source = "原文"
+# Types
+type_none = "@common.none"
+type_backward = "回譯"
+type_summarize = "摘要產生"
+type_rewrite = "文字改寫"
+# Summary length options (shown when type = Summarization)
+summary_length = "摘要長度："
+summary_length_short = "短 (一句話)"
+summary_length_medium = "中 (幾句話)"
+summary_length_long = "長 (詳細)"
+# Rewrite style options (shown when type = Rewriting)
+rewrite_style = "改寫風格："
+rewrite_style_formal = "正式"
+rewrite_style_casual = "休閒"
+rewrite_style_concise = "簡練"
+rewrite_style_detailed = "詳細"
+rewrite_style_simplified = "精簡"
+
+[settings_languages]
+defaults_group = "預設語言"
+default_source_language = "預設來源語言："
+default_target_language = "預設目標語言："
+defaults_hint = "應用程式啟動時選取的語言。將來源語言設為「自動偵測」即可根據輸入的文字自動辨識。"
+pinned_languages_group = "已固定語言"
+pinned_languages_hint = "選擇要在目標語言選擇器中顯示的語言。全部取消勾選則顯示所有可用語言。"
+pinned_languages_clear = "清除選取 (顯示全部)"
+rules_group = "翻譯規則"
+rules_hint = "根據偵測到的來源語言自動選擇目標語言。如果沒有匹配的規則，則使用手動選擇的目標語言。"
+rules_col_source = "來源語言"
+rules_col_target = "目標語言"
+rules_add_btn = "新增規則"
+rules_remove_btn = "刪除規則"
+rules_dialog_title = "新增翻譯規則"
+rules_dialog_source = "如果來源語言是："
+rules_dialog_target = "翻譯為："
+rules_error_same_title = "無效規則"
+rules_error_same = "來源語言和目標語言必須不同。"
+rules_error_duplicate_title = "重複規則"
+rules_error_duplicate = "'%s' 的規則已存在。"
+dict_auto_lookup_group = "字典自動查詢"
+dict_auto_lookup_source = "自動查詢來源："
+dict_auto_lookup_hint = "翻譯時自動在字典中查詢單一詞彙。"
+dict_auto_popup_enabled = "顯示單一詞彙的浮動彈出視窗"
+
+[settings_window]
+layout_group = "版面配置"
+layout_preset = "版面配置預設："
+toolbars_group = "工具列"
+show_history_bar = "顯示歷史導覽列"
+show_language_bar = "顯示語言選擇列"
+show_services_panel = "顯示服務面板"
+service_selector_style = "服務選擇器："
+service_selector_classic = "經典底部列"
+service_selector_enhanced = "增強型服務選擇器"
+service_selector_appearance = "經典外觀："
+service_selector_icons = "僅圖示"
+service_selector_icons_text = "圖示 + 文字"
+service_selector_text = "僅文字"
+show_status_bar = "顯示狀態列"
+show_dictionary_panel = "顯示字典面板"
+service_selector_sub = "服務選擇器"
+popup_group = "彈出視窗"
+translation_popup_sub = "翻譯彈出視窗"
+dict_popup_sub = "字典彈出視窗"
+image_popup_sub = "圖片搜尋彈出視窗"
+auto_size = "彈出視窗大小自適應內容"
+auto_position = "彈出視窗位置靠近游標"
+transparency = "背景透明度："
+popup_idle_timeout = "閒置後隱藏:"
+image_popup_no_idle_hint = "圖片彈出視窗會一直顯示，直到您手動關閉。圖片是用來對比而非閱讀的，因此不會自動淡出。"
+popup_idle_hint = "彈出視窗將在無操作這麼多秒後淡出。將滑鼠移到視窗上可重設計時器。"
+close_popup_on_click_outside = "點擊別處時關閉彈出視窗"
+close_popup_on_click_outside_hint = "點擊浮動視窗之外會將其關閉。已固定的視窗始終保持開啟。"
+seconds_unit = "秒"
+# Close button
+close_behavior_group   = "關閉按鈕"
+close_button           = "點擊關閉時："
+close_behavior_ask     = "每次詢問"
+close_behavior_minimize = "最小化到系統匣"
+close_behavior_exit    = "結束應用程式"
+close_behavior_hint    = "控制點擊 × 按鈕時的行為。您也可以在關閉對話方塊中進行設定。"
+
+# ===================================================================
+# DYNAMIC PLUGIN CONFIGURATION
+# ===================================================================
+[plugin_config]
+title_format = "設定 — %s"
+required_fields_error_title = "必填項目"
+required_fields_error_msg = "請填寫必填欄位："
+test_connection = "測試連線"
+testing = "正在測試…"
+test_ok = "就緒 — %d 項服務已回應"
+test_failed = "測試失敗"
+test_nothing_to_check = "無須檢查"
+
+# ===================================================================
+# OTHER DIALOGS
+# ===================================================================
+[about_dialog]
+title = "關於 QTranslate"
+description = "原版 QTranslate 已停止維護。這是一個完全重寫的版本 —— 理念相同，且由外掛驅動，確保應用程式永不過時。"
+support_button = "支持此專案 ♥"
+donation_nudge = "您已經使用 QTranslate 翻譯了許多內容！如果您覺得它有用，請考慮支持該專案 (關於 → 支持 ♥)"
+
+[history_dialog]
+title = "翻譯歷史紀錄"
+column_date = "日期和時間"
+column_source = "原文"
+column_translation = "譯文"
+column_languages = "語言"
+column_service = "服務"
+empty_message = "歷史紀錄中暫無翻譯。"
+restore_tooltip = "雙擊以恢復此翻譯"
+
+[dictionary_dialog]
+title = "字典"
+lookup_button = "查詢"
+hint_message = "在上方輸入單字進行查詢。"
+not_found_message = "未找到 "%s" 的釋義。"
+loading_message = "查詢中…"
+error_message = "查詢失敗，請重試。"
+synonyms_label = "同義詞"
+auto_source_off = "自動：關閉"
+auto_source_translated = "譯文"
+auto_source_source = "原文"
+
+[image_search_dialog]
+title = "圖片"
+search_button = "搜尋"
+hint_message = "在上方輸入一個詞彙即可查看相關圖片。"
+not_found_message = "未找到 "%s" 的圖片。"
+loading_message = "正在搜尋…"
+error_message = "圖片搜尋失敗，請重試。"
+open_tooltip = "在瀏覽器中開啟來源網頁"
+open_source = "來源網頁"
+back = "返回"
+
+[preset_selector]
+manage_tooltip  = "管理服務預設"
+# %s = preset name
+edit_preset     = "編輯 '%s'..."
+manage_presets  = "管理預設..."
+
+[update_dialog]
+title = "有可用更新"
+header = "QTranslate 的新版本已發布！"
+# %1$s = new version number, %2$s = current version number
+details_format = "版本 %s 現已發布 (目前版本為 %s)。是否要更新？"
+skip_button = "跳過此版本"
+remind_later_button = "稍後提醒我"
+download_button = "下載"
+view_on_github_button = "在 GitHub 上查看"
+
+# ===================================================================
+# CLOSE DIALOG
+# ===================================================================
+[close_dialog]
+title           = "關閉 QTranslate"
+message         = "您想執行什麼操作？"
+minimize_to_tray = "最小化到系統匣"
+exit            = "結束"
+remember_choice = "記住我的選擇"
+
+# ===================================================================
+# EXTRA OUTPUT PANEL
+# ===================================================================
+[extra_output]
+label_backward = "回譯結果"
+label_summary = "內容摘要"
+label_rewrite = "文字改寫"
+
+# ===================================================================
+# NOTIFICATIONS & ERRORS
+# ===================================================================
+[notifications]
+language_not_supported_format = "%2$s 不支援語言 '%1$s'。"
+tts_not_supported_format = "%s 不支援語音合成 (TTS)。"
+unknown_error = "發生了未知錯誤。"
+
+# ===================================================================
+# STATUS BAR MESSAGES
+# ===================================================================
+[status_bar]
+# Translation
+translating = "正在翻譯..."
+translation_complete = "翻譯完成。"
+translation_cancelled = "翻譯已取消。"
+translation_timeout = "翻譯逾時。請重試。"
+translation_failed = "翻譯失敗：%s"
+no_translator_active = "沒有啟用的翻譯服務。"
+performing_backward_translation = "正在執行反向翻譯..."
+unexpected_error = "未預期的錯誤：%s"
+# Text-to-Speech
+no_text_to_speak = "沒有可朗讀的文字。"
+cannot_determine_language = "無法判斷所選文字的語言。"
+no_tts_active = "沒有啟用的文字轉語音服務。"
+tts_language_not_supported = "啟用的 TTS 服務（%s）不支援所選語言。"
+converting_to_speech = "正在將文字轉換為語音..."
+tts_timeout = "文字轉語音逾時。請重試。"
+playing_audio = "正在播放音訊..."
+audio_playback_complete = "音訊播放完成。"
+tts_stopped = "音訊已停止。"
+downloading_audio = "正在下載音訊..."
+audio_download_failed = "音訊串流下載失敗。"
+tts_failed = "文字轉語音失敗：%s"
+# OCR
+no_ocr_active = "沒有啟用的 OCR（文字辨識）服務。"
+recognizing_text = "正在從影像中辨識文字..."
+ocr_timeout = "OCR 逾時。請使用較小的影像重試。"
+no_text_in_image = "在擷取的影像中未找到文字。"
+ocr_complete = "文字辨識成功！"
+ocr_text_copied = "文字已辨識並複製到剪貼簿。"
+text_copied = "已複製到剪貼簿。"
+ocr_failed = "文字辨識失敗：%s"
+# Summarize
+no_summarizer_active = "沒有啟用的摘要服務。請安裝並設定摘要外掛。"
+summarizing = "正在摘要..."
+summarize_timeout = "摘要逾時。"
+summary_ready = "摘要已就緒。"
+summarize_failed = "摘要失敗：%s"
+# Rewrite
+no_rewriter_active = "沒有啟用的改寫服務。請安裝並設定改寫外掛。"
+rewriting = "正在改寫..."
+rewrite_timeout = "改寫逾時。"
+rewrite_ready = "改寫已就緒。"
+rewrite_failed = "改寫失敗：%s"
+# Spell Check
+spell_check_timeout = "拼字檢查逾時。"
+spell_check_failed = "拼字檢查失敗：%s"
+# Updates
+already_up_to_date = "您正在使用最新版本（%s）。"
+update_check_network_error = "檢查更新失敗。請檢查網路連線後重試。"
+update_check_parse_error = "檢查更新失敗。伺服器傳回了未預期的資料。請稍後重試。"
+update_check_unknown_error = "檢查更新失敗。發生未預期的錯誤。請稍後重試。"
+# Dictionary
+no_word_to_lookup = "請輸入要查詢的單字。"
+no_dictionary_active = "沒有啟用的字典服務。"
+looking_up_word = "查詢中…"
+dictionary_ready = "找到釋義。"
+dictionary_not_found = "未找到 "%s" 的釋義。"
+dictionary_timeout = "字典查詢逾時。"
+dictionary_failed = "字典查詢失敗：%s"
+# Image search
+no_term_to_illustrate = "請輸入要搜尋圖片的詞彙。"
+no_image_search_active = "沒有正在使用的圖片搜尋服務。"
+searching_images = "正在搜尋圖片…"
+image_search_ready = "已找到圖片。"
+images_not_found = "未找到 "%s" 的圖片。"
+image_search_timeout = "圖片搜尋逾時。"
+image_search_failed = "圖片搜尋失敗：%s"
+
+[layout_compact]
+tab_input_tooltip = "原始文字 (%s)"
+tab_output_tooltip = "翻譯 (%s)"
+tab_extra_tooltip = "額外輸出 (%s)"
