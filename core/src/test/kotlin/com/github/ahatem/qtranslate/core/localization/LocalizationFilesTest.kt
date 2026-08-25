@@ -6,7 +6,7 @@ import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
- * Guards the localization files against the two ways they have silently broken.
+ * Guards the localization files against ways they have silently broken.
  *
  * Both failures found by these checks were shipped: five hotkey labels and the no-service action
  * button rendered their raw key names, because the strings had been appended without a newline
@@ -21,6 +21,7 @@ class LocalizationFilesTest {
 
     private val embedded = File(repoRoot, "core/src/main/resources/localization/embedded_en.toml")
     private val languageFiles = File(repoRoot, "languages").listFiles { f -> f.extension == "toml" }!!.sorted()
+    private val localizationFiles = languageFiles + embedded
 
     /**
      * A closing quote followed immediately by something that looks like another key.
@@ -32,7 +33,7 @@ class LocalizationFilesTest {
 
     @Test
     fun `no localization file packs several keys onto one line`() {
-        val offenders = (languageFiles + embedded).flatMap { file ->
+        val offenders = localizationFiles.flatMap { file ->
             file.readLines().withIndex()
                 .filter { (_, line) -> runTogetherKeys.containsMatchIn(line) }
                 .map { (i, line) -> "${file.name}:${i + 1}: ${line.take(80)}" }
@@ -42,6 +43,30 @@ class LocalizationFilesTest {
             fail(
                 "Some keys share a line with the one before them and will never be parsed.\n" +
                     "Put each key on its own line:\n" + offenders.joinToString("\n")
+            )
+        }
+    }
+
+    /** The parser accepts quoted strings on one line only. Newlines must be escaped as `\n`. */
+    @Test
+    fun `no localization value spans physical lines`() {
+        val offenders = localizationFiles.flatMap { file ->
+            file.readLines().withIndex().mapNotNull { (index, raw) ->
+                val line = raw.trim()
+                if (!KEY_LINE.containsMatchIn(line)) return@mapNotNull null
+
+                val value = line.substringAfter('=').trim()
+                if (value.startsWith("\"\"\"") || value.startsWith('"') && !hasClosingQuote(value)) {
+                    "${file.name}:${index + 1}: ${raw.take(80)}"
+                } else null
+            }
+        }
+
+        if (offenders.isNotEmpty()) {
+            fail(
+                "Localization values must fit on one physical line because LanguageTomlParser " +
+                    "reads one line at a time. Use escaped \\n sequences instead:\n" +
+                    offenders.joinToString("\n")
             )
         }
     }
@@ -211,18 +236,18 @@ class LocalizationFilesTest {
     }
 
     /** Flattens a TOML localization file to `section.key` → value. */
-    private fun valuesOf(file: File): Map<String, String> {
-        var section = ""
-        val values = mutableMapOf<String, String>()
-        file.readLines().forEach { raw ->
-            val line = raw.trim()
+    private fun valuesOf(file: File): Map<String, String> = LanguageTomlParser().parse(file.readText()).entries
+
+    private fun hasClosingQuote(value: String): Boolean {
+        var escaped = false
+        for (character in value.drop(1)) {
             when {
-                line.startsWith("#") || line.isEmpty() -> return@forEach
-                line.startsWith("[") -> section = line.trim('[', ']').trim()
-                else -> VALUE_LINE.find(line)?.let { values["$section.${it.groupValues[1]}"] = it.groupValues[2] }
+                escaped -> escaped = false
+                character == '\\' -> escaped = true
+                character == '"' -> return true
             }
         }
-        return values
+        return false
     }
 
     /** Flattens a TOML localization file to `section.key` strings. */
@@ -263,7 +288,6 @@ class LocalizationFilesTest {
         /** Any key-shaped string literal, however it is later used. */
         val ANY_KEY_LITERAL = Regex(""""([a-zA-Z0-9_]+\.[a-zA-Z0-9_]+)"""")
         val KEY_LINE = Regex("""^([A-Za-z_][A-Za-z0-9_]*)\s*=""")
-        val VALUE_LINE = Regex("""^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$""")
 
         /** Covers `%s`, `%d`, and the positional `%1$s` form translators use to reorder. */
         val FORMAT_SPECIFIER = Regex("""%\d*\$?[sdf]""")

@@ -638,10 +638,7 @@ placeholder_mismatch = "Các trình giữ chỗ %s khác với văn bản tiến
 mismatch_warning = "%s chuỗi có trình giữ chỗ không khớp với tiếng Anh. Chúng sẽ gây lỗi khi sử dụng."
 unreadable_title = "Không thể đọc bản dịch"
 # %1$s = language code, %2$s = file path
-unreadable = "Không thể đọc bản dịch cho %s, vì vậy không thể chỉnh sửa an toàn.
-
-Tệp nằm tại:
-%s"
+unreadable = "Không thể đọc bản dịch cho %s, vì vậy không thể chỉnh sửa an toàn.\n\nTệp nằm tại:\n%s"
 search = "Tìm kiếm khóa và văn bản..."
 only_untranslated = "Chỉ các mục chưa dịch"
 # %1$s = translated count, %2$s = total, %3$s = percent
