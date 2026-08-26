@@ -13,7 +13,7 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
 [![Made with Kotlin](https://img.shields.io/badge/Kotlin-2.x-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 
-[**Download**](#installation) · [**Plugin Guide**](wiki/Creating-a-Plugin.md) · [**Build from source**](wiki/Building-from-Source.md) · [**Contributing**](CONTRIBUTING.md) · [**Wiki**](wiki/Home.md)
+[**Download**](#installation) · [**Plugin Guide**](wiki/Creating-a-Plugin.md) · [**Build from source**](wiki/Building-from-Source.md) · [**Support**](https://www.buymeacoffee.com/ahmedhatem) · [**Contributing**](CONTRIBUTING.md) · [**Wiki**](wiki/Home.md)
 
 <br>
 
@@ -280,7 +280,7 @@ Clean Architecture + MVI. Nothing leaks between layers:
 
 ## Support
 
-If QTranslate saves you from Alt-Tabbing to Google Translate a dozen times a day, a coffee is always appreciated!
+QTranslate is free and open source. If it saves you time, support helps with maintenance, compatibility testing, and future releases.
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ahmedhatem-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/ahmedhatem)
 
