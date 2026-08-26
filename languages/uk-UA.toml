@@ -5,7 +5,7 @@
 name = "Ukrainian"
 native_name = "Українська"
 locale = "uk-UA"
-translators = ["AOgit"]
+translators = ["AOgit", "kopejkin"]
 rtl = false
 
 # ===================================================================
