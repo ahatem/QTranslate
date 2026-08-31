@@ -6,6 +6,10 @@
 
 **The translation tool that Questsoft abandoned. Rebuilt from scratch. Built to last.**
 
+**Select text in any application → press `Ctrl+Q` → get the translation without leaving what you're doing.**
+
+Free · Open source · Plugin-powered · Local or cloud services
+
 [![Release](https://img.shields.io/github/v/release/ahatem/QTranslate?style=flat-square&color=4A90D9&label=latest)](https://github.com/ahatem/QTranslate/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/ahatem/QTranslate/total?style=flat-square&color=4A90D9&label=downloads)](https://github.com/ahatem/QTranslate/releases)
 [![License](https://img.shields.io/github/license/ahatem/QTranslate?style=flat-square)](LICENSE)
@@ -13,7 +17,7 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
 [![Made with Kotlin](https://img.shields.io/badge/Kotlin-2.x-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 
-[**Download**](#installation) · [**Plugin Guide**](wiki/Creating-a-Plugin.md) · [**Build from source**](wiki/Building-from-Source.md) · [**Support**](https://www.buymeacoffee.com/ahmedhatem) · [**Contributing**](CONTRIBUTING.md) · [**Wiki**](wiki/Home.md)
+[**Download**](#installation) · [**Plugin Guide**](wiki/Creating-a-Plugin.md) · [**Build from source**](wiki/Building-from-Source.md) · [**Support**](#support-qtranslate) · [**Contributing**](CONTRIBUTING.md) · [**Wiki**](wiki/Home.md)
 
 <br>
 
@@ -23,9 +27,19 @@
 
 ---
 
-The original QTranslate by Questsoft was the best desktop translation tool on Windows — until development stopped, APIs broke, and users were left with a dead app.
+## Why QTranslate exists
 
-This is a full rewrite in Kotlin with one core design change: **everything is a plugin.** Translation engines, OCR, TTS, spell checkers, dictionaries — all separate JARs you install at runtime. When a service changes its API or shuts down, you swap the plugin. The app keeps running.
+I relied heavily on the original QTranslate while studying veterinary medicine. I was constantly reading material filled with medical terminology, anatomy, drug names, Latin terms, and unfamiliar words.
+
+What made it special was not just translation. It was the lack of friction: **select something → press a hotkey → understand it → keep reading.**
+
+When the original project was abandoned and its services gradually stopped working, I could not find another application that felt the same. So I rebuilt it from scratch.
+
+The rewrite is built around one lesson from the original: **a translation app should not die because one service changes its API.** Translation engines, OCR, TTS, spell checkers, dictionaries, and AI services are plugins that can be replaced independently.
+
+I built QTranslate for myself first, but I keep it free and open source because translation, reading, and learning tools should not require another subscription.
+
+— **Ahmed Hatem, creator of QTranslate**
 
 ---
 
@@ -47,35 +61,50 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 <tr>
 <td align="center" width="50%">
 <img src="docs/images/screenshot-main-dark.png" alt="Main window — dark theme" width="340"><br>
-<sub><b>Main window</b> — translate, summarize, rewrite, spell check, browse history</sub>
+<sub>Translate, summarize, rewrite, spell-check, and revisit past translations</sub>
 </td>
 <td align="center" width="50%">
 <img src="docs/images/screenshot-rtl.png" alt="RTL layout — Arabic" width="340"><br>
-<sub><b>RTL support</b> — full layout mirroring for Arabic, Hebrew, Farsi, and more</sub>
+<sub>Use Arabic, Hebrew, Farsi, and other RTL languages with a mirrored layout</sub>
 </td>
 </tr>
 <tr>
 <td align="center" width="50%">
 <img src="docs/images/screenshot-compact.png" alt="Compact layout — light theme" width="340"><br>
-<sub><b>Compact layout, light theme</b> — tabbed view, fits any workflow</sub>
+<sub>Keep input and output tidy in a smaller tabbed window</sub>
 </td>
 <td align="center" width="50%">
 <img src="docs/images/screenshot-settings.png" alt="Settings — Services and Presets" width="340"><br>
-<sub><b>Settings — Services &amp; Presets</b> — configure engines, presets, and API keys</sub>
+<sub>Choose services, save presets, and manage API keys in one place</sub>
 </td>
 </tr>
 <tr>
 <td align="center" width="50%">
 <img src="docs/images/screenshot-side-by-side.png" alt="Side-by-side layout" width="340"><br>
-<sub><b>Side-by-side layout</b> — source and translation in parallel columns</sub>
+<sub>Compare source and translation without switching panes</sub>
 </td>
 <td align="center" width="50%">
 <img src="docs/images/screenshot-document.png" alt="Document translation" width="340"><br>
-<sub><b>Document translation</b> — DOCX, PDF, TXT, SRT and VTT, structure preserved</sub>
+<sub>Translate DOCX, PDF, TXT, SRT, and VTT with progress and cancellation</sub>
 </td>
 </tr>
 </table>
 </div>
+
+---
+
+## Who it is for
+
+- **Readers and language learners** — understand unfamiliar words and passages without constantly switching applications.
+- **Students and researchers** — translate terminology, documents, screenshots, and reference material with the services you choose.
+- **Professionals** — work across desktop applications and choose local or cloud services based on the material being translated.
+- **Power users and developers** — configure global hotkeys, build service presets, and extend QTranslate with plugins.
+
+### Privacy and local options
+
+QTranslate lets you choose which services receive your text. You can point AI Services at a local Ollama or LM Studio server, or use a self-hosted LibreTranslate instance. Requests sent to those configured local endpoints stay on your machine or network; requests sent to a cloud service are handled by that provider.
+
+Plugins run on your computer with access to local resources, so install third-party plugin JARs only from publishers you trust.
 
 ---
 
@@ -115,9 +144,9 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 | **Service presets** | Save different engine combinations for different contexts |
 | **Google Services** | Translator, TTS, OCR, Spell Checker, Dictionary — included |
 | **Bing Services** | Translator, TTS, Spell Checker — included |
-| **AI Services** | Translator, Summarizer, Rewriter, Spell Checker, Dictionary, Vision OCR — via [OpenRouter](https://openrouter.ai) (300+ models, one API key) — included. [Setup guide](wiki/AI-Services.md) |
+| **AI Services** | Translator, Summarizer, Rewriter, Spell Checker, Dictionary, Vision OCR — via [OpenRouter](https://openrouter.ai) or another OpenAI-compatible endpoint. [Setup guide](wiki/AI-Services.md) |
 | **Free translation choices** | Mozhi, MyMemory, DeepL web fallback, Reverso, and Yandex Web work without an API key; unofficial endpoints may change or be rate-limited |
-| **Fully offline & private** | Point AI Services at a local [Ollama](https://ollama.com) or LM Studio server, or use a self-hosted LibreTranslate instance. No account, no API key, no per-word cost, and nothing leaves your machine — for work under an NDA, proprietary code, or anything else that cannot go to a cloud service. [Setup guide](wiki/AI-Services.md) |
+| **Local and self-hosted options** | Point AI Services at a local [Ollama](https://ollama.com) or LM Studio server, or use a self-hosted LibreTranslate instance. Local endpoints need no account or API key. [Setup guide](wiki/AI-Services.md) |
 | **Reference services** | Wikipedia and Wiktionary lookups, and Wikimedia Commons image search, through official MediaWiki APIs |
 | **CSV dictionary** | Point it at your own CSV — a glossary, an abbreviation list, a table of error codes, a set of study notes — and look terms up in it. Which columns hold the term and its meaning is configurable, and nothing leaves your machine |
 
@@ -143,7 +172,7 @@ All downloads live on the [**latest release page**](https://github.com/ahatem/QT
 | **macOS / Linux** | `QTranslate-<version>.zip` | Java 11+ |
 | **Any (app only, no plugins)** | `QTranslate-App-<version>.jar` | Java 11+ |
 
-Every download already contains all bundled plugins, languages, and themes. Pick one — you do not need the others.
+The Windows and portable ZIP packages contain all bundled plugins, languages, themes, and icon sets. The app-only JAR contains no plugins and is intended for an existing or manually assembled setup.
 
 ### Windows
 
@@ -202,7 +231,7 @@ Bundled plugins: Google, Bing, AI Services, DeepL, Mozhi, MyMemory, LibreTransla
 
 ## Quick start
 
-1. Launch `QTranslate.jar` — it starts in the system tray
+1. Launch `QTranslate.exe` on Windows, or `QTranslate.jar` from the portable package — it starts in the system tray
 2. Select text anywhere on screen
 3. Press `Ctrl+Q` — Quick Translate popup opens with the result ready
 4. Press `Ctrl+D` — open the Dictionary for the selected word
@@ -251,9 +280,9 @@ All bundled plugins are open source under `plugins/`. They provide real-world ex
 
 ## Translate the interface
 
-QTranslate ships with 14 languages built in:
+QTranslate ships with 16 built-in locale files:
 
-**Arabic · Bengali · Chinese · English · French · German · Hungarian · Italian · Japanese · Portuguese · Russian · Spanish · Turkish · Vietnamese**
+**Arabic · Bengali · Chinese (Simplified and Traditional) · English · French · German · Hungarian · Italian · Japanese · Portuguese · Russian · Spanish · Turkish · Ukrainian · Vietnamese**
 
 Want another language? Copy `languages/en-GB.toml`, rename it to your language code, translate the values. No code needed.
 
@@ -278,11 +307,31 @@ Clean Architecture + MVI. Nothing leaks between layers:
 
 ---
 
-## Support
+## Support QTranslate
 
-QTranslate is free and open source. If it saves you time, support helps with maintenance, compatibility testing, and future releases.
+QTranslate is free and open source, and I want it to stay that way.
 
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ahmedhatem-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/ahmedhatem)
+I am the primary developer behind the project. Maintenance means more than adding features: providers change APIs, operating systems change behaviour, plugins need updates, bugs need investigation, releases need testing, and users need support.
+
+If QTranslate saves you time, helps you study, or becomes one of those utilities you use every day, consider supporting its development. Even a small recurring contribution makes it easier to work on QTranslate consistently.
+
+[**GitHub Sponsors**](https://github.com/sponsors/ahatem) · [**Buy Me a Coffee**](https://www.buymeacoffee.com/ahmedhatem) · [**Supporters**](SPONSORS.md)
+
+Financial support is completely optional. You can also help by starring and sharing QTranslate, reporting reproducible bugs, translating the interface, improving documentation, building plugins, or contributing code.
+
+— **Ahmed**
+
+### Professional or organization use
+
+Using QTranslate in a team or organization and need something specific? I may be available for paid professional work around the project, including:
+
+- custom QTranslate plugins;
+- private translation-service or API/LLM integrations;
+- terminology and dictionary integrations;
+- deployment and organization-specific configuration;
+- technical consulting and support.
+
+This work supports development around the free, open-source application; it does not create a paid edition or give sponsors control over technical decisions. For professional inquiries, use the public contact details on [my GitHub profile](https://github.com/ahatem).
 
 ---
 
@@ -291,6 +340,8 @@ QTranslate is free and open source. If it saves you time, support helps with mai
 Bug fixes, features, translations, docs, and plugins all welcome. Look for [`good first issue`](https://github.com/ahatem/QTranslate/labels/good%20first%20issue) for well-scoped starting points.
 
 → [Contributing Guide](CONTRIBUTING.md)
+
+**QTranslate was created by Ahmed Hatem and is maintained with contributions from the QTranslate community.**
 
 ---
 
