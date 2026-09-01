@@ -47,4 +47,4 @@ None of these are shipped features or commitments. If any of them are built, the
 
 ## License
 
-QTranslate is currently distributed under the [MIT License](../LICENSE). Any future licensing decision will be handled separately from funding and documentation changes.
+QTranslate source code is available under the [Mozilla Public License 2.0](../LICENSE). Earlier revisions remain available under the MIT License; the transition and third-party boundaries are recorded in [NOTICE.md](../NOTICE.md).

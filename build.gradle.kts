@@ -136,6 +136,11 @@ fun Zip.configurePortableBundle(plugins: List<BundledPlugin>) {
         from(rootProject.file("icons")) {
             into("icons")
         }
+        from(rootProject.file("LICENSE"))
+        from(rootProject.file("NOTICE.md"))
+        from(rootProject.file("LICENSES")) {
+            into("LICENSES")
+        }
         from(rootProject.file("THIRD_PARTY_LICENSES")) {
             into("THIRD_PARTY_LICENSES")
         }

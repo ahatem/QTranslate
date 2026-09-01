@@ -3,6 +3,7 @@
 package buildsrc.convention
 
 import org.gradle.api.tasks.testing.logging.TestLogEvent
+import org.gradle.language.jvm.tasks.ProcessResources
 
 plugins {
     // Apply the Kotlin JVM plugin to add support for Kotlin in JVM projects.
@@ -22,6 +23,21 @@ kotlin {
 tasks.withType<JavaCompile>().configureEach {
     sourceCompatibility = "11"
     targetCompatibility = "11"
+}
+
+tasks.named<ProcessResources>("processResources") {
+    from(rootProject.file("LICENSE")) {
+        into("META-INF")
+    }
+    from(rootProject.file("NOTICE.md")) {
+        into("META-INF")
+    }
+    from(rootProject.file("LICENSES")) {
+        into("META-INF/LICENSES")
+    }
+    from(rootProject.file("THIRD_PARTY_LICENSES")) {
+        into("META-INF/THIRD_PARTY_LICENSES")
+    }
 }
 
 tasks.withType<Test>().configureEach {

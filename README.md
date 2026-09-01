@@ -208,10 +208,14 @@ QTranslate/
   │     ├── tabler/
   │     ├── phosphor/
   │     └── heroicons/                ← extra icon sets; drop a set's folder in to add it
+  ├── LICENSE                         ← Mozilla Public License 2.0
+  ├── NOTICE.md                       ← licensing scope and earlier-release notice
+  ├── LICENSES/
+  │     └── QTranslate-MIT.txt        ← license used for earlier revisions
   └── THIRD_PARTY_LICENSES/
         ├── Lucide-ISC.txt
         ├── MaterialSymbols-Apache-2.0.txt
-        └── ...                       ← licenses for every bundled font, icon set and theme
+        └── ...                       ← notices for bundled third-party material
 ```
 
 Bundled plugins: Google, Bing, AI Services, DeepL, Mozhi, MyMemory, LibreTranslate Local, Reverso, Yandex Web, Wikimedia Reference, and CSV Dictionary. Configure a service from the service selector or **Settings → Plugins**.
@@ -345,7 +349,9 @@ Bug fixes, features, translations, docs, and plugins all welcome. Look for [`goo
 
 ---
 
-[MIT License](LICENSE)
+## License
+
+QTranslate source code is available under the [Mozilla Public License 2.0](LICENSE). Earlier revisions remain available under the MIT License; see [NOTICE.md](NOTICE.md) for the transition and third-party notices.
 
 <div align="center">
 <br>
