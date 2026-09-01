@@ -22,4 +22,4 @@ Bundled libraries, fonts, icons, themes, and other third-party material keep the
 
 Provider names, logos, and other brand assets belong to their respective owners. Their inclusion identifies supported services and does not imply endorsement.
 
-The Salmon and Kokedera themes are retained with attribution, but no license covering their source repositories could be verified. They are not covered by the QTranslate MPL license. See [THIRD_PARTY_LICENSES/Themes.md](THIRD_PARTY_LICENSES/Themes.md) for provenance and the current verification status.
+Bundled theme provenance and license mappings are recorded in [THIRD_PARTY_LICENSES/Themes.md](THIRD_PARTY_LICENSES/Themes.md).
