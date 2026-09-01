@@ -28,9 +28,7 @@ class ThemeManager(
         createCustomTheme("godot_dark",          "Godot Dark",           true,  "themes/godot_theme.theme.json"),
         createCustomTheme("kintsugi_dark",       "Kintsugi Dark",        true,  "themes/kintsugi.theme.json"),
         createCustomTheme("espresso_light",      "Espresso Light",       false, "themes/espresso_light.theme.json"),
-        createCustomTheme("salmon_light",        "Salmon Light",         false, "themes/Salmon.theme.json"),
         createCustomTheme("cool_dark",           "Cool Dark",            true,  "themes/cool_dark.theme.json"),
-        createCustomTheme("clean_sheet",         "Clean Sheet Light",    false, "themes/clean_sheet.theme.json"),
         createCustomTheme("vitesse_black",       "Vitesse Black",        true,  "themes/vitesse.black.theme.json"),
         createCustomTheme("vitesse_dark",        "Vitesse Dark",         true,  "themes/vitesse.dark.theme.json"),
         createCustomTheme("vitesse_dark_soft",   "Vitesse Dark Soft",    true,  "themes/vitesse.dark.soft.theme.json"),
@@ -86,7 +84,12 @@ class ThemeManager(
     fun getLightThemes(): List<Theme> = allThemes.filter { !it.isDark }
 
     fun findThemeById(id: String?): Theme {
-        val resolvedId = if (id == OS_DEFAULT_THEME_ID) systemDefaultThemeId else id
+        val requestedId = if (id == OS_DEFAULT_THEME_ID) systemDefaultThemeId else id
+        val resolvedId = requestedId?.let { savedId ->
+            legacyExternalThemeIds[savedId]
+                ?.takeIf(themeCache::containsKey)
+                ?: savedId
+        }
 
         // Fast path – cache hit
         if (resolvedId != null && themeCache.containsKey(resolvedId)) return themeCache[resolvedId]!!
@@ -246,6 +249,12 @@ class ThemeManager(
     companion object {
         /** Sentinel theme ID that resolves to the OS-preferred dark/light theme at apply time. */
         const val OS_DEFAULT_THEME_ID = "os_default"
+
+        /** Keeps theme selections from releases where these files were embedded in the JAR. */
+        private val legacyExternalThemeIds = mapOf(
+            "custom:salmon_light" to "external:salmon.theme",
+            "custom:clean_sheet" to "external:clean_sheet.theme"
+        )
 
         private val os: String = System.getProperty("os.name", "").lowercase()
 

@@ -197,7 +197,9 @@ QTranslate/
   │     ├── mozhi-services-plugin.jar
   │     └── ...
   ├── themes/
-  │     └── kokedera.theme.json       ← community theme included; drop more .theme.json files here
+  │     ├── Salmon.theme.json
+  │     ├── clean_sheet.theme.json
+  │     └── kokedera.theme.json       ← release themes; drop more .theme.json files here
   ├── languages/
   │     ├── ar-SA.toml
   │     ├── zh-CN.toml

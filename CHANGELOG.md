@@ -11,6 +11,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - Project source code is now licensed under the Mozilla Public License 2.0. Earlier revisions remain under MIT, and release packages now carry the project and third-party licensing notices.
+- Salmon and Clean Sheet now ship as separate files in the `themes/` directory instead of being embedded in the application JAR. Existing saved selections for either theme continue to work.
 
 ## [1.4.1] — 2026-08-18
 

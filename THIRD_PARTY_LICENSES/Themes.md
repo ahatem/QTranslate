@@ -2,6 +2,8 @@
 
 The themes listed below were adapted from the linked projects. They retain their original terms and are not relicensed under the QTranslate project license.
 
+Salmon and Clean Sheet are distributed as separate files in the top-level `themes/` directory. They are not embedded in the application JAR.
+
 | Bundled theme | Source | License file |
 |---|---|---|
 | ReSharper Dark, ReSharper Light | [JetBrains Rider Theme Pack](https://github.com/JetBrains/rider-theme-pack) | [Apache-2.0.txt](Apache-2.0.txt) |

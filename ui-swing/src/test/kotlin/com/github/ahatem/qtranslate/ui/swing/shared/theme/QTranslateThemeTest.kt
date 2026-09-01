@@ -1,11 +1,15 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.theme
 
 import com.formdev.flatlaf.IntelliJTheme
+import com.github.ahatem.qtranslate.api.core.Logger
 import java.awt.Color
+import java.io.File
+import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class QTranslateThemeTest {
@@ -26,6 +30,35 @@ class QTranslateThemeTest {
     fun `missing custom theme resource fails instead of reporting success`() {
         val theme = createCustomTheme("missing", "Missing", false, "themes/missing.theme.json")
         assertFailsWith<IllegalArgumentException> { theme.apply() }
+    }
+
+    @Test
+    fun `GPL themes are external and saved selections continue to resolve`() {
+        assertNull(javaClass.classLoader.getResource("themes/Salmon.theme.json"))
+        assertNull(javaClass.classLoader.getResource("themes/clean_sheet.theme.json"))
+
+        val appDataDirectory = createTempDirectory("qtranslate-themes").toFile()
+        try {
+            val themesDirectory = File(appDataDirectory, "themes").apply { mkdirs() }
+            File(repositoryRoot, "themes/Salmon.theme.json")
+                .copyTo(File(themesDirectory, "Salmon.theme.json"))
+            File(repositoryRoot, "themes/clean_sheet.theme.json")
+                .copyTo(File(themesDirectory, "clean_sheet.theme.json"))
+
+            val manager = ThemeManager(appDataDirectory, silentLogger)
+
+            val salmon = manager.findThemeById("custom:salmon_light")
+            assertEquals("external:salmon.theme", salmon.id)
+            assertEquals("Salmon", salmon.name)
+            assertEquals(false, salmon.isDark)
+
+            val cleanSheet = manager.findThemeById("custom:clean_sheet")
+            assertEquals("external:clean_sheet.theme", cleanSheet.id)
+            assertEquals("Clean Sheet", cleanSheet.name)
+            assertEquals(false, cleanSheet.isDark)
+        } finally {
+            appDataDirectory.deleteRecursively()
+        }
     }
 
     @Test
@@ -107,5 +140,18 @@ class QTranslateThemeTest {
             else Math.pow((normalized + 0.055) / 1.055, 2.4)
         }
         return 0.2126 * channel(color.red) + 0.7152 * channel(color.green) + 0.0722 * channel(color.blue)
+    }
+
+    private val repositoryRoot: File by lazy {
+        generateSequence(File(System.getProperty("user.dir"))) { it.parentFile }
+            .firstOrNull { File(it, "settings.gradle.kts").isFile }
+            ?: error("Could not locate the repository root from ${System.getProperty("user.dir")}")
+    }
+
+    private val silentLogger = object : Logger {
+        override fun debug(message: String) = Unit
+        override fun info(message: String) = Unit
+        override fun warn(message: String) = Unit
+        override fun error(message: String, error: Throwable?) = Unit
     }
 }
