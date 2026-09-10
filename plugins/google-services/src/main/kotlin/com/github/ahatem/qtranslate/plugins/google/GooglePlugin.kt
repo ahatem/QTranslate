@@ -30,7 +30,7 @@ class GooglePlugin : Plugin<GoogleSettings> {
         this.settings = GoogleSettings(
             visionApiKey = context.secrets.get("visionApiKey") ?: "",
             translateApiKey = context.secrets.get("translateApiKey") ?: ""
-        )
+        )
         pluginContext.logger.info("Google Plugin initialized")
         return Ok(Unit)
     }
@@ -75,7 +75,7 @@ class GooglePlugin : Plugin<GoogleSettings> {
     }
 
     override suspend fun shutdown() {
-        pluginContext.logger.info("Google Plugin shutting down")
+        pluginContext.logger.info("Google Plugin shutting down")
     }
 
     override fun getServices(): List<Service> = activeServices

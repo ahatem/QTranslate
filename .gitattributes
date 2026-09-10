@@ -18,6 +18,11 @@
 *.gz   binary
 *.zip  binary
 
+# Committed with CRLF before the normalisation above. Pinning the path keeps CR-at-EOL out of the
+# whitespace check and stops an edit to one line from renormalising the whole file, which would show
+# as a full rewrite and bury the actual change.
+plugins/google-services/src/main/kotlin/com/github/ahatem/qtranslate/plugins/google/GooglePlugin.kt -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
 # Must stay CRLF to run on Windows.
 *.bat       text eol=crlf
 *.cmd       text eol=crlf
