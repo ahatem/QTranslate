@@ -120,40 +120,57 @@ class GoogleSpellCheckerService(
         sentence: String,
         language: LanguageCode
     ): Result<SpellCheckResponse, ServiceError> {
-        if (!endpointHealth.tryAcquirePrimary()) {
-            return Err(ServiceError.ServiceUnavailableError("Google spell check endpoint is temporarily unavailable", null))
-        }
-
         val langTag = languageMapper.toProviderCode(language)
-        val response = requestSemaphore.withPermit {
-            httpClient.get(
-                url = TRANSLATE_PRIMARY,
-                headers = apiConfig.createHeaders(),
-                queryParams = mapOf(
-                    "client" to "gtx",
-                    "dj" to 1,
-                    "sl" to langTag,
-                    "tl" to "zu",
-                    "q" to sentence,
-                    "dt" to "qc"
-                )
-            )
-        }
 
-        return response.fold(
-            success = { body ->
-                currentCoroutineContext().ensureActive()
-                endpointHealth.recordSuccess()
-                parseSpellCheck(body, sentence)
-            },
-            failure = { error ->
-                currentCoroutineContext().ensureActive()
-                if (error.isRetryable) {
-                    endpointHealth.recordTransientFailure(error)
-                }
-                Err(error)
+        return requestSemaphore.withPermit {
+            // The circuit permit is taken only once a request slot is free, so a sentence queued
+            // while the endpoint was healthy cannot slip past a circuit that opened in the meantime.
+            val permit = endpointHealth.tryAcquirePrimary()
+                ?: return@withPermit Err(
+                    ServiceError.ServiceUnavailableError(
+                        "Google spell check endpoint is temporarily unavailable",
+                        null
+                    )
+                )
+
+            // Released on every path exactly once, including cancellation, so an abandoned probe
+            // never strands the circuit.
+            try {
+                val response = httpClient.get(
+                    url = TRANSLATE_PRIMARY,
+                    headers = apiConfig.createHeaders(),
+                    queryParams = mapOf(
+                        "client" to "gtx",
+                        "dj" to 1,
+                        "sl" to langTag,
+                        "tl" to "zu",
+                        "q" to sentence,
+                        "dt" to "qc"
+                    )
+                )
+
+                response.fold(
+                    success = { body ->
+                        currentCoroutineContext().ensureActive()
+                        val parsed = parseSpellCheck(body, sentence)
+                        // Only a recognised payload heals the circuit. An unrecognised one means the
+                        // endpoint answered unusably, which is neutral: the finally releases the
+                        // permit without healing or counting a failure.
+                        if (parsed.isOk) endpointHealth.recordSuccess(permit)
+                        parsed
+                    },
+                    failure = { error ->
+                        currentCoroutineContext().ensureActive()
+                        // A non-retryable failure leaves the permit to the finally, which records
+                        // nothing on the circuit.
+                        if (error.isRetryable) endpointHealth.recordTransientFailure(permit, error)
+                        Err(error)
+                    }
+                )
+            } finally {
+                endpointHealth.releasePrimary(permit)
             }
-        )
+        }
     }
 
     private suspend fun parseSpellCheck(

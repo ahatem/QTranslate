@@ -14,6 +14,10 @@ import kotlin.random.Random
  * fallback. Once the cooldown elapses a single probe is permitted, and its outcome decides whether
  * the circuit closes or reopens.
  *
+ * A caller holds a [Permit] for the whole request. Every phase change bumps [generation], and a
+ * permit only counts while it still matches the current generation, so a request that began before a
+ * transition can never rewrite the newer state.
+ *
  * Only the primary endpoint is tracked. The fallback and the official API are separate hosts and do
  * not feed this state.
  *
@@ -27,59 +31,106 @@ class GoogleEndpointHealth(
 
     enum class State { HEALTHY, OPEN_COOLDOWN, HALF_OPEN }
 
+    /**
+     * Permission to call the primary endpoint. It stays valid only while the circuit's generation is
+     * unchanged; a permit from an older generation is ignored by every recorder.
+     *
+     * [isProbe] marks the single request allowed while the circuit is half open. A probe heals or
+     * reopens the circuit when it resolves, so a request that produces no outcome must hand its
+     * permit back with [releasePrimary].
+     */
+    class Permit internal constructor(
+        internal val generation: Long,
+        val isProbe: Boolean
+    )
+
     private val mutex = Mutex()
     private var state = State.HEALTHY
+    private var generation = 0L
     private var consecutiveFailures = 0
     private var openCount = 0
     private var openUntilMillis = 0L
-    private var probeDeadlineMillis = 0L
+    private var probeInFlight = false
 
     /**
-     * Returns true when the caller may request the primary endpoint now.
+     * Returns a permit when the caller may request the primary endpoint now, or null when it must use
+     * its fallback instead.
      *
-     * While healthy every caller may proceed. While the circuit is open the caller is sent to its
-     * fallback immediately, without paying the primary request timeout. After the cooldown, exactly
-     * one caller is promoted to a half-open probe; the rest keep using their fallback until the
-     * probe resolves.
+     * While healthy every caller is admitted. While the circuit is open callers are sent to their
+     * fallback immediately, without paying the primary request timeout. After the cooldown exactly
+     * one caller is promoted to a half-open probe; every other caller keeps using its fallback until
+     * that probe resolves.
      */
-    suspend fun tryAcquirePrimary(): Boolean = mutex.withLock {
-        when (state) {
-            State.HEALTHY -> true
-            State.OPEN_COOLDOWN -> if (clock() >= openUntilMillis) beginProbe() else false
-            State.HALF_OPEN -> if (clock() >= probeDeadlineMillis) beginProbe() else false
+    suspend fun tryAcquirePrimary(): Permit? = mutex.withLock {
+        when {
+            state == State.HEALTHY -> Permit(generation, isProbe = false)
+            state == State.OPEN_COOLDOWN && clock() >= openUntilMillis && !probeInFlight -> beginProbe()
+            else -> null
         }
-    }
-
-    /** Records a successful primary response and closes the circuit. */
-    suspend fun recordSuccess() = mutex.withLock {
-        state = State.HEALTHY
-        consecutiveFailures = 0
-        openCount = 0
-        openUntilMillis = 0L
-        probeDeadlineMillis = 0L
     }
 
     /**
-     * Records a transient primary failure. Opens the circuit on the second consecutive failure, on
-     * an explicit Retry-After, or when a half-open probe fails.
+     * Records a successful primary response. A probe heals the circuit; an ordinary request only
+     * clears the consecutive-failure count.
      */
-    suspend fun recordTransientFailure(error: ServiceError) = mutex.withLock {
-        consecutiveFailures++
-        val retryAfterSeconds = (error as? ServiceError.RateLimitError)?.retryAfterSeconds
-        val shouldOpen = state == State.HALF_OPEN ||
-            retryAfterSeconds != null ||
-            consecutiveFailures >= FAILURE_THRESHOLD
-        if (shouldOpen) {
-            openCount++
-            state = State.OPEN_COOLDOWN
-            openUntilMillis = clock() + cooldownMillis(retryAfterSeconds)
+    suspend fun recordSuccess(permit: Permit) = mutex.withLock {
+        if (permit.generation != generation) return@withLock
+        if (permit.isProbe) {
+            state = State.HEALTHY
+            consecutiveFailures = 0
+            openCount = 0
+            openUntilMillis = 0L
+            probeInFlight = false
+            generation++
+        } else {
+            consecutiveFailures = 0
         }
     }
 
-    private fun beginProbe(): Boolean {
+    /**
+     * Records a transient primary failure. A probe reopens the cooldown. An ordinary request opens
+     * the cooldown on the second consecutive failure, or immediately on a rate limit; a Retry-After
+     * hint lengthens the cooldown when present.
+     */
+    suspend fun recordTransientFailure(permit: Permit, error: ServiceError) = mutex.withLock {
+        if (permit.generation != generation) return@withLock
+        val retryAfterSeconds = (error as? ServiceError.RateLimitError)?.retryAfterSeconds
+        if (permit.isProbe) {
+            openCooldown(retryAfterSeconds)
+            return@withLock
+        }
+        consecutiveFailures++
+        if (error is ServiceError.RateLimitError || consecutiveFailures >= FAILURE_THRESHOLD) {
+            openCooldown(retryAfterSeconds)
+        }
+    }
+
+    /**
+     * Returns a permit that produced no usable outcome, for example a cancelled request. It records
+     * neither success nor failure. An ordinary permit changes nothing; a probe permit reopens the
+     * cooldown so the circuit can never be left waiting on a probe that will not return.
+     */
+    suspend fun releasePrimary(permit: Permit) = mutex.withLock {
+        if (permit.generation != generation) return@withLock
+        if (!permit.isProbe) return@withLock
+        probeInFlight = false
+        state = State.OPEN_COOLDOWN
+        openUntilMillis = clock() + cooldownMillis(null)
+        generation++
+    }
+
+    private fun beginProbe(): Permit {
         state = State.HALF_OPEN
-        probeDeadlineMillis = clock() + PROBE_TIMEOUT_MILLIS
-        return true
+        probeInFlight = true
+        return Permit(generation, isProbe = true)
+    }
+
+    private fun openCooldown(retryAfterSeconds: Int?) {
+        openCount++
+        state = State.OPEN_COOLDOWN
+        openUntilMillis = clock() + cooldownMillis(retryAfterSeconds)
+        probeInFlight = false
+        generation++
     }
 
     private fun cooldownMillis(retryAfterSeconds: Int?): Long {
@@ -100,7 +151,6 @@ class GoogleEndpointHealth(
         private const val BASE_COOLDOWN_MILLIS = 2_000L
         private const val MAX_COOLDOWN_MILLIS = 60_000L
         private const val MAX_DOUBLINGS = 5
-        private const val PROBE_TIMEOUT_MILLIS = 10_000L
         private const val JITTER_MILLIS = 1_000L
     }
 }

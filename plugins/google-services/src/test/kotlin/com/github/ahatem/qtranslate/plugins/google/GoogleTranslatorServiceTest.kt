@@ -13,6 +13,7 @@ import com.github.michaelbull.result.getError
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.atomic.AtomicLong
@@ -487,6 +488,231 @@ class GoogleTranslatorServiceTest {
         )
         assertEquals(3, client.primaryCalls)
         assertEquals(1, client.fallbackCalls)
+    }
+
+    @Test
+    fun `rate limit without retry-after opens the circuit immediately`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, AtomicLong(0))
+
+        service.translate(request)
+        service.translate(request)
+
+        // The first rate limit opens the circuit, so the second call never reaches the primary.
+        assertEquals(1, client.primaryCalls)
+        assertEquals(2, client.fallbackCalls)
+    }
+
+    @Test
+    fun `a stale success cannot close a circuit opened after its request began`() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                when (index) {
+                    0 -> {
+                        started.complete(Unit)
+                        gate.await()
+                        Ok(PRIMARY_JSON)
+                    }
+                    1, 2 -> Err(ServiceError.TimeoutError("timed out"))
+                    else -> Ok(PRIMARY_JSON)
+                }
+            },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, AtomicLong(0))
+
+        val older = async { service.translate(request) }
+        started.await()
+
+        // Two transient failures open the circuit while the older request is still in flight.
+        service.translate(request)
+        service.translate(request)
+        assertEquals(3, client.primaryCalls)
+
+        gate.complete(Unit)
+        older.await().fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+
+        // The older success belongs to a previous generation and must not heal the circuit.
+        service.translate(request)
+        assertEquals(3, client.primaryCalls)
+        assertEquals(3, client.fallbackCalls)
+    }
+
+    @Test
+    fun `stale failures cannot reopen a circuit healed by a successful probe`() = runBlocking {
+        val firstStarted = CompletableDeferred<Unit>()
+        val secondStarted = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        val clock = AtomicLong(0)
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                when (index) {
+                    0 -> {
+                        firstStarted.complete(Unit)
+                        gate.await()
+                        Err(ServiceError.TimeoutError("timed out"))
+                    }
+                    1 -> {
+                        secondStarted.complete(Unit)
+                        gate.await()
+                        Err(ServiceError.TimeoutError("timed out"))
+                    }
+                    2, 3 -> Err(ServiceError.TimeoutError("timed out"))
+                    else -> Ok(PRIMARY_JSON)
+                }
+            },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, clock)
+
+        val first = async { service.translate(request) }
+        firstStarted.await()
+        val second = async { service.translate(request) }
+        secondStarted.await()
+
+        // Two further failures open the circuit while the older requests are still in flight.
+        service.translate(request)
+        service.translate(request)
+        assertEquals(4, client.primaryCalls)
+
+        clock.set(2_000)
+        service.translate(request)
+        assertEquals(5, client.primaryCalls)
+
+        // The probe heals the circuit; the older requests now resolve with stale failures.
+        gate.complete(Unit)
+        first.await()
+        second.await()
+
+        service.translate(request)
+        assertEquals(6, client.primaryCalls)
+    }
+
+    @Test
+    fun `cancelling a half-open probe does not strand the circuit`() = runBlocking {
+        val clock = AtomicLong(0)
+        val probeStarted = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                when (index) {
+                    0, 1 -> Err(ServiceError.TimeoutError("timed out"))
+                    2 -> {
+                        probeStarted.complete(Unit)
+                        gate.await()
+                        Ok(PRIMARY_JSON)
+                    }
+                    else -> Ok(PRIMARY_JSON)
+                }
+            },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, clock)
+
+        service.translate(request)
+        service.translate(request)
+        assertEquals(2, client.primaryCalls)
+
+        clock.set(2_000)
+        val probe = async { service.translate(request) }
+        probeStarted.await()
+        probe.cancelAndJoin()
+
+        // The abandoned probe reopens the cooldown instead of leaving the circuit half open.
+        service.translate(request)
+        assertEquals(3, client.primaryCalls)
+
+        clock.set(4_000)
+        service.translate(request)
+        assertEquals(4, client.primaryCalls)
+        assertEquals(3, client.fallbackCalls)
+    }
+
+    @Test
+    fun `a cancelled probe is not recorded as success or failure`() = runBlocking {
+        val clock = AtomicLong(0)
+        val probeStarted = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                when (index) {
+                    0, 1 -> Err(ServiceError.TimeoutError("timed out"))
+                    2 -> {
+                        probeStarted.complete(Unit)
+                        gate.await()
+                        Ok(PRIMARY_JSON)
+                    }
+                    else -> Ok(PRIMARY_JSON)
+                }
+            },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, clock)
+
+        service.translate(request)
+        service.translate(request)
+        clock.set(2_000)
+
+        val probe = async { service.translate(request) }
+        probeStarted.await()
+        probe.cancelAndJoin()
+
+        // Before the reopened cooldown elapses a call must not reach the primary, so the cancelled
+        // probe neither healed the circuit nor reset it.
+        clock.set(2_999)
+        service.translate(request)
+        assertEquals(3, client.primaryCalls)
+        assertEquals(3, client.fallbackCalls)
+    }
+
+    @Test
+    fun `only one half-open probe is live at a time`() = runBlocking {
+        val clock = AtomicLong(0)
+        val probeStarted = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                when (index) {
+                    0, 1 -> Err(ServiceError.TimeoutError("timed out"))
+                    2 -> {
+                        probeStarted.complete(Unit)
+                        gate.await()
+                        Ok(PRIMARY_JSON)
+                    }
+                    else -> Ok(PRIMARY_JSON)
+                }
+            },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, clock)
+
+        service.translate(request)
+        service.translate(request)
+        clock.set(2_000)
+
+        val probe = async { service.translate(request) }
+        probeStarted.await()
+
+        val others = List(5) { async { service.translate(request) } }
+        others.awaitAll()
+
+        // The probe lease is outstanding, so no other caller may reach the primary.
+        assertEquals(3, client.primaryCalls)
+
+        gate.complete(Unit)
+        probe.await().fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        assertEquals(3, client.primaryCalls)
     }
 
     private companion object {

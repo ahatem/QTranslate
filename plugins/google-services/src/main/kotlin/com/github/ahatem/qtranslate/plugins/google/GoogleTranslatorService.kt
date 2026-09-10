@@ -107,23 +107,30 @@ class GoogleTranslatorService(
         val sourceTag = languageMapper.toProviderCode(request.sourceLanguage)
         val targetTag = languageMapper.toProviderCode(request.targetLanguage)
 
-        if (endpointHealth.tryAcquirePrimary()) {
-            val primaryResult = tryPrimaryEndpoint(request.text, sourceTag, targetTag)
-            primaryResult.fold(
-                success = {
-                    currentCoroutineContext().ensureActive()
-                    endpointHealth.recordSuccess()
-                    return primaryResult
-                },
-                failure = { error ->
-                    currentCoroutineContext().ensureActive()
-                    if (error.suppressesFallback()) return Err(error)
-                    if (error.isRetryable) endpointHealth.recordTransientFailure(error)
-                }
-            )
-            pluginContext.logger.info("Primary endpoint failed, trying fallback")
-        } else {
+        val permit = endpointHealth.tryAcquirePrimary()
+        if (permit == null) {
             pluginContext.logger.info("Primary endpoint unhealthy, using fallback")
+        } else {
+            // The permit is released on every path exactly once, including cancellation and any
+            // error escaping the primary attempt, so an abandoned probe never strands the circuit.
+            try {
+                val primaryResult = tryPrimaryEndpoint(request.text, sourceTag, targetTag)
+                primaryResult.fold(
+                    success = {
+                        currentCoroutineContext().ensureActive()
+                        endpointHealth.recordSuccess(permit)
+                        return primaryResult
+                    },
+                    failure = { error ->
+                        currentCoroutineContext().ensureActive()
+                        if (error.suppressesFallback()) return Err(error)
+                        if (error.isRetryable) endpointHealth.recordTransientFailure(permit, error)
+                    }
+                )
+                pluginContext.logger.info("Primary endpoint failed, trying fallback")
+            } finally {
+                endpointHealth.releasePrimary(permit)
+            }
         }
 
         currentCoroutineContext().ensureActive()
@@ -133,8 +140,8 @@ class GoogleTranslatorService(
     /**
      * Whether a primary failure is about the request itself rather than the endpoint's reachability.
      * The request would fail identically against the fallback, so these errors are returned as-is
-     * and leave the circuit untouched. Every other error — including a 200 response whose body the
-     * parser cannot decode — still falls back, because the secondary host speaks a different protocol
+     * and leave the circuit untouched. Every other error, including a 200 response whose body the
+     * parser cannot decode, still falls back, because the secondary host speaks a different protocol
      * and may well serve it.
      */
     private fun ServiceError.suppressesFallback(): Boolean = when (this) {

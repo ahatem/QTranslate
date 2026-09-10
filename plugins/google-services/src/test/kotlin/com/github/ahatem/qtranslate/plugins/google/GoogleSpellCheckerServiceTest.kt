@@ -14,6 +14,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -129,6 +130,29 @@ class GoogleSpellCheckerServiceTest {
         assertTrue(spellChecker.check(SpellCheckRequest("Helo world.")).isOk)
 
         assertEquals(1, client.primaryCalls)
+    }
+
+    @Test
+    fun `spell check queued behind the semaphore does not hit the primary after the circuit opens`() = runBlocking {
+        val entered = AtomicInteger(0)
+        val fourInFlight = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        val client = GoogleTestHttpClient(
+            primaryHandler = {
+                if (entered.incrementAndGet() == 4) fourInFlight.complete(Unit)
+                gate.await()
+                Err(ServiceError.RateLimitError("rate limited"))
+            }
+        )
+        val spellChecker = createService(client)
+
+        val job = async { spellChecker.check(requestWithTenSentences()) }
+        fourInFlight.await()
+        gate.complete(Unit)
+
+        // The first failure opens the circuit, so the six queued sentences issue no more requests.
+        assertTrue(job.await().isErr)
+        assertEquals(4, client.primaryCalls)
     }
 
     private fun requestWithTenSentences() =
