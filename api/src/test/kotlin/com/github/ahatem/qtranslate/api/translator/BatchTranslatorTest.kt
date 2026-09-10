@@ -32,7 +32,7 @@ class BatchTranslatorTest {
 
     @Test
     fun `host accepts plugins built against an earlier minor of the same major`() {
-        assertEquals("2.0.0", ApiVersion.VERSION)
+        assertEquals("2.1.0", ApiVersion.VERSION)
         assertIs<ApiVersion.CompatibilityResult.Compatible>(ApiVersion.isCompatible("2.0.0"))
     }
 
