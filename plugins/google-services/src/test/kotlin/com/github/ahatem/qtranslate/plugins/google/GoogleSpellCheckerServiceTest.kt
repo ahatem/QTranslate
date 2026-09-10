@@ -109,6 +109,20 @@ class GoogleSpellCheckerServiceTest {
     }
 
     @Test
+    fun `a rate limited spell check is attempted once per sentence`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) }
+        )
+        val spellChecker = createService(client)
+
+        assertTrue(spellChecker.check(SpellCheckRequest("Helo world.")).isErr)
+
+        // The lone sentence is tried once. A plain GET would have retried the rate limit twice
+        // before the failure reached the circuit.
+        assertEquals(1, client.primaryCalls)
+    }
+
+    @Test
     fun `unrecognised spell payload is not treated as no corrections and is not cached`() = runBlocking {
         val client = GoogleTestHttpClient(
             primaryHandler = { Ok("""{"error":{"code":429}}""") }

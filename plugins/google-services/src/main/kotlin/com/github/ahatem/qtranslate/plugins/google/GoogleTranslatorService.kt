@@ -12,6 +12,7 @@ import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
+import com.github.ahatem.qtranslate.plugins.common.getOnce
 import com.github.ahatem.qtranslate.plugins.common.sendJson
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.ahatem.qtranslate.plugins.google.common.OfficialTranslateResponse
@@ -158,7 +159,7 @@ class GoogleTranslatorService(
         sourceTag: String,
         targetTag: String
     ): Result<TranslationResponse, ServiceError> = coroutineBinding {
-        val responseString = httpClient.get(
+        val responseString = httpClient.getOnce(
             url = TRANSLATE_PRIMARY,
             headers = apiConfig.createHeaders(),
             queryParams = mapOf(

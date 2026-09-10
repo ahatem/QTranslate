@@ -13,6 +13,7 @@ import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckResponse
 import com.github.ahatem.qtranslate.api.spellchecker.SpellChecker
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
+import com.github.ahatem.qtranslate.plugins.common.getOnce
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.ahatem.qtranslate.plugins.google.common.TranslateResponse
 import com.github.michaelbull.result.*
@@ -136,7 +137,7 @@ class GoogleSpellCheckerService(
             // Released on every path exactly once, including cancellation, so an abandoned probe
             // never strands the circuit.
             try {
-                val response = httpClient.get(
+                val response = httpClient.getOnce(
                     url = TRANSLATE_PRIMARY,
                     headers = apiConfig.createHeaders(),
                     queryParams = mapOf(

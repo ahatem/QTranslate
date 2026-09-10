@@ -116,6 +116,67 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
+    fun `the primary is attempted once when the transport would have retried a rate limit`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, AtomicLong(0))
+
+        service.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+
+        // The primary is tried once from the first answer. A plain GET would have spent two retries
+        // on the rate limit before the circuit ever saw the failure.
+        assertEquals(1, client.primaryCalls)
+        assertEquals(1, client.fallbackCalls)
+    }
+
+    @Test
+    fun `a second translation while the circuit is open makes no primary attempt`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, AtomicLong(0))
+
+        repeat(2) { attempt ->
+            service.translate(request).fold(
+                success = { assertEquals("Bonjour", it.translatedText) },
+                failure = { fail("attempt $attempt failed: ${it.message}") }
+            )
+        }
+
+        // The single rate-limited attempt opens the circuit, so the second call never reaches the
+        // primary and both translations come from the fallback.
+        assertEquals(1, client.primaryCalls)
+        assertEquals(2, client.fallbackCalls)
+    }
+
+    @Test
+    fun `a rate limited primary does not delay the fallback`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Err(ServiceError.RateLimitError("rate limited", retryAfterSeconds = 5)) },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, AtomicLong(0))
+
+        val startedAt = System.nanoTime()
+        service.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+
+        // The request is not held for the Retry-After the transport would otherwise have honoured
+        // before retrying; the fallback answers straight away.
+        assertEquals(1, client.primaryCalls)
+        assertTrue(elapsedMillis < 2_000, "translation took ${elapsedMillis}ms")
+    }
+
+    @Test
     fun `usable retry-after delays the next probe`() = runBlocking {
         val clock = AtomicLong(0)
         val client = GoogleTestHttpClient(

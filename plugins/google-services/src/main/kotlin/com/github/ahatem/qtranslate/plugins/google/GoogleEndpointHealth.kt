@@ -1,8 +1,10 @@
 package com.github.ahatem.qtranslate.plugins.google
 
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlin.random.Random
 
 /**
@@ -109,14 +111,22 @@ class GoogleEndpointHealth(
      * Returns a permit that produced no usable outcome, for example a cancelled request. It records
      * neither success nor failure. An ordinary permit changes nothing; a probe permit reopens the
      * cooldown so the circuit can never be left waiting on a probe that will not return.
+     *
+     * This is called from `finally` blocks, so it runs on the cancellation path too. The cleanup
+     * itself is therefore non-cancellable: a cancelled coroutine must still be able to take the
+     * lock when another caller holds it, or a probe released during cancellation would leave
+     * [probeInFlight] set and strand the circuit half open for good. Only the release is protected;
+     * the request that produced the permit stays cancellable.
      */
-    suspend fun releasePrimary(permit: Permit) = mutex.withLock {
-        if (permit.generation != generation) return@withLock
-        if (!permit.isProbe) return@withLock
-        probeInFlight = false
-        state = State.OPEN_COOLDOWN
-        openUntilMillis = clock() + cooldownMillis(null)
-        generation++
+    suspend fun releasePrimary(permit: Permit) = withContext(NonCancellable) {
+        mutex.withLock {
+            if (permit.generation != generation) return@withLock
+            if (!permit.isProbe) return@withLock
+            probeInFlight = false
+            state = State.OPEN_COOLDOWN
+            openUntilMillis = clock() + cooldownMillis(null)
+            generation++
+        }
     }
 
     private fun beginProbe(): Permit {
