@@ -10,22 +10,31 @@ import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.translator.TranslationResponse
 import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
+import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
-import com.github.ahatem.qtranslate.plugins.common.fetchJson
 import com.github.ahatem.qtranslate.plugins.common.sendJson
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.ahatem.qtranslate.plugins.google.common.OfficialTranslateResponse
 import com.github.ahatem.qtranslate.plugins.google.common.TranslateResponse
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
+import com.github.michaelbull.result.fold
 import com.github.michaelbull.result.toResultOr
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 
 class GoogleTranslatorService(
     private val pluginContext: PluginContext,
     private val settings: GoogleSettings,
     private val httpClient: HttpClient,
     private val languageMapper: GoogleLanguageMapper,
-    private val apiConfig: ApiConfig
+    private val apiConfig: ApiConfig,
+    private val endpointHealth: GoogleEndpointHealth
 ) : Translator {
 
 
@@ -98,11 +107,43 @@ class GoogleTranslatorService(
         val sourceTag = languageMapper.toProviderCode(request.sourceLanguage)
         val targetTag = languageMapper.toProviderCode(request.targetLanguage)
 
-        val primaryResult = tryPrimaryEndpoint(request.text, sourceTag, targetTag)
-        if (primaryResult.isOk) return primaryResult
+        if (endpointHealth.tryAcquirePrimary()) {
+            val primaryResult = tryPrimaryEndpoint(request.text, sourceTag, targetTag)
+            primaryResult.fold(
+                success = {
+                    currentCoroutineContext().ensureActive()
+                    endpointHealth.recordSuccess()
+                    return primaryResult
+                },
+                failure = { error ->
+                    currentCoroutineContext().ensureActive()
+                    if (error.suppressesFallback()) return Err(error)
+                    if (error.isRetryable) endpointHealth.recordTransientFailure(error)
+                }
+            )
+            pluginContext.logger.info("Primary endpoint failed, trying fallback")
+        } else {
+            pluginContext.logger.info("Primary endpoint unhealthy, using fallback")
+        }
 
-        pluginContext.logger.info("Primary endpoint failed, trying fallback")
+        currentCoroutineContext().ensureActive()
         return tryFallbackEndpoint(request.text, sourceTag, targetTag)
+    }
+
+    /**
+     * Whether a primary failure is about the request itself rather than the endpoint's reachability.
+     * The request would fail identically against the fallback, so these errors are returned as-is
+     * and leave the circuit untouched. Every other error — including a 200 response whose body the
+     * parser cannot decode — still falls back, because the secondary host speaks a different protocol
+     * and may well serve it.
+     */
+    private fun ServiceError.suppressesFallback(): Boolean = when (this) {
+        is ServiceError.AuthenticationError,
+        is ServiceError.InvalidInputError,
+        is ServiceError.ValidationError,
+        is ServiceError.UnsupportedLanguageError,
+        is ServiceError.ConfigurationError -> true
+        else -> false
     }
 
     private suspend fun tryPrimaryEndpoint(
@@ -142,7 +183,7 @@ class GoogleTranslatorService(
         sourceTag: String,
         targetTag: String
     ): Result<TranslationResponse, ServiceError> = coroutineBinding {
-        val parsed: List<List<String>> = httpClient.fetchJson<List<List<String>>>(
+        val responseString = httpClient.get(
             url = TRANSLATE_FALLBACK,
             headers = apiConfig.createHeaders(),
             queryParams = mapOf(
@@ -154,17 +195,49 @@ class GoogleTranslatorService(
             )
         ).bind()
 
-        val translatedText = parsed.getOrNull(0)?.getOrNull(0)
-            .toResultOr { ServiceError.InvalidResponseError("No translation in fallback response", null) }
-            .bind()
+        parseFallbackResponse(responseString).bind()
+    }
 
-        val detectedLang = parsed.getOrNull(0)?.getOrNull(1)
+    /**
+     * Parses the fallback endpoint's response, which is not documented and has been observed in two
+     * array shapes. The payload is inspected field by field rather than decoded into a fixed type, so
+     * an unexpected shape fails normally instead of throwing while indexing.
+     */
+    private fun parseFallbackResponse(
+        responseString: String
+    ): Result<TranslationResponse, ServiceError> {
+        val root = runCatching { PluginJson.parseToJsonElement(responseString) }
+            .getOrElse { return Err(ServiceError.InvalidResponseError("Fallback response is not valid JSON", it)) }
+
+        val fields = fallbackFields(root)
+            ?: return Err(ServiceError.InvalidResponseError("Unsupported fallback response shape", null))
+
+        val translatedText = fields.firstOrNull()?.stringOrNull()?.trim()
+        if (translatedText.isNullOrEmpty()) {
+            return Err(ServiceError.InvalidResponseError("No translation in fallback response", null))
+        }
+
+        val detectedLanguage = fields.getOrNull(1)
+            ?.stringOrNull()
             ?.let { languageMapper.fromProviderCode(it) }
 
-        TranslationResponse(
-            translatedText = translatedText.trim(),
-            detectedLanguage = detectedLang
-        )
+        return Ok(TranslationResponse(translatedText = translatedText, detectedLanguage = detectedLanguage))
     }
+
+    /**
+     * Extracts the flat field list from the two known fallback shapes: a nested
+     * `[[translated, src, ...]]` or a flat `[translated, src, ...]`. Any other shape yields null.
+     */
+    private fun fallbackFields(root: JsonElement): List<JsonElement>? = when (root) {
+        is JsonArray -> when (val first = root.firstOrNull()) {
+            is JsonArray -> first.toList()
+            is JsonPrimitive -> root.toList()
+            else -> null
+        }
+        else -> null
+    }
+
+    private fun JsonElement.stringOrNull(): String? =
+        (this as? JsonPrimitive)?.takeIf { it.isString }?.content
 
 }

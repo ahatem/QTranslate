@@ -30,7 +30,7 @@ class GooglePlugin : Plugin<GoogleSettings> {
         this.settings = GoogleSettings(
             visionApiKey = context.secrets.get("visionApiKey") ?: "",
             translateApiKey = context.secrets.get("translateApiKey") ?: ""
-        )
+        )
         pluginContext.logger.info("Google Plugin initialized")
         return Ok(Unit)
     }
@@ -53,15 +53,18 @@ class GooglePlugin : Plugin<GoogleSettings> {
     }
 
     private fun buildServices() {
+        // One health tracker for the primary endpoint, shared by the translator and spell checker so
+        // they do not each rediscover that it is throttled.
+        val endpointHealth = GoogleEndpointHealth()
         activeServices = buildList {
             // OCR requires a Vision API key — only register the service when one is configured.
             if (settings.visionApiKey.isNotBlank()) {
                 add(GoogleOCRService(pluginContext, settings, httpClient, languageMapper, apiConfig))
             }
-            add(GoogleTranslatorService(pluginContext, settings, httpClient, languageMapper, apiConfig))
+            add(GoogleTranslatorService(pluginContext, settings, httpClient, languageMapper, apiConfig, endpointHealth))
             add(GoogleTTSService(pluginContext, httpClient, languageMapper, apiConfig))
             add(GoogleDictionaryService(pluginContext, httpClient, languageMapper, apiConfig))
-            add(GoogleSpellCheckerService(pluginContext, httpClient, languageMapper, apiConfig))
+            add(GoogleSpellCheckerService(pluginContext, httpClient, languageMapper, apiConfig, endpointHealth))
         }
         pluginContext.logger.info("Built ${activeServices.size} active Google services.")
     }
@@ -72,7 +75,7 @@ class GooglePlugin : Plugin<GoogleSettings> {
     }
 
     override suspend fun shutdown() {
-        pluginContext.logger.info("Google Plugin shutting down")
+        pluginContext.logger.info("Google Plugin shutting down")
     }
 
     override fun getServices(): List<Service> = activeServices
