@@ -40,6 +40,9 @@ private val IDEMPOTENT_METHODS = setOf(
 
 private const val TOO_MANY_REQUESTS = 429
 
+// Callers back off for however long this tells them, so a server's number is bounded, not believed.
+private const val MAX_RETRY_AFTER_SECONDS = 600
+
 internal class KtorHttpClient(
     private val logger: Logger,
     private val json: Json = Json {
@@ -308,6 +311,13 @@ internal class KtorHttpClient(
 
     // ========== RESPONSE HANDLING ==========
 
+    private fun retryAfterSeconds(response: HttpResponse): Int? {
+        val header = response.headers[HttpHeaders.RetryAfter] ?: return null
+        val seconds = header.trim().toIntOrNull() ?: return null
+        if (seconds < 0) return null
+        return seconds.coerceAtMost(MAX_RETRY_AFTER_SECONDS)
+    }
+
     private suspend fun handleResponse(
         response: HttpResponse,
         url: String
@@ -319,7 +329,7 @@ internal class KtorHttpClient(
             )
 
             HttpStatusCode.TooManyRequests -> Err(
-                ServiceError.RateLimitError("Rate limit exceeded for $url")
+                ServiceError.RateLimitError("Rate limit exceeded for $url", retryAfterSeconds(response))
             )
 
             HttpStatusCode.PaymentRequired -> {
@@ -353,7 +363,7 @@ internal class KtorHttpClient(
             )
 
             HttpStatusCode.TooManyRequests -> Err(
-                ServiceError.RateLimitError("Rate limit exceeded for $url")
+                ServiceError.RateLimitError("Rate limit exceeded for $url", retryAfterSeconds(response))
             )
 
             else -> {

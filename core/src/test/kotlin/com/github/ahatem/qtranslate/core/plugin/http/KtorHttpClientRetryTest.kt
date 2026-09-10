@@ -1,6 +1,8 @@
 package com.github.ahatem.qtranslate.core.plugin.http
 
 import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.michaelbull.result.getError
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
@@ -11,6 +13,8 @@ import kotlinx.coroutines.test.runTest
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -34,21 +38,22 @@ class KtorHttpClientRetryTest {
     private fun countingEngine(
         status: HttpStatusCode,
         calls: AtomicInteger,
-        retryAfterSeconds: Long? = null
+        retryAfterSeconds: Long? = null,
+        retryAfterHeader: String? = null
     ) = MockEngine {
         calls.incrementAndGet()
         respond(
             content = "body",
             status = status,
-            headers = retryAfterSeconds
-                ?.let { headersOf(HttpHeaders.RetryAfter, it.toString()) }
+            headers = (retryAfterHeader ?: retryAfterSeconds?.toString())
+                ?.let { headersOf(HttpHeaders.RetryAfter, it) }
                 ?: headersOf()
         )
     }
 
-    private fun clientOn(engine: MockEngine, maxRetries: Int = 2) = KtorHttpClient(
+    private fun clientOn(engine: MockEngine, maxRetries: Int = 2, enableRetry: Boolean = true) = KtorHttpClient(
         logger = silentLogger,
-        config = HttpClientConfig(enableRetry = true, maxRetries = maxRetries),
+        config = HttpClientConfig(enableRetry = enableRetry, maxRetries = maxRetries),
         engine = engine,
         ownsEngine = false
     )
@@ -156,5 +161,69 @@ class KtorHttpClientRetryTest {
             waitedMillis >= 2_500,
             "expected to wait the configured 3s before retrying, waited only ${waitedMillis}ms"
         )
+    }
+
+    @Test
+    fun `a 429 reports the server's Retry-After in seconds`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(HttpStatusCode.TooManyRequests, calls, retryAfterSeconds = 7)
+
+        val error = clientOn(engine, enableRetry = false)
+            .use { it.get("https://example.invalid/languages") }
+            .getError()
+
+        assertEquals(7, assertIs<ServiceError.RateLimitError>(error).retryAfterSeconds)
+    }
+
+    @Test
+    fun `a 429 without a Retry-After leaves the hint unset`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(HttpStatusCode.TooManyRequests, calls)
+
+        val error = clientOn(engine, enableRetry = false)
+            .use { it.get("https://example.invalid/languages") }
+            .getError()
+
+        assertNull(assertIs<ServiceError.RateLimitError>(error).retryAfterSeconds)
+    }
+
+    @Test
+    fun `a 429 whose Retry-After is an HTTP-date leaves the hint unset`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(
+            HttpStatusCode.TooManyRequests,
+            calls,
+            retryAfterHeader = "Wed, 21 Oct 2015 07:28:00 GMT"
+        )
+
+        val error = clientOn(engine, enableRetry = false)
+            .use { it.get("https://example.invalid/languages") }
+            .getError()
+
+        assertNull(assertIs<ServiceError.RateLimitError>(error).retryAfterSeconds)
+    }
+
+    @Test
+    fun `an absurd Retry-After is clamped to the bound`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(HttpStatusCode.TooManyRequests, calls, retryAfterSeconds = 86_400)
+
+        val error = clientOn(engine, enableRetry = false)
+            .use { it.get("https://example.invalid/languages") }
+            .getError()
+
+        assertEquals(600, assertIs<ServiceError.RateLimitError>(error).retryAfterSeconds)
+    }
+
+    @Test
+    fun `a negative Retry-After is treated as absent`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(HttpStatusCode.TooManyRequests, calls, retryAfterSeconds = -1)
+
+        val error = clientOn(engine, enableRetry = false)
+            .use { it.get("https://example.invalid/languages") }
+            .getError()
+
+        assertNull(assertIs<ServiceError.RateLimitError>(error).retryAfterSeconds)
     }
 }
