@@ -1,9 +1,14 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.clipboard
 
+import java.awt.Graphics
+import java.awt.Image
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.Transferable
 import java.awt.datatransfer.UnsupportedFlavorException
 import java.awt.image.BufferedImage
+import java.awt.image.ImageObserver
+import java.awt.image.ImageProducer
+import java.io.IOException
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -23,6 +28,38 @@ class ClipboardSnapshotsTest {
     fun `empty contents classify as empty`() {
         assertIs<ClipboardSnapshotResult.Empty>(ClipboardSnapshots.materialize(null))
         assertIs<ClipboardSnapshotResult.Empty>(ClipboardSnapshots.materialize(MapTransferable(emptyList())))
+    }
+
+    @Test
+    fun `recognized string flavor retrieval failure classifies as failed`() {
+        val broken = object : Transferable {
+            override fun getTransferDataFlavors(): Array<DataFlavor> = arrayOf(DataFlavor.stringFlavor)
+
+            override fun isDataFlavorSupported(flavor: DataFlavor): Boolean = true
+
+            override fun getTransferData(flavor: DataFlavor): Any =
+                throw IOException("owning application released the data")
+        }
+
+        val result = assertIs<ClipboardSnapshotResult.Failed>(ClipboardSnapshots.materialize(broken))
+        assertIs<IOException>(result.cause)
+    }
+
+    @Test
+    fun `image that cannot be detached classifies as failed, not lazy`() {
+        val sizeless = object : Image() {
+            override fun getWidth(observer: ImageObserver?): Int = -1
+            override fun getHeight(observer: ImageObserver?): Int = -1
+            override fun getProperty(name: String?, observer: ImageObserver?): Any = UndefinedProperty
+            override fun getSource(): ImageProducer = throw UnsupportedOperationException()
+            override fun getGraphics(): Graphics = throw UnsupportedOperationException()
+            override fun flush() = Unit
+        }
+        val source = MapTransferable(listOf(DataFlavor.imageFlavor to sizeless))
+
+        // Dimensions are unavailable, so no detached copy exists; claiming success with the
+        // lazy original would be unsafe.
+        assertIs<ClipboardSnapshotResult.Failed>(ClipboardSnapshots.materialize(source))
     }
 
     @Test

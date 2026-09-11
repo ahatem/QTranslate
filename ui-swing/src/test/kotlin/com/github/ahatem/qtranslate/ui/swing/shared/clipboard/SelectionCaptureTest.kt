@@ -2,8 +2,11 @@ package com.github.ahatem.qtranslate.ui.swing.shared.clipboard
 
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
+import java.awt.datatransfer.Transferable
+import java.awt.datatransfer.UnsupportedFlavorException
 import java.awt.image.BufferedImage
 import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -363,6 +366,39 @@ class SelectionCaptureTest {
 
         assertEquals("fresh", captured)
         assertEquals("stale", clipboard.text)
+    }
+
+    @Test
+    fun `unmaterializable string flavor fails closed before copy`() = runTest {
+        val broken = object : Transferable {
+            override fun getTransferDataFlavors(): Array<DataFlavor> = arrayOf(DataFlavor.stringFlavor)
+
+            override fun isDataFlavorSupported(flavor: DataFlavor): Boolean = true
+
+            override fun getTransferData(flavor: DataFlavor): Any =
+                throw IOException("owning application released the data")
+        }
+        val clipboard = RecordingClipboard(null).apply {
+            contents = ClipboardSnapshot(broken)
+            liveMaterialization = true
+        }
+        var copyCalls = 0
+        val logger = RecordingLogger()
+        val capture = SelectionCapture(clipboard, FakeChangeMonitor(), { copyCalls++ }, logger)
+
+        var captured: String? = null
+        capture.capture { captured = it }
+
+        assertEquals(0, copyCalls)
+        assertEquals("", captured)
+        assertEquals(0, clipboard.restoreAttempts)
+        assertTrue(clipboard.published.isEmpty())
+        // The log carries only the failure message: there were no readable clipboard
+        // contents to leak, and none are attached.
+        assertEquals(
+            listOf("Clipboard snapshot failed, skipping selection capture: owning application released the data"),
+            logger.warns
+        )
     }
 
     @Test

@@ -72,9 +72,10 @@ object ClipboardSnapshots {
     /**
      * Null contents classify as [ClipboardSnapshotResult.Empty]. So does a transferable whose
      * flavor enumeration succeeds and reports zero flavors: there is observably nothing to
-     * preserve. Any failure while enumerating or reading classifies as
-     * [ClipboardSnapshotResult.Failed], never as empty, so an unreadable clipboard cannot be
-     * mistaken for an empty one.
+     * preserve. Any failure while enumerating classifies as [ClipboardSnapshotResult.Failed],
+     * and so does a retrieval failure for a recognized flavor (text, image, file list): the
+     * snapshot cannot prove the data was captured, so it must not claim success. Genuinely
+     * unsupported or custom flavors stay best effort and never fail the snapshot on their own.
      */
     fun materialize(contents: Transferable?): ClipboardSnapshotResult {
         if (contents == null) return ClipboardSnapshotResult.Empty
@@ -84,30 +85,57 @@ object ClipboardSnapshots {
 
         val captured = ArrayList<Pair<DataFlavor, Any>>()
         for (flavor in flavors) {
-            materializeFlavor(contents, flavor)?.let { captured += flavor to it }
+            when (val outcome = materializeFlavor(contents, flavor)) {
+                is FlavorOutcome.Materialized -> captured += flavor to outcome.value
+                is FlavorOutcome.Unsupported -> Unit
+                is FlavorOutcome.Failed -> return ClipboardSnapshotResult.Failed(outcome.cause)
+            }
         }
-        // Nothing could be read eagerly: keep the original transferable as a best effort.
+        // Only unsupported flavors were present: keep the original transferable as a best effort.
         if (captured.isEmpty()) return ClipboardSnapshotResult.Available(ClipboardSnapshot(contents))
         return ClipboardSnapshotResult.Available(ClipboardSnapshot(SnapshotTransferable(captured, contents)))
     }
 
-    private fun materializeFlavor(contents: Transferable, flavor: DataFlavor): Any? = runCatching {
-        when (flavor) {
-            DataFlavor.stringFlavor -> contents.getTransferData(DataFlavor.stringFlavor) as String
-            DataFlavor.imageFlavor -> copyImage(contents.getTransferData(DataFlavor.imageFlavor) as Image)
-            DataFlavor.javaFileListFlavor -> {
-                @Suppress("UNCHECKED_CAST")
-                (contents.getTransferData(DataFlavor.javaFileListFlavor) as List<File>).toList()
-            }
-            else -> null
-        }
-    }.getOrNull()
+    private sealed interface FlavorOutcome {
+        data class Materialized(val value: Any) : FlavorOutcome
+        data object Unsupported : FlavorOutcome
+        data class Failed(val cause: Throwable) : FlavorOutcome
+    }
 
-    /** Detaches the image from the source so it survives after the source app loses ownership. */
+    private fun materializeFlavor(contents: Transferable, flavor: DataFlavor): FlavorOutcome {
+        if (flavor != DataFlavor.stringFlavor &&
+            flavor != DataFlavor.imageFlavor &&
+            flavor != DataFlavor.javaFileListFlavor
+        ) {
+            return FlavorOutcome.Unsupported
+        }
+        return runCatching {
+            FlavorOutcome.Materialized(
+                when (flavor) {
+                    DataFlavor.stringFlavor -> contents.getTransferData(DataFlavor.stringFlavor) as String
+                    DataFlavor.imageFlavor -> copyImage(contents.getTransferData(DataFlavor.imageFlavor) as Image)
+                    else -> {
+                        @Suppress("UNCHECKED_CAST")
+                        (contents.getTransferData(DataFlavor.javaFileListFlavor) as List<File>).toList()
+                    }
+                }
+            )
+        }.getOrElse { FlavorOutcome.Failed(it) }
+    }
+
+    /**
+     * Detaches the image from the source so it survives after the source app loses ownership.
+     *
+     * Images whose dimensions are unavailable cannot be detached into a buffered copy; handing
+     * back the lazy original would claim an eager snapshot that was never taken, so this fails
+     * and the snapshot classifies as failed instead.
+     */
     private fun copyImage(image: Image): Image {
         val width = image.getWidth(null)
         val height = image.getHeight(null)
-        if (width <= 0 || height <= 0) return image
+        if (width <= 0 || height <= 0) {
+            throw IllegalStateException("Cannot detach clipboard image with unavailable dimensions")
+        }
         val copy = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
         val graphics = copy.createGraphics()
         try {

@@ -71,12 +71,20 @@ internal class RecordingClipboard(text: String? = null) : SystemClipboard {
     /** Invoked on every [readText], so tests can model render-on-request behavior. */
     var onReadText: (() -> Unit)? = null
     var signatureProvider: () -> Long? = { null }
+    /**
+     * When true, snapshots run the real production materializer over the stored transferable
+     * instead of returning it directly, so orchestration tests exercise the production
+     * snapshot boundary (including retrieval failures) without AWT.
+     */
+    var liveMaterialization: Boolean = false
 
     override fun snapshot(): ClipboardSnapshotResult {
         snapshotCalls++
         snapshotFailure?.let { return ClipboardSnapshotResult.Failed(it) }
         val current = contents ?: return ClipboardSnapshotResult.Empty
-        return ClipboardSnapshotResult.Available(current)
+        if (!liveMaterialization) return ClipboardSnapshotResult.Available(current)
+        return runCatching { ClipboardSnapshots.materialize(current.transferable) }
+            .getOrElse { ClipboardSnapshotResult.Failed(it) }
     }
 
     override fun readText(): String? {
