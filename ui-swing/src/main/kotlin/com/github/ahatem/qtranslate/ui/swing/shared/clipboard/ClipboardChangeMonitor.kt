@@ -9,8 +9,10 @@ import com.github.ahatem.qtranslate.api.core.Logger
  * clipboard contents leaves the text unchanged while the platform still records a new
  * clipboard generation. Tokens therefore track the generation, not the data.
  *
- * [mark] returns null when the implementation cannot observe the platform, so callers can
- * degrade instead of failing.
+ * [mark] returns null when the implementation cannot observe the platform. Callers must
+ * treat a null token as "no verifiable copy is possible" and fail the capture instead of
+ * accepting clipboard text: waiting and then reading would risk dispatching stale
+ * pre-existing clipboard content as a fresh selection.
  */
 interface ClipboardChangeMonitor {
 
@@ -45,5 +47,13 @@ internal class SignatureClipboardChangeMonitor(
 
     override fun mark(): Long? = clipboard.signature()
 
-    override fun hasChangedSince(token: Long): Boolean = clipboard.signature() != token
+    /**
+     * A failed signature read is not a change. Signature reads fail exactly when the
+     * clipboard cannot be observed, and treating that as a confirmed change would let the
+     * caller accept stale clipboard text as a fresh selection.
+     */
+    override fun hasChangedSince(token: Long): Boolean {
+        val current = clipboard.signature() ?: return false
+        return current != token
+    }
 }

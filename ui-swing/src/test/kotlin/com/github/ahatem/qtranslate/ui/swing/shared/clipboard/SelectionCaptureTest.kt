@@ -144,6 +144,169 @@ class SelectionCaptureTest {
     }
 
     @Test
+    fun `delayed rendering is triggered by reads but only a sequence change counts`() = runTest {
+        // The source app accepts Ctrl+C yet the sequence does not move until the data is
+        // requested; each poll read triggers rendering, and only the verified sequence
+        // advance lets the text through. The pre-copy "original" reads are discarded.
+        val clipboard = RecordingClipboard("original")
+        val monitor = DelayedRenderingMonitor()
+        clipboard.onReadText = { monitor.renderRequested = true }
+        val capture = SelectionCapture(clipboard, monitor, {
+            monitor.copyAccepted = true
+            clipboard.simulateExternalCopy("selected")
+        }, RecordingLogger())
+
+        var captured: String? = null
+        capture.capture { captured = it }
+
+        assertEquals("selected", captured)
+        assertEquals("original", clipboard.text)
+    }
+
+    @Test
+    fun `snapshot failure skips copy and dispatches nothing`() = runTest {
+        val clipboard = RecordingClipboard("original").apply {
+            snapshotFailure = IllegalStateException("clipboard busy")
+        }
+        var copyCalls = 0
+        val logger = RecordingLogger()
+        val capture = SelectionCapture(clipboard, FakeChangeMonitor(), { copyCalls++ }, logger)
+
+        var captured: String? = null
+        capture.capture { captured = it }
+
+        assertEquals(0, copyCalls)
+        assertEquals("", captured)
+        assertEquals(0, clipboard.restoreCount)
+        assertTrue(clipboard.published.isEmpty())
+        assertEquals("original", clipboard.text)
+        assertTrue(logger.warns.any { it.contains("snapshot", ignoreCase = true) })
+        assertTrue(logger.warns.none { it.contains("original") })
+    }
+
+    @Test
+    fun `restore retries a busy clipboard and dispatches only after restoring`() = runTest {
+        val clipboard = RecordingClipboard("original").apply {
+            restoreFailures += IllegalStateException("busy")
+        }
+        val monitor = FakeChangeMonitor()
+        val capture = SelectionCapture(clipboard, monitor, copyThatSelects(clipboard, monitor, "selected"), RecordingLogger())
+
+        var captured: String? = null
+        capture.capture {
+            // Restore-before-dispatch: the clipboard must already be back when this runs.
+            assertEquals(1, clipboard.restoreCount)
+            captured = it
+        }
+
+        assertEquals("selected", captured)
+        assertEquals(2, clipboard.restoreAttempts)
+        assertEquals("original", clipboard.text)
+    }
+
+    @Test
+    fun `permanent restore failure is bounded and logged`() = runTest {
+        val clipboard = RecordingClipboard("original").apply {
+            restoreFailure = IllegalStateException("still busy")
+        }
+        val monitor = FakeChangeMonitor()
+        val logger = RecordingLogger()
+        val capture = SelectionCapture(clipboard, monitor, copyThatSelects(clipboard, monitor, "selected"), logger)
+
+        var captured: String? = null
+        capture.capture { captured = it }
+
+        assertEquals("selected", captured)
+        assertEquals(3, clipboard.restoreAttempts)
+        assertTrue(logger.warns.any { it.contains("restore", ignoreCase = true) })
+    }
+
+    @Test
+    fun `non-busy restore failure does not retry`() = runTest {
+        val clipboard = RecordingClipboard("original").apply {
+            restoreFailure = SecurityException("denied")
+        }
+        val monitor = FakeChangeMonitor()
+        val capture = SelectionCapture(clipboard, monitor, copyThatSelects(clipboard, monitor, "selected"), RecordingLogger())
+
+        capture.capture {}
+
+        assertEquals(1, clipboard.restoreAttempts)
+    }
+
+    @Test
+    fun `cancellation during restore retries still restores without dispatching`() = runTest {
+        val clipboard = RecordingClipboard("original").apply {
+            restoreFailures += IllegalStateException("busy")
+        }
+        val monitor = FakeChangeMonitor()
+        val capture = SelectionCapture(
+            clipboard, monitor,
+            copyThatSelects(clipboard, monitor, "selected"),
+            RecordingLogger(),
+            restoreRetryDelayMs = 1_000L
+        )
+
+        var dispatched = false
+        val job = launch { capture.capture { dispatched = true } }
+        advanceTimeBy(200)
+        job.cancel()
+        job.join()
+
+        assertEquals(1, clipboard.restoreCount)
+        assertEquals(2, clipboard.restoreAttempts)
+        assertEquals("original", clipboard.text)
+        assertFalse(dispatched)
+    }
+
+    @Test
+    fun `unavailable monitor never dispatches stale clipboard text`() = runTest {
+        val clipboard = RecordingClipboard("stale")
+        var copyCalls = 0
+        val logger = RecordingLogger()
+        val capture = SelectionCapture(clipboard, NullChangeMonitor(), {
+            copyCalls++
+            clipboard.simulateExternalCopy("fresh")
+        }, logger)
+
+        var captured: String? = null
+        capture.capture { captured = it }
+
+        assertEquals("", captured)
+        assertEquals(0, copyCalls)
+        assertEquals("stale", clipboard.text)
+        // The only write is the restoration of the user's own content: no fresh
+        // selection was synthesized and no internal marker was published.
+        assertTrue(clipboard.published.none { it == "fresh" })
+        assertTrue(clipboard.published.none { it.contains("qtranslate") })
+        assertTrue(logger.warns.any { it.contains("monitor", ignoreCase = true) })
+    }
+
+    @Test
+    fun `transient signature failure does not dispatch stale text`() = runTest {
+        val clipboard = RecordingClipboard("stale")
+        var signature = 10L
+        var reads = 0
+        clipboard.signatureProvider = {
+            reads++
+            // The first poll read fails right after a good mark; the failure must read
+            // as "no change", not as a confirmed copy of whatever is on the clipboard.
+            if (reads == 2) null else signature
+        }
+        val monitor = SignatureClipboardChangeMonitor(clipboard)
+        val capture = SelectionCapture(clipboard, monitor, {
+            signature = 11L
+            clipboard.simulateExternalCopy("fresh")
+        }, RecordingLogger())
+
+        var captured: String? = null
+        capture.capture { captured = it }
+
+        assertEquals("fresh", captured)
+        assertEquals("stale", clipboard.text)
+    }
+
+    @Test
     fun `capture times out within a bounded window`() = runTest {
         val clipboard = RecordingClipboard("original")
         val monitor = FakeChangeMonitor()

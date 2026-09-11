@@ -16,11 +16,30 @@ import java.io.File
  */
 class ClipboardSnapshot(val transferable: Transferable)
 
+/**
+ * The outcome of reading the clipboard for later restoration.
+ *
+ * The three states are deliberately distinct: an unreadable or busy clipboard ([Failed])
+ * must never be confused with an empty one ([Empty]), because the capture flow is only
+ * allowed to overwrite clipboard state it knows how to restore.
+ */
+sealed interface ClipboardSnapshotResult {
+
+    /** The clipboard held readable contents; [snapshot] restores them. */
+    data class Available(val snapshot: ClipboardSnapshot) : ClipboardSnapshotResult
+
+    /** The clipboard was readable and held nothing restorable. */
+    data object Empty : ClipboardSnapshotResult
+
+    /** The clipboard could not be read (busy, unavailable); nothing was captured. */
+    data class Failed(val cause: Throwable?) : ClipboardSnapshotResult
+}
+
 /** Abstract view of the system clipboard so capture logic can be tested without AWT. */
 interface SystemClipboard {
 
-    /** Eagerly copies the current contents. Null when the clipboard is empty or unreadable. */
-    fun snapshot(): ClipboardSnapshot?
+    /** Eagerly copies the current contents for later restoration. Never throws. */
+    fun snapshot(): ClipboardSnapshotResult
 
     /** Current plain-text contents, or null when the clipboard holds no text. */
     fun readText(): String?
@@ -101,8 +120,13 @@ private class SnapshotTransferable(
 /** Real clipboard backed by AWT. This is the only place that touches [Toolkit]. */
 class AwtSystemClipboard : SystemClipboard {
 
-    override fun snapshot(): ClipboardSnapshot? =
-        runCatching { ClipboardSnapshots.materialize(systemClipboard.getContents(null)) }.getOrNull()
+    override fun snapshot(): ClipboardSnapshotResult = runCatching {
+        val contents = systemClipboard.getContents(null)
+            ?: return@runCatching ClipboardSnapshotResult.Empty
+        val snapshot = ClipboardSnapshots.materialize(contents)
+            ?: return@runCatching ClipboardSnapshotResult.Empty
+        ClipboardSnapshotResult.Available(snapshot)
+    }.getOrElse { ClipboardSnapshotResult.Failed(it) }
 
     override fun readText(): String? = runCatching {
         val clipboard = systemClipboard

@@ -26,6 +26,33 @@ internal class FakeChangeMonitor(var current: Long = 0L) : ClipboardChangeMonito
     override fun hasChangedSince(token: Long): Boolean = current != token
 }
 
+/** Change monitor that can never observe the platform. */
+internal class NullChangeMonitor : ClipboardChangeMonitor {
+
+    override fun mark(): Long? = null
+
+    override fun hasChangedSince(token: Long): Boolean = false
+}
+
+/**
+ * Models Windows delayed rendering: Ctrl+C is accepted but the sequence number does not
+ * advance until the clipboard data is actually requested, which is what prompts the source
+ * application to render. [copyAccepted] is set by the copy lambda; each [SystemClipboard.readText]
+ * should set [renderRequested] (wire via [RecordingClipboard.onReadText]).
+ */
+internal class DelayedRenderingMonitor(var sequence: Long = 100L) : ClipboardChangeMonitor {
+
+    var copyAccepted = false
+    var renderRequested = false
+
+    override fun mark(): Long? = sequence
+
+    override fun hasChangedSince(token: Long): Boolean {
+        if (copyAccepted && renderRequested && sequence == token) sequence++
+        return sequence != token
+    }
+}
+
 /**
  * In-memory clipboard that records everything ever published, like a clipboard manager would.
  */
@@ -36,15 +63,32 @@ internal class RecordingClipboard(text: String? = null) : SystemClipboard {
     var contents: ClipboardSnapshot? = text?.let { ClipboardSnapshot(StringSelection(it)) }
     var text: String? = text
     var restoreFailure: Throwable? = null
+    val restoreFailures = ArrayDeque<Throwable>()
     var restoreCount = 0
+    var restoreAttempts = 0
+    var snapshotFailure: Throwable? = null
+    var snapshotCalls = 0
+    /** Invoked on every [readText], so tests can model render-on-request behavior. */
+    var onReadText: (() -> Unit)? = null
+    var signatureProvider: () -> Long? = { null }
 
-    override fun snapshot(): ClipboardSnapshot? = contents
+    override fun snapshot(): ClipboardSnapshotResult {
+        snapshotCalls++
+        snapshotFailure?.let { return ClipboardSnapshotResult.Failed(it) }
+        val current = contents ?: return ClipboardSnapshotResult.Empty
+        return ClipboardSnapshotResult.Available(current)
+    }
 
-    override fun readText(): String? = text
+    override fun readText(): String? {
+        onReadText?.invoke()
+        return text
+    }
 
-    override fun signature(): Long? = null
+    override fun signature(): Long? = signatureProvider()
 
     override fun restore(snapshot: ClipboardSnapshot) {
+        restoreAttempts++
+        restoreFailures.removeFirstOrNull()?.let { throw it }
         restoreFailure?.let { throw it }
         restoreCount++
         restored += snapshot
