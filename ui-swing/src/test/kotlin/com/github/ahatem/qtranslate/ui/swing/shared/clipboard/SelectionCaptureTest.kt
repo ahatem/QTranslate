@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -74,9 +75,9 @@ class SelectionCaptureTest {
     @Test
     fun `image contents are restored after capture`() = runTest {
         val image = BufferedImage(4, 3, BufferedImage.TYPE_INT_RGB)
-        val snapshot = ClipboardSnapshots.materialize(
+        val snapshot = (ClipboardSnapshots.materialize(
             MapTransferable(listOf(DataFlavor.imageFlavor to image))
-        )!!
+        ) as ClipboardSnapshotResult.Available).snapshot
         val clipboard = RecordingClipboard().apply { setSnapshot(snapshot) }
         val monitor = FakeChangeMonitor()
         val capture = SelectionCapture(clipboard, monitor, { monitor.current++ }, RecordingLogger())
@@ -92,14 +93,14 @@ class SelectionCaptureTest {
     @Test
     fun `multi-flavor file list contents are restored after capture`() = runTest {
         val files = listOf(File("a.txt"), File("b.txt"))
-        val snapshot = ClipboardSnapshots.materialize(
+        val snapshot = (ClipboardSnapshots.materialize(
             MapTransferable(
                 listOf(
                     DataFlavor.stringFlavor to "a.txt\nb.txt",
                     DataFlavor.javaFileListFlavor to files
                 )
             )
-        )!!
+        ) as ClipboardSnapshotResult.Available).snapshot
         val clipboard = RecordingClipboard().apply { setSnapshot(snapshot) }
         val monitor = FakeChangeMonitor()
         val capture = SelectionCapture(clipboard, monitor, { monitor.current++ }, RecordingLogger())
@@ -205,7 +206,7 @@ class SelectionCaptureTest {
     }
 
     @Test
-    fun `permanent restore failure is bounded and logged`() = runTest {
+    fun `permanent restore failure is bounded, logged, and not dispatched`() = runTest {
         val clipboard = RecordingClipboard("original").apply {
             restoreFailure = IllegalStateException("still busy")
         }
@@ -216,9 +217,14 @@ class SelectionCaptureTest {
         var captured: String? = null
         capture.capture { captured = it }
 
-        assertEquals("selected", captured)
+        // Copy succeeded but the original clipboard could not be put back: the
+        // callback carries empty instead of the selection, so the action never
+        // observes clipboard state the user did not leave there.
+        assertEquals("", captured)
         assertEquals(3, clipboard.restoreAttempts)
         assertTrue(logger.warns.any { it.contains("restore", ignoreCase = true) })
+        assertTrue(logger.warns.none { it.contains("selected") })
+        assertTrue(logger.warns.none { it.contains("original") })
     }
 
     @Test
@@ -275,11 +281,64 @@ class SelectionCaptureTest {
         assertEquals("", captured)
         assertEquals(0, copyCalls)
         assertEquals("stale", clipboard.text)
-        // The only write is the restoration of the user's own content: no fresh
-        // selection was synthesized and no internal marker was published.
-        assertTrue(clipboard.published.none { it == "fresh" })
-        assertTrue(clipboard.published.none { it.contains("qtranslate") })
         assertTrue(logger.warns.any { it.contains("monitor", ignoreCase = true) })
+    }
+
+    @Test
+    fun `monitor-unavailable abort performs zero clipboard writes`() = runTest {
+        val clipboard = RecordingClipboard("stale")
+        val capture = SelectionCapture(clipboard, NullChangeMonitor(), {
+            clipboard.simulateExternalCopy("fresh")
+        }, RecordingLogger())
+
+        capture.capture {}
+
+        // The abort happens before any synthetic Copy, so there is nothing to
+        // restore and no reason to touch the clipboard: managers observe nothing.
+        assertEquals(1, clipboard.snapshotCalls)
+        assertEquals(0, clipboard.restoreAttempts)
+        assertTrue(clipboard.published.isEmpty())
+        assertEquals("stale", clipboard.text)
+    }
+
+    @Test
+    fun `empty clipboard is restored as empty before dispatch`() = runTest {
+        val clipboard = RecordingClipboard(null)
+        val monitor = FakeChangeMonitor()
+        val capture = SelectionCapture(clipboard, monitor, copyThatSelects(clipboard, monitor, "selected"), RecordingLogger())
+
+        var captured: String? = null
+        var emptyBeforeCallback = false
+        capture.capture {
+            emptyBeforeCallback = clipboard.text == null
+            captured = it
+        }
+
+        assertEquals("selected", captured)
+        assertTrue(emptyBeforeCallback)
+        assertNull(clipboard.text)
+        assertEquals(1, clipboard.restoreCount)
+    }
+
+    @Test
+    fun `cancellation after copy restores an originally empty clipboard`() = runTest {
+        val clipboard = RecordingClipboard(null)
+        val monitor = FakeChangeMonitor()
+        val capture = SelectionCapture(clipboard, monitor, {
+            delay(150)
+            monitor.current++
+            clipboard.simulateExternalCopy("selected")
+        }, RecordingLogger())
+
+        var dispatched = false
+        val job = launch { capture.capture { dispatched = true } }
+        advanceTimeBy(200)
+        job.cancel()
+        job.join()
+
+        assertEquals(1, clipboard.restoreCount)
+        assertNull(clipboard.text)
+        assertFalse(dispatched)
     }
 
     @Test
@@ -388,7 +447,7 @@ class SelectionCaptureTest {
         capture.capture { callbacks++ }
 
         // What COPY_TRANSLATION does after a capture: publish the translated text.
-        clipboard.restore(ClipboardSnapshot(StringSelection("translated")))
+        clipboard.restore(ClipboardSnapshotResult.Available(ClipboardSnapshot(StringSelection("translated"))))
         advanceUntilIdle()
 
         assertEquals(1, callbacks)

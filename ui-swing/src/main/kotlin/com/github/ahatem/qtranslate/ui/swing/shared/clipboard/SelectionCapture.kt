@@ -28,7 +28,10 @@ import kotlinx.coroutines.withContext
  *
  * Restoration is retried a bounded number of times for temporary clipboard-busy failures and
  * runs cancellation-shielded, so cancellation never strands the clipboard in the captured
- * state. The capture itself stays cancellable.
+ * state. The capture itself stays cancellable. Restoration reports success: when the original
+ * clipboard cannot be put back, the captured selection is not dispatched, because the
+ * restore-before-callback invariant means the action must never observe clipboard state the
+ * user did not leave there.
  *
  * Concurrent requests are serialized, so two hotkeys cannot fight over clipboard ownership.
  */
@@ -47,7 +50,8 @@ class SelectionCapture(
 
     /**
      * Runs one capture. [callback] receives the copied text, or an empty string when nothing
-     * was captured, and is always invoked after the clipboard has been restored.
+     * was captured. The callback only ever carries text whose capture was followed by a
+     * successful restoration; when restoration permanently fails the selection is withheld.
      */
     suspend fun capture(callback: (String) -> Unit) {
         mutex.withLock {
@@ -55,21 +59,19 @@ class SelectionCapture(
             // originating sequence time to finish before touching the clipboard at all.
             delay(preCopyDelayMs)
 
-            val snapshot = when (val result = readSnapshot()) {
-                is ClipboardSnapshotResult.Available -> result.snapshot
-                is ClipboardSnapshotResult.Empty -> null
-                is ClipboardSnapshotResult.Failed -> {
-                    logger.warn("Clipboard snapshot failed, skipping selection capture: ${result.cause?.message}")
-                    currentCoroutineContext().ensureActive()
-                    callback("")
-                    return
-                }
+            val snapshot = readSnapshot()
+            if (snapshot is ClipboardSnapshotResult.Failed) {
+                logger.warn("Clipboard snapshot failed, skipping selection capture: ${snapshot.cause?.message}")
+                currentCoroutineContext().ensureActive()
+                callback("")
+                return
             }
 
             val token = changeMonitor.mark()
             if (token == null) {
+                // No synthetic Copy has happened yet, so there is nothing to restore:
+                // abort without touching the clipboard at all.
                 logger.warn("Clipboard change monitor unavailable, skipping selection capture")
-                restoreShielded(snapshot)
                 currentCoroutineContext().ensureActive()
                 callback("")
                 return
@@ -85,9 +87,12 @@ class SelectionCapture(
                 null
             }
 
-            restoreShielded(snapshot)
+            // Only a restored clipboard may be followed by dispatch. A permanently
+            // unrestorable clipboard fails closed: the selection stays undispatched
+            // rather than leaving recovery to the action.
+            val restored = restoreShielded(snapshot)
             currentCoroutineContext().ensureActive()
-            callback(text.orEmpty())
+            callback(if (restored) text.orEmpty() else "")
         }
     }
 
@@ -118,21 +123,24 @@ class SelectionCapture(
     private fun readText(): String? =
         runCatching { clipboard.readText() }.getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
 
-    private suspend fun restoreShielded(snapshot: ClipboardSnapshot?) {
-        withContext(NonCancellable) { restoreWithRetry(snapshot) }
-    }
+    private suspend fun restoreShielded(state: ClipboardSnapshotResult): Boolean =
+        withContext(NonCancellable) { restoreWithRetry(state) }
 
-    private suspend fun restoreWithRetry(snapshot: ClipboardSnapshot?) {
-        if (snapshot == null) return
+    /**
+     * Returns true when the original state is back on the clipboard. A null restore of a
+     * [ClipboardSnapshotResult.Failed] state can never happen (the flow aborts before Copy),
+     * so every state reaching here has a defined restoration.
+     */
+    private suspend fun restoreWithRetry(state: ClipboardSnapshotResult): Boolean {
         var attempt = 0
         while (true) {
             attempt++
-            val failure = runCatching { clipboard.restore(snapshot) }.exceptionOrNull()
-            if (failure == null) return
+            val failure = runCatching { clipboard.restore(state) }.exceptionOrNull()
+            if (failure == null) return true
             // Only a busy clipboard is worth retrying; anything else fails fast.
             if (failure !is IllegalStateException || attempt >= restoreMaxAttempts) {
                 logger.warn("Failed to restore clipboard after selection capture: ${failure.message}")
-                return
+                return false
             }
             delay(restoreRetryDelayMs)
         }

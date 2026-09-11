@@ -86,18 +86,34 @@ internal class RecordingClipboard(text: String? = null) : SystemClipboard {
 
     override fun signature(): Long? = signatureProvider()
 
-    override fun restore(snapshot: ClipboardSnapshot) {
+    override fun restore(state: ClipboardSnapshotResult) {
         restoreAttempts++
         restoreFailures.removeFirstOrNull()?.let { throw it }
         restoreFailure?.let { throw it }
-        restoreCount++
-        restored += snapshot
-        contents = snapshot
-        val value = runCatching {
-            snapshot.transferable.getTransferData(DataFlavor.stringFlavor) as? String
-        }.getOrNull()
-        published += value ?: NON_TEXT
-        text = value
+        when (state) {
+            is ClipboardSnapshotResult.Available -> {
+                val snapshot = state.snapshot
+                restoreCount++
+                restored += snapshot
+                contents = snapshot
+                val value = runCatching {
+                    snapshot.transferable.getTransferData(DataFlavor.stringFlavor) as? String
+                }.getOrNull()
+                published += value ?: NON_TEXT
+                text = value
+            }
+            // Restoring empty is an explicit clear, recorded like any other publish.
+            is ClipboardSnapshotResult.Empty -> {
+                restoreCount++
+                val snapshot = ClipboardSnapshot(EmptyTransferable)
+                restored += snapshot
+                contents = snapshot
+                published += EMPTY
+                text = null
+            }
+            is ClipboardSnapshotResult.Failed ->
+                throw IllegalStateException("Cannot restore a failed clipboard snapshot")
+        }
     }
 
     /** Simulates another application putting [value] on the clipboard. */
@@ -113,6 +129,7 @@ internal class RecordingClipboard(text: String? = null) : SystemClipboard {
 
     companion object {
         const val NON_TEXT = "<non-text>"
+        const val EMPTY = "<empty>"
     }
 }
 

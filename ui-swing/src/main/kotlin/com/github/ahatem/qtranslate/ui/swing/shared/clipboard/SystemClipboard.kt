@@ -4,6 +4,7 @@ import java.awt.Image
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.Transferable
+import java.awt.datatransfer.UnsupportedFlavorException
 import java.awt.image.BufferedImage
 import java.io.File
 
@@ -47,25 +48,47 @@ interface SystemClipboard {
     /** Cheap signature of the current contents, used by the fallback change monitor. */
     fun signature(): Long?
 
-    /** Publishes [snapshot] back to the clipboard. May throw. */
-    fun restore(snapshot: ClipboardSnapshot)
+    /**
+     * Publishes a previously snapshotted state back to the clipboard. [ClipboardSnapshotResult.Empty]
+     * clears the clipboard back to empty; [ClipboardSnapshotResult.Failed] is never a valid
+     * argument and fails fast, since the capture flow must abort before Copy instead. May throw.
+     */
+    fun restore(state: ClipboardSnapshotResult)
+}
+
+/** A transferable offering no data, used to restore a genuinely empty clipboard. */
+object EmptyTransferable : Transferable {
+
+    override fun getTransferDataFlavors(): Array<DataFlavor> = emptyArray()
+
+    override fun isDataFlavorSupported(flavor: DataFlavor): Boolean = false
+
+    override fun getTransferData(flavor: DataFlavor): Any = throw UnsupportedFlavorException(flavor)
 }
 
 /** Materializes [Transferable] contents into an eager snapshot. */
 object ClipboardSnapshots {
 
-    fun materialize(contents: Transferable?): ClipboardSnapshot? {
-        if (contents == null) return null
-        val flavors = runCatching { contents.transferDataFlavors }.getOrNull() ?: return null
-        if (flavors.isEmpty()) return null
+    /**
+     * Null contents classify as [ClipboardSnapshotResult.Empty]. So does a transferable whose
+     * flavor enumeration succeeds and reports zero flavors: there is observably nothing to
+     * preserve. Any failure while enumerating or reading classifies as
+     * [ClipboardSnapshotResult.Failed], never as empty, so an unreadable clipboard cannot be
+     * mistaken for an empty one.
+     */
+    fun materialize(contents: Transferable?): ClipboardSnapshotResult {
+        if (contents == null) return ClipboardSnapshotResult.Empty
+        val flavors = runCatching { contents.transferDataFlavors }
+            .getOrElse { return ClipboardSnapshotResult.Failed(it) }
+        if (flavors.isEmpty()) return ClipboardSnapshotResult.Empty
 
         val captured = ArrayList<Pair<DataFlavor, Any>>()
         for (flavor in flavors) {
             materializeFlavor(contents, flavor)?.let { captured += flavor to it }
         }
         // Nothing could be read eagerly: keep the original transferable as a best effort.
-        if (captured.isEmpty()) return ClipboardSnapshot(contents)
-        return ClipboardSnapshot(SnapshotTransferable(captured, contents))
+        if (captured.isEmpty()) return ClipboardSnapshotResult.Available(ClipboardSnapshot(contents))
+        return ClipboardSnapshotResult.Available(ClipboardSnapshot(SnapshotTransferable(captured, contents)))
     }
 
     private fun materializeFlavor(contents: Transferable, flavor: DataFlavor): Any? = runCatching {
@@ -123,9 +146,7 @@ class AwtSystemClipboard : SystemClipboard {
     override fun snapshot(): ClipboardSnapshotResult = runCatching {
         val contents = systemClipboard.getContents(null)
             ?: return@runCatching ClipboardSnapshotResult.Empty
-        val snapshot = ClipboardSnapshots.materialize(contents)
-            ?: return@runCatching ClipboardSnapshotResult.Empty
-        ClipboardSnapshotResult.Available(snapshot)
+        ClipboardSnapshots.materialize(contents)
     }.getOrElse { ClipboardSnapshotResult.Failed(it) }
 
     override fun readText(): String? = runCatching {
@@ -148,8 +169,15 @@ class AwtSystemClipboard : SystemClipboard {
         "$flavors|$text".hashCode().toLong()
     }.getOrNull()
 
-    override fun restore(snapshot: ClipboardSnapshot) {
-        systemClipboard.setContents(snapshot.transferable, null)
+    override fun restore(state: ClipboardSnapshotResult) {
+        when (state) {
+            is ClipboardSnapshotResult.Available -> systemClipboard.setContents(state.snapshot.transferable, null)
+            // An empty original clipboard is an explicit state to restore, not the
+            // absence of work: without this Copy would leave the selection behind.
+            is ClipboardSnapshotResult.Empty -> systemClipboard.setContents(EmptyTransferable, null)
+            is ClipboardSnapshotResult.Failed ->
+                throw IllegalStateException("Cannot restore a failed clipboard snapshot", state.cause)
+        }
     }
 
     private val systemClipboard get() = Toolkit.getDefaultToolkit().systemClipboard
