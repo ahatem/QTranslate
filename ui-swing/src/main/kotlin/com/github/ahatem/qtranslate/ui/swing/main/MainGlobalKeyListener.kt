@@ -4,6 +4,9 @@ import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
+import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.AwtSystemClipboard
+import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.ClipboardChangeMonitors
+import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.SelectionCapture
 import com.github.kwhat.jnativehook.GlobalScreen
 import com.github.kwhat.jnativehook.NativeHookException
 import com.github.kwhat.jnativehook.keyboard.NativeKeyEvent
@@ -16,12 +19,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.awt.Point
 import java.awt.Robot
-import java.awt.Toolkit
-import java.awt.datatransfer.DataFlavor
-import java.awt.datatransfer.StringSelection
 import java.awt.event.KeyEvent
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.UUID
 
 /**
  * Manages global and local hotkey registration.
@@ -64,7 +63,13 @@ class MainGlobalKeyListener(
     private var nativeHookRegistered = false
     private val sequenceListener = CustomSequenceListener()
     private val selectionMouseListener = SelectionMouseListener()
-    private val clipboardLock = AtomicBoolean(false)
+    private val systemClipboard = AwtSystemClipboard()
+    private val selectionCapture = SelectionCapture(
+        clipboard = systemClipboard,
+        changeMonitor = ClipboardChangeMonitors.create(systemClipboard, logger),
+        simulateCopy = { simulateCopy() },
+        logger = logger
+    )
     private val hotkeysEnabled = AtomicBoolean(true)
     // AtomicBoolean.compareAndSet prevents double-initialization if initialize()
     // is called concurrently (e.g. from two rapid lifecycle events).
@@ -347,45 +352,7 @@ class MainGlobalKeyListener(
     }
 
     private suspend fun handleSelectedText(callback: (String) -> Unit) {
-        if (!clipboardLock.compareAndSet(false, true)) return
-        try {
-            val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-            val original  = runCatching { clipboard.getContents(null) }.getOrNull()
-
-            try {
-                // Global hotkey callbacks can arrive while Ctrl/Cmd is still physically held.
-                // Give the originating key sequence time to finish before synthesizing Copy.
-                delay(80)
-
-                var text: String? = null
-                for (backoffMs in longArrayOf(50, 90, 140)) {
-                    val sentinel = "qtranslate-copy-${UUID.randomUUID()}"
-                    runCatching { clipboard.setContents(StringSelection(sentinel), null) }
-
-                    simulateCopy()
-                    delay(backoffMs)
-
-                    val candidate = runCatching {
-                        if (clipboard.isDataFlavorAvailable(DataFlavor.stringFlavor)) {
-                            clipboard.getData(DataFlavor.stringFlavor).toString().trim()
-                        } else {
-                            null
-                        }
-                    }.getOrNull()
-
-                    if (!candidate.isNullOrEmpty() && candidate != sentinel) {
-                        text = candidate
-                        break
-                    }
-                }
-
-                callback(text.orEmpty())
-            } finally {
-                original?.let { runCatching { clipboard.setContents(it, null) } }
-            }
-        } finally {
-            clipboardLock.set(false)
-        }
+        selectionCapture.capture(callback)
     }
 
     private fun simulateCopy() {

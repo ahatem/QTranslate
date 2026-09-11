@@ -24,8 +24,10 @@ dependencies {
 
     implementation(libs.jnativehook)
     implementation(libs.jkeymaster)
+    implementation(libs.jna)
 
     implementation(libs.commonmark)
 
     testImplementation(kotlin("test"))
+    testImplementation(libs.kotlinxCoroutinesTest)
 }
