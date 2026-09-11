@@ -339,6 +339,29 @@ class AdvancedTextPane(
     private var lastRenderedCorrections: List<Correction> = emptyList()
     private var lastEmittedText: String? = null
 
+    /**
+     * True while an input method holds composition text the user has not committed yet — the
+     * half-typed Bopomofo, kana or jamo an IME shows before it becomes a word.
+     *
+     * Swing keeps that text *inside the document* and remembers where it sits with two Positions,
+     * which it uses to take the text back out on the next input-method event. A rewrite of the
+     * document from anywhere else collapses those Positions: the next event then removes nothing,
+     * and the half-typed characters are stranded in the pane as ordinary text. Typing 測試 with
+     * Bopomofo came out as ㄘㄜ測ㄕ測試 — one stranded snapshot per rewrite.
+     *
+     * The rewrite was this pane's own state cycle. Text is reported upwards on every document
+     * change, the store echoes it back, and the echo reaches the EDT by way of a background
+     * dispatcher, so it can arrive a keystroke late — and a stale echo does not match
+     * [lastRenderedText], which is exactly the condition [render] rewrites the document on.
+     * Composition makes that race trivial to hit because one keystroke changes the document
+     * twice: the old composition is removed and the new one inserted, and the state from between
+     * those two is stale the moment it is emitted.
+     *
+     * So while this is true the pane neither reports its text upwards nor writes to the document.
+     * Both resume on commit, when the document holds real text again.
+     */
+    private var isComposingText = false
+
     private val documentListener = object : DocumentListener {
         override fun insertUpdate(e: DocumentEvent?) = onUserTextChange()
         override fun removeUpdate(e: DocumentEvent?) = onUserTextChange()
@@ -373,6 +396,34 @@ class AdvancedTextPane(
         fallbackListener = FontFallbackDocumentListener(this)
         document.addDocumentListener(fallbackListener)
 
+        // A listener rather than an override of processInputMethodEvent, because Component
+        // notifies listeners before JTextComponent applies the event to the document — so
+        // isComposingText is already correct when the document listeners above run for that
+        // same event. Listening does not consume the event; the pane still receives the text.
+        addInputMethodListener(object : InputMethodListener {
+            override fun inputMethodTextChanged(e: InputMethodEvent) {
+                val text = e.text
+                val composedLength =
+                    if (text == null) 0
+                    else text.endIndex - text.beginIndex - e.committedCharacterCount
+                isComposingText = composedLength > 0
+            }
+
+            override fun caretPositionChanged(e: InputMethodEvent) = Unit
+        })
+
+        addFocusListener(object : FocusAdapter() {
+            // A composition cannot outlive the focus feeding it. Clearing here means a missed
+            // end-of-composition event cannot leave the pane permanently silent, and flushes
+            // whatever was typed before focus moved on.
+            override fun focusLost(e: FocusEvent) {
+                if (isComposingText) {
+                    isComposingText = false
+                    onUserTextChange()
+                }
+            }
+        })
+
         addComponentListener(object : ComponentAdapter() {
             override fun componentResized(e: ComponentEvent?) {
                 putClientProperty("repaintManager.doubleBufferingEnabled", true)
@@ -401,7 +452,9 @@ class AdvancedTextPane(
 
             var textWasChanged = false
 
-            if (lastRenderedText != text) {
+            // Never while a composition is open — see [isComposingText]. A state arriving then is
+            // a stale echo of half-typed text, and writing it would strand the composition.
+            if (lastRenderedText != text && !isComposingText) {
                 document.removeDocumentListener(documentListener)
                 document.removeDocumentListener(fallbackListener)
 
@@ -430,6 +483,11 @@ class AdvancedTextPane(
     }
 
     private fun onUserTextChange() {
+        // Composition text is not the user's text yet. Reporting it upwards would translate,
+        // spell-check and store half-typed Bopomofo, and would send back the stale echo that
+        // strands it. The commit fires this again with the finished text.
+        if (isComposingText) return
+
         val currentText = text
         if (currentText != lastEmittedText) {
             lastEmittedText  = currentText
