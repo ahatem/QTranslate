@@ -3,9 +3,10 @@ package com.github.ahatem.qtranslate.app
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
+import com.github.ahatem.qtranslate.core.settings.system.WindowsStartupRegistration
 import com.github.ahatem.qtranslate.core.shared.notification.AppNotification
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
-import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.ui.swing.main.MainAppFrame
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
@@ -13,6 +14,8 @@ import com.github.michaelbull.result.fold
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import java.io.File
 import javax.swing.SwingUtilities
@@ -75,6 +78,30 @@ fun main() = runBlocking {
         initialConfig = initialConfig
     )
     AppUiSetup.apply(initialConfig, deps.themeManager)
+
+    // The "launch on system startup" checkbox used to persist its flag without any code ever
+    // acting on it, so enabling it on Windows changed nothing (#226). This keeps the per-user
+    // startup entry in sync with the setting instead: the initial emission repairs a missing or
+    // stale entry left by an older install location, and later emissions apply OK/Apply from the
+    // settings dialog or any other save path. Best effort — a failure only logs, never blocks
+    // startup. Windows-only; other platforms keep their previous behavior exactly.
+    if (WindowsStartupRegistration.isSupported()) {
+        val startupRegistration = WindowsStartupRegistration()
+        deps.appScope.launch {
+            settingsRepo.configuration
+                .map { it.launchOnSystemStartup }
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    val synced = runCatching { startupRegistration.reconcile(enabled) }
+                        .getOrDefault(false)
+                    if (synced) {
+                        logger.debug("Windows startup entry synced (enabled=$enabled)")
+                    } else {
+                        logger.warn("Windows startup entry could not be synced (enabled=$enabled)")
+                    }
+                }
+        }
+    }
 
     // Starting with defaults when settings existed is not a detail to leave in a log file. From
     // the user's side the app looks freshly installed, and the natural response — setting
