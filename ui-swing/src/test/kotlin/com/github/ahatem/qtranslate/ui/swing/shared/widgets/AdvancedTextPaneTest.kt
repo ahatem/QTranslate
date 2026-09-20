@@ -1,6 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
+import com.github.ahatem.qtranslate.ui.swing.shared.textpane.GraphemeBoundary
+import com.github.ahatem.qtranslate.ui.swing.shared.textpane.MenuShortcutModifier
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isRTL
 import java.awt.Dimension
 import java.awt.Font
