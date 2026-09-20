@@ -819,4 +819,57 @@ class AdvancedTextPaneTest {
 
     private fun ascentOf(font: Font): Float =
         font.getLineMetrics("A", FontRenderContext(null, true, true)).ascent
+
+    // -----------------------------------------------------------------------
+    // Selection must stay presentation-only
+    // -----------------------------------------------------------------------
+
+    /**
+     * A mouse drag produces dozens of caret moves per second. Each one must stay
+     * inside Swing: emitting text state, let alone rewriting the document, on a
+     * selection-only change would rerun the render pipeline under the pointer.
+     */
+    @Test
+    fun `selection-only movement emits no text change and rewrites nothing`() {
+        var reported = 0
+        val pane = newPane(onTextChanged = { reported++ })
+        onEdt { pane.render("the quick brown fox jumps over the lazy dog", emptyList(), true) }
+
+        // A drag across the text, a backward extension, a collapse and select-all.
+        onEdt {
+            pane.caret.setDot(0)
+            pane.caret.moveDot(10)
+            pane.caret.moveDot(30)
+            pane.caret.moveDot(5)
+            pane.caret.setDot(0)
+            pane.selectAll()
+        }
+
+        assertEquals(0, reported, "moving the caret must not look like typing")
+        assertEquals(
+            "the quick brown fox jumps over the lazy dog",
+            onEdt { pane.text },
+            "selection must never rewrite the document",
+        )
+    }
+
+    @Test
+    fun `re-rendering identical corrections keeps the same highlights`() {
+        val pane = newPane()
+        val corrections = listOf(Correction("quick", 4, 9, listOf("fast")))
+        onEdt { pane.render("the quick brown fox", corrections, true) }
+
+        val before = onEdt {
+            (pane.highlighter as DefaultHighlighter).highlights.map { it.startOffset to it.endOffset }
+        }
+        assertEquals(listOf(4 to 9), before)
+
+        // The state flow re-emits on every keystroke elsewhere; an unchanged correction
+        // set must be a no-op so highlights are not torn down and rebuilt under the caret.
+        onEdt { pane.render("the quick brown fox", corrections, true) }
+        val after = onEdt {
+            (pane.highlighter as DefaultHighlighter).highlights.map { it.startOffset to it.endOffset }
+        }
+        assertEquals(before, after)
+    }
 }
