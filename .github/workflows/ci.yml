@@ -27,7 +27,13 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      # `build` runs `test` as part of `check`, so there is no separate test step.
+      - name: Install Linux native headers
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev pkg-config
+
+      # `build` runs `test` as part of `check`, so there is no separate test step. QInput is
+      # resolved from Maven Central with its native libraries bundled in the jar, so
+      # QInput-dependent tests (e.g. AbiBindingTest, QInputBackendMappingTest) exercise the real
+      # native library instead of skipping.
       - name: Build and test all modules
         run: ./gradlew build --no-daemon
 
@@ -105,6 +111,9 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
+
+      - name: Install Linux native headers
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev pkg-config
 
       - name: Build ${{ matrix.task }}
         run: ./gradlew ${{ matrix.task }} -PreleaseVersion=ci -PmacVisionHelper=macos-helper/vision_ocr --no-daemon

@@ -22,9 +22,8 @@ dependencies {
     implementation(libs.jsvg)
     implementation(libs.miglayout)
 
-    implementation(libs.jnativehook)
-    implementation(libs.jkeymaster)
     implementation(libs.jna)
+    implementation(libs.qinput)
 
     implementation(libs.commonmark)
 

@@ -29,6 +29,38 @@ class DoubleCtrlDetectorTest {
         assertFalse(detector.onControlReleased(1000L, active = true))
     }
 
+    /**
+     * Timestamps are monotonic microseconds since the runtime started, so the first tap of a
+     * session can land at or near zero. A `0L` "no previous tap" sentinel made that lone first
+     * tap satisfy `now - 0 < threshold` and fire a phantom double; null means "none armed".
+     */
+    @Test
+    fun `a lone first tap at a near-zero timestamp does not pair with itself`() {
+        val detector = DoubleCtrlDetector()
+
+        detector.onControlPressed()
+        assertFalse(detector.onControlReleased(0L, active = true))
+    }
+
+    @Test
+    fun `a lone early tap just under the threshold does not pair with itself`() {
+        val detector = DoubleCtrlDetector()
+
+        detector.onControlPressed()
+        assertFalse(detector.onControlReleased(399L, active = true))
+    }
+
+    @Test
+    fun `taps at the origin still pair normally when genuinely close`() {
+        val detector = DoubleCtrlDetector()
+
+        // Two real taps, both at tiny monotonic offsets, must still trigger.
+        detector.onControlPressed()
+        assertFalse(detector.onControlReleased(1L, active = true))
+        detector.onControlPressed()
+        assertTrue(detector.onControlReleased(50L, active = true))
+    }
+
     @Test
     fun `two orphan releases within threshold do not trigger or arm`() {
         val detector = DoubleCtrlDetector()
@@ -124,6 +156,17 @@ class DoubleCtrlDetectorTest {
         assertFalse(detector.onControlReleased(1000L, active = true))
         detector.onControlPressed()
         assertFalse(detector.onControlReleased(1500L, active = true))
+    }
+
+    @Test
+    fun `reset forgets an armed tap`() {
+        val detector = DoubleCtrlDetector()
+
+        detector.onControlPressed()
+        assertFalse(detector.onControlReleased(1000L, active = true))
+        detector.reset()
+        detector.onControlPressed()
+        assertFalse(detector.onControlReleased(1100L, active = true))
     }
 
     @Test

@@ -187,7 +187,7 @@ jobs:
   release:
     name: Build & Publish Release
     runs-on: ubuntu-latest
-    needs: windows-package
+    needs: [windows-package]
 
     steps:
       - name: Checkout

@@ -128,7 +128,7 @@ enum class DictionaryAutoSource {
 }
 
 /**
- * Whether a hotkey fires globally (system-wide via jKeymaster) or
+ * Whether a hotkey fires globally (system-wide via the global input backend) or
  * locally (only when QTranslate has focus, via Swing InputMap).
  *
  * Global hotkeys intercept keys from any application — use sparingly.
@@ -139,7 +139,7 @@ enum class DictionaryAutoSource {
  */
 @Serializable
 enum class HotkeyScope {
-    GLOBAL,  // Registered with jKeymaster — fires system-wide
+    GLOBAL,  // Registered with the global input backend — fires system-wide
     LOCAL    // Registered via Swing InputMap — fires only inside QTranslate
 }
 
@@ -151,7 +151,7 @@ enum class HotkeyScope {
  * Storing keyCode + modifiers avoids all string parsing.
  * Reconstruct: `KeyStroke.getKeyStroke(keyCode, modifiers)`
  *
- * [keyCode] = 0 means "no binding" (SHOW_MAIN_WINDOW uses double-Ctrl via JNativeHook).
+ * [keyCode] = 0 means "no binding" (SHOW_MAIN_WINDOW uses double-Ctrl via raw key events).
  *
  * [isDoubleCtrlEnabled] only applies to [HotkeyAction.SHOW_MAIN_WINDOW].
  * When false the double-tap Ctrl sequence is suppressed so other applications
@@ -173,7 +173,7 @@ data class HotkeyBinding(
 
     companion object {
         val DEFAULTS: List<HotkeyBinding> = listOf(
-            // SHOW_MAIN_WINDOW: double-Ctrl via JNativeHook — no KeyStroke, always GLOBAL
+            // SHOW_MAIN_WINDOW: double-Ctrl via raw key events — no KeyStroke, always GLOBAL
             HotkeyBinding(HotkeyAction.SHOW_MAIN_WINDOW,         keyCode = 0,                                          modifiers = 0,                                         scope = HotkeyScope.GLOBAL, isDoubleCtrlEnabled = true),
             HotkeyBinding(HotkeyAction.SHOW_QUICK_TRANSLATE,     keyCode = java.awt.event.KeyEvent.VK_Q,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.GLOBAL),
             HotkeyBinding(HotkeyAction.LISTEN_TO_TEXT,           keyCode = java.awt.event.KeyEvent.VK_E,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.GLOBAL),

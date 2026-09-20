@@ -23,7 +23,16 @@ internal class DoubleCtrlDetector(
     private var down = false
     private var pressObserved = false
     private var partOfCombination = false
-    private var lastTapMs = 0L
+
+    /**
+     * When the previous tap happened, or null when none is armed.
+     *
+     * Deliberately not a `0L` sentinel: timestamps are monotonic microseconds-since-runtime-
+     * start, so a real event can legitimately land at or near zero. With `0L` meaning both
+     * "no previous tap" and "a tap at the origin", the very first tap of a session could read
+     * as completing a pair.
+     */
+    private var lastTapMs: Long? = null
 
     fun onControlPressed() {
         if (!down) {
@@ -35,6 +44,18 @@ internal class DoubleCtrlDetector(
 
     fun onOtherKeyPressed() {
         if (down) partOfCombination = true
+    }
+
+    /**
+     * Forgets all tap state, including an armed first tap. Called when Double Ctrl stops
+     * being able to fire (global hotkeys disabled), so a tap from before the disable can
+     * never pair with a tap after re-enable into a phantom double.
+     */
+    fun reset() {
+        down = false
+        pressObserved = false
+        partOfCombination = false
+        lastTapMs = null
     }
 
     /**
@@ -52,12 +73,13 @@ internal class DoubleCtrlDetector(
         pressObserved = false
         if (partOfCombination) {
             partOfCombination = false
-            lastTapMs = 0L
+            lastTapMs = null
             return false
         }
         if (!active) return false
-        return if (nowMs - lastTapMs < thresholdMs) {
-            lastTapMs = 0L
+        val previous = lastTapMs
+        return if (previous != null && nowMs - previous < thresholdMs) {
+            lastTapMs = null
             true
         } else {
             lastTapMs = nowMs

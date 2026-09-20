@@ -70,6 +70,8 @@ internal class RecordingClipboard(text: String? = null) : SystemClipboard {
     var snapshotCalls = 0
     /** Invoked on every [readText], so tests can model render-on-request behavior. */
     var onReadText: (() -> Unit)? = null
+    /** When set, every subsequent [readText] call throws this instead of returning [text]. */
+    var readTextFailure: Throwable? = null
     var signatureProvider: () -> Long? = { null }
     /**
      * When true, snapshots run the real production materializer over the stored transferable
@@ -89,6 +91,7 @@ internal class RecordingClipboard(text: String? = null) : SystemClipboard {
 
     override fun readText(): String? {
         onReadText?.invoke()
+        readTextFailure?.let { throw it }
         return text
     }
 
