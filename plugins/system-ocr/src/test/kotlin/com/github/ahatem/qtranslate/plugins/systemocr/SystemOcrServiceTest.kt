@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 import com.github.ahatem.qtranslate.plugins.systemocr.backend.BackendLanguages
 import com.github.ahatem.qtranslate.plugins.systemocr.backend.LinuxTesseractBackend
+import com.github.ahatem.qtranslate.plugins.systemocr.backend.ProcessOutcome
 import com.github.ahatem.qtranslate.plugins.systemocr.backend.RealProcessRunner
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -16,6 +17,7 @@ import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -177,15 +179,86 @@ class SystemOcrServiceTest {
     }
 
     @Test
-    fun `an AUTO request reaches the backend unchanged`() = runBlocking {
+    fun `AUTO reaches a backend that detects language unchanged`() = runBlocking {
         var seen: LanguageCode? = null
         val service = SystemOcrService(
-            FakeBackend(onRecognize = { _, language -> seen = language; Ok("x") }),
+            FakeBackend(
+                onRecognize = { _, language -> seen = language; Ok("x") },
+                onLanguages = { Ok(BackendLanguages(setOf(LanguageCode.ENGLISH), detectsLanguage = true)) },
+            ),
             logger,
         )
 
-        service.extractText(OCRRequest(imageData(), LanguageCode.AUTO))
+        service.extractText(OCRRequest(imageData(), LanguageCode.AUTO)).unwrap()
 
         assertEquals(LanguageCode.AUTO, seen)
+    }
+
+    @Test
+    fun `AUTO resolves to an installed language when the backend cannot detect`() = runBlocking {
+        var seen: LanguageCode? = null
+        val service = SystemOcrService(
+            FakeBackend(
+                onRecognize = { _, language -> seen = language; Ok("x") },
+                onLanguages = { Ok(BackendLanguages(setOf(LanguageCode.GERMAN), detectsLanguage = false)) },
+            ),
+            logger,
+        )
+
+        service.extractText(OCRRequest(imageData(), LanguageCode.AUTO)).unwrap()
+
+        assertEquals(LanguageCode.GERMAN, seen)
+    }
+
+    @Test
+    fun `AUTO with nothing installed is a clear error`() = runBlocking {
+        val service = SystemOcrService(
+            FakeBackend(onLanguages = { Ok(BackendLanguages(emptySet(), detectsLanguage = false)) }),
+            logger,
+        )
+
+        val error = service.extractText(OCRRequest(imageData(), LanguageCode.AUTO)).unwrapError()
+
+        assertTrue(error is ServiceError.UnsupportedLanguageError)
+        assertEquals(LanguageCode.AUTO, error.language)
+        assertTrue(error.message.contains("install language data"), "was '${error.message}'")
+    }
+
+    @Test
+    fun `AUTO reports a capability failure rather than guessing`() = runBlocking {
+        val service = SystemOcrService(
+            FakeBackend(onLanguages = { Err(ServiceError.ConfigurationError("engine unavailable")) }),
+            logger,
+        )
+
+        assertTrue(service.extractText(OCRRequest(imageData(), LanguageCode.AUTO)).unwrapError() is ServiceError.ConfigurationError)
+    }
+
+    @Test
+    fun `an explicit language is used without consulting the installed set`() = runBlocking {
+        var languagesAsked = false
+        val service = SystemOcrService(
+            FakeBackend(onLanguages = { languagesAsked = true; Ok(BackendLanguages(setOf(LanguageCode.ENGLISH), false)) }),
+            logger,
+        )
+
+        service.extractText(OCRRequest(imageData(), LanguageCode.KOREAN)).unwrap()
+
+        assertFalse(languagesAsked)
+    }
+
+    @Test
+    fun `AUTO reaches Tesseract as a concrete installed language`() = runBlocking {
+        val runner = FakeProcessRunner { command ->
+            if (command.contains("--list-langs")) {
+                ProcessOutcome(0, "List of available languages (1):\neng\n", "", false)
+            } else {
+                ProcessOutcome(0, "recognized", "", false)
+            }
+        }
+        val service = SystemOcrService(LinuxTesseractBackend(runner, "tesseract"), logger)
+
+        assertEquals("recognized", service.extractText(OCRRequest(imageData(), LanguageCode.AUTO)).unwrap().text)
+        assertEquals("eng", runner.commands.single { !it.contains("--list-langs") }.last())
     }
 }

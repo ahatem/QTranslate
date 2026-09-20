@@ -28,7 +28,8 @@ internal interface SystemOcrBackend {
 
     /**
      * Recognizes [image], using [language] as a hint. A backend that cannot detect a language must
-     * reject `AUTO` with [ServiceError.UnsupportedLanguageError] rather than substituting a default.
+     * reject `AUTO` with [ServiceError.UnsupportedLanguageError] rather than substituting a default;
+     * the service resolves `AUTO` to a concrete language before calling such a backend.
      */
     suspend fun recognize(image: ImageData, language: LanguageCode): Result<String, ServiceError>
 

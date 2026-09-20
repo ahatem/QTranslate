@@ -2,6 +2,8 @@ package com.github.ahatem.qtranslate.plugins.systemocr
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.ImageData
+import com.github.ahatem.qtranslate.api.ocr.OCRRequest
+import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 import com.github.ahatem.qtranslate.plugins.systemocr.backend.PathExecutableLocator
 import com.github.ahatem.qtranslate.plugins.systemocr.backend.RealProcessRunner
 import com.github.ahatem.qtranslate.plugins.systemocr.backend.SystemOcrBackends
@@ -27,6 +29,7 @@ class WindowsSystemOcrSmokeTest {
     private companion object {
         const val SMOKE_ENV = "SYSTEM_OCR_SMOKE"
         const val REPORT_ENV = "SYSTEM_OCR_SMOKE_REPORT"
+        const val AUTO_REPORT_ENV = "SYSTEM_OCR_AUTO_SMOKE_REPORT"
     }
 
     @Test
@@ -79,6 +82,63 @@ class WindowsSystemOcrSmokeTest {
         println(report)
 
         assertTrue(secondResult.isOk, "the second recognition should have succeeded")
+        assertTrue(text.contains("QTranslate", ignoreCase = true), "recognized text was '$text'")
+        assertTrue(text.contains("12345"), "recognized text was '$text'")
+    }
+
+    /**
+     * The default workflow: the host supplies `LanguageCode.AUTO` because the user has not chosen a
+     * language yet. This has to recognize rather than refuse.
+     */
+    @Test
+    fun `the default AUTO workflow recognizes without a chosen language`() {
+        if (System.getenv(SMOKE_ENV) != "true") {
+            println("AUTO workflow smoke test skipped; set $SMOKE_ENV=true to run it.")
+            return
+        }
+        if (!System.getProperty("os.name").startsWith("Windows")) {
+            println("AUTO workflow smoke test skipped: this is not Windows.")
+            return
+        }
+        runBlocking { runAutoWorkflow() }
+    }
+
+    private suspend fun runAutoWorkflow() {
+        val dataDirectory = Files.createTempDirectory("system-ocr-auto").toFile()
+        val backend = SystemOcrBackends.create(
+            osName = "Windows 11",
+            dataDirectory = dataDirectory,
+            runner = RealProcessRunner(),
+            locator = PathExecutableLocator,
+        ).unwrap()
+        val service = SystemOcrService(backend, FakePluginContext.SilentLogger)
+
+        val supported = backend.supportedLanguages().unwrap()
+        val platformTags = AutoLanguageResolver.platformPreferredTags()
+        val selected = AutoLanguageResolver.resolve(supported.languages, platformTags)
+
+        val image = renderTestImage()
+        val (result, elapsedMillis) = measure { service.extractText(OCRRequest(image, LanguageCode.AUTO)) }
+        val text = result.fold(success = { it.text }, failure = { "ERROR: ${it.message}" })
+
+        val report = buildString {
+            appendLine("System OCR - Windows AUTO workflow")
+            appendLine("requestedLanguage  = auto")
+            appendLine("detectsLanguage    = ${supported.detectsLanguage}")
+            appendLine("installedLanguages = ${supported.languages.map { it.tag }.sorted()}")
+            appendLine("platformLanguage   = $platformTags")
+            appendLine("selectedRecognizer = ${selected?.tag}")
+            appendLine("elapsedMillis      = $elapsedMillis")
+            appendLine("status             = ${if (result.isOk) "Ok" else "Err"}")
+            appendLine("output             = ${text.replace("\n", "\\n")}")
+        }
+        val target = System.getenv(AUTO_REPORT_ENV)?.let { File(it) } ?: File("build/system-ocr-auto-report.txt")
+        target.parentFile?.mkdirs()
+        target.writeText(report, Charsets.UTF_8)
+        println(report)
+
+        assertTrue(selected != null, "no installed recognizer to fall back to")
+        assertTrue(result.isOk, "AUTO must recognize on a machine with an installed recognizer")
         assertTrue(text.contains("QTranslate", ignoreCase = true), "recognized text was '$text'")
         assertTrue(text.contains("12345"), "recognized text was '$text'")
     }

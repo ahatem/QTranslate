@@ -10,8 +10,11 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.ServiceMetadata
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.plugins.systemocr.backend.SystemOcrBackend
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
+import com.github.michaelbull.result.fold
 import com.github.michaelbull.result.map
 
 /**
@@ -57,20 +60,53 @@ internal class SystemOcrService(
     override suspend fun extractText(
         request: OCRRequest,
     ): Result<OCRResponse, ServiceError> = coroutineBinding {
+        val language = languageToRecognize(request.language).bind()
+
         val startedAt = System.nanoTime()
-        val text = backend.recognize(request.image, request.language).bind()
+        val text = backend.recognize(request.image, language).bind()
         val elapsedMillis = (System.nanoTime() - startedAt) / NANOS_PER_MILLISECOND
 
         // Dimensions, language and engine are safe to log; the recognized text and image are not.
         logger.info(
             "System OCR (${backend.displayName}) recognized ${request.image.width}x${request.image.height} " +
-                "as '${request.language.tag}' in ${elapsedMillis}ms (${text.length} characters)"
+                "as '${language.tag}' in ${elapsedMillis}ms (${text.length} characters)"
         )
 
         OCRResponse(text = text)
     }
 
+    /**
+     * The language to recognize with. `AUTO` asks for language detection, so it is passed on only to
+     * a backend that detects. Any other backend gets a concrete installed language instead, which
+     * keeps the default AUTO workflow working without pretending the engine detected anything.
+     */
+    private suspend fun languageToRecognize(requested: LanguageCode): Result<LanguageCode, ServiceError> =
+        if (requested != LanguageCode.AUTO) {
+            Ok(requested)
+        } else {
+            backend.supportedLanguages().fold(
+                success = { supported ->
+                    when {
+                        supported.detectsLanguage -> Ok(LanguageCode.AUTO)
+                        else -> AutoLanguageResolver
+                            .resolve(supported.languages, AutoLanguageResolver.platformPreferredTags())
+                            ?.let { Ok(it) }
+                            ?: Err(
+                                ServiceError.UnsupportedLanguageError(
+                                    LanguageCode.AUTO,
+                                    NO_INSTALLED_LANGUAGE_MESSAGE,
+                                )
+                            )
+                    }
+                },
+                failure = { Err(it) },
+            )
+        }
+
     private companion object {
         const val NANOS_PER_MILLISECOND = 1_000_000L
+        const val NO_INSTALLED_LANGUAGE_MESSAGE =
+            "No OCR language is installed, so automatic selection has nothing to choose from. " +
+                "Choose a specific language, or install language data for this system."
     }
 }
