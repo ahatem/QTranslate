@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
+import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -16,6 +17,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -34,10 +37,11 @@ class GoogleTranslatorServiceTest {
 
     private fun createService(
         client: GoogleTestHttpClient,
-        clock: AtomicLong
+        clock: AtomicLong,
+        settings: GoogleSettings = GoogleSettings()
     ) = GoogleTranslatorService(
         FakePluginContext(),
-        GoogleSettings(),
+        settings,
         client,
         GoogleLanguageMapper,
         ApiConfig(),
@@ -59,6 +63,53 @@ class GoogleTranslatorServiceTest {
 
         assertEquals(1, client.primaryCalls)
         assertEquals(0, client.fallbackCalls)
+    }
+
+    @Test
+    fun `official API omits source when auto detection is requested`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Ok(PRIMARY_JSON) },
+            officialHandler = { Ok(OFFICIAL_JSON) }
+        )
+        val service = createService(client, AtomicLong(0), GoogleSettings(translateApiKey = "test-key"))
+
+        service.translate(request).fold(
+            success = {
+                assertEquals("Bonjour", it.translatedText)
+                assertEquals(LanguageCode.ENGLISH, it.detectedLanguage)
+            },
+            failure = { fail(it.message) }
+        )
+
+        assertEquals(1, client.officialCalls)
+        assertEquals(0, client.primaryCalls)
+        val body = PluginJson.parseToJsonElement(client.officialBodies.single()).jsonObject
+        assertNull(body["source"])
+        assertEquals("Hello", body["q"]?.jsonPrimitive?.content)
+        assertEquals("fr", body["target"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `official API sends the mapped source for an explicit language`() = runBlocking {
+        val explicit = TranslationRequest(
+            text = "Bonjour",
+            sourceLanguage = LanguageCode.FRENCH,
+            targetLanguage = LanguageCode.ENGLISH
+        )
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Ok(PRIMARY_JSON) },
+            officialHandler = { Ok(OFFICIAL_JSON) }
+        )
+        val service = createService(client, AtomicLong(0), GoogleSettings(translateApiKey = "test-key"))
+
+        service.translate(explicit).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+
+        assertEquals(1, client.officialCalls)
+        val body = PluginJson.parseToJsonElement(client.officialBodies.single()).jsonObject
+        assertEquals("fr", body["source"]?.jsonPrimitive?.content)
     }
 
     @Test
@@ -779,5 +830,6 @@ class GoogleTranslatorServiceTest {
     private companion object {
         const val PRIMARY_JSON = """{"sentences":[{"trans":"Bonjour","orig":"Hello"}],"src":"en"}"""
         const val FALLBACK_FLAT = """["Bonjour","en"]"""
+        const val OFFICIAL_JSON = """{"data":{"translations":[{"translatedText":"Bonjour","detectedSourceLanguage":"en"}]}}"""
     }
 }

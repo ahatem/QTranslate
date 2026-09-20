@@ -75,12 +75,13 @@ class GoogleTranslatorService(
         val sourceTag = languageMapper.toProviderCode(request.sourceLanguage)
         val targetTag = languageMapper.toProviderCode(request.targetLanguage)
 
-        val requestBody = mapOf(
-            "q" to request.text,
-            "source" to sourceTag,
-            "target" to targetTag,
-            "format" to "text"
-        )
+        // The official API rejects "source":"auto"; auto detection is requested by omitting it.
+        val requestBody = buildMap {
+            put("q", request.text)
+            if (request.sourceLanguage != LanguageCode.AUTO) put("source", sourceTag)
+            put("target", targetTag)
+            put("format", "text")
+        }
 
         val responseString = httpClient.sendJson(
             url = TRANSLATE_OFFICIAL,

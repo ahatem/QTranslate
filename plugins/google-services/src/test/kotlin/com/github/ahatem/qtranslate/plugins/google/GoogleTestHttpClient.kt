@@ -8,8 +8,9 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.getError
 
 /**
- * Routes requests by host so the primary and fallback endpoints can be scripted independently, and
- * records call counts plus the peak number of in-flight requests for concurrency assertions.
+ * Routes requests by host so the primary, fallback and official endpoints can be scripted
+ * independently, and records call counts plus the peak number of in-flight requests for
+ * concurrency assertions.
  *
  * It also mirrors the transport's retry policy. The transport retries a 429 up to twice, so a plain
  * [get] that meets a rate limit calls the handler three times in all before returning the last
@@ -20,19 +21,28 @@ import com.github.michaelbull.result.getError
 internal class GoogleTestHttpClient(
     private val primaryHandler: suspend (Int) -> Result<String, ServiceError>,
     private val fallbackHandler: suspend (Int) -> Result<String, ServiceError> =
-        { Err(ServiceError.NetworkError("no fallback arranged")) }
+        { Err(ServiceError.NetworkError("no fallback arranged")) },
+    private val officialHandler: suspend (Int) -> Result<String, ServiceError> =
+        { Err(ServiceError.NetworkError("no official arranged")) }
 ) : TextHttpClient(), SingleAttemptHttpClient {
 
     private val lock = Any()
     private val requestLog = mutableListOf<String>()
+    private val officialBodyLog = mutableListOf<String>()
     private var primaryCallCount = 0
     private var fallbackCallCount = 0
+    private var officialCallCount = 0
     private var inFlightNow = 0
     private var maxInFlightNow = 0
 
     val urls: List<String> get() = synchronized(lock) { requestLog.toList() }
     val primaryCalls: Int get() = synchronized(lock) { primaryCallCount }
     val fallbackCalls: Int get() = synchronized(lock) { fallbackCallCount }
+    val officialCalls: Int get() = synchronized(lock) { officialCallCount }
+
+    /** The JSON bodies sent to the official endpoint, oldest first. */
+    val officialBodies: List<String> get() = synchronized(lock) { officialBodyLog.toList() }
+
     val maxInFlight: Int get() = synchronized(lock) { maxInFlightNow }
 
     override suspend fun get(
@@ -76,7 +86,21 @@ internal class GoogleTestHttpClient(
         headers: Map<String, String>,
         body: String?,
         queryParams: Map<String, Any?>
-    ): Result<String, ServiceError> = Err(ServiceError.InvalidInputError("unexpected POST to $url"))
+    ): Result<String, ServiceError> {
+        val index: Int
+        synchronized(lock) {
+            requestLog += url
+            officialBodyLog += body.orEmpty()
+            inFlightNow++
+            if (inFlightNow > maxInFlightNow) maxInFlightNow = inFlightNow
+            index = officialCallCount++
+        }
+        return try {
+            officialHandler(index)
+        } finally {
+            synchronized(lock) { inFlightNow-- }
+        }
+    }
 
     private companion object {
         // A rate limit gets one attempt plus two retries on the transport.
