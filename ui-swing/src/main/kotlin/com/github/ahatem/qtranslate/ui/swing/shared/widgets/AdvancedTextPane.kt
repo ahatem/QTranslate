@@ -1049,12 +1049,21 @@ class AdvancedTextPane(
     internal fun applyFallbackFontAttributes(docOffset: Int, runLength: Int, font: Font) {
         if (runLength <= 0) return
         val doc = styledDocument
-        val existing: AttributeSet = doc.getCharacterElement(docOffset).attributes
-        reusableAttrs.removeAttributes(reusableAttrs)
-        reusableAttrs.addAttributes(existing)
         // LabelView resolves the run font from family/style/size, so apply the ascent adjustment as
         // a size before writing the attributes.
         val aligned = font.metricAlignedTo(primaryFont)
+
+        val existing: AttributeSet = doc.getCharacterElement(docOffset).attributes
+        val last: AttributeSet = doc.getCharacterElement(docOffset + runLength - 1).attributes
+        // Rewriting attributes that are already in place still raises a document change, and every
+        // rescan would do it for the whole document.
+        if (existing === last &&
+            StyleConstants.getFontFamily(existing) == aligned.family &&
+            StyleConstants.getFontSize(existing) == aligned.size
+        ) return
+
+        reusableAttrs.removeAttributes(reusableAttrs)
+        reusableAttrs.addAttributes(existing)
         StyleConstants.setFontFamily(reusableAttrs, aligned.family)
         StyleConstants.setFontSize(reusableAttrs, aligned.size)
         withoutUndo { doc.setCharacterAttributes(docOffset, runLength, reusableAttrs, true) }

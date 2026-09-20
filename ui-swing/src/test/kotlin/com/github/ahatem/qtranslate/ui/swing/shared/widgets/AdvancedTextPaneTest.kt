@@ -90,15 +90,48 @@ class AdvancedTextPaneTest {
         // rewrites its alignment — a presentation write that must stay out of the undo history.
         onEdt { pane.document.insertString(0, "مرحبا ", null) }
         settle()
+        assertEquals(StyleConstants.ALIGN_RIGHT, onEdt { alignmentOf(rootOf(pane), 0) })
 
         assertTrue(onEdt { pane.undoManager.canUndo() }, "the typed text itself must stay undoable")
         onEdt { pane.undoManager.undo() }
         assertEquals("hello there", onEdt { pane.text })
+        assertEquals(StyleConstants.ALIGN_LEFT, onEdt { alignmentOf(rootOf(pane), 0) })
         assertFalse(
             onEdt { pane.undoManager.canUndo() },
             "exactly one undo step — the typed text — should have existed",
         )
+
+        onEdt { pane.undoManager.redo() }
+        assertEquals("مرحبا hello there", onEdt { pane.text })
+        assertEquals(StyleConstants.ALIGN_RIGHT, onEdt { alignmentOf(rootOf(pane), 0) })
     }
+
+    /**
+     * The same edit as the state flow actually delivers it: the pane is rendered with the user's
+     * own text, which is where the component follows the document's direction. Assigning
+     * component orientation rebuilds the view tree, so undo has to survive it.
+     */
+    @Test
+    fun `undo survives the render that applies right-to-left orientation`() {
+        val pane = newPane()
+        onEdt { pane.render("hello there", emptyList(), true) }
+        onEdt { pane.document.insertString(0, "مرحبا ", null) }
+        settle()
+
+        onEdt { pane.render("مرحبا hello there", emptyList(), true) }
+        assertFalse(
+            onEdt { pane.componentOrientation.isLeftToRight },
+            "the component follows the document majority at the render boundary",
+        )
+
+        onEdt { pane.undoManager.undo() }
+        assertEquals("hello there", onEdt { pane.text })
+        onEdt { pane.undoManager.redo() }
+        assertEquals("مرحبا hello there", onEdt { pane.text })
+    }
+
+    private fun rootOf(pane: AdvancedTextPane) =
+        (pane.document as StyledDocument).defaultRootElement
 
     @Test
     fun `undo reverts typed text even after presentation has run`() {
