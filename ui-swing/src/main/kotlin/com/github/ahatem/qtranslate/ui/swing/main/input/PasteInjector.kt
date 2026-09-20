@@ -92,10 +92,13 @@ internal class QInputPasteInjector(
 internal class RobotPasteInjector(
     private val logger: Logger,
     private val driverFactory: () -> RobotKeyDriver = { AwtRobotKeyDriver() },
+    private val clipboardWrite: (String) -> Unit = { text ->
+        Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
+    },
 ) : PasteInjector {
 
     override suspend fun injectPaste(text: String): Boolean {
-        Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
+        clipboardWrite(text)
         val driver = try {
             driverFactory()
         } catch (e: Exception) {

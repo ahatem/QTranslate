@@ -2,8 +2,6 @@ package com.github.ahatem.qtranslate.ui.swing.main.input
 
 import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.RecordingLogger
 import kotlinx.coroutines.test.runTest
-import java.awt.Toolkit
-import java.awt.datatransfer.DataFlavor
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -14,23 +12,27 @@ class RobotPasteInjectorTest {
     @Test
     fun `robot creation exception returns false`() = runTest {
         val logger = RecordingLogger()
-        val injector = RobotPasteInjector(logger, driverFactory = { throw RuntimeException("no display") })
+        val injector = RobotPasteInjector(logger, driverFactory = { throw RuntimeException("no display") }, clipboardWrite = {})
         assertFalse(injector.injectPaste("hello"))
         assertTrue(logger.warns.any { it.contains("Robot paste failed", ignoreCase = true) })
     }
 
     @Test
     fun `clipboard is written even when robot creation fails`() = runTest {
-        val injector = RobotPasteInjector(RecordingLogger(), driverFactory = { throw RuntimeException("no display") })
+        var written: String? = null
+        val injector = RobotPasteInjector(
+            RecordingLogger(),
+            driverFactory = { throw RuntimeException("no display") },
+            clipboardWrite = { written = it },
+        )
         injector.injectPaste("secret-text")
-        val clipboardText = Toolkit.getDefaultToolkit().systemClipboard.getData(DataFlavor.stringFlavor) as String
-        assertEquals("secret-text", clipboardText)
+        assertEquals("secret-text", written)
     }
 
     @Test
     fun `successful paste presses and releases in order`() = runTest {
         val driver = FakeRobotKeyDriver()
-        val injector = RobotPasteInjector(RecordingLogger(), driverFactory = { driver })
+        val injector = RobotPasteInjector(RecordingLogger(), driverFactory = { driver }, clipboardWrite = {})
         assertTrue(injector.injectPaste("hello"))
         assertEquals(
             listOf("press:17", "press:86", "release:86", "release:17", "waitForIdle"),
@@ -41,7 +43,7 @@ class RobotPasteInjectorTest {
     @Test
     fun `main key press exception returns false and releases the pressed modifier`() = runTest {
         val driver = FakeRobotKeyDriver(failOn = { it == "press:86" })
-        val injector = RobotPasteInjector(RecordingLogger(), driverFactory = { driver })
+        val injector = RobotPasteInjector(RecordingLogger(), driverFactory = { driver }, clipboardWrite = {})
         assertFalse(injector.injectPaste("hello"))
         assertEquals(listOf("press:17", "press:86", "release:17"), driver.calls)
     }
@@ -49,7 +51,7 @@ class RobotPasteInjectorTest {
     @Test
     fun `modifier press exception never attempts a release`() = runTest {
         val driver = FakeRobotKeyDriver(failOn = { it == "press:17" })
-        val injector = RobotPasteInjector(RecordingLogger(), driverFactory = { driver })
+        val injector = RobotPasteInjector(RecordingLogger(), driverFactory = { driver }, clipboardWrite = {})
         assertFalse(injector.injectPaste("hello"))
         assertFalse(driver.calls.any { it.startsWith("release") }, "nothing was pressed, so nothing may be released")
     }
@@ -61,7 +63,7 @@ class RobotPasteInjectorTest {
     @Test
     fun `main key release exception still attempts cleanup of both keys`() = runTest {
         val driver = FakeRobotKeyDriver(failOn = { it == "release:86" })
-        val injector = RobotPasteInjector(RecordingLogger(), driverFactory = { driver })
+        val injector = RobotPasteInjector(RecordingLogger(), driverFactory = { driver }, clipboardWrite = {})
         assertFalse(injector.injectPaste("hello"))
         assertEquals(
             listOf("press:17", "press:86", "release:86", "release:86", "release:17"),
@@ -76,7 +78,7 @@ class RobotPasteInjectorTest {
     @Test
     fun `modifier release exception retries only the modifier`() = runTest {
         val driver = FakeRobotKeyDriver(failOn = { it == "release:17" })
-        val injector = RobotPasteInjector(RecordingLogger(), driverFactory = { driver })
+        val injector = RobotPasteInjector(RecordingLogger(), driverFactory = { driver }, clipboardWrite = {})
         assertFalse(injector.injectPaste("hello"))
         assertEquals(
             listOf("press:17", "press:86", "release:86", "release:17", "release:17"),
@@ -91,7 +93,7 @@ class RobotPasteInjectorTest {
     @Test
     fun `waitForIdle failure after full release attempts no further cleanup`() = runTest {
         val driver = FakeRobotKeyDriver(failOn = { it == "waitForIdle" })
-        val injector = RobotPasteInjector(RecordingLogger(), driverFactory = { driver })
+        val injector = RobotPasteInjector(RecordingLogger(), driverFactory = { driver }, clipboardWrite = {})
         assertFalse(injector.injectPaste("hello"))
         assertEquals(
             listOf("press:17", "press:86", "release:86", "release:17", "waitForIdle"),
