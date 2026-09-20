@@ -89,7 +89,14 @@ data class InputCapabilities(
     val keyState: Boolean,
 )
 
-/** Backend-agnostic global input events. Coordinates are screen pixels. */
+/**
+ * Backend-agnostic global input events.
+ *
+ * Coordinates are Swing user-space (logical) screen coordinates: [QInputBackend] converts the
+ * native physical pixels the platform reports (Windows low-level hooks) exactly once at the
+ * entry boundary. On platforms where native and Swing coordinates already agree the mapping
+ * is identity, so consumers must never scale these points again.
+ */
 sealed interface GlobalInputEvent {
 
     /** [id] is the registration token from the applied [HotkeyRegistration], not an action identifier. */

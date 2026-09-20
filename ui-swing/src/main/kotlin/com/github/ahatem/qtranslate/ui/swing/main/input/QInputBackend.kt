@@ -21,6 +21,12 @@ internal class QInputBackend(
     private val inputFactory: (QInput.Listener, Executor, QInput.Config) -> QInput = { listener, executor, config ->
         QInput(listener, executor, config)
     },
+    /**
+     * Converts native pointer coordinates to Swing user space exactly once, where native
+     * input enters the application. See [ScreenCoordinateMapper]: converting anywhere else
+     * (or twice) reintroduces the DPI offset this exists to remove.
+     */
+    private val coordinateMapper: ScreenCoordinateMapper = ScreenCoordinateMapper.system(),
 ) : GlobalInputBackend {
 
     data class RawMask(val keyboard: Boolean, val mouseButtons: Boolean, val mouseMotion: Boolean)
@@ -34,7 +40,7 @@ internal class QInputBackend(
             object : QInput.Listener {
                 override fun onEvent(event: QInputEvent) {
                     if (closed.get()) return
-                    toGlobalEvent(event)?.let { events(it) }
+                    toGlobalEvent(event)?.let { events(coordinateMapper.mapEvent(it)) }
                 }
 
                 override fun onError(error: Throwable) {
