@@ -10,15 +10,23 @@ import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.translator.TranslationResponse
 import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
+import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
-import com.github.ahatem.qtranslate.plugins.common.fetchJson
 import com.github.ahatem.qtranslate.plugins.common.sendJson
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.ahatem.qtranslate.plugins.google.common.OfficialTranslateResponse
 import com.github.ahatem.qtranslate.plugins.google.common.TranslateResponse
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
+import com.github.michaelbull.result.getError
 import com.github.michaelbull.result.toResultOr
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import java.util.concurrent.atomic.AtomicLong
 
 class GoogleTranslatorService(
     private val pluginContext: PluginContext,
@@ -31,11 +39,12 @@ class GoogleTranslatorService(
 
     override val key: String = "google-translator"
     override val name: String = "Google Translate"
-    override val version: String = "1.0.0"
+    override val version: String = "1.0.1"
     override val iconPath: String = "assets/google-translate-icon.svg"
 
     private val officialParser = createJsonParser<OfficialTranslateResponse>(pluginContext)
     private val translateParser = createJsonParser<TranslateResponse>(pluginContext)
+    private val skipPrimaryUntilMs = AtomicLong(0L)
 
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.Dynamic
 
@@ -44,6 +53,10 @@ class GoogleTranslatorService(
         private const val TRANSLATE_FALLBACK = "https://clients5.google.com/translate_a/t"
         private const val TRANSLATE_OFFICIAL = "https://translation.googleapis.com/language/translate/v2"
         private val TRANSLATE_FEATURES = listOf("t", "bd", "at", "ex", "ld", "md", "rw", "rm", "ss", "qc")
+        // Healthy gtx answers in well under a second. The transport retries 429s for several
+        // seconds; that wait is the popup delay, so abandon the primary and use clients5.
+        private const val PRIMARY_BUDGET_MS = 1_500L
+        private const val PRIMARY_COOLDOWN_MS = 60_000L
     }
 
     override suspend fun fetchSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> =
@@ -97,12 +110,45 @@ class GoogleTranslatorService(
     ): Result<TranslationResponse, ServiceError> {
         val sourceTag = languageMapper.toProviderCode(request.sourceLanguage)
         val targetTag = languageMapper.toProviderCode(request.targetLanguage)
+        val now = System.currentTimeMillis()
 
-        val primaryResult = tryPrimaryEndpoint(request.text, sourceTag, targetTag)
-        if (primaryResult.isOk) return primaryResult
+        if (now < skipPrimaryUntilMs.get()) {
+            pluginContext.logger.info("Primary endpoint cooling down, using fallback")
+        } else {
+            val primaryResult = withTimeoutOrNull(PRIMARY_BUDGET_MS) {
+                tryPrimaryEndpoint(request.text, sourceTag, targetTag)
+            }
+            if (primaryResult == null) {
+                pluginContext.logger.info("Primary endpoint exceeded ${PRIMARY_BUDGET_MS}ms, trying fallback")
+                skipPrimaryUntilMs.set(now + PRIMARY_COOLDOWN_MS)
+            } else {
+                val error = primaryResult.getError()
+                if (error == null) return primaryResult
+                if (error.suppressesFallback()) return primaryResult
+                if (error.isRetryable) skipPrimaryUntilMs.set(now + PRIMARY_COOLDOWN_MS)
+                pluginContext.logger.info("Primary endpoint failed, trying fallback")
+            }
+        }
 
-        pluginContext.logger.info("Primary endpoint failed, trying fallback")
         return tryFallbackEndpoint(request.text, sourceTag, targetTag)
+    }
+
+    /**
+     * A primary failure about the request itself would fail identically on the fallback, so it is
+     * returned as-is. Reachability failures still fall back: clients5 speaks a different protocol.
+     */
+    private fun ServiceError.suppressesFallback(): Boolean = when (this) {
+        is ServiceError.AuthenticationError,
+        is ServiceError.InvalidInputError,
+        is ServiceError.ValidationError,
+        is ServiceError.UnsupportedLanguageError,
+        is ServiceError.ConfigurationError -> true
+        is ServiceError.NetworkError,
+        is ServiceError.TimeoutError,
+        is ServiceError.ServiceUnavailableError,
+        is ServiceError.RateLimitError,
+        is ServiceError.InvalidResponseError,
+        is ServiceError.UnknownError -> false
     }
 
     private suspend fun tryPrimaryEndpoint(
@@ -142,7 +188,7 @@ class GoogleTranslatorService(
         sourceTag: String,
         targetTag: String
     ): Result<TranslationResponse, ServiceError> = coroutineBinding {
-        val parsed: List<List<String>> = httpClient.fetchJson<List<List<String>>>(
+        val responseString = httpClient.get(
             url = TRANSLATE_FALLBACK,
             headers = apiConfig.createHeaders(),
             queryParams = mapOf(
@@ -154,17 +200,45 @@ class GoogleTranslatorService(
             )
         ).bind()
 
-        val translatedText = parsed.getOrNull(0)?.getOrNull(0)
-            .toResultOr { ServiceError.InvalidResponseError("No translation in fallback response", null) }
-            .bind()
+        parseFallbackResponse(responseString).bind()
+    }
 
-        val detectedLang = parsed.getOrNull(0)?.getOrNull(1)
+    /**
+     * Parses the fallback endpoint's response. The payload is not documented and has been observed
+     * as both `[[translated, src, ...]]` and `[translated, src, ...]`. Field-by-field inspection
+     * keeps an unexpected shape as [ServiceError.InvalidResponseError] instead of a decode throw.
+     */
+    private fun parseFallbackResponse(
+        responseString: String
+    ): Result<TranslationResponse, ServiceError> {
+        val root = runCatching { PluginJson.parseToJsonElement(responseString) }
+            .getOrElse { return Err(ServiceError.InvalidResponseError("Fallback response is not valid JSON", it)) }
+
+        val fields = fallbackFields(root)
+            ?: return Err(ServiceError.InvalidResponseError("Unsupported fallback response shape", null))
+
+        val translatedText = fields.firstOrNull()?.stringOrNull()?.trim()
+        if (translatedText.isNullOrEmpty()) {
+            return Err(ServiceError.InvalidResponseError("No translation in fallback response", null))
+        }
+
+        val detectedLanguage = fields.getOrNull(1)
+            ?.stringOrNull()
             ?.let { languageMapper.fromProviderCode(it) }
 
-        TranslationResponse(
-            translatedText = translatedText.trim(),
-            detectedLanguage = detectedLang
-        )
+        return Ok(TranslationResponse(translatedText = translatedText, detectedLanguage = detectedLanguage))
     }
+
+    private fun fallbackFields(root: JsonElement): List<JsonElement>? = when (root) {
+        is JsonArray -> when (val first = root.firstOrNull()) {
+            is JsonArray -> first.toList()
+            is JsonPrimitive -> root.toList()
+            else -> null
+        }
+        else -> null
+    }
+
+    private fun JsonElement.stringOrNull(): String? =
+        (this as? JsonPrimitive)?.takeIf { it.isString }?.content
 
 }
