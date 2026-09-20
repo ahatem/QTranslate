@@ -654,12 +654,21 @@ class AdvancedTextPaneTest {
         )
     }
 
+    /**
+     * Whether a run wraps at all depends on the font's glyph advances, so this asserts only what
+     * the laid out views must satisfy: they begin at the first character and cover the text in
+     * order without gaps. The grapheme guarantee itself is asserted by the width sweep below.
+     */
     @Test
-    fun `an unbreakable run is laid out as contiguous fragments`() {
-        val fragments = laidOutFragments("\uD83C\uDDFA\uD83C\uDDF8".repeat(60))
+    fun `laid out fragments cover an unbreakable run without gaps`() {
+        val text = "\uD83C\uDDFA\uD83C\uDDF8".repeat(60)
+        val fragments = laidOutFragments(text)
 
-        assertTrue(fragments.size >= 2, "expected the run to wrap into fragments, got ${fragments.size}")
         assertEquals(0, fragments.first().startOffset)
+        assertTrue(
+            fragments.last().endOffset >= text.length,
+            "the last fragment must reach the end of the run",
+        )
         fragments.zipWithNext().forEach { (previous, next) ->
             assertEquals(previous.endOffset, next.startOffset, "wrapped fragments must not leave gaps")
         }
