@@ -5,15 +5,29 @@ import kotlin.test.assertEquals
 
 class InputRequirementsTest {
 
+    private fun state(
+        hotkeysEnabled: Boolean,
+        doubleCtrlEnabled: Boolean,
+        selectionIconEnabled: Boolean,
+        dismissOnOutsideClickEnabled: Boolean,
+    ) = InputRuntimeState(
+        globalHotkeysEnabled = hotkeysEnabled,
+        doubleCtrlEnabled = doubleCtrlEnabled,
+        selectionIconEnabled = selectionIconEnabled,
+        dismissOnOutsideClickEnabled = dismissOnOutsideClickEnabled
+    )
+
     @Test
     fun `everything on requests everything`() {
         assertEquals(
             ResolvedInput(registerHotkeys = true, keyboard = true, mouseButtons = true, mouseMotion = false),
             InputRequirements.resolve(
-                hotkeysEnabled = true,
-                doubleCtrlEnabled = true,
-                selectionIconEnabled = false,
-                dismissOnOutsideClickEnabled = true
+                state(
+                    hotkeysEnabled = true,
+                    doubleCtrlEnabled = true,
+                    selectionIconEnabled = false,
+                    dismissOnOutsideClickEnabled = true
+                )
             )
         )
     }
@@ -23,10 +37,12 @@ class InputRequirementsTest {
         assertEquals(
             ResolvedInput(registerHotkeys = false, keyboard = false, mouseButtons = true, mouseMotion = true),
             InputRequirements.resolve(
-                hotkeysEnabled = false,
-                doubleCtrlEnabled = true,
-                selectionIconEnabled = true,
-                dismissOnOutsideClickEnabled = false
+                state(
+                    hotkeysEnabled = false,
+                    doubleCtrlEnabled = true,
+                    selectionIconEnabled = true,
+                    dismissOnOutsideClickEnabled = false
+                )
             )
         )
     }
@@ -36,10 +52,12 @@ class InputRequirementsTest {
         assertEquals(
             ResolvedInput(registerHotkeys = true, keyboard = false, mouseButtons = true, mouseMotion = false),
             InputRequirements.resolve(
-                hotkeysEnabled = true,
-                doubleCtrlEnabled = false,
-                selectionIconEnabled = false,
-                dismissOnOutsideClickEnabled = true
+                state(
+                    hotkeysEnabled = true,
+                    doubleCtrlEnabled = false,
+                    selectionIconEnabled = false,
+                    dismissOnOutsideClickEnabled = true
+                )
             )
         )
     }
@@ -49,10 +67,12 @@ class InputRequirementsTest {
         assertEquals(
             ResolvedInput(registerHotkeys = true, keyboard = true, mouseButtons = false, mouseMotion = false),
             InputRequirements.resolve(
-                hotkeysEnabled = true,
-                doubleCtrlEnabled = true,
-                selectionIconEnabled = false,
-                dismissOnOutsideClickEnabled = false
+                state(
+                    hotkeysEnabled = true,
+                    doubleCtrlEnabled = true,
+                    selectionIconEnabled = false,
+                    dismissOnOutsideClickEnabled = false
+                )
             )
         )
     }
@@ -62,10 +82,12 @@ class InputRequirementsTest {
         assertEquals(
             ResolvedInput(registerHotkeys = false, keyboard = false, mouseButtons = false, mouseMotion = false),
             InputRequirements.resolve(
-                hotkeysEnabled = false,
-                doubleCtrlEnabled = false,
-                selectionIconEnabled = false,
-                dismissOnOutsideClickEnabled = false
+                state(
+                    hotkeysEnabled = false,
+                    doubleCtrlEnabled = false,
+                    selectionIconEnabled = false,
+                    dismissOnOutsideClickEnabled = false
+                )
             )
         )
     }
@@ -75,10 +97,12 @@ class InputRequirementsTest {
         assertEquals(
             ResolvedInput(registerHotkeys = false, keyboard = false, mouseButtons = true, mouseMotion = true),
             InputRequirements.resolve(
-                hotkeysEnabled = false,
-                doubleCtrlEnabled = false,
-                selectionIconEnabled = true,
-                dismissOnOutsideClickEnabled = false
+                state(
+                    hotkeysEnabled = false,
+                    doubleCtrlEnabled = false,
+                    selectionIconEnabled = true,
+                    dismissOnOutsideClickEnabled = false
+                )
             )
         )
     }

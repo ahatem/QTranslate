@@ -139,7 +139,7 @@ class SelectionCaptureTest {
         // The generation token advances, so something landed on the clipboard after Copy was
         // attempted, but what could be read back was unusable. This does not prove the source
         // application had no selection, and it does not prove this Copy attempt (rather than a
-        // racing external actor) caused the advance — see CaptureResult's doc.
+        // racing external actor) caused the advance; see CaptureResult's doc.
         val clipboard = RecordingClipboard("original")
         val monitor = FakeChangeMonitor()
         val capture = SelectionCapture(clipboard, monitor, {

@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.ui.swing.main
+package com.github.ahatem.qtranslate.ui.swing.main.input
 
 import kotlin.test.Test
 import kotlin.test.assertFalse

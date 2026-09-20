@@ -5,6 +5,8 @@ import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
 import com.github.ahatem.qtranslate.ui.swing.main.input.ApplyResult
+import com.github.ahatem.qtranslate.ui.swing.main.input.CopyInjector
+import com.github.ahatem.qtranslate.ui.swing.main.input.DoubleCtrlDetector
 import com.github.ahatem.qtranslate.ui.swing.main.input.GlobalInputBackend
 import com.github.ahatem.qtranslate.ui.swing.main.input.GlobalInputEvent
 import com.github.ahatem.qtranslate.ui.swing.main.input.GlobalRegistration
@@ -13,6 +15,8 @@ import com.github.ahatem.qtranslate.ui.swing.main.input.HotkeyRegistrationToken
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputCapabilities
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputRequirements
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputRuntimeState
+import com.github.ahatem.qtranslate.ui.swing.main.input.QInputCopyInjector
+import com.github.ahatem.qtranslate.ui.swing.main.input.RobotCopyInjector
 import com.github.ahatem.qtranslate.ui.swing.main.input.TriggerNeutralizer
 import com.github.ahatem.qtranslate.ui.swing.main.input.KeyClass
 import com.github.ahatem.qtranslate.ui.swing.main.input.MouseButtonId
@@ -38,28 +42,12 @@ import kotlin.concurrent.withLock
 /**
  * Manages global and local hotkey registration.
  *
- * Global input comes solely from a [GlobalInputBackend] (QInput native runtime on
- * spike/qinput-native-v2): registered shortcuts arrive as hotkey events, Double Ctrl and
- * selection gestures from raw keyboard/mouse streams. There is no JNativeHook/JKeyMaster
- * usage anywhere on this path.
- *
- * ### Scopes
- * - [HotkeyScope.GLOBAL] — registered with the backend, fires system-wide
- *   even when QTranslate is not focused.
- * - [HotkeyScope.LOCAL] — the caller (MainAppFrame) registers these via
- *   Swing InputMap/ActionMap; this listener only provides the binding list
- *   via [getLocalBindings]. Local bindings never intercept keys from other apps.
- *
- * ### Per-action scope
- * Users can choose per action whether it should be global or local. This prevents
- * shortcuts like Ctrl+L from being stolen from browsers when set to LOCAL.
- *
- * ### Actions
- * - [HotkeyAction.SHOW_MAIN_WINDOW] — special: uses double-Ctrl via raw key events,
- *   not a regular KeyStroke. Always GLOBAL. Respects [isEnabled] on the binding.
- * - [HotkeyAction.REPLACE_WITH_TRANSLATION] — copies selected text, translates,
- *   pastes result back via [onReplaceWithTranslation].
- * - [HotkeyAction.CYCLE_TARGET_LANGUAGE] — default LOCAL, cycles the target language.
+ * Global input comes solely from a [GlobalInputBackend] (QInput native runtime); there is no
+ * JNativeHook/JKeyMaster usage anywhere on this path. [HotkeyScope.GLOBAL] bindings register
+ * with the backend and fire even when unfocused; [HotkeyScope.LOCAL] bindings are exposed via
+ * [getLocalBindings] for the caller to register on a Swing InputMap.
+ * [HotkeyAction.SHOW_MAIN_WINDOW] is always GLOBAL and fires via double-Ctrl raw key tracking,
+ * not a registered KeyStroke.
  */
 class MainGlobalKeyListener(
     private val scope: CoroutineScope,
@@ -109,20 +97,16 @@ class MainGlobalKeyListener(
     private var lastApplied: List<GlobalInputBackend.HotkeyRegistration> = emptyList()
 
     /**
-     * Token ledger for the native registrations.
-     *
-     * Dispatch is keyed on tokens rather than actions, so a native registration the platform
-     * refused to release is not dispatchable even though it is still installed.
+     * Token ledger for the native registrations. Dispatch is keyed on tokens rather than
+     * actions, so a registration the platform refused to release stays non-dispatchable.
      */
     private val registrations = HotkeyRegistrationLedger()
 
     /**
      * Accelerators of native registrations that remain installed although no longer wanted.
      *
-     * Reported by the backend at apply time (see [ApplyResult.Degraded]), not inferred from
-     * events: waiting for a stale shortcut to fire before noticing would leave cleanup
-     * incomplete indefinitely. Every reconcile re-applies the desired set, which is what retries
-     * the release; the set clears when an apply reports nothing outstanding.
+     * Reported by the backend at apply time, not inferred from events, since waiting for a
+     * stale shortcut to fire would leave cleanup incomplete indefinitely.
      */
     private var degradedLeftovers: Set<String> = emptySet()
 
@@ -130,70 +114,44 @@ class MainGlobalKeyListener(
     internal fun outstandingLeftovers(): Set<String> = degradedLeftovers.toSet()
 
     /**
-     * Tokens observed firing without an accepted registration.
-     *
-     * An event can only arrive while its native registration is installed, so observing one is
-     * direct evidence that an obsolete registration is still active — a platform release that
-     * failed, leaving cleanup incomplete. Recorded once per token so a held shortcut cannot
-     * flood the log. Concurrent because the input dispatcher thread writes here.
+     * Tokens observed firing without an accepted registration: direct evidence of a platform
+     * release that failed. Recorded once per token so a held shortcut cannot flood the log.
+     * Concurrent: written from the input dispatcher thread.
      */
     private val unacceptedTokens: MutableSet<Long> = ConcurrentHashMap.newKeySet()
-    // Guards against double-initialization if initialize() is called concurrently. The
-    // check-and-set itself only ever happens while holding [reconcileLock], together with the
-    // rest of the lifecycle decision: see [initialize]/[shutdown] for why an outside-lock
-    // check is not enough.
+    // Guarded by [reconcileLock]; an outside-lock check-and-set alone would race [initialize]/[shutdown].
     private val initialized = AtomicBoolean(false)
     /**
-     * The complete runtime input state. Recorded even before initialization so settings
-     * applied early (or a disable issued while uninitialized) are honored by initialize.
+     * The complete runtime input state, recorded even before initialization so early settings
+     * changes are honored by [initialize].
      *
-     * Written only while holding [reconcileLock] (see there): every writer also triggers a
-     * reconcile from the same value, so the two must move together as one transaction.
+     * Written only while holding [reconcileLock]: every writer also triggers a reconcile from
+     * the same value, so the two move together as one transaction.
      */
     @Volatile private var runtimeState: InputRuntimeState = InputRuntimeState()
 
     /**
-     * Serializes the whole reconciliation transaction — reading [runtimeState], planning tokens,
-     * applying the native set, accepting the plan, and recording the outcome — against itself and
-     * against the lifecycle mutations ([initialize], [shutdown]) that touch the same state
-     * ([backend], [registrations], [lastApplied], [degradedLeftovers]).
+     * Serializes the whole reconciliation transaction against itself and against the lifecycle
+     * mutations ([initialize], [shutdown]) that touch the same state.
      *
-     * Without this, two reconciliations triggered from different threads can interleave their
-     * plan/apply/accept steps. In this application that is not hypothetical: the settings state
-     * flow drives [updateRuntimeState] from `Dispatchers.Default`, while [setPaused] and the
-     * initial [updateRuntimeState] calls run on the Swing EDT. An older reconciliation that reads
-     * state first but is slower to apply can then publish ([HotkeyRegistrationLedger.accept] plus
-     * [lastApplied]) *after* a newer one already did, leaving the accepted token map describing a
-     * native set that was never actually the last one installed — or, if a registration's native
-     * release was refused (degraded) by the newer reconciliation, letting a stale reconciliation
-     * that started before it resurrect that registration's identity.
+     * [updateRuntimeState] can run off the EDT (settings flow) while [setPaused] and startup run
+     * on it; without this lock, an older reconciliation that reads state first but publishes
+     * last could accept tokens for a native set that was never actually installed.
      *
-     * A [ReentrantLock] rather than `synchronized` for the same mutual-exclusion guarantee plus a
-     * real test seam: [ReentrantLock.hasQueuedThread] lets a test observe "a second reconciliation
-     * is genuinely blocked behind this lock" directly, rather than inferring it from timing.
-     *
-     * Held across the native `applyHotkeys`/`setRawMask` calls: those are synchronous native calls
-     * that never call back into this listener on the same thread (events arrive on the backend's
-     * own dispatcher thread instead), so this cannot deadlock, and serializing exactly the native
-     * round trip is the whole point — only one apply may be in flight for this listener at a time.
+     * Held across the native `applyHotkeys`/`setRawMask` calls (synchronous, never re-entrant
+     * into this listener), so serializing exactly the native round trip is the point: only one
+     * apply may be in flight at a time. A [ReentrantLock], not `synchronized`, so tests can
+     * observe a blocked second reconciliation via [hasQueuedReconcile].
      */
     private val reconcileLock = ReentrantLock()
 
     /**
      * Creates and starts the backend, then applies the current [runtimeState] to it.
      *
-     * The initialized check-and-set and the entire creation are one critical section under
-     * [reconcileLock], not split around it. If the check ran before the lock, this interleaving
-     * would be possible: initialize flips `initialized` to true; shutdown then observes true,
-     * wins the lock first, tears down (there is no backend yet), sets `initialized` false and
-     * releases; initialize finally acquires the lock, creates and starts a backend, and returns
-     * with a live backend while `initialized == false` — a later shutdown then returns
-     * immediately and orphans that backend and its native runtime. Serializing the whole
-     * decision makes the winner of the lock the winner of the lifecycle ordering, so
-     * `initialized`, `backend`, the accepted registrations, `lastApplied` and creation/destruction
-     * always describe one coherent generation. A duplicate concurrent initialize still draws the
-     * same check-and-set and stays harmless, and a failed creation still clears `initialized`
-     * under the lock so a later retry can succeed.
+     * The check-and-set and the whole creation happen under [reconcileLock] as one critical
+     * section: otherwise a racing [shutdown] could observe `initialized` true before a backend
+     * exists, tear down nothing, and let this call create a backend that shutdown never closes.
+     * A failed creation clears `initialized` under the lock so a later retry can succeed.
      */
     fun initialize() {
         reconcileLock.withLock {
@@ -224,10 +182,9 @@ class MainGlobalKeyListener(
     }
 
     /**
-     * Applies one explicit runtime input state through the single reconciliation path.
-     * Every applied-state change (bindings, enabled flag, selection, dismissal) flows here,
-     * so independent setters cannot leave the native side inconsistent. The Double Ctrl
-     * opt-in is always derived from the bindings themselves, never trusted from callers.
+     * Applies one explicit runtime input state through the single reconciliation path, so
+     * independent setters cannot leave the native side inconsistent. The Double Ctrl opt-in is
+     * always derived from the bindings, never trusted from callers.
      */
     fun updateRuntimeState(state: InputRuntimeState) {
         reconcileLock.withLock {
@@ -266,29 +223,16 @@ class MainGlobalKeyListener(
     fun getLocalBindings(): List<HotkeyBinding> =
         runtimeState.bindings.filter { it.scope == HotkeyScope.LOCAL && it.isEnabled && it.hasBinding }
 
-    /**
-     * Whether some other thread is currently blocked waiting to enter a reconciliation
-     * transaction (or [shutdown]). Diagnostics/tests only: this is the concrete, observable fact
-     * a concurrency test waits on to prove two transactions are genuinely serialized, rather than
-     * inferring it from timing.
-     */
+    /** Whether another thread is blocked entering a reconciliation transaction (or [shutdown]). Diagnostics/tests only. */
     internal fun hasQueuedReconcile(): Boolean = reconcileLock.hasQueuedThreads()
 
     /**
      * Stops and discards the backend, retiring every accepted registration token.
      *
-     * The initialized check sits inside the lock rather than before it: reading it outside would
-     * let an initialize already waiting behind this shutdown be silently dropped — its
-     * check-and-set would observe `initialized` still true (this shutdown has not cleared it yet)
-     * and return — instead of being serialized after the teardown and honored. Inside the lock the
-     * two lifecycle transitions are strictly ordered, one winner at a time, so a shutdown that
-     * runs first is followed by a real initialize (a fresh backend) rather than a lost request.
-     *
-     * The lock also waits for an in-flight reconcile to fully publish (or for one already blocked
-     * here to find `initialized` false and no-op) before tearing down: without this, a reconcile
-     * that read `backend` just before shutdown nulled it could apply/accept against an already
-     * closed backend, or shutdown's own clear could be silently undone by that reconcile's later
-     * `accept()`/`lastApplied` write.
+     * The initialized check sits inside [reconcileLock]: outside it, a queued [initialize]
+     * could see `initialized` still true and silently no-op instead of running once this
+     * teardown finishes. The lock also waits out an in-flight reconcile first, so it cannot
+     * apply/accept against a backend this call already closed.
      */
     fun shutdown() {
         reconcileLock.withLock {
@@ -332,41 +276,18 @@ class MainGlobalKeyListener(
     }
 
     /**
-     * The single reconciliation path: derives the native registration set and raw
-     * subscriptions from current QTranslate state and applies both together.
+     * The single reconciliation path: derives the native registration set and raw subscriptions
+     * from current QTranslate state and applies both together. Must only be called while
+     * holding [reconcileLock].
      *
-     * Must only be called while holding [reconcileLock] — every caller already does. This
-     * function does not acquire it itself so that a caller can fold its own state mutation
-     * (writing [runtimeState]) into the same locked transaction as the reconcile it triggers;
-     * see [reconcileLock]'s own doc for why that matters.
+     * Ordering is load-bearing: tokens are planned, the native set applied, and only a
+     * successful apply promotes the plan to accepted. Accepting before the apply (or keeping
+     * retired tokens on failure) would let an event dispatch against a registration that isn't
+     * actually installed.
      *
-     * ### Ordering (load-bearing)
-     *
-     * Tokens are planned first, then the native set is applied, and only a successful apply
-     * promotes the plan to accepted ([HotkeyRegistrationLedger.accept]).
-     *
-     * That order is what keeps the accepted map equal to the best-known live native set at every
-     * instant: until the native apply returns, the previously accepted registrations really are
-     * the installed ones, so events carrying their tokens are legitimate; after it returns, only
-     * the new plan is accepted and every superseded token — including one whose platform release
-     * failed — is retired. Accepting before the apply, or keeping retired tokens on failure, would
-     * open a window in which an event dispatches against a registration that is not the accepted
-     * one.
-     *
-     * A failed apply promotes nothing and rolls the native set back to the last working set, so a
-     * single bad update cannot leave the application with no hotkeys and cannot accept a token for
-     * a registration that never became active.
-     *
-     * ### Degraded applies
-     *
-     * A degraded apply — the requested set active, but some obsolete registrations still
-     * installed — is accepted exactly like a clean one, because the new registrations work either
-     * way and their tokens are what dispatch. The safety property does not depend on the report:
-     * retiring the superseded tokens makes the leftovers non-dispatchable regardless. The report
-     * itself is recorded by [recordApplyOutcome] the moment the apply returns, so diagnostics know
-     * cleanup is incomplete without waiting for a stale shortcut to fire; every later reconcile
-     * re-applies the desired set, which retries the release, and the record clears when an apply
-     * reports nothing outstanding.
+     * A degraded apply is accepted exactly like a clean one: retiring superseded tokens makes
+     * the leftovers non-dispatchable regardless; [recordApplyOutcome] only tracks the report for
+     * diagnostics.
      */
     private fun reconcile() {
         val target = backend ?: return
@@ -390,9 +311,6 @@ class MainGlobalKeyListener(
                 .onFailure { logger.error("Failed to restore previous global hotkeys", it) }
             null
         } ?: return
-        // Accepted only now that the native apply reported success: the plan's tokens name exactly
-        // the registrations the backend just installed, and every superseded token is retired by
-        // this replacement — including tokens whose platform release failed.
         registrations.accept(plan)
         lastApplied = native
         recordApplyOutcome(outcome, native.size)
@@ -408,9 +326,8 @@ class MainGlobalKeyListener(
     /**
      * Records what the last successful apply left behind.
      *
-     * Clean clears whatever a previous degraded apply recorded, so the diagnostic tracks the
-     * current state rather than history. New leftovers warn once per accelerator; repeats stay
-     * quiet until the set changes, because every reconcile retries the release anyway.
+     * Clean clears any previously recorded leftovers. New leftovers warn once per accelerator;
+     * repeats stay quiet since every reconcile retries the release anyway.
      */
     private fun recordApplyOutcome(outcome: ApplyResult, appliedCount: Int) {
         when (outcome) {
@@ -487,17 +404,10 @@ class MainGlobalKeyListener(
             return
         }
 
-        // Defense in depth behind the token, which already identifies the exact accepted
-        // registration. The configuration can have moved on since the token was issued — for
-        // instance while a failed apply left the previous tokens accepted — so re-check that the
-        // action is still wanted before acting.
-        //
-        // The accelerator is deliberately NOT re-compared against the current configuration: a
-        // token already pins one exact registration, and after a failed apply rolled the native
-        // set back, the accepted registration legitimately corresponds to the previous
-        // accelerator. Rejecting it there would leave the user with no working hotkey at all,
-        // while gaining nothing — a superseded registration cannot reach this point, because
-        // retiring its token is what stops it.
+        // Defense in depth: the token already identifies the exact registration, but the
+        // action's binding may have changed since the token was issued, so re-check it's still
+        // wanted. The accelerator is deliberately not re-compared: a rolled-back apply can
+        // legitimately leave the accepted registration with the previous accelerator.
         val state = runtimeState
         if (!state.effectiveHotkeysEnabled) return
         val binding = state.bindings.firstOrNull { it.action == registration.action } ?: return
@@ -507,12 +417,8 @@ class MainGlobalKeyListener(
     }
 
     /**
-     * Records a token that fired without an accepted registration.
-     *
-     * This is the observable form of an incomplete cleanup: the registration is physically
-     * installed (nothing else can produce the event) but no longer accepted. It is never
-     * dispatched. The next reconciliation re-applies the desired set, which is what gives the
-     * native layer another chance to release the leftover.
+     * Records a token that fired without an accepted registration: physically installed but no
+     * longer accepted, and never dispatched. The next reconciliation retries releasing it.
      */
     private fun reportUnacceptedToken(token: HotkeyRegistrationToken) {
         if (unacceptedTokens.add(token.value)) {
@@ -524,12 +430,7 @@ class MainGlobalKeyListener(
         }
     }
 
-    /**
-     * Registration tokens that fired without being accepted, since startup.
-     *
-     * Diagnostics/tests only: non-empty means a native registration QTranslate retired is still
-     * installed and firing.
-     */
+    /** Registration tokens that fired without being accepted, since startup. Diagnostics/tests only. */
     internal fun observedUnacceptedTokens(): Set<Long> = unacceptedTokens.toSet()
 
     /** The token currently accepted for [action], if any. Diagnostics/tests only. */
@@ -549,33 +450,22 @@ class MainGlobalKeyListener(
         }
     }
 
-    /**
-     * Feeds raw keyboard events into the Double Ctrl detector. Injected events (such as the
-     * Robot-synthesized Copy) are fed like any other key: the detector's combination rule
-     * already treats Ctrl+C as a combination, never a tap.
-     */
+    /** Feeds raw keyboard events into the Double Ctrl detector; injected Copy chords are fed like any other key. */
     private fun handleRawKey(event: GlobalInputEvent.Key) {
-        // QInput's own synthetic input is tagged and never counts as genuine Double Ctrl
-        // input. Third-party injected input keeps flowing: remappers and clipboard tools
-        // must behave exactly like physical keys here.
+        // QInput's own synthetic input never counts as genuine Double Ctrl input; third-party
+        // injected input (remappers, clipboard tools) still passes through like physical keys.
         if (event.selfInjected) return
         if (event.keyClass == KeyClass.CONTROL) {
             if (event.pressed) {
                 detector.onControlPressed()
                 return
             }
-            // Only fire if global hotkeys are on (and not paused) and the binding exists,
-            // is enabled, AND the user has not opted out of the double-Ctrl mechanism
-            // specifically. Tracking inside the detector runs regardless, so toggling these
-            // cannot desynchronize its press/release bookkeeping; pause boundaries additionally
-            // reset temporal state so no tap can combine across them.
+            // Tracking runs regardless; only firing is gated on these flags.
             val state = runtimeState
             val binding = state.bindings.find { it.action == HotkeyAction.SHOW_MAIN_WINDOW }
             val active = state.effectiveHotkeysEnabled &&
                 binding != null && binding.isEnabled && binding.isDoubleCtrlEnabled
-            // Monotonic milliseconds, matching the native event timestamps: the Double Ctrl
-            // window is a duration, so a wall clock (which can step backwards) is the wrong
-            // source. The fallback keeps the same monotonic family rather than mixing clocks.
+            // Monotonic, matching native timestamps: a wall clock could step backwards mid-window.
             val nowMs = event.timestampMs.takeIf { it != Long.MIN_VALUE }
                 ?: (System.nanoTime() / 1_000_000)
             if (!detector.onControlReleased(nowMs, active)) return
@@ -587,9 +477,8 @@ class MainGlobalKeyListener(
 
     private fun handleMouseButton(event: GlobalInputEvent.MouseButton) {
         if (event.pressed) {
-            // Reported before the selection-icon check, not after. This is the only notice
-            // the application gets of a press that lands in another program, and the floating
-            // popups rely on it to close when the user clicks away.
+            // Reported before the selection-icon check: floating popups rely on this to close
+            // on an outside click even when the icon feature is off.
             onPointerPressed(event.location)
             if (event.button == MouseButtonId.LEFT) gestureTracker.onPressed(event.location)
             return
@@ -602,8 +491,7 @@ class MainGlobalKeyListener(
         scope.launch {
             delay(SELECTION_SETTLE_DELAY_MS)
             handleSelectedText { text ->
-                // Re-check the flag: the user may have disabled the option while
-                // the capture was in flight.
+                // Re-check the flag: it may have been disabled while capture was in flight.
                 if (text.isNotBlank() && runtimeState.selectionIconEnabled) {
                     onSelectionDetected(text, pointer)
                 }
@@ -613,11 +501,9 @@ class MainGlobalKeyListener(
 
     /**
      * Selection-dependent capture flow shared by GLOBAL hotkeys and LOCAL Swing shortcuts:
-     * the triggering binding is known, capture waits for the trigger to go physically neutral,
-     * then exactly one clean Copy runs and the result routes to (or away from) the action.
+     * capture waits for the trigger to go physically neutral, then exactly one clean Copy runs.
      *
-     * Neutralization is skipped only where the backend cannot answer a synchronous key-state
-     * query, exactly as before; there is never an arbitrary settle delay.
+     * Neutralization is skipped only where the backend has no synchronous key-state query.
      */
     private suspend fun captureForHotkey(binding: HotkeyBinding) {
         val action = binding.action
@@ -631,8 +517,7 @@ class MainGlobalKeyListener(
                 return
             }
         } else {
-            // Platforms without a synchronous key-state query keep legacy behavior: capture
-            // proceeds immediately. No neutralization is possible there.
+            // No neutralization possible without a key-state query.
             logger.debug("Key-state query unavailable; capturing without trigger neutralization")
         }
         routeResult(action, captureSelection())
@@ -645,20 +530,9 @@ class MainGlobalKeyListener(
     }
 
     /**
-     * Routes a capture result to an action.
-     *
-     * Success dispatches everywhere. [CaptureResult.NoUsableText] — a confirmed clipboard
-     * change that carried nothing usable — dispatches empty text only to the actions whose UX
-     * tolerates it (quick/main dialogs); selection-strict actions stay silent instead of
-     * opening on empty data. Neither state claims to know whether the source application had a
-     * selection; see [CaptureResult]'s doc.
-     *
-     * An unconfirmed or known-failed Copy ([CaptureFailure.COPY_UNCONFIRMED] /
-     * [CaptureFailure.COPY_INJECTION_FAILED]) is weaker evidence still, but the lenient
-     * dialogs' existing empty-input UX is preserved for it anyway — this is a dispatch mapping,
-     * not a reclassification: the [CaptureResult.Failed] the strict actions see (and that gets
-     * logged) stays distinct from [CaptureResult.NoUsableText]. Every other failure category
-     * never dispatches anywhere.
+     * Routes a capture result to an action. [CaptureResult.NoUsableText] and
+     * [INCONCLUSIVE_AS_EMPTY] failures only dispatch empty text for [LENIENT_ACTIONS]; every
+     * other failure never dispatches.
      */
     private fun routeResult(action: HotkeyAction, result: CaptureResult) {
         when (result) {
@@ -682,37 +556,22 @@ class MainGlobalKeyListener(
     /**
      * Dispatches one LOCAL-scope binding triggered by a Swing InputMap.
      *
-     * Selection-dependent actions take the exact same path as global selection hotkeys
-     * ([captureForHotkey]): wait for the trigger to read physically neutral, then exactly one
-     * capture. A locally-triggered Ctrl+Shift+&lt;key&gt; is still physically held when the Swing
-     * action fires, so an unneutralized Copy would reach the target as Ctrl+Shift+C.
-     *
-     * Non-selection actions stay immediate: they do not depend on selected text and must not wait
-     * for the shortcut to be released.
+     * Selection-dependent actions take the same neutralize-then-capture path as global hotkeys:
+     * a locally-triggered Ctrl+Shift+&lt;key&gt; is still physically held when the Swing action
+     * fires, so an unneutralized Copy would reach the target as Ctrl+Shift+C.
      */
     fun dispatchLocalAction(binding: HotkeyBinding) = dispatchBinding(binding)
 
-    /**
-     * The single dispatch decision shared by the global hotkey path and the LOCAL InputMap path.
-     *
-     * Selection-dependent actions always run through [captureForHotkey], so both scopes obey the
-     * same deterministic trigger-neutralization contract; everything else is immediate.
-     */
+    /** The single dispatch decision shared by the global hotkey path and the LOCAL InputMap path. */
     private fun dispatchBinding(binding: HotkeyBinding) {
         if (binding.action in SELECTIVE_ACTIONS) scope.launch { captureForHotkey(binding) }
         else dispatchImmediate(binding.action)
     }
 
     /**
-     * Dispatches a non-selection action immediately.
-     *
-     * Selection-dependent actions never reach here — both scopes route them through
-     * [captureForHotkey] first — so their branches are deliberately empty. Dispatching one here
-     * would inject a Copy without waiting for the trigger to go neutral, which is exactly the
-     * contamination this path exists to prevent.
-     *
-     * Focus/UI actions are LOCAL-only and are handled by MainAppFrame's InputMap, which owns the
-     * dialogs, clipboard and content view they need.
+     * Dispatches a non-selection action immediately. Selection-dependent actions never reach
+     * here; dispatching one here would inject a Copy without waiting for the trigger to go
+     * neutral.
      */
     private fun dispatchImmediate(action: HotkeyAction) {
         when (action) {
@@ -743,8 +602,7 @@ class MainGlobalKeyListener(
     }
 
     private suspend fun handleSelectedText(callback: (String) -> Unit) {
-        // Mouse-gesture and double-tap paths predate trigger neutralization and have no
-        // native trigger to wait on; their blank-on-anything-but-success behavior is unchanged.
+        // These paths have no native trigger to wait on, so they always blank on anything but success.
         when (val result = captureSelection()) {
             is CaptureResult.Success -> callback(result.text)
             else -> callback("")
@@ -765,13 +623,8 @@ class MainGlobalKeyListener(
     }
 
     /**
-     * Invokes the configured [CopyInjector] exactly once and reports its result. [CopyInjector]
-     * owns its own complete attempt including any internal fallback (see that interface's doc):
-     * this must never itself retry on a `false` result, or a bare [RobotCopyInjector] failing
-     * (the default before native is available) would be followed by a second, unrelated Robot
-     * attempt. The clipboard observation downstream stays the actual completion signal either
-     * way — this return value only lets [SelectionCapture] tell a known-failed attempt apart
-     * from one that might have landed, instead of treating both identically as silence.
+     * Invokes the configured [CopyInjector] exactly once; must never retry on `false` itself,
+     * since the injector already owns its complete attempt including any fallback.
      */
     private fun simulateCopy(): Boolean = copyInjector.injectCopy()
 
@@ -786,24 +639,13 @@ class MainGlobalKeyListener(
             HotkeyAction.SHOW_IMAGES
         )
 
-        /**
-         * Actions whose UX tolerates genuinely empty input (dialogs the user can type into).
-         * Every other selective action stays silent on [CaptureResult.NoUsableText] and on
-         * [CaptureResult.Failed] reasons in [INCONCLUSIVE_AS_EMPTY] instead of opening on empty
-         * data; every other [CaptureResult.Failed] reason never dispatches anywhere.
-         */
+        /** Actions whose UX tolerates genuinely empty input (dialogs the user can type into). */
         val LENIENT_ACTIONS = setOf(
             HotkeyAction.SHOW_QUICK_TRANSLATE,
             HotkeyAction.SHOW_MAIN_WINDOW
         )
 
-        /**
-         * [CaptureFailure] reasons that, for [LENIENT_ACTIONS] only, are dispatched as empty
-         * text rather than withheld — preserving the dialogs' pre-existing empty-input UX for
-         * what is, if anything, weaker evidence than [CaptureResult.NoUsableText]. This is
-         * purely a dispatch-layer mapping: the underlying [CaptureResult.Failed] stays distinct
-         * from [CaptureResult.NoUsableText], and strict actions never see this mapping.
-         */
+        /** [CaptureFailure] reasons that, for [LENIENT_ACTIONS] only, dispatch as empty text rather than being withheld. */
         val INCONCLUSIVE_AS_EMPTY = setOf(
             CaptureFailure.COPY_UNCONFIRMED,
             CaptureFailure.COPY_INJECTION_FAILED,

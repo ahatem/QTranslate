@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.ui.swing.main
+package com.github.ahatem.qtranslate.ui.swing.main.input
 
 import com.sun.jna.Library
 import com.sun.jna.Native
@@ -14,14 +14,14 @@ import kotlin.test.assertEquals
 /**
  * Proves the Java binding and the *packaged native library* agree on the ABI version.
  *
- * <p>The source-level check in the standalone QInput repository catches a missed edit to a
+ * The source-level check in the standalone QInput repository catches a missed edit to a
  * constant, but it cannot catch a stale or mismatched *binary*: a native library built before an
  * ABI bump would report the old version while every source file looked correct. Only actually
  * loading the library does that, and this is the test that would have caught the Java constant
  * being left behind a version, because a mismatch is a hard startup failure in production.
  *
- * <p>Skipped (not failed) when no native library is packaged for this platform/arch in the
- * resolved {@code io.github.ahatem:qinput} dependency.
+ * Skipped (not failed) when no native library is packaged for this platform/arch in the
+ * resolved `io.github.ahatem:qinput` dependency.
  */
 class AbiBindingTest {
 
@@ -50,7 +50,7 @@ class AbiBindingTest {
     /**
      * The explicit override wins, otherwise the packaged resource for this platform is
      * extracted to a temp file so JNA can load it. Deliberately independent of
-     * {@code NativeLibraryLoader} so the test cannot pass by sharing a bug with the code it
+     * `NativeLibraryLoader` so the test cannot pass by sharing a bug with the code it
      * verifies.
      */
     private fun resolveNativeLibrary(): Path? {

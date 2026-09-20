@@ -1,7 +1,5 @@
-package com.github.ahatem.qtranslate.ui.swing.main
+package com.github.ahatem.qtranslate.ui.swing.main.input
 
-import com.github.ahatem.qtranslate.ui.swing.main.input.GlobalInputBackend
-import com.github.ahatem.qtranslate.ui.swing.main.input.NativeInjectionStatus
 import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.RecordingLogger
 import io.github.ahatem.qinput.QInputException
 import io.github.ahatem.qinput.QInputKey
@@ -108,9 +106,9 @@ class PasteInjectorTest {
         assertEquals(listOf("hello"), fallbackCalls)
 
         // BACKEND_ERROR leaves delivery uncertain: no fallback, no duplicate, no retry. It is
-        // deliberately NOT in the retry-safe set even though "backend error" sounds generic — a
-        // physically-held main chord key fails this exact way on Windows, and retrying it through
-        // Robot would recreate the same ownership conflict.
+        // deliberately NOT in the retry-safe set: a physically-held main chord key fails this
+        // exact way on Windows, and retrying it through Robot would recreate the same ownership
+        // conflict.
         backend.chordThrows = QInputException("stuck?", NativeInjectionStatus.BACKEND_ERROR)
         val fallbackCalls2 = mutableListOf<String>()
         val closedInjector = QInputPasteInjector(

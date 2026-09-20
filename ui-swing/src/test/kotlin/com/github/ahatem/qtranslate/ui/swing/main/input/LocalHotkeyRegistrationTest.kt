@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.ui.swing.main
+package com.github.ahatem.qtranslate.ui.swing.main.input
 
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
@@ -15,8 +15,8 @@ import kotlin.test.assertNull
 /**
  * Integration-style test of the real LOCAL Swing routing that MainAppFrame installs.
  *
- * It drives the actual InputMap/ActionMap built by [LocalHotkeyRegistration] — resolving a
- * keystroke and firing the action exactly as Swing would — rather than only testing a private
+ * It drives the actual InputMap/ActionMap built by [LocalHotkeyRegistration], resolving a
+ * keystroke and firing the action exactly as Swing would, rather than only testing a private
  * helper. The load-bearing property is that a selection-dependent LOCAL trigger reaches
  * `dispatch` carrying its exact [HotkeyBinding], because that is what the neutralized capture
  * path needs in order to wait on the right trigger keys.

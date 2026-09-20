@@ -1,9 +1,4 @@
-package com.github.ahatem.qtranslate.ui.swing.main
-
-import com.github.ahatem.qtranslate.ui.swing.main.input.ApplyResult
-import com.github.ahatem.qtranslate.ui.swing.main.input.GlobalInputBackend
-import com.github.ahatem.qtranslate.ui.swing.main.input.GlobalInputEvent
-import com.github.ahatem.qtranslate.ui.swing.main.input.InputCapabilities
+package com.github.ahatem.qtranslate.ui.swing.main.input
 
 /** Controllable [GlobalInputBackend] that records everything and replays scripted events. */
 internal class FakeGlobalInputBackend(
@@ -54,7 +49,7 @@ internal class FakeGlobalInputBackend(
      * Makes the next apply install the desired set and then throw, modelling a transport failure
      * that leaves speculative registrations installed: the desired set is live in the OS although
      * the apply reports failure. The rollback apply that follows reinstalls the previous set but
-     * does *not* unwind the speculative registrations — exactly what a real platform leaves behind
+     * does *not* unwind the speculative registrations, exactly what a real platform leaves behind
      * when the failed attempt cannot be unwound.
      */
     var throwAfterPartialApply = false
@@ -73,7 +68,7 @@ internal class FakeGlobalInputBackend(
         val isRollback = rollbackPending
         rollbackPending = false
         if (!isRollback) {
-            // A registration that left the desired set is released, unless the platform refuses —
+            // A registration that left the desired set is released, unless the platform refuses,
             // in which case it stays installed and can still fire. This is the whole point of the
             // fake: no amount of calling applyHotkeys makes a refused registration go away until
             // the platform starts cooperating. A rollback reinstalls without unwinding, so
@@ -161,7 +156,7 @@ internal class FakeGlobalInputBackend(
 
     /**
      * Invoked inside [close], before it takes effect. A concurrency test can use this to pause
-     * shutdown mid-transaction — the mirror of [emitDuringApply] pausing an apply — so it can
+     * shutdown mid-transaction (the mirror of [emitDuringApply] pausing an apply), so it can
      * force and observe a reconcile racing against an in-progress shutdown from either direction.
      */
     var onClose: (() -> Unit)? = null

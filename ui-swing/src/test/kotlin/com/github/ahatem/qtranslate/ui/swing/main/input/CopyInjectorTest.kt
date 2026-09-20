@@ -1,7 +1,5 @@
-package com.github.ahatem.qtranslate.ui.swing.main
+package com.github.ahatem.qtranslate.ui.swing.main.input
 
-import com.github.ahatem.qtranslate.ui.swing.main.input.GlobalInputBackend
-import com.github.ahatem.qtranslate.ui.swing.main.input.NativeInjectionStatus
 import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.RecordingLogger
 import io.github.ahatem.qinput.QInputException
 import io.github.ahatem.qinput.QInputKey

@@ -3,11 +3,16 @@ package com.github.ahatem.qtranslate.ui.swing.main
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
+import com.github.ahatem.qtranslate.ui.swing.main.input.CopyInjector
+import com.github.ahatem.qtranslate.ui.swing.main.input.FakeGlobalInputBackend
 import com.github.ahatem.qtranslate.ui.swing.main.input.GlobalInputBackend
 import com.github.ahatem.qtranslate.ui.swing.main.input.GlobalInputEvent
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputRuntimeState
 import com.github.ahatem.qtranslate.ui.swing.main.input.KeyClass
 import com.github.ahatem.qtranslate.ui.swing.main.input.NativeInjectionStatus
+import com.github.ahatem.qtranslate.ui.swing.main.input.QInputCopyInjector
+import com.github.ahatem.qtranslate.ui.swing.main.input.RobotCopyInjector
+import com.github.ahatem.qtranslate.ui.swing.main.input.RobotKeyDriver
 import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.FakeChangeMonitor
 import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.RecordingClipboard
 import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.RecordingLogger
@@ -22,7 +27,7 @@ import kotlin.test.assertEquals
 /**
  * End-to-end regression coverage for the exactly-one-Copy-attempt contract, driven through the
  * *real* [MainGlobalKeyListener.simulateCopy] (private, exercised only via the Double Ctrl ->
- * capture -> Copy path below) and a *real* [SelectionCapture] and [QInputCopyInjector] — not
+ * capture -> Copy path below) and a *real* [SelectionCapture] and [QInputCopyInjector], not
  * isolated unit doubles for those two. Only [RobotCopyInjector]'s own [RobotKeyDriver] is faked,
  * because a real one would physically touch the developer's keyboard.
  *
@@ -87,8 +92,8 @@ class SimulateCopyIntegrationTest {
 
     /**
      * Counts `sendChord` attempts regardless of outcome. [FakeGlobalInputBackend]'s own `chords`
-     * list only records calls that return normally — a scripted [FakeGlobalInputBackend.chordThrows]
-     * throws before appending — so a wrapper is needed to count "exactly one native attempt" when
+     * list only records calls that return normally; a scripted [FakeGlobalInputBackend.chordThrows]
+     * throws before appending, so a wrapper is needed to count "exactly one native attempt" when
      * that attempt is scripted to fail.
      */
     private class CountingBackend(private val delegate: GlobalInputBackend) : GlobalInputBackend by delegate {
@@ -103,7 +108,7 @@ class SimulateCopyIntegrationTest {
     fun `default Robot path fails with exactly one Robot attempt`() = runTest {
         val harness = Harness(this)
         val failingDriver = FailingDriverFactory()
-        // Initialize normally (dispatch requires it), then install a bare RobotCopyInjector —
+        // Initialize normally (dispatch requires it), then install a bare RobotCopyInjector,
         // exactly the configuration in place before native becomes available.
         harness.listener.initialize()
         harness.listener.copyInjector = RobotCopyInjector(RecordingLogger(), driverFactory = failingDriver)

@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
 /**
  * Token ledger semantics: which registrations are dispatchable at any moment.
  *
- * These are the properties the changed-accelerator case depends on — the reason an action alone
+ * These are the properties the changed-accelerator case depends on: the reason an action alone
  * cannot be the native identity.
  */
 class HotkeyRegistrationLedgerTest {
@@ -183,7 +183,7 @@ class HotkeyRegistrationLedgerTest {
     /**
      * The default minter must not hand out the same token twice under concurrent [plan] calls.
      * `MainGlobalKeyListener` additionally serializes every call to [HotkeyRegistrationLedger.plan]
-     * through its own reconcile lock, but the minter must not depend on that external discipline —
+     * through its own reconcile lock, but the minter must not depend on that external discipline:
      * this drives the ledger directly, with no such lock, using a [CyclicBarrier] so every thread's
      * `plan` call is lined up to start together rather than relying on scheduling luck or a sleep.
      */

@@ -1,13 +1,8 @@
-package com.github.ahatem.qtranslate.ui.swing.main
+package com.github.ahatem.qtranslate.ui.swing.main.input
 
 import java.awt.Robot
 
-/**
- * Thin seam over the [Robot] methods `RobotCopyInjector`/`RobotPasteInjector` use, so their
- * creation-failure and mid-injection-failure paths can be pinned by tests without a real
- * `Robot` — constructing one only to fail deterministically is not possible, and letting a real
- * one succeed would physically inject keystrokes into the developer's desktop.
- */
+/** Seam over [Robot] so tests can inject failures without a real device. */
 internal interface RobotKeyDriver {
     fun keyPress(keyCode: Int)
     fun keyRelease(keyCode: Int)

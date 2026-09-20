@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.ui.swing.main
+package com.github.ahatem.qtranslate.ui.swing.main.input
 
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
@@ -10,14 +10,9 @@ import javax.swing.JRootPane
 /**
  * Installs LOCAL-scope hotkeys on the window's root pane InputMap/ActionMap.
  *
- * The action map retains the actual [HotkeyBinding] for every trigger, so the binding — not just
- * its [HotkeyAction] — reaches [dispatch]. Selection-dependent actions need it: without the
- * binding there is nothing to wait on for deterministic trigger neutralization, and a
- * locally-triggered Ctrl+Shift+&lt;key&gt; is still physically held when the Swing action fires.
- *
- * Actions the frame itself owns (focus moves, dialogs, clipboard) route to [directHandlers] and
- * stay immediate; everything else is handed to [dispatch], which applies the same scope-neutral
- * dispatch decision the global hotkey path uses.
+ * The action map stores the full [HotkeyBinding], not just [HotkeyAction]: selection-dependent
+ * actions need it to wait for deterministic trigger neutralization, since a locally-triggered
+ * Ctrl+Shift+&lt;key&gt; is still physically held when the Swing action fires.
  */
 internal class LocalHotkeyRegistration(
     private val rootPane: JRootPane,
@@ -27,11 +22,8 @@ internal class LocalHotkeyRegistration(
 ) {
 
     /**
-     * Rebuilds the InputMap/ActionMap from the current LOCAL bindings.
-     *
-     * WHEN_ANCESTOR_OF_FOCUSED_COMPONENT fires whenever any descendant has focus, which is always
-     * the case (text pane, buttons, etc.); WHEN_FOCUSED would only fire if the root pane itself
-     * held focus — which never happens.
+     * WHEN_ANCESTOR_OF_FOCUSED_COMPONENT fires whenever any descendant has focus, which is
+     * always true here; WHEN_FOCUSED never fires since the root pane itself never holds focus.
      */
     fun register() {
         val inputMap = rootPane.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)

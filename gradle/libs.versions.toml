@@ -50,7 +50,7 @@ jlayer = { module = "com.github.umjammer:jlayer", version.ref = "jlayer" }
 jsvg = { module = "com.github.weisj:jsvg", version.ref = "jsvg" }
 miglayout = { module = "com.miglayout:miglayout-swing", version.ref = "miglayout" }
 
-# Global input is QInput only (spike/qinput-native-v2): JNativeHook/JKeyMaster removed.
+# Global input is QInput only: JNativeHook/JKeyMaster removed.
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 qinput = { module = "io.github.ahatem:qinput", version.ref = "qinput" }
 

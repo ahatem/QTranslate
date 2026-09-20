@@ -48,6 +48,9 @@ import com.github.ahatem.qtranslate.ui.swing.update.UpdateDialog
 import com.github.ahatem.qtranslate.ui.swing.update.UpdateDialogState
 import java.text.SimpleDateFormat
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputRuntimeState
+import com.github.ahatem.qtranslate.ui.swing.main.input.LocalHotkeyRegistration
+import com.github.ahatem.qtranslate.ui.swing.main.input.PasteInjector
+import com.github.ahatem.qtranslate.ui.swing.main.input.QInputPasteInjector
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
 import com.github.ahatem.qtranslate.ui.swing.main.menus.*
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBar
@@ -353,15 +356,7 @@ class MainAppFrame(
     internal var pasteInjector: PasteInjector =
         QInputPasteInjector(backend = { globalKeyListener.inputBackend() }, logger = logger)
 
-    /**
-     * LOCAL-scope hotkeys, installed on the root pane.
-     *
-     * The action map hands the actual [HotkeyBinding] to
-     * [MainGlobalKeyListener.dispatchLocalAction], so selection-dependent LOCAL shortcuts obey the
-     * same deterministic trigger-neutralization contract as GLOBAL ones instead of capturing while
-     * the trigger is still physically held. Actions the frame itself owns keep their dedicated,
-     * immediate handlers.
-     */
+    /** LOCAL-scope hotkeys, installed on the root pane. */
     private val localHotkeyRegistration = LocalHotkeyRegistration(
         rootPane = rootPane,
         bindings = { globalKeyListener.getLocalBindings() },
@@ -371,7 +366,7 @@ class MainAppFrame(
             HotkeyAction.FOCUS_INPUT        to { mainContentView.switchToAndFocusInput() },
             HotkeyAction.FOCUS_OUTPUT       to { mainContentView.switchToAndFocusOutput() },
             HotkeyAction.FOCUS_EXTRA_OUTPUT to { mainContentView.switchToAndFocusExtraOutput() },
-            // These need something the frame owns — a dialog, the clipboard, or the content view.
+            // These need something the frame owns: a dialog, the clipboard, or the content view.
             HotkeyAction.COPY_TRANSLATION to {
                 val text = mainStore.state.value.translatedText
                 if (text.isNotBlank()) {
@@ -661,9 +656,8 @@ class MainAppFrame(
                 }
         }
 
-        // Selection translate button — toggling the setting takes effect immediately,
-        // and disabling it hides any button that is currently on screen. Runtime input
-        // state itself is driven by the unified collector below; this only handles the button.
+        // Toggling the setting takes effect immediately, hiding any button on screen; runtime
+        // input state itself is driven by the unified collector below.
         appScope.launch(handler) {
             settingsStore.state
                 .map { it.originalConfiguration.isSelectionIconEnabled }
@@ -755,8 +749,8 @@ class MainAppFrame(
             }
         }
 
-        // Runtime input state — one collector over every applied-state input. The boolean
-        // switches are part of the observed key: a bare enable/disable toggle must reconcile
+        // Runtime input state: one collector over every applied-state input. The boolean
+        // switches are part of the observed key, so a bare enable/disable toggle must reconcile
         // even when the binding list itself did not change.
         appScope.launch(handler) {
             settingsStore.state
@@ -985,9 +979,8 @@ class MainAppFrame(
 
     private fun pasteTextToActiveApp(text: String) {
         appScope.launch {
-            // No arbitrary settle delay: neutralization (inside the injector) deterministically
-            // waits for contaminating modifiers, and the translation round-trip that precedes
-            // this event already separates it from any triggering UI work by seconds.
+            // No settle delay: neutralization inside the injector waits for contaminating
+            // modifiers deterministically.
             if (!pasteInjector.injectPaste(text)) {
                 logger.warn("Paste translation was not dispatched")
             }

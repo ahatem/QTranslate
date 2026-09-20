@@ -3,6 +3,8 @@ package com.github.ahatem.qtranslate.ui.swing.main
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
+import com.github.ahatem.qtranslate.ui.swing.main.input.CopyInjector
+import com.github.ahatem.qtranslate.ui.swing.main.input.FakeGlobalInputBackend
 import com.github.ahatem.qtranslate.ui.swing.main.input.GlobalInputEvent
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputRuntimeState
 import com.github.ahatem.qtranslate.ui.swing.main.input.KeyClass
@@ -121,7 +123,7 @@ class MainGlobalKeyListenerTest {
          * Fires the registration token currently accepted for [action], exactly as the native
          * backend would when the shortcut is pressed.
          *
-         * When nothing is accepted for the action — disabled, paused, or never registered — a
+         * When nothing is accepted for the action (disabled, paused, or never registered), a
          * token no registration can hold is emitted instead: the physical registration would not
          * exist either, so the assertion is that nothing dispatches.
          */
@@ -135,7 +137,7 @@ class MainGlobalKeyListenerTest {
     /**
      * Harness whose selection capture succeeds with "word", so a dispatched hotkey is observable.
      * The default harness times out unconfirmed (CaptureFailure.COPY_UNCONFIRMED), which strict
-     * actions deliberately do not dispatch — useful for asserting "nothing happened".
+     * actions deliberately do not dispatch, useful for asserting "nothing happened".
      */
     private fun TestScope.imageHarness() = Harness(this, captureFactory = successCapture("word"))
 
@@ -667,11 +669,11 @@ class MainGlobalKeyListenerTest {
     // On X11 the native layer takes a different route to the same outcome (see qinput's
     // `crate::record_cycle` and `platform::linux::handle_inject`): it disables the XRecord
     // context, confirms via an observed `XRecordEndOfData` that recording is actually off, only
-    // then injects, and re-enables afterward — so QInput's own transitions are never observed at
+    // then injects, and re-enables afterward, so QInput's own transitions are never observed at
     // all, `selfInjected` is never set for them, and no classification is attempted for anything
     // else either (X11 cannot tell physical from third-party synthetic input, so it never claims
-    // to). These tests still apply to X11 as a defensive/general contract check — a correct
-    // backend must never emit a self-injected pair that arms a false Double Ctrl — but the actual
+    // to). These tests still apply to X11 as a defensive/general contract check: a correct
+    // backend must never emit a self-injected pair that arms a false Double Ctrl, but the actual
     // X11 protection against its own injections happens by those events never being delivered in
     // the first place, not by this flag.
     // ---------------------------------------------------------------------------------------
@@ -788,7 +790,7 @@ class MainGlobalKeyListenerTest {
     fun `failed native injection leaves no stuck state for a later genuine double ctrl`() = runTest {
         // Simulates the native side refusing or failing an injection (for instance the X11
         // backend's XSync-confirmed drain never completing): nothing about that failure may
-        // leave the detector — or any suppression state upstream of it — stuck. Double Ctrl
+        // leave the detector, or any suppression state upstream of it, stuck. Double Ctrl
         // must work immediately afterward exactly as if the injection had never been attempted.
         val harness = harness()
         harness.set(InputRuntimeState(bindings = bindings(showMainWindowBinding())))
@@ -1367,7 +1369,7 @@ class MainGlobalKeyListenerTest {
      * An action ordinal is no longer a usable native identity.
      *
      * The id is resolved as an opaque token, so a small ordinal may numerically coincide with an
-     * accepted token — that is meaningless, because the value identifies a registration and not an
+     * accepted token; that is meaningless, because the value identifies a registration and not an
      * action. What must hold is that an ordinal never dispatches the action it names.
      */
     @Test
@@ -1440,8 +1442,8 @@ class MainGlobalKeyListenerTest {
     // ---------------------------------------------------------------------------------------
     // Degraded applies and the accepted-token ledger.
     //
-    // A degraded apply — the requested set active, but some obsolete registrations still
-    // installed — is accepted exactly like a clean one, because the new registrations work either
+    // A degraded apply (the requested set active, but some obsolete registrations still
+    // installed) is accepted exactly like a clean one, because the new registrations work either
     // way. The leftovers are recorded at apply time (never inferred from later events) and
     // retried on the next apply; their tokens stay retired throughout, so they cannot dispatch.
     // ---------------------------------------------------------------------------------------
@@ -1465,7 +1467,7 @@ class MainGlobalKeyListenerTest {
         )
         advanceUntilIdle()
 
-        // Accepted, despite the leftover — the new registration works.
+        // Accepted, despite the leftover: the new registration works.
         val newToken = harness.listener.acceptedTokenFor(HotkeyAction.SHOW_IMAGES)
         assertNotEquals(oldToken, newToken)
         // Recorded at apply time, without waiting for the stale shortcut to fire.
@@ -1562,8 +1564,8 @@ class MainGlobalKeyListenerTest {
         harness.listener.initialize()
         advanceUntilIdle()
 
-        // Emit the new registration's token from inside the apply itself — before the listener
-        // has accepted the plan — exactly as a racing OS event would.
+        // Emit the new registration's token from inside the apply itself, before the listener
+        // has accepted the plan, exactly as a racing OS event would.
         harness.backend.emitDuringApply = { backend ->
             val token = backend.lastApplied().single { it.accelerator == "control+KeyF9" }.id
             backend.emit(GlobalInputEvent.Hotkey(token))
@@ -1735,7 +1737,7 @@ class MainGlobalKeyListenerTest {
     }
 
     /**
-     * 11. No key-state capability: the conservative legacy behavior is preserved — capture
+     * 11. No key-state capability: the conservative legacy behavior is preserved, capture
      * proceeds immediately and the neutralizer is never queried.
      */
     @Test
@@ -1787,7 +1789,7 @@ class MainGlobalKeyListenerTest {
         assertEquals(0, harness.backend.keyStateQueries)
     }
 
-    /** 13. One LOCAL trigger, exactly one capture — never two. */
+    /** 13. One LOCAL trigger, exactly one capture, never two. */
     @Test
     fun `one local selection trigger produces exactly one capture`() = runTest {
         val harness = Harness(scope = this, captureFactory = successCapture("word"))

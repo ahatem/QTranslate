@@ -3,6 +3,8 @@ package com.github.ahatem.qtranslate.ui.swing.main
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
+import com.github.ahatem.qtranslate.ui.swing.main.input.CopyInjector
+import com.github.ahatem.qtranslate.ui.swing.main.input.FakeGlobalInputBackend
 import com.github.ahatem.qtranslate.ui.swing.main.input.GlobalInputEvent
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputRuntimeState
 import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.FakeChangeMonitor
@@ -37,7 +39,7 @@ import kotlin.test.assertTrue
  * application, [MainGlobalKeyListener.updateRuntimeState] is driven both from the settings state
  * flow on `Dispatchers.Default` and from the Swing EDT (`setPaused`, the initial state push), so
  * these tests use real [Thread]s and [MainGlobalKeyListener.hasQueuedReconcile] (backed by a
- * [java.util.concurrent.locks.ReentrantLock]) to force and observe overlap deterministically —
+ * [java.util.concurrent.locks.ReentrantLock]) to force and observe overlap deterministically,
  * never a sleep to hope a race resolves a particular way.
  */
 class MainGlobalKeyListenerConcurrencyTest {
@@ -104,7 +106,7 @@ class MainGlobalKeyListenerConcurrencyTest {
 
     /**
      * Waits, without sleeping, until a thread is genuinely queued behind [listener]'s reconcile
-     * lock — spins on the lock's own queued-thread state (a real, observable fact) rather than a
+     * lock. Spins on the lock's own queued-thread state (a real, observable fact) rather than a
      * fixed delay, bounded only so a broken lock fails the test instead of hanging it forever.
      */
     private fun awaitQueuedReconcile(listener: MainGlobalKeyListener) {
@@ -152,7 +154,7 @@ class MainGlobalKeyListenerConcurrencyTest {
         // Proof the fix serializes them: B must be blocked behind the lock while A still holds
         // it, observed directly rather than inferred from timing.
         awaitQueuedReconcile(listener)
-        // Only the baseline apply and A's own apply have happened so far — B has not reached
+        // Only the baseline apply and A's own apply have happened so far: B has not reached
         // applyHotkeys at all, because it cannot even plan its tokens until A releases the lock.
         assertEquals(2, backend.applied.size, "B must not have applied anything while queued")
 
@@ -164,7 +166,7 @@ class MainGlobalKeyListenerConcurrencyTest {
 
         // A's own replacement token (minted for its apply, the second entry in `applied`) is the
         // "older reconciliation" here: it must never be the one left accepted, and it must never
-        // dispatch — it was superseded by B before either one committed.
+        // dispatch; it was superseded by B before either one committed.
         val aToken = backend.applied[1].single().id
         assertNotEquals(baselineToken, aToken)
 
@@ -235,7 +237,7 @@ class MainGlobalKeyListenerConcurrencyTest {
         val (entered, release) = backend.pauseFirstApply()
 
         // Reconcile A: disables OPEN_OCR entirely. Its native release is refused, so this is a
-        // degraded apply — the accelerator stays installed, but A must still retire its token.
+        // degraded apply: the accelerator stays installed, but A must still retire its token.
         val threadA = Thread({
             listener.updateRuntimeState(InputRuntimeState(bindings = emptyList()))
         }, "reconcile-A-disable")
@@ -243,7 +245,7 @@ class MainGlobalKeyListenerConcurrencyTest {
         assertTrue(entered.await(10, TimeUnit.SECONDS))
 
         // Reconcile B: re-enables OPEN_OCR on the SAME accelerator, started while A is still
-        // paused — the exact "older reconciliation finishes late" shape the review described.
+        // paused mid-apply and queued behind it.
         val threadB = Thread({
             listener.updateRuntimeState(
                 InputRuntimeState(bindings = listOf(global(HotkeyAction.OPEN_OCR, KeyEvent.VK_I, InputEvent.CTRL_DOWN_MASK)))
@@ -260,7 +262,7 @@ class MainGlobalKeyListenerConcurrencyTest {
 
         // B, which can only have planned and accepted after A fully published (retiring the
         // original token and recording the degraded leftover), must mint and accept a FRESH
-        // token — never resurrect the original one A already retired.
+        // token, never resurrect the original one A already retired.
         val finalToken = listener.acceptedTokenFor(HotkeyAction.OPEN_OCR)
         assertNotNull(finalToken)
         assertNotEquals(originalToken, finalToken, "B must not resurrect A's retired token")
@@ -302,7 +304,7 @@ class MainGlobalKeyListenerConcurrencyTest {
         assertFalse(threadShutdown.isAlive)
 
         // The reconcile that was already mid-transaction is guaranteed to publish first (shutdown
-        // could only ever queue behind it), and shutdown — running strictly after — must have the
+        // could only ever queue behind it), and shutdown, running strictly after, must have the
         // final word: nothing the reconcile published may survive it.
         assertNull(
             listener.acceptedTokenFor(HotkeyAction.OPEN_OCR),
@@ -329,7 +331,7 @@ class MainGlobalKeyListenerConcurrencyTest {
 
         // A reconcile racing in while shutdown is mid-teardown (backend not yet nulled,
         // `initialized` not yet cleared) must not observe a half-torn-down backend: it can only
-        // run once shutdown's own critical section — including `initialized.set(false)` — has
+        // run once shutdown's own critical section (including `initialized.set(false)`) has
         // fully completed, at which point it must see "not initialized" and do nothing.
         val threadReconcile = Thread({
             listener.updateRuntimeState(
@@ -358,7 +360,7 @@ class MainGlobalKeyListenerConcurrencyTest {
     //
     // The pre-fix shape checked/transitioned `initialized` outside the reconcile lock, so a
     // shutdown that won the lock first could tear down an uninitialized listener and clear the
-    // flag while an initialize that lost the race still went on to create a live backend — or a
+    // flag while an initialize that lost the race still went on to create a live backend, or a
     // legitimate initialize queued behind a shutdown could be silently dropped. These tests use
     // distinct backends per generation (which is what makes an orphaned or duplicated generation
     // observable) plus the close/queued-lock seams, never a sleep.

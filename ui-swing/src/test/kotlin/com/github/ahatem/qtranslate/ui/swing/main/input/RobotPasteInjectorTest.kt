@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.ui.swing.main
+package com.github.ahatem.qtranslate.ui.swing.main.input
 
 import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.RecordingLogger
 import kotlinx.coroutines.test.runTest

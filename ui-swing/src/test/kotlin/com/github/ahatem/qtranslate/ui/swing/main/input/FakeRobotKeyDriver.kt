@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.ui.swing.main
+package com.github.ahatem.qtranslate.ui.swing.main.input
 
 /**
  * Deterministic [RobotKeyDriver] test double: records every call and can be scripted to fail on

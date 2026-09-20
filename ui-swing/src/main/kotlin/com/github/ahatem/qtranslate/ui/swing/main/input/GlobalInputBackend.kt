@@ -4,7 +4,7 @@ import java.awt.Point
 import java.io.Closeable
 
 /**
- * Sole global-input backend contract for QTranslate (spike/qinput-native-v2).
+ * Sole global-input backend contract for QTranslate.
  *
  * Implementations translate platform global input into [GlobalInputEvent]s. Production uses
  * [QInputBackend] (QInput native runtime); tests substitute a fake. LOCAL Swing shortcuts are
@@ -13,13 +13,9 @@ import java.io.Closeable
 interface GlobalInputBackend : Closeable {
 
     /**
-     * One registered global shortcut.
-     *
-     * [id] is an opaque token identifying this exact registration (see
-     * [HotkeyRegistrationToken]); the backend stores it and echoes it back on every fire. It must
-     * identify the registration the caller accepted, so a superseded registration that the
-     * platform refused to release can be told apart from its replacement even when both represent
-     * the same action.
+     * [id] is an opaque registration token (see [HotkeyRegistrationToken]): it must identify
+     * the exact accepted registration, so a superseded one can be told apart from its
+     * replacement.
      */
     data class HotkeyRegistration(
         val id: Long,
@@ -36,10 +32,9 @@ interface GlobalInputBackend : Closeable {
     /**
      * Replaces the whole registered-hotkey set. An empty list unregisters everything.
      *
-     * Returns whether every obsolete native registration was retired. A degraded result is data,
-     * not an exception: the requested set is active either way, so callers must accept the new
-     * registrations and only record the leftovers for diagnostics and retry. Throws on transport
-     * failure; callers keep the last working set for rollback.
+     * Returns whether every obsolete registration was retired; a degraded result is not an
+     * error — the new set is active either way, and leftovers are only for diagnostics/retry.
+     * Throws on transport failure.
      */
     fun applyHotkeys(registrations: List<HotkeyRegistration>): ApplyResult
 
@@ -50,28 +45,20 @@ interface GlobalInputBackend : Closeable {
     val supportsInjection: Boolean
 
     /**
-     * Sends a modifier chord via platform injection. [modifiers] and [key] are portable QInput
-     * usages (`QInputKey.MOD_*` / `QInputKey.*`), never platform virtual keys: each backend
-     * translates them, so the same constant means the same physical key everywhere. Returns true
-     * when the batch was accepted. Throws on transport failure; unsupported backends report false
-     * via [supportsInjection] instead of throwing.
+     * Sends a modifier chord via platform injection. [modifiers]/[key] are portable QInput
+     * usages, never platform virtual keys — each backend translates them. Returns true when
+     * accepted. Unsupported backends report false via [supportsInjection] rather than throwing.
      */
     fun sendChord(modifiers: List<Int>, key: Int): Boolean
 
-    /**
-     * Reads physical down-state for a portable QInput key usage, independent of hooks or focus.
-     * Throws where the backend cannot answer (see [InputCapabilities.keyState]); callers treat
-     * failure as down (fail closed).
-     */
+    /** Physical down-state for a key usage. Throws where unsupported; callers treat failure as down. */
     fun isKeyDown(key: Int): Boolean
 
     /**
-     * Whether any of [usages] is physically down, read as one backend query where the backend can
-     * do so.
+     * Whether any of [usages] is down, as one backend query where supported.
      *
-     * Preferred by neutralization: on X11 each single query costs a server round-trip, so a
-     * watched set would otherwise pay one round-trip per key per poll. Backends without a batch
-     * query fall back to the loop, which is what the default does.
+     * Preferred by neutralization: on X11 each query is a server round-trip, so a watched set
+     * would otherwise cost one round-trip per key per poll.
      */
     fun anyKeyDown(usages: List<Int>): Boolean = usages.any { isKeyDown(it) }
 
@@ -79,23 +66,13 @@ interface GlobalInputBackend : Closeable {
     fun setListener(listener: (GlobalInputEvent) -> Unit)
 }
 
-/**
- * What a [GlobalInputBackend.applyHotkeys] call left behind.
- *
- * The requested set is active in both cases. Clean means every obsolete native registration was
- * retired; Degraded means some remain installed — each named so diagnostics can tell cleanup is
- * incomplete and a later apply can retry. The stale ones are non-dispatchable either way, because
- * their registration tokens are no longer accepted.
- */
+/** What a [GlobalInputBackend.applyHotkeys] call left behind. The requested set is active either way. */
 sealed interface ApplyResult {
 
     /** Everything retired; nothing outstanding. */
     data object Clean : ApplyResult
 
-    /**
-     * The requested set is active, but these obsolete accelerators are still installed. Retried
-     * automatically on the next apply.
-     */
+    /** These obsolete accelerators are still installed, but not dispatchable; retried on the next apply. */
     data class Degraded(val leftovers: List<String>) : ApplyResult
 }
 
@@ -115,13 +92,7 @@ data class InputCapabilities(
 /** Backend-agnostic global input events. Coordinates are screen pixels. */
 sealed interface GlobalInputEvent {
 
-    /**
-     * A registered shortcut fired (edge-triggered on press).
-     *
-     * [id] is the registration token echoed from the [HotkeyRegistration] that was applied, not an
-     * action identifier: the receiver resolves it against the registrations it currently accepts
-     * and ignores anything else.
-     */
+    /** [id] is the registration token from the applied [HotkeyRegistration], not an action identifier. */
     data class Hotkey(val id: Long) : GlobalInputEvent
 
     /** Raw keyboard press/release for modifier tracking such as Double Ctrl. */
@@ -133,11 +104,7 @@ sealed interface GlobalInputEvent {
         val repeat: Boolean,
         /** True when QInput itself injected this event (tagged, never genuine user input). */
         val selfInjected: Boolean = false,
-        /**
-         * Event time in milliseconds from a monotonic source (never wall-clock; safe to
-         * subtract for durations such as the Double Ctrl window). [Long.MIN_VALUE] when the
-         * backend provides none, in which case callers fall back to their own monotonic clock.
-         */
+        /** Monotonic time in ms, never wall-clock. [Long.MIN_VALUE] when the backend provides none. */
         val timestampMs: Long,
     ) : GlobalInputEvent
 
