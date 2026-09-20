@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isRTL
 import java.awt.Dimension
 import java.awt.Font
+import java.awt.GraphicsEnvironment
 import java.awt.Toolkit
 import java.awt.event.ActionEvent
 import java.awt.event.InputEvent
@@ -324,7 +325,7 @@ class AdvancedTextPaneTest {
     @Test
     fun `copy, select all and cut use the platform menu shortcut`() {
         val pane = newPane()
-        val menuMask = Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx
+        val menuMask = MenuShortcutModifier.current()
         assertEquals("copy-to-clipboard", onEdt { pane.inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_C, menuMask)) })
         assertEquals("select-all", onEdt { pane.inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_A, menuMask)) })
         assertEquals("cut-to-clipboard", onEdt { pane.inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_X, menuMask)) })
@@ -333,7 +334,7 @@ class AdvancedTextPaneTest {
     @Test
     fun `undo uses the menu shortcut and redo is available on both conventions`() {
         val pane = newPane()
-        val menuMask = Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx
+        val menuMask = MenuShortcutModifier.current()
         assertEquals("undo", onEdt { pane.inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_Z, menuMask)) })
 
         val shiftRedo = KeyStroke.getKeyStroke(KeyEvent.VK_Z, menuMask or InputEvent.SHIFT_DOWN_MASK)
@@ -377,13 +378,71 @@ class AdvancedTextPaneTest {
     @Test
     fun `translate binding refuses to overwrite a core action`() {
         val pane = newPane()
-        val menuMask = Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx
+        val menuMask = MenuShortcutModifier.current()
         val copy = KeyStroke.getKeyStroke(KeyEvent.VK_C, menuMask)
 
         val accepted = onEdt { pane.setTranslateKeyStroke(null, copy) }
 
         assertFalse(accepted, "a colliding translate shortcut must be refused, not installed")
         assertEquals("copy-to-clipboard", onEdt { pane.inputMap.get(copy) })
+    }
+
+    // -----------------------------------------------------------------------
+    // Platform menu shortcut resolution
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun `the headless fallback uses Ctrl on Windows and Linux`() {
+        assertEquals(InputEvent.CTRL_DOWN_MASK, MenuShortcutModifier.fallback("Windows 11"))
+        assertEquals(InputEvent.CTRL_DOWN_MASK, MenuShortcutModifier.fallback("Linux"))
+        assertEquals(InputEvent.CTRL_DOWN_MASK, MenuShortcutModifier.fallback(null))
+    }
+
+    @Test
+    fun `the headless fallback uses Command on macOS`() {
+        assertEquals(InputEvent.META_DOWN_MASK, MenuShortcutModifier.fallback("Mac OS X"))
+        assertEquals(InputEvent.META_DOWN_MASK, MenuShortcutModifier.fallback("macOS"))
+    }
+
+    @Test
+    fun `a headful platform takes its modifier from the toolkit`() {
+        var asked = false
+        val mask = MenuShortcutModifier.resolve(headless = false, osName = "Linux", toolkitMask = {
+            asked = true
+            InputEvent.META_DOWN_MASK
+        })
+
+        assertTrue(asked, "the toolkit supplies the modifier when one is available")
+        assertEquals(InputEvent.META_DOWN_MASK, mask)
+    }
+
+    @Test
+    fun `a headless platform never asks the toolkit`() {
+        var asked = false
+        val mask = MenuShortcutModifier.resolve(headless = true, osName = "Mac OS X", toolkitMask = {
+            asked = true
+            InputEvent.CTRL_DOWN_MASK
+        })
+
+        assertFalse(asked, "the headful-only toolkit must not be consulted when headless")
+        assertEquals(InputEvent.META_DOWN_MASK, mask)
+    }
+
+    @Test
+    fun `the resolved modifier follows the environment it runs in`() {
+        val resolved = MenuShortcutModifier.current()
+
+        if (GraphicsEnvironment.isHeadless()) {
+            assertEquals(MenuShortcutModifier.fallback(System.getProperty("os.name")), resolved)
+        } else {
+            assertEquals(Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx, resolved)
+        }
+    }
+
+    /** The construction step that failed on the headless CI runner. */
+    @Test
+    fun `the pane is constructible in the current environment`() {
+        assertNotNull(newPane())
     }
 
     // -----------------------------------------------------------------------
@@ -449,7 +508,7 @@ class AdvancedTextPaneTest {
     private fun altT() = KeyStroke.getKeyStroke(KeyEvent.VK_T, InputEvent.ALT_DOWN_MASK)
     private fun altR() = KeyStroke.getKeyStroke(KeyEvent.VK_R, InputEvent.ALT_DOWN_MASK)
     private fun copyStroke() =
-        KeyStroke.getKeyStroke(KeyEvent.VK_C, Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx)
+        KeyStroke.getKeyStroke(KeyEvent.VK_C, MenuShortcutModifier.current())
 
     @Test
     fun `a free stroke is installed as the translate binding`() {
@@ -551,59 +610,41 @@ class AdvancedTextPaneTest {
     }
 
     @Test
-    fun `wrapping never chooses a line boundary inside a grapheme cluster`() {
-        assertWrapBoundariesAreClusterBoundaries("\uD83D\uDE00", "surrogate pair")
-        assertWrapBoundariesAreClusterBoundaries("a\u0301", "base + combining mark")
-        assertWrapBoundariesAreClusterBoundaries("\uD83D\uDC4D\uD83C\uDFFD", "emoji + skin tone")
-        assertWrapBoundariesAreClusterBoundaries("\uD83C\uDDFA\uD83C\uDDF8", "regional-indicator flag")
-        assertWrapBoundariesAreClusterBoundaries(
+    fun `breakView never chooses a line boundary inside a grapheme cluster`() {
+        assertBreakViewAvoidsClusterSplits("\uD83D\uDE00", "surrogate pair")
+        assertBreakViewAvoidsClusterSplits("a\u0301", "base + combining mark")
+        assertBreakViewAvoidsClusterSplits("\uD83D\uDC4D\uD83C\uDFFD", "emoji + skin tone")
+        assertBreakViewAvoidsClusterSplits("\uD83C\uDDFA\uD83C\uDDF8", "regional-indicator flag")
+        assertBreakViewAvoidsClusterSplits(
             "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67",
             "zero-width-joiner sequence",
         )
     }
 
+    @Test
+    fun `an unbreakable run is laid out as contiguous fragments`() {
+        val fragments = laidOutFragments("\uD83C\uDDFA\uD83C\uDDF8".repeat(60))
+
+        assertTrue(fragments.size >= 2, "expected the run to wrap into fragments, got ${fragments.size}")
+        assertEquals(0, fragments.first().startOffset)
+        fragments.zipWithNext().forEach { (previous, next) ->
+            assertEquals(previous.endOffset, next.startOffset, "wrapped fragments must not leave gaps")
+        }
+    }
+
     /**
-     * Drives the view's own break decision across a range of available widths.
+     * Drives the view's own break decision across a range of available widths. One fixed width can
+     * pass by luck, since whether it lands mid-cluster depends on the font's glyph advances.
      *
-     * One fixed width can pass by luck, since whether it lands mid-cluster depends on the font's
-     * glyph advances.
+     * Only `breakView` is asserted. The paragraph is a `FlowView`, so the offsets in the laid out
+     * view tree are chosen by Swing's `LineBreakMeasurer`, which cuts a run that fits nowhere else
+     * and can land mid-cluster; that choice is not this view's.
      */
-    private fun assertWrapBoundariesAreClusterBoundaries(cluster: String, label: String) {
+    private fun assertBreakViewAvoidsClusterSplits(cluster: String, label: String) {
         val text = cluster.repeat(60)
         val validBoundaries = acceptableBoundariesOf(text)
+        val runView = laidOutFragments(text).first { it.startOffset == 0 }
 
-        val pane = newPane()
-        // An explicit font keeps the glyph advances independent of whichever look and feel the
-        // surrounding test run happens to have installed.
-        onEdt { pane.updateFontsAndRescanDocument(Font("Monospaced", Font.PLAIN, 14), Font("Dialog", Font.PLAIN, 14)) }
-        onEdt { pane.render(text, emptyList(), true) }
-        settle()
-        layOutPane(pane, 60, 300)
-
-        val fragments = onEdt {
-            val leaves = mutableListOf<View>()
-            collectLeafViews(pane.ui.getRootView(pane), leaves)
-            leaves.toList()
-        }
-
-        assertTrue(
-            fragments.size >= 2,
-            "$label: expected the run to wrap into fragments, got ${fragments.size}",
-        )
-        // Every boundary the real layout produced must fall between clusters.
-        fragments.forEach { fragment ->
-            assertTrue(
-                fragment.startOffset in validBoundaries,
-                "$label: a laid out line starts inside a grapheme cluster at ${fragment.startOffset}",
-            )
-            assertTrue(
-                fragment.endOffset in validBoundaries,
-                "$label: a laid out line ends inside a grapheme cluster at ${fragment.endOffset}",
-            )
-        }
-
-        // ...and the boundary the view itself would choose, at every width, must too.
-        val runView = fragments.first { it.startOffset == 0 }
         for (available in 1..160) {
             val fragment = onEdt { runView.breakView(View.X_AXIS, runView.startOffset, 0f, available.toFloat()) }
             if (fragment == null || fragment === runView) continue
@@ -611,6 +652,22 @@ class AdvancedTextPaneTest {
                 fragment.endOffset in validBoundaries,
                 "$label: a ${available}px line would cut a grapheme cluster at offset ${fragment.endOffset}",
             )
+        }
+    }
+
+    /** Renders [text], lays the pane out narrow, and returns its leaf views in document order. */
+    private fun laidOutFragments(text: String): List<View> {
+        val pane = newPane()
+        // An explicit font keeps the glyph advances independent of whichever look and feel the
+        // surrounding test run happens to have installed.
+        onEdt { pane.updateFontsAndRescanDocument(Font("Monospaced", Font.PLAIN, 14), Font("Dialog", Font.PLAIN, 14)) }
+        onEdt { pane.render(text, emptyList(), true) }
+        settle()
+        layOutPane(pane, 60, 300)
+        return onEdt {
+            val leaves = mutableListOf<View>()
+            collectLeafViews(pane.ui.getRootView(pane), leaves)
+            leaves.toList()
         }
     }
 

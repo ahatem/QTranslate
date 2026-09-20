@@ -74,6 +74,31 @@ internal class GraphemeBoundary {
     }
 }
 
+/**
+ * The platform's menu shortcut modifier: Command on macOS, Ctrl elsewhere.
+ *
+ * `Toolkit.getMenuShortcutKeyMaskEx` is headful-only: `HeadlessToolkit` throws `HeadlessException`,
+ * so asking it during construction would make the pane impossible to build in a headless JVM. With
+ * no headful toolkit the modifier is derived from the platform instead, which is the value the
+ * toolkit reports on a desktop.
+ */
+internal object MenuShortcutModifier {
+
+    fun current(): Int = resolve(
+        headless = GraphicsEnvironment.isHeadless(),
+        osName = System.getProperty("os.name"),
+        toolkitMask = { Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx },
+    )
+
+    /** [toolkitMask] is consulted only when a headful toolkit is available. */
+    fun resolve(headless: Boolean, osName: String?, toolkitMask: () -> Int): Int =
+        if (headless) fallback(osName) else toolkitMask()
+
+    fun fallback(osName: String?): Int =
+        if (osName.orEmpty().startsWith("Mac", ignoreCase = true)) InputEvent.META_DOWN_MASK
+        else InputEvent.CTRL_DOWN_MASK
+}
+
 class WrappingEditorKit : StyledEditorKit() {
     private val viewFactory = WrappingViewFactory()
 
@@ -718,7 +743,7 @@ class AdvancedTextPane(
 
     private fun setupKeyBindings() {
         // The primary shortcut modifier is Ctrl on Windows and Linux, Command on macOS.
-        val menuMask = Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx
+        val menuMask = MenuShortcutModifier.current()
 
         // Redo differs by platform: Ctrl+Y on Windows and Linux, Shift+Cmd+Z on macOS.
         val undoStroke = KeyStroke.getKeyStroke(KeyEvent.VK_Z, menuMask)
