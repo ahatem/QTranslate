@@ -39,10 +39,6 @@ internal object MenuShortcutModifier {
         else InputEvent.CTRL_DOWN_MASK
 }
 
-/**
- * Installs the pane's keyboard behaviour: Undo/Redo, tab traversal, the configurable Translate
- * command, and the standard text shortcuts.
- */
 internal class TextPaneKeyBindings(
     private val pane: AdvancedTextPane,
     private val onTranslateRequest: (text: String) -> Unit,
@@ -51,7 +47,6 @@ internal class TextPaneKeyBindings(
 ) {
 
     fun install() {
-        // The primary shortcut modifier is Ctrl on Windows and Linux, Command on macOS.
         val menuMask = MenuShortcutModifier.current()
 
         // Redo differs by platform: Ctrl+Y on Windows and Linux, Shift+Cmd+Z on macOS.
@@ -154,16 +149,14 @@ internal class TextPaneKeyBindings(
     }
 
     /**
-     * Swaps the keyboard shortcut that triggers the translate action.
-     * Called by the owning panel whenever the user changes the binding in Settings.
-     * [old] is released and [new] registered; either may be null.
+     * Swaps the shortcut that triggers the translate action. [old] is released and [new] registered;
+     * either may be null.
      *
-     * Returns false, and installs nothing, when [new] is already taken by another action, so a
-     * configured shortcut cannot silently disarm Copy, Paste or Undo. The caller can report that
-     * rather than leave the user with a shortcut that does nothing.
+     * Returns false and installs nothing when [new] is already taken by another action, so a
+     * configured shortcut cannot silently disarm Copy, Paste or Undo.
      */
     fun setTranslateKeyStroke(old: KeyStroke?, new: KeyStroke?): Boolean {
-        // Validated first: a refused rebind must leave the previous binding untouched.
+        // Validate before releasing anything, so a refused rebind leaves the old binding untouched.
         if (new != null) {
             val occupiedBy = pane.inputMap.get(new)
             if (occupiedBy != null && occupiedBy != TRANSLATE_ACTION) return false

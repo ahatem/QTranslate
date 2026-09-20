@@ -32,7 +32,6 @@ internal class GraphemeBoundary {
     }
 
     companion object {
-        // Bounded lookahead used to inspect continuation beyond the candidate break.
         const val LOOKAHEAD = 64
     }
 }

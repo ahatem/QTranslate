@@ -46,9 +46,9 @@ class FontFallbackDocumentListener(
     override fun removeUpdate(e: DocumentEvent)  { schedule(max(0, e.offset - 1), 1) }
 
     /**
-     * Ignored: an attribute change does not alter which characters a font can display, so the
-     * ranges already chosen remain correct and a rescan would only rewrite the same attributes
-     * document-wide. A genuine font change goes through [rescanEntireDocument] instead.
+     * Left empty on purpose: an attribute change cannot change which characters a font can draw, so
+     * a rescan would only rewrite the same runs document-wide. A real font change goes through
+     * [rescanEntireDocument].
      */
     override fun changedUpdate(e: DocumentEvent) {}
 
@@ -87,26 +87,17 @@ class FontFallbackDocumentListener(
             if (safeLen <= 0) return
             applyFontFallback(doc, safeOff, safeLen, textPane.primaryFont, textPane.fallbackFont)
         } catch (_: BadLocationException) {
-            // The document was replaced between scheduling and running. Font fallback is
-            // best-effort presentation, so dropping this pass is correct; the next edit reschedules.
+            // The document was replaced before this pass ran. Fallback is presentation only, so
+            // dropping it is fine and the next edit reschedules.
         } finally {
             applying = false
         }
     }
 
-    /**
-     * Segments [offset, offset+length) into runs that primary can display and
-     * runs that need the fallback font, then applies font attributes per-run.
-     * Uses [Font.canDisplayUpTo] for O(n) scanning with no per-character allocations.
-     */
     private fun applyFontFallback(doc: StyledDocument, offset: Int, length: Int, primary: Font, fallback: Font) {
         if (length <= 0) return
         val text = doc.getText(offset, length)
-        // Copied once, then scanned in place. The previous version called text.substring(pos)
-        // once per run, copying everything still to be scanned each time, which made a run-heavy
-        // document quadratic in allocation — while this method's own documentation claimed it
-        // allocated nothing per character. canDisplayUpTo takes an offset only for char arrays,
-        // which is why this is an array rather than the string.
+        // A char array so canDisplayUpTo can continue from an offset without allocating substrings.
         val chars = text.toCharArray()
         val end = chars.size
         var pos = 0
@@ -135,12 +126,11 @@ class FontFallbackDocumentListener(
                 continue
             }
 
-            // Neither font can display this code point — skip it and let the system handle it.
+            // Neither font supports this code point; leave it unchanged.
             pos += Character.charCount(Character.codePointAt(chars, pos))
         }
     }
 
-    /** Applies font family/size to a run while preserving all other character attributes. */
     private fun applyRunAttributes(docOffset: Int, runLength: Int, font: Font) {
         if (runLength <= 0) return
         textPane.applyFallbackFontAttributes(docOffset, runLength, font)

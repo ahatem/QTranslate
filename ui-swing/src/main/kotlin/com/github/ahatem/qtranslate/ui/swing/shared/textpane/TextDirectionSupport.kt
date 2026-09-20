@@ -6,17 +6,12 @@ import java.awt.ComponentOrientation
 import javax.swing.text.SimpleAttributeSet
 import javax.swing.text.StyleConstants
 
-/**
- * Tracks each paragraph's direction and the pane's own orientation.
- */
 internal class TextPaneDirections(private val pane: AdvancedTextPane) {
 
     private var isTextRtl = false
 
-    /**
-     * Direction of each paragraph as of the last alignment pass, parallel to the root element's
-     * children, so a keystroke re-measures only the paragraph it touched.
-     */
+    // Per-paragraph direction as of the last pass, parallel to the root element's children, so a
+    // keystroke only re-measures the paragraph it touched.
     private val paragraphRtl = ArrayList<Boolean>()
     private var rtlParagraphCount = 0
     private val rtlParagraphAttributes = SimpleAttributeSet()
@@ -28,10 +23,9 @@ internal class TextPaneDirections(private val pane: AdvancedTextPane) {
      * Aligns each paragraph to its own direction, and the component to the document's.
      *
      * Alignment is per paragraph because a translation can mix an Arabic paragraph with an English
-     * one. Direction *within* a line is Swing's own Bidi layout.
-     *
-     * Only paragraphs intersecting `[dirtyStart, dirtyEnd)` are re-measured; the component-wide
-     * majority is still decided over all of them. A paragraph added or removed forces the full pass.
+     * one; direction within a line is Swing's own Bidi layout. Only paragraphs intersecting
+     * `[dirtyStart, dirtyEnd)` are re-measured, though the majority is decided over all of them, and
+     * a paragraph added or removed forces the full pass.
      */
     fun apply(dirtyStart: Int = 0, dirtyEnd: Int = Int.MAX_VALUE) {
         val styledDocument = pane.styledDocument
@@ -91,8 +85,8 @@ internal class TextPaneDirections(private val pane: AdvancedTextPane) {
             documentTouched = true
         }
 
-        // The component follows the majority, since it decides which side the scrollbar and the
-        // caret's home position sit on, and those belong to the pane rather than to a paragraph.
+        // The component follows the majority: it decides which side the scrollbar and the caret's
+        // home position sit on.
         val documentIsRtl = rtlParagraphCount * 2 > paragraphCount
         if (documentIsRtl != isTextRtl) {
             isTextRtl = documentIsRtl
