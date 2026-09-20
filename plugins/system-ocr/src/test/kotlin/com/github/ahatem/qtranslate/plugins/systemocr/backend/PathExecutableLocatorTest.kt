@@ -27,7 +27,10 @@ class PathExecutableLocatorTest {
     @Test
     fun `resolves an extension on windows using pathext`() {
         val directory = tempDir()
-        val executable = File(directory, "powershell.EXE").apply { writeText("x") }
+        val executable = File(directory, "powershell.EXE").apply {
+            writeText("x")
+            setExecutable(true)
+        }
 
         assertEquals(
             executable.absolutePath,
