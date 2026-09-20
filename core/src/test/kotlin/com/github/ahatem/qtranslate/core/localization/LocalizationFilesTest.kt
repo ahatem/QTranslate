@@ -191,9 +191,14 @@ class LocalizationFilesTest {
 
         assertTrue(referenced.size > 100, "Found only ${referenced.size} keys; the scan is probably broken")
 
+        // A key only ever asked for through another key's `@reference` is still asked for:
+        // `main_window_editor_context_menu.undo` is `@common.undo`, so `common.undo` is live
+        // even though no code names it directly.
+        val referenceTargets = rawReferencesOf(embedded).values.toSet()
+
         val orphans = keysOf(embedded)
             .filterNot { key -> key.substringBefore('.') in RUNTIME_KEY_SECTIONS }
-            .filterNot { it in referenced }
+            .filterNot { it in referenced || it in referenceTargets }
 
         if (orphans.isNotEmpty()) {
             fail(
@@ -235,6 +240,34 @@ class LocalizationFilesTest {
         }
     }
 
+    /**
+     * No `@reference` points to a key its own file does not define.
+     *
+     * References are file-local: the parser resolves each file against itself, so a locale
+     * holding `cut = "@common.cut"` without a `common.cut` of its own renders the literal text
+     * `@common.cut`, no matter what English defines. Ten such references shipped this way.
+     */
+    @Test
+    fun `no localization reference points to a key missing from its own file`() {
+        val problems = localizationFiles.flatMap { file ->
+            // `[meta]` is parsed into a structure rather than the entries map, so a reference
+            // to it could never resolve at runtime either.
+            val keys = keysOf(file).filterNot { it.substringBefore('.') == "meta" }.toSet()
+            rawReferencesOf(file).mapNotNull { (key, target) ->
+                if (target in keys) null
+                else "${file.name}: $key points to @$target, which this file does not define"
+            }
+        }
+
+        if (problems.isNotEmpty()) {
+            fail(
+                "These references resolve to nothing and render as literal @text. " +
+                    "Either define the target in the same file or drop the referring key " +
+                    "so it falls back to English:\n" + problems.joinToString("\n") { "  $it" }
+            )
+        }
+    }
+
     /** Flattens a TOML localization file to `section.key` → value. */
     private fun valuesOf(file: File): Map<String, String> = LanguageTomlParser().parse(file.readText()).entries
 
@@ -263,6 +296,32 @@ class LocalizationFilesTest {
             }
         }
         return keys
+    }
+
+    /**
+     * Raw `@section.key` values per key, before the parser resolves them.
+     *
+     * Read straight from the lines, the way `LanguageTomlParser` sees them: quoted value whose
+     * text starts with `@`. A value the parser already resolved can no longer say where it came
+     * from, which is why this cannot reuse [valuesOf].
+     */
+    private fun rawReferencesOf(file: File): Map<String, String> {
+        var section = ""
+        val refs = mutableMapOf<String, String>()
+        file.readLines().forEach { raw ->
+            val line = raw.trim()
+            when {
+                line.startsWith("#") || line.isEmpty() -> return@forEach
+                line.startsWith("[") -> section = line.trim('[', ']').trim()
+                else -> KEY_LINE.find(line)?.let {
+                    val value = line.substringAfter('=').trim().removeSurrounding("\"")
+                    if (value.startsWith("@")) {
+                        refs["$section.${it.groupValues[1]}"] = value.removePrefix("@")
+                    }
+                }
+            }
+        }
+        return refs
     }
 
     private companion object {
