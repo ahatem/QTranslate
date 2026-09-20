@@ -72,12 +72,17 @@ func supportsLanguageDetection() -> Bool {
 }
 
 if command == "capabilities" {
-    do {
-        let supported = try makeRequest().supportedRecognitionLanguages()
-        emit(["ok": true, "languages": supported, "autoDetect": supportsLanguageDetection()])
-    } catch {
-        fail("missing_component", "Vision text recognition is unavailable: \(error.localizedDescription)")
+    // supportedRecognitionLanguages() needs macOS 12, so an older system reports no languages
+    // rather than guessing at any.
+    var languages: [String] = []
+    if #available(macOS 12.0, *) {
+        do {
+            languages = try makeRequest().supportedRecognitionLanguages()
+        } catch {
+            fail("missing_component", "Vision text recognition is unavailable: \(error.localizedDescription)")
+        }
     }
+    emit(["ok": true, "languages": languages, "autoDetect": supportsLanguageDetection()])
     exit(0)
 }
 
@@ -95,9 +100,11 @@ if language.isEmpty {
         fail("unsupported_language", "This version of macOS cannot detect the language of an image; choose a specific language.")
     }
 } else {
-    let supported = (try? request.supportedRecognitionLanguages()) ?? []
-    if !supported.contains(language) {
-        fail("unsupported_language", "The OCR language '\(language)' is not supported by Vision.")
+    if #available(macOS 12.0, *) {
+        let supported = (try? request.supportedRecognitionLanguages()) ?? []
+        if !supported.contains(language) {
+            fail("unsupported_language", "The OCR language '\(language)' is not supported by Vision.")
+        }
     }
     request.recognitionLanguages = [language]
 }
