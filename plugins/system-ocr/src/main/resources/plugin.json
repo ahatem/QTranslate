@@ -1,0 +1,9 @@
+{
+  "id": "system-ocr",
+  "name": "System OCR (Offline)",
+  "version": "1.0.0",
+  "author": "Ahmed Hatem",
+  "description": "Offline optical character recognition using the operating system's own engine: Windows.Media.Ocr on Windows, Apple Vision on macOS, and native Tesseract on Linux. Runs entirely on-device with no network access, accounts, or API keys.",
+  "minApiVersion": "2.0.0",
+  "icon": "assets/system-ocr-icon.svg"
+}
