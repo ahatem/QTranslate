@@ -213,7 +213,14 @@ class MainContentView(
 
     private var lastState: Pair<MainState, SettingsState>? = null
     private var lastDictionaryKey: DictionaryKey? = null
-    private var currentTranslateKeyStroke: KeyStroke? = null
+    /** The translate binding the settings ask for, so an unchanged request is not re-issued. */
+    private var requestedTranslateKeyStroke: KeyStroke? = null
+
+    /**
+     * The translate binding the panes actually hold, which differs from the requested one while a
+     * request is refused. Kept separately so a later change releases the right stroke.
+     */
+    private var installedTranslateKeyStroke: KeyStroke? = null
     /** Tracks whether a translation is in-flight so the Escape binding knows when to cancel. */
     private var isTranslating = false
 
@@ -282,16 +289,25 @@ class MainContentView(
      * Keeps the per-pane translate keystroke in sync with the user's configured binding.
      * Binding lives on each AdvancedTextPane (WHEN_FOCUSED) so the pane can pass selected
      * text to onTranslateRequest rather than always using the full input text.
+     *
+     * A pane refuses a binding another command already owns, so a refused request leaves the
+     * previous binding in place and is not recorded as installed. The setting itself still stands,
+     * and the frame-level local hotkey still answers it outside the text panes.
      */
     private fun updateTranslateKeyStroke(config: Configuration) {
         val binding = config.hotkeys.find { it.action == HotkeyAction.TRANSLATE }
-        val newStroke = binding?.takeIf { it.isEnabled }?.toKeyStroke()
-        if (newStroke == currentTranslateKeyStroke) return
-        val old = currentTranslateKeyStroke
-        currentTranslateKeyStroke = newStroke
-        inputTextPanel.setTranslateKeyStroke(old, newStroke)
-        outputTextPanel.setTranslateKeyStroke(old, newStroke)
-        extraOutputPanel.setTranslateKeyStroke(old, newStroke)
+        val requested = binding?.takeIf { it.isEnabled }?.toKeyStroke()
+        if (requested == requestedTranslateKeyStroke) return
+        requestedTranslateKeyStroke = requested
+
+        val previous = installedTranslateKeyStroke
+        // Every pane is asked, so the binding counts as installed only if all of them took it.
+        val accepted = listOf(
+            inputTextPanel.setTranslateKeyStroke(previous, requested),
+            outputTextPanel.setTranslateKeyStroke(previous, requested),
+            extraOutputPanel.setTranslateKeyStroke(previous, requested),
+        ).all { it }
+        installedTranslateKeyStroke = if (accepted) requested else previous
     }
 
     /**
