@@ -18,13 +18,12 @@ import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
  * - [CancelChanges] — reverts to the last saved configuration and closes the dialog
  * - [ResetToDefaults] — replaces the working copy with [Configuration.DEFAULT]
  *
- * ### Quick actions (auto-save)
+ * ### Quick actions (scoped auto-save)
  * Used by toolbar toggles, menu items, and the service selector panel where
  * changes take effect immediately and are persisted without a confirmation step:
- * - [ToggleSetting] — applies an arbitrary transform and immediately saves
- * - [SetActivePreset] — switches the active preset and saves
- * - [UpdateServiceInActivePreset] — changes a service selection and saves
- * - [CreatePreset], [DeletePreset], [RenamePreset] — preset CRUD, all auto-saved
+ * - [ToggleSetting] — persists only the setting changed by the external action
+ *
+ * Settings-dialog operations remain draft-only until [SaveChanges].
  */
 sealed interface SettingsIntent : UiIntent {
 
@@ -52,10 +51,11 @@ sealed interface SettingsIntent : UiIntent {
      */
     data object ResetToDefaults : SettingsIntent
 
-    // ---- Quick actions ----
+    // ---- External quick actions ----
 
     /**
-     * Applies [update] to the current working configuration and immediately saves.
+     * Applies [update] to the last persisted configuration and immediately saves it.
+     * An unrelated dirty settings-dialog draft is preserved and is not committed.
      *
      * Use this for menu checkboxes and toolbar toggles where changes take effect instantly.
      *
@@ -69,12 +69,12 @@ sealed interface SettingsIntent : UiIntent {
     data class ToggleSetting(val update: (Configuration) -> Configuration) : SettingsIntent
 
     /**
-     * Switches the active service preset to [presetId] and immediately saves.
+     * Switches the active service preset in the settings draft.
      */
     data class SetActivePreset(val presetId: String) : SettingsIntent
 
     /**
-     * Selects [serviceId] for [type] in the active preset and immediately saves.
+     * Selects [serviceId] for [type] in the active preset draft.
      * Pass `null` for [serviceId] to clear the selection (fall back to first available).
      */
     data class UpdateServiceInActivePreset(
@@ -83,13 +83,12 @@ sealed interface SettingsIntent : UiIntent {
     ) : SettingsIntent
 
     /**
-     * Creates a new preset named [name] with default Google services pre-selected,
-     * makes it active, and immediately saves.
+     * Creates a new preset named [name] with default Google services pre-selected and makes it active.
      */
     data class CreatePreset(val name: String) : SettingsIntent
 
     /**
-     * Deletes the preset identified by [presetId] and immediately saves.
+     * Deletes the preset identified by [presetId].
      * Cannot delete the last remaining preset — dispatching this intent when only
      * one preset exists sends [SettingsEvent.ShowMessage] with an error.
      * If the deleted preset was active, the first remaining preset becomes active.
@@ -97,13 +96,13 @@ sealed interface SettingsIntent : UiIntent {
     data class DeletePreset(val presetId: String) : SettingsIntent
 
     /**
-     * Renames the preset identified by [presetId] to [newName] and immediately saves.
+     * Renames the preset identified by [presetId] to [newName].
      */
     data class RenamePreset(val presetId: String, val newName: String) : SettingsIntent
 
-    /** Adds a new translation rule and immediately saves. */
+    /** Adds a new translation rule to the settings draft. */
     data class AddTranslationRule(val rule: TranslationRule) : SettingsIntent
 
-    /** Removes an existing translation rule and immediately saves. */
+    /** Removes an existing translation rule from the settings draft. */
     data class RemoveTranslationRule(val rule: TranslationRule) : SettingsIntent
 }

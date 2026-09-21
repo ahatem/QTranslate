@@ -77,6 +77,7 @@ class SettingsDialog(
      * page is built lazily on first navigation, by which time this has long since arrived.
      */
     @Volatile private var proxyPassword: String = ""
+    @Volatile private var persistedProxyPassword: String = ""
 
 
     /** Held as a field so it can be removed again — a lambda passed inline never can be. */
@@ -251,7 +252,11 @@ class SettingsDialog(
     /** Fetches the stored proxy password so the Network page can show it when opened. */
     private fun loadProxyPassword() {
         val secrets = appSecrets ?: return
-        scope.launch { proxyPassword = secrets.get(NetworkConfig.proxyPasswordKey).orEmpty() }
+        scope.launch {
+            val value = secrets.get(NetworkConfig.proxyPasswordKey).orEmpty()
+            proxyPassword = value
+            persistedProxyPassword = value
+        }
     }
 
     init {
@@ -934,7 +939,6 @@ class SettingsDialog(
                         override fun read(): String = proxyPassword
                         override fun write(value: String) {
                             proxyPassword = value
-                            scope.launch { secrets.put(NetworkConfig.proxyPasswordKey, value) }
                         }
                     }
                 }
@@ -957,7 +961,7 @@ class SettingsDialog(
         applyButton = JButton(localizationManager.getString("common.apply")).apply {
             mnemonic = KeyEvent.VK_A
             isEnabled = false
-            addActionListener { settingsStore.dispatch(SettingsIntent.SaveChanges) }
+            addActionListener { onApply() }
         }
         val resetButton = JButton(
             localizationManager.getString("settings_dialog.reset_defaults_button")
@@ -987,7 +991,7 @@ class SettingsDialog(
                     val baseTitle = localizationManager.getString("settings_dialog.title")
                     title = if (state.isDirty) "● $baseTitle" else baseTitle
 
-                    applyButton.isEnabled = state.isDirty && !state.isSaving
+                    applyButton.isEnabled = (state.isDirty || hasPendingProxyPassword()) && !state.isSaving
 
                     currentPanelName?.let { name ->
                         val panel = panelCache[name]
@@ -1004,33 +1008,58 @@ class SettingsDialog(
     // ── Actions ───────────────────────────────────────────────────────────────
 
     private fun onOk() {
-        if (!settingsStore.state.value.isDirty) {
+        if (!settingsStore.state.value.isDirty && !hasPendingProxyPassword()) {
             dispose(); return
         }
 
         okButton.isEnabled = false
         okButton.text = localizationManager.getString("settings_dialog.saving")
-        settingsStore.dispatch(SettingsIntent.SaveChanges)
+        if (settingsStore.state.value.isDirty) settingsStore.dispatch(SettingsIntent.SaveChanges)
 
         scope.launch {
-            val event = settingsStore.events
-                .filter { it is SettingsEvent.ShowMessage }
-                .first() as SettingsEvent.ShowMessage
-
-            withContext(Dispatchers.Swing) {
-                if (event.type != NotificationType.ERROR) {
-                    dispose()
-                } else {
-                    okButton.isEnabled = true
-                    okButton.text = localizationManager.getString("common.ok")
-                    JOptionPane.showMessageDialog(
-                        this@SettingsDialog,
-                        event.message,
-                        localizationManager.getString("settings_dialog.save_failed_title"),
-                        JOptionPane.ERROR_MESSAGE
-                    )
+            if (settingsStore.state.value.isDirty) {
+                val event = settingsStore.events
+                    .filter { it is SettingsEvent.ShowMessage }
+                    .first() as SettingsEvent.ShowMessage
+                if (event.type == NotificationType.ERROR) {
+                    withContext(Dispatchers.Swing) {
+                        okButton.isEnabled = true
+                        okButton.text = localizationManager.getString("common.ok")
+                    }
+                    return@launch
                 }
             }
+            persistPendingProxyPassword()
+            withContext(Dispatchers.Swing) { dispose() }
+        }
+    }
+
+    private suspend fun persistPendingProxyPassword() {
+        val secrets = appSecrets ?: return
+        if (!hasPendingProxyPassword()) return
+        val value = proxyPassword
+        persistedProxyPassword = value
+        secrets.put(NetworkConfig.proxyPasswordKey, value)
+    }
+
+    private fun hasPendingProxyPassword(): Boolean = proxyPassword != persistedProxyPassword
+
+    private fun onApply() {
+        if (!settingsStore.state.value.isDirty && !hasPendingProxyPassword()) return
+        applyButton.isEnabled = false
+        if (settingsStore.state.value.isDirty) settingsStore.dispatch(SettingsIntent.SaveChanges)
+        scope.launch {
+            if (settingsStore.state.value.isDirty) {
+                val event = settingsStore.events
+                    .filter { it is SettingsEvent.ShowMessage }
+                    .first() as SettingsEvent.ShowMessage
+                if (event.type == NotificationType.ERROR) {
+                    withContext(Dispatchers.Swing) { applyButton.isEnabled = true }
+                    return@launch
+                }
+            }
+            persistPendingProxyPassword()
+            withContext(Dispatchers.Swing) { applyButton.isEnabled = true }
         }
     }
 
