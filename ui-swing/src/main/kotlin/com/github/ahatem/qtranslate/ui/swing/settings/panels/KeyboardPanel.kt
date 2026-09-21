@@ -6,7 +6,6 @@ import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
-import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import java.awt.*
@@ -26,13 +25,16 @@ class KeyboardPanel(
 ) : SettingsPanel() {
 
     private lateinit var enableCheck: JCheckBox
+    private lateinit var showShortcut: JPanel
+    private lateinit var showEditButton: JButton
+    private lateinit var showClearButton: JButton
+    private lateinit var doubleCtrlCheck: JCheckBox
     private lateinit var table:       JTable
     private lateinit var editButton:  JButton
     private lateinit var clearButton: JButton
     private lateinit var resetButton: JButton
 
     private val actionOrder = listOf(
-        HotkeyAction.SHOW_MAIN_WINDOW,
         HotkeyAction.SHOW_QUICK_TRANSLATE,
         HotkeyAction.LISTEN_TO_TEXT,
         HotkeyAction.OPEN_OCR,
@@ -46,9 +48,7 @@ class KeyboardPanel(
         HotkeyAction.FOCUS_EXTRA_OUTPUT
     )
 
-    // SHOW_MAIN_WINDOW can now have a custom keystroke — only its scope is locked to GLOBAL.
     private val nonEditableActions    = emptySet<HotkeyAction>()
-    private val nonScopeToggleActions = setOf(HotkeyAction.SHOW_MAIN_WINDOW)
 
     private val COL_ACTION = 0
     private val COL_HOTKEY = 1
@@ -66,6 +66,32 @@ class KeyboardPanel(
                 applyDraft(store) { it.copy(isGlobalHotkeysEnabled = enabled) }
             }
         )
+
+        addSeparator(localizationManager.getString("settings_hotkeys.show_main_group"))
+
+        showShortcut = JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(4), 0)).apply { isOpaque = false }
+        showEditButton = JButton(localizationManager.getString("settings_hotkeys.change_button"))
+        showClearButton = JButton(localizationManager.getString("settings_hotkeys.clear_button"))
+        showEditButton.addActionListener { onEditShowMain() }
+        showClearButton.addActionListener { onClearShowMain() }
+        val showShortcutGroup = JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(6), 0)).apply {
+            isOpaque = false
+            add(showShortcut)
+            add(showEditButton)
+            add(showClearButton)
+        }
+        addRow(localizationManager.getString("settings_hotkeys.shortcut_label"), showShortcutGroup)
+        addRow(
+            localizationManager.getString("settings_hotkeys.column_scope"),
+            JLabel(localizationManager.getString("settings_hotkeys.scope_global"))
+        )
+
+        doubleCtrlCheck = addCheckbox(
+            text = localizationManager.getString("settings_hotkeys.double_ctrl_label"),
+            selected = true,
+            onChange = { enabled -> onToggleDoubleCtrl(enabled) }
+        )
+        addHint(localizationManager.getString("settings_hotkeys.double_ctrl_description"))
 
         addSeparator(localizationManager.getString("settings_hotkeys.assignments_group"))
         addHint(localizationManager.getString("settings_hotkeys.edit_hint"))
@@ -88,20 +114,21 @@ class KeyboardPanel(
         table = JTable(model).apply {
             fillsViewportHeight = true
             rowHeight           = 34
+            autoResizeMode      = JTable.AUTO_RESIZE_ALL_COLUMNS
             setShowGrid(false)
             intercellSpacing    = Dimension(0, 0)
             setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
             putClientProperty("FlatLaf.style", "showCellFocusIndicator: false")
 
-            columnModel.getColumn(COL_ACTION).apply { preferredWidth = UIScale.scale(200); minWidth = UIScale.scale(150) }
+            columnModel.getColumn(COL_ACTION).apply { preferredWidth = UIScale.scale(310); minWidth = UIScale.scale(170) }
             columnModel.getColumn(COL_HOTKEY).apply {
-                preferredWidth = UIScale.scale(150)
-                minWidth       = 110
+                preferredWidth = UIScale.scale(190)
+                minWidth       = UIScale.scale(125)
                 cellRenderer   = HotkeyColumnRenderer()
             }
             columnModel.getColumn(COL_SCOPE).apply {
-                preferredWidth = UIScale.scale(130)
-                minWidth       = 80
+                preferredWidth = UIScale.scale(80)
+                minWidth       = UIScale.scale(64)
                 cellRenderer   = ScopeColumnRenderer()
             }
 
@@ -179,6 +206,27 @@ class KeyboardPanel(
         saveBinding(result)
     }
 
+    private fun onEditShowMain() {
+        val current = bindingFor(HotkeyAction.SHOW_MAIN_WINDOW) ?: return
+        val result = HotkeyRecorderDialog.show(
+            owner = SwingUtilities.getWindowAncestor(this),
+            action = HotkeyAction.SHOW_MAIN_WINDOW,
+            current = current,
+            localizer = localizationManager,
+            pauseGlobalHotkeys = pauseGlobalHotkeys,
+            resumeGlobalHotkeys = resumeGlobalHotkeys,
+        ) ?: return
+        saveBinding(result.copy(scope = HotkeyScope.GLOBAL, isDoubleCtrlEnabled = current.isDoubleCtrlEnabled))
+    }
+
+    private fun onClearShowMain() {
+        applyDraft(store) { HotkeyDraftOperations.clearShowMainWindow(it) }
+    }
+
+    private fun onToggleDoubleCtrl(enabled: Boolean) {
+        applyDraft(store) { HotkeyDraftOperations.setDoubleCtrl(it, enabled) }
+    }
+
     private fun onClearSelected() {
         val row    = table.selectedRow.takeIf { it >= 0 } ?: return
         val action = actionOrder[row]
@@ -190,19 +238,8 @@ class KeyboardPanel(
 
     private fun onToggleScope(row: Int) {
         val action = actionOrder[row]
-        if (action == HotkeyAction.SHOW_MAIN_WINDOW) {
-            // For SHOW_MAIN_WINDOW the scope is locked to GLOBAL, but the cell
-            // acts as a "Double Ctrl" on/off toggle instead.
-            val current = store.state.value.workingConfiguration.hotkeys
-                .find { it.action == action } ?: return
-            saveBinding(current.copy(isDoubleCtrlEnabled = !current.isDoubleCtrlEnabled))
-            return
-        }
-        if (action in nonScopeToggleActions) return
-        val current = store.state.value.workingConfiguration.hotkeys.find { it.action == action }
-            ?: return
-        val newScope = if (current.scope == HotkeyScope.GLOBAL) HotkeyScope.LOCAL else HotkeyScope.GLOBAL
-        saveBinding(current.copy(scope = newScope))
+        if (bindingFor(action) == null) return
+        applyDraft(store) { HotkeyDraftOperations.toggleScope(it, action) }
     }
 
     private fun onResetAll() {
@@ -214,18 +251,35 @@ class KeyboardPanel(
             JOptionPane.WARNING_MESSAGE
         ) == JOptionPane.YES_OPTION
         if (!confirmed) return
-        store.dispatch(SettingsIntent.ToggleSetting { it.copy(hotkeys = HotkeyBinding.DEFAULTS) })
+        applyDraft(store) { it.copy(hotkeys = HotkeyBinding.DEFAULTS) }
     }
 
     private fun saveBinding(binding: HotkeyBinding) {
-        store.dispatch(SettingsIntent.ToggleSetting { config ->
-            val updated = config.hotkeys.map { b ->
-                if (b.action == binding.action) binding else b
-            }
-            val final = if (updated.any { it.action == binding.action }) updated
-            else updated + binding
-            config.copy(hotkeys = final)
-        })
+        applyDraft(store) { HotkeyDraftOperations.replaceBinding(it, binding) }
+    }
+
+    private fun bindingFor(action: HotkeyAction): HotkeyBinding? =
+        store.state.value.workingConfiguration.hotkeys.find { it.action == action }
+
+    private fun tokenizeBinding(binding: HotkeyBinding): List<String> = buildList {
+        if (binding.modifiers and InputEvent.CTRL_DOWN_MASK != 0) add("Ctrl")
+        if (binding.modifiers and InputEvent.ALT_DOWN_MASK != 0) add("Alt")
+        if (binding.modifiers and InputEvent.SHIFT_DOWN_MASK != 0) add("Shift")
+        if (binding.modifiers and InputEvent.META_DOWN_MASK != 0) add("⌘")
+        add(KeyEvent.getKeyText(binding.keyCode))
+    }
+
+    private fun refreshShowShortcut(binding: HotkeyBinding?) {
+        showShortcut.removeAll()
+        if (binding == null || !binding.hasBinding) {
+            showShortcut.add(JLabel(localizationManager.getString("settings_hotkeys.no_binding")).apply {
+                foreground = UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
+            })
+        } else {
+            tokenizeBinding(binding).forEach { showShortcut.add(KeyChip(it, false)) }
+        }
+        showShortcut.revalidate()
+        showShortcut.repaint()
     }
 
     private fun updateButtonStates() {
@@ -242,6 +296,12 @@ class KeyboardPanel(
         withoutTrigger {
             enableCheck.isSelected = c.isGlobalHotkeysEnabled
 
+            val showBinding = c.hotkeys.find { it.action == HotkeyAction.SHOW_MAIN_WINDOW }
+            refreshShowShortcut(showBinding)
+            doubleCtrlCheck.isSelected = showBinding?.isDoubleCtrlEnabled ?: true
+            showEditButton.isEnabled = c.isGlobalHotkeysEnabled
+            showClearButton.isEnabled = c.isGlobalHotkeysEnabled && showBinding?.hasBinding == true
+
             val model = table.model as DefaultTableModel
             actionOrder.forEachIndexed { row, action ->
                 val binding = c.hotkeys.find { it.action == action }
@@ -250,6 +310,7 @@ class KeyboardPanel(
             }
 
             table.isEnabled = c.isGlobalHotkeysEnabled
+            doubleCtrlCheck.isEnabled = c.isGlobalHotkeysEnabled
             updateButtonStates()
         }
     }
@@ -291,17 +352,10 @@ class KeyboardPanel(
         override fun getTableCellRendererComponent(
             t: JTable, value: Any?, sel: Boolean, focus: Boolean, row: Int, col: Int
         ): Component {
-            val action  = actionOrder.getOrNull(row)
             val binding = value as? HotkeyBinding
             val bg      = if (sel) t.selectionBackground else t.background
 
             return when {
-                action == HotkeyAction.SHOW_MAIN_WINDOW && (binding == null || !binding.hasBinding) ->
-                    chipRow(
-                        listOf(localizationManager.getString("settings_hotkeys.double_ctrl")),
-                        bg, muted = true,
-                        tooltip = localizationManager.getString("settings_hotkeys.show_main_tooltip")
-                    )
                 binding == null || !binding.hasBinding ->
                     chipRow(
                         listOf(localizationManager.getString("settings_hotkeys.no_binding")),
@@ -310,8 +364,7 @@ class KeyboardPanel(
                 else ->
                     chipRow(
                         tokenizeBinding(binding), bg, muted = false,
-                        tooltip = if (action == HotkeyAction.SHOW_MAIN_WINDOW)
-                            localizationManager.getString("settings_hotkeys.show_main_tooltip") else null
+                        tooltip = null
                     )
             }
         }
@@ -446,38 +499,13 @@ class KeyboardPanel(
             super.getTableCellRendererComponent(t, value, sel, focus, row, col)
             val action = actionOrder.getOrNull(row)
 
-            if (action == HotkeyAction.SHOW_MAIN_WINDOW) {
-                // Repurpose scope cell as a "Double Ctrl" on/off toggle.
-                val binding = store.state.value.workingConfiguration.hotkeys
-                    .find { it.action == action }
-                val enabled = binding?.isDoubleCtrlEnabled ?: true
-                text        = if (enabled)
-                    localizationManager.getString("settings_hotkeys.double_ctrl_on")
-                else
-                    localizationManager.getString("settings_hotkeys.double_ctrl_off")
-                foreground  = if (enabled)
-                    (UIManager.getColor("Component.accentColor") ?: UIManager.getColor("Table.foreground"))
-                else
-                    UIManager.getColor("Label.disabledForeground")
-                font        = font.deriveFont(Font.PLAIN)
-                toolTipText = localizationManager.getString("settings_hotkeys.double_ctrl_toggle_hint")
-                return this
-            }
-
             val label = value as? String ?: ""
-            if (action in nonScopeToggleActions) {
-                text        = label
-                foreground  = UIManager.getColor("Label.disabledForeground")
-                font        = font.deriveFont(Font.ITALIC)
-                toolTipText = null
-            } else {
-                text       = label
-                foreground = if (sel) UIManager.getColor("Table.selectionForeground")
-                else     UIManager.getColor("Component.accentColor")
-                    ?: UIManager.getColor("Table.foreground")
-                font       = font.deriveFont(Font.PLAIN)
-                toolTipText = localizationManager.getString("settings_hotkeys.scope_toggle_hint")
-            }
+            text       = label
+            foreground = if (sel) UIManager.getColor("Table.selectionForeground")
+            else     UIManager.getColor("Component.accentColor")
+                ?: UIManager.getColor("Table.foreground")
+            font        = font.deriveFont(Font.PLAIN)
+            toolTipText = localizationManager.getString("settings_hotkeys.scope_toggle_hint")
             return this
         }
     }
