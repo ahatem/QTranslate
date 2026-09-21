@@ -14,8 +14,6 @@ import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.awt.Insets
 import java.awt.Point
-import java.awt.event.ActionEvent
-import java.awt.event.KeyEvent
 import javax.swing.*
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
@@ -33,7 +31,6 @@ class ExtraOutputPanel(
     private val onFindInDictionary: ((String) -> Unit)? = null,
     private val onSearchImages: ((String) -> Unit)? = null,
     private val onSetAsInput: ((String) -> Unit)? = null,
-    private val onEscapePressed: (() -> Unit)? = null,
 ) : JPanel(BorderLayout()), Renderable<ExtraOutputState> {
 
     private val textPane = AdvancedTextPane(
@@ -92,13 +89,6 @@ class ExtraOutputPanel(
     init {
         add(headerBar, BorderLayout.NORTH)
         add(readOnlyPanel, BorderLayout.CENTER)
-
-        onEscapePressed?.let { handler ->
-            textPane.inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "escape-to-input")
-            textPane.actionMap.put("escape-to-input", object : AbstractAction() {
-                override fun actionPerformed(e: ActionEvent) = handler()
-            })
-        }
 
         backwardBtn.addActionListener {
             if (backwardBtn.isSelected)

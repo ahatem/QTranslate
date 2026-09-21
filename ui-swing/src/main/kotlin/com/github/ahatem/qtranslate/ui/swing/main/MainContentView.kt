@@ -136,7 +136,6 @@ class MainContentView(
             dispatch(MainIntent.UpdateInputText(text))
             inputTextPanel.requestFocusOnText()
         },
-        onEscapePressed = { inputTextPanel.requestFocusOnText() },
     )
 
     private val extraOutputPanel = ExtraOutputPanel(
@@ -153,7 +152,6 @@ class MainContentView(
             dispatch(MainIntent.UpdateInputText(text))
             inputTextPanel.requestFocusOnText()
         },
-        onEscapePressed = { inputTextPanel.requestFocusOnText() },
     )
 
     val statusBar: StatusBar = StatusBar(

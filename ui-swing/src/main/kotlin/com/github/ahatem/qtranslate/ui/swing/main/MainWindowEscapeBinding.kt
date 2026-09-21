@@ -15,9 +15,9 @@ import javax.swing.KeyStroke
  * normal show action (tray click, global hotkey) restores the same window intact.
  *
  * Precedence is deliberate and relies on normal Swing InputMap ordering:
- * - `WHEN_FOCUSED` bindings win first, so the output/extra-output panes keep their
- *   existing "Escape moves focus back to input" behavior on the first press; the
- *   second press (now from input or another ordinary control) hides the window.
+ * - No text pane or ordinary child owns Escape, so a single press from input,
+ *   output, extra-output, or any other ordinary child reaches this binding and
+ *   hides the window.
  * - An in-flight translation is cancelled instead of hiding, preserving the
  *   previous `cancel-translation` behavior (first Esc cancels, next Esc hides).
  * - An open menu/lightweight popup owns Escape for its own dismissal

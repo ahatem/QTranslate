@@ -12,9 +12,6 @@ import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.FlowLayout
 import java.awt.Point
-import java.awt.event.ActionEvent
-import java.awt.event.KeyEvent
-import javax.swing.AbstractAction
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JLabel
@@ -22,7 +19,6 @@ import javax.swing.JMenuItem
 import javax.swing.JPanel
 import javax.swing.JPopupMenu
 import javax.swing.JSeparator
-import javax.swing.KeyStroke
 import javax.swing.UIManager
 
 class OutputTextPanel(
@@ -33,7 +29,6 @@ class OutputTextPanel(
     private val onFindInDictionary: ((String) -> Unit)? = null,
     private val onSearchImages: ((String) -> Unit)? = null,
     private val onSetAsInput: ((String) -> Unit)? = null,
-    private val onEscapePressed: (() -> Unit)? = null,
 ) : JPanel(BorderLayout()), Renderable<OutputTextState> {
 
     private val textPane = AdvancedTextPane(
@@ -80,13 +75,6 @@ class OutputTextPanel(
         add(definitionStrip, BorderLayout.SOUTH)
 
         textPane.hintText = localizationManager.getString("main_window_editor_context_menu.output_hint")
-
-        onEscapePressed?.let { handler ->
-            textPane.inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "escape-to-input")
-            textPane.actionMap.put("escape-to-input", object : AbstractAction() {
-                override fun actionPerformed(e: ActionEvent) = handler()
-            })
-        }
         textPane.getContextMenuLabel = { key ->
             localizationManager.getString("main_window_editor_context_menu.$key")
         }
