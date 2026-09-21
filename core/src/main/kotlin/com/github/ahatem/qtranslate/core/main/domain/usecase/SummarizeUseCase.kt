@@ -6,7 +6,6 @@ import com.github.ahatem.qtranslate.api.plugin.StandardOptions
 import com.github.ahatem.qtranslate.api.summarizer.SummarizeRequest
 import com.github.ahatem.qtranslate.api.summarizer.Summarizer
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
-import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
@@ -23,7 +22,7 @@ class SummarizeUseCase(
 
     suspend operator fun invoke(
         text: String,
-        config: Configuration,
+        summaryLength: String,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
     ): String {
         val summarizer = activeServiceManager.getActiveService<Summarizer>(ServiceRole.SUMMARIZER)
@@ -41,7 +40,7 @@ class SummarizeUseCase(
                     text = text,
                     // The service declares which lengths it offers; the host only passes the id
                     // the user picked, so a plugin-defined length travels through unchanged.
-                    options = mapOf(StandardOptions.KEY_SUMMARY_LENGTH to config.summaryLength)
+                    options = mapOf(StandardOptions.KEY_SUMMARY_LENGTH to summaryLength)
                 )
             )
         }

@@ -1119,7 +1119,9 @@ class MainAppFrame(
                     SettingsIntent.ToggleSetting(
                         update = { it.copy(extraOutputType = type) },
                         onSuccess = { saved ->
-                            mainStore.dispatch(MainIntent.RefreshExtraOutput(saved.extraOutputType))
+                            mainStore.dispatch(
+                                MainIntent.RefreshExtraOutput(ExtraOutputRequest.from(saved))
+                            )
                         }
                     )
                 )

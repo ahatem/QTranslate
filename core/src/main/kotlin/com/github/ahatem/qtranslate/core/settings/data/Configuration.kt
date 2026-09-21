@@ -19,6 +19,28 @@ enum class ExtraOutputSource {
     Input, Output
 }
 
+/**
+ * The complete request needed to compute one Extra Output result.
+ *
+ * This intentionally contains only Extra Output settings, so an immediate refresh does not
+ * carry a snapshot of unrelated application configuration while the settings flow catches up.
+ */
+data class ExtraOutputRequest(
+    val type: ExtraOutputType,
+    val source: ExtraOutputSource,
+    val summaryLength: String,
+    val rewriteStyle: String,
+) {
+    companion object {
+        fun from(config: Configuration) = ExtraOutputRequest(
+            type = config.extraOutputType,
+            source = config.extraOutputSource,
+            summaryLength = config.summaryLength,
+            rewriteStyle = config.rewriteStyle,
+        )
+    }
+}
+
 @Serializable
 enum class TextSource {
     Input, Output, ExtraOutput

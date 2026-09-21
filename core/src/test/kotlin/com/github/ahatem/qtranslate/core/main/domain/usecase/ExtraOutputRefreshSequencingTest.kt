@@ -18,6 +18,8 @@ import com.github.ahatem.qtranslate.core.history.HistoryRepository
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.Ok
@@ -51,7 +53,7 @@ class ExtraOutputRefreshSequencingTest {
         var state = translatedState()
 
         fixture.useCase.refreshExtraOutput(
-            extraOutputType = ExtraOutputType.Summarize,
+            extraOutputRequest = request(type = ExtraOutputType.Summarize),
             getState = { state },
             updateState = { transform -> state = state.transform() },
             onStatusUpdate = { _, _, _ -> },
@@ -69,7 +71,7 @@ class ExtraOutputRefreshSequencingTest {
         var state = translatedState()
 
         fixture.useCase.refreshExtraOutput(
-            extraOutputType = ExtraOutputType.Rewrite,
+            extraOutputRequest = request(type = ExtraOutputType.Rewrite),
             getState = { state },
             updateState = { transform -> state = state.transform() },
             onStatusUpdate = { _, _, _ -> },
@@ -87,7 +89,7 @@ class ExtraOutputRefreshSequencingTest {
         var state = translatedState().copy(extraOutputText = "stale")
 
         val refreshed = fixture.useCase.refreshExtraOutput(
-            extraOutputType = ExtraOutputType.None,
+            extraOutputRequest = request(type = ExtraOutputType.None),
             getState = { state },
             updateState = { transform -> state = state.transform() },
             onStatusUpdate = { _, _, _ -> },
@@ -105,7 +107,7 @@ class ExtraOutputRefreshSequencingTest {
         var state = translatedState()
 
         fixture.useCase.refreshExtraOutput(
-            extraOutputType = ExtraOutputType.Summarize,
+            extraOutputRequest = request(type = ExtraOutputType.Summarize),
             getState = { state },
             updateState = { transform -> state = state.transform() },
             onStatusUpdate = { _, _, _ -> },
@@ -114,7 +116,7 @@ class ExtraOutputRefreshSequencingTest {
         assertTrue(fixture.summarizer.started.isCompleted)
 
         fixture.useCase.refreshExtraOutput(
-            extraOutputType = ExtraOutputType.Rewrite,
+            extraOutputRequest = request(type = ExtraOutputType.Rewrite),
             getState = { state },
             updateState = { transform -> state = state.transform() },
             onStatusUpdate = { _, _, _ -> },
@@ -124,6 +126,87 @@ class ExtraOutputRefreshSequencingTest {
         assertEquals("rewrite", state.extraOutputText)
         assertEquals(1, fixture.rewriter.calls.size)
     }
+
+    @Test
+    fun `fallback translation uses the explicit extra output request`() = runTest {
+        val fixture = fixture(Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.BackwardTranslate), this)
+        var state = MainState(
+            inputText = "input",
+            sourceLanguage = LanguageCode.ENGLISH,
+            targetLanguage = LanguageCode.ARABIC,
+        )
+
+        fixture.useCase(
+            getState = { state },
+            updateState = { transform -> state = state.transform() },
+            onStatusUpdate = { _, _, _ -> },
+            extraOutputRequest = request(type = ExtraOutputType.Summarize),
+        )
+        advanceUntilIdle()
+
+        assertEquals("backward", state.translatedText)
+        assertEquals("summary", state.extraOutputText)
+        assertEquals(1, fixture.translator.calls.size)
+        assertEquals(1, fixture.summarizer.calls.size)
+        assertTrue(fixture.rewriter.calls.isEmpty())
+    }
+
+    @Test
+    fun `summary refresh uses the explicit summary length`() = runTest {
+        val fixture = fixture(
+            Configuration.DEFAULT.copy(
+                extraOutputType = ExtraOutputType.Summarize,
+                summaryLength = "short",
+            ),
+            this,
+        )
+        var state = translatedState()
+
+        fixture.useCase.refreshExtraOutput(
+            extraOutputRequest = request(
+                type = ExtraOutputType.Summarize,
+                summaryLength = "long",
+            ),
+            getState = { state },
+            updateState = { transform -> state = state.transform() },
+            onStatusUpdate = { _, _, _ -> },
+        )
+        advanceUntilIdle()
+
+        assertEquals("long", fixture.summarizer.calls.single().options.values.single())
+    }
+
+    @Test
+    fun `rewrite refresh uses the explicit rewrite style`() = runTest {
+        val fixture = fixture(
+            Configuration.DEFAULT.copy(
+                extraOutputType = ExtraOutputType.Rewrite,
+                rewriteStyle = "old",
+            ),
+            this,
+        )
+        var state = translatedState()
+
+        fixture.useCase.refreshExtraOutput(
+            extraOutputRequest = request(
+                type = ExtraOutputType.Rewrite,
+                rewriteStyle = "new",
+            ),
+            getState = { state },
+            updateState = { transform -> state = state.transform() },
+            onStatusUpdate = { _, _, _ -> },
+        )
+        advanceUntilIdle()
+
+        assertEquals("new", fixture.rewriter.calls.single().options.values.single())
+    }
+
+    private fun request(
+        type: ExtraOutputType,
+        source: ExtraOutputSource = ExtraOutputSource.Output,
+        summaryLength: String = "medium",
+        rewriteStyle: String = "neutral",
+    ) = ExtraOutputRequest(type, source, summaryLength, rewriteStyle)
 
     private fun translatedState() = MainState(
         translatedText = "translated",
