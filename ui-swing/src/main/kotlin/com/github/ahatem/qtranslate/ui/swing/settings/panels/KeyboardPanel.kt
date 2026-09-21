@@ -5,6 +5,8 @@ import com.formdev.flatlaf.FlatClientProperties
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyPresetKind
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyPresets
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
@@ -33,6 +35,7 @@ class KeyboardPanel(
     private lateinit var editButton:  JButton
     private lateinit var clearButton: JButton
     private lateinit var resetButton: JButton
+    private lateinit var presetCombo: JComboBox<HotkeyPresetKind>
 
     private val actionOrder = listOf(
         HotkeyAction.SHOW_QUICK_TRANSLATE,
@@ -94,6 +97,22 @@ class KeyboardPanel(
         addHint(localizationManager.getString("settings_hotkeys.double_ctrl_description"))
 
         addSeparator(localizationManager.getString("settings_hotkeys.assignments_group"))
+        presetCombo = JComboBox(HotkeyPresetKind.values()).apply {
+            renderer = object : DefaultListCellRenderer() {
+                override fun getListCellRendererComponent(
+                    list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean
+                ): Component = super.getListCellRendererComponent(
+                    list, presetLabel(value as? HotkeyPresetKind ?: HotkeyPresetKind.CUSTOM), index, selected, focused
+                )
+            }
+            addActionListener {
+                if (!isUpdatingFromState) {
+                    val preset = selectedItem as? HotkeyPresetKind ?: return@addActionListener
+                    applyDraft(store) { HotkeyDraftOperations.replacePreset(it, preset) }
+                }
+            }
+        }
+        addRow(localizationManager.getString("settings_hotkeys.preset_label"), presetCombo)
         addHint(localizationManager.getString("settings_hotkeys.edit_hint"))
 
         val model = object : DefaultTableModel(
@@ -251,7 +270,7 @@ class KeyboardPanel(
             JOptionPane.WARNING_MESSAGE
         ) == JOptionPane.YES_OPTION
         if (!confirmed) return
-        applyDraft(store) { it.copy(hotkeys = HotkeyBinding.DEFAULTS) }
+        applyDraft(store) { it.copy(hotkeys = HotkeyPresets.LEGACY.map { binding -> binding.copy() }) }
     }
 
     private fun saveBinding(binding: HotkeyBinding) {
@@ -295,6 +314,7 @@ class KeyboardPanel(
         val c = state.workingConfiguration
         withoutTrigger {
             enableCheck.isSelected = c.isGlobalHotkeysEnabled
+            presetCombo.selectedItem = HotkeyPresets.identify(c.hotkeys)
 
             val showBinding = c.hotkeys.find { it.action == HotkeyAction.SHOW_MAIN_WINDOW }
             refreshShowShortcut(showBinding)
@@ -340,6 +360,12 @@ class KeyboardPanel(
     private fun scopeLabel(scope: HotkeyScope): String = when (scope) {
         HotkeyScope.GLOBAL -> localizationManager.getString("settings_hotkeys.scope_global")
         HotkeyScope.LOCAL  -> localizationManager.getString("settings_hotkeys.scope_local")
+    }
+
+    private fun presetLabel(preset: HotkeyPresetKind): String = when (preset) {
+        HotkeyPresetKind.LEGACY -> localizationManager.getString("settings_hotkeys.preset_legacy")
+        HotkeyPresetKind.MODERN -> localizationManager.getString("settings_hotkeys.preset_modern")
+        HotkeyPresetKind.CUSTOM -> localizationManager.getString("settings_hotkeys.preset_custom")
     }
 
     /**
