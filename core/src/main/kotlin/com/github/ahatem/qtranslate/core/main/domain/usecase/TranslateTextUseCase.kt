@@ -380,10 +380,14 @@ class TranslateTextUseCase(
      * Nothing about the extra output needs the translation to be redone: [handleExtraOutput] takes
      * the translated text as a parameter, so it can be fed the text already in state.
      *
+     * [extraOutputType] may carry a mode that has just been committed. This avoids reading a
+     * previous value while the derived settings flow is still propagating.
+     *
      * Returns false when there is nothing to work from, leaving the caller to fall back to a real
      * translation rather than showing an empty panel.
      */
     suspend fun refreshExtraOutput(
+        extraOutputType: ExtraOutputType? = null,
         getState: () -> MainState,
         updateState: (MainState.() -> MainState) -> Unit,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
@@ -391,9 +395,9 @@ class TranslateTextUseCase(
         currentGetState = getState
         currentRequestId = requestIds.incrementAndGet()
         val state = getState()
-        val extraOutputType = settingsState.value.extraOutputType
+        val selectedExtraOutputType = extraOutputType ?: settingsState.value.extraOutputType
 
-        if (extraOutputType == ExtraOutputType.None) {
+        if (selectedExtraOutputType == ExtraOutputType.None) {
             updateState { copy(extraOutputText = "", isExtraOutputLoading = false) }
             return true
         }
@@ -416,6 +420,7 @@ class TranslateTextUseCase(
             updateState { copy(extraOutputText = "", isExtraOutputLoading = true) }
             try {
                 val extraOutput = handleExtraOutput(
+                    extraOutputType   = selectedExtraOutputType,
                     targetText        = state.translatedText,
                     sourceForBackward = state.detectedSourceLanguage ?: state.sourceLanguage,
                     targetForBackward = state.targetLanguage,
@@ -423,7 +428,7 @@ class TranslateTextUseCase(
                     onStatusUpdate    = onStatusUpdate
                 )
 
-                val patched = patchExtraOutput(getState().history, extraOutput, extraOutputType.name)
+                val patched = patchExtraOutput(getState().history, extraOutput, selectedExtraOutputType.name)
                 updateState {
                     copy(
                         extraOutputText      = extraOutput,
@@ -495,6 +500,7 @@ class TranslateTextUseCase(
 
         val extraOutput = try {
             handleExtraOutput(
+                extraOutputType   = extraOutputType,
                 targetText        = translatedText,
                 sourceForBackward = sourceForBackward,
                 targetForBackward = targetForBackward,
@@ -523,6 +529,7 @@ class TranslateTextUseCase(
     }
 
     private suspend fun handleExtraOutput(
+        extraOutputType: ExtraOutputType,
         targetText: String,
         sourceForBackward: LanguageCode,
         targetForBackward: LanguageCode,
@@ -536,7 +543,7 @@ class TranslateTextUseCase(
             ExtraOutputSource.Output -> targetText
             ExtraOutputSource.Input  -> currentGetState?.invoke()?.inputText ?: ""
         }
-        return when (config.extraOutputType) {
+        return when (extraOutputType) {
             ExtraOutputType.BackwardTranslate -> performBackwardTranslation(
                 targetText     = targetText,
                 targetLanguage = sourceForBackward,

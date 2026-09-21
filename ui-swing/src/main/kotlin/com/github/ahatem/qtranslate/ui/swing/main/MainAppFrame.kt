@@ -1116,9 +1116,13 @@ class MainAppFrame(
             },
             onChangeExtraOutput = { type ->
                 settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting { it.copy(extraOutputType = type) }
+                    SettingsIntent.ToggleSetting(
+                        update = { it.copy(extraOutputType = type) },
+                        onSuccess = { saved ->
+                            mainStore.dispatch(MainIntent.RefreshExtraOutput(saved.extraOutputType))
+                        }
+                    )
                 )
-                mainStore.dispatch(MainIntent.RefreshExtraOutput)
             },
             onShowDictionary = { showDictionaryDialog() },
             onShowImageSearch = { showImageSearchDialog() },
