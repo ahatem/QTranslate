@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFil
 import java.awt.AlphaComposite
 import java.awt.Color
 import java.awt.Cursor
+import java.awt.Dialog
 import java.awt.Dimension
 import java.awt.GraphicsDevice
 import java.awt.GraphicsEnvironment
@@ -70,6 +71,10 @@ internal class SelectionTranslateButton(
     init {
         type = Window.Type.POPUP
         isAlwaysOnTop = true
+        // The selection affordance is a transient external-use window. It must not be blocked by
+        // or activate an application-modal QTranslate dialog while the user selects text elsewhere.
+        modalExclusionType = Dialog.ModalExclusionType.APPLICATION_EXCLUDE
+        setAutoRequestFocus(false)
         // Never take focus — the user is mid-task in another application and the
         // button appearing must not interrupt whatever they are doing.
         focusableWindowState = false

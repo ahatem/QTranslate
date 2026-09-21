@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons
 import java.awt.AWTEvent
 import java.awt.Color
 import java.awt.Dimension
+import java.awt.Dialog
 import java.awt.Frame
 import java.awt.Insets
 import java.awt.MouseInfo
@@ -87,6 +88,11 @@ class FloatingPopupBehavior(
         AppIcons.applyTo(window)
         window.isUndecorated = true
         window.isAlwaysOnTop = true
+        // These transient windows must remain independent of application-modal dialogs such as
+        // Settings. Disabling automatic activation keeps showing a popup from disturbing the
+        // external application; an explicit click can still focus interactive popups.
+        window.modalExclusionType = Dialog.ModalExclusionType.APPLICATION_EXCLUDE
+        window.setAutoRequestFocus(false)
         window.defaultCloseOperation = JDialog.DO_NOTHING_ON_CLOSE
         window.minimumSize = minimumSize
     }
