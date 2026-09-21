@@ -21,8 +21,8 @@ object InputRequirements {
         registerHotkeys = state.effectiveHotkeysEnabled,
         // Raw keyboard tracking follows the configured switch, not the paused one.
         keyboard = state.globalHotkeysEnabled && state.doubleCtrlEnabled,
-        mouseButtons = state.selectionIconEnabled || state.dismissOnOutsideClickEnabled,
-        mouseMotion = state.selectionIconEnabled
+        mouseButtons = state.selectionCaptureEnabled || state.dismissOnOutsideClickEnabled,
+        mouseMotion = state.selectionCaptureEnabled
     )
 }
 
@@ -36,7 +36,8 @@ data class InputRuntimeState(
     val globalHotkeysEnabled: Boolean = true,
     val paused: Boolean = false,
     val doubleCtrlEnabled: Boolean = true,
-    val selectionIconEnabled: Boolean = false,
+    /** Whether raw mouse selection capture is needed by any automatic selection behavior. */
+    val selectionCaptureEnabled: Boolean = false,
     val dismissOnOutsideClickEnabled: Boolean = true,
 ) {
     /** Registered shortcut firing honors pause; raw tracking does not. */

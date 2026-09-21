@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.app.screenshots
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.core.settings.data.SelectionBehavior
 
 /**
  * The gallery of scenes, in the order they are captured.
@@ -51,7 +52,7 @@ internal object Scenes {
         uiScale = SCALE_PERCENT,
         autoCheckForUpdates = false,
         isInstantTranslationEnabled = false,
-        isSelectionIconEnabled = false,
+        selectionBehavior = SelectionBehavior.OFF,
         isGlobalHotkeysEnabled = false
     )
 

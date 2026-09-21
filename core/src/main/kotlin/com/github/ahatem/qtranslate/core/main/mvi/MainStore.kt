@@ -9,6 +9,7 @@ import com.github.ahatem.qtranslate.core.history.HistoryRepository
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.SelectionReadSource
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
@@ -20,6 +21,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * MVI store for the main translation screen.
@@ -62,6 +64,7 @@ class MainStore(
 
     private var documentTranslationJob: Job? = null
     private var documentTranslationGeneration = 0L
+    private val quickTranslateGenerations = AtomicLong()
 
     private val _state = MutableStateFlow(
         MainState(
@@ -234,10 +237,18 @@ class MainStore(
             // Closing clears the pin. A pin says "keep this one around", not "and every one
             // after it" — leaving it set meant the next popup opened wearing the pinned border
             // and then auto-hid anyway, which is the worst of both.
-            MainIntent.HideQuickTranslate ->
+            MainIntent.HideQuickTranslate -> {
+                quickTranslateGenerations.incrementAndGet()
+                translateTextUseCase.cancel()
                 _state.update {
-                    it.copy(isQuickTranslateDialogVisible = false, isQuickTranslateDialogPinned = false)
+                    it.copy(
+                        isQuickTranslateDialogVisible = false,
+                        isQuickTranslateDialogPinned = false,
+                        isLoading = false,
+                        isExtraOutputLoading = false
+                    )
                 }
+            }
 
             MainIntent.ToggleQuickTranslateDialogPin ->
                 // Use `it` from the update lambda — not _state.value — to avoid
@@ -260,7 +271,10 @@ class MainStore(
                 handleSpellCheck(_state.value.inputText, isEnabled = true)
             }
 
-            is MainIntent.Translate -> scope.launch { translateText(intent.text) }
+            is MainIntent.Translate -> {
+                translateTextUseCase.cancel()
+                scope.launch { translateText(intent.text) }
+            }
 
             MainIntent.RefreshExtraOutput -> scope.launch { refreshExtraOutput() }
 
@@ -296,8 +310,12 @@ class MainStore(
                 handleOcrAndCopyText(intent)
             }
 
-            is MainIntent.ShowQuickTranslate -> scope.launch {
-                handleShowQuickTranslate(intent)
+            is MainIntent.ShowQuickTranslate -> {
+                val generation = quickTranslateGenerations.incrementAndGet()
+                // Invalidate a previous auto-read before its handler coroutine gets a chance to
+                // finish TTS setup. The handler also checks the request token after translation.
+                translateTextUseCase.cancel()
+                scope.launch { handleShowQuickTranslate(intent, generation) }
             }
 
             is MainIntent.LookupWord -> scope.launch { handleLookupWord(intent) }
@@ -462,7 +480,10 @@ class MainStore(
         updateStatusBar(StatusCode.OcrTextCopied, NotificationType.INFO, true)
     }
 
-    private suspend fun handleShowQuickTranslate(intent: MainIntent.ShowQuickTranslate) {
+    private suspend fun handleShowQuickTranslate(
+        intent: MainIntent.ShowQuickTranslate,
+        generation: Long
+    ) {
         if (intent.selectedText.isBlank()) return
 
         if (_state.value.isQuickTranslateDialogVisible) {
@@ -496,18 +517,72 @@ class MainStore(
             }
         }
 
+        val readSource = settingsState.value.selectionReadSource
+        if (intent.readSelectionAloud && readSource == SelectionReadSource.SOURCE) {
+            val sourceLanguage = _state.value.resolvedSourceLanguage
+            scope.launch {
+                if (!SelectionTranslationReadGuard.shouldReadSource(
+                        readRequested = true,
+                        selectionGeneration = generation,
+                        currentSelectionGeneration = quickTranslateGenerations.get(),
+                        selectedText = intent.selectedText
+                    )
+                ) return@launch
+
+                handleListen(
+                    textSource = TextSource.Input,
+                    textOverride = intent.selectedText,
+                    languageOverride = sourceLanguage,
+                    requestStillCurrent = {
+                        SelectionTranslationReadGuard.shouldReadSource(
+                            readRequested = true,
+                            selectionGeneration = generation,
+                            currentSelectionGeneration = quickTranslateGenerations.get(),
+                            selectedText = intent.selectedText
+                        )
+                    }
+                )
+            }
+        }
+
         // Let TranslateTextUseCase own isLoading — it sets it at the start of the job.
-        translateText()
+        val completion = translateText()
+        if (readSource != SelectionReadSource.TRANSLATION ||
+            !SelectionTranslationReadGuard.shouldRead(
+                readRequested = intent.readSelectionAloud,
+                selectionGeneration = generation,
+                currentSelectionGeneration = quickTranslateGenerations.get(),
+                completion = completion,
+                translationStillCurrent = completion?.let { translateTextUseCase.isCurrent(it.requestId) } == true
+            )) return
+
+        val speechPlan = selectionSpeechPlan(
+            readSource = readSource,
+            selectedText = intent.selectedText,
+            completion = completion,
+            state = _state.value
+        ) ?: return
+
+        // Route through the existing TTS path. The completion token proves that a translation
+        // result belongs to this request rather than a newer translation.
+        handleListen(
+            textSource = speechPlan.textSource,
+            textOverride = speechPlan.textOverride,
+            languageOverride = speechPlan.languageOverride,
+            requestStillCurrent = {
+                generation == quickTranslateGenerations.get() &&
+                    completion?.let { translateTextUseCase.isCurrent(it.requestId) } == true
+            }
+        )
     }
 
-    private suspend fun translateText(textOverride: String? = null) {
+    private suspend fun translateText(textOverride: String? = null) =
         translateTextUseCase(
             getState    = { _state.value },
             updateState = { transform -> _state.update(transform) },
             onStatusUpdate = ::updateStatusBar,
             textOverride = textOverride
         )
-    }
 
     /**
      * Recomputes the extra panel alone, falling back to a full translation when there is no
@@ -544,14 +619,16 @@ class MainStore(
     private suspend fun handleListen(
         textSource: TextSource,
         textOverride: String?,
-        languageOverride: LanguageCode?
+        languageOverride: LanguageCode?,
+        requestStillCurrent: () -> Boolean = { true }
     ) {
         handleTextToSpeechUseCase(
             currentState     = _state.value,
             textSource       = textSource,
             textOverride     = textOverride,
             languageOverride = languageOverride,
-            onStatusUpdate   = ::updateStatusBar
+            onStatusUpdate   = ::updateStatusBar,
+            requestStillCurrent = requestStillCurrent
         )
     }
 

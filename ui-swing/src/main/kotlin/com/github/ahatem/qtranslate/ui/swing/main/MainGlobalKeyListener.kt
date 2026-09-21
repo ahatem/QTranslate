@@ -63,6 +63,7 @@ class MainGlobalKeyListener(
     private val onTranslate: () -> Unit = {},
     private val onSelectionDetected: (String, Point) -> Unit = { _, _ -> },
     private val onPointerPressed: (Point) -> Unit = {},
+    private val shouldTrackSelectionAt: (Point) -> Boolean = { true },
     private val backendFactory: (() -> GlobalInputBackend)? = null,
     private val selectionCaptureFactory: ((
         clipboard: SystemClipboard,
@@ -480,19 +481,27 @@ class MainGlobalKeyListener(
             // Reported before the selection-icon check: floating popups rely on this to close
             // on an outside click even when the icon feature is off.
             onPointerPressed(event.location)
-            if (event.button == MouseButtonId.LEFT) gestureTracker.onPressed(event.location)
+            if (event.button == MouseButtonId.LEFT) {
+                if (shouldTrackSelectionAt(event.location)) {
+                    gestureTracker.onPressed(event.location)
+                } else {
+                    // A disallowed press must not leave an older gesture armed. The release
+                    // event may arrive outside the QTranslate window after a resize or drag.
+                    gestureTracker.onReleased()
+                }
+            }
             return
         }
         val wasDrag = gestureTracker.onReleased()
         if (event.button != MouseButtonId.LEFT) return
-        if (!wasDrag || !runtimeState.selectionIconEnabled) return
+        if (!wasDrag || !runtimeState.selectionCaptureEnabled) return
 
         val pointer = event.location
         scope.launch {
             delay(SELECTION_SETTLE_DELAY_MS)
             handleSelectedText { text ->
                 // Re-check the flag: it may have been disabled while capture was in flight.
-                if (text.isNotBlank() && runtimeState.selectionIconEnabled) {
+                if (text.isNotBlank() && runtimeState.selectionCaptureEnabled) {
                     onSelectionDetected(text, pointer)
                 }
             }

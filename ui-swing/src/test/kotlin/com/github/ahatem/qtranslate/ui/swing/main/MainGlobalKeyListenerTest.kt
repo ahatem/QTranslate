@@ -70,6 +70,7 @@ class MainGlobalKeyListenerTest {
         val quickQueries: MutableList<String> = mutableListOf(),
         var cycles: Int = 0,
         var translates: Int = 0,
+        val selectionGestureAllowedAt: (Point) -> Boolean = { true },
         captureFactory: ((
             com.github.ahatem.qtranslate.ui.swing.shared.clipboard.SystemClipboard,
             com.github.ahatem.qtranslate.ui.swing.shared.clipboard.ClipboardChangeMonitor,
@@ -88,6 +89,7 @@ class MainGlobalKeyListenerTest {
             onSelectionDetected = { _, _ -> selections++ },
             onPointerPressed = { presses += it },
             onTranslate = { translates++ },
+            shouldTrackSelectionAt = selectionGestureAllowedAt,
             backendFactory = { backend },
             selectionCaptureFactory = captureFactory
                 ?: { _, _, simulateCopy, captureLogger ->
@@ -500,13 +502,98 @@ class MainGlobalKeyListenerTest {
     }
 
     @Test
+    fun `allowed left drag captures exactly once`() = runTest {
+        val harness = Harness(scope = this, captureFactory = successCapture("word"))
+        harness.set(InputRuntimeState(selectionCaptureEnabled = true))
+        harness.listener.initialize()
+
+        harness.backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.LEFT, true, Point(0, 0)))
+        harness.backend.emit(GlobalInputEvent.MouseMove(Point(30, 30)))
+        harness.backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.LEFT, false, Point(30, 30)))
+        advanceUntilIdle()
+
+        assertEquals(1, harness.selections)
+    }
+
+    @Test
+    fun `disallowed left drag never captures or detects selection but still notifies press`() = runTest {
+        val harness = Harness(
+            scope = this,
+            selectionGestureAllowedAt = { it != Point(0, 0) },
+            captureFactory = successCapture("word")
+        )
+        harness.set(InputRuntimeState(selectionCaptureEnabled = true))
+        harness.listener.initialize()
+
+        harness.backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.LEFT, true, Point(0, 0)))
+        harness.backend.emit(GlobalInputEvent.MouseMove(Point(30, 30)))
+        harness.backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.LEFT, false, Point(30, 30)))
+        advanceUntilIdle()
+
+        assertEquals(listOf(Point(0, 0)), harness.presses)
+        assertEquals(0, harness.selections)
+    }
+
+    @Test
+    fun `disallowed press cannot leak into the next allowed gesture`() = runTest {
+        val harness = Harness(
+            scope = this,
+            selectionGestureAllowedAt = { it != Point(0, 0) },
+            captureFactory = successCapture("word")
+        )
+        harness.set(InputRuntimeState(selectionCaptureEnabled = true))
+        harness.listener.initialize()
+
+        harness.backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.LEFT, true, Point(0, 0)))
+        harness.backend.emit(GlobalInputEvent.MouseMove(Point(30, 30)))
+        harness.backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.LEFT, false, Point(30, 30)))
+        harness.backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.LEFT, true, Point(10, 10)))
+        harness.backend.emit(GlobalInputEvent.MouseMove(Point(40, 40)))
+        harness.backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.LEFT, false, Point(40, 40)))
+        advanceUntilIdle()
+
+        assertEquals(1, harness.selections)
+    }
+
+    @Test
+    fun `right click remains unchanged when selection tracking is disallowed`() = runTest {
+        val harness = Harness(scope = this, selectionGestureAllowedAt = { false })
+        harness.listener.initialize()
+
+        harness.backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.RIGHT, true, Point(0, 0)))
+        harness.backend.emit(GlobalInputEvent.MouseMove(Point(30, 30)))
+        harness.backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.RIGHT, false, Point(30, 30)))
+        advanceUntilIdle()
+
+        assertEquals(listOf(Point(0, 0)), harness.presses)
+        assertEquals(0, harness.selections)
+    }
+
+    @Test
+    fun `simple allowed click remains ignored`() = runTest {
+        val harness = Harness(
+            scope = this,
+            selectionGestureAllowedAt = { true },
+            captureFactory = successCapture("word")
+        )
+        harness.set(InputRuntimeState(selectionCaptureEnabled = true))
+        harness.listener.initialize()
+
+        harness.backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.LEFT, true, Point(0, 0)))
+        harness.backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.LEFT, false, Point(0, 0)))
+        advanceUntilIdle()
+
+        assertEquals(0, harness.selections)
+    }
+
+    @Test
     fun `selection icon disabled keeps the motion mask off`() = runTest {
         val harness = harness()
         harness.set(InputRuntimeState(bindings = bindings(showMainWindowBinding())))
         harness.listener.initialize()
         assertEquals(Triple(true, true, false), harness.backend.rawMask)
 
-        harness.set(harness.applied.copy(selectionIconEnabled = true))
+        harness.set(harness.applied.copy(selectionCaptureEnabled = true))
         assertEquals(Triple(true, true, true), harness.backend.rawMask)
     }
 
@@ -868,7 +955,7 @@ class MainGlobalKeyListenerTest {
         harness.set(
             InputRuntimeState(
                 bindings = bindings(showMainWindowBinding()),
-                selectionIconEnabled = false,
+                selectionCaptureEnabled = false,
                 dismissOnOutsideClickEnabled = false
             )
         )
@@ -1269,7 +1356,7 @@ class MainGlobalKeyListenerTest {
         val token = harness.listener.acceptedTokenFor(HotkeyAction.SHOW_IMAGES)
 
         // A reconcile that changes nothing relevant (selection toggle only).
-        harness.set(harness.applied.copy(selectionIconEnabled = true))
+        harness.set(harness.applied.copy(selectionCaptureEnabled = true))
         advanceUntilIdle()
 
         assertEquals(token, harness.listener.acceptedTokenFor(HotkeyAction.SHOW_IMAGES))
@@ -1336,7 +1423,7 @@ class MainGlobalKeyListenerTest {
 
         // The platform starts cooperating; the next apply releases the leftover.
         harness.backend.refusedUnregister.clear()
-        harness.set(harness.applied.copy(selectionIconEnabled = true))
+        harness.set(harness.applied.copy(selectionCaptureEnabled = true))
         advanceUntilIdle()
 
         assertTrue(harness.backend.leftoverAccelerators().isEmpty(), "cleanup must complete")
@@ -1502,7 +1589,7 @@ class MainGlobalKeyListenerTest {
 
         // The platform cooperates again; any later reconcile retries the release.
         harness.backend.refusedUnregister.clear()
-        harness.set(harness.applied.copy(selectionIconEnabled = true))
+        harness.set(harness.applied.copy(selectionCaptureEnabled = true))
         advanceUntilIdle()
 
         assertTrue(harness.listener.outstandingLeftovers().isEmpty())

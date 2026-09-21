@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.api.plugin.StandardOptions
 import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 import javax.swing.KeyStroke
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -22,6 +23,29 @@ enum class ExtraOutputSource {
 enum class TextSource {
     Input, Output, ExtraOutput
 }
+
+/** The action triggered after text is selected with the mouse in another application. */
+@Serializable
+enum class SelectionBehavior {
+    /** Mouse-selection capture is disabled. */
+    OFF,
+    /** Show the floating translation button near the selection. */
+    SHOW_ICON,
+    /** Open or refresh Quick Translate and translate the selection. */
+    TRANSLATE,
+    /** Translate the selection and read the translated result aloud. */
+    TRANSLATE_AND_READ
+}
+
+/** Which request-owned text is spoken for [SelectionBehavior.TRANSLATE_AND_READ]. */
+@Serializable
+enum class SelectionReadSource {
+    SOURCE,
+    TRANSLATION
+}
+
+val SelectionBehavior.selectionCaptureEnabled: Boolean
+    get() = this != SelectionBehavior.OFF
 
 /**
  * What happens when the user clicks the window's close (X) button.
@@ -271,7 +295,14 @@ data class Configuration(
     val launchOnSystemStartup: Boolean = false,
     val autoCheckForUpdates: Boolean = true,
     val isGlobalHotkeysEnabled: Boolean = true,
-    val isSelectionIconEnabled: Boolean = false,
+    val selectionBehavior: SelectionBehavior = SelectionBehavior.OFF,
+    val selectionReadSource: SelectionReadSource = SelectionReadSource.TRANSLATION,
+    /**
+     * Temporary read-only compatibility input for v6 and older files. It is consumed by the
+     * v6 → v7 migration and cleared before a configuration can be written again.
+     */
+    @SerialName("isSelectionIconEnabled")
+    val legacySelectionIconEnabled: Boolean? = null,
     /**
      * The interface language, or blank for "not chosen yet, follow the operating system".
      *
@@ -440,7 +471,9 @@ data class Configuration(
                 hotkeys                      = HotkeyBinding.DEFAULTS,
                 launchOnSystemStartup        = false,
                 isGlobalHotkeysEnabled       = true,
-                isSelectionIconEnabled       = false,
+                selectionBehavior            = SelectionBehavior.OFF,
+                selectionReadSource          = SelectionReadSource.TRANSLATION,
+                legacySelectionIconEnabled   = null,
                 autoCheckForUpdates          = true,
                 interfaceLanguage            = "en",
                 isInstantTranslationEnabled  = false,

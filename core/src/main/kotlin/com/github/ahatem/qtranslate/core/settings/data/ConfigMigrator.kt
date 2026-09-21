@@ -24,7 +24,7 @@ object ConfigMigrator {
      * would skip every migration it needs. A configuration this build creates from scratch is
      * stamped with this value instead.
      */
-    internal const val CURRENT_VERSION = 6
+    internal const val CURRENT_VERSION = 7
 
     /** The old defaults, frozen: this is what "the user never changed it" looked like. */
     private const val LEGACY_POPUP_IDLE_SECONDS = 3
@@ -152,6 +152,20 @@ object ConfigMigrator {
                         } else {
                             config.quickDictionaryIdleTimeoutSeconds
                         }
+                )
+            }
+            6 -> {
+                // v6 → v7: replace the old icon-only switch with the complete selection action.
+                // The nullable compatibility field exists solely because Configuration is
+                // decoded before this migrator runs. Clearing it prevents obsolete state from
+                // being emitted by the next save.
+                logger.info("ConfigMigrator: migrating v6 → v7 — converting mouse-selection behavior")
+                config.copy(
+                    configVersion = 7,
+                    selectionBehavior = config.legacySelectionIconEnabled?.let { enabled ->
+                        if (enabled) SelectionBehavior.SHOW_ICON else SelectionBehavior.OFF
+                    } ?: config.selectionBehavior,
+                    legacySelectionIconEnabled = null
                 )
             }
             else -> {

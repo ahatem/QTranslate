@@ -8,12 +8,12 @@ class InputRequirementsTest {
     private fun state(
         hotkeysEnabled: Boolean,
         doubleCtrlEnabled: Boolean,
-        selectionIconEnabled: Boolean,
+        selectionCaptureEnabled: Boolean,
         dismissOnOutsideClickEnabled: Boolean,
     ) = InputRuntimeState(
         globalHotkeysEnabled = hotkeysEnabled,
         doubleCtrlEnabled = doubleCtrlEnabled,
-        selectionIconEnabled = selectionIconEnabled,
+        selectionCaptureEnabled = selectionCaptureEnabled,
         dismissOnOutsideClickEnabled = dismissOnOutsideClickEnabled
     )
 
@@ -25,7 +25,7 @@ class InputRequirementsTest {
                 state(
                     hotkeysEnabled = true,
                     doubleCtrlEnabled = true,
-                    selectionIconEnabled = false,
+                    selectionCaptureEnabled = false,
                     dismissOnOutsideClickEnabled = true
                 )
             )
@@ -40,7 +40,7 @@ class InputRequirementsTest {
                 state(
                     hotkeysEnabled = false,
                     doubleCtrlEnabled = true,
-                    selectionIconEnabled = true,
+                    selectionCaptureEnabled = true,
                     dismissOnOutsideClickEnabled = false
                 )
             )
@@ -55,7 +55,7 @@ class InputRequirementsTest {
                 state(
                     hotkeysEnabled = true,
                     doubleCtrlEnabled = false,
-                    selectionIconEnabled = false,
+                    selectionCaptureEnabled = false,
                     dismissOnOutsideClickEnabled = true
                 )
             )
@@ -70,7 +70,7 @@ class InputRequirementsTest {
                 state(
                     hotkeysEnabled = true,
                     doubleCtrlEnabled = true,
-                    selectionIconEnabled = false,
+                    selectionCaptureEnabled = false,
                     dismissOnOutsideClickEnabled = false
                 )
             )
@@ -85,7 +85,7 @@ class InputRequirementsTest {
                 state(
                     hotkeysEnabled = false,
                     doubleCtrlEnabled = false,
-                    selectionIconEnabled = false,
+                    selectionCaptureEnabled = false,
                     dismissOnOutsideClickEnabled = false
                 )
             )
@@ -93,14 +93,14 @@ class InputRequirementsTest {
     }
 
     @Test
-    fun `selection icon alone requests buttons and motion without keyboard change`() {
+    fun `selection capture alone requests buttons and motion without keyboard change`() {
         assertEquals(
             ResolvedInput(registerHotkeys = false, keyboard = false, mouseButtons = true, mouseMotion = true),
             InputRequirements.resolve(
                 state(
                     hotkeysEnabled = false,
                     doubleCtrlEnabled = false,
-                    selectionIconEnabled = true,
+                    selectionCaptureEnabled = true,
                     dismissOnOutsideClickEnabled = false
                 )
             )

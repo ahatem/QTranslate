@@ -308,6 +308,19 @@ class MainAppFrame(
         }
     }
 
+    /** Returns true when [screenPoint] is inside any visible top-level Swing window we own. */
+    private fun isQTranslateWindowAt(screenPoint: Point): Boolean =
+        Window.getWindows().any { window ->
+            window.isShowing && window.bounds.contains(screenPoint)
+        }
+
+    /** Returns true when the active Swing window belongs to this process. */
+    private fun isQTranslateWindowActive(): Boolean {
+        val activeWindow = KeyboardFocusManager.getCurrentKeyboardFocusManager().activeWindow
+            ?: return isActive
+        return Window.getWindows().any { it === activeWindow && it.isShowing }
+    }
+
     private val globalKeyListener = MainGlobalKeyListener(
         scope = appScope,
         logger = logger,
@@ -348,10 +361,15 @@ class MainAppFrame(
         onTranslate = { mainStore.dispatch(MainIntent.Translate()) },
         onSelectionDetected = { text, location ->
             runOnUi {
-                val enabled = settingsStore.state.value.originalConfiguration.isSelectionIconEnabled
-                // Suppress the button while QTranslate itself is focused — selecting text
-                // inside the app already has the toolbar and hotkeys available.
-                if (enabled && !isActive) selectionTranslateButton.showAt(location, text)
+                val behavior = settingsStore.state.value.originalConfiguration.selectionBehavior
+                when (SelectionBehaviorRouter.decide(behavior, isQTranslateWindowActive())) {
+                    SelectionAction.NONE -> Unit
+                    SelectionAction.SHOW_ICON -> selectionTranslateButton.showAt(location, text)
+                    SelectionAction.TRANSLATE ->
+                        mainStore.dispatch(MainIntent.ShowQuickTranslate(text))
+                    SelectionAction.TRANSLATE_AND_READ ->
+                        mainStore.dispatch(MainIntent.ShowQuickTranslate(text, readSelectionAloud = true))
+                }
             }
         },
         onPointerPressed = { location ->
@@ -359,7 +377,8 @@ class MainAppFrame(
                 selectionTranslateButton.dismissIfOutside(location)
                 dismissPopupsPressedOutside(location)
             }
-        }
+        },
+        shouldTrackSelectionAt = { location -> !isQTranslateWindowAt(location) }
     )
 
     internal var pasteInjector: PasteInjector =
@@ -471,7 +490,7 @@ class MainAppFrame(
             InputRuntimeState(
                 bindings = storeState.originalConfiguration.hotkeys,
                 globalHotkeysEnabled = storeState.workingConfiguration.isGlobalHotkeysEnabled,
-                selectionIconEnabled = storeState.originalConfiguration.isSelectionIconEnabled,
+                selectionCaptureEnabled = storeState.originalConfiguration.selectionBehavior.selectionCaptureEnabled,
                 dismissOnOutsideClickEnabled = storeState.workingConfiguration.closePopupsOnClickOutside
             )
         )
@@ -700,10 +719,12 @@ class MainAppFrame(
         // input state itself is driven by the unified collector below.
         appScope.launch(handler) {
             settingsStore.state
-                .map { it.originalConfiguration.isSelectionIconEnabled }
+                .map { it.originalConfiguration.selectionBehavior }
                 .distinctUntilChanged()
-                .collect { enabled ->
-                    if (!enabled) withContext(Dispatchers.Swing) { selectionTranslateButton.dismiss() }
+                .collect { behavior ->
+                    if (behavior != SelectionBehavior.SHOW_ICON) {
+                        withContext(Dispatchers.Swing) { selectionTranslateButton.dismiss() }
+                    }
                 }
         }
 
@@ -798,7 +819,7 @@ class MainAppFrame(
                     InputRuntimeState(
                         bindings = state.originalConfiguration.hotkeys,
                         globalHotkeysEnabled = state.originalConfiguration.isGlobalHotkeysEnabled,
-                        selectionIconEnabled = state.originalConfiguration.isSelectionIconEnabled,
+                        selectionCaptureEnabled = state.originalConfiguration.selectionBehavior.selectionCaptureEnabled,
                         dismissOnOutsideClickEnabled = state.workingConfiguration.closePopupsOnClickOutside
                     )
                 }
@@ -1608,7 +1629,7 @@ class MainAppFrame(
             InputRuntimeState(
                 bindings = saved.hotkeys,
                 globalHotkeysEnabled = config.isGlobalHotkeysEnabled,
-                selectionIconEnabled = saved.isSelectionIconEnabled,
+                selectionCaptureEnabled = saved.selectionBehavior.selectionCaptureEnabled,
                 dismissOnOutsideClickEnabled = config.closePopupsOnClickOutside
             )
         )

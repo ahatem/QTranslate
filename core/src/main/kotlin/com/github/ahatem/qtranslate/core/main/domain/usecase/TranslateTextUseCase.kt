@@ -21,6 +21,12 @@ import com.github.michaelbull.result.fold
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
 import com.github.ahatem.qtranslate.core.shared.util.shortSummary
+import java.util.concurrent.atomic.AtomicLong
+
+data class TranslationCompletion(
+    val requestId: Long,
+    val translatedText: String
+)
 
 /**
  * Translates the current input text and updates the [MainState] with the result.
@@ -56,11 +62,17 @@ class TranslateTextUseCase(
 ) {
     private val logger: Logger = loggerFactory.getLogger("TranslateTextUseCase")
     private var translationJob: Job? = null
+    private val requestIds = AtomicLong()
+    @Volatile private var currentRequestId: Long = 0L
 
     fun cancel() {
+        currentRequestId = requestIds.incrementAndGet()
         translationJob?.cancel(CancellationException("Input cleared"))
         translationJob = null
     }
+
+    /** True only while [requestId] still owns the current translation result. */
+    fun isCurrent(requestId: Long): Boolean = currentRequestId == requestId
 
     // Stored so handleExtraOutput can access current input text for ExtraOutputSource.Input
     private var currentGetState: (() -> MainState)? = null
@@ -70,14 +82,16 @@ class TranslateTextUseCase(
         updateState: (MainState.() -> MainState) -> Unit,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit,
         textOverride: String? = null
-    ) {
+    ): TranslationCompletion? {
         currentGetState = getState
+        val requestId = requestIds.incrementAndGet()
+        currentRequestId = requestId
         translationJob?.cancel(CancellationException("New translation requested"))
 
         val textToTranslate = textOverride ?: getState().inputText
         if (textToTranslate.isBlank()) {
             logger.debug("Translation skipped: input text is blank")
-            return
+            return null
         }
 
         // Resolved with its id: history records which service produced each entry, and services
@@ -86,14 +100,15 @@ class TranslateTextUseCase(
         if (active == null) {
             logger.warn("No translator service available")
             onStatusUpdate(StatusCode.NoTranslatorActive, NotificationType.ERROR, true)
-            return
+            return null
         }
         val translator = active.service
         val translatorId = active.id
 
         logger.info("Starting translation with '${translator.name}'")
 
-        translationJob = scope.launch {
+        var completion: TranslationCompletion? = null
+        val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
                 onStatusUpdate(StatusCode.Translating, NotificationType.INFO, false)
                 updateState { copy(isLoading = true, translatedText = "", extraOutputText = "", isExtraOutputLoading = false) }
@@ -159,7 +174,7 @@ class TranslateTextUseCase(
                                     "Rule matched detected '${detectedLanguage.tag}' → " +
                                             "re-translating to '${ruleTarget.tag}'"
                                 )
-                                handleReTranslation(
+                                val retranslated = handleReTranslation(
                                     textToTranslate  = textToTranslate,
                                     sourceLanguage   = currentState.sourceLanguage,
                                     ruleTarget       = ruleTarget,
@@ -170,6 +185,9 @@ class TranslateTextUseCase(
                                     updateState      = updateState,
                                     onStatusUpdate   = onStatusUpdate
                                 )
+                                if (retranslated != null) {
+                                    completion = TranslationCompletion(requestId, retranslated)
+                                }
                                 return@launch
                             }
                         }
@@ -196,6 +214,7 @@ class TranslateTextUseCase(
                             updateState       = updateState,
                             onStatusUpdate    = onStatusUpdate
                         )
+                        completion = TranslationCompletion(requestId, response.translatedText)
                     },
                     failure = { error ->
                         logger.error("Translation failed: ${error.message}", error.cause)
@@ -215,8 +234,10 @@ class TranslateTextUseCase(
                 onStatusUpdate(StatusCode.UnexpectedError(summary), NotificationType.ERROR, true)
             }
         }
-
-        translationJob?.join()
+        translationJob = job
+        job.start()
+        job.join()
+        return completion?.takeIf { it.requestId == currentRequestId }
     }
 
     /**
@@ -233,7 +254,7 @@ class TranslateTextUseCase(
         translatorId: String,
         updateState: (MainState.() -> MainState) -> Unit,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit,
-    ) {
+    ): String? {
         val retryRequest = TranslationRequest(
             text           = textToTranslate,
             sourceLanguage = sourceLanguage,
@@ -248,10 +269,10 @@ class TranslateTextUseCase(
             logger.error("Re-translation timed out")
             updateState { copy(isLoading = false, isExtraOutputLoading = false) }
             onStatusUpdate(StatusCode.TranslationTimeout, NotificationType.ERROR, true)
-            return
+            return null
         }
 
-        retryResult.fold(
+        return retryResult.fold(
             success = { retryResponse ->
                 logger.info("Re-translation successful: '${retryResponse.translatedText.take(50)}...'")
                 onStatusUpdate(StatusCode.TranslationComplete, NotificationType.SUCCESS, true)
@@ -273,12 +294,14 @@ class TranslateTextUseCase(
                     onStatusUpdate    = onStatusUpdate,
                     ruleTarget        = ruleTarget
                 )
+                retryResponse.translatedText
             },
             failure = { error ->
                 logger.error("Re-translation failed: ${error.message}", error.cause)
                 updateState { copy(isLoading = false, isExtraOutputLoading = false) }
                 val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.TranslationFailed(summary), NotificationType.ERROR, true)
+                null
             }
         )
     }
@@ -366,6 +389,7 @@ class TranslateTextUseCase(
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
     ): Boolean {
         currentGetState = getState
+        currentRequestId = requestIds.incrementAndGet()
         val state = getState()
         val extraOutputType = settingsState.value.extraOutputType
 
