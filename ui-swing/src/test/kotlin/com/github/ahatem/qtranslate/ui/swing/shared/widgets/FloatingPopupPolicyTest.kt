@@ -38,6 +38,17 @@ class FloatingPopupPolicyTest {
     }
 
     @Test
+    fun `loading indicator is excluded while retaining its lightweight window policy`() {
+        val indicator = source("quicktranslate/LoadingIndicator.kt")
+
+        assertContains(indicator, "modalExclusionType = Dialog.ModalExclusionType.APPLICATION_EXCLUDE")
+        assertContains(indicator, "setAutoRequestFocus(false)")
+        assertContains(indicator, "isAlwaysOnTop = true")
+        assertContains(indicator, "focusableWindowState = false")
+        assertContains(indicator, "type = Type.UTILITY")
+    }
+
+    @Test
     fun `all three interactive floating dialogs use the shared behavior`() {
         listOf(
             "quicktranslate/QuickTranslateDialog.kt",
