@@ -502,7 +502,7 @@ class MainAppFrame(
                 )
             }
 
-            iconImages = loadIcons()
+            iconImages = applicationIcons
 
             mainContentView.render(mainStore.state.value, settingsStore.state.value)
             pack()
@@ -1185,7 +1185,7 @@ class MainAppFrame(
         if (!SystemTray.isSupported()) return
 
         val tray = SystemTray.getSystemTray()
-        val iconsList = loadIcons()
+        val iconsList = applicationIcons
 
         if (iconsList.isEmpty()) {
             logger.error("Failed to load any tray icons")
@@ -1473,8 +1473,8 @@ class MainAppFrame(
         }
     }
 
-    private fun loadIcons(): List<Image> {
-        return listOf(16, 20, 24, 32, 48, 64, 128, 256, 512).mapNotNull { size ->
+    private val applicationIcons: List<Image> by lazy {
+        listOf(16, 20, 24, 32, 48, 64, 128, 256, 512).mapNotNull { size ->
             try {
                 ImageIO.read(javaClass.classLoader.getResourceAsStream("icons/app/icon-$size.png"))
             } catch (e: Exception) {

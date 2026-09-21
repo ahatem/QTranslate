@@ -37,7 +37,7 @@ internal class PluginLifecycleHandler(
      * changes their proxy then gets the new one without a restart; the ones already running
      * keep the client they were handed, which is what the settings page says happens.
      */
-    private val httpConfig: () -> HttpClientConfig = { HttpClientConfig() }
+    private val httpConfig: suspend () -> HttpClientConfig = { HttpClientConfig() }
 ) {
     private val logger = loggerFactory.getLogger("PluginLifecycleHandler")
 
@@ -56,7 +56,7 @@ internal class PluginLifecycleHandler(
      * The context is created once and reused across enable/disable cycles;
      * only the internal scope is reset on each enable.
      */
-    fun createContext(result: LoadedPluginResult): ScopedPluginContext {
+    suspend fun createContext(result: LoadedPluginResult): ScopedPluginContext {
         // Every container is built from a context, and this is the only place that has both the
         // plugin's id and the loader that can read the bundle out of its JAR.
         textResolver.onPluginLoaded(result.manifest.id, result.classLoader)

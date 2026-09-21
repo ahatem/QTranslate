@@ -15,7 +15,6 @@ import com.github.ahatem.qtranslate.core.plugin.http.HttpClientConfig
 import com.github.ahatem.qtranslate.core.plugin.http.toHttpClientConfig
 import com.github.ahatem.qtranslate.core.plugin.storage.AppSecretStore
 import com.github.ahatem.qtranslate.core.settings.data.NetworkConfig
-import kotlinx.coroutines.runBlocking
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
 import com.github.ahatem.qtranslate.core.plugin.text.PluginTextResolver
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
@@ -64,6 +63,7 @@ class PluginManager(
     private val pluginKeyValueStore: PluginKeyValueStore,
     private val loggerFactory: LoggerFactory,
     private val notificationBus: NotificationBus,
+    private val networkConfig: () -> NetworkConfig,
     /**
      * Resolves the [com.github.ahatem.qtranslate.api.plugin.DisplayText] plugins hand back.
      * Defaults to the fallback-only resolver so a host without localization still runs.
@@ -82,18 +82,14 @@ class PluginManager(
 
     private val appSecrets = AppSecretStore(pluginKeyValueStore)
 
-    /**
-     * The network settings every plugin's client is built from.
-     *
-     * Read fresh each time a context is made, so a plugin enabled after the user changes
-     * their proxy gets the new one. Blocking is safe here and nowhere near the event thread:
-     * contexts are created while loading or enabling a plugin, both already off it.
-     */
-    private fun currentHttpConfig(): HttpClientConfig = runBlocking {
-        val network = settingsRepository.loadInitialConfiguration().network
-        network.toHttpClientConfig(
-            proxyPassword = appSecrets.get(NetworkConfig.proxyPasswordKey)
-        )
+    internal suspend fun currentHttpConfig(): HttpClientConfig {
+        val network = networkConfig()
+        val proxyPassword = if (network.proxyEnabled && network.proxyUrl.isNotBlank()) {
+            appSecrets.get(NetworkConfig.proxyPasswordKey)
+        } else {
+            null
+        }
+        return network.toHttpClientConfig(proxyPassword = proxyPassword)
     }
 
     private val lifecycleHandler = PluginLifecycleHandler(
