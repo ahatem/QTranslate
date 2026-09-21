@@ -684,8 +684,13 @@ class MainContentView(
         )
     }
 
+    /**
+     * Moves keyboard focus into the input editor. Targets the text pane itself:
+     * the panel is only its container, and focus landing there leaves typing
+     * going nowhere.
+     */
     fun requestFocusOnInput() {
-        inputTextPanel.requestFocusInWindow()
+        inputTextPanel.requestFocusOnText()
     }
 
     /**

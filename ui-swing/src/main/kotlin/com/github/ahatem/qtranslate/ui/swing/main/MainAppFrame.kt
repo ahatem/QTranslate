@@ -1035,7 +1035,15 @@ class MainAppFrame(
         if (SwingUtilities.isEventDispatchThread()) block() else SwingUtilities.invokeLater(block)
     }
 
-    private fun showAndFocus() {
+    /**
+     * Canonical user-facing main-window presentation (#216).
+     *
+     * Every path that intentionally presents the main window for interaction —
+     * the global show hotkey, tray restore, second-instance activation — routes
+     * through here so visibility, restore, and input focus stay consistent.
+     * Focus lands in the input editor; text and state are left untouched.
+     */
+    fun showAndFocus() {
         isVisible = true
         state = NORMAL
         toFront()
@@ -1271,6 +1279,7 @@ class MainAppFrame(
             override fun windowDeiconified(e: WindowEvent?) {
                 isVisible = true
                 toFront()
+                mainContentView.requestFocusOnInput()
             }
 
             override fun windowClosed(e: WindowEvent?) {

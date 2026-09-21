@@ -26,11 +26,8 @@ fun main() = runBlocking {
 
     if (!SingleInstanceGuard.tryLock(onFocusRequested = {
             SwingUtilities.invokeLater {
-                frame?.apply {
-                    isVisible = true
-                    toFront()
-                    requestFocus()
-                }
+                // Same canonical presentation as the tray and global hotkey (#216).
+                frame?.showAndFocus()
             }
         })) {
         return@runBlocking
