@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   # The Vision helper is Swift, so it can only be built on macOS, while the artifacts that need it
   # are packaged on Windows and Linux. Building it once here and passing the binary on is what lets
@@ -15,6 +19,7 @@ jobs:
   macos-helper:
     name: Build macOS Vision helper
     runs-on: macos-14
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -45,6 +50,7 @@ jobs:
     name: Build Windows executable
     runs-on: windows-latest
     needs: macos-helper
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -188,6 +194,7 @@ jobs:
     name: Build & Publish Release
     runs-on: ubuntu-latest
     needs: [windows-package]
+    timeout-minutes: 40
 
     steps:
       - name: Checkout

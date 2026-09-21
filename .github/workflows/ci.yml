@@ -3,8 +3,20 @@ name: CI
 on:
   push:
     branches: [ main, develop ]
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'CONTRIBUTING.md'
+      - 'SECURITY.md'
+      - 'SPONSORS.md'
+      - 'docs/**'
+      - 'wiki/**'
   pull_request:
     branches: [ main, develop ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -13,6 +25,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -53,6 +66,7 @@ jobs:
   macos-helper:
     name: Build macOS Vision helper
     runs-on: macos-14
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -82,6 +96,7 @@ jobs:
     name: Release variant (${{ matrix.variant }})
     runs-on: ubuntu-latest
     needs: macos-helper
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

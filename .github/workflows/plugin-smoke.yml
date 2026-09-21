@@ -2,10 +2,22 @@ name: Plugin Smoke Test
 
 on:
   pull_request:
-    branches: [ develop ]
+    branches: [ main, develop ]
   push:
-    branches: [ develop ]
+    branches: [ main, develop ]
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'CONTRIBUTING.md'
+      - 'SECURITY.md'
+      - 'SPONSORS.md'
+      - 'docs/**'
+      - 'wiki/**'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
