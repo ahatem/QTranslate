@@ -3,7 +3,13 @@ package com.github.ahatem.qtranslate.ui.swing.main.menus
 
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
-import javax.swing.*
+import javax.swing.ButtonGroup
+import javax.swing.JCheckBoxMenuItem
+import javax.swing.JMenu
+import javax.swing.JMenuItem
+import javax.swing.JPopupMenu
+import javax.swing.JRadioButtonMenuItem
+import javax.swing.JSeparator
 
 data class LayoutPresetInfo(
     val id: String,
@@ -14,10 +20,15 @@ data class MenuStrings(
     val spellCheck: String,
     val instantTranslation: String,
     val extraOutput: String,
+    val extraOutputNone: String,
+    val extraOutputBackward: String,
+    val extraOutputSummarize: String,
+    val extraOutputRewrite: String,
     val viewOptions: String,
     val dictionary: String,
     val isDictionaryPanelOpen: Boolean,
     val imageSearch: String,
+    val recognizeText: String,
     val history: String,
     val translateDocument: String,
     val settings: String,
@@ -38,9 +49,10 @@ data class MenuStrings(
 data class MenuActions(
     val onToggleSpellCheck: (Boolean) -> Unit,
     val onToggleInstantTranslation: (Boolean) -> Unit,
-    val onToggleExtraOutput: (Boolean) -> Unit,
+    val onChangeExtraOutput: (ExtraOutputType) -> Unit,
     val onShowDictionary: () -> Unit,
     val onShowImageSearch: () -> Unit,
+    val onRecognizeText: () -> Unit,
     val onShowHistory: () -> Unit,
     val onTranslateDocument: () -> Unit,
     val onShowSettings: () -> Unit,
@@ -66,10 +78,35 @@ class LayoutPresetsMenu(
     private val onLayoutSelected: (String) -> Unit
 ) : JMenu(title) {
     init {
+        val group = ButtonGroup()
         for (layout in availableLayouts) {
-            add(JCheckBoxMenuItem(layout.name).apply {
+            add(JRadioButtonMenuItem(layout.name).apply {
                 isSelected = layout.id == activeLayoutId
+                group.add(this)
                 addActionListener { onLayoutSelected(layout.id) }
+            })
+        }
+    }
+}
+
+class ExtraOutputMenu(
+    title: String,
+    private val activeType: ExtraOutputType,
+    private val strings: MenuStrings,
+    private val onTypeSelected: (ExtraOutputType) -> Unit
+) : JMenu(title) {
+    init {
+        val group = ButtonGroup()
+        listOf(
+            ExtraOutputType.None to strings.extraOutputNone,
+            ExtraOutputType.BackwardTranslate to strings.extraOutputBackward,
+            ExtraOutputType.Summarize to strings.extraOutputSummarize,
+            ExtraOutputType.Rewrite to strings.extraOutputRewrite,
+        ).forEach { (type, label) ->
+            add(JRadioButtonMenuItem(label).apply {
+                isSelected = type == activeType
+                group.add(this)
+                addActionListener { onTypeSelected(type) }
             })
         }
     }
@@ -125,27 +162,26 @@ class MainMenuPopup(
             isSelected = config.isInstantTranslationEnabled
             addActionListener { actions.onToggleInstantTranslation(isSelected) }
         })
-        add(JCheckBoxMenuItem(strings.extraOutput).apply {
-            isSelected = config.extraOutputType != ExtraOutputType.None
-            addActionListener { actions.onToggleExtraOutput(isSelected) }
-        })
+        add(ExtraOutputMenu(strings.extraOutput, config.extraOutputType, strings, actions.onChangeExtraOutput))
         add(ViewOptionsMenu(config, actions, strings, availableLayouts))
         add(JSeparator())
         add(JCheckBoxMenuItem(strings.dictionary).apply {
             isSelected = strings.isDictionaryPanelOpen
             addActionListener { actions.onShowDictionary() }
         })
-        // Beside the dictionary, because both answer "what is this word" — one in words, one in
-        // pictures — and this menu is where someone goes looking for either.
         add(JMenuItem(strings.imageSearch).apply {
             addActionListener { actions.onShowImageSearch() }
         })
-        add(JMenuItem(strings.history).apply {
-            addActionListener { actions.onShowHistory() }
+        add(JMenuItem(strings.recognizeText).apply {
+            addActionListener { actions.onRecognizeText() }
         })
         add(JMenuItem(strings.translateDocument).apply {
             addActionListener { actions.onTranslateDocument() }
         })
+        add(JMenuItem(strings.history).apply {
+            addActionListener { actions.onShowHistory() }
+        })
+        add(JSeparator())
         add(JMenuItem(strings.settings).apply {
             addActionListener { actions.onShowSettings() }
         })
@@ -154,23 +190,25 @@ class MainMenuPopup(
                 addActionListener { actions.onShowHowToUse() }
             })
 
-            add(JMenuItem(strings.aboutQTranslate).apply {
-                addActionListener { actions.onShowAboutQTranslate() }
-            })
-
             add(JMenuItem(strings.contactUs).apply {
                 addActionListener { actions.onContactUs() }
             })
 
             add(JSeparator())
 
+            add(JMenuItem(strings.checkForUpdates).apply {
+                addActionListener { actions.onCheckForUpdates() }
+            })
+
             add(JCheckBoxMenuItem(strings.autoCheckForUpdates).apply {
                 isSelected = config.autoCheckForUpdates
                 addActionListener { actions.onToggleAutoCheckForUpdates(isSelected) }
             })
 
-            add(JMenuItem(strings.checkForUpdates).apply {
-                addActionListener { actions.onCheckForUpdates() }
+            add(JSeparator())
+
+            add(JMenuItem(strings.aboutQTranslate).apply {
+                addActionListener { actions.onShowAboutQTranslate() }
             })
         })
         add(JSeparator())
