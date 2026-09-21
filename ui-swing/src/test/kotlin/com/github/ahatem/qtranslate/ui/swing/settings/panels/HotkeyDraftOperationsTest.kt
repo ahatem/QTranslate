@@ -47,7 +47,7 @@ class HotkeyDraftOperationsTest {
     }
 
     @Test
-    fun `modern has no alt modifier defaults`() {
+    fun `modern global defaults do not use alt`() {
         assertTrue(HotkeyPresets.MODERN
             .filter { it.scope == HotkeyScope.GLOBAL }
             .none { it.modifiers and InputEvent.ALT_DOWN_MASK != 0 })
@@ -107,7 +107,7 @@ class HotkeyDraftOperationsTest {
     }
 
     @Test
-    fun `custom selection does not fabricate bindings`() {
+    fun `explicit custom clears modern assignments`() {
         val configuration = Configuration.DEFAULT.copy(hotkeys = HotkeyPresets.MODERN)
         val custom = HotkeyDraftOperations.replacePreset(configuration, HotkeyPresetKind.CUSTOM)
         assertTrue(custom.hotkeys.all { it.keyCode == 0 && it.modifiers == 0 })
@@ -169,7 +169,7 @@ class HotkeyDraftOperationsTest {
     }
 
     @Test
-    fun `unbound modern action assigned later becomes custom`() {
+    fun `modifying a modern action becomes custom`() {
         val configured = HotkeyDraftOperations.replaceBinding(
             Configuration.DEFAULT.copy(hotkeys = HotkeyPresets.MODERN),
             HotkeyBinding(HotkeyAction.SHOW_DICTIONARY, KeyEvent.VK_D, InputEvent.CTRL_DOWN_MASK)

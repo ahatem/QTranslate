@@ -107,13 +107,8 @@ class KeyboardPanel(
             }
             addActionListener {
                 if (!isUpdatingFromState) {
-                    (selectedItem as? HotkeyPresetKind)?.let { preset ->
-                        if (preset != HotkeyPresetKind.CUSTOM) {
-                            applyDraft(store) { HotkeyDraftOperations.replacePreset(it, preset) }
-                        } else {
-                            applyDraft(store) { HotkeyDraftOperations.clearForCustom(it) }
-                        }
-                    }
+                    val preset = selectedItem as? HotkeyPresetKind ?: return@addActionListener
+                    applyDraft(store) { HotkeyDraftOperations.replacePreset(it, preset) }
                 }
             }
         }

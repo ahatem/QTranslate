@@ -7,7 +7,6 @@ import com.github.ahatem.qtranslate.core.settings.data.HotkeyPresetKind
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyPresets
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
 
-/** Pure transformations used by the Keyboard settings page. */
 internal object HotkeyDraftOperations {
 
     fun replaceBinding(configuration: Configuration, binding: HotkeyBinding): Configuration {
@@ -24,12 +23,8 @@ internal object HotkeyDraftOperations {
         }
 
     fun clearForCustom(configuration: Configuration): Configuration = configuration.copy(
-        hotkeys = configuration.hotkeys.map { binding ->
-            binding.copy(
-                keyCode = 0,
-                modifiers = 0,
-                isDoubleCtrlEnabled = false
-            )
+        hotkeys = configuration.hotkeys.map {
+            it.copy(keyCode = 0, modifiers = 0, isDoubleCtrlEnabled = false)
         }
     )
 

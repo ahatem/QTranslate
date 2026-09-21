@@ -9,10 +9,9 @@ enum class HotkeyPresetKind {
     CUSTOM
 }
 
-/** Preset definitions for the complete hotkey list. The list itself remains the source of truth. */
 object HotkeyPresets {
 
-    val LEGACY: List<HotkeyBinding> = HotkeyBinding.DEFAULTS.map { it.copy() }.toList()
+    val LEGACY: List<HotkeyBinding> = HotkeyBinding.DEFAULTS.map { it.copy() }
 
     val MODERN: List<HotkeyBinding> = LEGACY.map { binding ->
         when (binding.action) {
@@ -42,7 +41,7 @@ object HotkeyPresets {
             )
             else -> binding.copy()
         }
-    }.toList()
+    }
 
     fun identify(bindings: List<HotkeyBinding>): HotkeyPresetKind = when {
         sameBindings(bindings, LEGACY) -> HotkeyPresetKind.LEGACY
