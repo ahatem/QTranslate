@@ -17,14 +17,29 @@ object HotkeyPresets {
     val MODERN: List<HotkeyBinding> = LEGACY.map { binding ->
         when (binding.action) {
             HotkeyAction.SHOW_QUICK_TRANSLATE -> binding.copy(
-                keyCode = KeyEvent.VK_SEMICOLON,
+                keyCode = KeyEvent.VK_Q,
                 modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK
             )
-            HotkeyAction.LISTEN_TO_TEXT,
-            HotkeyAction.OPEN_OCR,
-            HotkeyAction.REPLACE_WITH_TRANSLATION,
-            HotkeyAction.SHOW_DICTIONARY,
-            HotkeyAction.SHOW_IMAGES -> binding.copy(keyCode = 0, modifiers = 0)
+            HotkeyAction.LISTEN_TO_TEXT -> binding.copy(
+                keyCode = KeyEvent.VK_L,
+                modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK
+            )
+            HotkeyAction.OPEN_OCR -> binding.copy(
+                keyCode = KeyEvent.VK_O,
+                modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK
+            )
+            HotkeyAction.REPLACE_WITH_TRANSLATION -> binding.copy(
+                keyCode = KeyEvent.VK_R,
+                modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK
+            )
+            HotkeyAction.SHOW_DICTIONARY -> binding.copy(
+                keyCode = KeyEvent.VK_D,
+                modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK
+            )
+            HotkeyAction.SHOW_IMAGES -> binding.copy(
+                keyCode = KeyEvent.VK_I,
+                modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK
+            )
             else -> binding.copy()
         }
     }.toList()

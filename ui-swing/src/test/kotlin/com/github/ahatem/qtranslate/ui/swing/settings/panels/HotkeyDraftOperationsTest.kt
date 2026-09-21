@@ -23,32 +23,27 @@ class HotkeyDraftOperationsTest {
     }
 
     @Test
-    fun `modern preset uses one useful global shortcut and preserves local bindings`() {
-        val unboundGlobalActions = setOf(
-            HotkeyAction.LISTEN_TO_TEXT,
-            HotkeyAction.OPEN_OCR,
-            HotkeyAction.REPLACE_WITH_TRANSLATION,
-            HotkeyAction.SHOW_DICTIONARY,
-            HotkeyAction.SHOW_IMAGES,
+    fun `modern preset uses the complete mnemonic global shortcut set`() {
+        val expectedKeys = mapOf(
+            HotkeyAction.SHOW_QUICK_TRANSLATE to KeyEvent.VK_Q,
+            HotkeyAction.LISTEN_TO_TEXT to KeyEvent.VK_L,
+            HotkeyAction.OPEN_OCR to KeyEvent.VK_O,
+            HotkeyAction.REPLACE_WITH_TRANSLATION to KeyEvent.VK_R,
+            HotkeyAction.SHOW_DICTIONARY to KeyEvent.VK_D,
+            HotkeyAction.SHOW_IMAGES to KeyEvent.VK_I,
         )
+        val modernGlobal = HotkeyPresets.MODERN.filter { it.scope == HotkeyScope.GLOBAL }
 
-        val quickTranslate = HotkeyPresets.MODERN.first { it.action == HotkeyAction.SHOW_QUICK_TRANSLATE }
-        assertEquals(KeyEvent.VK_SEMICOLON, quickTranslate.keyCode)
-        assertEquals(InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK, quickTranslate.modifiers)
-        assertEquals(HotkeyScope.GLOBAL, quickTranslate.scope)
-
-        HotkeyPresets.MODERN.forEach { binding ->
-            val legacy = HotkeyPresets.LEGACY.first { it.action == binding.action }
-            if (binding.action in unboundGlobalActions) {
-                assertEquals(0, binding.keyCode)
-                assertEquals(0, binding.modifiers)
-                assertEquals(legacy.scope, binding.scope)
-            } else if (binding.action != HotkeyAction.SHOW_QUICK_TRANSLATE) {
-                assertEquals(legacy, binding)
-            }
+        expectedKeys.forEach { (action, keyCode) ->
+            val binding = modernGlobal.first { it.action == action }
+            assertEquals(keyCode, binding.keyCode)
+            assertEquals(InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK, binding.modifiers)
         }
-
+        assertTrue(expectedKeys.keys.all { action -> modernGlobal.first { it.action == action }.hasBinding })
         assertTrue(HotkeyPresets.MODERN.first { it.action == HotkeyAction.SHOW_MAIN_WINDOW }.isDoubleCtrlEnabled)
+        assertTrue(HotkeyPresets.MODERN
+            .filter { it.scope == HotkeyScope.LOCAL }
+            .all { binding -> binding == HotkeyPresets.LEGACY.first { it.action == binding.action } })
     }
 
     @Test
