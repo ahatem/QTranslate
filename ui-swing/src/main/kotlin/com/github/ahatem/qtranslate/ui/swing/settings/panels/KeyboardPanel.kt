@@ -111,11 +111,7 @@ class KeyboardPanel(
                         if (preset != HotkeyPresetKind.CUSTOM) {
                             applyDraft(store) { HotkeyDraftOperations.replacePreset(it, preset) }
                         } else {
-                            withoutTrigger {
-                                selectedItem = HotkeyPresets.identify(
-                                    store.state.value.workingConfiguration.hotkeys
-                                )
-                            }
+                            applyDraft(store) { HotkeyDraftOperations.clearForCustom(it) }
                         }
                     }
                 }

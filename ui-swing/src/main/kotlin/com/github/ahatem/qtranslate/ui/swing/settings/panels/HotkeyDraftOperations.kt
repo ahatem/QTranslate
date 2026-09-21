@@ -20,8 +20,18 @@ internal object HotkeyDraftOperations {
         when (preset) {
             HotkeyPresetKind.LEGACY -> configuration.copy(hotkeys = HotkeyPresets.LEGACY.map { it.copy() })
             HotkeyPresetKind.MODERN -> configuration.copy(hotkeys = HotkeyPresets.MODERN.map { it.copy() })
-            HotkeyPresetKind.CUSTOM -> configuration
+            HotkeyPresetKind.CUSTOM -> clearForCustom(configuration)
         }
+
+    fun clearForCustom(configuration: Configuration): Configuration = configuration.copy(
+        hotkeys = configuration.hotkeys.map { binding ->
+            binding.copy(
+                keyCode = 0,
+                modifiers = 0,
+                isDoubleCtrlEnabled = false
+            )
+        }
+    )
 
     fun clearShowMainWindow(configuration: Configuration): Configuration {
         val current = binding(configuration, HotkeyAction.SHOW_MAIN_WINDOW)

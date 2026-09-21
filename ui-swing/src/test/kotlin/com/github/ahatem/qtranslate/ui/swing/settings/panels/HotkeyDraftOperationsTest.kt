@@ -23,9 +23,8 @@ class HotkeyDraftOperationsTest {
     }
 
     @Test
-    fun `modern preset removes default global shortcuts but preserves local bindings`() {
+    fun `modern preset uses one useful global shortcut and preserves local bindings`() {
         val unboundGlobalActions = setOf(
-            HotkeyAction.SHOW_QUICK_TRANSLATE,
             HotkeyAction.LISTEN_TO_TEXT,
             HotkeyAction.OPEN_OCR,
             HotkeyAction.REPLACE_WITH_TRANSLATION,
@@ -33,18 +32,30 @@ class HotkeyDraftOperationsTest {
             HotkeyAction.SHOW_IMAGES,
         )
 
+        val quickTranslate = HotkeyPresets.MODERN.first { it.action == HotkeyAction.SHOW_QUICK_TRANSLATE }
+        assertEquals(KeyEvent.VK_SPACE, quickTranslate.keyCode)
+        assertEquals(InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK, quickTranslate.modifiers)
+        assertEquals(HotkeyScope.GLOBAL, quickTranslate.scope)
+
         HotkeyPresets.MODERN.forEach { binding ->
             val legacy = HotkeyPresets.LEGACY.first { it.action == binding.action }
             if (binding.action in unboundGlobalActions) {
                 assertEquals(0, binding.keyCode)
                 assertEquals(0, binding.modifiers)
                 assertEquals(legacy.scope, binding.scope)
-            } else {
+            } else if (binding.action != HotkeyAction.SHOW_QUICK_TRANSLATE) {
                 assertEquals(legacy, binding)
             }
         }
 
         assertTrue(HotkeyPresets.MODERN.first { it.action == HotkeyAction.SHOW_MAIN_WINDOW }.isDoubleCtrlEnabled)
+    }
+
+    @Test
+    fun `modern has no alt modifier defaults`() {
+        assertTrue(HotkeyPresets.MODERN
+            .filter { it.scope == HotkeyScope.GLOBAL }
+            .none { it.modifiers and InputEvent.ALT_DOWN_MASK != 0 })
     }
 
     @Test
@@ -103,7 +114,63 @@ class HotkeyDraftOperationsTest {
     @Test
     fun `custom selection does not fabricate bindings`() {
         val configuration = Configuration.DEFAULT.copy(hotkeys = HotkeyPresets.MODERN)
-        assertEquals(configuration, HotkeyDraftOperations.replacePreset(configuration, HotkeyPresetKind.CUSTOM))
+        val custom = HotkeyDraftOperations.replacePreset(configuration, HotkeyPresetKind.CUSTOM)
+        assertTrue(custom.hotkeys.all { it.keyCode == 0 && it.modifiers == 0 })
+        assertTrue(custom.hotkeys.none { it.isDoubleCtrlEnabled })
+    }
+
+    @Test
+    fun `explicit custom clears assignments but preserves actions and scopes`() {
+        val legacy = Configuration.DEFAULT.copy(hotkeys = HotkeyPresets.LEGACY)
+        val custom = HotkeyDraftOperations.replacePreset(legacy, HotkeyPresetKind.CUSTOM)
+
+        assertEquals(legacy.hotkeys.map { it.action }, custom.hotkeys.map { it.action })
+        custom.hotkeys.forEach { binding ->
+            val original = legacy.hotkeys.first { it.action == binding.action }
+            assertEquals(0, binding.keyCode)
+            assertEquals(0, binding.modifiers)
+            assertEquals(original.scope, binding.scope)
+            assertFalse(binding.isDoubleCtrlEnabled)
+        }
+        assertEquals(HotkeyPresetKind.CUSTOM, HotkeyPresets.identify(custom.hotkeys))
+    }
+
+    @Test
+    fun `explicit custom clears modern assignments too`() {
+        val modern = Configuration.DEFAULT.copy(hotkeys = HotkeyPresets.MODERN)
+        val custom = HotkeyDraftOperations.clearForCustom(modern)
+
+        assertEquals(modern.hotkeys.map { it.action }, custom.hotkeys.map { it.action })
+        assertTrue(custom.hotkeys.all { it.keyCode == 0 && it.modifiers == 0 })
+        assertTrue(custom.hotkeys.none { it.isDoubleCtrlEnabled })
+        assertEquals(HotkeyPresetKind.CUSTOM, HotkeyPresets.identify(custom.hotkeys))
+    }
+
+    @Test
+    fun `editing a preset changes only the edited binding`() {
+        listOf(HotkeyPresets.LEGACY, HotkeyPresets.MODERN).forEach { preset ->
+            val configuration = Configuration.DEFAULT.copy(hotkeys = preset)
+            val edited = HotkeyBinding(HotkeyAction.OPEN_OCR, KeyEvent.VK_Z, InputEvent.CTRL_DOWN_MASK)
+            val custom = HotkeyDraftOperations.replaceBinding(configuration, edited)
+
+            assertEquals(HotkeyPresetKind.CUSTOM, HotkeyPresets.identify(custom.hotkeys))
+            custom.hotkeys.filter { it.action != edited.action }.forEach { binding ->
+                assertEquals(preset.first { it.action == binding.action }, binding)
+            }
+        }
+    }
+
+    @Test
+    fun `selecting either preset restores its exact bindings after custom`() {
+        val custom = HotkeyDraftOperations.clearForCustom(Configuration.DEFAULT)
+        assertEquals(
+            HotkeyPresets.LEGACY,
+            HotkeyDraftOperations.replacePreset(custom, HotkeyPresetKind.LEGACY).hotkeys
+        )
+        assertEquals(
+            HotkeyPresets.MODERN,
+            HotkeyDraftOperations.replacePreset(custom, HotkeyPresetKind.MODERN).hotkeys
+        )
     }
 
     @Test

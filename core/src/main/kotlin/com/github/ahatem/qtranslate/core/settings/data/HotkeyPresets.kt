@@ -1,5 +1,8 @@
 package com.github.ahatem.qtranslate.core.settings.data
 
+import java.awt.event.InputEvent
+import java.awt.event.KeyEvent
+
 enum class HotkeyPresetKind {
     LEGACY,
     MODERN,
@@ -13,7 +16,10 @@ object HotkeyPresets {
 
     val MODERN: List<HotkeyBinding> = LEGACY.map { binding ->
         when (binding.action) {
-            HotkeyAction.SHOW_QUICK_TRANSLATE,
+            HotkeyAction.SHOW_QUICK_TRANSLATE -> binding.copy(
+                keyCode = KeyEvent.VK_SPACE,
+                modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK
+            )
             HotkeyAction.LISTEN_TO_TEXT,
             HotkeyAction.OPEN_OCR,
             HotkeyAction.REPLACE_WITH_TRANSLATION,
