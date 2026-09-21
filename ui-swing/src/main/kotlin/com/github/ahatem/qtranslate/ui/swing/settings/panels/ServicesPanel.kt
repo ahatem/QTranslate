@@ -105,6 +105,7 @@ class ServicesPanel(
     private fun buildServiceCard(type: ServiceRole, combo: JComboBox<ServiceOption>): JPanel {
         val icon = serviceIcon(type)
         val label = serviceLabel(type)
+        registerSearchEntry(label, combo)
         val enabledCheck = JCheckBox(localizationManager.getString("settings_plugins.status_enabled"), true).apply {
             isOpaque = false
             addActionListener {

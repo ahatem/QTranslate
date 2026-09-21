@@ -153,7 +153,7 @@ saving = "Saving..."
 save_failed_title = "Save Failed"
 reset_defaults_button = "Reset to Defaults"
 reset_confirmation_title = "Reset to Defaults"
-reset_confirmation_message = "Reset all settings to their defaults?\nThis cannot be undone."
+reset_confirmation_message = "Reset all settings in this dialog to their defaults?\nCancel to discard the reset, or choose Apply or OK to save it."
 search_placeholder = "Filter settings..."
 search_no_results = "No settings match '%s'"
 
