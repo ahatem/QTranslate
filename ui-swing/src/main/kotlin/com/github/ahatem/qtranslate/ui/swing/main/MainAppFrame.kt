@@ -266,7 +266,6 @@ class MainAppFrame(
     )
 
     private val selectionTranslateButton = SelectionTranslateButton(
-        this,
         iconManager,
         localizer.getString("main_window_language_bar.translate_button")
     ) { text ->

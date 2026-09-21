@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFil
 import java.awt.AlphaComposite
 import java.awt.Color
 import java.awt.Cursor
+import java.awt.Dialog
 import java.awt.Dimension
 import java.awt.GraphicsDevice
 import java.awt.GraphicsEnvironment
@@ -30,6 +31,11 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 /**
  * A small floating button shown next to text the user selected in another application.
  *
+ * This window is intentionally ownerless. An owned popup can reactivate its owner when it
+ * becomes visible on Windows, which would pull QTranslate to the foreground during an external
+ * selection. MainAppFrame owns this popup's lifecycle explicitly and disposes it when the main
+ * window closes.
+ *
  * Deliberately unobtrusive: it never takes focus, fades in and out rather than snapping,
  * and keeps itself out of the way of the selection that triggered it.
  *
@@ -47,11 +53,10 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
  * and soft shadow; otherwise it falls back to a plain opaque square.
  */
 internal class SelectionTranslateButton(
-    owner: Window,
     iconManager: IconManager,
     tooltip: String,
     private val onTranslate: (String) -> Unit
-) : JWindow(owner) {
+) : JWindow() {
 
     private var selectedText = ""
     private val hideTimer = Timer(VISIBLE_MS) { fadeOutAndHide() }.apply { isRepeats = false }
@@ -70,9 +75,12 @@ internal class SelectionTranslateButton(
     init {
         type = Window.Type.POPUP
         isAlwaysOnTop = true
+        // Application-modal dialogs must not block this external-selection utility popup.
+        modalExclusionType = MODAL_EXCLUSION_TYPE
         // Never take focus — the user is mid-task in another application and the
         // button appearing must not interrupt whatever they are doing.
         focusableWindowState = false
+        setAutoRequestFocus(AUTO_REQUEST_FOCUS)
         if (translucent) background = TRANSPARENT
 
         contentPane = face
@@ -307,6 +315,9 @@ internal class SelectionTranslateButton(
     }
 
     companion object {
+        internal val MODAL_EXCLUSION_TYPE = Dialog.ModalExclusionType.APPLICATION_EXCLUDE
+        internal const val AUTO_REQUEST_FOCUS = false
+
         val ICON_PATH = Icons.TRANSLATE
         const val ICON_SIZE = 16
 
