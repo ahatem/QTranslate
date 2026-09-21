@@ -19,8 +19,8 @@ import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
  * - [ResetToDefaults] — replaces the working copy with [Configuration.DEFAULT]
  *
  * ### Quick actions (scoped auto-save)
- * Used by toolbar toggles, menu items, and the service selector panel where
- * changes take effect immediately and are persisted without a confirmation step:
+ * Used by toolbar toggles and menu items where changes take effect immediately
+ * and are persisted without a confirmation step:
  * - [ToggleSetting] — persists only the setting changed by the external action
  *
  * Settings-dialog operations remain draft-only until [SaveChanges].

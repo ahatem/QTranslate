@@ -76,8 +76,7 @@ class SettingsDialog(
      * event thread. Blocking there to read one value would freeze the dialog opening; the
      * page is built lazily on first navigation, by which time this has long since arrived.
      */
-    @Volatile private var proxyPassword: String = ""
-    @Volatile private var persistedProxyPassword: String = ""
+    private var proxyPassword = StagedSecret()
 
 
     /** Held as a field so it can be removed again — a lambda passed inline never can be. */
@@ -254,8 +253,9 @@ class SettingsDialog(
         val secrets = appSecrets ?: return
         scope.launch {
             val value = secrets.get(NetworkConfig.proxyPasswordKey).orEmpty()
-            proxyPassword = value
-            persistedProxyPassword = value
+            if (!proxyPassword.hasPendingChanges()) {
+                proxyPassword = StagedSecret(value)
+            }
         }
     }
 
@@ -934,11 +934,11 @@ class SettingsDialog(
             NetworkPanel(
                 settingsStore,
                 localizationManager,
-                proxyPassword = appSecrets?.let { secrets ->
+                proxyPassword = appSecrets?.let {
                     object : NetworkPanel.PasswordAccess {
-                        override fun read(): String = proxyPassword
+                        override fun read(): String = proxyPassword.read()
                         override fun write(value: String) {
-                            proxyPassword = value
+                            proxyPassword.stage(value)
                         }
                     }
                 }
@@ -991,7 +991,7 @@ class SettingsDialog(
                     val baseTitle = localizationManager.getString("settings_dialog.title")
                     title = if (state.isDirty) "● $baseTitle" else baseTitle
 
-                    applyButton.isEnabled = (state.isDirty || hasPendingProxyPassword()) && !state.isSaving
+                    updateApplyButton(state)
 
                     currentPanelName?.let { name ->
                         val panel = panelCache[name]
@@ -1008,7 +1008,7 @@ class SettingsDialog(
     // ── Actions ───────────────────────────────────────────────────────────────
 
     private fun onOk() {
-        if (!settingsStore.state.value.isDirty && !hasPendingProxyPassword()) {
+        if (!settingsStore.state.value.isDirty && !proxyPassword.hasPendingChanges()) {
             dispose(); return
         }
 
@@ -1023,29 +1023,37 @@ class SettingsDialog(
                     .first() as SettingsEvent.ShowMessage
                 if (event.type == NotificationType.ERROR) {
                     withContext(Dispatchers.Swing) {
+                        showSaveError(event.message)
                         okButton.isEnabled = true
                         okButton.text = localizationManager.getString("common.ok")
                     }
                     return@launch
                 }
             }
-            persistPendingProxyPassword()
-            withContext(Dispatchers.Swing) { dispose() }
+            val error = persistPendingProxyPassword()
+            withContext(Dispatchers.Swing) {
+                if (error == null) {
+                    dispose()
+                } else {
+                    showSaveError(error.message ?: localizationManager.getString("settings_dialog.save_failed_title"))
+                    okButton.isEnabled = true
+                    okButton.text = localizationManager.getString("common.ok")
+                }
+            }
         }
     }
 
-    private suspend fun persistPendingProxyPassword() {
-        val secrets = appSecrets ?: return
-        if (!hasPendingProxyPassword()) return
-        val value = proxyPassword
-        persistedProxyPassword = value
-        secrets.put(NetworkConfig.proxyPasswordKey, value)
+    private suspend fun persistPendingProxyPassword(): Throwable? {
+        val secrets = appSecrets ?: return null
+        return proxyPassword.persist { value -> secrets.put(NetworkConfig.proxyPasswordKey, value) }
     }
 
-    private fun hasPendingProxyPassword(): Boolean = proxyPassword != persistedProxyPassword
+    private fun updateApplyButton(state: SettingsState = settingsStore.state.value) {
+        applyButton.isEnabled = (state.isDirty || proxyPassword.hasPendingChanges()) && !state.isSaving
+    }
 
     private fun onApply() {
-        if (!settingsStore.state.value.isDirty && !hasPendingProxyPassword()) return
+        if (!settingsStore.state.value.isDirty && !proxyPassword.hasPendingChanges()) return
         applyButton.isEnabled = false
         if (settingsStore.state.value.isDirty) settingsStore.dispatch(SettingsIntent.SaveChanges)
         scope.launch {
@@ -1054,17 +1062,35 @@ class SettingsDialog(
                     .filter { it is SettingsEvent.ShowMessage }
                     .first() as SettingsEvent.ShowMessage
                 if (event.type == NotificationType.ERROR) {
-                    withContext(Dispatchers.Swing) { applyButton.isEnabled = true }
+                    withContext(Dispatchers.Swing) {
+                        showSaveError(event.message)
+                        updateApplyButton()
+                    }
                     return@launch
                 }
             }
-            persistPendingProxyPassword()
-            withContext(Dispatchers.Swing) { applyButton.isEnabled = true }
+            val error = persistPendingProxyPassword()
+            withContext(Dispatchers.Swing) {
+                if (error != null) {
+                    showSaveError(error.message ?: localizationManager.getString("settings_dialog.save_failed_title"))
+                }
+                updateApplyButton()
+            }
         }
+    }
+
+    private fun showSaveError(message: String) {
+        JOptionPane.showMessageDialog(
+            this,
+            message,
+            localizationManager.getString("settings_dialog.save_failed_title"),
+            JOptionPane.ERROR_MESSAGE
+        )
     }
 
     private fun cancelAndClose() {
         settingsStore.dispatch(SettingsIntent.CancelChanges)
+        proxyPassword.discard()
         dispose()
     }
 

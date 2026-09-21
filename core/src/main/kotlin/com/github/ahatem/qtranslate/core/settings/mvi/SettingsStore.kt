@@ -112,8 +112,7 @@ class SettingsStore(
             // Quick actions persist only their scoped update. A settings dialog may have a
             // separate dirty draft that must remain uncommitted.
             is SettingsIntent.ToggleSetting  -> {
-                val current = _state.value
-                launchScopedSave(intent.update(current.originalConfiguration))
+                launchScopedSave(intent.update)
             }
 
             // Preset operations update the settings draft and wait for Apply/OK.
@@ -254,26 +253,25 @@ class SettingsStore(
     }
 
     /** Persists an external quick action without committing an unrelated settings draft. */
-    private fun launchScopedSave(configToSave: Configuration) {
+    private fun launchScopedSave(update: (Configuration) -> Configuration) {
         scope.launch {
             saveMutex.withLock {
+                val current = _state.value
+                val configToSave = update(current.originalConfiguration)
                 logger.info("Saving scoped configuration update...")
                 _state.update { it.copy(isSaving = true) }
                 settingsRepository.updateConfiguration(configToSave).fold(
                     success = {
                         _state.update { current ->
+                            val workingConfiguration = if (current.isDirty) {
+                                update(current.workingConfiguration)
+                            } else {
+                                configToSave
+                            }
                             current.copy(
                                 originalConfiguration = configToSave,
-                                workingConfiguration = if (current.isDirty) {
-                                    current.workingConfiguration
-                                } else {
-                                    configToSave
-                                },
-                                isDirty = if (current.isDirty) {
-                                    current.workingConfiguration != configToSave
-                                } else {
-                                    false
-                                },
+                                workingConfiguration = workingConfiguration,
+                                isDirty = workingConfiguration != configToSave,
                                 isSaving = false
                             )
                         }
