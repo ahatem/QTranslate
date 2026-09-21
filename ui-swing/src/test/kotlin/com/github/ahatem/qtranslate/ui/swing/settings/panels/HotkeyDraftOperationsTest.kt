@@ -33,7 +33,7 @@ class HotkeyDraftOperationsTest {
         )
 
         val quickTranslate = HotkeyPresets.MODERN.first { it.action == HotkeyAction.SHOW_QUICK_TRANSLATE }
-        assertEquals(KeyEvent.VK_SPACE, quickTranslate.keyCode)
+        assertEquals(KeyEvent.VK_SEMICOLON, quickTranslate.keyCode)
         assertEquals(InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK, quickTranslate.modifiers)
         assertEquals(HotkeyScope.GLOBAL, quickTranslate.scope)
 

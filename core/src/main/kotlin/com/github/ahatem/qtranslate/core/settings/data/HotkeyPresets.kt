@@ -17,7 +17,7 @@ object HotkeyPresets {
     val MODERN: List<HotkeyBinding> = LEGACY.map { binding ->
         when (binding.action) {
             HotkeyAction.SHOW_QUICK_TRANSLATE -> binding.copy(
-                keyCode = KeyEvent.VK_SPACE,
+                keyCode = KeyEvent.VK_SEMICOLON,
                 modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK
             )
             HotkeyAction.LISTEN_TO_TEXT,
