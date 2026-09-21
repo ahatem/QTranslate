@@ -1251,14 +1251,20 @@ class MainAppFrame(
     }
 
     private fun createTrayPopupMenu(): JPopupMenu {
-        val currentConfig = settingsStore.state.value.workingConfiguration
+        val currentConfig = settingsStore.state.value.originalConfiguration
 
         val strings = TrayMenuStrings(
             showApplication = localizer.getString("system_tray_menu.show_application"),
             dictionary = localizer.getString("system_tray_menu.dictionary"),
             imageSearch = localizer.getString("system_tray_menu.image_search"),
             textRecognition = localizer.getString("system_tray_menu.recognize_text"),
+            translateDocument = localizer.getString("main_window_main_menu.translate_document"),
             history = localizer.getString("system_tray_menu.history"),
+            textSelection = localizer.getString("settings_general.selection_group"),
+            selectionBehaviorOff = localizer.getString("settings_general.selection_behavior_off"),
+            selectionBehaviorIcon = localizer.getString("settings_general.selection_behavior_icon"),
+            selectionBehaviorTranslate = localizer.getString("settings_general.selection_behavior_translate"),
+            selectionBehaviorRead = localizer.getString("settings_general.selection_behavior_read"),
             settings = localizer.getString("system_tray_menu.settings"),
             toggleHotkeys = localizer.getString("system_tray_menu.enable_hotkeys"),
             exit = localizer.getString("system_tray_menu.exit")
@@ -1269,7 +1275,13 @@ class MainAppFrame(
             onShowDictionary = { showDictionaryDialog() },
             onShowImageSearch = { showImageSearchDialog() },
             onRecognizeText = { openSnippingTool() },
+            onTranslateDocument = { documentTranslationDialog.open() },
             onShowHistory = { showHistoryDialog() },
+            onSelectionBehaviorChanged = { behavior ->
+                settingsStore.dispatch(
+                    SettingsIntent.ToggleSetting { it.copy(selectionBehavior = behavior) }
+                )
+            },
             onShowSettings = {
                 runOnUi {
                     val dialog = createSettingsDialog()
@@ -1288,7 +1300,12 @@ class MainAppFrame(
             onExitApplication = { dispose() }
         )
 
-        return TrayMenuPopup(actions, strings, currentConfig.isGlobalHotkeysEnabled)
+        return TrayMenuPopup(
+            actions = actions,
+            strings = strings,
+            isHotkeysEnabled = currentConfig.isGlobalHotkeysEnabled,
+            selectionBehavior = currentConfig.selectionBehavior,
+        )
     }
 
     private fun setupWindowListeners() {
