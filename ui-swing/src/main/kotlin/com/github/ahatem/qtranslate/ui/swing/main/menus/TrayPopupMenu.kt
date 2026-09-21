@@ -38,6 +38,8 @@ class TrayMenuPopup(
             addActionListener { actions.onShowApplication() }
         })
 
+        add(JSeparator())
+
         add(JMenuItem(strings.dictionary).apply {
             addActionListener { actions.onShowDictionary() }
         })
@@ -54,11 +56,11 @@ class TrayMenuPopup(
             addActionListener { actions.onShowHistory() }
         })
 
+        add(JSeparator())
+
         add(JMenuItem(strings.settings).apply {
             addActionListener { actions.onShowSettings() }
         })
-
-        add(JSeparator())
 
         add(JCheckBoxMenuItem(strings.toggleHotkeys, isHotkeysEnabled).apply {
             addItemListener { e -> actions.onToggleHotkeys(e.stateChange == ItemEvent.SELECTED) }

@@ -1251,7 +1251,7 @@ class MainAppFrame(
     }
 
     private fun createTrayPopupMenu(): JPopupMenu {
-        val currentConfig = settingsStore.state.value.workingConfiguration
+        val currentConfig = settingsStore.state.value.originalConfiguration
 
         val strings = TrayMenuStrings(
             showApplication = localizer.getString("system_tray_menu.show_application"),
