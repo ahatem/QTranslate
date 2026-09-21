@@ -48,8 +48,6 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.selectedIdOr
 import com.github.ahatem.qtranslate.ui.swing.shared.util.withKey
 import java.awt.BorderLayout
 import java.awt.Dimension
-import java.awt.event.InputEvent
-import java.awt.event.KeyEvent
 import javax.swing.AbstractAction
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -221,8 +219,6 @@ class MainContentView(
      * request is refused. Kept separately so a later change releases the right stroke.
      */
     private var installedTranslateKeyStroke: KeyStroke? = null
-    /** Tracks whether a translation is in-flight so the Escape binding knows when to cancel. */
-    private var isTranslating = false
 
     private data class DictionaryKey(
         val isVisible: Boolean,
@@ -249,15 +245,10 @@ class MainContentView(
         am.put("focus-panel-output", object : AbstractAction() { override fun actionPerformed(e: java.awt.event.ActionEvent) { outputTextPanel.requestFocusOnText() } })
         am.put("focus-panel-extra",  object : AbstractAction() { override fun actionPerformed(e: java.awt.event.ActionEvent) { extraOutputPanel.requestFocusOnText() } })
 
-        // Escape cancels an in-flight translation — only fires when isTranslating is true
-        // so it doesn't interfere with dialogs or normal Escape usage in other contexts.
-        val im = getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
-        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "cancel-translation")
-        am.put("cancel-translation", object : AbstractAction() {
-            override fun actionPerformed(e: java.awt.event.ActionEvent) {
-                if (isTranslating) dispatch(MainIntent.CancelTranslation)
-            }
-        })
+        // Escape is owned by MainWindowEscapeBinding on the frame's root pane
+        // (cancel in-flight translation first, otherwise hide the window).
+        // No binding here so the same keystroke is never registered twice in
+        // the same focused window.
     }
 
     fun render(mainState: MainState, settingsState: SettingsState) {
@@ -451,7 +442,6 @@ class MainContentView(
     }
 
     private fun renderComponents(mainState: MainState, config: Configuration) {
-        isTranslating = mainState.isLoading
         currentTargetLanguage = mainState.targetLanguage
 
         // BackwardTranslate output is in the source language; all other extra output types are in target.

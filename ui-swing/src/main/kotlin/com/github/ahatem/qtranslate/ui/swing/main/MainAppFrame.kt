@@ -387,6 +387,34 @@ class MainAppFrame(
     )
 
     /**
+     * Fixed Escape-to-hide binding (#216, first half).
+     *
+     * Hides (`isVisible = false`) rather than disposing or exiting, so tray/global
+     * hotkeys and the next normal show action restore the same window with its
+     * text/state intact. An in-flight translation is cancelled first instead of
+     * hiding, and an open menu/popup keeps Escape for its own dismissal.
+     * See [MainWindowEscapeBinding] for the precedence contract.
+     */
+    private val escapeBinding = MainWindowEscapeBinding(
+        rootPane = rootPane,
+        isTranslationInFlight = { mainStore.state.value.isLoading },
+        isChildHandlingEscape = { isEscapeOwnedByChild() },
+        onCancelTranslation = { mainStore.dispatch(MainIntent.CancelTranslation) },
+        onHide = { isVisible = false },
+    )
+
+    /**
+     * True while a child owns Escape for its own dismissal, so the main-window
+     * hide binding stays out of the way. Covers lightweight popups/menus in this
+     * window (same focused window) and visible owned dialogs.
+     */
+    private fun isEscapeOwnedByChild(): Boolean {
+        if (MenuSelectionManager.defaultManager().selectedPath.isNotEmpty()) return true
+        if (ownedWindows.any { it.isVisible }) return true
+        return false
+    }
+
+    /**
      * Closes any floating popup the user has just clicked away from.
      *
      * Driven by the native hook rather than by an AWT listener. The click that dismisses a popup
@@ -483,6 +511,7 @@ class MainAppFrame(
             setupTrayMenu()
             setupGlobalHotkeys()
             setupDropTarget()
+            escapeBinding.register()
 
             observeStateAndEvents()
             isVisible = true
