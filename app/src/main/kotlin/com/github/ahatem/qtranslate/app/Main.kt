@@ -17,12 +17,24 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
+import java.awt.SystemTray
 import java.io.File
 import javax.swing.SwingUtilities
 
-fun main() = runBlocking {
+fun main(args: Array<String>) = runBlocking {
 
     var frame: MainAppFrame? = null
+
+    // A login launch registered by WindowsStartupRegistration carries `--startup`; a manual
+    // launch never does — even with `launchOnSystemStartup` enabled — so the setting alone
+    // must never decide visibility (#226).
+    val launchedFromSystemStartup = WindowsStartupRegistration.isStartupLaunch(args)
+    // Hidden only when the window can actually be restored: without a tray the process would
+    // be invisible with no recovery path, so fall back to a visible window.
+    val startHidden = WindowsStartupRegistration.shouldStartHidden(
+        launchedFromStartup = launchedFromSystemStartup,
+        traySupported = SystemTray.isSupported()
+    )
 
     if (!SingleInstanceGuard.tryLock(onFocusRequested = {
             SwingUtilities.invokeLater {
@@ -53,6 +65,9 @@ fun main() = runBlocking {
 
     logger.info("QTranslate ${AppConstants.APP_VERSION} starting...")
     logger.info("App data directory: ${appData.absolutePath}")
+    if (startHidden) {
+        logger.info("Launched from Windows startup — starting hidden in the system tray")
+    }
 
     val json         = Json { ignoreUnknownKeys = true; isLenient = true }
     val settingsRepo = SettingsRepository(appData, json, logFactory.getLogger("SettingsRepository"))
@@ -165,6 +180,7 @@ fun main() = runBlocking {
             pluginManager    = deps.pluginManager,
             notificationBus  = deps.notificationBus,
             logger           = logFactory.getLogger("MainAppFrame"),
+            initiallyHidden  = startHidden,
             appSecrets       = deps.appSecrets,
             translateString  = { text, target ->
                 deps.translateStringUseCase(text, target).fold(

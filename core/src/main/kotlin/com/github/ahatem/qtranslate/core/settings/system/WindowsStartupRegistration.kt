@@ -22,9 +22,10 @@ import java.io.File
  *
  * ### Launcher command
  * The Windows release is a jpackage app-image whose launcher path the runtime exposes as the
- * `jpackage.app-path` system property, so the registered command is simply the quoted path of the
- * running `QTranslate.exe` — never dependent on the working directory. A portable
- * `java -jar QTranslate.jar` run registers `javaw -jar "<jar>"` instead. Anything else (IDE runs,
+ * `jpackage.app-path` system property, so the registered command is the quoted path of the
+ * running `QTranslate.exe` followed by the [STARTUP_ARGUMENT] marker — never dependent on the
+ * working directory. A portable
+ * `java -jar QTranslate.jar` run registers `javaw -jar "<jar>" --startup` instead. Anything else (IDE runs,
  * tests, a bare classes directory) resolves to nothing and registration refuses rather than
  * writing a bogus command — ordinary development runs must not pollute the user's startup.
  *
@@ -111,6 +112,17 @@ class WindowsStartupRegistration(
         /** This application's value under [RUN_KEY]. Only this value is ever touched. */
         const val VALUE_NAME = "QTranslate"
 
+        /**
+         * Explicit invocation marker appended to the registered startup command (#226).
+         *
+         * The persisted `launchOnSystemStartup` setting alone must never decide whether this
+         * process starts hidden: a user with startup enabled may still launch QTranslate
+         * manually later, and that manual launch must show the main window. Only a process
+         * actually carrying this argument — i.e. one Windows started from the registration —
+         * starts hidden in the tray.
+         */
+        const val STARTUP_ARGUMENT = "--startup"
+
         /** True when [osName] is a Windows release. Exposed for callers that skip wiring entirely. */
         fun isWindows(osName: String = System.getProperty("os.name").orEmpty()): Boolean =
             osName.startsWith("Windows", ignoreCase = true)
@@ -127,11 +139,30 @@ class WindowsStartupRegistration(
             else "\"$path\""
 
         /** Startup command for a packaged launcher such as the jpackage `QTranslate.exe`. */
-        fun startupCommandForExecutable(exePath: String): String = quote(exePath)
+        fun startupCommandForExecutable(exePath: String): String = "${quote(exePath)} $STARTUP_ARGUMENT"
 
         /** Startup command for a portable `java -jar` run. Console-free `javaw`, quoted throughout. */
         fun startupCommandForJar(javawPath: String, jarPath: String): String =
-            "${quote(javawPath)} -jar ${quote(jarPath)}"
+            "${quote(javawPath)} -jar ${quote(jarPath)} $STARTUP_ARGUMENT"
+
+        /**
+         * True when this process was invoked from the Windows startup registration (#226).
+         *
+         * Deliberately narrow — no CLI framework for one flag, and unknown arguments never
+         * affect startup.
+         */
+        fun isStartupLaunch(args: Array<out String>): Boolean = STARTUP_ARGUMENT in args
+
+        /**
+         * Whether the main window must stay hidden at startup (#226).
+         *
+         * Pure so it stays deterministic in tests: hidden only when this invocation came from
+         * the startup registration *and* a tray icon can actually restore the window. Starting
+         * hidden without a tray would leave an invisible process with no recovery path, so a
+         * missing tray always falls back to a visible window.
+         */
+        fun shouldStartHidden(launchedFromStartup: Boolean, traySupported: Boolean): Boolean =
+            launchedFromStartup && traySupported
 
         /**
          * Encodes a startup [command] for the `/d` argument of `reg add` when invoked via
@@ -162,7 +193,7 @@ class WindowsStartupRegistration(
             }.getOrNull(),
             javaHome: String = System.getProperty("java.home").orEmpty()
         ): String? {
-            if (!jpackageAppPath.isNullOrBlank()) return quote(jpackageAppPath)
+            if (!jpackageAppPath.isNullOrBlank()) return startupCommandForExecutable(jpackageAppPath)
             val jarFile = codeSourceUrl?.let { runCatching { File(it.toURI()) }.getOrNull() }
             if (jarFile != null && jarFile.isFile && jarFile.extension.equals("jar", ignoreCase = true)) {
                 val javaw = File(javaHome, "bin/javaw.exe")

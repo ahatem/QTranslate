@@ -50,17 +50,17 @@ class WindowsStartupRegistrationTest {
     // ---- command construction ------------------------------------------------
 
     @Test
-    fun `exe paths containing spaces are quoted`() {
+    fun `exe startup command carries the startup marker after the quoted path`() {
         assertEquals(
-            "\"C:\\Program Files\\QTranslate\\QTranslate.exe\"",
+            "\"C:\\Program Files\\QTranslate\\QTranslate.exe\" --startup",
             WindowsStartupRegistration.startupCommandForExecutable("C:\\Program Files\\QTranslate\\QTranslate.exe")
         )
     }
 
     @Test
-    fun `jar fallback uses javaw with both paths quoted`() {
+    fun `jar fallback uses javaw with both paths quoted and the startup marker last`() {
         assertEquals(
-            "\"C:\\Java\\bin\\javaw.exe\" -jar \"C:\\Apps\\QTranslate\\QTranslate.jar\"",
+            "\"C:\\Java\\bin\\javaw.exe\" -jar \"C:\\Apps\\QTranslate\\QTranslate.jar\" --startup",
             WindowsStartupRegistration.startupCommandForJar("C:\\Java\\bin\\javaw.exe", "C:\\Apps\\QTranslate\\QTranslate.jar")
         )
     }
@@ -76,9 +76,9 @@ class WindowsStartupRegistrationTest {
     // ---- enable ---------------------------------------------------------------
 
     @Test
-    fun `enable writes the quoted command to the per-user Run key`() {
+    fun `enable writes the marker-bearing command to the per-user Run key`() {
         val fake = FakeReg()
-        val command = "\"C:\\Program Files\\QTranslate\\QTranslate.exe\""
+        val command = "\"C:\\Program Files\\QTranslate\\QTranslate.exe\" --startup"
 
         assertTrue(registration(fake, launcherCommand = command).setEnabled(true))
 
@@ -91,13 +91,13 @@ class WindowsStartupRegistrationTest {
     }
 
     @Test
-    fun `reg data argument escapes quotes so spaced paths survive reg-dot-exe`() {
+    fun `reg data argument escapes quotes while leaving the startup marker intact`() {
         // ProcessBuilder routes argv through one Windows command line whose parsing strips a
         // layer of quoting: plain embedded quotes never reach the registry, and a path with
         // spaces would be stored unquoted. Verified against live reg.exe during development.
         assertEquals(
-            "\\\"C:\\Program Files\\QTranslate\\QTranslate.exe\\\"",
-            WindowsStartupRegistration.regDataArgument("\"C:\\Program Files\\QTranslate\\QTranslate.exe\"")
+            "\\\"C:\\Program Files\\QTranslate\\QTranslate.exe\\\" --startup",
+            WindowsStartupRegistration.regDataArgument("\"C:\\Program Files\\QTranslate\\QTranslate.exe\" --startup")
         )
     }
 
@@ -141,7 +141,7 @@ class WindowsStartupRegistrationTest {
 
     @Test
     fun `reconcile skips the write when the entry is already correct`() {
-        val command = "\"C:\\Program Files\\QTranslate\\QTranslate.exe\""
+        val command = "\"C:\\Program Files\\QTranslate\\QTranslate.exe\" --startup"
         val fake = FakeReg(queryOutput = queryOutputFor(command), queryExitCode = 0)
 
         assertTrue(registration(fake, launcherCommand = command).reconcile(true))
@@ -149,12 +149,32 @@ class WindowsStartupRegistrationTest {
     }
 
     @Test
-    fun `reconcile replaces a stale entry from an older install location`() {
+    fun `reconcile replaces a legacy entry left without the startup marker`() {
+        // Entries written before the --startup marker existed have no invocation marker, so a
+        // login launch from them would wrongly show the main window. They read back as stale
+        // and are replaced with the marker-bearing command.
         val fake = FakeReg(
-            queryOutput = queryOutputFor("\"D:\\Old\\QTranslate.exe\""),
+            queryOutput = queryOutputFor("\"C:\\Program Files\\QTranslate\\QTranslate.exe\""),
             queryExitCode = 0
         )
-        val command = "\"C:\\Program Files\\QTranslate\\QTranslate.exe\""
+        val command = "\"C:\\Program Files\\QTranslate\\QTranslate.exe\" --startup"
+
+        assertTrue(registration(fake, launcherCommand = command).reconcile(true))
+
+        val write = fake.calls.single { it.getOrNull(1) == "add" }
+        assertEquals(
+            WindowsStartupRegistration.regDataArgument(command),
+            write[write.indexOf("/d") + 1]
+        )
+    }
+
+    @Test
+    fun `reconcile replaces a stale entry from an older install location`() {
+        val fake = FakeReg(
+            queryOutput = queryOutputFor("\"D:\\Old\\QTranslate.exe\" --startup"),
+            queryExitCode = 0
+        )
+        val command = "\"C:\\Program Files\\QTranslate\\QTranslate.exe\" --startup"
 
         assertTrue(registration(fake, launcherCommand = command).reconcile(true))
 
@@ -168,7 +188,7 @@ class WindowsStartupRegistrationTest {
     @Test
     fun `reconcile creates a missing entry when enabled`() {
         val fake = FakeReg(queryExitCode = 1)
-        val command = "\"C:\\Program Files\\QTranslate\\QTranslate.exe\""
+        val command = "\"C:\\Program Files\\QTranslate\\QTranslate.exe\" --startup"
 
         assertTrue(registration(fake, launcherCommand = command).reconcile(true))
         assertTrue(fake.calls.any { it.getOrNull(1) == "add" })
@@ -203,6 +223,12 @@ class WindowsStartupRegistrationTest {
     }
 
     @Test
+    fun `marker-bearing query output parses back exactly`() {
+        val command = "\"C:\\Program Files\\QTranslate\\QTranslate.exe\" --startup"
+        assertEquals(command, WindowsStartupRegistration.parseCurrentCommand(queryOutputFor(command)))
+    }
+
+    @Test
     fun `missing value parses to null`() {
         assertEquals(
             null,
@@ -215,7 +241,7 @@ class WindowsStartupRegistrationTest {
     @Test
     fun `jpackage launcher path wins over everything else`() {
         assertEquals(
-            "\"C:\\Program Files\\QTranslate\\QTranslate.exe\"",
+            "\"C:\\Program Files\\QTranslate\\QTranslate.exe\" --startup",
             WindowsStartupRegistration.resolveLauncherCommand(
                 jpackageAppPath = "C:\\Program Files\\QTranslate\\QTranslate.exe",
                 codeSourceUrl = null
@@ -244,5 +270,76 @@ class WindowsStartupRegistrationTest {
         // (Runs only where it is meaningful: skipped off Windows, where reconcile is a no-op.)
         if (!WindowsStartupRegistration.isSupported()) return
         assertEquals(null, WindowsStartupRegistration.resolveLauncherCommand())
+    }
+
+    // ---- startup invocation marker -------------------------------------------------
+
+    @Test
+    fun `only the explicit startup argument marks a login launch`() {
+        assertEquals(false, WindowsStartupRegistration.isStartupLaunch(arrayOf()))
+        assertEquals(true, WindowsStartupRegistration.isStartupLaunch(arrayOf("--startup")))
+        assertEquals(
+            true,
+            WindowsStartupRegistration.isStartupLaunch(arrayOf("--startup", "--something-else"))
+        )
+        assertEquals(false, WindowsStartupRegistration.isStartupLaunch(arrayOf("--minimized")))
+        assertEquals(false, WindowsStartupRegistration.isStartupLaunch(arrayOf("--verbose", "--debug")))
+    }
+
+    @Test
+    fun `unknown arguments never crash startup detection`() {
+        assertEquals(false, WindowsStartupRegistration.isStartupLaunch(arrayOf("garbage", "--", "")))
+    }
+
+    // ---- initial visibility ----------------------------------------------------------
+
+    @Test
+    fun `normal launch requests a visible window even when tray is available`() {
+        assertEquals(
+            false,
+            WindowsStartupRegistration.shouldStartHidden(
+                launchedFromStartup = false,
+                traySupported = true
+            )
+        )
+    }
+
+    @Test
+    fun `startup launch with tray support starts hidden`() {
+        assertEquals(
+            true,
+            WindowsStartupRegistration.shouldStartHidden(
+                launchedFromStartup = true,
+                traySupported = true
+            )
+        )
+    }
+
+    @Test
+    fun `startup launch without tray support falls back to visible`() {
+        // Hidden with no tray would leave an invisible process with no restore path —
+        // global hotkeys alone are not a recovery mechanism when tray setup failed.
+        assertEquals(
+            false,
+            WindowsStartupRegistration.shouldStartHidden(
+                launchedFromStartup = true,
+                traySupported = false
+            )
+        )
+    }
+
+    @Test
+    fun `manual launch shows the window regardless of the persisted startup setting`() {
+        // The `launchOnSystemStartup` setting is deliberately not an input here: a user with
+        // startup enabled who launches QTranslate by hand must still get the main window.
+        // Only the explicit --startup invocation marker hides it.
+        assertEquals(false, WindowsStartupRegistration.isStartupLaunch(arrayOf()))
+        assertEquals(
+            false,
+            WindowsStartupRegistration.shouldStartHidden(
+                launchedFromStartup = false,
+                traySupported = true
+            )
+        )
     }
 }

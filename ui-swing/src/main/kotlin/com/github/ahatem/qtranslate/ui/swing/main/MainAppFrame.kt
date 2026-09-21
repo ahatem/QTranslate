@@ -93,7 +93,16 @@ class MainAppFrame(
      */
     private val translateString: (suspend (String, LanguageCode) -> Result<String>)? = null,
     /** The application's own secrets, for the proxy password on the Network settings page. */
-    private val appSecrets: AppSecretStore? = null
+    private val appSecrets: AppSecretStore? = null,
+    /**
+     * True when this process was launched from the Windows startup registration (#226).
+     *
+     * The frame is then constructed exactly as usual — tray, hotkeys, services — but never
+     * made visible, so no window flashes and no taskbar entry appears until the user restores
+     * it through the canonical [showAndFocus] path. The caller guarantees a tray is available
+     * before passing true, so the window always has a recovery path.
+     */
+    private val initiallyHidden: Boolean = false
 ) : JFrame("QTranslate") {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("MainAppFrame"))
@@ -514,7 +523,9 @@ class MainAppFrame(
             escapeBinding.register()
 
             observeStateAndEvents()
-            isVisible = true
+            // A login launch stays hidden in the tray: the window is never shown, not shown
+            // and re-hidden, so nothing flashes and no taskbar entry appears (#226).
+            isVisible = !initiallyHidden
 
             // applyOrientation must run AFTER switchLayout's invokeLater has fired.
             // switchLayout() queues an invokeLater internally — if we call
@@ -1572,18 +1583,7 @@ class MainAppFrame(
     private fun setupGlobalHotkeys() {
         addWindowListener(object : WindowAdapter() {
             override fun windowOpened(e: WindowEvent?) {
-                globalKeyListener.initialize()
-                val config = settingsStore.state.value.workingConfiguration
-                val saved = settingsStore.state.value.originalConfiguration
-                globalKeyListener.updateRuntimeState(
-                    InputRuntimeState(
-                        bindings = saved.hotkeys,
-                        globalHotkeysEnabled = config.isGlobalHotkeysEnabled,
-                        selectionIconEnabled = saved.isSelectionIconEnabled,
-                        dismissOnOutsideClickEnabled = config.closePopupsOnClickOutside
-                    )
-                )
-                registerLocalHotkeys()
+                initializeGlobalHotkeys()
             }
 
             override fun windowClosed(e: WindowEvent?) {
@@ -1593,6 +1593,26 @@ class MainAppFrame(
                 exitProcess(0)
             }
         })
+        // Global hotkeys must work even when the frame starts hidden in the tray (#226):
+        // windowOpened only fires once the window is first shown, which a login launch may
+        // never do until the user restores it. Initializing here as well is safe — the
+        // backend guards with an atomic check-and-set and local registration reinstalls.
+        initializeGlobalHotkeys()
+    }
+
+    private fun initializeGlobalHotkeys() {
+        globalKeyListener.initialize()
+        val config = settingsStore.state.value.workingConfiguration
+        val saved = settingsStore.state.value.originalConfiguration
+        globalKeyListener.updateRuntimeState(
+            InputRuntimeState(
+                bindings = saved.hotkeys,
+                globalHotkeysEnabled = config.isGlobalHotkeysEnabled,
+                selectionIconEnabled = saved.isSelectionIconEnabled,
+                dismissOnOutsideClickEnabled = config.closePopupsOnClickOutside
+            )
+        )
+        registerLocalHotkeys()
     }
 
     private fun openUrl(url: String) {
