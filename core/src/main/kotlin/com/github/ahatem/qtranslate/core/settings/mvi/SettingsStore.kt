@@ -109,39 +109,33 @@ class SettingsStore(
             SettingsIntent.CancelChanges     -> handleCancelChanges()
             SettingsIntent.ResetToDefaults   -> handleResetToDefaults()
 
-            // Quick actions — update working copy then trigger save
+            // Quick actions persist only their scoped update. A settings dialog may have a
+            // separate dirty draft that must remain uncommitted.
             is SettingsIntent.ToggleSetting  -> {
-                applyWorkingUpdate(intent.update(_state.value.workingConfiguration))
-                launchSave()
+                launchScopedSave(intent.update)
             }
 
-            // Preset operations — delegated to PresetManager, auto-save after
+            // Preset operations update the settings draft and wait for Apply/OK.
             is SettingsIntent.SetActivePreset ->
                 presetManager.setActivePreset(_state.value.workingConfiguration, intent.presetId)
-                    .also { launchSave() }
 
             is SettingsIntent.UpdateServiceInActivePreset ->
                 presetManager.updateServiceInActivePreset(_state.value.workingConfiguration, intent)
-                    .also { launchSave() }
 
             is SettingsIntent.CreatePreset ->
                 presetManager.createPreset(_state.value.workingConfiguration, intent.name)
-                    .also { launchSave() }
 
             is SettingsIntent.DeletePreset ->
                 presetManager.deletePreset(_state.value.workingConfiguration, intent.presetId)
-                    .also { launchSave() }
 
             is SettingsIntent.RenamePreset ->
                 presetManager.renamePreset(_state.value.workingConfiguration, intent.presetId, intent.newName)
-                    .also { launchSave() }
 
             is SettingsIntent.AddTranslationRule -> {
                 val updated = _state.value.workingConfiguration.copy(
                     translationRules = _state.value.workingConfiguration.translationRules + intent.rule
                 )
                 applyWorkingUpdate(updated)
-                launchSave()
             }
 
             is SettingsIntent.RemoveTranslationRule -> {
@@ -149,7 +143,6 @@ class SettingsStore(
                     translationRules = _state.value.workingConfiguration.translationRules - intent.rule
                 )
                 applyWorkingUpdate(updated)
-                launchSave()
             }
         }
     }
@@ -237,6 +230,48 @@ class SettingsStore(
                             it.copy(
                                 originalConfiguration = configToSave,
                                 isDirty = it.workingConfiguration != configToSave,
+                                isSaving = false
+                            )
+                        }
+                        _eventChannel.send(
+                            SettingsEvent.ShowMessage("Settings saved", NotificationType.SUCCESS)
+                        )
+                    },
+                    failure = { error ->
+                        logger.error("Failed to save configuration: ${error.message}")
+                        _state.update { it.copy(isSaving = false) }
+                        _eventChannel.send(
+                            SettingsEvent.ShowMessage(
+                                "Failed to save settings: ${error.message}",
+                                NotificationType.ERROR
+                            )
+                        )
+                    }
+                )
+            }
+        }
+    }
+
+    /** Persists an external quick action without committing an unrelated settings draft. */
+    private fun launchScopedSave(update: (Configuration) -> Configuration) {
+        scope.launch {
+            saveMutex.withLock {
+                val current = _state.value
+                val configToSave = update(current.originalConfiguration)
+                logger.info("Saving scoped configuration update...")
+                _state.update { it.copy(isSaving = true) }
+                settingsRepository.updateConfiguration(configToSave).fold(
+                    success = {
+                        _state.update { current ->
+                            val workingConfiguration = if (current.isDirty) {
+                                update(current.workingConfiguration)
+                            } else {
+                                configToSave
+                            }
+                            current.copy(
+                                originalConfiguration = configToSave,
+                                workingConfiguration = workingConfiguration,
+                                isDirty = workingConfiguration != configToSave,
                                 isSaving = false
                             )
                         }

@@ -107,9 +107,6 @@ class NetworkPanel(
         proxyPassword?.let { access ->
             proxyPasswordField = JPasswordField().apply {
                 text = access.read()
-                // Written straight through to the secret store rather than into the draft
-                // configuration, so it never travels with the rest of the settings and never
-                // reaches the JSON on disk.
                 onEdit { access.write(String(password)) }
             }
             addRow(localizationManager.getString("settings_network.proxy_password"), proxyPasswordField!!)
