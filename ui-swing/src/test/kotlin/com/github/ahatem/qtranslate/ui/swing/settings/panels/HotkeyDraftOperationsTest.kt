@@ -23,6 +23,31 @@ class HotkeyDraftOperationsTest {
     }
 
     @Test
+    fun `modern preset removes default global shortcuts but preserves local bindings`() {
+        val unboundGlobalActions = setOf(
+            HotkeyAction.SHOW_QUICK_TRANSLATE,
+            HotkeyAction.LISTEN_TO_TEXT,
+            HotkeyAction.OPEN_OCR,
+            HotkeyAction.REPLACE_WITH_TRANSLATION,
+            HotkeyAction.SHOW_DICTIONARY,
+            HotkeyAction.SHOW_IMAGES,
+        )
+
+        HotkeyPresets.MODERN.forEach { binding ->
+            val legacy = HotkeyPresets.LEGACY.first { it.action == binding.action }
+            if (binding.action in unboundGlobalActions) {
+                assertEquals(0, binding.keyCode)
+                assertEquals(0, binding.modifiers)
+                assertEquals(legacy.scope, binding.scope)
+            } else {
+                assertEquals(legacy, binding)
+            }
+        }
+
+        assertTrue(HotkeyPresets.MODERN.first { it.action == HotkeyAction.SHOW_MAIN_WINDOW }.isDoubleCtrlEnabled)
+    }
+
+    @Test
     fun `modified or incomplete preset is custom`() {
         val modifiedLegacy = HotkeyPresets.LEGACY.map {
             if (it.action == HotkeyAction.SHOW_QUICK_TRANSLATE) it.copy(keyCode = KeyEvent.VK_Z) else it
@@ -38,6 +63,16 @@ class HotkeyDraftOperationsTest {
         ))
         assertEquals(HotkeyPresetKind.CUSTOM, HotkeyPresets.identify(
             HotkeyPresets.LEGACY + HotkeyPresets.LEGACY.first()
+        ))
+        assertEquals(HotkeyPresetKind.CUSTOM, HotkeyPresets.identify(
+            HotkeyPresets.MODERN.map {
+                if (it.action == HotkeyAction.CYCLE_TARGET_LANGUAGE) it.copy(scope = HotkeyScope.GLOBAL) else it
+            }
+        ))
+        assertEquals(HotkeyPresetKind.CUSTOM, HotkeyPresets.identify(
+            HotkeyPresets.MODERN.map {
+                if (it.action == HotkeyAction.TRANSLATE) it.copy(keyCode = KeyEvent.VK_Z) else it
+            }
         ))
     }
 
@@ -69,6 +104,15 @@ class HotkeyDraftOperationsTest {
     fun `custom selection does not fabricate bindings`() {
         val configuration = Configuration.DEFAULT.copy(hotkeys = HotkeyPresets.MODERN)
         assertEquals(configuration, HotkeyDraftOperations.replacePreset(configuration, HotkeyPresetKind.CUSTOM))
+    }
+
+    @Test
+    fun `unbound modern action assigned later becomes custom`() {
+        val configured = HotkeyDraftOperations.replaceBinding(
+            Configuration.DEFAULT.copy(hotkeys = HotkeyPresets.MODERN),
+            HotkeyBinding(HotkeyAction.SHOW_DICTIONARY, KeyEvent.VK_D, InputEvent.CTRL_DOWN_MASK)
+        )
+        assertEquals(HotkeyPresetKind.CUSTOM, HotkeyPresets.identify(configured.hotkeys))
     }
 
     private val customShowMain = Configuration.DEFAULT.copy(

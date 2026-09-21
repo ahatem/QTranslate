@@ -1,8 +1,5 @@
 package com.github.ahatem.qtranslate.core.settings.data
 
-import java.awt.event.InputEvent
-import java.awt.event.KeyEvent
-
 enum class HotkeyPresetKind {
     LEGACY,
     MODERN,
@@ -16,36 +13,12 @@ object HotkeyPresets {
 
     val MODERN: List<HotkeyBinding> = LEGACY.map { binding ->
         when (binding.action) {
-            HotkeyAction.SHOW_QUICK_TRANSLATE -> binding.copy(
-                keyCode = KeyEvent.VK_Q,
-                modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.ALT_DOWN_MASK,
-                scope = HotkeyScope.GLOBAL
-            )
-            HotkeyAction.LISTEN_TO_TEXT -> binding.copy(
-                keyCode = KeyEvent.VK_E,
-                modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.ALT_DOWN_MASK,
-                scope = HotkeyScope.GLOBAL
-            )
-            HotkeyAction.OPEN_OCR -> binding.copy(
-                keyCode = KeyEvent.VK_I,
-                modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.ALT_DOWN_MASK,
-                scope = HotkeyScope.GLOBAL
-            )
-            HotkeyAction.REPLACE_WITH_TRANSLATION -> binding.copy(
-                keyCode = KeyEvent.VK_T,
-                modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.ALT_DOWN_MASK,
-                scope = HotkeyScope.GLOBAL
-            )
-            HotkeyAction.SHOW_DICTIONARY -> binding.copy(
-                keyCode = KeyEvent.VK_D,
-                modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.ALT_DOWN_MASK,
-                scope = HotkeyScope.GLOBAL
-            )
-            HotkeyAction.SHOW_IMAGES -> binding.copy(
-                keyCode = KeyEvent.VK_Q,
-                modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.ALT_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK,
-                scope = HotkeyScope.GLOBAL
-            )
+            HotkeyAction.SHOW_QUICK_TRANSLATE,
+            HotkeyAction.LISTEN_TO_TEXT,
+            HotkeyAction.OPEN_OCR,
+            HotkeyAction.REPLACE_WITH_TRANSLATION,
+            HotkeyAction.SHOW_DICTIONARY,
+            HotkeyAction.SHOW_IMAGES -> binding.copy(keyCode = 0, modifiers = 0)
             else -> binding.copy()
         }
     }.toList()

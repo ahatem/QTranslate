@@ -110,6 +110,12 @@ class KeyboardPanel(
                     (selectedItem as? HotkeyPresetKind)?.let { preset ->
                         if (preset != HotkeyPresetKind.CUSTOM) {
                             applyDraft(store) { HotkeyDraftOperations.replacePreset(it, preset) }
+                        } else {
+                            withoutTrigger {
+                                selectedItem = HotkeyPresets.identify(
+                                    store.state.value.workingConfiguration.hotkeys
+                                )
+                            }
                         }
                     }
                 }
