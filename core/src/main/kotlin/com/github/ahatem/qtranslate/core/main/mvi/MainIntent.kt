@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.core.main.mvi
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
 import java.io.File
@@ -42,9 +43,12 @@ sealed interface MainIntent : UiIntent {
      * wanted. Asking for a full translation here threw away a result the user was reading and
      * spent another request to fetch the same text back.
      *
+     * [extraOutputRequest] is supplied by callers that have just committed or selected an Extra
+     * Output option, so the refresh does not wait for the derived settings flow to catch up.
+     *
      * Falls back to a full translation when there is nothing translated yet to derive from.
      */
-    data object RefreshExtraOutput : MainIntent
+    data class RefreshExtraOutput(val extraOutputRequest: ExtraOutputRequest? = null) : MainIntent
 
     /**
      * User cancelled an in-flight translation.

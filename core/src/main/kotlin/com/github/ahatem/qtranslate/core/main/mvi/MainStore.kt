@@ -9,6 +9,7 @@ import com.github.ahatem.qtranslate.core.history.HistoryRepository
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.SelectionReadSource
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.AppConstants
@@ -276,7 +277,9 @@ class MainStore(
                 scope.launch { translateText(intent.text) }
             }
 
-            MainIntent.RefreshExtraOutput -> scope.launch { refreshExtraOutput() }
+            is MainIntent.RefreshExtraOutput -> scope.launch {
+                refreshExtraOutput(intent.extraOutputRequest)
+            }
 
             MainIntent.CancelTranslation -> {
                 translateTextUseCase.cancel()
@@ -576,25 +579,30 @@ class MainStore(
         )
     }
 
-    private suspend fun translateText(textOverride: String? = null) =
+    private suspend fun translateText(
+        textOverride: String? = null,
+        extraOutputRequest: ExtraOutputRequest? = null,
+    ) =
         translateTextUseCase(
             getState    = { _state.value },
             updateState = { transform -> _state.update(transform) },
             onStatusUpdate = ::updateStatusBar,
-            textOverride = textOverride
+            textOverride = textOverride,
+            extraOutputRequest = extraOutputRequest,
         )
 
     /**
      * Recomputes the extra panel alone, falling back to a full translation when there is no
      * translation yet to derive one from.
      */
-    private suspend fun refreshExtraOutput() {
+    private suspend fun refreshExtraOutput(extraOutputRequest: ExtraOutputRequest?) {
         val refreshed = translateTextUseCase.refreshExtraOutput(
+            extraOutputRequest = extraOutputRequest,
             getState = { _state.value },
             updateState = { transform -> _state.update(transform) },
             onStatusUpdate = ::updateStatusBar
         )
-        if (!refreshed) translateText()
+        if (!refreshed) translateText(extraOutputRequest = extraOutputRequest)
     }
 
     private suspend fun handleLookupWord(intent: MainIntent.LookupWord) {

@@ -112,7 +112,7 @@ class SettingsStore(
             // Quick actions persist only their scoped update. A settings dialog may have a
             // separate dirty draft that must remain uncommitted.
             is SettingsIntent.ToggleSetting  -> {
-                launchScopedSave(intent.update)
+                launchScopedSave(intent.update, intent.onSuccess)
             }
 
             // Preset operations update the settings draft and wait for Apply/OK.
@@ -253,7 +253,10 @@ class SettingsStore(
     }
 
     /** Persists an external quick action without committing an unrelated settings draft. */
-    private fun launchScopedSave(update: (Configuration) -> Configuration) {
+    private fun launchScopedSave(
+        update: (Configuration) -> Configuration,
+        onSuccess: (Configuration) -> Unit
+    ) {
         scope.launch {
             saveMutex.withLock {
                 val current = _state.value
@@ -275,6 +278,7 @@ class SettingsStore(
                                 isSaving = false
                             )
                         }
+                        onSuccess(configToSave)
                         _eventChannel.send(
                             SettingsEvent.ShowMessage("Settings saved", NotificationType.SUCCESS)
                         )

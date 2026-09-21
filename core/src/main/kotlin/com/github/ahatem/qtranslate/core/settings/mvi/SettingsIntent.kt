@@ -66,7 +66,11 @@ sealed interface SettingsIntent : UiIntent {
      * })
      * ```
      */
-    data class ToggleSetting(val update: (Configuration) -> Configuration) : SettingsIntent
+    data class ToggleSetting(
+        /** Called after success is persisted and published as the original state, never on failure. */
+        val onSuccess: (Configuration) -> Unit = {},
+        val update: (Configuration) -> Configuration
+    ) : SettingsIntent
 
     /**
      * Switches the active service preset in the settings draft.

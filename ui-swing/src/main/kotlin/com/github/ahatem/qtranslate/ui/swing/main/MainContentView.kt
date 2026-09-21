@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.api.plugin.StandardOptions
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
@@ -635,15 +636,16 @@ class MainContentView(
                 selectedOptionId = extraOutputOption?.selectedIdOr(extraOutputSelection),
 
                 onTypeChanged = { type ->
+                    val updated = config.copy(extraOutputType = type)
                     dispatchSettings(
                         SettingsIntent.UpdateDraft(
-                            config.copy(extraOutputType = type)
+                            updated
                         )
                     )
                     // Only this panel changed. The translation beside it is still correct, so
                     // asking for a new one would discard what the user is reading and pay for
                     // the same text twice.
-                    dispatch(MainIntent.RefreshExtraOutput)
+                    dispatch(MainIntent.RefreshExtraOutput(ExtraOutputRequest.from(updated)))
                 },
                 onOptionSelected = { id ->
                     // Which setting the id belongs to follows from the active type; the panel
@@ -654,7 +656,7 @@ class MainContentView(
                         else -> config
                     }
                     dispatchSettings(SettingsIntent.UpdateDraft(updated))
-                    dispatch(MainIntent.RefreshExtraOutput)
+                    dispatch(MainIntent.RefreshExtraOutput(ExtraOutputRequest.from(updated)))
                 },
 
                 actionsState = TextActionsState(

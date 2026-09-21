@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
@@ -135,6 +136,25 @@ class SettingsStoreDraftSemanticsTest {
 
         assertFalse(store.state.value.originalConfiguration.isGlobalHotkeysEnabled)
         assertFalse(store.state.value.originalConfiguration.isSpellCheckingEnabled)
+    }
+
+    @Test
+    fun `scoped success callback runs after the committed state is published`() = runTest {
+        val store = store(Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.BackwardTranslate))
+        var savedType: ExtraOutputType? = null
+
+        store.dispatch(
+            SettingsIntent.ToggleSetting(
+                update = { it.copy(extraOutputType = ExtraOutputType.Summarize) },
+                onSuccess = { saved ->
+                    savedType = saved.extraOutputType
+                    assertEquals(ExtraOutputType.Summarize, store.state.value.originalConfiguration.extraOutputType)
+                },
+            )
+        )
+        awaitSuccessEvent(store)
+
+        assertEquals(ExtraOutputType.Summarize, savedType)
     }
 
     @Test

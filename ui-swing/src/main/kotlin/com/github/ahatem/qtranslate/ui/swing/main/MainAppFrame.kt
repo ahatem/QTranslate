@@ -1114,18 +1114,21 @@ class MainAppFrame(
                     SettingsIntent.ToggleSetting { it.copy(isInstantTranslationEnabled = enabled) }
                 )
             },
-            onToggleExtraOutput = { enabled ->
-                val newType = if (enabled) ExtraOutputType.BackwardTranslate else ExtraOutputType.None
+            onChangeExtraOutput = { type ->
                 settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting { it.copy(extraOutputType = newType) }
+                    SettingsIntent.ToggleSetting(
+                        update = { it.copy(extraOutputType = type) },
+                        onSuccess = { saved ->
+                            mainStore.dispatch(
+                                MainIntent.RefreshExtraOutput(ExtraOutputRequest.from(saved))
+                            )
+                        }
+                    )
                 )
-                // Turning the panel on used to reveal an empty one, which stayed empty until the
-                // next translation and read as broken. Filling it is the point of switching it on,
-                // and costs only the extra request, not a second translation.
-                mainStore.dispatch(MainIntent.RefreshExtraOutput)
             },
             onShowDictionary = { showDictionaryDialog() },
             onShowImageSearch = { showImageSearchDialog() },
+            onRecognizeText = { openSnippingTool() },
             onShowHistory = { showHistoryDialog() },
             onTranslateDocument = { documentTranslationDialog.open() },
             onShowSettings = { openSettingsDialog() },
@@ -1177,11 +1180,16 @@ class MainAppFrame(
         val strings = MenuStrings(
             spellCheck = localizer.getString("main_window_main_menu.spell_check"),
             instantTranslation = localizer.getString("main_window_main_menu.instant_translation"),
-            extraOutput = localizer.getString("main_window_main_menu.show_extra_output"),
+            extraOutput = localizer.getString("settings_translation.extra_output_group"),
+            extraOutputNone = localizer.getString("settings_translation.type_none"),
+            extraOutputBackward = localizer.getString("settings_translation.type_backward"),
+            extraOutputSummarize = localizer.getString("settings_translation.type_summarize"),
+            extraOutputRewrite = localizer.getString("settings_translation.type_rewrite"),
             viewOptions = localizer.getString("main_window_main_menu.options_submenu"),
             dictionary = localizer.getString("system_tray_menu.dictionary"),
             isDictionaryPanelOpen = mainStore.state.value.isDictionaryPanelVisible,
             imageSearch = localizer.getString("system_tray_menu.image_search"),
+            recognizeText = localizer.getString("system_tray_menu.recognize_text"),
             history = localizer.getString("system_tray_menu.history"),
             translateDocument = localizer.getString("main_window_main_menu.translate_document"),
             settings = localizer.getString("main_window_main_menu.settings"),

@@ -10,6 +10,7 @@ import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
@@ -81,7 +82,8 @@ class TranslateTextUseCase(
         getState: () -> MainState,
         updateState: (MainState.() -> MainState) -> Unit,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit,
-        textOverride: String? = null
+        textOverride: String? = null,
+        extraOutputRequest: ExtraOutputRequest? = null,
     ): TranslationCompletion? {
         currentGetState = getState
         val requestId = requestIds.incrementAndGet()
@@ -183,7 +185,8 @@ class TranslateTextUseCase(
                                     translator       = translator,
                                     translatorId     = translatorId,
                                     updateState      = updateState,
-                                    onStatusUpdate   = onStatusUpdate
+                                    onStatusUpdate   = onStatusUpdate,
+                                    extraOutputRequest = extraOutputRequest,
                                 )
                                 if (retranslated != null) {
                                     completion = TranslationCompletion(requestId, retranslated)
@@ -212,7 +215,8 @@ class TranslateTextUseCase(
                             targetForBackward = initialTarget,
                             translator        = translator,
                             updateState       = updateState,
-                            onStatusUpdate    = onStatusUpdate
+                            onStatusUpdate    = onStatusUpdate,
+                            extraOutputRequest = extraOutputRequest,
                         )
                         completion = TranslationCompletion(requestId, response.translatedText)
                     },
@@ -254,6 +258,7 @@ class TranslateTextUseCase(
         translatorId: String,
         updateState: (MainState.() -> MainState) -> Unit,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit,
+        extraOutputRequest: ExtraOutputRequest?,
     ): String? {
         val retryRequest = TranslationRequest(
             text           = textToTranslate,
@@ -292,6 +297,7 @@ class TranslateTextUseCase(
                     translator        = translator,
                     updateState       = updateState,
                     onStatusUpdate    = onStatusUpdate,
+                    extraOutputRequest = extraOutputRequest,
                     ruleTarget        = ruleTarget
                 )
                 retryResponse.translatedText
@@ -380,10 +386,14 @@ class TranslateTextUseCase(
      * Nothing about the extra output needs the translation to be redone: [handleExtraOutput] takes
      * the translated text as a parameter, so it can be fed the text already in state.
      *
+     * [extraOutputRequest] may carry settings that have just been committed or selected. This
+     * avoids reading previous Extra Output values while the derived settings flow propagates.
+     *
      * Returns false when there is nothing to work from, leaving the caller to fall back to a real
      * translation rather than showing an empty panel.
      */
     suspend fun refreshExtraOutput(
+        extraOutputRequest: ExtraOutputRequest? = null,
         getState: () -> MainState,
         updateState: (MainState.() -> MainState) -> Unit,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
@@ -391,9 +401,9 @@ class TranslateTextUseCase(
         currentGetState = getState
         currentRequestId = requestIds.incrementAndGet()
         val state = getState()
-        val extraOutputType = settingsState.value.extraOutputType
+        val request = extraOutputRequest ?: ExtraOutputRequest.from(settingsState.value)
 
-        if (extraOutputType == ExtraOutputType.None) {
+        if (request.type == ExtraOutputType.None) {
             updateState { copy(extraOutputText = "", isExtraOutputLoading = false) }
             return true
         }
@@ -416,6 +426,7 @@ class TranslateTextUseCase(
             updateState { copy(extraOutputText = "", isExtraOutputLoading = true) }
             try {
                 val extraOutput = handleExtraOutput(
+                    request           = request,
                     targetText        = state.translatedText,
                     sourceForBackward = state.detectedSourceLanguage ?: state.sourceLanguage,
                     targetForBackward = state.targetLanguage,
@@ -423,7 +434,7 @@ class TranslateTextUseCase(
                     onStatusUpdate    = onStatusUpdate
                 )
 
-                val patched = patchExtraOutput(getState().history, extraOutput, extraOutputType.name)
+                val patched = patchExtraOutput(getState().history, extraOutput, request.type.name)
                 updateState {
                     copy(
                         extraOutputText      = extraOutput,
@@ -470,10 +481,11 @@ class TranslateTextUseCase(
         translator: Translator,
         updateState: (MainState.() -> MainState) -> Unit,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit,
+        extraOutputRequest: ExtraOutputRequest? = null,
         ruleTarget: LanguageCode? = null
     ) {
-        val extraOutputType = settingsState.value.extraOutputType
-        val expectsExtraOutput = extraOutputType != ExtraOutputType.None
+        val request = extraOutputRequest ?: ExtraOutputRequest.from(settingsState.value)
+        val expectsExtraOutput = request.type != ExtraOutputType.None
 
         updateState {
             copy(
@@ -495,6 +507,7 @@ class TranslateTextUseCase(
 
         val extraOutput = try {
             handleExtraOutput(
+                request           = request,
                 targetText        = translatedText,
                 sourceForBackward = sourceForBackward,
                 targetForBackward = targetForBackward,
@@ -509,7 +522,7 @@ class TranslateTextUseCase(
             throw cancellation
         }
 
-        val finalHistory = patchExtraOutput(history, extraOutput, extraOutputType.name)
+        val finalHistory = patchExtraOutput(history, extraOutput, request.type.name)
 
         updateState {
             copy(
@@ -523,20 +536,20 @@ class TranslateTextUseCase(
     }
 
     private suspend fun handleExtraOutput(
+        request: ExtraOutputRequest,
         targetText: String,
         sourceForBackward: LanguageCode,
         targetForBackward: LanguageCode,
         translator: Translator,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit,
     ): String {
-        val config = settingsState.value
         // ExtraOutputSource determines whether we operate on the original input text
         // or on the translated output. Resolved by the caller before this is called.
-        val sourceText = when (config.extraOutputSource) {
+        val sourceText = when (request.source) {
             ExtraOutputSource.Output -> targetText
             ExtraOutputSource.Input  -> currentGetState?.invoke()?.inputText ?: ""
         }
-        return when (config.extraOutputType) {
+        return when (request.type) {
             ExtraOutputType.BackwardTranslate -> performBackwardTranslation(
                 targetText     = targetText,
                 targetLanguage = sourceForBackward,
@@ -546,12 +559,12 @@ class TranslateTextUseCase(
             )
             ExtraOutputType.Summarize -> summarizeUseCase(
                 text           = sourceText,
-                config         = config,
+                summaryLength  = request.summaryLength,
                 onStatusUpdate = onStatusUpdate
             )
             ExtraOutputType.Rewrite -> rewriteUseCase(
                 text           = sourceText,
-                config         = config,
+                rewriteStyle   = request.rewriteStyle,
                 onStatusUpdate = onStatusUpdate
             )
             ExtraOutputType.None -> ""
