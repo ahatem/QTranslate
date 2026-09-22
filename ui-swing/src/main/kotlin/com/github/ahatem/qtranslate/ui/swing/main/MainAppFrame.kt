@@ -1674,7 +1674,7 @@ class MainAppFrame(
             versionText = localizer.getString("common.version", AppConstants.APP_VERSION),
             descriptionHtml = localizer.getString("about_dialog.description"),
             websiteUrl = "https://github.com/ahatem/qtranslate",
-            icon = iconManager.getIcon("icons/app/icon-32.png", 32, 32),
+            icon = iconManager.getIcon("icons/app/icon-64.png", 64, 64),
             closeButtonText = localizer.getString("common.close"),
             supportUrl = "https://buymeacoffee.com/ahmedhatem",
             supportButtonText = localizer.getString("about_dialog.support_button")
