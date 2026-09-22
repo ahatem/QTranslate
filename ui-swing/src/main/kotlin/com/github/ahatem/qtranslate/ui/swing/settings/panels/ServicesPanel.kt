@@ -365,8 +365,12 @@ class ServicesPanel(
                     list.add(JCheckBox(label).apply {
                         name = "comparison-translator-${option.id}"
                         isOpaque = false
-                        isSelected = option.id in comparisonIdsForChooser && option.id != primaryTranslatorIdForChooser
-                        isEnabled = option.available
+                        val selected = option.id in comparisonIdsForChooser && option.id != primaryTranslatorIdForChooser
+                        isSelected = selected
+                        // A selected service that became disabled or disappeared is retained in
+                        // the draft so it can be removed explicitly; only unselected unhealthy
+                        // services are non-actionable.
+                        isEnabled = option.available || selected
                         toolTipText = option.id.takeIf { !option.available }
                         addActionListener {
                             val updated = toggleComparisonId(comparisonIdsForChooser, option.id, isSelected)
