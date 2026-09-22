@@ -271,6 +271,16 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
     }
 
     /**
+     * Registers a setting assembled outside [addCheckbox] or [addRow] with Settings search.
+     *
+     * Some controls live inside a composite widget, such as the service-role cards. They still
+     * need a searchable label even though there is no standalone row label to anchor.
+     */
+    protected fun registerSearchEntry(label: String, anchor: JComponent, hint: String = "") {
+        entries += SettingEntry(label, currentSection, hint, anchor)
+    }
+
+    /**
      * A picker with the actions that operate on it, on one row.
      *
      * Two panels solved this independently and differently — one put labelled buttons on a row of
