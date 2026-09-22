@@ -254,7 +254,8 @@ data class HotkeyBinding(
 data class ServicePreset(
     val id: String,
     val name: String,
-    val selectedServices: Map<ServiceRole, String?>
+    val selectedServices: Map<ServiceRole, String?>,
+    val comparisonTranslatorIds: List<String> = emptyList()
 ) {
     companion object {
 

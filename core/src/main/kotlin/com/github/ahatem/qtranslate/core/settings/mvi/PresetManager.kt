@@ -64,6 +64,18 @@ internal class PresetManager(
 
     }
 
+    fun updateComparisonTranslators(
+        current: Configuration,
+        intent: SettingsIntent.UpdateComparisonTranslatorsInActivePreset
+    ) {
+        if (current.activeServicePresetId == null) {
+            logger.warn("No active preset - ignoring UpdateComparisonTranslatorsInActivePreset intent")
+            return
+        }
+
+        applyUpdate(current.withComparisonTranslators(intent.serviceIds))
+    }
+
     // -------------------------------------------------------------------------
     // Preset CRUD
     // -------------------------------------------------------------------------

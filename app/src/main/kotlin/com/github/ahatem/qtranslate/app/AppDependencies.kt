@@ -16,6 +16,7 @@ import com.github.ahatem.qtranslate.core.main.domain.usecase.RewriteUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SummarizeUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateStringUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateTextUseCase
+import com.github.ahatem.qtranslate.core.main.domain.usecase.ParallelComparisonUseCase
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.plugin.text.LocalizedPluginTextResolver
@@ -231,6 +232,12 @@ suspend fun buildDependencies(
 
     val translateStringUseCase = TranslateStringUseCase(activeServiceManager)
 
+    val parallelComparisonUseCase = ParallelComparisonUseCase(
+        scope = appScope,
+        activeServiceManager = activeServiceManager,
+        loggerFactory = loggerFactory
+    )
+
     val translateUseCase = TranslateTextUseCase(
         scope                = appScope,
         settingsState        = configState,
@@ -238,7 +245,8 @@ suspend fun buildDependencies(
         historyRepository    = historyRepo,
         summarizeUseCase     = summarizeUseCase,
         rewriteUseCase       = rewriteUseCase,
-        loggerFactory        = loggerFactory
+        loggerFactory        = loggerFactory,
+        parallelComparisonUseCase = parallelComparisonUseCase
     )
 
     val lookupWordUseCase = LookupWordUseCase(

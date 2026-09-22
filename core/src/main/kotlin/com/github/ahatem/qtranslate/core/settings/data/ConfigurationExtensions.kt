@@ -66,6 +66,13 @@ fun Configuration.withServiceSelection(
     )
 }
 
+/** Returns a new configuration with the ordered comparison translator ids updated. */
+fun Configuration.withComparisonTranslators(
+    serviceIds: List<String>
+): Configuration = withActivePreset { preset ->
+    preset.copy(comparisonTranslatorIds = serviceIds)
+}
+
 /**
  * Returns a new configuration with [presetId] as the active preset.
  * If [presetId] does not exist in [Configuration.servicePresets], returns the configuration unchanged.

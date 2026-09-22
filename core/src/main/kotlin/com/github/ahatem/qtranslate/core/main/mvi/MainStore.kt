@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.core.main.mvi
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationException
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationRequest
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
@@ -23,6 +24,14 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicLong
+
+private data class ComparisonConfigKey(
+    val activePresetId: String?,
+    val primaryTranslatorId: String?,
+    val comparisonTranslatorIds: List<String>,
+    val translationRules: List<com.github.ahatem.qtranslate.core.settings.data.TranslationRule>,
+    val disabledServices: Set<String>
+)
 
 /**
  * MVI store for the main translation screen.
@@ -86,6 +95,7 @@ class MainStore(
         observeInstantTranslation()
         observeSpellChecking()
         observeTtsPlayback()
+        observeComparisonConfiguration()
         checkForUpdates()
     }
 
@@ -146,6 +156,7 @@ class MainStore(
                         _state.update {
                             it.copy(
                                 translatedText = "",
+                                comparisonResults = emptyList(),
                                 extraOutputText = "",
                                 detectedSourceLanguage = null,
                                 isLoading = false
@@ -164,7 +175,7 @@ class MainStore(
                     if (settingsState.value.isInstantTranslationEnabled
                         && text.length >= AppConstants.INSTANT_TRANSLATE_MIN_CHARS
                     ) {
-                        translateText()
+                        translateText(comparisonPolicy = ComparisonPolicy.DISABLED)
                     }
                 }
         }
@@ -177,6 +188,25 @@ class MainStore(
             handleTextToSpeechUseCase.isPlaying.collect { playing ->
                 _state.update { it.copy(isTtsPlaying = playing) }
             }
+        }
+    }
+
+    private fun observeComparisonConfiguration() {
+        scope.launch {
+            settingsState
+                .map { config ->
+                    val preset = config.getActivePreset()
+                    ComparisonConfigKey(
+                        activePresetId = config.activeServicePresetId,
+                        primaryTranslatorId = preset?.selectedServices?.get(ServiceRole.TRANSLATOR),
+                        comparisonTranslatorIds = preset?.comparisonTranslatorIds.orEmpty(),
+                        translationRules = config.translationRules,
+                        disabledServices = config.disabledServices
+                    )
+                }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { clearComparisonState() }
         }
     }
 
@@ -213,6 +243,7 @@ class MainStore(
                 val cleaned = if (settingsState.value.isRemoveLineBreaksEnabled)
                     intent.text.replace("\n", " ").replace("\r", "").replace("  ", " ").trim()
                 else intent.text
+                clearComparisonState()
                 _state.update { it.copy(inputText = cleaned, detectedSourceLanguage = null) }
                 // With instant translate enabled, cancel any in-flight translation immediately
                 // so the loading indicator clears and the debounce can queue the next request.
@@ -227,13 +258,22 @@ class MainStore(
             }
 
             is MainIntent.SelectSourceLanguage ->
-                _state.update { it.copy(sourceLanguage = intent.language, detectedSourceLanguage = null) }
+                run {
+                    clearComparisonState()
+                    _state.update { it.copy(sourceLanguage = intent.language, detectedSourceLanguage = null) }
+                }
 
             is MainIntent.SelectTargetLanguage ->
-                _state.update { it.copy(targetLanguage = intent.language) }
+                run {
+                    clearComparisonState()
+                    _state.update { it.copy(targetLanguage = intent.language) }
+                }
 
             is MainIntent.ApplyCorrection ->
-                _state.update { it.copy(inputText = it.inputText.replaceFirst(intent.original, intent.suggestion)) }
+                run {
+                    clearComparisonState()
+                    _state.update { it.copy(inputText = it.inputText.replaceFirst(intent.original, intent.suggestion)) }
+                }
 
             // Closing clears the pin. A pin says "keep this one around", not "and every one
             // after it" — leaving it set meant the next popup opened wearing the pinned border
@@ -241,6 +281,7 @@ class MainStore(
             MainIntent.HideQuickTranslate -> {
                 quickTranslateGenerations.incrementAndGet()
                 translateTextUseCase.cancel()
+                clearComparisonState()
                 _state.update {
                     it.copy(
                         isQuickTranslateDialogVisible = false,
@@ -274,7 +315,8 @@ class MainStore(
 
             is MainIntent.Translate -> {
                 translateTextUseCase.cancel()
-                scope.launch { translateText(intent.text) }
+                clearComparisonState()
+                scope.launch { translateText(intent.text, comparisonPolicy = ComparisonPolicy.ENABLED) }
             }
 
             is MainIntent.RefreshExtraOutput -> scope.launch {
@@ -283,6 +325,7 @@ class MainStore(
 
             MainIntent.CancelTranslation -> {
                 translateTextUseCase.cancel()
+                clearComparisonState()
                 // Both flags, because cancelling can land while the extra panel is still waiting
                 // on its own request and only the main one was ever cleared here.
                 _state.update { it.copy(isLoading = false, isExtraOutputLoading = false) }
@@ -297,16 +340,18 @@ class MainStore(
 
             MainIntent.StopTTS -> handleTextToSpeechUseCase.stop()
 
-            is MainIntent.ReplaceWithTranslation -> scope.launch {
-                handleReplaceWithTranslation(intent.selectedText)
+            is MainIntent.ReplaceWithTranslation -> {
+                clearComparisonState()
+                scope.launch { handleReplaceWithTranslation(intent.selectedText) }
             }
 
             is MainIntent.ListenToText -> scope.launch {
                 handleListen(intent.textSource, intent.text, intent.language)
             }
 
-            is MainIntent.OcrAndTranslateImage -> scope.launch {
-                handleOcrAndTranslate(intent)
+            is MainIntent.OcrAndTranslateImage -> {
+                clearComparisonState()
+                scope.launch { handleOcrAndTranslate(intent) }
             }
 
             is MainIntent.OcrAndCopyText -> scope.launch {
@@ -318,6 +363,7 @@ class MainStore(
                 // Invalidate a previous auto-read before its handler coroutine gets a chance to
                 // finish TTS setup. The handler also checks the request token after translation.
                 translateTextUseCase.cancel()
+                clearComparisonState()
                 scope.launch { handleShowQuickTranslate(intent, generation) }
             }
 
@@ -463,8 +509,9 @@ class MainStore(
         if (extractedText.isBlank()) return
 
         // Write extracted text into input then translate — same path as manual typing.
+        clearComparisonState()
         _state.update { it.copy(inputText = extractedText) }
-        translateText()
+        translateText(comparisonPolicy = ComparisonPolicy.DISABLED)
     }
 
     /**
@@ -549,7 +596,7 @@ class MainStore(
         }
 
         // Let TranslateTextUseCase own isLoading — it sets it at the start of the job.
-        val completion = translateText()
+        val completion = translateText(comparisonPolicy = ComparisonPolicy.DISABLED)
         if (readSource != SelectionReadSource.TRANSLATION ||
             !SelectionTranslationReadGuard.shouldRead(
                 readRequested = intent.readSelectionAloud,
@@ -582,6 +629,7 @@ class MainStore(
     private suspend fun translateText(
         textOverride: String? = null,
         extraOutputRequest: ExtraOutputRequest? = null,
+        comparisonPolicy: ComparisonPolicy = ComparisonPolicy.DISABLED,
     ) =
         translateTextUseCase(
             getState    = { _state.value },
@@ -589,6 +637,7 @@ class MainStore(
             onStatusUpdate = ::updateStatusBar,
             textOverride = textOverride,
             extraOutputRequest = extraOutputRequest,
+            comparisonPolicy = comparisonPolicy,
         )
 
     /**
@@ -602,7 +651,12 @@ class MainStore(
             updateState = { transform -> _state.update(transform) },
             onStatusUpdate = ::updateStatusBar
         )
-        if (!refreshed) translateText(extraOutputRequest = extraOutputRequest)
+        if (!refreshed) {
+            translateText(
+                extraOutputRequest = extraOutputRequest,
+                comparisonPolicy = ComparisonPolicy.DISABLED
+            )
+        }
     }
 
     private suspend fun handleLookupWord(intent: MainIntent.LookupWord) {
@@ -658,6 +712,7 @@ class MainStore(
     // -------------------------------------------------------------------------
 
     private fun swapLanguages() {
+        clearComparisonState()
         swapLanguagesUseCase(
             currentState     = _state.value,
             onStateUpdate    = { newState -> _state.value = newState },
@@ -668,6 +723,8 @@ class MainStore(
     private fun handleUndo() {
         val current = _state.value
         if (!current.canUndo) return
+
+        clearComparisonState()
 
         val newIndex = current.historyIndex - 1
         val snapshot = current.history[newIndex]
@@ -695,6 +752,8 @@ class MainStore(
     private fun handleRedo() {
         val current = _state.value
         if (!current.canRedo) return
+
+        clearComparisonState()
 
         val newIndex = current.historyIndex + 1
 
@@ -731,6 +790,7 @@ class MainStore(
     private fun handleRestoreHistoryEntry(intent: MainIntent.RestoreHistoryEntry) {
         val snapshot = intent.snapshot
         val idx = _state.value.history.indexOf(snapshot)
+        clearComparisonState()
         _state.update {
             it.copy(
                 inputText              = snapshot.inputText,
@@ -756,12 +816,14 @@ class MainStore(
         // isReplacingSelection=true tells the LoadingIndicator observer to show
         // even when the main window is visible. focusableWindowState=false on
         // LoadingIndicator means it never steals focus from the source app.
+        clearComparisonState()
         _state.update { it.copy(inputText = selectedText, isReplacingSelection = true) }
         translateTextUseCase(
             getState       = { _state.value },
             updateState    = { transform -> _state.update(transform) },
             onStatusUpdate = ::updateStatusBar,
-            textOverride   = selectedText
+            textOverride   = selectedText,
+            comparisonPolicy = ComparisonPolicy.DISABLED
         )
         val result = _state.value.translatedText
         _state.update { it.copy(isReplacingSelection = false) }
@@ -776,7 +838,13 @@ class MainStore(
         val current = _state.value.targetLanguage
         val currentIdx = languages.indexOf(current)
         val nextIdx = (currentIdx + 1) % languages.size
+        clearComparisonState()
         _state.update { it.copy(targetLanguage = languages[nextIdx]) }
+    }
+
+    private fun clearComparisonState() {
+        translateTextUseCase.invalidateComparisons()
+        _state.update { it.copy(comparisonResults = emptyList()) }
     }
 
     suspend fun onShutdown() {

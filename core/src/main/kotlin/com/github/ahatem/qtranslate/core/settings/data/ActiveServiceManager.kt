@@ -53,4 +53,19 @@ class ActiveServiceManager(
 
     /** As [getActive], for the callers that only need the service itself. */
     fun <T : Service> getActiveService(type: ServiceRole): T? = getActive<T>(type)?.service
+
+    /**
+     * Resolves exactly [serviceId] for [role]. Unlike [getActive], this never falls back to a
+     * different service when the requested id is unavailable or invalid for the role.
+     */
+    @Suppress("UNCHECKED_CAST")
+    fun <T : Service> resolve(serviceId: String, role: ServiceRole): ActiveService<T>? {
+        val config = configuration.value
+        if (!config.isServiceRoleEnabled(role)) return null
+
+        val service = activeServices.value[serviceId] ?: return null
+        if (!service.hasRole(role) || config.isServiceDisabled(serviceId, role)) return null
+
+        return (service as? T)?.let { ActiveService(serviceId, it) }
+    }
 }
