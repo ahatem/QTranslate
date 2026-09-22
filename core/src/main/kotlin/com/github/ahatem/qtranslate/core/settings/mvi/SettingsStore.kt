@@ -122,6 +122,9 @@ class SettingsStore(
             is SettingsIntent.UpdateServiceInActivePreset ->
                 presetManager.updateServiceInActivePreset(_state.value.workingConfiguration, intent)
 
+            is SettingsIntent.UpdateComparisonTranslatorsInActivePreset ->
+                presetManager.updateComparisonTranslators(_state.value.workingConfiguration, intent)
+
             is SettingsIntent.CreatePreset ->
                 presetManager.createPreset(_state.value.workingConfiguration, intent.name)
 

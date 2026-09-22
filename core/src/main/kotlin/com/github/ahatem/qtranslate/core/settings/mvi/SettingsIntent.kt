@@ -86,6 +86,11 @@ sealed interface SettingsIntent : UiIntent {
         val serviceId: String?
     ) : SettingsIntent
 
+    /** Updates only the active preset's ordered comparison translator draft. */
+    data class UpdateComparisonTranslatorsInActivePreset(
+        val serviceIds: List<String>
+    ) : SettingsIntent
+
     /**
      * Creates a new preset named [name] with default Google services pre-selected and makes it active.
      */

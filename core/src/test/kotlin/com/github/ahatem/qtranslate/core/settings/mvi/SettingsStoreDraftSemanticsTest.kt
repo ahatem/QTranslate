@@ -88,6 +88,23 @@ class SettingsStoreDraftSemanticsTest {
     }
 
     @Test
+    fun `comparison translator draft edits cancel and apply without rewriting ids`() = runTest {
+        val store = store(Configuration.DEFAULT)
+        val configured = listOf("missing", "second", "missing")
+
+        store.dispatch(SettingsIntent.UpdateComparisonTranslatorsInActivePreset(configured))
+        store.dispatch(SettingsIntent.CancelChanges)
+        assertTrue(store.state.value.originalConfiguration.getActivePreset()!!.comparisonTranslatorIds.isEmpty())
+
+        store.dispatch(SettingsIntent.UpdateComparisonTranslatorsInActivePreset(configured))
+        awaitSave(store)
+        assertEquals(
+            configured,
+            store.state.value.originalConfiguration.getActivePreset()!!.comparisonTranslatorIds
+        )
+    }
+
+    @Test
     fun `translation rules cancel and apply preserve meaningful changes`() = runTest {
         val rule = TranslationRule("en", "fr")
         val store = store(Configuration.DEFAULT.copy(translationRules = listOf(rule)))
