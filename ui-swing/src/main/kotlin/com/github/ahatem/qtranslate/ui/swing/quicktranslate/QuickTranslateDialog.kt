@@ -19,6 +19,8 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.FloatingPopupBehavio
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.InlineLoadingBar
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DefinitionStrip
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
+import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonResultsPanel
+import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonResultsState
 import java.awt.*
 import java.awt.event.*
 import java.util.concurrent.atomic.AtomicBoolean
@@ -139,6 +141,7 @@ class QuickTranslateDialog(
 
     private val loadingBar = InlineLoadingBar()
     private val definitionStrip = DefinitionStrip()
+    private val comparisonResultsPanel = ComparisonResultsPanel()
 
     private val topPanel = createTopPanel()
 
@@ -250,6 +253,7 @@ class QuickTranslateDialog(
             BorderLayout.NORTH
         )
         mainPanel.add(textScrollPane, BorderLayout.CENTER)
+        mainPanel.add(comparisonResultsPanel, BorderLayout.SOUTH)
         // Below the translation, above nothing: an aside, not part of the result.
         mainPanel.add(definitionStrip, BorderLayout.SOUTH)
 
@@ -347,6 +351,20 @@ class QuickTranslateDialog(
         loadingBar.isLoading = state.isLoading && isVisible
         // Only for single words; the state carries it empty otherwise, so the strip hides itself.
         definitionStrip.render(state.definition)
+        comparisonResultsPanel.render(
+            ComparisonResultsState(
+                results = state.comparisonResults,
+                title = state.comparisonTitle,
+                loadingText = state.comparisonLoadingText,
+                unavailableText = state.comparisonUnavailableText,
+                failureText = state.comparisonFailureText,
+                copyLabel = state.comparisonCopyLabel,
+                fontConfig = state.config.font,
+                fallbackFontConfig = state.config.fallbackFont,
+                onCopy = { text -> text.copyToClipboard() },
+                showEmptyState = false
+            )
+        )
 
         // Guarded: assigning a combo's selection fires its listener, which would ask for another
         // translation on every render and loop.

@@ -297,6 +297,12 @@ class MainStore(
                 // a data race between the value read and the update being applied.
                 _state.update { it.copy(isQuickTranslateDialogPinned = !it.isQuickTranslateDialogPinned) }
 
+            MainIntent.RetranslateQuickTranslate -> {
+                translateTextUseCase.cancel()
+                clearComparisonState()
+                scope.launch { translateText(comparisonPolicy = ComparisonPolicy.ENABLED) }
+            }
+
             MainIntent.UndoTranslation -> handleUndo()
             MainIntent.RedoTranslation -> handleRedo()
             MainIntent.CycleTargetLanguage -> handleCycleTargetLanguage()
@@ -316,7 +322,7 @@ class MainStore(
             is MainIntent.Translate -> {
                 translateTextUseCase.cancel()
                 clearComparisonState()
-                scope.launch { translateText(intent.text, comparisonPolicy = ComparisonPolicy.ENABLED) }
+                scope.launch { translateText(intent.text, comparisonPolicy = mainTranslationComparisonPolicy(settingsState.value.layoutPresetId)) }
             }
 
             is MainIntent.RefreshExtraOutput -> scope.launch {
@@ -596,7 +602,7 @@ class MainStore(
         }
 
         // Let TranslateTextUseCase own isLoading — it sets it at the start of the job.
-        val completion = translateText(comparisonPolicy = ComparisonPolicy.DISABLED)
+        val completion = translateText(comparisonPolicy = ComparisonPolicy.ENABLED)
         if (readSource != SelectionReadSource.TRANSLATION ||
             !SelectionTranslationReadGuard.shouldRead(
                 readRequested = intent.readSelectionAloud,
@@ -716,7 +722,12 @@ class MainStore(
         swapLanguagesUseCase(
             currentState     = _state.value,
             onStateUpdate    = { newState -> _state.value = newState },
-            onTranslateNeeded = { dispatch(MainIntent.Translate()) }
+            onTranslateNeeded = {
+                dispatch(
+                    if (_state.value.isQuickTranslateDialogVisible) MainIntent.RetranslateQuickTranslate
+                    else MainIntent.Translate()
+                )
+            }
         )
     }
 

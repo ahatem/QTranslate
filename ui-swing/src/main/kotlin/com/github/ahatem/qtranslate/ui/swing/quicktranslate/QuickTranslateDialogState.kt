@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
 import com.github.ahatem.qtranslate.core.settings.data.Position
 import com.github.ahatem.qtranslate.core.settings.data.Size
+import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonTranslationResult
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
 
 /**
@@ -43,7 +44,13 @@ data class QuickTranslateDialogState(
     val translatorSelectorState: QuickTranslateSelectorState,
     val actionsState: QuickTranslateActionsState,
     val config: DialogConfig,
-    val strings: DialogStrings
+    val strings: DialogStrings,
+    val comparisonResults: List<ComparisonTranslationResult> = emptyList(),
+    val comparisonTitle: String = "",
+    val comparisonLoadingText: String = "",
+    val comparisonUnavailableText: String = "",
+    val comparisonFailureText: String = "",
+    val comparisonCopyLabel: String = ""
 ) : UiState
 
 /**

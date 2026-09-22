@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
+import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import java.awt.*
 import javax.swing.*
 
@@ -9,6 +10,7 @@ data class ComponentRegistry(
     val inputPanel: JComponent,
     val languageBar: JComponent,
     val outputPanel: JComponent,
+    val comparisonWorkspace: JComponent,
     val extraOutputPanel: JComponent,
     val translatorSelector: JComponent,
     val statusBar: JComponent
@@ -70,12 +72,11 @@ data class ArrangedLayout(
     val componentRefs: LayoutComponentRefs
 )
 
-enum class LayoutType(val localizeId: String) {
-    CLASSIC("layout_preset_classic"),
-    SIDE_BY_SIDE("layout_preset_side_by_side"),
-    COMPACT("layout_preset_compact");
-
-    val id: String = name.lowercase()
+enum class LayoutType(val localizeId: String, val id: String) {
+    CLASSIC("layout_preset_classic", LayoutPresetIds.CLASSIC),
+    SIDE_BY_SIDE("layout_preset_side_by_side", LayoutPresetIds.SIDE_BY_SIDE),
+    COMPACT("layout_preset_compact", LayoutPresetIds.COMPACT),
+    COMPARISON("layout_preset_comparison", LayoutPresetIds.COMPARISON);
 }
 
 object LayoutBuilders {
@@ -294,5 +295,48 @@ object CompactLayout : LayoutStrategy {
         return ArrangedLayout(root, refs)
     }
 
+}
+
+object ComparisonLayout : LayoutStrategy {
+    override val type = LayoutType.COMPARISON
+
+    override fun arrange(components: ComponentRegistry, isRtl: Boolean): ArrangedLayout {
+        val topBar = LayoutBuilders.createSimpleTopBar(components.historyBar)
+        val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
+
+        val resultsSection = JPanel(BorderLayout()).apply {
+            add(LayoutBuilders.wrapLanguageBar(components.languageBar), BorderLayout.NORTH)
+            add(components.comparisonWorkspace, BorderLayout.CENTER)
+        }
+        val mainSplit = LayoutBuilders.createVerticalSplit(
+            top = components.inputPanel,
+            bottom = resultsSection,
+            resizeWeight = 0.32
+        )
+        val extraSplit = LayoutBuilders.createVerticalSplit(
+            top = mainSplit,
+            bottom = components.extraOutputPanel,
+            resizeWeight = 0.8,
+            bottomMinHeight = UISpacing.MIN_EXTRA_HEIGHT
+        )
+
+        val contentPanel = JPanel(BorderLayout(0, UISpacing.V_GAP)).apply {
+            border = BorderFactory.createEmptyBorder(
+                UISpacing.PADDING,
+                UISpacing.PADDING,
+                UISpacing.V_GAP,
+                UISpacing.PADDING
+            )
+            add(topBar, BorderLayout.NORTH)
+            add(extraSplit, BorderLayout.CENTER)
+        }
+        val root = JPanel(BorderLayout()).apply {
+            add(contentPanel, BorderLayout.CENTER)
+            add(bottomBar, BorderLayout.SOUTH)
+        }
+        val refs = LayoutComponentRefs.WithSplitPanes(mainSplit, extraSplit)
+        refs.syncExtraOutputState(components.extraOutputPanel)
+        return ArrangedLayout(root, refs)
+    }
 }
 

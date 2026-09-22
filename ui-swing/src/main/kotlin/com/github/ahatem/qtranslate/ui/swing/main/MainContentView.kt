@@ -31,6 +31,9 @@ import com.github.ahatem.qtranslate.ui.swing.main.output.ExtraOutputState
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextPanel
 import com.github.ahatem.qtranslate.ui.swing.main.output.NoServiceState
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextState
+import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonResultsPanel
+import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonResultsState
+import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonWorkspacePanel
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelector
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryPanel
@@ -139,6 +142,9 @@ class MainContentView(
         },
     )
 
+    private val comparisonResultsPanel = ComparisonResultsPanel()
+    private val comparisonWorkspace = ComparisonWorkspacePanel(outputTextPanel, comparisonResultsPanel)
+
     private val extraOutputPanel = ExtraOutputPanel(
         iconManager = iconManager,
         localizationManager = localizer,
@@ -188,6 +194,7 @@ class MainContentView(
             languageBar = languageSelectionBar,
             inputPanel = inputTextPanel,
             outputPanel = outputTextPanel,
+            comparisonWorkspace = comparisonWorkspace,
             extraOutputPanel = extraOutputPanel,
             statusBar = statusBar
         ), contentWrapper
@@ -573,13 +580,6 @@ class MainContentView(
                 isLoading = mainState.isLoading,
                 fontConfig = config.scaledEditorFont,
                 fallbackFontConfig = config.scaledEditorFallbackFont,
-                comparisonResults = mainState.comparisonResults,
-                comparisonTitle = localizer.getString("main_window.comparison_title"),
-                comparisonLoadingText = localizer.getString("main_window.comparison_loading"),
-                comparisonUnavailableText = localizer.getString("main_window.comparison_unavailable"),
-                comparisonFailureText = localizer.getString("main_window.comparison_failure"),
-                comparisonCopyLabel = localizer.getString("main_window.comparison_copy"),
-                onCopyComparison = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) },
                 actionsState = TextActionsState(
                     listOf(
                         Action(
@@ -603,6 +603,25 @@ class MainContentView(
                         )
                     )
                 )
+            )
+        )
+
+        comparisonWorkspace.setPrimaryLabel(localizer.getString("main_window.comparison_primary"))
+        comparisonResultsPanel.render(
+            ComparisonResultsState(
+                results = mainState.comparisonResults,
+                title = localizer.getString("main_window.comparison_title"),
+                loadingText = localizer.getString("main_window.comparison_loading"),
+                unavailableText = localizer.getString("main_window.comparison_unavailable"),
+                failureText = localizer.getString("main_window.comparison_failure"),
+                copyLabel = localizer.getString("main_window.comparison_copy"),
+                fontConfig = config.scaledEditorFont,
+                fallbackFontConfig = config.scaledEditorFallbackFont,
+                onCopy = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) },
+                showEmptyState = activePreset?.comparisonTranslatorIds.orEmpty().isEmpty(),
+                emptyText = localizer.getString("main_window.comparison_no_providers"),
+                configureLabel = localizer.getString("main_window.comparison_configure"),
+                onConfigure = onOpenServiceSettings
             )
         )
 

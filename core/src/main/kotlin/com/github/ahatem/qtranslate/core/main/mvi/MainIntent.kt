@@ -166,6 +166,9 @@ sealed interface MainIntent : UiIntent {
     /** User toggled the pin state of the quick translate popup. */
     data object ToggleQuickTranslateDialogPin : MainIntent
 
+    /** Re-run the currently visible Quick Translate request without closing the popup. */
+    data object RetranslateQuickTranslate : MainIntent
+
     // ---- Dictionary ----
 
     /**

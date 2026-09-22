@@ -1,7 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main.output
 
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
-import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonTranslationResult
 import com.github.ahatem.qtranslate.ui.swing.shared.util.ServiceOptionChoice
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
@@ -32,13 +31,6 @@ data class OutputTextState(
     val isEditable: Boolean = false,
     /** Non-null only when there is no translator to translate with. */
     val noService: NoServiceState? = null,
-    val comparisonResults: List<ComparisonTranslationResult> = emptyList(),
-    val comparisonTitle: String = "",
-    val comparisonLoadingText: String = "",
-    val comparisonUnavailableText: String = "",
-    val comparisonFailureText: String = "",
-    val comparisonCopyLabel: String = "",
-    val onCopyComparison: (String) -> Unit = {}
 ) : UiState
 
 data class ExtraOutputState(

@@ -40,12 +40,6 @@ class OutputTextPanel(
     private val readOnlyPanel = ReadOnlyTextPanel(textPane, actionsPanel)
     // No rule of its own: the output pane above already draws a border.
     private val definitionStrip = DefinitionStrip(showDivider = false)
-    private val primarySurface = JPanel(BorderLayout()).apply {
-        isOpaque = false
-        add(readOnlyPanel, BorderLayout.CENTER)
-        add(definitionStrip, BorderLayout.SOUTH)
-    }
-    private val comparisonResultsPanel = ComparisonResultsPanel()
 
     private val noServiceLabel = JLabel()
     private val noServiceAction = JButton().apply {
@@ -75,8 +69,8 @@ class OutputTextPanel(
 
     init {
         add(noServiceBanner, BorderLayout.NORTH)
-        add(primarySurface, BorderLayout.CENTER)
-        add(comparisonResultsPanel, BorderLayout.SOUTH)
+        add(readOnlyPanel, BorderLayout.CENTER)
+        add(definitionStrip, BorderLayout.SOUTH)
 
         textPane.hintText = localizationManager.getString("main_window_editor_context_menu.output_hint")
         textPane.getContextMenuLabel = { key ->
@@ -102,19 +96,6 @@ class OutputTextPanel(
                 fallbackFontConfig = state.fallbackFontConfig,
                 actionsState = state.actionsState,
                 isEditable = state.isEditable
-            )
-        )
-        comparisonResultsPanel.render(
-            ComparisonResultsState(
-                results = state.comparisonResults,
-                title = state.comparisonTitle,
-                loadingText = state.comparisonLoadingText,
-                unavailableText = state.comparisonUnavailableText,
-                failureText = state.comparisonFailureText,
-                copyLabel = state.comparisonCopyLabel,
-                fontConfig = state.fontConfig,
-                fallbackFontConfig = state.fallbackFontConfig,
-                onCopy = state.onCopyComparison
             )
         )
     }

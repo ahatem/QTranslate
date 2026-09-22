@@ -37,6 +37,7 @@ select_all = "Select All"
 new = "New..."
 rename = "Rename"
 delete = "Delete"
+search = "Search"
 
 # ===================================================================
 # MAIN APPLICATION WINDOW
@@ -52,6 +53,9 @@ comparison_loading = "Translating..."
 comparison_unavailable = "Unavailable service"
 comparison_failure = "Translation failed"
 comparison_copy = "Copy"
+comparison_primary = "PRIMARY"
+comparison_no_providers = "No comparison translators configured."
+comparison_configure = "Configure"
 
 [main_window_history_bar]
 backward_tooltip = "Go backward in translation history"
@@ -89,6 +93,7 @@ layout_presets = "Layout Presets"
 layout_preset_classic = "Classic"
 layout_preset_side_by_side = "Side By Side"
 layout_preset_compact = "Compact"
+layout_preset_comparison = "Comparison"
 instant_translation = "Instant Translation"
 show_extra_output = "Show Extra Output"
 spell_check = "Spell Checking"

@@ -188,7 +188,7 @@ class MainAppFrame(
                 settingsStore.dispatch(
                     SettingsIntent.UpdateServiceInActivePreset(ServiceRole.TRANSLATOR, serviceId)
                 )
-                mainStore.dispatch(MainIntent.Translate())
+                mainStore.dispatch(MainIntent.RetranslateQuickTranslate)
             },
             // Reads the source text, not the translation — the popup is most often used
             // to check how the original word is pronounced.
@@ -214,18 +214,17 @@ class MainAppFrame(
                 settingsStore.dispatch(
                     SettingsIntent.ToggleSetting { it.copy(preferredSourceLanguage = language.tag) }
                 )
-                mainStore.dispatch(MainIntent.Translate())
+                mainStore.dispatch(MainIntent.RetranslateQuickTranslate)
             },
             onTargetLanguageSelected = { language ->
                 mainStore.dispatch(MainIntent.SelectTargetLanguage(language))
                 settingsStore.dispatch(
                     SettingsIntent.ToggleSetting { it.copy(preferredTargetLanguage = language.tag) }
                 )
-                mainStore.dispatch(MainIntent.Translate())
+                mainStore.dispatch(MainIntent.RetranslateQuickTranslate)
             },
             onSwapLanguages = {
                 mainStore.dispatch(MainIntent.SwapLanguages)
-                mainStore.dispatch(MainIntent.Translate())
             }
         )
     }
@@ -1579,7 +1578,13 @@ class MainAppFrame(
                 unpinTooltip = localizer.getString("common.unpin"),
                 swapTooltip = localizer.getString("main_window_language_bar.swap_languages_tooltip"),
                 loadingText = localizer.getString("common.loading")
-            )
+            ),
+            comparisonResults = mainState.comparisonResults,
+            comparisonTitle = localizer.getString("main_window.comparison_title"),
+            comparisonLoadingText = localizer.getString("main_window.comparison_loading"),
+            comparisonUnavailableText = localizer.getString("main_window.comparison_unavailable"),
+            comparisonFailureText = localizer.getString("main_window.comparison_failure"),
+            comparisonCopyLabel = localizer.getString("main_window.comparison_copy")
         )
     }
 

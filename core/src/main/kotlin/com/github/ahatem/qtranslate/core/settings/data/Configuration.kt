@@ -19,6 +19,14 @@ enum class ExtraOutputSource {
     Input, Output
 }
 
+/** Stable identifiers shared by persisted layout settings and orchestration policy. */
+object LayoutPresetIds {
+    const val CLASSIC = "classic"
+    const val SIDE_BY_SIDE = "side_by_side"
+    const val COMPACT = "compact"
+    const val COMPARISON = "comparison"
+}
+
 /**
  * The complete request needed to compute one Extra Output result.
  *

@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.formdev.flatlaf.extras.FlatSVGIcon
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
@@ -16,6 +17,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.awt.*
 import javax.swing.*
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
@@ -316,36 +319,72 @@ class ServicesPanel(
     private fun showComparisonMenu() {
         if (!::comparisonChooser.isInitialized || !comparisonChooser.isEnabled) return
 
+        val workingConfig = store.state.value.workingConfiguration
         val options = comparisonChooserOptions(
-            available = translatorOptions.map { ComparisonServiceOption(it.id, it.name, available = true) },
+            available = translatorOptions
+                .filter { it.id !in workingConfig.disabledServices }
+                .map { ComparisonServiceOption(it.id, it.name, available = true) },
             selectedIds = comparisonIdsForChooser,
             primaryId = primaryTranslatorIdForChooser,
             unavailableName = localizationManager.getString("settings_services.unavailable_service")
         )
 
-        val menu = JPopupMenu()
-        options.forEach { option ->
-            val item = JCheckBoxMenuItem(
-                if (option.available) option.name
-                else "${option.name} (${localizationManager.getString("settings_services.unavailable_suffix")})"
-            ).apply {
-                name = "comparison-translator-${option.id}"
-                isSelected = option.id in comparisonIdsForChooser && option.id != primaryTranslatorIdForChooser
-                toolTipText = option.id.takeIf { !option.available }
-                addActionListener {
-                    val updated = toggleComparisonId(comparisonIdsForChooser, option.id, isSelected)
-                    comparisonIdsForChooser = updated
-                    store.dispatch(SettingsIntent.UpdateComparisonTranslatorsInActivePreset(updated))
-                    refreshComparisonChooser()
+        val menu = JPopupMenu().apply { name = "comparison-translator-popup" }
+        val content = JPanel(BorderLayout(0, 5)).apply {
+            border = BorderFactory.createEmptyBorder(6, 8, 6, 8)
+            preferredSize = Dimension(UIScale.scale(260), UIScale.scale(220))
+        }
+        val search = JTextField().apply {
+            name = "comparison-translator-search"
+            toolTipText = localizationManager.getString("common.search")
+        }
+        content.add(search, BorderLayout.NORTH)
+        val list = JPanel().apply {
+            isOpaque = false
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+        }
+        val scroll = JScrollPane(list).apply {
+            border = BorderFactory.createEmptyBorder()
+            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+            verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
+        }
+        content.add(scroll, BorderLayout.CENTER)
+        menu.add(content)
+
+        lateinit var rebuild: () -> Unit
+        rebuild = {
+            list.removeAll()
+            val query = search.text.trim().lowercase()
+            val filtered = options.filter { it.name.lowercase().contains(query) || it.id.lowercase().contains(query) }
+            if (filtered.isEmpty()) {
+                list.add(JLabel(localizationManager.getString("settings_services.no_comparison_services")))
+            } else {
+                filtered.forEach { option ->
+                    val label = if (option.available) option.name
+                    else "${option.name} (${localizationManager.getString("settings_services.unavailable_suffix")})"
+                    list.add(JCheckBox(label).apply {
+                        name = "comparison-translator-${option.id}"
+                        isOpaque = false
+                        isSelected = option.id in comparisonIdsForChooser && option.id != primaryTranslatorIdForChooser
+                        isEnabled = option.available
+                        toolTipText = option.id.takeIf { !option.available }
+                        addActionListener {
+                            val updated = toggleComparisonId(comparisonIdsForChooser, option.id, isSelected)
+                            comparisonIdsForChooser = updated
+                            store.dispatch(SettingsIntent.UpdateComparisonTranslatorsInActivePreset(updated))
+                            refreshComparisonChooser()
+                        }
+                    })
                 }
             }
-            menu.add(item)
+            list.revalidate(); list.repaint()
         }
-        if (options.isEmpty()) {
-            menu.add(JMenuItem(localizationManager.getString("settings_services.no_comparison_services")).apply {
-                isEnabled = false
-            })
-        }
+        search.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent) = rebuild()
+            override fun removeUpdate(e: DocumentEvent) = rebuild()
+            override fun changedUpdate(e: DocumentEvent) = rebuild()
+        })
+        rebuild()
         menu.applyComponentOrientation(componentOrientation)
         menu.show(comparisonChooser, if (componentOrientation.isLeftToRight) 0 else comparisonChooser.width, comparisonChooser.height)
     }

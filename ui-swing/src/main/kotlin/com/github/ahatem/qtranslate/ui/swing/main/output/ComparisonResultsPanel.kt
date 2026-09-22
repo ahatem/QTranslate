@@ -33,11 +33,15 @@ data class ComparisonResultsState(
     val copyLabel: String,
     val fontConfig: FontConfig,
     val fallbackFontConfig: FontConfig,
-    val onCopy: (String) -> Unit
+    val onCopy: (String) -> Unit,
+    val showEmptyState: Boolean = false,
+    val emptyText: String = "",
+    val configureLabel: String = "",
+    val onConfigure: () -> Unit = {}
 )
 
+/** Comparison cards for the dedicated comparison workspace. */
 class ComparisonResultsPanel : JPanel(BorderLayout()) {
-
     private val titleLabel = JLabel().apply {
         font = font.deriveFont(font.style or java.awt.Font.BOLD)
         border = BorderFactory.createEmptyBorder(UIScale.scale(8), UIScale.scale(10), UIScale.scale(4), UIScale.scale(10))
@@ -46,11 +50,7 @@ class ComparisonResultsPanel : JPanel(BorderLayout()) {
         isOpaque = false
         border = BorderFactory.createEmptyBorder(0, UIScale.scale(10), UIScale.scale(8), UIScale.scale(10))
     }
-    private val scrollPane = JScrollPane(
-        cards,
-        ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-        ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
-    ).apply {
+    private val scrollPane = JScrollPane(cards, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER).apply {
         isVisible = false
         isOpaque = false
         viewport.isOpaque = false
@@ -58,69 +58,87 @@ class ComparisonResultsPanel : JPanel(BorderLayout()) {
         isFocusable = false
         verticalScrollBar.isFocusable = false
     }
+    private val cardByServiceId = linkedMapOf<String, ComparisonResultCard>()
+    private val emptyPanel = JPanel(BorderLayout(0, UIScale.scale(4))).apply {
+        isOpaque = false
+        border = BorderFactory.createEmptyBorder(UIScale.scale(8), UIScale.scale(10), UIScale.scale(8), UIScale.scale(10))
+    }
+    private val emptyLabel = JLabel()
+    private val configureButton = JButton()
 
     init {
         isOpaque = false
         isVisible = false
         add(titleLabel, BorderLayout.NORTH)
         add(scrollPane, BorderLayout.CENTER)
+        emptyPanel.add(emptyLabel, BorderLayout.CENTER)
+        emptyPanel.add(configureButton, BorderLayout.LINE_END)
+        add(emptyPanel, BorderLayout.SOUTH)
         addComponentListener(object : ComponentAdapter() {
-            override fun componentResized(e: ComponentEvent?) {
-                cards.revalidate()
-            }
+            override fun componentResized(e: ComponentEvent?) { cards.revalidate() }
         })
     }
 
     fun render(state: ComparisonResultsState) {
-        val visible = state.results.isNotEmpty()
-        if (!visible) {
-            if (isVisible) {
-                isVisible = false
-                revalidate()
-                repaint()
-            }
+        if (state.results.isEmpty()) {
+            cardByServiceId.clear()
+            while (cards.componentCount > 0) cards.remove(0)
+            scrollPane.isVisible = false
+            emptyLabel.text = state.emptyText
+            configureButton.text = state.configureLabel
+            configureButton.isVisible = state.showEmptyState && state.configureLabel.isNotBlank()
+            configureButton.actionListeners.forEach(configureButton::removeActionListener)
+            configureButton.addActionListener { state.onConfigure() }
+            emptyPanel.isVisible = state.showEmptyState && state.emptyText.isNotBlank()
+            isVisible = emptyPanel.isVisible
+            revalidate(); repaint()
             return
         }
-
         titleLabel.text = state.title
-        cards.removeAll()
+        emptyPanel.isVisible = false
+        val activeIds = state.results.map { it.serviceId }.toSet()
+        cardByServiceId.keys.filterNot(activeIds::contains).toList().forEach(cardByServiceId::remove)
+        while (cards.componentCount > 0) cards.remove(0)
         state.results.forEachIndexed { index, result ->
-            cards.add(
-                ComparisonResultCard(
-                    result = result,
-                    loadingText = state.loadingText,
-                    unavailableText = state.unavailableText,
-                    failureText = state.failureText,
-                    copyLabel = state.copyLabel,
-                    fontConfig = state.fontConfig,
-                    fallbackFontConfig = state.fallbackFontConfig,
-                    onCopy = state.onCopy
-                )
-            )
-            if (index < state.results.lastIndex) {
-                cards.add(javax.swing.Box.createVerticalStrut(UIScale.scale(6)))
-            }
+            val card = cardByServiceId.getOrPut(result.serviceId) { ComparisonResultCard() }
+            card.render(result, state)
+            cards.add(card)
+            if (index < state.results.lastIndex) cards.add(javax.swing.Box.createVerticalStrut(UIScale.scale(6)))
         }
-        updateScrollHeight()
+        val preferred = cards.preferredSize.height + UIScale.scale(2)
+        scrollPane.preferredSize = Dimension(0, preferred.coerceAtMost(UIScale.scale(220)).coerceAtLeast(UIScale.scale(1)))
         scrollPane.isVisible = true
         isVisible = true
-        revalidate()
-        repaint()
-    }
-
-    private fun updateScrollHeight() {
-        val preferred = cards.preferredSize.height + UIScale.scale(2)
-        val maximum = UIScale.scale(220)
-        val height = preferred.coerceAtMost(maximum).coerceAtLeast(UIScale.scale(1))
-        scrollPane.preferredSize = Dimension(0, height)
+        revalidate(); repaint()
     }
 }
 
-private class ComparisonCardsPanel : JPanel(), javax.swing.Scrollable {
-    init {
-        layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+/** Primary output followed by comparison cards when the Comparison layout is selected. */
+class ComparisonWorkspacePanel(
+    primaryPanel: JPanel,
+    comparisonPanel: ComparisonResultsPanel
+) : JPanel(BorderLayout()) {
+    private val primaryLabel = JLabel().apply {
+        border = BorderFactory.createEmptyBorder(UIScale.scale(8), UIScale.scale(10), UIScale.scale(4), UIScale.scale(10))
+        font = font.deriveFont(font.style or java.awt.Font.BOLD)
     }
 
+    init {
+        isOpaque = false
+        val primarySection = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            add(primaryLabel, BorderLayout.NORTH)
+            add(primaryPanel, BorderLayout.CENTER)
+        }
+        add(primarySection, BorderLayout.NORTH)
+        add(comparisonPanel, BorderLayout.CENTER)
+    }
+
+    fun setPrimaryLabel(label: String) { primaryLabel.text = label }
+}
+
+private class ComparisonCardsPanel : JPanel(), javax.swing.Scrollable {
+    init { layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS) }
     override fun getPreferredScrollableViewportSize(): Dimension = preferredSize
     override fun getScrollableUnitIncrement(visibleRect: Rectangle, orientation: Int, direction: Int): Int = UIScale.scale(24)
     override fun getScrollableBlockIncrement(visibleRect: Rectangle, orientation: Int, direction: Int): Int = visibleRect.height
@@ -128,71 +146,67 @@ private class ComparisonCardsPanel : JPanel(), javax.swing.Scrollable {
     override fun getScrollableTracksViewportHeight(): Boolean = false
 }
 
-private class ComparisonResultCard(
-    private val result: ComparisonTranslationResult,
-    private val loadingText: String,
-    private val unavailableText: String,
-    private val failureText: String,
-    copyLabel: String,
-    fontConfig: FontConfig,
-    fallbackFontConfig: FontConfig,
-    onCopy: (String) -> Unit
-) : JPanel(BorderLayout(0, UIScale.scale(3))) {
-
+private class ComparisonResultCard : JPanel(BorderLayout(0, UIScale.scale(3))) {
     private val textPane = AdvancedTextPane({}, {}, {}).apply {
         isEditable = false
         isOpaque = false
         margin = Insets(UIScale.scale(3), UIScale.scale(4), UIScale.scale(3), UIScale.scale(4))
         isFocusable = true
     }
+    private val providerLabel = JLabel()
+    private val stateLabel = JLabel()
+    private val copyButton = JButton()
+    private val header = JPanel(BorderLayout()).apply {
+        isOpaque = false
+        border = BorderFactory.createEmptyBorder(UIScale.scale(5), UIScale.scale(7), 0, UIScale.scale(7))
+        add(providerLabel, BorderLayout.CENTER)
+        add(stateLabel, BorderLayout.LINE_END)
+    }
+    private var onCopy: ((String) -> Unit)? = null
+    private var bodyComponent: Component? = null
 
     init {
         isOpaque = true
         background = UIManager.getColor("Panel.background")
         border = ThemeAwareComparisonBorder()
+        providerLabel.font = providerLabel.font.deriveFont(providerLabel.font.style or java.awt.Font.BOLD)
+        copyButton.putClientProperty("JButton.buttonType", "toolBarButton")
+        copyButton.isFocusable = true
+        copyButton.addActionListener { onCopy?.invoke(copyButton.actionCommand ?: "") }
+    }
 
-        val providerLabel = JLabel(result.serviceName ?: unavailableText).apply {
-            font = font.deriveFont(font.style or java.awt.Font.BOLD)
+    fun render(result: ComparisonTranslationResult, state: ComparisonResultsState) {
+        providerLabel.text = result.serviceName ?: state.unavailableText
+        stateLabel.text = when (result.status) {
+            ComparisonStatus.LOADING -> state.loadingText
+            ComparisonStatus.SUCCESS -> ""
+            ComparisonStatus.FAILURE -> state.failureText
         }
-        val header = JPanel(BorderLayout()).apply {
-            isOpaque = false
-            border = BorderFactory.createEmptyBorder(UIScale.scale(5), UIScale.scale(7), 0, UIScale.scale(7))
-            add(providerLabel, BorderLayout.CENTER)
-        }
-
+        onCopy = state.onCopy
+        copyButton.text = state.copyLabel
+        copyButton.actionCommand = result.text
+        copyButton.isEnabled = result.status == ComparisonStatus.SUCCESS && result.text.isNotBlank()
+        header.remove(copyButton)
+        if (result.status == ComparisonStatus.SUCCESS) header.add(copyButton, BorderLayout.LINE_END)
+        bodyComponent?.let { remove(it) }
+        bodyComponent = null
+        add(header, BorderLayout.NORTH)
         when (result.status) {
-            ComparisonStatus.LOADING -> {
-                header.add(JLabel(loadingText), BorderLayout.LINE_END)
-                add(header, BorderLayout.NORTH)
-            }
+            ComparisonStatus.LOADING -> Unit
             ComparisonStatus.SUCCESS -> {
-                val copyButton = JButton(copyLabel).apply {
-                    putClientProperty("JButton.buttonType", "toolBarButton")
-                    isFocusable = true
-                    isEnabled = result.text.isNotBlank()
-                    addActionListener { onCopy(result.text) }
-                }
-                header.add(copyButton, BorderLayout.LINE_END)
-                add(header, BorderLayout.NORTH)
-                textPane.componentOrientation = if (result.text.isRTL()) {
-                    java.awt.ComponentOrientation.RIGHT_TO_LEFT
-                } else {
-                    java.awt.ComponentOrientation.LEFT_TO_RIGHT
-                }
+                textPane.componentOrientation = if (result.text.isRTL()) java.awt.ComponentOrientation.RIGHT_TO_LEFT
+                    else java.awt.ComponentOrientation.LEFT_TO_RIGHT
                 textPane.render(result.text, emptyList(), isEditable = false)
-                textPane.updateFontsAndRescanDocument(fontConfig.toFont(), fallbackFontConfig.toFont())
+                textPane.updateFontsAndRescanDocument(state.fontConfig.toFont(), state.fallbackFontConfig.toFont())
                 add(textPane, BorderLayout.CENTER)
+                bodyComponent = textPane
             }
-            ComparisonStatus.FAILURE -> {
-                header.add(JLabel(failureText), BorderLayout.LINE_END)
-                add(header, BorderLayout.NORTH)
-                add(JLabel(result.errorMessage?.takeIf { it.isNotBlank() } ?: failureText).apply {
-                    foreground = UIManager.getColor("Component.error.focusedBorderColor")
-                        ?: UIManager.getColor("Label.foreground")
-                    border = BorderFactory.createEmptyBorder(0, UIScale.scale(7), UIScale.scale(5), UIScale.scale(7))
-                }, BorderLayout.CENTER)
-            }
+            ComparisonStatus.FAILURE -> add(JLabel(result.errorMessage?.takeIf { it.isNotBlank() } ?: state.failureText).apply {
+                foreground = UIManager.getColor("Component.error.focusedBorderColor") ?: UIManager.getColor("Label.foreground")
+                border = BorderFactory.createEmptyBorder(0, UIScale.scale(7), UIScale.scale(5), UIScale.scale(7))
+            }.also { bodyComponent = it }, BorderLayout.CENTER)
         }
+        revalidate(); repaint()
     }
 
     override fun getMaximumSize(): Dimension = Dimension(Int.MAX_VALUE, preferredSize.height)
@@ -203,6 +217,5 @@ private class ThemeAwareComparisonBorder : AbstractBorder() {
         g.color = UIManager.getColor("Component.borderColor") ?: Color.GRAY
         g.drawRect(x, y, w - 1, h - 1)
     }
-
     override fun getBorderInsets(c: Component): Insets = Insets(1, 1, 1, 1)
 }
