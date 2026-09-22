@@ -573,6 +573,13 @@ class MainContentView(
                 isLoading = mainState.isLoading,
                 fontConfig = config.scaledEditorFont,
                 fallbackFontConfig = config.scaledEditorFallbackFont,
+                comparisonResults = mainState.comparisonResults,
+                comparisonTitle = localizer.getString("main_window.comparison_title"),
+                comparisonLoadingText = localizer.getString("main_window.comparison_loading"),
+                comparisonUnavailableText = localizer.getString("main_window.comparison_unavailable"),
+                comparisonFailureText = localizer.getString("main_window.comparison_failure"),
+                comparisonCopyLabel = localizer.getString("main_window.comparison_copy"),
+                onCopyComparison = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) },
                 actionsState = TextActionsState(
                     listOf(
                         Action(

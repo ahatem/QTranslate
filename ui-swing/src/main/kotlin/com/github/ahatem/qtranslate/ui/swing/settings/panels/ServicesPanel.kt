@@ -31,6 +31,10 @@ class ServicesPanel(
     private lateinit var deleteBtn: JButton
     private val serviceComboBoxes = mutableMapOf<ServiceRole, JComboBox<ServiceOption>>()
     private val serviceEnabledChecks = mutableMapOf<ServiceRole, JCheckBox>()
+    private lateinit var comparisonChooser: JButton
+    private var translatorOptions: List<ServiceOption> = emptyList()
+    private var comparisonIdsForChooser: List<String> = emptyList()
+    private var primaryTranslatorIdForChooser: String? = null
 
     init {
         buildUI()
@@ -126,11 +130,28 @@ class ServicesPanel(
             add(enabledCheck)
         }
 
-        return JPanel(BorderLayout(0, 5)).apply {
+        val cardBody = JPanel(BorderLayout(0, 5)).apply {
             isOpaque = false
             add(header, BorderLayout.NORTH)
             add(combo, BorderLayout.CENTER)
         }
+        if (type == ServiceRole.TRANSLATOR) {
+            comparisonChooser = buildComparisonChooser()
+            registerSearchEntry(
+                localizationManager.getString("settings_services.compare_with"),
+                comparisonChooser,
+                localizationManager.getString("settings_services.comparison_hint")
+            )
+            cardBody.add(comparisonChooser, BorderLayout.SOUTH)
+        }
+        return cardBody
+    }
+
+    private fun buildComparisonChooser(): JButton = JButton().apply {
+        name = "comparison-translator-chooser"
+        isFocusable = true
+        horizontalAlignment = SwingConstants.LEADING
+        addActionListener { showComparisonMenu() }
     }
 
     private fun buildServiceCombo(type: ServiceRole): JComboBox<ServiceOption> =
@@ -140,6 +161,10 @@ class ServicesPanel(
             }
             addActionListener {
                 if (!isUpdatingFromState) {
+                    if (type == ServiceRole.TRANSLATOR) {
+                        primaryTranslatorIdForChooser = (selectedItem as? ServiceOption)?.id
+                        refreshComparisonChooser()
+                    }
                     store.dispatch(
                         SettingsIntent.UpdateServiceInActivePreset(type, (selectedItem as? ServiceOption)?.id)
                     )
@@ -207,6 +232,7 @@ class ServicesPanel(
     }
 
     private fun populateCombos(servicesByRole: Map<ServiceRole, List<ServiceOption>>) {
+        translatorOptions = servicesByRole[ServiceRole.TRANSLATOR].orEmpty()
         withoutTrigger {
             serviceComboBoxes.forEach { (type, combo) ->
                 val current = combo.selectedItem as? ServiceOption
@@ -222,6 +248,7 @@ class ServicesPanel(
                 }
             }
         }
+        refreshComparisonChooser()
     }
 
     // ── Render ────────────────────────────────────────────────────────────────
@@ -255,7 +282,72 @@ class ServicesPanel(
                     }
                 }
             }
+            active?.let { preset ->
+                primaryTranslatorIdForChooser = preset.selectedServices[ServiceRole.TRANSLATOR]
+                comparisonIdsForChooser = preset.comparisonTranslatorIds
+                    .filterNot { it == primaryTranslatorIdForChooser }
+            }
+            if (active == null) {
+                primaryTranslatorIdForChooser = null
+                comparisonIdsForChooser = emptyList()
+            }
+            refreshComparisonChooser(c.isServiceRoleEnabled(ServiceRole.TRANSLATOR))
         }
+    }
+
+    private fun refreshComparisonChooser(roleEnabled: Boolean = serviceEnabledChecks[ServiceRole.TRANSLATOR]?.isSelected ?: true) {
+        if (!::comparisonChooser.isInitialized) return
+        comparisonChooser.isEnabled = roleEnabled
+        val selectedNames = comparisonIdsForChooser
+            .filterNot { it == primaryTranslatorIdForChooser }
+            .mapNotNull { id ->
+                translatorOptions.firstOrNull { it.id == id }?.name
+                    ?: localizationManager.getString("settings_services.unavailable_service")
+            }
+        comparisonChooser.text = if (selectedNames.isEmpty()) {
+            localizationManager.getString("settings_services.compare_with")
+        } else {
+            localizationManager.getString("settings_services.compare_selected", selectedNames.size)
+        }
+        comparisonChooser.toolTipText = selectedNames.takeIf { it.isNotEmpty() }?.joinToString(", ")
+        comparisonChooser.componentOrientation = componentOrientation
+    }
+
+    private fun showComparisonMenu() {
+        if (!::comparisonChooser.isInitialized || !comparisonChooser.isEnabled) return
+
+        val options = comparisonChooserOptions(
+            available = translatorOptions.map { ComparisonServiceOption(it.id, it.name, available = true) },
+            selectedIds = comparisonIdsForChooser,
+            primaryId = primaryTranslatorIdForChooser,
+            unavailableName = localizationManager.getString("settings_services.unavailable_service")
+        )
+
+        val menu = JPopupMenu()
+        options.forEach { option ->
+            val item = JCheckBoxMenuItem(
+                if (option.available) option.name
+                else "${option.name} (${localizationManager.getString("settings_services.unavailable_suffix")})"
+            ).apply {
+                name = "comparison-translator-${option.id}"
+                isSelected = option.id in comparisonIdsForChooser && option.id != primaryTranslatorIdForChooser
+                toolTipText = option.id.takeIf { !option.available }
+                addActionListener {
+                    val updated = toggleComparisonId(comparisonIdsForChooser, option.id, isSelected)
+                    comparisonIdsForChooser = updated
+                    store.dispatch(SettingsIntent.UpdateComparisonTranslatorsInActivePreset(updated))
+                    refreshComparisonChooser()
+                }
+            }
+            menu.add(item)
+        }
+        if (options.isEmpty()) {
+            menu.add(JMenuItem(localizationManager.getString("settings_services.no_comparison_services")).apply {
+                isEnabled = false
+            })
+        }
+        menu.applyComponentOrientation(componentOrientation)
+        menu.show(comparisonChooser, if (componentOrientation.isLeftToRight) 0 else comparisonChooser.width, comparisonChooser.height)
     }
 
     // ── Preset CRUD ───────────────────────────────────────────────────────────
