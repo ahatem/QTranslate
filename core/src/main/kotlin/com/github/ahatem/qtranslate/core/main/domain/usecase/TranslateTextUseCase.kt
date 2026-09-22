@@ -84,7 +84,7 @@ class TranslateTextUseCase(
     /** Invalidates comparison work without changing existing primary request id semantics. */
     fun invalidateComparisons() {
         currentTranslationGeneration = translationGenerations.incrementAndGet()
-        parallelComparisonUseCase?.invalidate()
+        parallelComparisonUseCase?.invalidate(currentTranslationGeneration)
     }
 
     /** True only while [requestId] still owns the current translation result. */
@@ -106,7 +106,7 @@ class TranslateTextUseCase(
         currentRequestId = requestId
         val translationGeneration = translationGenerations.incrementAndGet()
         currentTranslationGeneration = translationGeneration
-        parallelComparisonUseCase?.invalidate()
+        parallelComparisonUseCase?.begin(translationGeneration)
         updateState { copy(comparisonResults = emptyList()) }
         translationJob?.cancel(CancellationException("New translation requested"))
         val configuredComparisonIds = settingsState.value.getActivePreset()
@@ -415,7 +415,7 @@ class TranslateTextUseCase(
         updateState: (MainState.() -> MainState) -> Unit
     ) {
         if (currentTranslationGeneration != generation) return
-        parallelComparisonUseCase?.invalidate()
+        parallelComparisonUseCase?.invalidate(generation)
         updateState { copy(comparisonResults = emptyList()) }
     }
 

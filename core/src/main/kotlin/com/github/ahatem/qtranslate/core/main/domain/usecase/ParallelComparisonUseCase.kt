@@ -15,13 +15,13 @@ import com.github.michaelbull.result.fold
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.coroutines.coroutineContext
 import java.util.concurrent.atomic.AtomicLong
 
 data class ParallelComparisonRequest(
@@ -40,10 +40,40 @@ class ParallelComparisonUseCase(
 ) {
     private val logger = loggerFactory.getLogger("ParallelComparisonUseCase")
     private val generations = AtomicLong()
+    private val ownershipLock = Any()
+    private var latestGeneration = Long.MIN_VALUE
+    private var invalidatedThroughGeneration = Long.MIN_VALUE
     private var comparisonJob: Job? = null
 
+    /** Claims a newer translation generation and cancels the previous comparison owner. */
+    fun begin(generation: Long) {
+        synchronized(ownershipLock) {
+            if (generation <= latestGeneration) return
+            latestGeneration = generation
+            comparisonJob?.cancel(CancellationException("Comparison superseded"))
+            comparisonJob = null
+            generations.set(generation)
+        }
+    }
+
     fun invalidate() {
-        generations.incrementAndGet()
+        synchronized(ownershipLock) {
+            invalidateLocked(latestGeneration)
+        }
+    }
+
+    /** Permanently invalidates [generation] unless a newer generation already owns the executor. */
+    fun invalidate(generation: Long) {
+        synchronized(ownershipLock) {
+            invalidateLocked(generation)
+        }
+    }
+
+    private fun invalidateLocked(generation: Long) {
+        if (generation < latestGeneration) return
+        latestGeneration = generation
+        invalidatedThroughGeneration = maxOf(invalidatedThroughGeneration, generation)
+        generations.set(generation)
         comparisonJob?.cancel(CancellationException("Comparison invalidated"))
         comparisonJob = null
     }
@@ -53,48 +83,54 @@ class ParallelComparisonUseCase(
         generation: Long,
         updateState: (List<ComparisonTranslationResult>) -> Unit
     ) {
-        comparisonJob?.cancel(CancellationException("New comparison requested"))
-        generations.set(generation)
+        synchronized(ownershipLock) {
+            if (generation < latestGeneration || generation <= invalidatedThroughGeneration) return
+            latestGeneration = generation
+            generations.set(generation)
 
-        val effectiveIds = request.translatorIds
-            .asSequence()
-            .distinct()
-            .filter { it != request.primaryTranslatorId }
-            .toList()
+            comparisonJob?.cancel(CancellationException("New comparison requested"))
+            comparisonJob = null
 
-        val resolved = effectiveIds.map { id ->
-            id to activeServiceManager.resolve<Translator>(id, ServiceRole.TRANSLATOR)
-        }
-        val initial = resolved.map { (id, active) ->
-            ComparisonTranslationResult(
-                serviceId = id,
-                serviceName = active?.service?.name,
-                status = if (active == null) ComparisonStatus.FAILURE else ComparisonStatus.LOADING,
-                errorMessage = if (active == null) "Service unavailable." else null
-            )
-        }
-        updateState(initial)
+            val effectiveIds = request.translatorIds
+                .asSequence()
+                .distinct()
+                .filter { it != request.primaryTranslatorId }
+                .toList()
 
-        if (resolved.isEmpty()) return
-
-        val resultLock = Mutex()
-        val results = initial.toMutableList()
-        fun isCurrent(): Boolean = generations.get() == generation
-
-        suspend fun publish(index: Int, result: ComparisonTranslationResult) {
-            if (!isCurrent()) return
-            resultLock.withLock {
-                if (!isCurrent()) return@withLock
-                results[index] = result
-                updateState(results.toList())
+            val resolved = effectiveIds.map { id ->
+                id to activeServiceManager.resolve<Translator>(id, ServiceRole.TRANSLATOR)
             }
-        }
+            val initial = resolved.map { (id, active) ->
+                ComparisonTranslationResult(
+                    serviceId = id,
+                    serviceName = active?.service?.name,
+                    status = if (active == null) ComparisonStatus.FAILURE else ComparisonStatus.LOADING,
+                    errorMessage = if (active == null) "Service unavailable." else null
+                )
+            }
+            updateState(initial)
 
-        comparisonJob = scope.launch {
-            supervisorScope {
-                resolved.mapIndexed { index, (id, active) ->
-                    async {
-                        if (active == null || !isCurrent()) return@async
+            if (resolved.isEmpty()) return
+
+            val resultLock = Mutex()
+            val results = initial.toMutableList()
+            fun isCurrent(): Boolean = generations.get() == generation
+
+            suspend fun publish(index: Int, result: ComparisonTranslationResult) {
+                if (!isCurrent()) return
+                resultLock.withLock {
+                    if (!isCurrent()) return@withLock
+                    results[index] = result
+                    updateState(results.toList())
+                }
+            }
+
+            comparisonJob = scope.launch {
+                supervisorScope {
+                    val comparisonParent = coroutineContext[Job]
+                    resolved.mapIndexed { index, (id, active) ->
+                        launch {
+                        if (active == null || !isCurrent()) return@launch
                         val translator = active.service
                         val compatibilityError = languageCompatibilityError(
                             translator.supportedLanguages,
@@ -111,7 +147,7 @@ class ParallelComparisonUseCase(
                                     errorMessage = compatibilityError
                                 )
                             )
-                            return@async
+                            return@launch
                         }
 
                         try {
@@ -151,13 +187,23 @@ class ParallelComparisonUseCase(
                                 )
                             }
                         } catch (cancellation: CancellationException) {
-                            throw cancellation
+                            if (!isCurrent() || comparisonParent?.isActive != true) {
+                                throw cancellation
+                            }
+                            publishFailure(
+                                index,
+                                id,
+                                translator.name,
+                                "Translation cancelled.",
+                                ::publish
+                            )
                         } catch (error: Exception) {
                             logger.error("Comparison translation failed for '$id'", error)
                             publishFailure(index, id, translator.name, error.shortSummary(), ::publish)
                         }
-                    }
-                }.awaitAll()
+                        }
+                    }.joinAll()
+                }
             }
         }
     }

@@ -16,6 +16,7 @@ import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +24,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -68,6 +70,24 @@ class ParallelComparisonUseCaseTest {
     }
 
     @Test
+    fun `independent provider cancellation becomes failure while sibling succeeds`() = runTest {
+        val cancelled = ControlledTranslator("cancelled", cancelIndependently = true)
+        val successful = ControlledTranslator("successful")
+        val useCase = useCase(this, listOf(cancelled, successful))
+        var state = emptyList<ComparisonTranslationResult>()
+
+        useCase.start(request(listOf("cancelled", "successful")), 1) { state = it }
+        runCurrent()
+        cancelled.release.complete(Unit)
+        successful.release.complete(Unit)
+        runCurrent()
+
+        assertEquals(ComparisonStatus.FAILURE, state[0].status)
+        assertEquals(ComparisonStatus.SUCCESS, state[1].status)
+        assertEquals(0, state.count { it.status == ComparisonStatus.LOADING })
+    }
+
+    @Test
     fun `stale non cooperative completion cannot publish after invalidation`() = runTest {
         val stale = ControlledTranslator("stale", ignoreCancellation = true)
         val useCase = useCase(this, listOf(stale))
@@ -80,6 +100,62 @@ class ParallelComparisonUseCaseTest {
         runCurrent()
 
         assertEquals(ComparisonStatus.LOADING, state.single().status)
+    }
+
+    @Test
+    fun `stale delayed AUTO-rule start cannot replace newer comparison ownership`() = runTest {
+        val newer = ControlledTranslator("newer")
+        val stale = ControlledTranslator("stale")
+        val useCase = useCase(this, listOf(newer, stale))
+        var state = emptyList<ComparisonTranslationResult>()
+
+        // Generation 2 represents B after its primary translation established the screen.
+        useCase.begin(2)
+        useCase.start(request(listOf("newer")), 2) { state = it }
+        runCurrent()
+        assertTrue(newer.started.isCompleted)
+
+        // This is A's delayed AUTO/rule startup arriving after B owns the executor.
+        useCase.start(request(listOf("stale")), 1) { state = it }
+        runCurrent()
+        assertTrue(!stale.started.isCompleted)
+
+        newer.release.complete(Unit)
+        runCurrent()
+
+        assertTrue(!newer.cancelled)
+        assertEquals(listOf("newer"), state.map { it.serviceId })
+        assertEquals(ComparisonStatus.SUCCESS, state.single().status)
+    }
+
+    @Test
+    fun `stale rule-retranslation completion cannot cancel newer comparison`() = runTest {
+        val newer = ControlledTranslator("newer")
+        val stale = ControlledTranslator("stale")
+        val useCase = useCase(this, listOf(newer, stale))
+        var state = emptyList<ComparisonTranslationResult>()
+
+        useCase.begin(2)
+        useCase.start(request(listOf("newer")), 2) { state = it }
+        runCurrent()
+        assertTrue(newer.started.isCompleted)
+
+        // A's non-cooperative rule retranslation completes late and attempts its delayed start.
+        val staleCompletion = launch {
+            withContext(NonCancellable) { stale.release.await() }
+            useCase.start(request(listOf("stale")), 1) { state = it }
+        }
+        stale.release.complete(Unit)
+        runCurrent()
+        staleCompletion.join()
+        assertTrue(!stale.started.isCompleted)
+
+        newer.release.complete(Unit)
+        runCurrent()
+
+        assertTrue(!newer.cancelled)
+        assertEquals(listOf("newer"), state.map { it.serviceId })
+        assertEquals(ComparisonStatus.SUCCESS, state.single().status)
     }
 
     private fun request(ids: List<String>) = ParallelComparisonRequest(
@@ -117,21 +193,29 @@ class ParallelComparisonUseCaseTest {
     private class ControlledTranslator(
         override val key: String,
         private val failure: Boolean = false,
-        private val ignoreCancellation: Boolean = false
+        private val ignoreCancellation: Boolean = false,
+        private val cancelIndependently: Boolean = false
     ) : Translator {
         override val name = key
         override val version = "test"
         override val supportedLanguages = SupportedLanguages.All
         val started = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
+        var cancelled = false
 
         override suspend fun translate(request: TranslationRequest): com.github.michaelbull.result.Result<TranslationResponse, ServiceError> {
             started.complete(Unit)
             if (ignoreCancellation) {
                 withContext(NonCancellable) { release.await() }
             } else {
-                release.await()
+                try {
+                    release.await()
+                } catch (cancellation: CancellationException) {
+                    cancelled = true
+                    throw cancellation
+                }
             }
+            if (cancelIndependently) throw CancellationException("provider aborted")
             return if (failure) Err(ServiceError.NetworkError("failed")) else Ok(TranslationResponse(key))
         }
     }
