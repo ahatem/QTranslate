@@ -11,6 +11,7 @@ import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class ComparisonResultsPanelTest {
@@ -46,13 +47,33 @@ class ComparisonResultsPanelTest {
         assertTrue(labels.indexOf("First") < labels.indexOf("Second"))
         assertTrue(labels.indexOf("Second") < labels.indexOf("Third"))
         assertTrue(labels.contains("Translating..."))
-        assertTrue(labels.contains("Timed out"))
+        assertTrue(descendants(panel).filterIsInstance<javax.swing.JTextArea>().any { it.text == "Timed out" })
         assertEquals("second text", descendants(panel).filterIsInstance<AdvancedTextPane>().single().text)
 
         SwingUtilities.invokeAndWait {
             descendants(panel).filterIsInstance<JButton>().single { it.text == "Copy" }.doClick()
         }
         assertEquals("second text", copied)
+    }
+
+    @Test
+    fun `unchanged sibling keeps selected text when another provider completes`() {
+        val panel = ComparisonResultsPanel()
+        val first = ComparisonTranslationResult("deepl", "DeepL", ComparisonStatus.SUCCESS, "deep result")
+        val loading = ComparisonTranslationResult("bing", "Bing", ComparisonStatus.LOADING)
+        lateinit var deepPane: AdvancedTextPane
+        SwingUtilities.invokeAndWait {
+            panel.render(state(listOf(first, loading)))
+            deepPane = descendants(panel).filterIsInstance<AdvancedTextPane>().single()
+            deepPane.select(0, 4)
+            panel.render(state(listOf(first, ComparisonTranslationResult("bing", "Bing", ComparisonStatus.SUCCESS, "bing result"))))
+        }
+
+        val panes = descendants(panel).filterIsInstance<AdvancedTextPane>()
+        assertSame(deepPane, panes.first())
+        assertEquals(0, deepPane.selectionStart)
+        assertEquals(4, deepPane.selectionEnd)
+        assertEquals("bing result", panes.last().text)
     }
 
     private fun state(

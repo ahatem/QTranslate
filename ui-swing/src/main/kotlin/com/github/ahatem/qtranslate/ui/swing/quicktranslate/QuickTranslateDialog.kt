@@ -1,7 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.quicktranslate
 
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
-import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
@@ -21,6 +20,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DefinitionStrip
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonResultsPanel
 import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonResultsState
+import com.github.ahatem.qtranslate.ui.swing.main.output.ResultPresentationMode
 import java.awt.*
 import java.awt.event.*
 import java.util.concurrent.atomic.AtomicBoolean
@@ -141,7 +141,8 @@ class QuickTranslateDialog(
 
     private val loadingBar = InlineLoadingBar()
     private val definitionStrip = DefinitionStrip()
-    private val comparisonResultsPanel = ComparisonResultsPanel()
+    private val comparisonResultsPanel = ComparisonResultsPanel(ResultPresentationMode.QUICK_POPUP)
+    private val resultsView = QuickTranslateResultsView(outputTextArea, definitionStrip, comparisonResultsPanel)
 
     private val topPanel = createTopPanel()
 
@@ -227,23 +228,8 @@ class QuickTranslateDialog(
         val mainPanel = JPanel(BorderLayout())
         wrapperPanel.add(mainPanel, BorderLayout.CENTER)
 
-        val textScrollPane = JScrollPane(outputTextArea).apply {
-            // Styled rather than cleared: `borderWidth` addresses the look and feel's own border,
-            // so it is reapplied on a theme change and there is nothing to restore. Replacing the
-            // border outright would leave this style with no border to act on.
-            putClientProperty(
-                FlatClientProperties.STYLE,
-                "borderWidth: 0; focusWidth: 0; innerFocusWidth: 0; innerOutlineWidth: 0;"
-            )
-            // JViewport rejects any border but null, and never installs one of its own.
-            viewport.border = null
-
-            verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
-            horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-        }
-
-        // Header, then the hairline loading bar, then the text. The bar reserves its height even
-        // when idle, so a reload does not nudge the translation down and back up again.
+        // Header, then the hairline loading bar, then one bounded viewport containing the primary
+        // result, its definition, and comparison cards.
         mainPanel.add(
             JPanel(BorderLayout()).apply {
                 isOpaque = false
@@ -252,10 +238,7 @@ class QuickTranslateDialog(
             },
             BorderLayout.NORTH
         )
-        mainPanel.add(textScrollPane, BorderLayout.CENTER)
-        mainPanel.add(comparisonResultsPanel, BorderLayout.SOUTH)
-        // Below the translation, above nothing: an aside, not part of the result.
-        mainPanel.add(definitionStrip, BorderLayout.SOUTH)
+        mainPanel.add(resultsView, BorderLayout.CENTER)
 
         setupWindowBehavior(topPanel)
         UIManager.addPropertyChangeListener(themeListener)
@@ -351,6 +334,7 @@ class QuickTranslateDialog(
         loadingBar.isLoading = state.isLoading && isVisible
         // Only for single words; the state carries it empty otherwise, so the strip hides itself.
         definitionStrip.render(state.definition)
+        resultsView.setPrimaryLabel(state.primaryProviderName, state.primaryBadge)
         comparisonResultsPanel.render(
             ComparisonResultsState(
                 results = state.comparisonResults,
@@ -550,7 +534,8 @@ class QuickTranslateDialog(
         measurePane.size = Dimension(maxWidth, Int.MAX_VALUE)
 
         val textWidth = measurePane.preferredSize.width + 40
-        val textHeight = measurePane.preferredSize.height + 30
+        val primaryTextHeight = measurePane.preferredSize.height + 30
+        val contentHeight = max(primaryTextHeight, resultsView.preferredSize.height)
 
         val borderSize = RESIZE_HANDLE_SIZE * 2
         val finalWidth = (textWidth + borderSize)
@@ -558,7 +543,7 @@ class QuickTranslateDialog(
             .coerceAtLeast(minimumSize.width)
 
         val nonTextHeight = topPanel.preferredSize.height + 20
-        val finalHeight = (textHeight + nonTextHeight + borderSize)
+        val finalHeight = (contentHeight + nonTextHeight + borderSize)
             .coerceAtMost(maxHeight)
             .coerceAtLeast(minimumSize.height)
 

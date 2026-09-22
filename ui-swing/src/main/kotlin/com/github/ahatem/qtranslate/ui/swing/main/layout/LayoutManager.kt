@@ -53,7 +53,7 @@ class LayoutManager(
             components.inputPanel,
             components.languageBar,
             components.outputPanel,
-            components.comparisonWorkspace,
+            components.comparisonResultsPanel,
             components.extraOutputPanel,
             components.translatorSelector,
             components.statusBar

@@ -24,3 +24,6 @@ internal fun comparisonChooserOptions(
 internal fun toggleComparisonId(selectedIds: List<String>, id: String, selected: Boolean): List<String> =
     if (selected) if (id in selectedIds) selectedIds else selectedIds + id
     else selectedIds.filterNot { it == id }
+
+internal fun comparisonPopupX(buttonWidth: Int, popupWidth: Int, isLeftToRight: Boolean): Int =
+    if (isLeftToRight) 0 else buttonWidth - popupWidth

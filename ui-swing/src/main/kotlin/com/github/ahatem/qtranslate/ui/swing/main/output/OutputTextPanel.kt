@@ -12,6 +12,7 @@ import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.FlowLayout
 import java.awt.Point
+import java.awt.Font
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JLabel
@@ -37,7 +38,7 @@ class OutputTextPanel(
         onTranslateRequest = onTranslateRequest
     )
     private val actionsPanel = TextActionsPanel(iconManager)
-    private val readOnlyPanel = ReadOnlyTextPanel(textPane, actionsPanel)
+    private val readOnlyPanel = ReadOnlyTextPanel(textPane, actionsPanel, scrollable = false)
     // No rule of its own: the output pane above already draws a border.
     private val definitionStrip = DefinitionStrip(showDivider = false)
 
@@ -53,6 +54,23 @@ class OutputTextPanel(
         add(noServiceLabel)
         add(noServiceAction)
     }
+    private val workspaceProviderLabel = JLabel()
+    private val workspaceBadgeLabel = JLabel().apply {
+        font = font.deriveFont(font.style or Font.BOLD)
+        foreground = UIManager.getColor("Component.accentColor") ?: UIManager.getColor("Label.foreground")
+    }
+    private val workspaceHeader = JPanel(FlowLayout(FlowLayout.LEADING, 8, 5)).apply {
+        isOpaque = false
+        isVisible = false
+        add(workspaceProviderLabel)
+        add(workspaceBadgeLabel)
+    }
+    private val topPanel = JPanel().apply {
+        layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+        isOpaque = false
+        add(workspaceHeader)
+        add(noServiceBanner)
+    }
 
     private var dictMenuItem: JMenuItem? = null
     private var dictMenuSeparator: JSeparator? = null
@@ -61,6 +79,15 @@ class OutputTextPanel(
     private var setAsInputSeparator: JSeparator? = null
 
     fun requestFocusOnText() = textPane.requestFocusInWindow()
+    fun setComparisonWorkspace(visible: Boolean, providerName: String, primaryBadge: String) {
+        workspaceProviderLabel.text = providerName
+        workspaceBadgeLabel.text = primaryBadge
+        workspaceHeader.isVisible = visible
+        workspaceBadgeLabel.foreground = UIManager.getColor("Component.accentColor")
+            ?: UIManager.getColor("Label.foreground")
+        revalidate()
+        repaint()
+    }
     fun setTranslateKeyStroke(old: javax.swing.KeyStroke?, new: javax.swing.KeyStroke?) =
         textPane.setTranslateKeyStroke(old, new)
 
@@ -68,7 +95,7 @@ class OutputTextPanel(
     val textPaneComponent: JComponent get() = textPane
 
     init {
-        add(noServiceBanner, BorderLayout.NORTH)
+        add(topPanel, BorderLayout.NORTH)
         add(readOnlyPanel, BorderLayout.CENTER)
         add(definitionStrip, BorderLayout.SOUTH)
 

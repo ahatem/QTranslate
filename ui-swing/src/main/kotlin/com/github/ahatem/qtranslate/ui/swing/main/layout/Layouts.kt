@@ -10,7 +10,7 @@ data class ComponentRegistry(
     val inputPanel: JComponent,
     val languageBar: JComponent,
     val outputPanel: JComponent,
-    val comparisonWorkspace: JComponent,
+    val comparisonResultsPanel: JComponent,
     val extraOutputPanel: JComponent,
     val translatorSelector: JComponent,
     val statusBar: JComponent
@@ -80,6 +80,17 @@ enum class LayoutType(val localizeId: String, val id: String) {
 }
 
 object LayoutBuilders {
+    fun wrapScrollable(component: JComponent): JComponent = JScrollPane(
+        component,
+        JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+        JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+    ).apply {
+        border = BorderFactory.createEmptyBorder()
+        isFocusable = false
+        verticalScrollBar.isFocusable = false
+        viewport.isOpaque = false
+    }
+
     fun createSimpleTopBar(historyBar: JComponent): JComponent {
         return JPanel(GridBagLayout()).apply {
             val gbc = GridBagConstraints().apply {
@@ -188,7 +199,7 @@ object ClassicLayout : LayoutStrategy {
 
         val outputSection = JPanel(BorderLayout()).apply {
             add(LayoutBuilders.wrapLanguageBar(components.languageBar), BorderLayout.NORTH)
-            add(components.outputPanel, BorderLayout.CENTER)
+            add(LayoutBuilders.wrapScrollable(components.outputPanel), BorderLayout.CENTER)
         }
         val mainSplit = LayoutBuilders.createVerticalSplit(
             top = components.inputPanel, bottom = outputSection, resizeWeight = 0.5
@@ -229,7 +240,7 @@ object SideBySideLayout : LayoutStrategy {
         val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
 
         val mainSplit = LayoutBuilders.createHorizontalSplit(
-            leading = components.inputPanel, trailing = components.outputPanel,
+            leading = components.inputPanel, trailing = LayoutBuilders.wrapScrollable(components.outputPanel),
             resizeWeight = 0.5
         )
         val extraSplit = LayoutBuilders.createVerticalSplit(
@@ -269,7 +280,7 @@ object CompactLayout : LayoutStrategy {
 
         val tabs = JTabbedPane().apply {
             addTab("Input",  components.inputPanel)
-            addTab("Output", components.outputPanel)
+            addTab("Output", LayoutBuilders.wrapScrollable(components.outputPanel))
             // Shortcuts and tooltips are applied dynamically via LayoutManager.updateCompactShortcuts()
             // so they always reflect the user's configured bindings.
         }
@@ -304,9 +315,15 @@ object ComparisonLayout : LayoutStrategy {
         val topBar = LayoutBuilders.createSimpleTopBar(components.historyBar)
         val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
 
+        val workspaceContent = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            isOpaque = false
+            add(components.outputPanel)
+            add(components.comparisonResultsPanel)
+        }
         val resultsSection = JPanel(BorderLayout()).apply {
             add(LayoutBuilders.wrapLanguageBar(components.languageBar), BorderLayout.NORTH)
-            add(components.comparisonWorkspace, BorderLayout.CENTER)
+            add(LayoutBuilders.wrapScrollable(workspaceContent), BorderLayout.CENTER)
         }
         val mainSplit = LayoutBuilders.createVerticalSplit(
             top = components.inputPanel,

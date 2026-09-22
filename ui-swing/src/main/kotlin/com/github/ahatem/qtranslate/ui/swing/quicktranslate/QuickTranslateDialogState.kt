@@ -50,7 +50,9 @@ data class QuickTranslateDialogState(
     val comparisonLoadingText: String = "",
     val comparisonUnavailableText: String = "",
     val comparisonFailureText: String = "",
-    val comparisonCopyLabel: String = ""
+    val comparisonCopyLabel: String = "",
+    val primaryProviderName: String = "",
+    val primaryBadge: String = "PRIMARY"
 ) : UiState
 
 /**

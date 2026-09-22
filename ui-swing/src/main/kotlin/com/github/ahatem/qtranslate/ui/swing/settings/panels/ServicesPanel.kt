@@ -19,6 +19,7 @@ import java.awt.*
 import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
+import kotlin.math.min
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
@@ -332,7 +333,11 @@ class ServicesPanel(
         val menu = JPopupMenu().apply { name = "comparison-translator-popup" }
         val content = JPanel(BorderLayout(0, 5)).apply {
             border = BorderFactory.createEmptyBorder(6, 8, 6, 8)
-            preferredSize = Dimension(UIScale.scale(260), UIScale.scale(220))
+            val usableHeight = GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.height
+            preferredSize = Dimension(
+                UIScale.scale(260),
+                min(UIScale.scale(220), (usableHeight - UIScale.scale(20)).coerceAtLeast(UIScale.scale(120)))
+            )
         }
         val search = JTextField().apply {
             name = "comparison-translator-search"
@@ -390,7 +395,12 @@ class ServicesPanel(
         })
         rebuild()
         menu.applyComponentOrientation(componentOrientation)
-        menu.show(comparisonChooser, if (componentOrientation.isLeftToRight) 0 else comparisonChooser.width, comparisonChooser.height)
+        menu.pack()
+        menu.show(
+            comparisonChooser,
+            comparisonPopupX(comparisonChooser.width, menu.preferredSize.width, componentOrientation.isLeftToRight),
+            comparisonChooser.height
+        )
     }
 
     // ── Preset CRUD ───────────────────────────────────────────────────────────

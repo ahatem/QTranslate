@@ -22,19 +22,22 @@ data class ReadOnlyTextPanelState(
 
 class ReadOnlyTextPanel(
     private val textPane: AdvancedTextPane,
-    private val actionsPanel: TextActionsPanel
+    private val actionsPanel: TextActionsPanel,
+    private val scrollable: Boolean = true
 ) : JPanel(BorderLayout()), Renderable<ReadOnlyTextPanelState> {
 
     init {
-        val scrollPane = JScrollPane(textPane).apply { isFocusable = false }
-
         val actionsWrapper = JPanel(BorderLayout()).apply {
             border = BorderFactory.createEmptyBorder(0, 4, 0, 0)
             isOpaque = false
             add(actionsPanel, BorderLayout.CENTER)
         }
 
-        add(scrollPane, BorderLayout.CENTER)
+        if (scrollable) {
+            add(JScrollPane(textPane).apply { isFocusable = false }, BorderLayout.CENTER)
+        } else {
+            add(textPane, BorderLayout.CENTER)
+        }
         add(actionsWrapper, BorderLayout.LINE_END)
     }
 

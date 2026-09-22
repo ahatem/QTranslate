@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.api.plugin.StandardOptions
@@ -33,7 +34,6 @@ import com.github.ahatem.qtranslate.ui.swing.main.output.NoServiceState
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextState
 import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonResultsPanel
 import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonResultsState
-import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonWorkspacePanel
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelector
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryPanel
@@ -143,7 +143,6 @@ class MainContentView(
     )
 
     private val comparisonResultsPanel = ComparisonResultsPanel()
-    private val comparisonWorkspace = ComparisonWorkspacePanel(outputTextPanel, comparisonResultsPanel)
 
     private val extraOutputPanel = ExtraOutputPanel(
         iconManager = iconManager,
@@ -194,7 +193,7 @@ class MainContentView(
             languageBar = languageSelectionBar,
             inputPanel = inputTextPanel,
             outputPanel = outputTextPanel,
-            comparisonWorkspace = comparisonWorkspace,
+            comparisonResultsPanel = comparisonResultsPanel,
             extraOutputPanel = extraOutputPanel,
             statusBar = statusBar
         ), contentWrapper
@@ -606,7 +605,11 @@ class MainContentView(
             )
         )
 
-        comparisonWorkspace.setPrimaryLabel(localizer.getString("main_window.comparison_primary"))
+        outputTextPanel.setComparisonWorkspace(
+            visible = config.layoutPresetId == LayoutPresetIds.COMPARISON,
+            providerName = selectedTranslator?.name ?: localizer.getString("main_window.no_translator"),
+            primaryBadge = localizer.getString("main_window.comparison_primary")
+        )
         comparisonResultsPanel.render(
             ComparisonResultsState(
                 results = mainState.comparisonResults,

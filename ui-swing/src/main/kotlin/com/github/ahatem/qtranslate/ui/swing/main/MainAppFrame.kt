@@ -1584,7 +1584,9 @@ class MainAppFrame(
             comparisonLoadingText = localizer.getString("main_window.comparison_loading"),
             comparisonUnavailableText = localizer.getString("main_window.comparison_unavailable"),
             comparisonFailureText = localizer.getString("main_window.comparison_failure"),
-            comparisonCopyLabel = localizer.getString("main_window.comparison_copy")
+            comparisonCopyLabel = localizer.getString("main_window.comparison_copy"),
+            primaryProviderName = selectedTranslator?.name ?: localizer.getString("main_window.no_translator"),
+            primaryBadge = localizer.getString("main_window.comparison_primary")
         )
     }
 

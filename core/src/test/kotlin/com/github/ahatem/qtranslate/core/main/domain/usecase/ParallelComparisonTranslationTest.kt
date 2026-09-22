@@ -22,10 +22,13 @@ import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -147,6 +150,46 @@ class ParallelComparisonTranslationTest {
         assertTrue(state.comparisonResults.isEmpty())
     }
 
+    @Test
+    fun `quick-style retranslation rejects late comparison results from the previous text`() = runTest {
+        val primary = TaggedTranslator("primary")
+        val comparison = GatedTranslator("comparison")
+        val fixture = gatedFixture(this, primary, comparison)
+        var state = MainState(
+            inputText = "A",
+            sourceLanguage = LanguageCode.ENGLISH,
+            targetLanguage = LanguageCode.ARABIC
+        )
+        val update: ((MainState.() -> MainState)) -> Unit = { transform -> state = state.transform() }
+
+        launch {
+            fixture.useCase(
+                getState = { state }, updateState = update, onStatusUpdate = { _, _, _ -> },
+                textOverride = "A", comparisonPolicy = ComparisonPolicy.ENABLED
+            )
+        }
+        runCurrent()
+        assertEquals("primary:A", state.translatedText)
+
+        launch {
+            fixture.useCase(
+                getState = { state }, updateState = update, onStatusUpdate = { _, _, _ -> },
+                textOverride = "B", comparisonPolicy = ComparisonPolicy.ENABLED
+            )
+        }
+        runCurrent()
+        assertEquals("primary:B", state.translatedText)
+        assertTrue(comparison.started("B"))
+
+        comparison.release("A")
+        runCurrent()
+        assertTrue(state.comparisonResults.none { it.text.contains("A") })
+
+        comparison.release("B")
+        runCurrent()
+        assertEquals("comparison:B", state.comparisonResults.single().text)
+    }
+
     private fun fixture(
         scope: CoroutineScope,
         primary: ScriptedTranslator,
@@ -187,7 +230,47 @@ class ParallelComparisonTranslationTest {
         )
     }
 
+    private fun gatedFixture(
+        scope: CoroutineScope,
+        primary: Translator,
+        comparison: GatedTranslator
+    ): GatedFixture {
+        val preset = ServicePreset(
+            id = "preset",
+            name = "preset",
+            selectedServices = mapOf(ServiceRole.TRANSLATOR to primary.key),
+            comparisonTranslatorIds = listOf(comparison.key)
+        )
+        val config = Configuration.DEFAULT.copy(
+            servicePresets = listOf(preset),
+            activeServicePresetId = preset.id
+        )
+        val settings = MutableStateFlow(config)
+        val manager = ActiveServiceManager(
+            MutableStateFlow(mapOf<String, Service>(primary.key to primary, comparison.key to comparison)),
+            settings
+        )
+        val loggerFactory = TestLoggerFactory
+        val directory = Files.createTempDirectory("qtranslate-quick-comparison").toFile()
+        directories += directory
+        val history = HistoryRepository(directory, loggerFactory.logger, Json)
+        val comparisonUseCase = ParallelComparisonUseCase(scope, manager, loggerFactory)
+        return GatedFixture(
+            TranslateTextUseCase(
+                scope = scope,
+                settingsState = settings,
+                activeServiceManager = manager,
+                historyRepository = history,
+                summarizeUseCase = SummarizeUseCase(manager, loggerFactory),
+                rewriteUseCase = RewriteUseCase(manager, loggerFactory),
+                loggerFactory = loggerFactory,
+                parallelComparisonUseCase = comparisonUseCase
+            )
+        )
+    }
+
     private data class Fixture(val useCase: TranslateTextUseCase)
+    private data class GatedFixture(val useCase: TranslateTextUseCase)
 
     private class ScriptedTranslator(
         override val key: String,
@@ -209,6 +292,31 @@ class ParallelComparisonTranslationTest {
                 )
             )
         }
+    }
+
+    private class GatedTranslator(override val key: String) : Translator {
+        override val name = key
+        override val version = "test"
+        override val supportedLanguages = SupportedLanguages.All
+        private val pending = mutableMapOf<String, CompletableDeferred<Unit>>()
+
+        override suspend fun translate(request: TranslationRequest): com.github.michaelbull.result.Result<TranslationResponse, ServiceError> {
+            pending.getOrPut(request.text) { CompletableDeferred() }.await()
+            return Ok(TranslationResponse("$key:${request.text}"))
+        }
+
+        fun started(text: String): Boolean = pending.containsKey(text)
+
+        fun release(text: String) { pending[text]?.complete(Unit) }
+    }
+
+    private class TaggedTranslator(override val key: String) : Translator {
+        override val name = key
+        override val version = "test"
+        override val supportedLanguages = SupportedLanguages.All
+
+        override suspend fun translate(request: TranslationRequest): com.github.michaelbull.result.Result<TranslationResponse, ServiceError> =
+            Ok(TranslationResponse("$key:${request.text}"))
     }
 
     private object TestLoggerFactory : LoggerFactory {
