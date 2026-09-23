@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.textpane.GraphemeBoundary
 import com.github.ahatem.qtranslate.ui.swing.shared.textpane.MenuShortcutModifier
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isRTL
 import java.awt.Dimension
+import java.awt.event.InputMethodEvent
 import java.awt.Font
 import java.awt.GraphicsEnvironment
 import java.awt.Toolkit
@@ -14,6 +15,7 @@ import java.awt.event.KeyEvent
 import java.awt.font.FontRenderContext
 import java.awt.image.BufferedImage
 import java.text.BreakIterator
+import java.text.AttributedString
 import javax.accessibility.AccessibleText
 import javax.swing.JScrollPane
 import javax.swing.KeyStroke
@@ -54,6 +56,45 @@ class AdvancedTextPaneTest {
             onTranslateRequest = onTranslate,
             onListenRequest = onListen,
         )
+    }
+
+    @Test
+    fun `IME composition does not emit text until committed`() {
+        val emitted = mutableListOf<String>()
+        val pane = newPane(onTextChanged = emitted::add)
+
+        onEdt {
+            pane.dispatchEvent(
+                InputMethodEvent(
+                    pane,
+                    InputMethodEvent.INPUT_METHOD_TEXT_CHANGED,
+                    AttributedString("ㄓㄨˋ").iterator,
+                    0,
+                    null,
+                    null,
+                )
+            )
+        }
+
+        assertTrue(
+            emitted.isEmpty(),
+            "composed text must not be emitted into application state",
+        )
+
+        onEdt {
+            pane.dispatchEvent(
+                InputMethodEvent(
+                    pane,
+                    InputMethodEvent.INPUT_METHOD_TEXT_CHANGED,
+                    AttributedString("注").iterator,
+                    1,
+                    null,
+                    null,
+                )
+            )
+        }
+
+        assertEquals(listOf("注"), emitted)
     }
 
     /** Lets the batched font-fallback timer fire, then drains the event queue. */

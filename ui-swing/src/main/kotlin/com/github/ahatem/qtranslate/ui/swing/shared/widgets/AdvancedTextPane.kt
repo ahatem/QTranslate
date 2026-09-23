@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.textpane.TextPaneKeyBindings
 import java.awt.Color
 import java.awt.Cursor
 import java.awt.Dimension
+import java.awt.event.InputMethodEvent
 import java.awt.Font
 import java.awt.Graphics
 import java.awt.Graphics2D
@@ -126,6 +127,7 @@ class AdvancedTextPane(
     private var lastRenderedText: String? = null
     private var lastRenderedCorrections: List<Correction> = emptyList()
     private var lastEmittedText: String? = null
+    private var isComposing = false
 
     private val documentListener = object : DocumentListener {
         override fun insertUpdate(e: DocumentEvent?) { e?.let { onUserTextChange(it.offset, it.length) } }
@@ -213,6 +215,7 @@ class AdvancedTextPane(
     }
 
     private fun onUserTextChange(offset: Int, length: Int) {
+        if (isComposing) return
         val currentText = text
         if (currentText != lastEmittedText) {
             lastEmittedText  = currentText
@@ -243,6 +246,36 @@ class AdvancedTextPane(
     // -----------------------------------------------------------------------
     // Painting — hint text + character count overlay
     // -----------------------------------------------------------------------
+
+    override fun processInputMethodEvent(e: InputMethodEvent) {
+        val iterator = e.text
+        val totalCount = iterator?.let {
+            var count = 0
+            var c = it.first()
+            while (c != java.text.CharacterIterator.DONE) {
+                count++
+                c = it.next()
+            }
+            count
+        } ?: 0
+
+        val hasComposedText = totalCount > e.committedCharacterCount
+
+        isComposing = hasComposedText
+
+        super.processInputMethodEvent(e)
+
+        if (!hasComposedText) {
+            isComposing = false
+
+            val currentText = text
+            if (currentText != lastEmittedText) {
+                lastEmittedText = currentText
+                lastRenderedText = currentText
+                onTextChanged(currentText)
+            }
+        }
+    }
 
     override fun paintComponent(g: Graphics) {
         // Painted on a copy. Rendering hints set on the Graphics Swing handed us outlive this
