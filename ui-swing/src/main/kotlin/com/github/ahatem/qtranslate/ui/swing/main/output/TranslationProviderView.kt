@@ -49,6 +49,14 @@ enum class ProviderStatus {
     FAILURE
 }
 
+/** The primary provider's status: a blank result is a failure only when the translation said so. */
+fun primaryProviderStatus(translatedText: String, isLoading: Boolean, translationFailed: Boolean): ProviderStatus = when {
+    translatedText.isNotBlank() -> ProviderStatus.SUCCESS
+    isLoading -> ProviderStatus.LOADING
+    translationFailed -> ProviderStatus.FAILURE
+    else -> ProviderStatus.PLACEHOLDER
+}
+
 data class TranslationProviderState(
     val serviceId: String,
     val serviceName: String?,

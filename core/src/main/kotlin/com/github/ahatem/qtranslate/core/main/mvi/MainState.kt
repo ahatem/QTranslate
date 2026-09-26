@@ -44,6 +44,12 @@ data class MainState(
     val isLoading: Boolean = false,
     val inputText: String = "",
     val translatedText: String = "",
+    /**
+     * Whether the last translation ended in failure, so a blank [translatedText] means "it did not
+     * work" rather than "nothing has been translated yet". Cleared when a translation starts or
+     * succeeds, and when the output is reset or restored from history.
+     */
+    val translationFailed: Boolean = false,
     val comparisonResults: List<ComparisonTranslationResult> = emptyList(),
     val extraOutputText: String = "",
     val isExtraOutputLoading: Boolean = false,

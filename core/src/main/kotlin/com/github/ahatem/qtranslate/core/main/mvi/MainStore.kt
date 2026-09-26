@@ -160,6 +160,7 @@ class MainStore(
                         _state.update {
                             it.copy(
                                 translatedText = "",
+                                translationFailed = false,
                                 comparisonResults = emptyList(),
                                 extraOutputText = "",
                                 detectedSourceLanguage = null,
@@ -616,6 +617,7 @@ class MainStore(
                 it.copy(
                     inputText = intent.selectedText,
                     translatedText = "",
+                    translationFailed = false,
                     isLoading = true,
                     isQuickTranslateDialogPinned = false,
                     isQuickTranslateDialogVisible = true,
@@ -795,6 +797,7 @@ class MainStore(
             it.copy(
                 inputText              = snapshot.inputText,
                 translatedText         = snapshot.translatedText,
+                translationFailed      = false,
                 sourceLanguage         = LanguageCode(snapshot.sourceLanguage),
                 targetLanguage         = LanguageCode(snapshot.targetLanguage),
                 historyIndex           = newIndex,
@@ -825,6 +828,7 @@ class MainStore(
                 it.copy(
                     inputText              = "",
                     translatedText         = "",
+                    translationFailed      = false,
                     extraOutputText        = "",
                     detectedSourceLanguage = null,
                     spellCheckCorrections  = emptyList(),
@@ -837,6 +841,7 @@ class MainStore(
                 it.copy(
                     inputText              = snapshot.inputText,
                     translatedText         = snapshot.translatedText,
+                    translationFailed      = false,
                     sourceLanguage         = LanguageCode(snapshot.sourceLanguage),
                     targetLanguage         = LanguageCode(snapshot.targetLanguage),
                     historyIndex           = newIndex,
@@ -857,6 +862,7 @@ class MainStore(
             it.copy(
                 inputText              = snapshot.inputText,
                 translatedText         = snapshot.translatedText,
+                translationFailed      = false,
                 sourceLanguage         = LanguageCode(snapshot.sourceLanguage),
                 targetLanguage         = LanguageCode(snapshot.targetLanguage),
                 historyIndex           = if (idx >= 0) idx + 1 else it.historyIndex,

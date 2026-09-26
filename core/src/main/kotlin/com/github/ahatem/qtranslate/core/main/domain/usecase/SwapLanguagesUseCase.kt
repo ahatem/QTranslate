@@ -46,6 +46,7 @@ class SwapLanguagesUseCase {
                 targetLanguage         = effectiveSource,
                 inputText              = currentState.translatedText,
                 translatedText         = "",
+                translationFailed      = false,
                 extraOutputText        = "",
                 detectedSourceLanguage = null,
                 spellCheckCorrections  = emptyList()

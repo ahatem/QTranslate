@@ -55,6 +55,9 @@ class CenteredStateView(iconManager: IconManager? = null, iconPath: String? = nu
         repaint()
     }
 
+    /** Purely visual: pointer events go to whatever is underneath. */
+    override fun contains(x: Int, y: Int): Boolean = false
+
     fun titleForTest(): JTextPane = titleText
     fun messageForTest(): JTextPane = messageText
     fun iconForTest(): JLabel = iconLabel
@@ -110,7 +113,7 @@ class CenteredStateView(iconManager: IconManager? = null, iconPath: String? = nu
         const val GAP = 6
         const val SIDE_PAD = 16
         const val VERTICAL_PAD = 16
-        const val MAX_TEXT_WIDTH = 360
+        const val MAX_TEXT_WIDTH = 448
         const val PRIMARY_TEXT = "Label.foreground"
         const val MUTED = "Label.disabledForeground"
     }

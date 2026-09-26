@@ -40,6 +40,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.output.CompareEmptyState
 import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderPresentation
 import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderRole
 import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderStatus
+import com.github.ahatem.qtranslate.ui.swing.main.output.primaryProviderStatus
 import com.github.ahatem.qtranslate.ui.swing.main.output.TranslationProviderState
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelector
@@ -387,11 +388,9 @@ class MainContentView(
         selectedTranslatorId: String?,
         selectedTranslator: com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo?
     ) {
-        val primaryStatus = when {
-            mainState.translatedText.isNotBlank() -> ProviderStatus.SUCCESS
-            mainState.isLoading -> ProviderStatus.LOADING
-            else -> ProviderStatus.PLACEHOLDER
-        }
+        val primaryStatus = primaryProviderStatus(
+            mainState.translatedText, mainState.isLoading, mainState.translationFailed
+        )
         val readyCount = config.effectiveTranslatorCount(mainState.availableTranslatorIds)
         val primaryState = TranslationProviderState(
             serviceId = selectedTranslatorId ?: "",
