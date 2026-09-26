@@ -19,6 +19,9 @@ import com.github.ahatem.qtranslate.core.main.domain.usecase.SummarizeUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateTextUseCase
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.Ok
@@ -74,17 +77,78 @@ class QuickCloseComparisonStateTest {
 
     @Test
     fun `a finished translation with finished comparisons is not in flight`() {
-        assertFalse(completed.hasTranslationInFlight())
-        assertFalse(completed.copy(translatedText = "", translationFailed = true, comparisonResults = emptyList()).hasTranslationInFlight())
+        assertFalse(completed.hasPrimaryOrComparisonInFlight())
+        assertFalse(completed.hasAnyTranslationWorkInFlight())
+        val failedPrimary = completed.copy(translatedText = "", translationFailed = true, comparisonResults = emptyList())
+        assertFalse(failedPrimary.hasAnyTranslationWorkInFlight())
     }
 
     @Test
-    fun `primary loading extra output loading and loading comparison rows are in flight`() {
-        assertTrue(completed.copy(isLoading = true).hasTranslationInFlight())
-        assertTrue(completed.copy(isExtraOutputLoading = true).hasTranslationInFlight())
+    fun `terminal comparison failures count as complete`() {
+        val failedOnly = completed.copy(comparisonResults = listOf(result("bing", ComparisonStatus.FAILURE), result("deepl", ComparisonStatus.FAILURE)))
+        assertFalse(failedOnly.hasPrimaryOrComparisonInFlight())
+        assertFalse(failedOnly.hasAnyTranslationWorkInFlight())
+    }
+
+    @Test
+    fun `primary loading and loading comparison rows are primary or comparison work`() {
+        assertTrue(completed.copy(isLoading = true).hasPrimaryOrComparisonInFlight())
         assertTrue(
-            completed.copy(comparisonResults = listOf(result("bing", ComparisonStatus.LOADING))).hasTranslationInFlight()
+            completed.copy(comparisonResults = listOf(result("bing", ComparisonStatus.LOADING))).hasPrimaryOrComparisonInFlight()
         )
+    }
+
+    @Test
+    fun `extra output alone is work in flight but not primary or comparison work`() {
+        val extraOnly = completed.copy(isExtraOutputLoading = true)
+        assertFalse(extraOnly.hasPrimaryOrComparisonInFlight())
+        assertTrue(extraOnly.hasAnyTranslationWorkInFlight())
+    }
+
+    // ---- what closing does ----
+
+    @Test
+    fun `closing with only extra output running cancels it and keeps the comparisons`() {
+        val extraOnly = completed.copy(isExtraOutputLoading = true)
+        assertEquals(QuickCloseActions(cancelWork = true, clearComparisons = false), extraOnly.quickCloseActions())
+
+        val closed = extraOnly.afterQuickClose()
+        assertEquals(completed.comparisonResults, closed.comparisonResults)
+        assertEquals(completed.translatedText, closed.translatedText)
+        assertFalse(closed.isQuickTranslateDialogVisible)
+        assertFalse(closed.isQuickTranslateDialogPinned)
+        assertFalse(closed.isLoading)
+        assertFalse(closed.isExtraOutputLoading)
+    }
+
+    @Test
+    fun `mixed terminal rows with extra output loading are preserved`() {
+        val mixed = completed.copy(
+            isExtraOutputLoading = true,
+            comparisonResults = listOf(
+                result("bing", ComparisonStatus.SUCCESS, "bing:A"),
+                result("deepl", ComparisonStatus.FAILURE),
+                result("yandex", ComparisonStatus.SUCCESS, "yandex:A")
+            )
+        )
+        assertEquals(QuickCloseActions(cancelWork = true, clearComparisons = false), mixed.quickCloseActions())
+        assertEquals(mixed.comparisonResults, mixed.afterQuickClose().comparisonResults)
+    }
+
+    @Test
+    fun `closing while the primary or a comparison runs cancels and clears`() {
+        val expected = QuickCloseActions(cancelWork = true, clearComparisons = true)
+        assertEquals(expected, completed.copy(isLoading = true).quickCloseActions())
+        assertEquals(
+            expected,
+            completed.copy(comparisonResults = listOf(result("bing", ComparisonStatus.LOADING))).quickCloseActions()
+        )
+        assertEquals(expected, completed.copy(isLoading = true, isExtraOutputLoading = true).quickCloseActions())
+    }
+
+    @Test
+    fun `closing when everything is complete does nothing but hide`() {
+        assertEquals(QuickCloseActions(cancelWork = false, clearComparisons = false), completed.quickCloseActions())
     }
 
     // ---- closing a finished Quick translation ----
@@ -113,7 +177,7 @@ class QuickCloseComparisonStateTest {
         val closed = completed.afterQuickClose()
         assertTrue(closed.translatedText.isNotBlank())
         assertEquals(listOf("bing", "deepl"), closed.comparisonResults.map { it.serviceId })
-        assertFalse(closed.hasTranslationInFlight())
+        assertFalse(closed.hasAnyTranslationWorkInFlight())
     }
 
     @Test
@@ -140,7 +204,7 @@ class QuickCloseComparisonStateTest {
         }
         runCurrent()
         assertEquals("primary:A", state.translatedText)
-        assertTrue(state.hasTranslationInFlight(), "a comparison row is still loading")
+        assertTrue(state.hasPrimaryOrComparisonInFlight(), "a comparison row is still loading")
 
         // What HideQuickTranslate does for work in flight.
         useCase.cancel()
@@ -150,7 +214,7 @@ class QuickCloseComparisonStateTest {
         comparison.release("A")
         runCurrent()
         assertTrue(state.comparisonResults.isEmpty(), "a late result cannot repopulate the cleared state")
-        assertFalse(state.hasTranslationInFlight())
+        assertFalse(state.hasAnyTranslationWorkInFlight())
     }
 
     @Test
@@ -168,7 +232,7 @@ class QuickCloseComparisonStateTest {
         comparison.release("A")
         runCurrent()
         assertEquals(ComparisonStatus.SUCCESS, state.comparisonResults.single().status)
-        assertFalse(state.hasTranslationInFlight())
+        assertFalse(state.hasAnyTranslationWorkInFlight())
 
         // Close: nothing to cancel, so the store touches only the popup flags.
         state = state.afterQuickClose()
@@ -198,19 +262,50 @@ class QuickCloseComparisonStateTest {
         assertEquals("bing:B", state.comparisonResults.single().text)
     }
 
+    @Test
+    fun `a late extra output from a closed quick translation cannot land`() = runTest {
+        val primary = ForwardThenGatedTranslator("primary")
+        val comparison = TaggedTranslator("bing")
+        val useCase = useCase(this, primary, comparison)
+        var state = MainState(inputText = "A", sourceLanguage = LanguageCode.ENGLISH, targetLanguage = LanguageCode.FRENCH)
+        val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
+
+        launch {
+            useCase(
+                getState = { state }, updateState = update, onStatusUpdate = { _, _, _ -> },
+                comparisonPolicy = ComparisonPolicy.ENABLED,
+                extraOutputRequest = ExtraOutputRequest(ExtraOutputType.BackwardTranslate, ExtraOutputSource.Output, "medium", "neutral")
+            )
+        }
+        runCurrent()
+        assertEquals("primary:A", state.translatedText)
+        assertEquals("bing:A", state.comparisonResults.single().text)
+        assertTrue(state.isExtraOutputLoading, "only the extra output is still running")
+        val close = state.quickCloseActions()
+        assertEquals(QuickCloseActions(cancelWork = true, clearComparisons = false), close)
+
+        // What HideQuickTranslate does: cancel, and leave the finished comparisons alone.
+        useCase.cancel()
+        state = state.afterQuickClose()
+
+        primary.releaseBackward()
+        runCurrent()
+        assertEquals("", state.extraOutputText, "the cancelled request cannot write its answer")
+        assertFalse(state.isExtraOutputLoading)
+        assertEquals("primary:A", state.translatedText)
+        assertEquals("bing:A", state.comparisonResults.single().text)
+    }
+
     // ---- wiring ----
 
     @Test
-    fun `the store cancels on close only for work in flight`() {
+    fun `the store closes through the in flight policy`() {
         val source = File("src/main/kotlin/com/github/ahatem/qtranslate/core/main/mvi/MainStore.kt").readText()
         val hide = source.substringAfter("MainIntent.HideQuickTranslate ->").substringBefore("MainIntent.ToggleQuickTranslateDialogPin")
-        assertTrue(hide.contains("if (_state.value.hasTranslationInFlight())"))
-        assertTrue(hide.contains("translateTextUseCase.cancel()") && hide.contains("clearComparisonState()"))
+        assertTrue(hide.contains("val close = _state.value.quickCloseActions()"))
+        assertTrue(hide.contains("if (close.cancelWork) translateTextUseCase.cancel()"))
+        assertTrue(hide.contains("if (close.clearComparisons) clearComparisonState()"))
         assertTrue(hide.contains("_state.update { it.afterQuickClose() }"))
-        assertTrue(
-            hide.indexOf("hasTranslationInFlight") < hide.indexOf("cancel()"),
-            "the cancellation sits inside the in-flight guard"
-        )
     }
 
     @Test
@@ -226,7 +321,7 @@ class QuickCloseComparisonStateTest {
 
     // ---- fixtures ----
 
-    private fun useCase(scope: CoroutineScope, primary: Translator, comparison: GatedTranslator): TranslateTextUseCase {
+    private fun useCase(scope: CoroutineScope, primary: Translator, comparison: Translator): TranslateTextUseCase {
         val preset = ServicePreset(
             id = "preset",
             name = "preset",
@@ -259,6 +354,24 @@ class QuickCloseComparisonStateTest {
 
         override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> =
             Ok(TranslationResponse("$key:${request.text}"))
+    }
+
+    /** Answers the first request at once and holds every later one, such as the backward translation. */
+    private class ForwardThenGatedTranslator(override val key: String) : Translator {
+        override val name = key
+        override val version = "test"
+        override val supportedLanguages = SupportedLanguages.All
+        private val gate = CompletableDeferred<Unit>()
+        private var calls = 0
+
+        override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> {
+            if (++calls > 1) gate.await()
+            return Ok(TranslationResponse("$key:${request.text}"))
+        }
+
+        fun releaseBackward() {
+            gate.complete(Unit)
+        }
     }
 
     private class GatedTranslator(override val key: String) : Translator {

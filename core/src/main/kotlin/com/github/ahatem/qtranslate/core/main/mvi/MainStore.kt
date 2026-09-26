@@ -333,12 +333,13 @@ class MainStore(
             MainIntent.HideQuickTranslate -> {
                 quickTranslateGenerations.incrementAndGet()
                 // Quick shares its result with the main window, so closing the popup keeps a
-                // finished translation and its comparisons. Only work still running is cancelled,
-                // with ownership invalidated so a late result cannot land afterwards.
-                if (_state.value.hasTranslationInFlight()) {
-                    translateTextUseCase.cancel()
-                    clearComparisonState()
-                }
+                // finished translation and its comparisons. Work still running is cancelled, with
+                // ownership invalidated so a late result cannot land afterwards. Comparison rows
+                // are cleared only while the primary or a comparison is unfinished: extra output
+                // alone is published after them and does not make a finished set incomplete.
+                val close = _state.value.quickCloseActions()
+                if (close.cancelWork) translateTextUseCase.cancel()
+                if (close.clearComparisons) clearComparisonState()
                 _state.update { it.afterQuickClose() }
             }
 
