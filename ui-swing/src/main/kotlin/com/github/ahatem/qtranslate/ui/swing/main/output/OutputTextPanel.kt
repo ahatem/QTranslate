@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.ReadOnlyTextPanel
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.ReadOnlyTextPanelState
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsPanel
+import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorPopupButton
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DefinitionStrip
@@ -13,6 +14,7 @@ import java.awt.Color
 import java.awt.FlowLayout
 import java.awt.Point
 import java.awt.Font
+import javax.swing.BorderFactory
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JLabel
@@ -30,6 +32,7 @@ class OutputTextPanel(
     private val onFindInDictionary: ((String) -> Unit)? = null,
     private val onSearchImages: ((String) -> Unit)? = null,
     private val onSetAsInput: ((String) -> Unit)? = null,
+    private val comparisonPrimarySelector: TranslatorPopupButton? = null,
 ) : JPanel(BorderLayout()), Renderable<OutputTextState> {
 
     private val textPane = AdvancedTextPane(
@@ -57,13 +60,27 @@ class OutputTextPanel(
     private val workspaceProviderLabel = JLabel()
     private val workspaceBadgeLabel = JLabel().apply {
         font = font.deriveFont(font.style or Font.BOLD)
-        foreground = UIManager.getColor("Component.accentColor") ?: UIManager.getColor("Label.foreground")
     }
-    private val workspaceHeader = JPanel(FlowLayout(FlowLayout.LEADING, 8, 5)).apply {
+    private val workspaceIdentity = JPanel(FlowLayout(FlowLayout.LEADING, 8, 5)).apply {
+        isOpaque = false
+        add(workspaceProviderLabel)
+        comparisonPrimarySelector?.let {
+            add(it)
+            it.isVisible = false
+        }
+    }
+    private val workspaceHeader = JPanel(BorderLayout()).apply {
         isOpaque = false
         isVisible = false
-        add(workspaceProviderLabel)
-        add(workspaceBadgeLabel)
+        border = BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(
+                0, 0, 1, 0,
+                UIManager.getColor("Component.borderColor") ?: Color.GRAY
+            ),
+            BorderFactory.createEmptyBorder(6, 10, 5, 10)
+        )
+        add(workspaceIdentity, BorderLayout.LINE_START)
+        add(workspaceBadgeLabel, BorderLayout.LINE_END)
     }
     private val topPanel = JPanel().apply {
         layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
@@ -83,8 +100,15 @@ class OutputTextPanel(
         workspaceProviderLabel.text = providerName
         workspaceBadgeLabel.text = primaryBadge
         workspaceHeader.isVisible = visible
-        workspaceBadgeLabel.foreground = UIManager.getColor("Component.accentColor")
-            ?: UIManager.getColor("Label.foreground")
+        comparisonPrimarySelector?.isVisible = visible
+        if (visible) {
+            ResultSurfaceStyle.apply(this, primary = true)
+            readOnlyPanel.border = BorderFactory.createEmptyBorder(0, 0, 8, 0)
+            ResultSurfaceStyle.refreshBadgeColors(workspaceBadgeLabel)
+        } else {
+            ResultSurfaceStyle.reset(this)
+            readOnlyPanel.border = null
+        }
         revalidate()
         repaint()
     }

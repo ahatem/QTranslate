@@ -24,7 +24,6 @@ class QuickTranslateResultsViewTest {
         comparisons.render(
             ComparisonResultsState(
                 results = listOf(ComparisonTranslationResult("secondary", "Secondary", ComparisonStatus.SUCCESS, "secondary")),
-                title = "Compare translations",
                 loadingText = "Translating...",
                 unavailableText = "Unavailable service",
                 failureText = "Translation failed",

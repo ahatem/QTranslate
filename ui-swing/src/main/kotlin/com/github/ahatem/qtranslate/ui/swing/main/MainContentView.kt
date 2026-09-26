@@ -36,6 +36,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonResultsPanel
 import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonResultsState
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelector
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
+import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorPopupButton
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryPanel
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryPanelState
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBar
@@ -94,6 +95,15 @@ class MainContentView(
         onConfigureService = onConfigureService
     )
 
+    /** Compact primary selector mounted inside the Comparison result header. */
+    private val comparisonPrimarySelector = TranslatorPopupButton(
+        iconManager = iconManager,
+        onTranslatorSelected = { serviceId ->
+            dispatchSettings(SettingsIntent.UpdateServiceInActivePreset(ServiceRole.TRANSLATOR, serviceId))
+            dispatch(MainIntent.Translate())
+        }
+    )
+
     private val languageSelectionBar = LanguageSelectionBar(
         iconManager = iconManager,
         localizer = localizer,
@@ -140,9 +150,10 @@ class MainContentView(
             dispatch(MainIntent.UpdateInputText(text))
             inputTextPanel.requestFocusOnText()
         },
+        comparisonPrimarySelector = comparisonPrimarySelector,
     )
 
-    private val comparisonResultsPanel = ComparisonResultsPanel()
+    private val comparisonResultsPanel = ComparisonResultsPanel(iconManager = iconManager)
 
     private val extraOutputPanel = ExtraOutputPanel(
         iconManager = iconManager,
@@ -604,6 +615,13 @@ class MainContentView(
                 )
             )
         )
+        comparisonPrimarySelector.render(
+            TranslatorSelectorState(
+                availableTranslators = mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR),
+                selectedTranslatorId = selectedTranslatorId,
+                isLoading = mainState.isLoading
+            )
+        )
 
         outputTextPanel.setComparisonWorkspace(
             visible = config.layoutPresetId == LayoutPresetIds.COMPARISON,
@@ -613,17 +631,26 @@ class MainContentView(
         comparisonResultsPanel.render(
             ComparisonResultsState(
                 results = mainState.comparisonResults,
-                title = localizer.getString("main_window.comparison_title"),
                 loadingText = localizer.getString("main_window.comparison_loading"),
                 unavailableText = localizer.getString("main_window.comparison_unavailable"),
                 failureText = localizer.getString("main_window.comparison_failure"),
                 copyLabel = localizer.getString("main_window.comparison_copy"),
+                collapseLabel = localizer.getString("main_window.comparison_collapse"),
+                expandLabel = localizer.getString("main_window.comparison_expand"),
                 fontConfig = config.scaledEditorFont,
                 fallbackFontConfig = config.scaledEditorFallbackFont,
                 onCopy = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) },
-                showEmptyState = activePreset?.comparisonTranslatorIds.orEmpty().isEmpty(),
-                emptyText = localizer.getString("main_window.comparison_no_providers"),
-                configureLabel = localizer.getString("main_window.comparison_configure"),
+                providerInfos = mainState.availableServices.associateBy { it.id },
+                showEmptyState = config.layoutPresetId == LayoutPresetIds.COMPARISON &&
+                    mainState.comparisonResults.isEmpty() && !mainState.isLoading,
+                emptyText = if (activePreset?.comparisonTranslatorIds.orEmpty().isEmpty()) {
+                    localizer.getString("main_window.comparison_no_providers")
+                } else {
+                    localizer.getString("main_window.comparison_empty")
+                },
+                configureLabel = if (activePreset?.comparisonTranslatorIds.orEmpty().isEmpty()) {
+                    localizer.getString("main_window.comparison_configure")
+                } else "",
                 onConfigure = onOpenServiceSettings
             )
         )

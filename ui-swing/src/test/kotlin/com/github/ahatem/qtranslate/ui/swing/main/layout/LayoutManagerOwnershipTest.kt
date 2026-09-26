@@ -22,13 +22,15 @@ class LayoutManagerOwnershipTest {
 
         listOf("comparison", "classic", "side_by_side", "comparison").forEach { layoutId ->
             switchAndFlush(manager, layoutId)
-            leaves.filterIndexed { index, _ -> index != 4 }.forEach { leaf ->
+            leaves.filterIndexed { index, _ -> index != 4 && !(layoutId == "comparison" && index == 6) }.forEach { leaf ->
                 assertNotNull(leaf.parent, "$layoutId orphaned a leaf")
                 assertEquals(1, count(container, leaf), "$layoutId mounted a leaf more than once")
             }
             val comparisonCount = count(container, leaves[4])
             if (layoutId == "comparison") {
                 assertEquals(1, comparisonCount, "comparison layout must mount its comparison leaf")
+                assertEquals(0, count(container, leaves[6]), "comparison layout must keep the enhanced selector out of the footer")
+                assertTrue(leaves[6].parent == null, "comparison layout must not retain a stale selector parent")
             } else {
                 assertEquals(0, comparisonCount, "$layoutId must leave the comparison leaf unmounted")
                 assertTrue(leaves[4].parent == null, "$layoutId must not retain a stale comparison parent")

@@ -141,8 +141,8 @@ class QuickTranslateDialog(
 
     private val loadingBar = InlineLoadingBar()
     private val definitionStrip = DefinitionStrip()
-    private val comparisonResultsPanel = ComparisonResultsPanel(ResultPresentationMode.QUICK_POPUP)
-    private val resultsView = QuickTranslateResultsView(outputTextArea, definitionStrip, comparisonResultsPanel)
+    private val comparisonResultsPanel = ComparisonResultsPanel(ResultPresentationMode.QUICK_POPUP, iconManager)
+    private val resultsView = QuickTranslateResultsView(outputTextArea, definitionStrip, comparisonResultsPanel, iconManager)
 
     private val topPanel = createTopPanel()
 
@@ -198,6 +198,7 @@ class QuickTranslateDialog(
         }
     private var wasManuallyMoved = false
     private var currentConfig: DialogConfig? = null
+    private var comparisonSizingEnabled = false
 
     private var lastRenderedText: String? = null
 
@@ -334,18 +335,21 @@ class QuickTranslateDialog(
         loadingBar.isLoading = state.isLoading && isVisible
         // Only for single words; the state carries it empty otherwise, so the strip hides itself.
         definitionStrip.render(state.definition)
-        resultsView.setPrimaryLabel(state.primaryProviderName, state.primaryBadge)
+        comparisonSizingEnabled = state.comparisonsEnabled
+        resultsView.setPrimaryLabel(state.primaryProviderInfo, state.primaryProviderName, state.primaryBadge)
         comparisonResultsPanel.render(
             ComparisonResultsState(
                 results = state.comparisonResults,
-                title = state.comparisonTitle,
                 loadingText = state.comparisonLoadingText,
                 unavailableText = state.comparisonUnavailableText,
                 failureText = state.comparisonFailureText,
                 copyLabel = state.comparisonCopyLabel,
+                collapseLabel = localizationManager.getString("main_window.comparison_collapse"),
+                expandLabel = localizationManager.getString("main_window.comparison_expand"),
                 fontConfig = state.config.font,
                 fallbackFontConfig = state.config.fallbackFont,
                 onCopy = { text -> text.copyToClipboard() },
+                providerInfos = state.comparisonProviderInfos,
                 showEmptyState = false
             )
         )
@@ -527,7 +531,11 @@ class QuickTranslateDialog(
             measurePane.getFontMetrics(outputTextArea.font),
             screenBounds
         )
-        val maxHeight = PopupSizing.maxHeight(screenBounds)
+        val maxHeight = if (comparisonSizingEnabled) {
+            PopupSizing.maxComparisonHeight(screenBounds)
+        } else {
+            PopupSizing.maxHeight(screenBounds)
+        }
 
         measurePane.font = outputTextArea.font
         if (measurePane.text != text) measurePane.text = text

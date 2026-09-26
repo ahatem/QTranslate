@@ -46,13 +46,15 @@ data class QuickTranslateDialogState(
     val config: DialogConfig,
     val strings: DialogStrings,
     val comparisonResults: List<ComparisonTranslationResult> = emptyList(),
-    val comparisonTitle: String = "",
     val comparisonLoadingText: String = "",
     val comparisonUnavailableText: String = "",
     val comparisonFailureText: String = "",
     val comparisonCopyLabel: String = "",
     val primaryProviderName: String = "",
-    val primaryBadge: String = "PRIMARY"
+    val primaryBadge: String = "PRIMARY",
+    val primaryProviderInfo: ServiceInfo? = null,
+    val comparisonProviderInfos: Map<String, ServiceInfo> = emptyMap(),
+    val comparisonsEnabled: Boolean = false
 ) : UiState
 
 /**

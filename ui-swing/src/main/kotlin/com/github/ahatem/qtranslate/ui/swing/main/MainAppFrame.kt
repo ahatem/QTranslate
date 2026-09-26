@@ -1580,13 +1580,15 @@ class MainAppFrame(
                 loadingText = localizer.getString("common.loading")
             ),
             comparisonResults = mainState.comparisonResults,
-            comparisonTitle = localizer.getString("main_window.comparison_title"),
             comparisonLoadingText = localizer.getString("main_window.comparison_loading"),
             comparisonUnavailableText = localizer.getString("main_window.comparison_unavailable"),
             comparisonFailureText = localizer.getString("main_window.comparison_failure"),
             comparisonCopyLabel = localizer.getString("main_window.comparison_copy"),
             primaryProviderName = selectedTranslator?.name ?: localizer.getString("main_window.no_translator"),
-            primaryBadge = localizer.getString("main_window.comparison_primary")
+            primaryBadge = localizer.getString("main_window.comparison_primary"),
+            primaryProviderInfo = selectedTranslator,
+            comparisonProviderInfos = mainState.availableServices.associateBy { it.id },
+            comparisonsEnabled = activePreset?.comparisonTranslatorIds.orEmpty().isNotEmpty()
         )
     }
 

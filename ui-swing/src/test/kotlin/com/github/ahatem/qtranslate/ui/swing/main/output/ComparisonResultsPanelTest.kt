@@ -51,7 +51,7 @@ class ComparisonResultsPanelTest {
         assertEquals("second text", descendants(panel).filterIsInstance<AdvancedTextPane>().single().text)
 
         SwingUtilities.invokeAndWait {
-            descendants(panel).filterIsInstance<JButton>().single { it.text == "Copy" }.doClick()
+            descendants(panel).filterIsInstance<JButton>().first { it.actionCommand == "second text" }.doClick()
         }
         assertEquals("second text", copied)
     }
@@ -76,12 +76,44 @@ class ComparisonResultsPanelTest {
         assertEquals("bing result", panes.last().text)
     }
 
+    @Test
+    fun `collapsed card stays collapsed when a sibling changes`() {
+        val panel = ComparisonResultsPanel()
+        val first = ComparisonTranslationResult("first", "First", ComparisonStatus.SUCCESS, "first result")
+        val second = ComparisonTranslationResult("second", "Second", ComparisonStatus.LOADING)
+        lateinit var firstCard: ComparisonResultCard
+        SwingUtilities.invokeAndWait {
+            panel.render(state(listOf(first, second)))
+            firstCard = descendants(panel).filterIsInstance<ComparisonResultCard>().first()
+            firstCard.collapseForTest()
+            panel.render(state(listOf(first, ComparisonTranslationResult("second", "Second", ComparisonStatus.SUCCESS, "second result"))))
+        }
+        assertFalse(firstCard.textPaneForTest().isVisible)
+        assertSame(firstCard, descendants(panel).filterIsInstance<ComparisonResultCard>().first())
+    }
+
+    @Test
+    fun `empty state is deliberate and does not render a comparison heading`() {
+        val panel = ComparisonResultsPanel()
+        SwingUtilities.invokeAndWait {
+            panel.render(
+                state(emptyList()).copy(
+                    showEmptyState = true,
+                    emptyText = "Translations will appear here",
+                    configureLabel = "Configure"
+                )
+            )
+        }
+        assertTrue(panel.isVisible)
+        assertTrue(descendants(panel).filterIsInstance<JLabel>().any { it.text == "Translations will appear here" })
+        assertTrue(descendants(panel).filterIsInstance<JLabel>().none { it.text == "Compare translations" })
+    }
+
     private fun state(
         results: List<ComparisonTranslationResult>,
         onCopy: (String) -> Unit = {}
     ) = ComparisonResultsState(
         results = results,
-        title = "Compare translations",
         loadingText = "Translating...",
         unavailableText = "Unavailable service",
         failureText = "Translation failed",

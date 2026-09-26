@@ -313,7 +313,9 @@ object ComparisonLayout : LayoutStrategy {
 
     override fun arrange(components: ComponentRegistry, isRtl: Boolean): ArrangedLayout {
         val topBar = LayoutBuilders.createSimpleTopBar(components.historyBar)
-        val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
+        // Comparison owns primary-service switching in the primary result header. The footer is
+        // intentionally only the status bar so provider identity and results remain the focus.
+        val bottomBar = components.statusBar
 
         val workspaceContent = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
