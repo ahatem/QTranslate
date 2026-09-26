@@ -153,6 +153,10 @@ private class Shots(
         showOutputTab()
         capture("layout-compact-dark")
 
+        start(Scenes.comparison(Scenes.DARK))
+        translate(LanguageCode("fr"), Scenes.LIBRARY)
+        capture("layout-comparison-empty-dark")
+
         // The hero: input, backward translation and the dictionary all at once. Backward
         // translation rather than Summary or Rewrite — those are AI-only, and without an API key
         // they would render as an authentication error.
@@ -356,6 +360,9 @@ private class Shots(
             if (layoutPresetId == "side_by_side") {
                 panes.filter { it.orientation == JSplitPane.HORIZONTAL_SPLIT }
                     .forEach { it.setLeadingProportion(0.5) }
+            } else if (layoutPresetId == "comparison") {
+                panes.filter { it.orientation == JSplitPane.VERTICAL_SPLIT }
+                    .lastOrNull()?.setLeadingProportion(0.28)
             } else {
                 panes.filter { it.orientation == JSplitPane.VERTICAL_SPLIT }
                     .lastOrNull()?.setLeadingProportion(0.5)

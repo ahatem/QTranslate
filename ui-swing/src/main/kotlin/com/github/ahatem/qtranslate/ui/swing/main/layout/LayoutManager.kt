@@ -18,7 +18,7 @@ class LayoutManager(
     private var compactStrokes: Triple<KeyStroke?, KeyStroke?, KeyStroke?> = Triple(null, null, null)
 
     companion object {
-        private val strategies = listOf(ClassicLayout, SideBySideLayout, CompactLayout)
+        private val strategies = listOf(ClassicLayout, SideBySideLayout, CompactLayout, ComparisonLayout)
         fun getAvailableLayouts(): List<LayoutStrategy> = strategies
     }
 
@@ -29,8 +29,9 @@ class LayoutManager(
     private var currentIsRtl: Boolean = false
 
     fun switchLayout(layoutId: String, isRtl: Boolean = currentIsRtl) {
+        val rtlChanged = isRtl != currentIsRtl
+        if (layoutId == currentLayoutId && !rtlChanged) return
         currentIsRtl = isRtl
-        if (layoutId == currentLayoutId) return
         SwingUtilities.invokeLater {
             detachAll()
             container.removeAll()
@@ -52,6 +53,7 @@ class LayoutManager(
             components.inputPanel,
             components.languageBar,
             components.outputPanel,
+            components.compareBoard,
             components.extraOutputPanel,
             components.translatorSelector,
             components.statusBar

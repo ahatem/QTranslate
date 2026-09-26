@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.formdev.flatlaf.extras.FlatSVGIcon
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
@@ -16,6 +17,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.awt.*
 import javax.swing.*
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
+import kotlin.math.min
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 
@@ -31,6 +35,10 @@ class ServicesPanel(
     private lateinit var deleteBtn: JButton
     private val serviceComboBoxes = mutableMapOf<ServiceRole, JComboBox<ServiceOption>>()
     private val serviceEnabledChecks = mutableMapOf<ServiceRole, JCheckBox>()
+    private lateinit var comparisonChooser: JButton
+    private var translatorOptions: List<ServiceOption> = emptyList()
+    private var comparisonIdsForChooser: List<String> = emptyList()
+    private var primaryTranslatorIdForChooser: String? = null
 
     init {
         buildUI()
@@ -126,11 +134,28 @@ class ServicesPanel(
             add(enabledCheck)
         }
 
-        return JPanel(BorderLayout(0, 5)).apply {
+        val cardBody = JPanel(BorderLayout(0, 5)).apply {
             isOpaque = false
             add(header, BorderLayout.NORTH)
             add(combo, BorderLayout.CENTER)
         }
+        if (type == ServiceRole.TRANSLATOR) {
+            comparisonChooser = buildComparisonChooser()
+            registerSearchEntry(
+                localizationManager.getString("settings_services.compare_with"),
+                comparisonChooser,
+                localizationManager.getString("settings_services.comparison_hint")
+            )
+            cardBody.add(comparisonChooser, BorderLayout.SOUTH)
+        }
+        return cardBody
+    }
+
+    private fun buildComparisonChooser(): JButton = JButton().apply {
+        name = "comparison-translator-chooser"
+        isFocusable = true
+        horizontalAlignment = SwingConstants.LEADING
+        addActionListener { showComparisonMenu() }
     }
 
     private fun buildServiceCombo(type: ServiceRole): JComboBox<ServiceOption> =
@@ -140,6 +165,10 @@ class ServicesPanel(
             }
             addActionListener {
                 if (!isUpdatingFromState) {
+                    if (type == ServiceRole.TRANSLATOR) {
+                        primaryTranslatorIdForChooser = (selectedItem as? ServiceOption)?.id
+                        refreshComparisonChooser()
+                    }
                     store.dispatch(
                         SettingsIntent.UpdateServiceInActivePreset(type, (selectedItem as? ServiceOption)?.id)
                     )
@@ -207,6 +236,7 @@ class ServicesPanel(
     }
 
     private fun populateCombos(servicesByRole: Map<ServiceRole, List<ServiceOption>>) {
+        translatorOptions = servicesByRole[ServiceRole.TRANSLATOR].orEmpty()
         withoutTrigger {
             serviceComboBoxes.forEach { (type, combo) ->
                 val current = combo.selectedItem as? ServiceOption
@@ -222,6 +252,7 @@ class ServicesPanel(
                 }
             }
         }
+        refreshComparisonChooser()
     }
 
     // ── Render ────────────────────────────────────────────────────────────────
@@ -255,7 +286,121 @@ class ServicesPanel(
                     }
                 }
             }
+            active?.let { preset ->
+                primaryTranslatorIdForChooser = preset.selectedServices[ServiceRole.TRANSLATOR]
+                comparisonIdsForChooser = preset.comparisonTranslatorIds
+                    .filterNot { it == primaryTranslatorIdForChooser }
+            }
+            if (active == null) {
+                primaryTranslatorIdForChooser = null
+                comparisonIdsForChooser = emptyList()
+            }
+            refreshComparisonChooser(c.isServiceRoleEnabled(ServiceRole.TRANSLATOR))
         }
+    }
+
+    private fun refreshComparisonChooser(roleEnabled: Boolean = serviceEnabledChecks[ServiceRole.TRANSLATOR]?.isSelected ?: true) {
+        if (!::comparisonChooser.isInitialized) return
+        comparisonChooser.isEnabled = roleEnabled
+        val selectedNames = comparisonIdsForChooser
+            .filterNot { it == primaryTranslatorIdForChooser }
+            .mapNotNull { id ->
+                translatorOptions.firstOrNull { it.id == id }?.name
+                    ?: localizationManager.getString("settings_services.unavailable_service")
+            }
+        comparisonChooser.text = if (selectedNames.isEmpty()) {
+            localizationManager.getString("settings_services.compare_with")
+        } else {
+            localizationManager.getString("settings_services.compare_selected", selectedNames.size)
+        }
+        comparisonChooser.toolTipText = selectedNames.takeIf { it.isNotEmpty() }?.joinToString(", ")
+        comparisonChooser.componentOrientation = componentOrientation
+    }
+
+    private fun showComparisonMenu() {
+        if (!::comparisonChooser.isInitialized || !comparisonChooser.isEnabled) return
+
+        val workingConfig = store.state.value.workingConfiguration
+        val options = comparisonChooserOptions(
+            available = translatorOptions
+                .filter { it.id !in workingConfig.disabledServices }
+                .map { ComparisonServiceOption(it.id, it.name, available = true) },
+            selectedIds = comparisonIdsForChooser,
+            primaryId = primaryTranslatorIdForChooser,
+            unavailableName = localizationManager.getString("settings_services.unavailable_service")
+        )
+
+        val menu = JPopupMenu().apply { name = "comparison-translator-popup" }
+        val content = JPanel(BorderLayout(0, 5)).apply {
+            border = BorderFactory.createEmptyBorder(6, 8, 6, 8)
+            val usableHeight = GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.height
+            preferredSize = Dimension(
+                UIScale.scale(260),
+                min(UIScale.scale(220), (usableHeight - UIScale.scale(20)).coerceAtLeast(UIScale.scale(120)))
+            )
+        }
+        val search = JTextField().apply {
+            name = "comparison-translator-search"
+            toolTipText = localizationManager.getString("common.search")
+        }
+        content.add(search, BorderLayout.NORTH)
+        val list = JPanel().apply {
+            isOpaque = false
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+        }
+        val scroll = JScrollPane(list).apply {
+            border = BorderFactory.createEmptyBorder()
+            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+            verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
+        }
+        content.add(scroll, BorderLayout.CENTER)
+        menu.add(content)
+
+        lateinit var rebuild: () -> Unit
+        rebuild = {
+            list.removeAll()
+            val query = search.text.trim().lowercase()
+            val filtered = options.filter { it.name.lowercase().contains(query) || it.id.lowercase().contains(query) }
+            if (filtered.isEmpty()) {
+                list.add(JLabel(localizationManager.getString("settings_services.no_comparison_services")))
+            } else {
+                filtered.forEach { option ->
+                    val label = if (option.available) option.name
+                    else "${option.name} (${localizationManager.getString("settings_services.unavailable_suffix")})"
+                    list.add(JCheckBox(label).apply {
+                        name = "comparison-translator-${option.id}"
+                        isOpaque = false
+                        val selected = option.id in comparisonIdsForChooser && option.id != primaryTranslatorIdForChooser
+                        isSelected = selected
+                        // A selected service that became disabled or disappeared is retained in
+                        // the draft so it can be removed explicitly; only unselected unhealthy
+                        // services are non-actionable.
+                        isEnabled = option.available || selected
+                        toolTipText = option.id.takeIf { !option.available }
+                        addActionListener {
+                            val updated = toggleComparisonId(comparisonIdsForChooser, option.id, isSelected)
+                            comparisonIdsForChooser = updated
+                            store.dispatch(SettingsIntent.UpdateComparisonTranslatorsInActivePreset(updated))
+                            refreshComparisonChooser()
+                        }
+                    })
+                }
+            }
+            list.revalidate(); list.repaint()
+        }
+        search.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent) = rebuild()
+            override fun removeUpdate(e: DocumentEvent) = rebuild()
+            override fun changedUpdate(e: DocumentEvent) = rebuild()
+        })
+        rebuild()
+        menu.applyComponentOrientation(componentOrientation)
+        menu.pack()
+        menu.show(
+            comparisonChooser,
+            comparisonPopupX(comparisonChooser.width, menu.preferredSize.width, componentOrientation.isLeftToRight),
+            comparisonChooser.height
+        )
     }
 
     // ── Preset CRUD ───────────────────────────────────────────────────────────

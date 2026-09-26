@@ -8,6 +8,9 @@ import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.effectiveTranslatorCount
+import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
+import com.github.ahatem.qtranslate.core.settings.data.effectiveLayoutPresetId
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.api.plugin.StandardOptions
@@ -31,8 +34,16 @@ import com.github.ahatem.qtranslate.ui.swing.main.output.ExtraOutputState
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextPanel
 import com.github.ahatem.qtranslate.ui.swing.main.output.NoServiceState
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextState
+import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoard
+import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoardState
+import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderPresentation
+import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderRole
+import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderStatus
+import com.github.ahatem.qtranslate.ui.swing.main.output.TranslationProviderState
+import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelector
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
+import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorPopupButton
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryPanel
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryPanelState
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBar
@@ -91,6 +102,17 @@ class MainContentView(
         onConfigureService = onConfigureService
     )
 
+    /** Compact primary selector mounted inside the Comparison result header. */
+    private val comparisonPrimarySelector = TranslatorPopupButton(
+        iconManager = iconManager,
+        onTranslatorSelected = { serviceId ->
+            // Promotion, not plain selection: the old primary takes the
+            // promoted translator's comparison slot, so the set never shrinks.
+            dispatchSettings(SettingsIntent.PromoteTranslatorToPrimary(serviceId))
+            dispatch(MainIntent.Translate())
+        }
+    )
+
     private val languageSelectionBar = LanguageSelectionBar(
         iconManager = iconManager,
         localizer = localizer,
@@ -137,6 +159,11 @@ class MainContentView(
             dispatch(MainIntent.UpdateInputText(text))
             inputTextPanel.requestFocusOnText()
         },
+    )
+
+    private val compareBoard = CompareBoard(
+        primarySelector = comparisonPrimarySelector,
+        iconManager = iconManager
     )
 
     private val extraOutputPanel = ExtraOutputPanel(
@@ -188,6 +215,7 @@ class MainContentView(
             languageBar = languageSelectionBar,
             inputPanel = inputTextPanel,
             outputPanel = outputTextPanel,
+            compareBoard = compareBoard,
             extraOutputPanel = extraOutputPanel,
             statusBar = statusBar
         ), contentWrapper
@@ -210,6 +238,9 @@ class MainContentView(
 
     private var lastState: Pair<MainState, SettingsState>? = null
     private var lastDictionaryKey: DictionaryKey? = null
+    private var currentLayoutId: String? = null
+    /** Last arranged layout, so eligibility changes re-arrange without rewriting the preference. */
+    private var lastEffectiveLayoutId: String? = null
     /** The translate binding the settings ask for, so an unchanged request is not re-issued. */
     private var requestedTranslateKeyStroke: KeyStroke? = null
 
@@ -252,14 +283,21 @@ class MainContentView(
 
     fun render(mainState: MainState, settingsState: SettingsState) {
         val config = settingsState.workingConfiguration
+        // Effective arrangement: a requested Comparison without two usable
+        // translators deterministically shows Classic. The saved preference is
+        // never rewritten, so eligibility restores Comparison naturally.
+        val effectiveLayoutId = config.effectiveLayoutPresetId(mainState.availableTranslatorIds)
 
         // Told outright rather than left to the orientation cascade, which reaches the split pane
         // at a point in startup that depends on when this view was added to the window.
         splitPane.isMirrored = localizer.isRtl
 
-        if (lastState == null || lastState?.second?.workingConfiguration?.layoutPresetId != config.layoutPresetId) {
-            layoutManager.switchLayout(config.layoutPresetId, localizer.isRtl)
+        if (lastState == null || lastState?.second?.workingConfiguration?.layoutPresetId != config.layoutPresetId || lastEffectiveLayoutId != effectiveLayoutId) {
+            layoutManager.switchLayout(effectiveLayoutId, localizer.isRtl)
+            currentLayoutId = effectiveLayoutId
+            lastEffectiveLayoutId = effectiveLayoutId
         }
+        translationHistoryBar.setStatusVisible(effectiveLayoutId != LayoutPresetIds.COMPARISON)
 
         if (lastState == null ||
             lastState?.second?.workingConfiguration?.toolbarVisibility != config.toolbarVisibility ||
@@ -271,7 +309,7 @@ class MainContentView(
         updateTranslateKeyStroke(config)
         updateFocusKeyStrokes(config)
         renderDictionaryPanel(mainState, config)
-        renderComponents(mainState, config)
+        renderComponents(mainState, config, effectiveLayoutId)
         lastState = mainState to settingsState
     }
 
@@ -340,6 +378,96 @@ class MainContentView(
         val mods = java.awt.event.InputEvent.getModifiersExText(ks.modifiers)
         val key  = java.awt.event.KeyEvent.getKeyText(ks.keyCode)
         return if (mods.isEmpty()) key else "$mods+$key"
+    }
+
+    private fun renderCompareBoard(
+        mainState: MainState,
+        config: Configuration,
+        selectedTranslatorId: String?,
+        selectedTranslator: com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo?
+    ) {
+        val primaryStatus = when {
+            mainState.translatedText.isNotBlank() -> ProviderStatus.SUCCESS
+            mainState.isLoading -> ProviderStatus.LOADING
+            else -> ProviderStatus.PLACEHOLDER
+        }
+        val readyCount = config.effectiveTranslatorCount(mainState.availableTranslatorIds)
+        val primaryState = TranslationProviderState(
+            serviceId = selectedTranslatorId ?: "",
+            serviceName = selectedTranslator?.name ?: localizer.getString("main_window.no_translator"),
+            iconPath = selectedTranslator?.iconPath,
+            role = ProviderRole.PRIMARY,
+            presentation = ProviderPresentation.MAIN,
+            status = primaryStatus,
+            text = mainState.translatedText,
+            loadingText = localizer.getString("main_window.comparison_loading"),
+            failureText = localizer.getString("main_window.comparison_failure"),
+            copyLabel = localizer.getString("main_window.comparison_copy"),
+            listenLabel = localizer.getString("main_window_editor_context_menu.listen"),
+            stopLabel = localizer.getString("common.stop"),
+            isTtsPlaying = mainState.isTtsPlaying,
+            primaryLabel = localizer.getString("main_window.comparison_primary"),
+            placeholderTitle = localizer.getString("main_window.comparison_empty"),
+            placeholderSubtitle = localizer.getString("main_window.comparison_empty_subtitle", readyCount),
+            definition = mainState.inlineDefinition,
+            findInDictionaryLabel = localizer.getString("main_window_editor_context_menu.find_in_dictionary"),
+            searchImagesLabel = localizer.getString("main_window_editor_context_menu.search_images"),
+            setAsInputLabel = localizer.getString("main_window_editor_context_menu.set_as_input"),
+            fontConfig = config.scaledEditorFont,
+            fallbackFontConfig = config.scaledEditorFallbackFont,
+            selectorState = TranslatorSelectorState(
+                availableTranslators = mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR),
+                selectedTranslatorId = selectedTranslatorId,
+                isLoading = mainState.isLoading
+            ),
+            onCopy = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) },
+            onListen = { dispatch(MainIntent.ListenToText(textSource = TextSource.Output)) },
+            onStop = { dispatch(MainIntent.StopTTS) },
+            onTranslateRequest = { text ->
+                dispatch(MainIntent.UpdateInputText(text))
+                dispatch(MainIntent.Translate(text))
+            },
+            onFindInDictionary = { word -> showDictionaryWithWord(word, currentTargetLanguage) },
+            onSearchImages = { word -> showImagesForWord(word, currentTargetLanguage) },
+            onSetAsInput = { text ->
+                dispatch(MainIntent.UpdateInputText(text))
+                inputTextPanel.requestFocusOnText()
+            },
+            getContextMenuLabel = { key ->
+                localizer.getString("main_window_editor_context_menu.$key")
+            }
+        )
+        val providerInfos = mainState.availableServices.associateBy { it.id }
+        val secondaries = mainState.comparisonResults.map { result ->
+            val info = providerInfos[result.serviceId]
+            TranslationProviderState(
+                serviceId = result.serviceId,
+                serviceName = info?.name ?: result.serviceName
+                ?: localizer.getString("main_window.comparison_unavailable"),
+                iconPath = info?.iconPath,
+                role = ProviderRole.SECONDARY,
+                presentation = ProviderPresentation.MAIN,
+                status = when (result.status) {
+                    ComparisonStatus.LOADING -> ProviderStatus.LOADING
+                    ComparisonStatus.SUCCESS -> ProviderStatus.SUCCESS
+                    ComparisonStatus.FAILURE -> ProviderStatus.FAILURE
+                },
+                text = result.text,
+                errorMessage = result.errorMessage,
+                loadingText = localizer.getString("main_window.comparison_loading"),
+                failureText = localizer.getString("main_window.comparison_failure"),
+                copyLabel = localizer.getString("main_window.comparison_copy"),
+                fontConfig = config.scaledEditorFont,
+                fallbackFontConfig = config.scaledEditorFallbackFont,
+                onCopy = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) }
+            )
+        }
+        compareBoard.render(
+            CompareBoardState(
+                primary = primaryState,
+                secondaries = secondaries
+            )
+        )
     }
 
     private fun renderDictionaryPanel(mainState: MainState, config: Configuration) {
@@ -440,7 +568,7 @@ class MainContentView(
         }
     }
 
-    private fun renderComponents(mainState: MainState, config: Configuration) {
+    private fun renderComponents(mainState: MainState, config: Configuration, effectiveLayoutId: String) {
         currentTargetLanguage = mainState.targetLanguage
 
         // BackwardTranslate output is in the source language; all other extra output types are in target.
@@ -598,6 +726,19 @@ class MainContentView(
                 )
             )
         )
+        comparisonPrimarySelector.render(
+            TranslatorSelectorState(
+                availableTranslators = mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR),
+                selectedTranslatorId = selectedTranslatorId,
+                isLoading = mainState.isLoading
+            )
+        )
+
+        // The board backing the Comparison layout renders only there; other
+        // layouts keep using the classic output panel above.
+        if (effectiveLayoutId == LayoutPresetIds.COMPARISON) {
+            renderCompareBoard(mainState, config, selectedTranslatorId, selectedTranslator)
+        }
 
         // The extra-output pane offers whatever the service behind the active type declares.
         // Backward translation has no options, and neither does a service that declares none —
@@ -710,7 +851,11 @@ class MainContentView(
      */
     fun switchToAndFocusOutput() {
         layoutManager.selectCompactTab(1)
-        outputTextPanel.requestFocusOnText()
+        if (currentLayoutId == LayoutPresetIds.COMPARISON) {
+            compareBoard.primaryProviderView.requestFocusOnText()
+        } else {
+            outputTextPanel.requestFocusOnText()
+        }
     }
 
     /**
@@ -729,7 +874,11 @@ class MainContentView(
      */
     fun orderedTextPanes(): List<JComponent> = buildList {
         add(inputTextPanel.textPaneComponent)
-        add(outputTextPanel.textPaneComponent)
+        if (currentLayoutId == LayoutPresetIds.COMPARISON) {
+            add(compareBoard.primaryProviderView.textPaneComponent)
+        } else {
+            add(outputTextPanel.textPaneComponent)
+        }
         if (extraOutputPanel.isVisible) add(extraOutputPanel.textPaneComponent)
     }
 
@@ -758,6 +907,7 @@ class MainContentView(
         listOf(
             inputTextPanel.textPaneComponent,
             outputTextPanel.textPaneComponent,
+            compareBoard.primaryProviderView.textPaneComponent,
             extraOutputPanel.textPaneComponent
         ).forEach { it.installContentDropHandler(onContent, onDragOver, onDropped) }
     }

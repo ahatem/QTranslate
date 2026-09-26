@@ -140,4 +140,11 @@ data class MainState(
      */
     fun getAvailableServicesFor(type: ServiceRole): List<ServiceInfo> =
         availableServices.filter { it.type == type }
+
+    /**
+     * Ids of the loaded, enabled translators in registry order. This is the input to the
+     * Comparison eligibility helpers, which resolve the real Primary from it.
+     */
+    val availableTranslatorIds: List<String>
+        get() = getAvailableServicesFor(ServiceRole.TRANSLATOR).map { it.id }
 }

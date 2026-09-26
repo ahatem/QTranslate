@@ -137,6 +137,9 @@ internal object Scenes {
     fun compact(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
         BASE.copy(themeId = theme, layoutPresetId = "compact", mainWindowSize = windowSize(size))
 
+    fun comparison(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
+        BASE.copy(themeId = theme, layoutPresetId = "comparison", mainWindowSize = windowSize(size))
+
     fun hero(theme: String, size: Pair<Int, Int> = WINDOW): Configuration = BASE.copy(
         themeId = theme,
         layoutPresetId = "classic",

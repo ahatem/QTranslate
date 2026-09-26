@@ -30,7 +30,7 @@ data class OutputTextState(
     val actionsState: TextActionsState,
     val isEditable: Boolean = false,
     /** Non-null only when there is no translator to translate with. */
-    val noService: NoServiceState? = null
+    val noService: NoServiceState? = null,
 ) : UiState
 
 data class ExtraOutputState(

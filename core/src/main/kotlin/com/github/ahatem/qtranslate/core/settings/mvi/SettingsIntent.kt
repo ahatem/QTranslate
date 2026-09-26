@@ -92,6 +92,19 @@ sealed interface SettingsIntent : UiIntent {
     ) : SettingsIntent
 
     /**
+     * Promotes [serviceId] to Primary for the parallel comparison board.
+     *
+     * Unlike [UpdateServiceInActivePreset], the translator set is preserved:
+     * the old Primary takes the promoted member's comparison slot. Use this
+     * from every surface that changes the primary out of a multi-translator
+     * selection (Comparison header, Quick Translate); plain selection keeps
+     * its existing single-service semantics.
+     */
+    data class PromoteTranslatorToPrimary(
+        val serviceId: String
+    ) : SettingsIntent
+
+    /**
      * Creates a new preset named [name] with default Google services pre-selected and makes it active.
      */
     data class CreatePreset(val name: String) : SettingsIntent

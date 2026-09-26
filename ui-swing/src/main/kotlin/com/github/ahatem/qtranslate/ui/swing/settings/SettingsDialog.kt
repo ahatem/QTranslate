@@ -51,6 +51,12 @@ class SettingsDialog(
      * it renders — not whatever was available when the dialog was constructed.
      */
     private val availableLanguages: () -> List<com.github.ahatem.qtranslate.api.language.LanguageCode> = { emptyList() },
+    /**
+     * Ids of currently usable translators, for Comparison eligibility.
+     * Evaluated lazily so [LayoutPanel] always sees the latest registry —
+     * not whatever was available when the dialog was constructed.
+     */
+    private val availableTranslatorIds: () -> List<String> = { emptyList() },
     /** Invoked just before the hotkey recorder opens; should disable global hotkeys. */
     private val pauseGlobalHotkeys:  (() -> Unit)? = null,
     /** Invoked after the recorder closes; should restore the global hotkey state. */
@@ -925,7 +931,7 @@ class SettingsDialog(
             LanguagesPanel(settingsStore, localizationManager, availableLanguages)
 
         label("layout") ->
-            LayoutPanel(settingsStore, localizationManager)
+            LayoutPanel(settingsStore, localizationManager, availableTranslatorIds)
 
         label("popups") ->
             PopupsPanel(settingsStore, localizationManager)

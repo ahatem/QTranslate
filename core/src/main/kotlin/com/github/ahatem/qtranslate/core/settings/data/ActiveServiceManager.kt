@@ -14,6 +14,22 @@ import kotlinx.coroutines.flow.StateFlow
  */
 data class ActiveService<out T : Service>(val id: String, val service: T)
 
+/**
+ * The single rule for which service is active for [role]: the active preset's choice when it is
+ * usable, otherwise the first usable service holding the role, otherwise none.
+ *
+ * [roleServiceIds] are the ids of the loaded services that hold [role], in registry order. A
+ * service is usable when it is not disabled for the role, and nothing is active while the role
+ * itself is switched off. [ActiveServiceManager.getActive] and every "how many translators do I
+ * really have" question (Comparison eligibility) resolve through here, so they cannot disagree.
+ */
+fun Configuration.resolveActiveServiceId(role: ServiceRole, roleServiceIds: List<String>): String? {
+    if (!isServiceRoleEnabled(role)) return null
+    val usable = roleServiceIds.filterNot { isServiceDisabled(it, role) }
+    val preferredId = getActivePreset()?.selectedServices?.get(role)
+    return preferredId?.takeIf { it in usable } ?: usable.firstOrNull()
+}
+
 class ActiveServiceManager(
     private val activeServices: StateFlow<Map<String, Service>>,
     private val configuration: StateFlow<Configuration>
@@ -33,17 +49,9 @@ class ActiveServiceManager(
 
         if (!config.isServiceRoleEnabled(type)) return null
 
-        val preferredId = config.getActivePreset()?.selectedServices?.get(type)
-        val preferred = preferredId
+        val roleServiceIds = services.entries.filter { (_, service) -> service.hasRole(type) }.map { it.key }
+        val resolved = config.resolveActiveServiceId(type, roleServiceIds)
             ?.let { id -> services[id]?.let { ActiveService(id, it) } }
-            ?.takeIf { it.service.hasRole(type) && !config.isServiceDisabled(it.id, type) }
-
-        val resolved = preferred
-            ?: services.entries
-                .firstOrNull { (id, service) ->
-                    service.hasRole(type) && !config.isServiceDisabled(id, type)
-                }
-                ?.let { ActiveService(it.key, it.value) }
 
         // Unchecked because T is erased. The hasRole check above is the real guard, and it is now
         // an honest one: a role means the service implements that role's interface, so returning

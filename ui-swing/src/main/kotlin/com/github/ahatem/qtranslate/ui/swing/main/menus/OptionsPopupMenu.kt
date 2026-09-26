@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.main.menus
 
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import javax.swing.ButtonGroup
 import javax.swing.JCheckBoxMenuItem
 import javax.swing.JMenu
@@ -40,6 +41,8 @@ data class MenuStrings(
     val checkForUpdates: String,
     val exit: String,
     val layoutPresets: String,
+    val layoutComparisonAvailable: Boolean = true,
+    val layoutComparisonUnavailableHint: String = "",
     val showHistoryControls: String,
     val showLanguageBar: String,
     val showServicesPanel: String,
@@ -75,13 +78,20 @@ class LayoutPresetsMenu(
     title: String,
     private val availableLayouts: List<LayoutPresetInfo>,
     private val activeLayoutId: String,
-    private val onLayoutSelected: (String) -> Unit
+    private val onLayoutSelected: (String) -> Unit,
+    private val comparisonAvailable: Boolean = true,
+    private val comparisonUnavailableHint: String = ""
 ) : JMenu(title) {
     init {
         val group = ButtonGroup()
         for (layout in availableLayouts) {
+            // Comparison stays visible but disabled while fewer than two
+            // translators are usable, with the reason as its tooltip.
+            val unavailable = layout.id == LayoutPresetIds.COMPARISON && !comparisonAvailable
             add(JRadioButtonMenuItem(layout.name).apply {
                 isSelected = layout.id == activeLayoutId
+                isEnabled = !unavailable
+                toolTipText = if (unavailable) comparisonUnavailableHint else null
                 group.add(this)
                 addActionListener { onLayoutSelected(layout.id) }
             })
@@ -124,7 +134,9 @@ class ViewOptionsMenu(
                 strings.layoutPresets,
                 availableLayouts,
                 config.layoutPresetId,
-                actions.onChangeLayoutPreset
+                actions.onChangeLayoutPreset,
+                strings.layoutComparisonAvailable,
+                strings.layoutComparisonUnavailableHint
             )
         )
         add(JSeparator())

@@ -37,8 +37,8 @@ class OutputTextPanel(
         onTranslateRequest = onTranslateRequest
     )
     private val actionsPanel = TextActionsPanel(iconManager)
-    private val readOnlyPanel = ReadOnlyTextPanel(textPane, actionsPanel)
-    // No rule of its own: the output pane above already draws a border.
+    private val readOnlyPanel = ReadOnlyTextPanel(textPane, actionsPanel, scrollable = false)
+    // The definition belongs to the translated result and does not add a divider of its own.
     private val definitionStrip = DefinitionStrip(showDivider = false)
 
     private val noServiceLabel = JLabel()
@@ -52,6 +52,11 @@ class OutputTextPanel(
         isOpaque = true
         add(noServiceLabel)
         add(noServiceAction)
+    }
+    private val topPanel = JPanel().apply {
+        layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+        isOpaque = false
+        add(noServiceBanner)
     }
 
     private var dictMenuItem: JMenuItem? = null
@@ -68,10 +73,8 @@ class OutputTextPanel(
     val textPaneComponent: JComponent get() = textPane
 
     init {
-        add(noServiceBanner, BorderLayout.NORTH)
+        add(topPanel, BorderLayout.NORTH)
         add(readOnlyPanel, BorderLayout.CENTER)
-        // An aside beneath the translation. Kept out of readOnlyPanel so it never lands in the
-        // clipboard when the translation is copied.
         add(definitionStrip, BorderLayout.SOUTH)
 
         textPane.hintText = localizationManager.getString("main_window_editor_context_menu.output_hint")

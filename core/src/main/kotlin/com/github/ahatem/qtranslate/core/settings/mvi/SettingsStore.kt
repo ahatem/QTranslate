@@ -125,6 +125,9 @@ class SettingsStore(
             is SettingsIntent.UpdateComparisonTranslatorsInActivePreset ->
                 presetManager.updateComparisonTranslators(_state.value.workingConfiguration, intent)
 
+            is SettingsIntent.PromoteTranslatorToPrimary ->
+                presetManager.promoteTranslatorToPrimary(_state.value.workingConfiguration, intent)
+
             is SettingsIntent.CreatePreset ->
                 presetManager.createPreset(_state.value.workingConfiguration, intent.name)
 

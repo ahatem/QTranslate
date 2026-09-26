@@ -97,6 +97,45 @@ class OptionsPopupMenuTest {
     }
 
     @Test
+    fun `comparison stays visible but disabled with reason while ineligible`() {
+        val menu = createMenu(
+            strings = createStrings(
+                layoutComparisonAvailable = false,
+                layoutComparisonUnavailableHint = "Select at least two translators to use Comparison."
+            ),
+            layouts = listOf(
+                LayoutPresetInfo("classic", "Classic"),
+                LayoutPresetInfo("comparison", "Comparison")
+            )
+        )
+        val comparison = layoutItems(menu).single { it.text == "Comparison" }
+        assertFalse(comparison.isEnabled, "ineligible Comparison must not be selectable")
+        assertEquals("Select at least two translators to use Comparison.", comparison.toolTipText)
+        // The other presets are unaffected.
+        assertTrue(layoutItems(menu).single { it.text == "Classic" }.isEnabled)
+    }
+
+    @Test
+    fun `comparison is selectable once eligible`() {
+        val menu = createMenu(
+            strings = createStrings(layoutComparisonAvailable = true),
+            layouts = listOf(
+                LayoutPresetInfo("classic", "Classic"),
+                LayoutPresetInfo("comparison", "Comparison")
+            )
+        )
+        val comparison = layoutItems(menu).single { it.text == "Comparison" }
+        assertTrue(comparison.isEnabled)
+        assertEquals(null, comparison.toolTipText)
+    }
+
+    private fun layoutItems(menu: JPopupMenu): List<JRadioButtonMenuItem> {
+        val view = menu.components.filterIsInstance<JMenu>().single { it.text == "Options" }
+        val presets = view.menuComponents.filterIsInstance<JMenu>().single { it.text == "Layout Presets" }
+        return presets.menuComponents.filterIsInstance<JRadioButtonMenuItem>()
+    }
+
+    @Test
     fun `dictionary remains an inline panel toggle and tools invoke their callbacks`() {
         val calls = mutableListOf<String>()
         val menu = createMenu(
@@ -161,10 +200,23 @@ class OptionsPopupMenuTest {
     private fun createMenu(
         config: Configuration = Configuration.DEFAULT,
         actions: MenuActions = createActions(),
+        strings: MenuStrings = createStrings(),
+        layouts: List<LayoutPresetInfo> = listOf(
+            LayoutPresetInfo("classic", "Classic"),
+            LayoutPresetInfo("side_by_side", "Side By Side"),
+            LayoutPresetInfo("compact", "Compact"),
+        ),
     ) = MainMenuPopup(
         config = config,
         actions = actions,
-        strings = MenuStrings(
+        strings = strings,
+        availableLayouts = layouts,
+    )
+
+    private fun createStrings(
+        layoutComparisonAvailable: Boolean = true,
+        layoutComparisonUnavailableHint: String = "",
+    ) = MenuStrings(
             spellCheck = "Spell Checking",
             instantTranslation = "Instant Translation",
             extraOutput = "Extra Output",
@@ -188,17 +240,13 @@ class OptionsPopupMenuTest {
             checkForUpdates = "Check for Updates",
             exit = "Exit",
             layoutPresets = "Layout Presets",
+            layoutComparisonAvailable = layoutComparisonAvailable,
+            layoutComparisonUnavailableHint = layoutComparisonUnavailableHint,
             showHistoryControls = "Show History Bar",
             showLanguageBar = "Show Language Bar",
             showServicesPanel = "Show Services Panel",
             showStatusBar = "Show Status Bar",
-        ),
-        availableLayouts = listOf(
-            LayoutPresetInfo("classic", "Classic"),
-            LayoutPresetInfo("side_by_side", "Side By Side"),
-            LayoutPresetInfo("compact", "Compact"),
-        ),
-    )
+        )
 
     private fun createActions(
         onToggleSpellCheck: (Boolean) -> Unit = {},

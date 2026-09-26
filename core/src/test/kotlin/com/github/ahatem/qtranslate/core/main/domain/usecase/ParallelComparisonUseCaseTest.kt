@@ -70,6 +70,22 @@ class ParallelComparisonUseCaseTest {
     }
 
     @Test
+    fun `unresolvable configured id is skipped instead of rendered as a fake card`() = runTest {
+        val live = ControlledTranslator("live")
+        val useCase = useCase(this, listOf(live))
+        var state = emptyList<ComparisonTranslationResult>()
+
+        useCase.start(request(listOf("live", "ghost", "live")), 1) { state = it }
+        runCurrent()
+        live.release.complete(Unit)
+        runCurrent()
+
+        // "ghost" stays configured but never resolves: no card, no execution.
+        assertEquals(listOf("live"), state.map { it.serviceId })
+        assertEquals(ComparisonStatus.SUCCESS, state.single().status)
+    }
+
+    @Test
     fun `independent provider cancellation becomes failure while sibling succeeds`() = runTest {
         val cancelled = ControlledTranslator("cancelled", cancelIndependently = true)
         val successful = ControlledTranslator("successful")
