@@ -392,7 +392,7 @@ class CompareBoardTest {
             )
         )
         assertTrue(selector.isVisible)
-        assertEquals("Google Translate", (selector.components.single() as JButton).text)
+        assertEquals("Google Translate", selector.buttonForTest().text)
     }
 
     @Test

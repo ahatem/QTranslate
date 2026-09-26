@@ -14,8 +14,14 @@ class TranslatorPopupButton(
     private val iconManager: IconManager,
     private val onTranslatorSelected: (serviceId: String) -> Unit,
     /** When true the button shows "[icon] Name" as one selector control instead of icon only. */
-    var textMode: Boolean = false
+    textMode: Boolean = false
 ) : JPanel(BorderLayout()), Renderable<TranslatorSelectorState> {
+
+    var textMode: Boolean = textMode
+        set(value) {
+            field = value
+            chevronLabel.isVisible = value
+        }
 
     private companion object {
         const val ICON_SIZE = 16
@@ -32,9 +38,28 @@ class TranslatorPopupButton(
         addActionListener { showPopupMenu() }
     }
 
+    /**
+     * Trailing dropdown affordance for text mode, placed at the logical
+     * line end so LTR shows icon -> name -> chevron and RTL mirrors it.
+     * Icon-only mode keeps the historical composite icon and hides this.
+     */
+    private val chevronLabel = JLabel().apply {
+        isOpaque = false
+        icon = arrowIcon
+        isFocusable = false
+        cursor = Cursor(Cursor.HAND_CURSOR)
+        addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mouseClicked(e: java.awt.event.MouseEvent) {
+                if (actionButton.isEnabled) showPopupMenu()
+            }
+        })
+    }
+
     init {
         isOpaque = false
         add(actionButton, BorderLayout.CENTER)
+        add(chevronLabel, BorderLayout.LINE_END)
+        updateChevronVisibility()
     }
 
     override fun render(state: TranslatorSelectorState) {
@@ -48,17 +73,32 @@ class TranslatorPopupButton(
             iconManager.getIcon(selectedService.id, path, ICON_SIZE, ICON_SIZE)
         } ?: createPlaceholderIcon()
 
-        actionButton.icon = CompositeIcon(serviceIcon, arrowIcon)
         if (textMode) {
+            // Text-mode identity order: icon -> provider name -> chevron.
+            // The button owns icon + name; the chevron trails at LINE_END.
+            actionButton.icon = serviceIcon
             actionButton.text = selectedService?.name ?: "Select Translator"
             actionButton.horizontalAlignment = SwingConstants.LEADING
         } else {
+            actionButton.icon = CompositeIcon(serviceIcon, arrowIcon)
             actionButton.text = null
         }
+        updateChevronVisibility()
 
         actionButton.toolTipText = selectedService?.name ?: "Select Translator"
         actionButton.isEnabled = !state.isLoading && state.availableTranslators.isNotEmpty()
+        chevronLabel.isEnabled = actionButton.isEnabled
     }
+
+    private fun updateChevronVisibility() {
+        chevronLabel.isVisible = textMode
+    }
+
+    /** Exposed for tests: leading action owning icon + name. */
+    fun buttonForTest(): JButton = actionButton
+
+    /** Exposed for tests: trailing chevron affordance (text mode only). */
+    fun chevronForTest(): JLabel = chevronLabel
 
     private fun showPopupMenu() {
         val state = this.currentState ?: return

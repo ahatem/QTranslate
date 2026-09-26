@@ -156,9 +156,12 @@ class TranslationProviderView(
 
     private val headerActions = JPanel(FlowLayout(FlowLayout.TRAILING, UIScale.scale(2), 0)).apply {
         isOpaque = false
+        // Trailing order: Listen/Stop then Copy, so Copy stays on the outer
+        // (trailing) column aligned with secondary providers' Copy.
+        // FlowLayout.TRAILING is logical, so RTL mirrors without hard-coding sides.
         add(statusLabel)
-        add(copyButton)
         add(listenButton)
+        add(copyButton)
     }
 
     private val header = JPanel(BorderLayout()).apply {
@@ -345,12 +348,13 @@ class TranslationProviderView(
 
     private fun renderHeader(state: TranslationProviderState) {
         val displayName = state.serviceName ?: ""
-        providerIcon.icon = state.iconPath?.let { path ->
-            iconManager?.getIcon(state.serviceId, path, UIScale.scale(16), UIScale.scale(16))
-        }
-        providerIcon.isVisible = providerIcon.icon != null
+        val hasSelector = state.role == ProviderRole.PRIMARY && selector != null
 
-        if (state.role == ProviderRole.PRIMARY && selector != null) {
+        if (hasSelector) {
+            // The selector owns the single service identity (icon + name + chevron);
+            // a separate provider icon beside it would duplicate the identity.
+            providerIcon.icon = null
+            providerIcon.isVisible = false
             providerName.isVisible = false
             selector.textMode = true
             selector.isVisible = true
@@ -360,6 +364,10 @@ class TranslationProviderView(
                 headerIdentity.add(selector, BorderLayout.CENTER)
             }
         } else {
+            providerIcon.icon = state.iconPath?.let { path ->
+                iconManager?.getIcon(state.serviceId, path, UIScale.scale(16), UIScale.scale(16))
+            }
+            providerIcon.isVisible = providerIcon.icon != null
             selector?.takeIf { it.parent === headerIdentity }?.let {
                 headerIdentity.remove(it)
                 headerIdentity.add(providerName, BorderLayout.CENTER)
@@ -369,8 +377,7 @@ class TranslationProviderView(
         }
 
         primaryTag.text = state.primaryLabel
-        primaryTag.foreground = UIManager.getColor("Component.focusedBorderColor")
-            ?: UIManager.getColor("Component.accentColor")
+        primaryTag.foreground = UIManager.getColor("Label.disabledForeground")
             ?: UIManager.getColor("Label.foreground")
         primaryTagWanted = state.role == ProviderRole.PRIMARY && state.primaryLabel.isNotBlank()
         primaryTag.isVisible = primaryTagWanted
@@ -384,8 +391,12 @@ class TranslationProviderView(
             }
             ProviderStatus.FAILURE -> {
                 statusLabel.text = state.failureText
-                statusLabel.icon = UIManager.getIcon("OptionPane.errorIcon")
+                // Inline failure state: standard action-size warning glyph, never the
+                // dialog-scale OptionPane error icon (which grows the header).
+                // Text-only when no icon manager is available (e.g. tests).
+                statusLabel.icon = iconManager?.getIcon(Icons.WARNING, UIScale.scale(16), UIScale.scale(16))
                 statusLabel.foreground = UIManager.getColor("Component.error.focusedBorderColor")
+                    ?: UIManager.getColor("Component.error.foreground")
                     ?: UIManager.getColor("Label.disabledForeground")
             }
             else -> {
@@ -394,15 +405,18 @@ class TranslationProviderView(
             }
         }
 
+        val isQuickPrimary = state.role == ProviderRole.PRIMARY &&
+            state.presentation == ProviderPresentation.QUICK
         val bodyText = if (state.status == ProviderStatus.FAILURE) {
             state.errorMessage?.takeIf { it.isNotBlank() } ?: state.failureText
         } else state.text
         copyButton.actionCommand = bodyText
         copyButton.toolTipText = state.copyLabel
         copyButton.icon = iconManager?.getIcon(Icons.COPY, UIScale.scale(16), UIScale.scale(16))
-        copyButton.isVisible = state.status == ProviderStatus.SUCCESS && state.text.isNotBlank()
+        copyButton.isVisible = !isQuickPrimary &&
+            state.status == ProviderStatus.SUCCESS && state.text.isNotBlank()
 
-        if (state.role == ProviderRole.PRIMARY) {
+        if (state.role == ProviderRole.PRIMARY && !isQuickPrimary) {
             isStopMode = state.isTtsPlaying
             listenButton.actionCommand = state.text
             listenButton.icon = iconManager?.getIcon(
@@ -521,11 +535,20 @@ class TranslationProviderView(
         super.updateUI()
         if (initialized) {
             refreshRail()
-            primaryTag.foreground = UIManager.getColor("Component.focusedBorderColor")
-                ?: UIManager.getColor("Component.accentColor")
+            primaryTag.foreground = UIManager.getColor("Label.disabledForeground")
                 ?: UIManager.getColor("Label.foreground")
         }
     }
+
+    /** Test accessors: header controls without pixel assertions. */
+    fun copyButtonForTest(): JButton = copyButton
+    fun listenButtonForTest(): JButton = listenButton
+    fun providerIconForTest(): JLabel = providerIcon
+    fun providerNameForTest(): JLabel = providerName
+    fun primaryTagForTest(): JLabel = primaryTag
+    fun statusLabelForTest(): JLabel = statusLabel
+    fun headerActionsForTest(): JPanel = headerActions
+    fun selectorForTest(): TranslatorPopupButton? = selector
 
     private fun toolbarButton(): JButton = JButton().apply {
         isFocusable = false
