@@ -64,7 +64,7 @@ class LayoutPanel(
                         // saved choice instead of writing an unusable layout.
                         withoutTrigger {
                             selectedItem = layouts.find {
-                                it.id == store.state.value.workingConfiguration.layoutPresetId
+                                it.id == LayoutPresetIds.resolve(store.state.value.workingConfiguration.layoutPresetId)
                             }
                         }
                         return@addActionListener
@@ -224,7 +224,7 @@ class LayoutPanel(
         val c = state.workingConfiguration
         comparisonAvailable = c.isComparisonEligible(availableTranslatorIds())
         withoutTrigger {
-            layoutCombo.selectedItem = layouts.find { it.id == c.layoutPresetId }
+            layoutCombo.selectedItem = layouts.find { it.id == LayoutPresetIds.resolve(c.layoutPresetId) }
             layoutCombo.toolTipText =
                 if (comparisonAvailable) null else comparisonUnavailableHint()
             historyCheck.isSelected = c.toolbarVisibility.isHistoryBarVisible

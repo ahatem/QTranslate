@@ -23,9 +23,25 @@ enum class ExtraOutputSource {
 object LayoutPresetIds {
     const val CLASSIC = "classic"
     const val SIDE_BY_SIDE = "side_by_side"
-    const val COMPACT = "compact"
     const val COMPARISON = "comparison"
+
+    /** A retired layout. Older configurations may still carry it, so it is only ever read, never offered. */
+    const val LEGACY_COMPACT = "compact"
+
+    /** The layout that [id] stands for: [LEGACY_COMPACT] and unrecognised ids resolve to Classic. */
+    fun resolve(id: String): String = when (id) {
+        CLASSIC, SIDE_BY_SIDE, COMPARISON -> id
+        else -> CLASSIC
+    }
 }
+
+/** Replaces a retired layout id with its successor, so the next write persists the current one. */
+fun Configuration.withoutRetiredLayout(): Configuration =
+    if (layoutPresetId == LayoutPresetIds.LEGACY_COMPACT) {
+        copy(layoutPresetId = LayoutPresetIds.resolve(layoutPresetId))
+    } else {
+        this
+    }
 
 /**
  * The complete request needed to compute one Extra Output result.

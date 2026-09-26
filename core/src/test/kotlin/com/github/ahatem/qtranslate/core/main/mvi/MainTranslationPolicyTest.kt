@@ -34,7 +34,6 @@ class MainTranslationPolicyTest {
         assertEquals(ComparisonPolicy.ENABLED, mainTranslationComparisonPolicy(LayoutPresetIds.COMPARISON))
         assertEquals(ComparisonPolicy.DISABLED, mainTranslationComparisonPolicy(LayoutPresetIds.CLASSIC))
         assertEquals(ComparisonPolicy.DISABLED, mainTranslationComparisonPolicy(LayoutPresetIds.SIDE_BY_SIDE))
-        assertEquals(ComparisonPolicy.DISABLED, mainTranslationComparisonPolicy(LayoutPresetIds.COMPACT))
     }
 
     @Test

@@ -110,7 +110,7 @@ class LocalizationFilesTest {
             "group_translation", "group_interface"
         ).map { "settings_dialog_sidebar.$it" }
 
-        val layouts = listOf("layout_preset_classic", "layout_preset_side_by_side", "layout_preset_compact")
+        val layouts = listOf("layout_preset_classic", "layout_preset_side_by_side", "layout_preset_comparison")
             .map { "main_window_main_menu.$it" }
 
         val missing = (sidebar + layouts).filterNot { it in embeddedKeys }

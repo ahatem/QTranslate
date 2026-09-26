@@ -27,4 +27,10 @@ object UISpacing {
     val MIN_PANEL_HEIGHT get() = UIScale.scale(150)
     val MIN_PANEL_WIDTH get() = UIScale.scale(200)
     val MIN_EXTRA_HEIGHT get() = UIScale.scale(100)
+
+    /** Width a text pane keeps to stay comfortable to read and edit next to another one. */
+    val SIDE_BY_SIDE_PANEL_WIDTH get() = UIScale.scale(320)
+
+    /** Below this width Side By Side stacks its Input and Output instead of setting them side by side. */
+    val SIDE_BY_SIDE_BREAKPOINT get() = 2 * SIDE_BY_SIDE_PANEL_WIDTH + DIVIDER_SIZE
 }

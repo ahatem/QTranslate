@@ -65,6 +65,9 @@ internal object Scenes {
      */
     val WINDOW = 920 to 520
 
+    /** Narrow enough that Side By Side stacks its Input and Output. */
+    val NARROW_WINDOW = 520 to 520
+
     // ── passages ─────────────────────────────────────────────────────────────
     //
     // Real prose rather than filler, and long enough to wrap a few lines: a pane holding one short
@@ -133,9 +136,6 @@ internal object Scenes {
 
     fun sideBySide(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
         BASE.copy(themeId = theme, layoutPresetId = "side_by_side", mainWindowSize = windowSize(size))
-
-    fun compact(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
-        BASE.copy(themeId = theme, layoutPresetId = "compact", mainWindowSize = windowSize(size))
 
     fun comparison(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
         BASE.copy(themeId = theme, layoutPresetId = "comparison", mainWindowSize = windowSize(size))

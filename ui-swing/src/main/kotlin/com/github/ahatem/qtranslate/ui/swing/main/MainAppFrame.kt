@@ -391,11 +391,11 @@ class MainAppFrame(
         rootPane = rootPane,
         bindings = { globalKeyListener.getLocalBindings() },
         directHandlers = mapOf(
-            // FOCUS_* need layout-aware handling (Compact layout must switch tabs before
-            // focusing), so they go to MainContentView directly.
-            HotkeyAction.FOCUS_INPUT        to { mainContentView.switchToAndFocusInput() },
-            HotkeyAction.FOCUS_OUTPUT       to { mainContentView.switchToAndFocusOutput() },
-            HotkeyAction.FOCUS_EXTRA_OUTPUT to { mainContentView.switchToAndFocusExtraOutput() },
+            // FOCUS_* depend on which panes the current layout shows, so they go to
+            // MainContentView directly.
+            HotkeyAction.FOCUS_INPUT        to { mainContentView.focusInput() },
+            HotkeyAction.FOCUS_OUTPUT       to { mainContentView.focusOutput() },
+            HotkeyAction.FOCUS_EXTRA_OUTPUT to { mainContentView.focusExtraOutput() },
             // These need something the frame owns: a dialog, the clipboard, or the content view.
             HotkeyAction.COPY_TRANSLATION to {
                 val text = mainStore.state.value.translatedText
@@ -406,7 +406,7 @@ class MainAppFrame(
             },
             HotkeyAction.CLEAR_INPUT to {
                 mainStore.dispatch(MainIntent.UpdateInputText(""))
-                mainContentView.switchToAndFocusInput()
+                mainContentView.focusInput()
             },
             HotkeyAction.SWAP_LANGUAGES     to { mainStore.dispatch(MainIntent.SwapLanguages) },
             HotkeyAction.OPEN_SETTINGS      to { openSettingsDialog() },
@@ -532,8 +532,6 @@ class MainAppFrame(
             restorePosition(config.mainWindowPosition)
 
             // Enforce Input → Output → Extra (→ Input) Tab cycle across all layouts.
-            // In Compact layout the policy also switches tabs so hidden panes become
-            // visible before Swing calls requestFocusInWindow() on them.
             focusTraversalPolicy = TextPaneCycleFocusPolicy(mainContentView)
 
             setupWindowListeners()
@@ -2206,8 +2204,7 @@ class MainAppFrame(
  *
  * When Tab/Shift+Tab is pressed inside any of the three text panes (input, output, extra),
  * focus moves directly to the next/previous pane in the cycle — skipping toolbar buttons,
- * scrollbars, and other intermediate components.  For Compact (tabbed) layout the policy
- * also selects the target tab so the pane is visible before Swing calls requestFocusInWindow().
+ * scrollbars, and other intermediate components.
  *
  * When Tab is pressed from any component that is NOT one of the managed text panes the
  * standard [LayoutFocusTraversalPolicy] takes over, preserving normal keyboard navigation
@@ -2225,18 +2222,14 @@ private class TextPaneCycleFocusPolicy(
         val all = panes()
         val idx = all.indexOfFirst { it === aComponent }
         if (idx < 0) return fallback.getComponentAfter(aContainer, aComponent)
-        val nextIdx = (idx + 1) % all.size
-        contentView.ensureCompactTabVisible(nextIdx)
-        return all[nextIdx]
+        return all[(idx + 1) % all.size]
     }
 
     override fun getComponentBefore(aContainer: Container, aComponent: Component): Component {
         val all = panes()
         val idx = all.indexOfFirst { it === aComponent }
         if (idx < 0) return fallback.getComponentBefore(aContainer, aComponent)
-        val prevIdx = (idx - 1 + all.size) % all.size
-        contentView.ensureCompactTabVisible(prevIdx)
-        return all[prevIdx]
+        return all[(idx - 1 + all.size) % all.size]
     }
 
     override fun getFirstComponent(aContainer: Container): Component =

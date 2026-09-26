@@ -70,8 +70,8 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 </tr>
 <tr>
 <td align="center" width="50%">
-<img src="docs/images/screenshot-compact.png" alt="Compact layout — light theme" width="340"><br>
-<sub>Keep input and output tidy in a smaller tabbed window</sub>
+<img src="docs/images/screenshot-side-by-side.png" alt="Side-by-side layout" width="340"><br>
+<sub>Compare source and translation without switching panes</sub>
 </td>
 <td align="center" width="50%">
 <img src="docs/images/screenshot-settings.png" alt="Settings — Services and Presets" width="340"><br>
@@ -79,10 +79,6 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 </td>
 </tr>
 <tr>
-<td align="center" width="50%">
-<img src="docs/images/screenshot-side-by-side.png" alt="Side-by-side layout" width="340"><br>
-<sub>Compare source and translation without switching panes</sub>
-</td>
 <td align="center" width="50%">
 <img src="docs/images/screenshot-document.png" alt="Document translation" width="340"><br>
 <sub>Translate DOCX, PDF, TXT, SRT, and VTT with progress and cancellation</sub>
@@ -154,7 +150,7 @@ Plugins run on your computer with access to local resources, so install third-pa
 
 | | |
 |---|---|
-| **Three layouts** | Classic (stacked), Side-by-side, Compact (tabbed) |
+| **Three layouts** | Classic (stacked), Side-by-side (stacks when the window is narrow), Comparison |
 | **Global hotkeys** | Every action is bindable, configurable as global or app-local |
 | **RTL support** | Full layout mirroring for Arabic, Hebrew, Farsi, and more |
 | **QTranslate Light & Dark** | Purpose-built defaults with OS light/dark synchronization, plus 30+ FlatLaf themes and custom IntelliJ `.theme.json` support |

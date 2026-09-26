@@ -13,12 +13,12 @@ This folder is the full set, and is what the website gallery draws from.
 | --- | --- |
 | `main-dark`, `main-light` | The main window in both themes, classic layout |
 | `layout-side-by-side-dark`, `layout-side-by-side-light` | Source and translation in parallel columns |
-| `layout-compact-dark`, `layout-compact-light` | Compact layout, where the panes become tabs |
+| `layout-side-by-side-narrow-dark` | The same layout in a narrow window, where the panes stack |
 | `hero-dark`, `hero-light` | Everything at once: input, translation, backward translation and the docked dictionary |
 | `dictionary-docked-dark`, `dictionary-docked-light` | The dictionary panel beside a translation |
 | `dictionary-quick-dark` | The floating dictionary popup, which is what <kbd>Ctrl+D</kbd> opens over other apps |
 | `quick-translate-dark`, `quick-translate-light` | The <kbd>Ctrl+Q</kbd> popup — select text anywhere, read it translated |
-| `rtl-main`, `rtl-compact`, `rtl-dictionary` | The Arabic interface, mirrored right to left |
+| `rtl-main`, `rtl-side-by-side`, `rtl-dictionary` | The Arabic interface, mirrored right to left |
 | `history` | The translation history |
 | `document-translation` | Translating a document while preserving its structure |
 | `settings-appearance-*`, `settings-behavior-*`, `settings-general-*`, `settings-hotkeys-*`, `settings-languages-*`, `settings-layout-*`, `settings-network-*`, `settings-plugins-*`, `settings-popups-*`, `settings-services-*` | All ten settings pages, in both themes |

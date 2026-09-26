@@ -92,7 +92,6 @@ output_hint = "Translation will appear here…"
 layout_presets = "Layout Presets"
 layout_preset_classic = "Classic"
 layout_preset_side_by_side = "Side By Side"
-layout_preset_compact = "Compact"
 layout_preset_comparison = "Comparison"
 instant_translation = "Instant Translation"
 show_extra_output = "Show Extra Output"
@@ -668,10 +667,6 @@ images_not_found = "No images found for \"%s\"."
 image_search_timeout = "Image search timed out."
 image_search_failed = "Image search failed: %s"
 
-[layout_compact]
-tab_input_tooltip = "Source text (%s)"
-tab_output_tooltip = "Translation (%s)"
-tab_extra_tooltip = "Extra output (%s)"
 # ===================================================================
 # LANGUAGE EDITOR
 # ===================================================================

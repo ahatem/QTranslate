@@ -227,7 +227,7 @@ class MainWindowFocusOnShowTest {
     private val focusSeams = setOf(
         "requestFocusOnInput",
         "requestFocusOnText",
-        "switchToAndFocusInput",
+        "focusInput",
     )
 
     private fun assertInvokes(owner: Class<*>, method: String, targetOwnerSuffix: String, targetMethod: String) {

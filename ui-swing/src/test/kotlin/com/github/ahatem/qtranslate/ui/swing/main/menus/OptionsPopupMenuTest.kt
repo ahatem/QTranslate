@@ -86,7 +86,7 @@ class OptionsPopupMenuTest {
         val presets = view.menuComponents.filterIsInstance<JMenu>().single { it.text == "Layout Presets" }
         val items = presets.menuComponents.filterIsInstance<JRadioButtonMenuItem>()
 
-        assertEquals(listOf("Classic", "Side By Side", "Compact"), items.map { it.text })
+        assertEquals(listOf("Classic", "Side By Side", "Comparison"), items.map { it.text })
         assertEquals(1, items.count { it.isSelected })
         assertTrue(items[1].isSelected)
 
@@ -94,6 +94,16 @@ class OptionsPopupMenuTest {
         assertEquals(listOf("classic"), selected)
         assertEquals(1, items.count { it.isSelected })
         assertTrue(items[0].isSelected)
+    }
+
+    @Test
+    fun `a saved compact layout is shown as Classic`() {
+        val menu = createMenu(config = Configuration.DEFAULT.copy(layoutPresetId = "compact"))
+        val items = layoutItems(menu)
+
+        assertEquals(listOf("Classic", "Side By Side", "Comparison"), items.map { it.text })
+        assertEquals(1, items.count { it.isSelected })
+        assertTrue(items[0].isSelected, "the retired layout must read as Classic, not as nothing")
     }
 
     @Test
@@ -204,7 +214,7 @@ class OptionsPopupMenuTest {
         layouts: List<LayoutPresetInfo> = listOf(
             LayoutPresetInfo("classic", "Classic"),
             LayoutPresetInfo("side_by_side", "Side By Side"),
-            LayoutPresetInfo("compact", "Compact"),
+            LayoutPresetInfo("comparison", "Comparison"),
         ),
     ) = MainMenuPopup(
         config = config,

@@ -1,10 +1,12 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
+import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
@@ -28,6 +30,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -123,6 +126,60 @@ class SettingsComboRendererTest {
     fun `layout page combos preserve native selection`() {
         val panel = onEdt { LayoutPanel(newStore(), localizer) }
         assertNativeRows(panel, expectedCombos = 4)
+    }
+
+    private fun JComboBox<*>.layoutIds(): List<String> =
+        (0 until itemCount).map { Regex("""id=([^,]+),""").find(getItemAt(it).toString())!!.groupValues[1] }
+
+    private fun comparisonConfig(layoutPresetId: String) = Configuration.DEFAULT.copy(
+        servicePresets = listOf(
+            ServicePreset(
+                id = "preset",
+                name = "preset",
+                selectedServices = mapOf(ServiceRole.TRANSLATOR to "google"),
+                comparisonTranslatorIds = listOf("bing")
+            )
+        ),
+        activeServicePresetId = "preset",
+        layoutPresetId = layoutPresetId
+    )
+
+    @Test
+    fun `layout picker offers exactly Classic, Side By Side and Comparison`() {
+        val panel = onEdt { LayoutPanel(newStore(), localizer) }
+        val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
+
+        assertEquals(listOf("classic", "side_by_side", "comparison"), onEdt { layoutCombo.layoutIds() })
+        assertEquals(
+            listOf("Classic", "Side By Side", "Comparison"),
+            onEdt { (0 until layoutCombo.itemCount).map { layoutCombo.rowAt(it, selected = false).text } }
+        )
+        assertFalse(onEdt { layoutCombo.hasLayoutId("compact") })
+    }
+
+    @Test
+    fun `comparison is selectable once two translators are usable`() {
+        val store = newStore(comparisonConfig(LayoutPresetIds.CLASSIC))
+        val panel = onEdt { LayoutPanel(store, localizer) { listOf("google", "bing") } }
+        onEdt { panel.render(store.state.value) }
+        val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
+
+        onEdt {
+            val row = layoutCombo.rowAt(layoutCombo.indexOfLayoutId(LayoutPresetIds.COMPARISON), selected = false)
+            assertNull(row.toolTipText, "an eligible Comparison carries no unavailable hint")
+            assertNull(layoutCombo.toolTipText)
+        }
+    }
+
+    @Test
+    fun `a saved compact layout is selected as Classic rather than left blank`() {
+        val store = newStore(Configuration.DEFAULT.copy(layoutPresetId = "compact"))
+        val panel = onEdt { LayoutPanel(store, localizer) }
+        onEdt { panel.render(store.state.value) }
+        val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
+
+        val selected = onEdt { layoutCombo.selectedItem.toString() }
+        assertTrue(selected.startsWith("LayoutInfo(id=classic,"), "selected was $selected")
     }
 
     @Test

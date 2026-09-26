@@ -65,34 +65,53 @@ class MirroredSplitPane(
         super.setComponentOrientation(ComponentOrientation.LEFT_TO_RIGHT)
     }
 
+    /** Size along the split axis that the divider divides, or 0 while the pane has none. */
+    private val splitExtent: Int
+        get() = ((if (orientation == HORIZONTAL_SPLIT) width else height) - dividerSize).coerceAtLeast(0)
+
+    /** The share of the space currently held by [leading], or null while the pane has no size. */
+    val leadingProportion: Double?
+        get() {
+            val extent = splitExtent
+            if (extent == 0) return null
+            val proportion = dividerLocation.toDouble() / extent
+            return if (isMirrored) 1.0 - proportion else proportion
+        }
+
     /**
-     * Gives [leading] the requested share of the width.
+     * Gives [leading] the share [proportion] of the space along the split axis, right now.
      *
      * Callers think in reading order, so the proportion is for the leading component and is
      * converted here — passing it raw would put the panel on the wrong side of the divider in a
      * right-to-left interface.
+     *
+     * @return false, having done nothing, while the pane has no size to divide.
+     */
+    fun applyLeadingProportion(proportion: Double): Boolean {
+        if (splitExtent == 0) return false
+        setDividerLocation(if (isMirrored) 1.0 - proportion else proportion)
+        return true
+    }
+
+    /**
+     * Like [applyLeadingProportion], but holds the request until the pane can honour it.
      *
      * [setDividerLocation] with a proportion is silently ignored while the pane has no size,
      * which is the usual reason a panel opens pinned to its minimum width instead of the share it
      * asked for. If the size is not known yet the request is held until the first layout.
      */
     fun setLeadingProportion(proportion: Double) {
-        val wanted = if (isMirrored) 1.0 - proportion else proportion
-        if (isShowing && width > 0) {
-            setDividerLocation(wanted)
-        } else {
-            addComponentListener(object : ComponentAdapter() {
-                override fun componentResized(e: ComponentEvent) {
-                    if (width <= 0) return
-                    removeComponentListener(this)
-                    setDividerLocation(wanted)
-                }
-            })
-        }
+        if (isShowing && applyLeadingProportion(proportion)) return
+        addComponentListener(object : ComponentAdapter() {
+            override fun componentResized(e: ComponentEvent) {
+                if (!applyLeadingProportion(proportion)) return
+                removeComponentListener(this)
+            }
+        })
     }
 
     private fun rearrange() {
-        val proportion = if (width > 0) dividerLocation.toDouble() / width else -1.0
+        val proportion = if (splitExtent > 0) dividerLocation.toDouble() / splitExtent else -1.0
 
         // JSplitPane refuses a component that is still installed in the other slot, so both have
         // to be detached before either is put back.

@@ -70,7 +70,7 @@ class SettingsRepository(
         .map { preferences ->
             preferences[Keys.CONFIG_JSON]?.let { stored ->
                 try {
-                    ConfigMigrator.migrate(this.json.decodeFromString<Configuration>(stored), logger)
+                    ConfigMigrator.migrate(this.json.decodeFromString<Configuration>(stored), logger).withoutRetiredLayout()
                 } catch (e: Exception) {
                     // Any failure, not only SerializationException: a migration step throwing
                     // something else used to escape this catch and be swallowed by the flow's

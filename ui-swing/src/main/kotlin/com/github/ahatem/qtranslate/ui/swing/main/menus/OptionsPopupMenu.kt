@@ -133,7 +133,7 @@ class ViewOptionsMenu(
             LayoutPresetsMenu(
                 strings.layoutPresets,
                 availableLayouts,
-                config.layoutPresetId,
+                LayoutPresetIds.resolve(config.layoutPresetId),
                 actions.onChangeLayoutPreset,
                 strings.layoutComparisonAvailable,
                 strings.layoutComparisonUnavailableHint

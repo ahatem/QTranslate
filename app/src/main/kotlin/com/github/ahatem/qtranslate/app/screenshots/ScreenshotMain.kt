@@ -30,7 +30,6 @@ import java.io.File
 import javax.imageio.ImageIO
 import javax.swing.JComponent
 import javax.swing.JSplitPane
-import javax.swing.JTabbedPane
 import javax.swing.JTree
 import javax.swing.RootPaneContainer
 import javax.swing.SwingUtilities
@@ -143,15 +142,11 @@ private class Shots(
         translate(LanguageCode("es"), Scenes.PITCH)
         capture("layout-side-by-side-light")
 
-        start(Scenes.compact(Scenes.LIGHT))
-        translate(LanguageCode("fr"), Scenes.LIBRARY)
-        showOutputTab()
-        capture("layout-compact-light")
-
-        start(Scenes.compact(Scenes.DARK))
+        // Below the breakpoint the same layout stacks its panes.
+        start(Scenes.sideBySide(Scenes.DARK))
+        resizeWindow(Scenes.NARROW_WINDOW)
         translate(LanguageCode("ar"), Scenes.PERISTALSIS)
-        showOutputTab()
-        capture("layout-compact-dark")
+        capture("layout-side-by-side-narrow-dark")
 
         start(Scenes.comparison(Scenes.DARK))
         translate(LanguageCode("fr"), Scenes.LIBRARY)
@@ -208,10 +203,9 @@ private class Shots(
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
         capture("rtl-main")
 
-        start(Scenes.arabic("compact"))
+        start(Scenes.arabic("side_by_side"))
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
-        showOutputTab()
-        capture("rtl-compact")
+        capture("rtl-side-by-side")
     }
 
     // ── quick translate ───────────────────────────────────────────────────────
@@ -353,7 +347,6 @@ private class Shots(
      * which gives it the column width its first show sets up.
      */
     private suspend fun balanceSplits(layoutPresetId: String) {
-        if (layoutPresetId == "compact") return
         onUi {
             val current = frame ?: return@onUi
             val panes = splitsOf(current.rootPane).filterIsInstance<MirroredSplitPane>()
@@ -368,6 +361,20 @@ private class Shots(
                     .lastOrNull()?.setLeadingProportion(0.5)
             }
         }
+    }
+
+    /**
+     * Resizes the running window, as a user dragging its edge would. The saved size cannot do this
+     * for a narrow shot: the window's minimum size is applied on top of it.
+     */
+    private suspend fun resizeWindow(size: Pair<Int, Int>) {
+        onUi {
+            requireFrame().apply {
+                minimumSize = Dimension(0, 0)
+                setSize(windowSize(size).width, windowSize(size).height)
+            }
+        }
+        delay(800)
     }
 
     private fun requireFrame(): MainAppFrame = requireNotNull(frame) { "no frame; call start() first" }
@@ -401,12 +408,6 @@ private class Shots(
                 .forEach { it.setLeadingProportion(Scenes.DICTIONARY_SPLIT) }
         }
         delay(500)
-    }
-
-    /** Compact stacks the panes into tabs; show Output so the shot has a translation in it. */
-    private suspend fun showOutputTab() {
-        onUi { find<JTabbedPane>(requireFrame().rootPane)?.selectedIndex = 1 }
-        delay(700)
     }
 
     /**

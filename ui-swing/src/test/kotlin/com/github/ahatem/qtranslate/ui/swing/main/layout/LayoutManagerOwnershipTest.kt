@@ -21,7 +21,7 @@ class LayoutManagerOwnershipTest {
         )
         val manager = LayoutManager(registry, container)
 
-        listOf("comparison", "classic", "side_by_side", "comparison", "compact", "comparison").forEach { layoutId ->
+        listOf("comparison", "classic", "side_by_side", "comparison").forEach { layoutId ->
             switchAndFlush(manager, layoutId)
             // Shared chrome is always mounted exactly once.
             listOf(leaves[0], leaves[1], leaves[2], leaves[5], leaves[7]).forEach { leaf ->
@@ -63,8 +63,6 @@ class LayoutManagerOwnershipTest {
     private fun switchAndFlush(manager: LayoutManager, layoutId: String) {
         SwingUtilities.invokeAndWait { manager.switchLayout(layoutId) }
         SwingUtilities.invokeAndWait { }
-        // Compact mounts its extra tab from a runnable posted during arrangement,
-        // so one more pump settles layouts that build asynchronously.
         SwingUtilities.invokeAndWait { }
     }
 
