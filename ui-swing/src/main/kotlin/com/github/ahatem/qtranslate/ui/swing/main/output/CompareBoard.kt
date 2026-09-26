@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.main.output
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorPopupButton
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import java.awt.Component
 import java.awt.Container
 import java.awt.Dimension
@@ -10,13 +11,15 @@ import java.awt.LayoutManager
 import java.awt.Rectangle
 import javax.swing.BorderFactory
 import javax.swing.JPanel
+import javax.swing.JViewport
 import javax.swing.JSeparator
 import javax.swing.Scrollable
 import javax.swing.SwingConstants
 
 data class CompareBoardState(
     val primary: TranslationProviderState,
-    val secondaries: List<TranslationProviderState>
+    val secondaries: List<TranslationProviderState>,
+    val emptyState: CompareEmptyState? = null
 )
 
 /**
@@ -49,6 +52,12 @@ class CompareBoard(
     private val centerRule = JSeparator(SwingConstants.VERTICAL).apply { isVisible = false }
     private val interRules = mutableListOf<JSeparator>()
 
+    /**
+     * Shown under the primary header until there is something to compare. It is the board's own
+     * surface, not the primary provider's body, so it never reads as a translation result.
+     */
+    private val emptyView = CenteredStateView(iconManagerRef, Icons.TRANSLATE).apply { isVisible = false }
+
     val primaryProviderView: TranslationProviderView get() = primaryView
 
     init {
@@ -57,6 +66,7 @@ class CompareBoard(
         add(primaryView)
         add(primaryRule)
         add(centerRule)
+        add(emptyView)
         border = BorderFactory.createEmptyBorder(
             UIScale.scale(8), UIScale.scale(8), UIScale.scale(8), UIScale.scale(8)
         )
@@ -64,6 +74,11 @@ class CompareBoard(
 
     fun render(state: CompareBoardState) {
         quickMode = state.primary.presentation == ProviderPresentation.QUICK
+        val empty = state.emptyState.takeIf {
+            !quickMode && state.primary.status == ProviderStatus.PLACEHOLDER && state.secondaries.isEmpty()
+        }
+        emptyView.isVisible = empty != null
+        if (empty != null) emptyView.render(empty.title, empty.message)
         primaryView.render(state.primary)
         if (primaryView.parent !== this) add(primaryView, 0)
 
@@ -103,6 +118,8 @@ class CompareBoard(
         .map { it.serviceId }
 
     fun isWideForTest(): Boolean = boardLayout.wideMode
+
+    fun emptyStateForTest(): CenteredStateView = emptyView
 
     /** Pooled inter-provider rules; the layout shows only the needed prefix. */
     private fun syncInterRules(secondaryCount: Int) {
@@ -147,7 +164,11 @@ class CompareBoard(
 
     override fun getScrollableTracksViewportWidth(): Boolean = true
 
-    override fun getScrollableTracksViewportHeight(): Boolean = false
+    /** The empty state centers itself in the viewport, so the board fills it while it fits. */
+    override fun getScrollableTracksViewportHeight(): Boolean {
+        val viewport = parent as? JViewport ?: return false
+        return emptyView.isVisible && viewport.height >= preferredSize.height
+    }
 
     private inner class CompareBoardLayout : LayoutManager {
         var wideMode = false
@@ -187,6 +208,20 @@ class CompareBoard(
             val primaryHeight = primaryView.preferredSize.height
             primaryView.setBounds(insets.left, y, contentWidth, primaryHeight)
             y += primaryHeight
+
+            if (emptyView.isVisible) {
+                y += gap
+                emptyView.setSize(contentWidth, Int.MAX_VALUE)
+                val available = parent.height - insets.bottom - y
+                emptyView.setBounds(
+                    insets.left, y, contentWidth,
+                    maxOf(available, emptyView.preferredSize.height)
+                )
+                primaryRule.isVisible = false
+                centerRule.isVisible = false
+                interRules.forEach { it.isVisible = false }
+                return
+            }
 
             val secondaries = parent.components
                 .filter { it.isVisible && it is TranslationProviderView && it !== primaryView }
@@ -285,6 +320,11 @@ class CompareBoard(
 
             primaryView.setSize(contentWidth, Int.MAX_VALUE)
             height += primaryView.preferredSize.height
+
+            if (emptyView.isVisible) {
+                emptyView.setSize(contentWidth, Int.MAX_VALUE)
+                return Dimension(width, height + gap + emptyView.preferredSize.height)
+            }
 
             val secondaries = parent.components
                 .filter { it.isVisible && it is TranslationProviderView && it !== primaryView }

@@ -11,6 +11,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.BorderLayout
+import java.awt.CardLayout
 import java.awt.FlowLayout
 import java.awt.Insets
 import java.awt.Point
@@ -40,6 +41,14 @@ class ExtraOutputPanel(
     )
     private val actionsPanel = TextActionsPanel(iconManager)
     private val readOnlyPanel = ReadOnlyTextPanel(textPane, actionsPanel)
+    private val placeholderView = CenteredStateView()
+
+    // Both cards stay mounted, so the panel's preferred size is the same with or without the
+    // placeholder and nothing about the split changes.
+    private val bodyStack = JPanel(CardLayout()).apply {
+        add(readOnlyPanel, BODY_CARD)
+        add(placeholderView, PLACEHOLDER_CARD)
+    }
 
     private val backwardBtn = makeToggle()
     private val summaryBtn = makeToggle()
@@ -88,7 +97,7 @@ class ExtraOutputPanel(
 
     init {
         add(headerBar, BorderLayout.NORTH)
-        add(readOnlyPanel, BorderLayout.CENTER)
+        add(bodyStack, BorderLayout.CENTER)
 
         backwardBtn.addActionListener {
             if (backwardBtn.isSelected)
@@ -143,6 +152,10 @@ class ExtraOutputPanel(
         // that declares no options gets no button, and one that declares them for a type the
         // host did not anticipate gets one.
         gearBtn.isVisible = state.optionChoices.isNotEmpty()
+
+        val showPlaceholder = state.placeholderText != null && state.text.isBlank() && !state.isLoading
+        if (showPlaceholder) placeholderView.render(null, state.placeholderText.orEmpty())
+        (bodyStack.layout as CardLayout).show(bodyStack, if (showPlaceholder) PLACEHOLDER_CARD else BODY_CARD)
 
         readOnlyPanel.render(
             ReadOnlyTextPanelState(
@@ -229,6 +242,15 @@ class ExtraOutputPanel(
         while (start > 0 && text[start - 1].isLetterOrDigit()) start--
         while (end < text.length && text[end].isLetterOrDigit()) end++
         return text.substring(start, end)
+    }
+
+    fun placeholderVisibleForTest(): Boolean = bodyStack.components.first { it.isVisible } === placeholderView
+
+    fun bodyStackForTest(): JPanel = bodyStack
+
+    private companion object {
+        const val BODY_CARD = "body"
+        const val PLACEHOLDER_CARD = "placeholder"
     }
 
     private fun makeToggle() = JToggleButton().apply {

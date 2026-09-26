@@ -236,6 +236,8 @@ class TranslationProviderView(
 
     fun readableCapActiveForTest(): Boolean = readableSpacer.isVisible
 
+    fun bodyVisibleForTest(): Boolean = bodyStack.isVisible
+
     init {
         isOpaque = false
         add(rail, BorderLayout.LINE_START)
@@ -436,6 +438,10 @@ class TranslationProviderView(
         // All three bodies stay mounted under a CardLayout; only the active
         // card is shown, so the text component, its selection, and focus
         // survive state transitions.
+        // A placeholder with no text of its own (the Comparison board draws that state itself)
+        // leaves the provider as its header alone.
+        bodyStack.isVisible = state.status != ProviderStatus.PLACEHOLDER ||
+            state.placeholderTitle.isNotBlank() || state.placeholderSubtitle.isNotBlank()
         (bodyStack.layout as CardLayout).show(
             bodyStack, when (state.status) {
                 ProviderStatus.PLACEHOLDER -> PLACEHOLDER_CARD

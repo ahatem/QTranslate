@@ -111,7 +111,7 @@ class CompareBoardTest {
         } else emptyList()
 
     @Test
-    fun `empty board shows one integrated primary placeholder with live header`() {
+    fun `a provider placeholder with its own text is still shown with a live header`() {
         val board = CompareBoard(iconManager = null)
         render(board, CompareBoardState(primary = primary(status = ProviderStatus.PLACEHOLDER, text = ""), secondaries = emptyList()))
 
