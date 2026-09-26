@@ -42,7 +42,7 @@ class OutputTextPanel(
     )
     private val actionsPanel = TextActionsPanel(iconManager)
     private val readOnlyPanel = ReadOnlyTextPanel(textPane, actionsPanel, scrollable = false)
-    // No rule of its own: the output pane above already draws a border.
+    // The definition belongs to the translated result and does not add a divider of its own.
     private val definitionStrip = DefinitionStrip(showDivider = false)
 
     private val noServiceLabel = JLabel()
@@ -60,6 +60,7 @@ class OutputTextPanel(
     private val workspaceProviderLabel = JLabel()
     private val workspaceBadgeLabel = JLabel().apply {
         font = font.deriveFont(font.style or Font.BOLD)
+        isOpaque = false
     }
     private val workspaceIdentity = JPanel(FlowLayout(FlowLayout.LEADING, 8, 5)).apply {
         isOpaque = false
@@ -72,15 +73,14 @@ class OutputTextPanel(
     private val workspaceHeader = JPanel(BorderLayout()).apply {
         isOpaque = false
         isVisible = false
-        border = BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(
-                0, 0, 1, 0,
-                UIManager.getColor("Component.borderColor") ?: Color.GRAY
-            ),
-            BorderFactory.createEmptyBorder(6, 10, 5, 10)
-        )
-        add(workspaceIdentity, BorderLayout.LINE_START)
-        add(workspaceBadgeLabel, BorderLayout.LINE_END)
+        val row = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            border = BorderFactory.createEmptyBorder(6, 10, 5, 10)
+            add(workspaceIdentity, BorderLayout.LINE_START)
+            add(workspaceBadgeLabel, BorderLayout.LINE_END)
+        }
+        add(row, BorderLayout.NORTH)
+        add(JSeparator(), BorderLayout.SOUTH)
     }
     private val topPanel = JPanel().apply {
         layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
@@ -101,14 +101,14 @@ class OutputTextPanel(
         workspaceBadgeLabel.text = primaryBadge
         workspaceHeader.isVisible = visible
         comparisonPrimarySelector?.isVisible = visible
+        textPane.hintText = if (visible) "" else localizationManager.getString("main_window_editor_context_menu.output_hint")
         if (visible) {
-            ResultSurfaceStyle.apply(this, primary = true)
             readOnlyPanel.border = BorderFactory.createEmptyBorder(0, 0, 8, 0)
-            ResultSurfaceStyle.refreshBadgeColors(workspaceBadgeLabel)
         } else {
-            ResultSurfaceStyle.reset(this)
             readOnlyPanel.border = null
         }
+        workspaceBadgeLabel.foreground = UIManager.getColor("Component.focusedBorderColor")
+            ?: UIManager.getColor("Label.foreground")
         revalidate()
         repaint()
     }

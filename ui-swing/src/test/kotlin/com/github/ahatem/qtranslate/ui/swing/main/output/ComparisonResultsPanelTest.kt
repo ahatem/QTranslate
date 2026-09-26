@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import java.awt.Component
 import javax.swing.JButton
 import javax.swing.JLabel
+import javax.swing.JSeparator
 import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -90,6 +91,24 @@ class ComparisonResultsPanelTest {
         }
         assertFalse(firstCard.textPaneForTest().isVisible)
         assertSame(firstCard, descendants(panel).filterIsInstance<ComparisonResultCard>().first())
+    }
+
+    @Test
+    fun `provider results form a continuous stack with native separators`() {
+        val panel = ComparisonResultsPanel()
+        SwingUtilities.invokeAndWait {
+            panel.render(
+                state(
+                    listOf(
+                        ComparisonTranslationResult("first", "First", ComparisonStatus.SUCCESS, "first text"),
+                        ComparisonTranslationResult("second", "Second", ComparisonStatus.SUCCESS, "second text")
+                    )
+                )
+            )
+        }
+
+        assertTrue(descendants(panel).filterIsInstance<JSeparator>().size >= 3)
+        assertTrue(descendants(panel).filterIsInstance<ComparisonResultCard>().all { !it.isOpaque })
     }
 
     @Test

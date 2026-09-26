@@ -3,12 +3,13 @@ package com.github.ahatem.qtranslate.ui.swing.quicktranslate
 import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
-import com.github.ahatem.qtranslate.ui.swing.main.output.ResultSurfaceStyle
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JScrollPane
+import javax.swing.JSeparator
+import javax.swing.UIManager
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
@@ -26,22 +27,30 @@ internal class QuickTranslateResultsView(
         preferredSize = Dimension(UIScale.scale(20), 0)
     }
     private val providerLabel = JLabel()
-    private val badgeLabel = ResultSurfaceStyle.createBadge()
+    private val badgeLabel = JLabel().apply {
+        font = font.deriveFont(font.style or java.awt.Font.BOLD)
+        isOpaque = false
+    }
     private val identity = JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(6), 0)).apply {
         isOpaque = false
         add(providerIcon)
         add(providerLabel)
     }
     private val primarySurface = JPanel(BorderLayout()).apply {
+        isOpaque = false
         maximumSize = Dimension(Int.MAX_VALUE, Int.MAX_VALUE)
-        ResultSurfaceStyle.apply(this, primary = true)
-        val header = JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
+        val header = JPanel(BorderLayout()).apply {
             isOpaque = false
-            border = javax.swing.BorderFactory.createEmptyBorder(
-                UIScale.scale(8), UIScale.scale(11), UIScale.scale(4), UIScale.scale(11)
-            )
-            add(identity, BorderLayout.LINE_START)
-            add(badgeLabel, BorderLayout.LINE_END)
+            val row = JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
+                isOpaque = false
+                border = javax.swing.BorderFactory.createEmptyBorder(
+                    UIScale.scale(8), UIScale.scale(11), UIScale.scale(4), UIScale.scale(11)
+                )
+                add(identity, BorderLayout.LINE_START)
+                add(badgeLabel, BorderLayout.LINE_END)
+            }
+            add(row, BorderLayout.NORTH)
+            add(JSeparator(), BorderLayout.SOUTH)
         }
         add(header, BorderLayout.NORTH)
         add(primaryPane.apply { border = javax.swing.BorderFactory.createEmptyBorder(4, 11, 6, 11) }, BorderLayout.CENTER)
@@ -73,8 +82,7 @@ internal class QuickTranslateResultsView(
     override fun updateUI() {
         super.updateUI()
         if (initialized) {
-            ResultSurfaceStyle.apply(primarySurface, primary = true)
-            ResultSurfaceStyle.refreshBadgeColors(badgeLabel)
+            refreshBadgeForeground()
         }
     }
 
@@ -85,6 +93,11 @@ internal class QuickTranslateResultsView(
         }
         providerIcon.isVisible = providerIcon.icon != null
         badgeLabel.text = badge
-        ResultSurfaceStyle.refreshBadgeColors(badgeLabel)
+        refreshBadgeForeground()
+    }
+
+    private fun refreshBadgeForeground() {
+        badgeLabel.foreground = UIManager.getColor("Component.focusedBorderColor")
+            ?: UIManager.getColor("Label.foreground")
     }
 }

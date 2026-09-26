@@ -9,6 +9,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DefinitionStrip
 import java.awt.Component
 import javax.swing.JScrollPane
+import javax.swing.JSeparator
 import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -40,6 +41,7 @@ class QuickTranslateResultsViewTest {
         assertTrue(isDescendant(view.viewport.viewport.view, primary))
         assertTrue(isDescendant(view.viewport.viewport.view, definition))
         assertTrue(isDescendant(view.viewport.viewport.view, comparisons))
+        assertTrue(descendants(view).filterIsInstance<JSeparator>().isNotEmpty())
     }
 
     private fun isDescendant(root: Component?, target: Component): Boolean =

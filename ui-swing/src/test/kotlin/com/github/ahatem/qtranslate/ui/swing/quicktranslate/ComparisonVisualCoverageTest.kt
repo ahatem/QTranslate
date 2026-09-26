@@ -23,7 +23,7 @@ class ComparisonVisualCoverageTest {
     private val font = FontConfig("Dialog", 14)
 
     @Test
-    fun `comparison dark feed covers primary and success loading failure mix`() {
+    fun `comparison dark stack covers success loading failure mix`() {
         withTheme(Color(35, 37, 42), Color(82, 86, 96), Color(120, 150, 220)) {
             val panel = ComparisonResultsPanel(ResultPresentationMode.MAIN_WORKSPACE)
             SwingUtilities.invokeAndWait {
@@ -44,7 +44,7 @@ class ComparisonVisualCoverageTest {
     }
 
     @Test
-    fun `comparison light empty state has intentional configure surface`() {
+    fun `comparison light empty state has intentional configure prompt`() {
         withTheme(Color(248, 248, 250), Color(190, 190, 198), Color(70, 100, 180)) {
             val panel = ComparisonResultsPanel(ResultPresentationMode.MAIN_WORKSPACE)
             SwingUtilities.invokeAndWait {
@@ -135,7 +135,7 @@ class ComparisonVisualCoverageTest {
         val distinct = (0 until image.width).sumOf { x ->
             (0 until image.height).count { y -> image.getRGB(x, y) != background.rgb }
         }
-        assertTrue(distinct > 100, "$name did not paint a meaningful result surface")
+        assertTrue(distinct > 100, "$name did not paint a meaningful result stack")
         val output = File.createTempFile(name, ".png")
         ImageIO.write(image, "png", output)
         assertTrue(output.isFile && output.length() > 0, "$name screenshot was not written")

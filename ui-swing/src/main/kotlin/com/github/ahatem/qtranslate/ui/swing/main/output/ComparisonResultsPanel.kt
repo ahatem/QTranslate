@@ -20,12 +20,12 @@ import java.awt.Rectangle
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
 import javax.swing.BorderFactory
-import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JProgressBar
+import javax.swing.JSeparator
 import javax.swing.JTextArea
 import javax.swing.Scrollable
 import javax.swing.SwingConstants
@@ -130,7 +130,7 @@ class ComparisonResultsPanel(
                 cards.add(cardByServiceId.getOrPut(result.serviceId) {
                     ComparisonResultCard(iconManager, presentationMode)
                 })
-                if (index < state.results.lastIndex) cards.add(Box.createVerticalStrut(UIScale.scale(8)))
+                if (index < state.results.lastIndex) cards.add(providerDivider())
             }
         }
 
@@ -141,6 +141,13 @@ class ComparisonResultsPanel(
         }
         revalidate()
         repaint()
+    }
+
+    private fun providerDivider() = JPanel(BorderLayout()).apply {
+        isOpaque = false
+        maximumSize = Dimension(Int.MAX_VALUE, UIScale.scale(9))
+        border = BorderFactory.createEmptyBorder(UIScale.scale(4), UIScale.scale(12), UIScale.scale(4), UIScale.scale(12))
+        add(JSeparator(), BorderLayout.CENTER)
     }
 }
 
@@ -206,16 +213,21 @@ internal class ComparisonResultCard(
         add(copyButton)
         add(collapseButton)
     }
-    private val header = JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
+    private val header = JPanel(BorderLayout()).apply {
         isOpaque = false
-        border = BorderFactory.createEmptyBorder(
-            UIScale.scale(if (presentationMode == ResultPresentationMode.QUICK_POPUP) 6 else 8),
-            UIScale.scale(if (presentationMode == ResultPresentationMode.QUICK_POPUP) 9 else 12),
-            UIScale.scale(4),
-            UIScale.scale(if (presentationMode == ResultPresentationMode.QUICK_POPUP) 9 else 12)
-        )
-        add(headerIdentity, BorderLayout.LINE_START)
-        add(headerActions, BorderLayout.LINE_END)
+        val row = JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
+            isOpaque = false
+            border = BorderFactory.createEmptyBorder(
+                UIScale.scale(if (presentationMode == ResultPresentationMode.QUICK_POPUP) 6 else 8),
+                UIScale.scale(if (presentationMode == ResultPresentationMode.QUICK_POPUP) 9 else 12),
+                UIScale.scale(4),
+                UIScale.scale(if (presentationMode == ResultPresentationMode.QUICK_POPUP) 9 else 12)
+            )
+            add(headerIdentity, BorderLayout.LINE_START)
+            add(headerActions, BorderLayout.LINE_END)
+        }
+        add(row, BorderLayout.NORTH)
+        add(JSeparator(), BorderLayout.SOUTH)
     }
     private val textPane = AdvancedTextPane({}, {}, {}).apply {
         isEditable = false
@@ -231,7 +243,7 @@ internal class ComparisonResultCard(
     private var onCopy: ((String) -> Unit)? = null
 
     init {
-        ResultSurfaceStyle.apply(this, primary = false)
+        isOpaque = false
         add(header, BorderLayout.NORTH)
         copyButton.addActionListener { onCopy?.invoke(copyButton.actionCommand ?: "") }
         updateCollapseButton()
@@ -346,7 +358,6 @@ internal class ComparisonResultCard(
     override fun updateUI() {
         super.updateUI()
         if (initialized) {
-            background = ResultSurfaceStyle.surfaceBackground()
             updateCollapseButton()
         }
     }

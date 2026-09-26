@@ -628,6 +628,10 @@ class MainContentView(
             providerName = selectedTranslator?.name ?: localizer.getString("main_window.no_translator"),
             primaryBadge = localizer.getString("main_window.comparison_primary")
         )
+        val comparisonIds = activePreset?.comparisonTranslatorIds.orEmpty()
+        val comparisonWorkspace = config.layoutPresetId == LayoutPresetIds.COMPARISON
+        val showComparisonPrompt = comparisonWorkspace && mainState.translatedText.isBlank()
+        val showNoComparisonProviders = comparisonWorkspace && mainState.translatedText.isNotBlank() && comparisonIds.isEmpty()
         comparisonResultsPanel.render(
             ComparisonResultsState(
                 results = mainState.comparisonResults,
@@ -641,14 +645,12 @@ class MainContentView(
                 fallbackFontConfig = config.scaledEditorFallbackFont,
                 onCopy = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) },
                 providerInfos = mainState.availableServices.associateBy { it.id },
-                showEmptyState = config.layoutPresetId == LayoutPresetIds.COMPARISON &&
-                    mainState.comparisonResults.isEmpty() && !mainState.isLoading,
-                emptyText = if (activePreset?.comparisonTranslatorIds.orEmpty().isEmpty()) {
+                showEmptyState = mainState.comparisonResults.isEmpty() && !mainState.isLoading &&
+                    (showComparisonPrompt || showNoComparisonProviders),
+                emptyText = if (showNoComparisonProviders) {
                     localizer.getString("main_window.comparison_no_providers")
-                } else {
-                    localizer.getString("main_window.comparison_empty")
-                },
-                configureLabel = if (activePreset?.comparisonTranslatorIds.orEmpty().isEmpty()) {
+                } else localizer.getString("main_window.comparison_empty"),
+                configureLabel = if (showNoComparisonProviders) {
                     localizer.getString("main_window.comparison_configure")
                 } else "",
                 onConfigure = onOpenServiceSettings
