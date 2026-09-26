@@ -195,6 +195,21 @@ class ServicesPanelTranslatorSetTest {
     }
 
     @Test
+    fun `make primary and status text sit quieter than the translator name`() {
+        val page = page(config(preset("p", "google", "bing")), services("google", "bing"))
+        onEdt {
+            val nameSize = (page.find("translator-name:bing") as JLabel).font.size
+            assertTrue(page.button("translator-make-primary:bing")!!.font.size < nameSize)
+            assertTrue((page.find("translator-status:google") as JLabel).font.size < nameSize)
+        }
+    }
+
+    @Test
+    fun `comparison hint names available translators`() {
+        assertEquals("Comparison uses all available translators in this set.", ready)
+    }
+
+    @Test
     fun `secondaries render in persisted order`() {
         val page = page(config(preset("p", "google", "yandex", "bing", "deepl")), services("google", "bing", "deepl", "yandex"))
         assertEquals(listOf("google", "yandex", "bing", "deepl"), page.rowIds())

@@ -105,7 +105,7 @@ class ServicesPanel(
             localizationManager.getString("settings_services.translator_set_ready")
         )
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
-            .insets(4, 0, 0, 0)
+            .insets(4, 0, 8, 0)
             .add(translatorSection)
 
         // ── Every other role: one service each ────────────────────────────────

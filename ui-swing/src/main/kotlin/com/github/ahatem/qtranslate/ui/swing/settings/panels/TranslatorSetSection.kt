@@ -170,6 +170,7 @@ internal class TranslatorSetSection(
             rowsPanel.add(JButton(localization.getString("settings_services.translator_make_primary")).apply {
                 name = "translator-make-primary:${row.id}"
                 putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_BORDERLESS)
+                font = font.deriveFont(font.size - 1f)
                 isEnabled = roleEnabled
                 addActionListener { dispatch(SettingsIntent.PromoteTranslatorToPrimary(row.id)) }
             }, cell(2, y))
@@ -177,6 +178,7 @@ internal class TranslatorSetSection(
             rowsPanel.add(JLabel(status).apply {
                 name = "translator-status:${row.id}"
                 foreground = dim
+                font = font.deriveFont(font.size - 1f)
             }, cell(2, y, insets = STATUS_INSETS))
         }
 
