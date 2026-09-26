@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.core.main.mvi
 
+import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.core.main.domain.usecase.ComparisonPolicy
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 
@@ -21,3 +22,15 @@ internal fun quickTranslationComparisonPolicy(comparisonEligible: Boolean): Comp
  */
 internal fun shouldAnnounceComparisonFallback(needsFallback: Boolean, alreadyAnnounced: Boolean): Boolean =
     needsFallback && !alreadyAnnounced
+
+/** True while a translation, its extra output or any comparison is still running. */
+internal fun MainState.hasTranslationInFlight(): Boolean =
+    isLoading || isExtraOutputLoading || comparisonResults.any { it.status == ComparisonStatus.LOADING }
+
+/** Closing the Quick popup is presentation only: it hides the popup and drops its pin. */
+internal fun MainState.afterQuickClose(): MainState = copy(
+    isQuickTranslateDialogVisible = false,
+    isQuickTranslateDialogPinned = false,
+    isLoading = false,
+    isExtraOutputLoading = false
+)

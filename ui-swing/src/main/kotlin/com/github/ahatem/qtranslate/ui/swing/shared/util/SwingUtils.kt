@@ -31,6 +31,37 @@ fun createButtonWithIcon(iconManager: IconManager, iconPath: String, size: Int):
     }
 }
 
+/**
+ * An icon action in FlatLaf's toolbar style. Hover, pressed, selected and focus painting all
+ * belong to the look and feel, so this must not turn off [AbstractButton.isContentAreaFilled] or
+ * paint its own states. Mouse clicks do not take keyboard focus from the surrounding field, but
+ * the button stays reachable with Tab.
+ */
+fun createToolbarButton(
+    icon: Icon? = null,
+    tooltip: String? = null,
+    onClick: (() -> Unit)? = null
+): FlatButton = FlatButton().apply {
+    buttonType = FlatButton.ButtonType.toolBarButton
+    isFocusable = true
+    isRequestFocusEnabled = false
+    this.icon = icon
+    toolTipText = tooltip
+    onClick?.let { action -> addActionListener { action() } }
+}
+
+fun createToolbarButton(
+    iconManager: IconManager,
+    iconPath: String,
+    size: Int,
+    tooltip: String? = null,
+    onClick: (() -> Unit)? = null
+): FlatButton = createToolbarButton(
+    (iconManager.getIcon(iconPath, size, size) as FlatSVGIcon).applyForegroundColorFilter(),
+    tooltip,
+    onClick
+)
+
 fun FlatSVGIcon.applyForegroundColorFilter(): FlatSVGIcon {
     return apply {
         colorFilter = ColorFilter { _: Color? ->

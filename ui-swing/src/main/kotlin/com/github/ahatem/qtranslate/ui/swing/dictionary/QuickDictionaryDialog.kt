@@ -60,9 +60,6 @@ class QuickDictionaryDialog(
         get() = UIManager.getColor("Component.focusedBorderColor")
             ?: UIManager.getColor("Component.accentColor")
             ?: borderColor
-    private val toolbarSelectedBg: Color? get() = UIManager.getColor("Button.toolbar.selectedBackground")
-    private val toolbarSelectedFg: Color? get() = UIManager.getColor("Button.toolbar.selectedForeground")
-    private val labelFg: Color? get() = UIManager.getColor("Label.foreground")
     private val disabledFg: Color? get() = UIManager.getColor("Label.disabledForeground")
 
     /** Held so it can be detached; also the reason this is not an inline lambda. */
@@ -77,8 +74,8 @@ class QuickDictionaryDialog(
     private val titleLabel = JLabel("").apply {
         putClientProperty("FlatLaf.styleClass", "h4")
     }
-    private val pinButton = createButtonWithIcon(iconManager, Icons.PIN, 14)
-    private val closeButton = createButtonWithIcon(iconManager, Icons.CLOSE, 16)
+    private val pinButton = createToolbarButton(iconManager, Icons.PIN, 14)
+    private val closeButton = createToolbarButton(iconManager, Icons.CLOSE, 16)
 
     // Auto-source cycling button — mirrors DictionaryPanel
     private val activeLinkIcon: FlatSVGIcon =
@@ -87,9 +84,7 @@ class QuickDictionaryDialog(
         (iconManager.getIcon(Icons.UNPIN, 13, 13) as FlatSVGIcon).apply {
             colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") }
         }
-    private val autoSourceButton = JButton().apply {
-        putClientProperty("JButton.buttonType", "toolBarButton")
-        isFocusable = false
+    private val autoSourceButton = createToolbarButton().apply {
         iconTextGap = 4
         addActionListener {
             val state = currentState ?: return@addActionListener
@@ -384,38 +379,8 @@ class QuickDictionaryDialog(
     // -----------------------------------------------------------------------
 
     private fun createTopPanel(): JPanel {
-        pinButton.apply {
-            putClientProperty("JButton.buttonType", "toolBarButton")
-            isFocusable = false
-            addActionListener { currentState?.onPinToggled?.invoke() }
-        }
-        closeButton.apply {
-            putClientProperty("JButton.buttonType", "toolBarButton")
-            isFocusable = false
-            addActionListener { currentState?.onClose?.invoke() }
-            addMouseListener(object : MouseAdapter() {
-                override fun mouseEntered(e: MouseEvent) {
-                    background = UIManager.getColor("InternalFrame.closeHoverBackground")
-                    foreground = UIManager.getColor("InternalFrame.closeHoverForeground")
-                    isContentAreaFilled = true
-                }
-                override fun mouseExited(e: MouseEvent) {
-                    isContentAreaFilled = false
-                    foreground = null
-                }
-                override fun mousePressed(e: MouseEvent) {
-                    background = UIManager.getColor("InternalFrame.closePressedBackground")
-                    foreground = UIManager.getColor("InternalFrame.closePressedForeground")
-                    isContentAreaFilled = true
-                }
-                override fun mouseReleased(e: MouseEvent) {
-                    if (contains(e.point)) {
-                        background = UIManager.getColor("InternalFrame.closeHoverBackground")
-                        foreground = UIManager.getColor("InternalFrame.closeHoverForeground")
-                    }
-                }
-            })
-        }
+        pinButton.addActionListener { currentState?.onPinToggled?.invoke() }
+        closeButton.addActionListener { currentState?.onClose?.invoke() }
 
         val rightPanel = JPanel().apply {
             isOpaque = false
@@ -498,17 +463,10 @@ class QuickDictionaryDialog(
     }
 
     private fun updatePinButtonStyle(pinned: Boolean) {
-        pinButton.putClientProperty("JButton.buttonType", "toolBarButton")
-        pinButton.putClientProperty("JButton.selected", pinned)
+        pinButton.isSelected = pinned
         if (pinned) {
-            pinButton.isContentAreaFilled = true
-            pinButton.background = toolbarSelectedBg
-            pinButton.foreground = toolbarSelectedFg ?: labelFg
             rootPane.border = BorderFactory.createLineBorder(accentBorderColor, PINNED_BORDER_WIDTH)
         } else {
-            pinButton.isContentAreaFilled = false
-            pinButton.background = null
-            pinButton.foreground = labelFg
             val coloredBorderWidth = 2
             val emptyBorderWidth = PINNED_BORDER_WIDTH - coloredBorderWidth
             rootPane.border = BorderFactory.createCompoundBorder(
@@ -516,7 +474,6 @@ class QuickDictionaryDialog(
                 BorderFactory.createEmptyBorder(emptyBorderWidth, emptyBorderWidth, emptyBorderWidth, emptyBorderWidth)
             )
         }
-        pinButton.repaint()
     }
 
     // -----------------------------------------------------------------------

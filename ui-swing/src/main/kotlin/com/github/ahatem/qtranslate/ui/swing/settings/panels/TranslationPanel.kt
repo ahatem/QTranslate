@@ -10,6 +10,7 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.util.ServiceOptionChoice
 import com.github.ahatem.qtranslate.ui.swing.shared.util.choices
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 import java.awt.*
 import javax.swing.*
 
@@ -115,7 +116,7 @@ class TranslationPanel(
         addSeparator(localizationManager.getString("settings_translation.extra_output_group"))
 
         typeCombo = JComboBox<ExtraOutputTypeInfo>(types.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            renderer = DisplayValueRenderer<ExtraOutputTypeInfo>(text = { it?.displayName.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     val type = (selectedItem as? ExtraOutputTypeInfo)?.type ?: return@addActionListener
@@ -128,7 +129,7 @@ class TranslationPanel(
 
         // Summary length — only visible when type = Summarize
         summaryLengthCombo = JComboBox<ServiceOptionChoice>(summaryLengths.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.label ?: "") }
+            renderer = DisplayValueRenderer<ServiceOptionChoice>(text = { it?.label.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     val length = (selectedItem as? ServiceOptionChoice)?.id ?: return@addActionListener
@@ -147,7 +148,7 @@ class TranslationPanel(
 
         // Rewrite style — only visible when type = Rewrite
         rewriteStyleCombo = JComboBox<ServiceOptionChoice>(rewriteStyles.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.label ?: "") }
+            renderer = DisplayValueRenderer<ServiceOptionChoice>(text = { it?.label.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     val style = (selectedItem as? ServiceOptionChoice)?.id ?: return@addActionListener
@@ -197,7 +198,7 @@ class TranslationPanel(
         addHint(localizationManager.getString("settings_languages.dict_auto_lookup_hint"))
 
         dictAutoSourceCombo = JComboBox<DictionaryAutoSourceInfo>(dictAutoSources.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            renderer = DisplayValueRenderer<DictionaryAutoSourceInfo>(text = { it?.displayName.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     val src = (selectedItem as? DictionaryAutoSourceInfo)?.source ?: return@addActionListener

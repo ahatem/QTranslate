@@ -135,7 +135,9 @@ class TranslateTextUseCase(
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
                 onStatusUpdate(StatusCode.Translating, NotificationType.INFO, false)
-                updateState { copy(isLoading = true, translatedText = "", extraOutputText = "", isExtraOutputLoading = false) }
+                updateState {
+                    copy(isLoading = true, translatedText = "", extraOutputText = "", isExtraOutputLoading = false, translationFailed = false)
+                }
 
                 val currentState = getState()
                 val rules        = settingsState.value.translationRules
@@ -188,7 +190,7 @@ class TranslateTextUseCase(
                 if (result == null) {
                     logger.error("Translation timed out after ${AppConstants.TRANSLATION_TIMEOUT_MS}ms")
                     clearComparisonsIfCurrent(translationGeneration, updateState)
-                    updateState { copy(isLoading = false, isExtraOutputLoading = false) }
+                    updateState { copy(isLoading = false, isExtraOutputLoading = false, translationFailed = true) }
                     onStatusUpdate(StatusCode.TranslationTimeout, NotificationType.ERROR, true)
                     return@launch
                 }
@@ -276,7 +278,7 @@ class TranslateTextUseCase(
                     failure = { error ->
                         logger.error("Translation failed: ${error.message}", error.cause)
                         clearComparisonsIfCurrent(translationGeneration, updateState)
-                        updateState { copy(isLoading = false, isExtraOutputLoading = false) }
+                        updateState { copy(isLoading = false, isExtraOutputLoading = false, translationFailed = true) }
                         val summary = error.shortSummary()
                         onStatusUpdate(StatusCode.TranslationFailed(summary), NotificationType.ERROR, true)
                     }
@@ -289,7 +291,7 @@ class TranslateTextUseCase(
             } catch (e: Exception) {
                 logger.error("Unexpected error during translation", e)
                 clearComparisonsIfCurrent(translationGeneration, updateState)
-                updateState { copy(isLoading = false, isExtraOutputLoading = false) }
+                updateState { copy(isLoading = false, isExtraOutputLoading = false, translationFailed = true) }
                 val summary = e.shortSummary()
                 onStatusUpdate(StatusCode.UnexpectedError(summary), NotificationType.ERROR, true)
             }
@@ -332,7 +334,7 @@ class TranslateTextUseCase(
         if (retryResult == null) {
             logger.error("Re-translation timed out")
             clearComparisonsIfCurrent(translationGeneration, updateState)
-            updateState { copy(isLoading = false, isExtraOutputLoading = false) }
+            updateState { copy(isLoading = false, isExtraOutputLoading = false, translationFailed = true) }
             onStatusUpdate(StatusCode.TranslationTimeout, NotificationType.ERROR, true)
             return null
         }
@@ -376,7 +378,7 @@ class TranslateTextUseCase(
             failure = { error ->
                 logger.error("Re-translation failed: ${error.message}", error.cause)
                 clearComparisonsIfCurrent(translationGeneration, updateState)
-                updateState { copy(isLoading = false, isExtraOutputLoading = false) }
+                updateState { copy(isLoading = false, isExtraOutputLoading = false, translationFailed = true) }
                 val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.TranslationFailed(summary), NotificationType.ERROR, true)
                 null
@@ -597,6 +599,7 @@ class TranslateTextUseCase(
         updateState {
             copy(
                 isLoading              = false,
+                translationFailed      = false,
                 translatedText         = translatedText,
                 detectedSourceLanguage = detectedLanguage,
                 targetLanguage         = ruleTarget ?: targetLanguage,

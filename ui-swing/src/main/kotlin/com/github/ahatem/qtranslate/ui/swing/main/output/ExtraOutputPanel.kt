@@ -11,6 +11,10 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.BorderLayout
+import java.awt.Component
+import java.awt.Container
+import java.awt.Dimension
+import java.awt.LayoutManager
 import java.awt.FlowLayout
 import java.awt.Insets
 import java.awt.Point
@@ -40,6 +44,22 @@ class ExtraOutputPanel(
     )
     private val actionsPanel = TextActionsPanel(iconManager)
     private val readOnlyPanel = ReadOnlyTextPanel(textPane, actionsPanel)
+    private val placeholderView = CenteredStateView().apply { isVisible = false }
+
+    // The placeholder is laid over the body, which stays mounted and focusable and alone decides
+    // the size, so the panel measures and tabs the same with or without it.
+    private val bodyStack = JPanel(object : LayoutManager {
+        override fun addLayoutComponent(name: String?, comp: Component?) = Unit
+        override fun removeLayoutComponent(comp: Component?) = Unit
+        override fun preferredLayoutSize(parent: Container): Dimension = readOnlyPanel.preferredSize
+        override fun minimumLayoutSize(parent: Container): Dimension = readOnlyPanel.minimumSize
+        override fun layoutContainer(parent: Container) {
+            parent.components.forEach { it.setBounds(0, 0, parent.width, parent.height) }
+        }
+    }).apply {
+        add(placeholderView)
+        add(readOnlyPanel)
+    }
 
     private val backwardBtn = makeToggle()
     private val summaryBtn = makeToggle()
@@ -88,7 +108,7 @@ class ExtraOutputPanel(
 
     init {
         add(headerBar, BorderLayout.NORTH)
-        add(readOnlyPanel, BorderLayout.CENTER)
+        add(bodyStack, BorderLayout.CENTER)
 
         backwardBtn.addActionListener {
             if (backwardBtn.isSelected)
@@ -155,6 +175,10 @@ class ExtraOutputPanel(
                 isEditable = state.isEditable
             )
         )
+
+        val showPlaceholder = state.placeholderText != null && state.text.isBlank() && !state.isLoading
+        if (showPlaceholder) placeholderView.render(null, state.placeholderText.orEmpty())
+        placeholderView.isVisible = showPlaceholder
     }
 
     /**
@@ -230,6 +254,10 @@ class ExtraOutputPanel(
         while (end < text.length && text[end].isLetterOrDigit()) end++
         return text.substring(start, end)
     }
+
+    fun placeholderVisibleForTest(): Boolean = placeholderView.isVisible
+
+    fun bodyStackForTest(): JPanel = bodyStack
 
     private fun makeToggle() = JToggleButton().apply {
         putClientProperty("JButton.buttonType", "toolBarButton")

@@ -36,9 +36,11 @@ import com.github.ahatem.qtranslate.ui.swing.main.output.NoServiceState
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextState
 import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoard
 import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoardState
+import com.github.ahatem.qtranslate.ui.swing.main.output.CompareEmptyState
 import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderPresentation
 import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderRole
 import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderStatus
+import com.github.ahatem.qtranslate.ui.swing.main.output.primaryProviderStatus
 import com.github.ahatem.qtranslate.ui.swing.main.output.TranslationProviderState
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelector
@@ -386,11 +388,9 @@ class MainContentView(
         selectedTranslatorId: String?,
         selectedTranslator: com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo?
     ) {
-        val primaryStatus = when {
-            mainState.translatedText.isNotBlank() -> ProviderStatus.SUCCESS
-            mainState.isLoading -> ProviderStatus.LOADING
-            else -> ProviderStatus.PLACEHOLDER
-        }
+        val primaryStatus = primaryProviderStatus(
+            mainState.translatedText, mainState.isLoading, mainState.translationFailed
+        )
         val readyCount = config.effectiveTranslatorCount(mainState.availableTranslatorIds)
         val primaryState = TranslationProviderState(
             serviceId = selectedTranslatorId ?: "",
@@ -407,8 +407,6 @@ class MainContentView(
             stopLabel = localizer.getString("common.stop"),
             isTtsPlaying = mainState.isTtsPlaying,
             primaryLabel = localizer.getString("main_window.comparison_primary"),
-            placeholderTitle = localizer.getString("main_window.comparison_empty"),
-            placeholderSubtitle = localizer.getString("main_window.comparison_empty_subtitle", readyCount),
             definition = mainState.inlineDefinition,
             findInDictionaryLabel = localizer.getString("main_window_editor_context_menu.find_in_dictionary"),
             searchImagesLabel = localizer.getString("main_window_editor_context_menu.search_images"),
@@ -457,6 +455,7 @@ class MainContentView(
                 loadingText = localizer.getString("main_window.comparison_loading"),
                 failureText = localizer.getString("main_window.comparison_failure"),
                 copyLabel = localizer.getString("main_window.comparison_copy"),
+                detailsLabel = localizer.getString("main_window.comparison_details"),
                 fontConfig = config.scaledEditorFont,
                 fallbackFontConfig = config.scaledEditorFallbackFont,
                 onCopy = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) }
@@ -465,7 +464,11 @@ class MainContentView(
         compareBoard.render(
             CompareBoardState(
                 primary = primaryState,
-                secondaries = secondaries
+                secondaries = secondaries,
+                emptyState = CompareEmptyState(
+                    title = localizer.getString("main_window.comparison_empty"),
+                    message = localizer.getString("main_window.comparison_empty_subtitle", readyCount)
+                )
             )
         )
     }
@@ -766,6 +769,10 @@ class MainContentView(
                 fontConfig = config.scaledEditorFont,
                 fallbackFontConfig = config.scaledEditorFallbackFont,
                 activeType = config.extraOutputType,
+                // Every extra output is derived as part of a translation, so until one has
+                // landed there is nothing for this panel to show.
+                placeholderText = localizer.getString("extra_output.placeholder")
+                    .takeIf { mainState.translatedText.isBlank() },
 
                 labelBackward = localizer.getString("extra_output.label_backward"),
                 labelSummary = localizer.getString("extra_output.label_summary"),

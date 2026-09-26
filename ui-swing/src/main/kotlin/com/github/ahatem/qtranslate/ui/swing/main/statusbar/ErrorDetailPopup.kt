@@ -3,10 +3,8 @@ package com.github.ahatem.qtranslate.ui.swing.main.statusbar
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
-import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
+import com.github.ahatem.qtranslate.ui.swing.shared.util.createToolbarButton
 import java.awt.*
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
 import javax.swing.*
 import javax.swing.border.MatteBorder
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
@@ -66,31 +64,10 @@ class ErrorDetailPopup(private val iconManager: IconManager) {
         font = UIManager.getFont("Label.font")?.deriveFont(Font.BOLD) ?: font?.deriveFont(Font.BOLD)
     }
 
-    private val closeButton = createButtonWithIcon(iconManager, Icons.CLOSE, 14).apply {
-        putClientProperty("JButton.buttonType", "toolBarButton")
+    // Popup menus are dismissed with Escape or a click elsewhere, so the button stays out of the
+    // focus cycle.
+    private val closeButton = createToolbarButton(iconManager, Icons.CLOSE, 14).apply {
         isFocusable = false
-        addMouseListener(object : MouseAdapter() {
-            override fun mouseEntered(e: MouseEvent) {
-                background          = UIManager.getColor("InternalFrame.closeHoverBackground")
-                foreground          = UIManager.getColor("InternalFrame.closeHoverForeground")
-                isContentAreaFilled = true
-                isBorderPainted     = false
-            }
-            override fun mouseExited(e: MouseEvent) {
-                isContentAreaFilled = false
-                foreground          = null
-            }
-            override fun mousePressed(e: MouseEvent) {
-                background = UIManager.getColor("InternalFrame.closePressedBackground")
-                foreground = UIManager.getColor("InternalFrame.closePressedForeground")
-            }
-            override fun mouseReleased(e: MouseEvent) {
-                if (contains(e.point)) {
-                    background = UIManager.getColor("InternalFrame.closeHoverBackground")
-                    foreground = UIManager.getColor("InternalFrame.closeHoverForeground")
-                }
-            }
-        })
     }
 
     /**

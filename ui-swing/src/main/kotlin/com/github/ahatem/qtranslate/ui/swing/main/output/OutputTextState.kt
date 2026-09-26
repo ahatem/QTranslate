@@ -44,6 +44,9 @@ data class ExtraOutputState(
 
     val activeType: ExtraOutputType = ExtraOutputType.None,
 
+    /** Shown in place of the empty body while there is no translation for this panel to work from. */
+    val placeholderText: String? = null,
+
     val labelBackward: String = "",
     val labelSummary: String = "",
     val labelRewrite: String = "",

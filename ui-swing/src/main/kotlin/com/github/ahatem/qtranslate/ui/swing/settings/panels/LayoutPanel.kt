@@ -9,13 +9,9 @@ import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
-import java.awt.Component
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
-import javax.swing.JLabel
-import javax.swing.JList
-import javax.swing.ListCellRenderer
-import javax.swing.UIManager
 
 /**
  * The main window: how it is arranged, what it shows, and what its close button does.
@@ -59,7 +55,7 @@ class LayoutPanel(
         addSeparator(localizationManager.getString("settings_window.layout_group"))
 
         layoutCombo = JComboBox<LayoutInfo>(layouts.toTypedArray()).apply {
-            setRenderer(LayoutPresetRenderer())
+            renderer = layoutPresetRenderer()
             addActionListener {
                 if (!isUpdatingFromState) {
                     val layout = selectedItem as? LayoutInfo ?: return@addActionListener
@@ -141,7 +137,7 @@ class LayoutPanel(
             )
         )
         selectorStyleCombo = JComboBox(selectorStyles.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName.orEmpty()) }
+            renderer = DisplayValueRenderer<ServiceSelectorStyleInfo>(text = { it?.displayName.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     (selectedItem as? ServiceSelectorStyleInfo)?.let { selected ->
@@ -167,7 +163,7 @@ class LayoutPanel(
             )
         )
         selectorAppearanceCombo = JComboBox(appearances.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName.orEmpty()) }
+            renderer = DisplayValueRenderer<ServiceSelectorAppearanceInfo>(text = { it?.displayName.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     (selectedItem as? ServiceSelectorAppearanceInfo)?.let { selected ->
@@ -200,7 +196,7 @@ class LayoutPanel(
         )
 
         closeButtonCombo = JComboBox(behaviorOptions.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            renderer = DisplayValueRenderer<CloseButtonBehaviorInfo>(text = { it?.displayName.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     val selected = selectedItem as? CloseButtonBehaviorInfo ?: return@addActionListener
@@ -214,38 +210,15 @@ class LayoutPanel(
         finishLayout()
     }
 
-    /**
-     * Minimal layout-preset renderer: identical to a plain label except that
-     * an unavailable Comparison is shown disabled with its reason, using only
-     * FlatLaf semantic colors. Scoped to this picker — not a global ComboBox fix.
-     */
-    private inner class LayoutPresetRenderer : ListCellRenderer<LayoutInfo> {
-        private val label = JLabel()
-        override fun getListCellRendererComponent(
-            list: JList<out LayoutInfo>,
-            value: LayoutInfo?,
-            index: Int,
-            isSelected: Boolean,
-            cellHasFocus: Boolean
-        ): Component {
-            label.text = value?.displayName ?: ""
-            val disabled = value?.id == LayoutPresetIds.COMPARISON && !comparisonAvailable
-            label.toolTipText = if (disabled) comparisonUnavailableHint() else null
-            if (isSelected) {
-                label.background = list.selectionBackground
-                label.foreground =
-                    if (disabled) UIManager.getColor("Label.disabledForeground")
-                    else list.selectionForeground
-                label.isOpaque = true
-            } else {
-                label.isOpaque = false
-                label.foreground =
-                    if (disabled) UIManager.getColor("Label.disabledForeground")
-                    else list.foreground
-            }
-            return label
-        }
-    }
+    /** Shows an unavailable Comparison dimmed, with the reason as its tooltip. */
+    private fun layoutPresetRenderer() = DisplayValueRenderer<LayoutInfo>(
+        text = { it?.displayName.orEmpty() },
+        isDisabled = ::isUnavailableComparison,
+        tooltip = { if (isUnavailableComparison(it)) comparisonUnavailableHint() else null }
+    )
+
+    private fun isUnavailableComparison(layout: LayoutInfo?) =
+        layout?.id == LayoutPresetIds.COMPARISON && !comparisonAvailable
 
     override fun render(state: SettingsState) {
         val c = state.workingConfiguration

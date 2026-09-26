@@ -52,9 +52,10 @@ comparison_loading = "Translating..."
 comparison_unavailable = "Unavailable service"
 comparison_failure = "Translation failed"
 comparison_copy = "Copy"
+comparison_details = "Details"
 comparison_primary = "Primary"
-comparison_empty = "Translate to compare results"
-comparison_empty_subtitle = "%s translation services ready"
+comparison_empty = "Ready to compare"
+comparison_empty_subtitle = "Enter text above and choose Translate. Results from %s translation services will appear here."
 
 [main_window_history_bar]
 backward_tooltip = "Go backward in translation history"
@@ -576,6 +577,7 @@ remember_choice = "Remember my choice"
 label_backward = "Backward Translation"
 label_summary = "Summary"
 label_rewrite = "Rewrite"
+placeholder = "Available after translation"
 
 # ===================================================================
 # NOTIFICATIONS & ERRORS

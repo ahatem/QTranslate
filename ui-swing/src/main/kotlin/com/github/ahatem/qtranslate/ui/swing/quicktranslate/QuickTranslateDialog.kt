@@ -73,9 +73,6 @@ class QuickTranslateDialog(
         get() = UIManager.getColor("Component.focusedBorderColor")
             ?: UIManager.getColor("Component.accentColor")
             ?: borderColor
-    private val toolbarSelectedBg: Color? get() = UIManager.getColor("Button.toolbar.selectedBackground")
-    private val toolbarSelectedFg: Color? get() = UIManager.getColor("Button.toolbar.selectedForeground")
-    private val labelFg: Color? get() = UIManager.getColor("Label.foreground")
 
     /** A field, not an inline lambda, so it can be detached when the window goes away. */
     private val themeListener = java.beans.PropertyChangeListener { event ->
@@ -126,10 +123,10 @@ class QuickTranslateDialog(
     private var isRenderingLanguages = false
     private val translatorComboBox = TranslatorPopupButton(iconManager, onTranslatorSelected)
 
-    private val pinButton = createButtonWithIcon(iconManager, Icons.PIN, 14)
-    private val listenButton = createButtonWithIcon(iconManager, Icons.SPEAK, 14)
-    private val copyButton = createButtonWithIcon(iconManager, Icons.COPY, 14)
-    private val closeButton = createButtonWithIcon(iconManager, Icons.CLOSE, 16)
+    private val pinButton = createToolbarButton(iconManager, Icons.PIN, 14)
+    private val listenButton = createToolbarButton(iconManager, Icons.SPEAK, 14)
+    private val copyButton = createToolbarButton(iconManager, Icons.COPY, 14)
+    private val closeButton = createToolbarButton(iconManager, Icons.CLOSE, 16)
 
     // content: one result viewport holding the primary provider, its definition,
     // and every comparison in a single column.
@@ -427,6 +424,7 @@ class QuickTranslateDialog(
                 loadingText = state.comparisonLoadingText,
                 failureText = state.comparisonFailureText,
                 copyLabel = state.comparisonCopyLabel,
+                detailsLabel = state.comparisonDetailsLabel,
                 fontConfig = state.config.font,
                 fallbackFontConfig = state.config.fallbackFont,
                 onCopy = { text -> text.copyToClipboard() }
@@ -449,18 +447,11 @@ class QuickTranslateDialog(
     }
 
     private fun updatePinButtonStyle(pinned: Boolean) {
-        pinButton.putClientProperty("JButton.buttonType", "toolBarButton")
-        pinButton.putClientProperty("JButton.selected", pinned)
+        pinButton.isSelected = pinned
 
         if (pinned) {
-            pinButton.isContentAreaFilled = true
-            pinButton.background = toolbarSelectedBg
-            pinButton.foreground = toolbarSelectedFg ?: labelFg
             rootPane.border = BorderFactory.createLineBorder(accentBorderColor, PINNED_BORDER_WIDTH)
         } else {
-            pinButton.isContentAreaFilled = false
-            pinButton.background = null
-            pinButton.foreground = labelFg
             val coloredBorderWidth = 2
             val emptyBorderWidth = PINNED_BORDER_WIDTH - coloredBorderWidth
             rootPane.border = BorderFactory.createCompoundBorder(
@@ -473,7 +464,6 @@ class QuickTranslateDialog(
                 )
             )
         }
-        pinButton.repaint()
     }
 
     private fun applyTransparency() {
@@ -653,41 +643,6 @@ class QuickTranslateDialog(
             showCopyFeedback()
         }
         closeButton.addActionListener { onDismiss() }
-
-        listOf(pinButton, listenButton, copyButton).forEach { b ->
-            b.putClientProperty("JButton.buttonType", "toolBarButton")
-        }
-
-        closeButton.apply {
-            isFocusable = false
-            putClientProperty("JButton.buttonType", "toolBarButton")
-            addMouseListener(object : MouseAdapter() {
-                override fun mouseEntered(e: MouseEvent) {
-                    background = UIManager.getColor("InternalFrame.closeHoverBackground")
-                    foreground = UIManager.getColor("InternalFrame.closeHoverForeground")
-                    isContentAreaFilled = true
-                    isBorderPainted = false
-                }
-
-                override fun mouseExited(e: MouseEvent) {
-                    isContentAreaFilled = false
-                    foreground = null
-                }
-
-                override fun mousePressed(e: MouseEvent) {
-                    background = UIManager.getColor("InternalFrame.closePressedBackground")
-                    foreground = UIManager.getColor("InternalFrame.closePressedForeground")
-                    isContentAreaFilled = true
-                }
-
-                override fun mouseReleased(e: MouseEvent) {
-                    if (contains(e.point)) {
-                        background = UIManager.getColor("InternalFrame.closeHoverBackground")
-                        foreground = UIManager.getColor("InternalFrame.closeHoverForeground")
-                    }
-                }
-            })
-        }
 
         val separator = JPanel().apply {
             border = BorderFactory.createMatteBorder(0, 0, 0, 1, borderColor)
