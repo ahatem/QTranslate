@@ -238,7 +238,7 @@ class MainStore(
             }
                 .distinctUntilChanged()
                 .collect { needsFallback ->
-                    if (needsFallback && !comparisonFallbackAnnounced) {
+                    if (shouldAnnounceComparisonFallback(needsFallback, comparisonFallbackAnnounced)) {
                         comparisonFallbackAnnounced = true
                         updateStatusBar(
                             StatusCode.ComparisonNeedsTwoTranslators,
@@ -264,11 +264,7 @@ class MainStore(
     }
 
     private fun quickComparisonPolicy(): ComparisonPolicy =
-        if (settingsState.value.isComparisonEligible(availableTranslatorIds())) {
-            ComparisonPolicy.ENABLED
-        } else {
-            ComparisonPolicy.DISABLED
-        }
+        quickTranslationComparisonPolicy(settingsState.value.isComparisonEligible(availableTranslatorIds()))
 
     @OptIn(FlowPreview::class)
     private fun observeSpellChecking() {

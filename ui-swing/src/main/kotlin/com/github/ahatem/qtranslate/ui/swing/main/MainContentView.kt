@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.effectiveTranslatorCount
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import com.github.ahatem.qtranslate.core.settings.data.effectiveLayoutPresetId
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
@@ -388,13 +389,14 @@ class MainContentView(
         selectedTranslatorId: String?,
         selectedTranslator: com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo?
     ) {
-        val comparisonIds = config.getActivePreset()?.comparisonTranslatorIds.orEmpty()
         val primaryStatus = when {
             mainState.translatedText.isNotBlank() -> ProviderStatus.SUCCESS
             mainState.isLoading -> ProviderStatus.LOADING
             else -> ProviderStatus.PLACEHOLDER
         }
-        val readyCount = comparisonIds.size + if (selectedTranslatorId != null) 1 else 0
+        val readyCount = config.effectiveTranslatorCount(
+            mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR).map { it.id }.toSet()
+        )
         val primaryState = TranslationProviderState(
             serviceId = selectedTranslatorId ?: "",
             serviceName = selectedTranslator?.name ?: localizer.getString("main_window.no_translator"),
