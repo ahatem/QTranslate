@@ -94,7 +94,8 @@ class ComparisonVisualCoverageTest {
                         secondaries = listOf(
                             provider("one", "Provider One", ProviderRole.SECONDARY, ProviderPresentation.MAIN, text = "First result"),
                             provider("two", "Provider Two", ProviderRole.SECONDARY, ProviderPresentation.MAIN, text = "Second result"),
-                            provider("three", "Provider Three", ProviderRole.SECONDARY, ProviderPresentation.MAIN, text = "Third result")
+                            provider("three", "Provider Three", ProviderRole.SECONDARY, ProviderPresentation.MAIN, text = "Third result"),
+                            provider("four", "Provider Four", ProviderRole.SECONDARY, ProviderPresentation.MAIN, text = "Fourth result")
                         )
                     )
                 )
