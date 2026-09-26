@@ -8,6 +8,8 @@ import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
+import com.github.ahatem.qtranslate.core.settings.data.TranslatorMove
+import com.github.ahatem.qtranslate.core.settings.data.translatorSetIds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -88,20 +90,93 @@ class SettingsStoreDraftSemanticsTest {
     }
 
     @Test
-    fun `comparison translator draft edits cancel and apply without rewriting ids`() = runTest {
+    fun `translator set edits cancel and apply without rewriting ids`() = runTest {
         val store = store(Configuration.DEFAULT)
-        val configured = listOf("missing", "second", "missing")
+        val original = Configuration.DEFAULT.getActivePreset()!!
 
-        store.dispatch(SettingsIntent.UpdateComparisonTranslatorsInActivePreset(configured))
+        store.dispatch(SettingsIntent.AddTranslatorToActivePreset("missing"))
+        store.dispatch(SettingsIntent.AddTranslatorToActivePreset("second"))
+        assertEquals(
+            listOf("missing", "second"),
+            store.state.value.workingConfiguration.getActivePreset()!!.comparisonTranslatorIds
+        )
+        assertEquals(original, store.state.value.originalConfiguration.getActivePreset())
         store.dispatch(SettingsIntent.CancelChanges)
+        assertEquals(original, store.state.value.workingConfiguration.getActivePreset())
         assertTrue(store.state.value.originalConfiguration.getActivePreset()!!.comparisonTranslatorIds.isEmpty())
 
-        store.dispatch(SettingsIntent.UpdateComparisonTranslatorsInActivePreset(configured))
+        store.dispatch(SettingsIntent.AddTranslatorToActivePreset("missing"))
+        store.dispatch(SettingsIntent.AddTranslatorToActivePreset("second"))
         awaitSave(store)
         assertEquals(
-            configured,
+            listOf("missing", "second"),
             store.state.value.originalConfiguration.getActivePreset()!!.comparisonTranslatorIds
         )
+    }
+
+    @Test
+    fun `remove promote and reorder edit only the working draft until applied`() = runTest {
+        val seeded = translatorConfig("a", "b", "c", "d")
+        val store = store(seeded)
+        fun working() = store.state.value.workingConfiguration.getActivePreset()!!
+
+        store.dispatch(SettingsIntent.MoveTranslatorInActivePreset("d", TranslatorMove.UP))
+        assertEquals(listOf("b", "d", "c"), working().comparisonTranslatorIds)
+        store.dispatch(SettingsIntent.PromoteTranslatorToPrimary("d"))
+        assertEquals("d", working().selectedServices[ServiceRole.TRANSLATOR])
+        assertEquals(listOf("b", "a", "c"), working().comparisonTranslatorIds)
+        store.dispatch(SettingsIntent.RemoveTranslatorFromActivePreset("d"))
+        assertEquals("b", working().selectedServices[ServiceRole.TRANSLATOR])
+        assertEquals(listOf("a", "c"), working().comparisonTranslatorIds)
+
+        assertEquals(seeded.getActivePreset(), store.state.value.originalConfiguration.getActivePreset())
+        store.dispatch(SettingsIntent.CancelChanges)
+        assertEquals(seeded.getActivePreset(), store.state.value.workingConfiguration.getActivePreset())
+
+        store.dispatch(SettingsIntent.RemoveTranslatorFromActivePreset("a"))
+        awaitSave(store)
+        assertEquals(
+            listOf("b", "c", "d"),
+            store.state.value.originalConfiguration.getActivePreset()!!.translatorSetIds
+        )
+    }
+
+    @Test
+    fun `presets keep independent translator sets`() = runTest {
+        val first = translatorConfig("a", "b").getActivePreset()!!
+        val second = first.copy(
+            id = "second",
+            name = "Second",
+            selectedServices = first.selectedServices + (ServiceRole.TRANSLATOR to "x"),
+            comparisonTranslatorIds = listOf("y", "b")
+        )
+        val store = store(
+            Configuration.DEFAULT.copy(servicePresets = listOf(first, second), activeServicePresetId = first.id)
+        )
+
+        store.dispatch(SettingsIntent.RemoveTranslatorFromActivePreset("b"))
+        store.dispatch(SettingsIntent.SetActivePreset("second"))
+        assertEquals(listOf("x", "y", "b"), store.state.value.workingConfiguration.getActivePreset()!!.translatorSetIds)
+
+        store.dispatch(SettingsIntent.AddTranslatorToActivePreset("z"))
+        store.dispatch(SettingsIntent.SetActivePreset(first.id))
+        assertEquals(listOf("a"), store.state.value.workingConfiguration.getActivePreset()!!.translatorSetIds)
+        assertEquals(
+            listOf("x", "y", "b", "z"),
+            store.state.value.workingConfiguration.servicePresets.last().translatorSetIds
+        )
+    }
+
+    @Test
+    fun `clearing a service selection stores null so resolution stays automatic`() = runTest {
+        val store = store(Configuration.DEFAULT)
+
+        store.dispatch(SettingsIntent.UpdateServiceInActivePreset(ServiceRole.OCR, "some-ocr"))
+        store.dispatch(SettingsIntent.UpdateServiceInActivePreset(ServiceRole.OCR, null))
+
+        val selected = store.state.value.workingConfiguration.getActivePreset()!!.selectedServices
+        assertTrue(ServiceRole.OCR in selected)
+        assertEquals(null, selected[ServiceRole.OCR])
     }
 
     @Test
@@ -195,6 +270,16 @@ class SettingsStoreDraftSemanticsTest {
         cancelStore.dispatch(SettingsIntent.CancelChanges)
         assertEquals("en", cancelStore.state.value.workingConfiguration.interfaceLanguage)
         assertFalse(cancelStore.state.value.originalConfiguration.isGlobalHotkeysEnabled)
+    }
+
+    private fun translatorConfig(primary: String, vararg comparisons: String): Configuration {
+        val preset = Configuration.DEFAULT.getActivePreset()!!.let {
+            it.copy(
+                selectedServices = it.selectedServices + (ServiceRole.TRANSLATOR to primary),
+                comparisonTranslatorIds = comparisons.toList()
+            )
+        }
+        return Configuration.DEFAULT.copy(servicePresets = listOf(preset), activeServicePresetId = preset.id)
     }
 
     private suspend fun awaitSave(store: SettingsStore) {

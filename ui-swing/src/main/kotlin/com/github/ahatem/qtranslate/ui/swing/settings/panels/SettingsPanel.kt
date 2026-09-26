@@ -140,16 +140,26 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      *
      * Extra top spacing is added for all sections after the first so panels read as
      * clearly separated groups.
+     *
+     * [trailing] is a control shown at the heading's trailing end, such as a section's Enabled checkbox.
      */
-    protected fun addSeparator(title: String) {
+    protected fun addSeparator(title: String, trailing: JComponent? = null) {
         currentSection = title
         val isFirst = gb.currentY == 0
+        val header = buildSeparatorRow(title, bold = true, muted = false, gap = 10)
         gb.nextRow()
             .spanLine()
             .weightX(1.0)
             .fill(GridBagConstraints.HORIZONTAL)
             .insets(if (isFirst) 0 else SECTION_GAP, 0, 4, 0)
-            .add(buildSeparatorRow(title, bold = true, muted = false, gap = 10))
+            .add(
+                if (trailing == null) header
+                else JPanel(BorderLayout(UIScale.scale(10), 0)).apply {
+                    isOpaque = false
+                    add(header, BorderLayout.CENTER)
+                    add(trailing, BorderLayout.LINE_END)
+                }
+            )
     }
 
     /**

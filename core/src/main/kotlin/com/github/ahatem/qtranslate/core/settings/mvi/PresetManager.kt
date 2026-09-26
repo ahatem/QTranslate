@@ -64,16 +64,28 @@ internal class PresetManager(
 
     }
 
-    fun updateComparisonTranslators(
-        current: Configuration,
-        intent: SettingsIntent.UpdateComparisonTranslatorsInActivePreset
-    ) {
+    fun addTranslator(current: Configuration, intent: SettingsIntent.AddTranslatorToActivePreset) {
         if (current.activeServicePresetId == null) {
-            logger.warn("No active preset - ignoring UpdateComparisonTranslatorsInActivePreset intent")
+            logger.warn("No active preset - ignoring AddTranslatorToActivePreset intent")
             return
         }
+        applyUpdate(current.withTranslatorAdded(intent.serviceId))
+    }
 
-        applyUpdate(current.withComparisonTranslators(intent.serviceIds))
+    fun removeTranslator(current: Configuration, intent: SettingsIntent.RemoveTranslatorFromActivePreset) {
+        if (current.activeServicePresetId == null) {
+            logger.warn("No active preset - ignoring RemoveTranslatorFromActivePreset intent")
+            return
+        }
+        applyUpdate(current.withTranslatorRemoved(intent.serviceId))
+    }
+
+    fun moveTranslator(current: Configuration, intent: SettingsIntent.MoveTranslatorInActivePreset) {
+        if (current.activeServicePresetId == null) {
+            logger.warn("No active preset - ignoring MoveTranslatorInActivePreset intent")
+            return
+        }
+        applyUpdate(current.withTranslatorMoved(intent.serviceId, intent.direction))
     }
 
     fun promoteTranslatorToPrimary(

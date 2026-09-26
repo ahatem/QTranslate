@@ -916,7 +916,7 @@ class SettingsDialog(
             )
 
         label("services") ->
-            ServicesPanel(settingsStore, pluginManager, localizationManager, scope)
+            ServicesPanel(settingsStore, pluginManager.activeServices, localizationManager, scope)
 
         label("plugins") ->
             PluginsPanel(iconManager, pluginManager, localizationManager, scope)

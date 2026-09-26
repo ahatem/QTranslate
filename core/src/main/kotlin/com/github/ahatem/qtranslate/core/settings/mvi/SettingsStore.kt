@@ -122,8 +122,14 @@ class SettingsStore(
             is SettingsIntent.UpdateServiceInActivePreset ->
                 presetManager.updateServiceInActivePreset(_state.value.workingConfiguration, intent)
 
-            is SettingsIntent.UpdateComparisonTranslatorsInActivePreset ->
-                presetManager.updateComparisonTranslators(_state.value.workingConfiguration, intent)
+            is SettingsIntent.AddTranslatorToActivePreset ->
+                presetManager.addTranslator(_state.value.workingConfiguration, intent)
+
+            is SettingsIntent.RemoveTranslatorFromActivePreset ->
+                presetManager.removeTranslator(_state.value.workingConfiguration, intent)
+
+            is SettingsIntent.MoveTranslatorInActivePreset ->
+                presetManager.moveTranslator(_state.value.workingConfiguration, intent)
 
             is SettingsIntent.PromoteTranslatorToPrimary ->
                 presetManager.promoteTranslatorToPrimary(_state.value.workingConfiguration, intent)

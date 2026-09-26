@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.core.settings.mvi
 
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
+import com.github.ahatem.qtranslate.core.settings.data.TranslatorMove
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
 
@@ -86,9 +87,22 @@ sealed interface SettingsIntent : UiIntent {
         val serviceId: String?
     ) : SettingsIntent
 
-    /** Updates only the active preset's ordered comparison translator draft. */
-    data class UpdateComparisonTranslatorsInActivePreset(
-        val serviceIds: List<String>
+    /**
+     * Adds [serviceId] to the active preset's translator set: it becomes Primary when the set
+     * has none, otherwise the last comparison translator. Existing members are left alone.
+     */
+    data class AddTranslatorToActivePreset(val serviceId: String) : SettingsIntent
+
+    /**
+     * Removes [serviceId] from the active preset's translator set. Removing the Primary promotes
+     * the first remaining member; removing the last member leaves no Primary.
+     */
+    data class RemoveTranslatorFromActivePreset(val serviceId: String) : SettingsIntent
+
+    /** Moves the comparison translator [serviceId] one step within the active preset's set. */
+    data class MoveTranslatorInActivePreset(
+        val serviceId: String,
+        val direction: TranslatorMove
     ) : SettingsIntent
 
     /**
