@@ -1,68 +1,20 @@
 package com.github.ahatem.qtranslate.ui.swing.quicktranslate
 
 import com.formdev.flatlaf.FlatClientProperties
-import com.formdev.flatlaf.util.UIScale
-import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
-import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
-import javax.swing.JComponent
-import javax.swing.JLabel
+import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoard
+import java.awt.BorderLayout
 import javax.swing.JPanel
 import javax.swing.JScrollPane
-import javax.swing.JSeparator
-import javax.swing.UIManager
-import java.awt.BorderLayout
-import java.awt.Dimension
-import java.awt.FlowLayout
 
-/** One bounded viewport for the primary result, its definition, and comparison cards. */
+/**
+ * One bounded viewport for the primary provider, its definition, and every
+ * comparison in a single column. The board owns all three, so Quick Translate
+ * never splits into disconnected scroll regions.
+ */
 internal class QuickTranslateResultsView(
-    primaryPane: JComponent,
-    definitionStrip: JComponent,
-    comparisonPanel: JComponent,
-    private val iconManager: IconManager? = null
+    board: CompareBoard
 ) : JPanel(BorderLayout()) {
-    private var initialized = false
-    private val providerIcon = JLabel().apply {
-        horizontalAlignment = JLabel.CENTER
-        preferredSize = Dimension(UIScale.scale(20), 0)
-    }
-    private val providerLabel = JLabel()
-    private val badgeLabel = JLabel().apply {
-        font = font.deriveFont(font.style or java.awt.Font.BOLD)
-        isOpaque = false
-    }
-    private val identity = JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(6), 0)).apply {
-        isOpaque = false
-        add(providerIcon)
-        add(providerLabel)
-    }
-    private val primarySurface = JPanel(BorderLayout()).apply {
-        isOpaque = false
-        maximumSize = Dimension(Int.MAX_VALUE, Int.MAX_VALUE)
-        val header = JPanel(BorderLayout()).apply {
-            isOpaque = false
-            val row = JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
-                isOpaque = false
-                border = javax.swing.BorderFactory.createEmptyBorder(
-                    UIScale.scale(8), UIScale.scale(11), UIScale.scale(4), UIScale.scale(11)
-                )
-                add(identity, BorderLayout.LINE_START)
-                add(badgeLabel, BorderLayout.LINE_END)
-            }
-            add(row, BorderLayout.NORTH)
-            add(JSeparator(), BorderLayout.SOUTH)
-        }
-        add(header, BorderLayout.NORTH)
-        add(primaryPane.apply { border = javax.swing.BorderFactory.createEmptyBorder(4, 11, 6, 11) }, BorderLayout.CENTER)
-        add(definitionStrip, BorderLayout.SOUTH)
-    }
-    private val content = JPanel().apply {
-        layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
-        isOpaque = false
-        add(primarySurface)
-        add(comparisonPanel)
-    }
-    val viewport = JScrollPane(content).apply {
+    val viewport = JScrollPane(board).apply {
         putClientProperty(
             FlatClientProperties.STYLE,
             "borderWidth: 0; focusWidth: 0; innerFocusWidth: 0; innerOutlineWidth: 0;"
@@ -76,28 +28,5 @@ internal class QuickTranslateResultsView(
     init {
         isOpaque = false
         add(viewport, BorderLayout.CENTER)
-        initialized = true
-    }
-
-    override fun updateUI() {
-        super.updateUI()
-        if (initialized) {
-            refreshBadgeForeground()
-        }
-    }
-
-    fun setPrimaryLabel(provider: ServiceInfo?, fallbackName: String, badge: String) {
-        providerLabel.text = provider?.name ?: fallbackName
-        providerIcon.icon = provider?.iconPath?.let { path ->
-            iconManager?.getIcon(provider.id, path, UIScale.scale(18), UIScale.scale(18))
-        }
-        providerIcon.isVisible = providerIcon.icon != null
-        badgeLabel.text = badge
-        refreshBadgeForeground()
-    }
-
-    private fun refreshBadgeForeground() {
-        badgeLabel.foreground = UIManager.getColor("Component.focusedBorderColor")
-            ?: UIManager.getColor("Label.foreground")
     }
 }

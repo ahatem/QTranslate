@@ -10,7 +10,7 @@ data class ComponentRegistry(
     val inputPanel: JComponent,
     val languageBar: JComponent,
     val outputPanel: JComponent,
-    val comparisonResultsPanel: JComponent,
+    val compareBoard: JComponent,
     val extraOutputPanel: JComponent,
     val translatorSelector: JComponent,
     val statusBar: JComponent
@@ -159,7 +159,7 @@ object LayoutBuilders {
         resizeWeight: Double = 0.5,
         topMinHeight: Int = UISpacing.MIN_PANEL_HEIGHT,
         bottomMinHeight: Int = UISpacing.MIN_PANEL_HEIGHT
-    ): JSplitPane {
+    ): MirroredSplitPane {
         top.minimumSize = Dimension(0, topMinHeight)
         bottom.minimumSize = Dimension(0, bottomMinHeight)
         return MirroredSplitPane(JSplitPane.VERTICAL_SPLIT, true, top, bottom).apply {
@@ -317,21 +317,22 @@ object ComparisonLayout : LayoutStrategy {
         // intentionally only the status bar so provider identity and results remain the focus.
         val bottomBar = components.statusBar
 
-        val workspaceContent = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            isOpaque = false
-            add(components.outputPanel)
-            add(components.comparisonResultsPanel)
-        }
+        // One logical results viewport: the board owns the primary provider and every
+        // comparison below it, so results never split into disconnected scroll regions.
         val resultsSection = JPanel(BorderLayout()).apply {
             add(LayoutBuilders.wrapLanguageBar(components.languageBar), BorderLayout.NORTH)
-            add(LayoutBuilders.wrapScrollable(workspaceContent), BorderLayout.CENTER)
+            add(LayoutBuilders.wrapScrollable(components.compareBoard), BorderLayout.CENTER)
         }
         val mainSplit = LayoutBuilders.createVerticalSplit(
             top = components.inputPanel,
             bottom = resultsSection,
-            resizeWeight = 0.32
-        )
+            resizeWeight = 0.28,
+            topMinHeight = UISpacing.MIN_PANEL_HEIGHT,
+            bottomMinHeight = UISpacing.MIN_PANEL_HEIGHT
+        ).apply {
+            // Input takes roughly the top 28%; extra height favours the results.
+            setLeadingProportion(0.28)
+        }
         val extraSplit = LayoutBuilders.createVerticalSplit(
             top = mainSplit,
             bottom = components.extraOutputPanel,

@@ -362,7 +362,7 @@ private class Shots(
                     .forEach { it.setLeadingProportion(0.5) }
             } else if (layoutPresetId == "comparison") {
                 panes.filter { it.orientation == JSplitPane.VERTICAL_SPLIT }
-                    .lastOrNull()?.setLeadingProportion(0.32)
+                    .lastOrNull()?.setLeadingProportion(0.28)
             } else {
                 panes.filter { it.orientation == JSplitPane.VERTICAL_SPLIT }
                     .lastOrNull()?.setLeadingProportion(0.5)

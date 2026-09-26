@@ -32,8 +32,13 @@ import com.github.ahatem.qtranslate.ui.swing.main.output.ExtraOutputState
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextPanel
 import com.github.ahatem.qtranslate.ui.swing.main.output.NoServiceState
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextState
-import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonResultsPanel
-import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonResultsState
+import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoard
+import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoardState
+import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderPresentation
+import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderRole
+import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderStatus
+import com.github.ahatem.qtranslate.ui.swing.main.output.TranslationProviderState
+import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelector
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorPopupButton
@@ -150,10 +155,12 @@ class MainContentView(
             dispatch(MainIntent.UpdateInputText(text))
             inputTextPanel.requestFocusOnText()
         },
-        comparisonPrimarySelector = comparisonPrimarySelector,
     )
 
-    private val comparisonResultsPanel = ComparisonResultsPanel(iconManager = iconManager)
+    private val compareBoard = CompareBoard(
+        primarySelector = comparisonPrimarySelector,
+        iconManager = iconManager
+    )
 
     private val extraOutputPanel = ExtraOutputPanel(
         iconManager = iconManager,
@@ -204,7 +211,7 @@ class MainContentView(
             languageBar = languageSelectionBar,
             inputPanel = inputTextPanel,
             outputPanel = outputTextPanel,
-            comparisonResultsPanel = comparisonResultsPanel,
+            compareBoard = compareBoard,
             extraOutputPanel = extraOutputPanel,
             statusBar = statusBar
         ), contentWrapper
@@ -227,6 +234,7 @@ class MainContentView(
 
     private var lastState: Pair<MainState, SettingsState>? = null
     private var lastDictionaryKey: DictionaryKey? = null
+    private var currentLayoutId: String? = null
     /** The translate binding the settings ask for, so an unchanged request is not re-issued. */
     private var requestedTranslateKeyStroke: KeyStroke? = null
 
@@ -276,7 +284,9 @@ class MainContentView(
 
         if (lastState == null || lastState?.second?.workingConfiguration?.layoutPresetId != config.layoutPresetId) {
             layoutManager.switchLayout(config.layoutPresetId, localizer.isRtl)
+            currentLayoutId = config.layoutPresetId
         }
+        translationHistoryBar.setStatusVisible(config.layoutPresetId != LayoutPresetIds.COMPARISON)
 
         if (lastState == null ||
             lastState?.second?.workingConfiguration?.toolbarVisibility != config.toolbarVisibility ||
@@ -357,6 +367,103 @@ class MainContentView(
         val mods = java.awt.event.InputEvent.getModifiersExText(ks.modifiers)
         val key  = java.awt.event.KeyEvent.getKeyText(ks.keyCode)
         return if (mods.isEmpty()) key else "$mods+$key"
+    }
+
+    private fun renderCompareBoard(
+        mainState: MainState,
+        config: Configuration,
+        selectedTranslatorId: String?,
+        selectedTranslator: com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo?
+    ) {
+        val comparisonIds = config.getActivePreset()?.comparisonTranslatorIds.orEmpty()
+        val primaryStatus = when {
+            mainState.translatedText.isNotBlank() -> ProviderStatus.SUCCESS
+            mainState.isLoading -> ProviderStatus.LOADING
+            else -> ProviderStatus.PLACEHOLDER
+        }
+        val readyCount = comparisonIds.size + if (selectedTranslatorId != null) 1 else 0
+        val primaryState = TranslationProviderState(
+            serviceId = selectedTranslatorId ?: "",
+            serviceName = selectedTranslator?.name ?: localizer.getString("main_window.no_translator"),
+            iconPath = selectedTranslator?.iconPath,
+            role = ProviderRole.PRIMARY,
+            presentation = ProviderPresentation.MAIN,
+            status = primaryStatus,
+            text = mainState.translatedText,
+            loadingText = localizer.getString("main_window.comparison_loading"),
+            failureText = localizer.getString("main_window.comparison_failure"),
+            copyLabel = localizer.getString("main_window.comparison_copy"),
+            listenLabel = localizer.getString("main_window_editor_context_menu.listen"),
+            stopLabel = localizer.getString("common.stop"),
+            isTtsPlaying = mainState.isTtsPlaying,
+            primaryLabel = localizer.getString("main_window.comparison_primary"),
+            placeholderTitle = localizer.getString("main_window.comparison_empty"),
+            placeholderSubtitle = localizer.getString("main_window.comparison_empty_subtitle", readyCount),
+            definition = mainState.inlineDefinition,
+            findInDictionaryLabel = localizer.getString("main_window_editor_context_menu.find_in_dictionary"),
+            searchImagesLabel = localizer.getString("main_window_editor_context_menu.search_images"),
+            setAsInputLabel = localizer.getString("main_window_editor_context_menu.set_as_input"),
+            fontConfig = config.scaledEditorFont,
+            fallbackFontConfig = config.scaledEditorFallbackFont,
+            selectorState = TranslatorSelectorState(
+                availableTranslators = mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR),
+                selectedTranslatorId = selectedTranslatorId,
+                isLoading = mainState.isLoading
+            ),
+            onCopy = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) },
+            onListen = { dispatch(MainIntent.ListenToText(textSource = TextSource.Output)) },
+            onStop = { dispatch(MainIntent.StopTTS) },
+            onTranslateRequest = { text ->
+                dispatch(MainIntent.UpdateInputText(text))
+                dispatch(MainIntent.Translate(text))
+            },
+            onFindInDictionary = { word -> showDictionaryWithWord(word, currentTargetLanguage) },
+            onSearchImages = { word -> showImagesForWord(word, currentTargetLanguage) },
+            onSetAsInput = { text ->
+                dispatch(MainIntent.UpdateInputText(text))
+                inputTextPanel.requestFocusOnText()
+            },
+            getContextMenuLabel = { key ->
+                localizer.getString("main_window_editor_context_menu.$key")
+            }
+        )
+        val providerInfos = mainState.availableServices.associateBy { it.id }
+        val secondaries = mainState.comparisonResults.map { result ->
+            val info = providerInfos[result.serviceId]
+            TranslationProviderState(
+                serviceId = result.serviceId,
+                serviceName = info?.name ?: result.serviceName
+                ?: localizer.getString("main_window.comparison_unavailable"),
+                iconPath = info?.iconPath,
+                role = ProviderRole.SECONDARY,
+                presentation = ProviderPresentation.MAIN,
+                status = when (result.status) {
+                    ComparisonStatus.LOADING -> ProviderStatus.LOADING
+                    ComparisonStatus.SUCCESS -> ProviderStatus.SUCCESS
+                    ComparisonStatus.FAILURE -> ProviderStatus.FAILURE
+                },
+                text = result.text,
+                errorMessage = result.errorMessage,
+                loadingText = localizer.getString("main_window.comparison_loading"),
+                failureText = localizer.getString("main_window.comparison_failure"),
+                copyLabel = localizer.getString("main_window.comparison_copy"),
+                fontConfig = config.scaledEditorFont,
+                fallbackFontConfig = config.scaledEditorFallbackFont,
+                onCopy = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) }
+            )
+        }
+        val showNoProviders = config.layoutPresetId == LayoutPresetIds.COMPARISON &&
+            mainState.translatedText.isNotBlank() && comparisonIds.isEmpty()
+        compareBoard.render(
+            CompareBoardState(
+                primary = primaryState,
+                secondaries = secondaries,
+                showNoProviders = showNoProviders,
+                noProvidersText = localizer.getString("main_window.comparison_no_providers"),
+                configureLabel = localizer.getString("main_window.comparison_configure"),
+                onConfigure = { onOpenServiceSettings() }
+            )
+        )
     }
 
     private fun renderDictionaryPanel(mainState: MainState, config: Configuration) {
@@ -623,39 +730,11 @@ class MainContentView(
             )
         )
 
-        outputTextPanel.setComparisonWorkspace(
-            visible = config.layoutPresetId == LayoutPresetIds.COMPARISON,
-            providerName = selectedTranslator?.name ?: localizer.getString("main_window.no_translator"),
-            primaryBadge = localizer.getString("main_window.comparison_primary")
-        )
-        val comparisonIds = activePreset?.comparisonTranslatorIds.orEmpty()
-        val comparisonWorkspace = config.layoutPresetId == LayoutPresetIds.COMPARISON
-        val showComparisonPrompt = comparisonWorkspace && mainState.translatedText.isBlank()
-        val showNoComparisonProviders = comparisonWorkspace && mainState.translatedText.isNotBlank() && comparisonIds.isEmpty()
-        comparisonResultsPanel.render(
-            ComparisonResultsState(
-                results = mainState.comparisonResults,
-                loadingText = localizer.getString("main_window.comparison_loading"),
-                unavailableText = localizer.getString("main_window.comparison_unavailable"),
-                failureText = localizer.getString("main_window.comparison_failure"),
-                copyLabel = localizer.getString("main_window.comparison_copy"),
-                collapseLabel = localizer.getString("main_window.comparison_collapse"),
-                expandLabel = localizer.getString("main_window.comparison_expand"),
-                fontConfig = config.scaledEditorFont,
-                fallbackFontConfig = config.scaledEditorFallbackFont,
-                onCopy = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) },
-                providerInfos = mainState.availableServices.associateBy { it.id },
-                showEmptyState = mainState.comparisonResults.isEmpty() && !mainState.isLoading &&
-                    (showComparisonPrompt || showNoComparisonProviders),
-                emptyText = if (showNoComparisonProviders) {
-                    localizer.getString("main_window.comparison_no_providers")
-                } else localizer.getString("main_window.comparison_empty"),
-                configureLabel = if (showNoComparisonProviders) {
-                    localizer.getString("main_window.comparison_configure")
-                } else "",
-                onConfigure = onOpenServiceSettings
-            )
-        )
+        // The board backing the Comparison layout renders only there; other
+        // layouts keep using the classic output panel above.
+        if (config.layoutPresetId == LayoutPresetIds.COMPARISON) {
+            renderCompareBoard(mainState, config, selectedTranslatorId, selectedTranslator)
+        }
 
         // The extra-output pane offers whatever the service behind the active type declares.
         // Backward translation has no options, and neither does a service that declares none —
@@ -768,7 +847,11 @@ class MainContentView(
      */
     fun switchToAndFocusOutput() {
         layoutManager.selectCompactTab(1)
-        outputTextPanel.requestFocusOnText()
+        if (currentLayoutId == LayoutPresetIds.COMPARISON) {
+            compareBoard.primaryProviderView.requestFocusOnText()
+        } else {
+            outputTextPanel.requestFocusOnText()
+        }
     }
 
     /**
@@ -787,7 +870,11 @@ class MainContentView(
      */
     fun orderedTextPanes(): List<JComponent> = buildList {
         add(inputTextPanel.textPaneComponent)
-        add(outputTextPanel.textPaneComponent)
+        if (currentLayoutId == LayoutPresetIds.COMPARISON) {
+            add(compareBoard.primaryProviderView.textPaneComponent)
+        } else {
+            add(outputTextPanel.textPaneComponent)
+        }
         if (extraOutputPanel.isVisible) add(extraOutputPanel.textPaneComponent)
     }
 
@@ -816,6 +903,7 @@ class MainContentView(
         listOf(
             inputTextPanel.textPaneComponent,
             outputTextPanel.textPaneComponent,
+            compareBoard.primaryProviderView.textPaneComponent,
             extraOutputPanel.textPaneComponent
         ).forEach { it.installContentDropHandler(onContent, onDragOver, onDropped) }
     }

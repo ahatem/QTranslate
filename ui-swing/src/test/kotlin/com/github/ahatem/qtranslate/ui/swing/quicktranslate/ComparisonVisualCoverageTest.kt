@@ -1,108 +1,175 @@
 package com.github.ahatem.qtranslate.ui.swing.quicktranslate
 
-import com.github.ahatem.qtranslate.api.plugin.ServiceRole
-import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
-import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonTranslationResult
-import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
-import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonResultsPanel
-import com.github.ahatem.qtranslate.ui.swing.main.output.ComparisonResultsState
-import com.github.ahatem.qtranslate.ui.swing.main.output.ResultPresentationMode
-import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
-import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DefinitionStrip
+import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoard
+import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoardState
+import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderPresentation
+import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderRole
+import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderStatus
+import com.github.ahatem.qtranslate.ui.swing.main.output.TranslationProviderState
+import com.github.ahatem.qtranslate.ui.swing.main.output.TranslationProviderView
 import java.awt.Color
 import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
+import javax.swing.JLabel
 import javax.swing.SwingUtilities
 import javax.swing.UIManager
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ComparisonVisualCoverageTest {
     private val font = FontConfig("Dialog", 14)
 
+    private fun provider(
+        id: String,
+        name: String,
+        role: ProviderRole,
+        presentation: ProviderPresentation,
+        text: String = "$id result",
+        status: ProviderStatus = ProviderStatus.SUCCESS,
+        error: String? = null,
+        definition: String = ""
+    ) = TranslationProviderState(
+        serviceId = id,
+        serviceName = name,
+        iconPath = null,
+        role = role,
+        presentation = presentation,
+        status = status,
+        text = text,
+        errorMessage = error,
+        loadingText = "Translating...",
+        failureText = "Translation failed",
+        copyLabel = "Copy",
+        listenLabel = "Listen",
+        stopLabel = "Stop",
+        primaryLabel = "Primary",
+        placeholderTitle = "Translate to compare results",
+        placeholderSubtitle = "4 translation services ready",
+        definition = definition,
+        fontConfig = font,
+        fallbackFontConfig = font,
+        onCopy = {}
+    )
+
     @Test
-    fun `comparison dark stack covers success loading failure mix`() {
+    fun `narrow dark comparison board shows primary and three arabic providers`() {
         withTheme(Color(35, 37, 42), Color(82, 86, 96), Color(120, 150, 220)) {
-            val panel = ComparisonResultsPanel(ResultPresentationMode.MAIN_WORKSPACE)
+            val board = CompareBoard(iconManager = null)
             SwingUtilities.invokeAndWait {
-                panel.render(
-                    state(
-                        listOf(
-                            ComparisonTranslationResult("one", "Provider One", ComparisonStatus.SUCCESS, "First result"),
-                            ComparisonTranslationResult("two", "Provider Two", ComparisonStatus.LOADING),
-                            ComparisonTranslationResult("three", "Provider Three", ComparisonStatus.FAILURE, errorMessage = "Provider timed out")
+                board.render(
+                    CompareBoardState(
+                        primary = provider(
+                            "primary", "Google", ProviderRole.PRIMARY, ProviderPresentation.MAIN,
+                            text = "تعمل الحركة الدودية على دفع الطعام عبر الجهاز الهضمي"
+                        ),
+                        secondaries = listOf(
+                            provider("one", "Provider One", ProviderRole.SECONDARY, ProviderPresentation.MAIN, text = "نتيجة أولى"),
+                            provider("two", "Provider Two", ProviderRole.SECONDARY, ProviderPresentation.MAIN, status = ProviderStatus.LOADING, text = ""),
+                            provider("three", "Provider Three", ProviderRole.SECONDARY, ProviderPresentation.MAIN, status = ProviderStatus.FAILURE, text = "", error = "Provider timed out")
                         )
                     )
                 )
-                panel.setSize(760, 520)
-                panel.doLayout()
+                board.setSize(480, 700)
+                board.doLayout()
             }
-            assertScreenshot(panel, Color(35, 37, 42), "comparison-dark-mix")
+            SwingUtilities.invokeAndWait { }
+            board.components.filterIsInstance<TranslationProviderView>().forEach { view ->
+                assertTrue(view.x + view.width <= board.width, "provider clipped at the board edge")
+            }
+            assertScreenshot(board, Color(35, 37, 42), "comparison-dark-narrow")
         }
     }
 
     @Test
-    fun `comparison light empty state has intentional configure prompt`() {
+    fun `wide comparison board arranges secondaries in two columns`() {
         withTheme(Color(248, 248, 250), Color(190, 190, 198), Color(70, 100, 180)) {
-            val panel = ComparisonResultsPanel(ResultPresentationMode.MAIN_WORKSPACE)
+            val board = CompareBoard(iconManager = null)
             SwingUtilities.invokeAndWait {
-                panel.render(
-                    state(emptyList()).copy(
-                        showEmptyState = true,
-                        emptyText = "Translations will appear here",
-                        configureLabel = "Configure"
+                board.render(
+                    CompareBoardState(
+                        primary = provider("primary", "Google", ProviderRole.PRIMARY, ProviderPresentation.MAIN, text = "First result"),
+                        secondaries = listOf(
+                            provider("one", "Provider One", ProviderRole.SECONDARY, ProviderPresentation.MAIN, text = "First result"),
+                            provider("two", "Provider Two", ProviderRole.SECONDARY, ProviderPresentation.MAIN, text = "Second result"),
+                            provider("three", "Provider Three", ProviderRole.SECONDARY, ProviderPresentation.MAIN, text = "Third result")
+                        )
                     )
                 )
-                panel.setSize(760, 520)
-                panel.doLayout()
+                board.setSize(1000, 700)
+                board.doLayout()
             }
-            assertScreenshot(panel, Color(248, 248, 250), "comparison-light-empty")
+            SwingUtilities.invokeAndWait { }
+            val xs = board.components.filterIsInstance<TranslationProviderView>()
+                .drop(1).map { it.x }.toSet()
+            assertEquals(2, xs.size, "wide board must use two secondary columns")
+            assertScreenshot(board, Color(248, 248, 250), "comparison-wide")
         }
     }
 
     @Test
-    fun `quick comparison popup uses one viewport for primary and two comparisons`() {
+    fun `empty comparison shows the integrated primary placeholder`() {
         withTheme(Color(248, 248, 250), Color(190, 190, 198), Color(70, 100, 180)) {
-            val primary = AdvancedTextPane({}, {}, {}).apply { render("Primary translation", emptyList(), false) }
-            val definition = DefinitionStrip()
-            val comparisons = ComparisonResultsPanel(ResultPresentationMode.QUICK_POPUP)
-            comparisons.render(
-                state(
-                    listOf(
-                        ComparisonTranslationResult("one", "Provider One", ComparisonStatus.SUCCESS, "First result"),
-                        ComparisonTranslationResult("two", "Provider Two", ComparisonStatus.SUCCESS, "Second result")
+            val board = CompareBoard(iconManager = null)
+            SwingUtilities.invokeAndWait {
+                board.render(
+                    CompareBoardState(
+                        primary = provider(
+                            "primary", "Google", ProviderRole.PRIMARY, ProviderPresentation.MAIN,
+                            status = ProviderStatus.PLACEHOLDER, text = ""
+                        ),
+                        secondaries = emptyList()
                     )
                 )
-            )
-            val view = QuickTranslateResultsView(primary, definition, comparisons)
-            view.setPrimaryLabel(null, "Primary provider", "PRIMARY")
+                board.setSize(760, 520)
+                board.doLayout()
+            }
+            SwingUtilities.invokeAndWait { }
+            val labels = descendants(board).filterIsInstance<JLabel>().mapNotNull { it.text }
+            assertTrue(labels.contains("Translate to compare results"))
+            assertScreenshot(board, Color(248, 248, 250), "comparison-empty")
+        }
+    }
+
+    @Test
+    fun `quick comparison popup uses one viewport in a single column`() {
+        withTheme(Color(248, 248, 250), Color(190, 190, 198), Color(70, 100, 180)) {
+            lateinit var view: QuickTranslateResultsView
+            lateinit var board: CompareBoard
             SwingUtilities.invokeAndWait {
+                board = CompareBoard(iconManager = null)
+                board.render(
+                    CompareBoardState(
+                        primary = provider(
+                            "primary", "Primary provider", ProviderRole.PRIMARY, ProviderPresentation.QUICK,
+                            text = "Primary translation", definition = "a definition"
+                        ),
+                        secondaries = listOf(
+                            provider("one", "Provider One", ProviderRole.SECONDARY, ProviderPresentation.QUICK, text = "First result"),
+                            provider("two", "Provider Two", ProviderRole.SECONDARY, ProviderPresentation.QUICK, text = "Second result")
+                        )
+                    )
+                )
+                view = QuickTranslateResultsView(board)
                 view.setSize(520, 620)
                 view.doLayout()
                 view.viewport.doLayout()
-                view.viewport.viewport.view.doLayout()
             }
+            SwingUtilities.invokeAndWait { }
+            assertEquals(
+                1,
+                board.components.filterIsInstance<TranslationProviderView>().map { it.x }.toSet().size
+            )
             assertScreenshot(view, Color(248, 248, 250), "quick-comparison")
         }
     }
 
-    private fun state(results: List<ComparisonTranslationResult>) = ComparisonResultsState(
-        results = results,
-        loadingText = "Translating...",
-        unavailableText = "Unavailable service",
-        failureText = "Translation failed",
-        copyLabel = "Copy",
-        collapseLabel = "Collapse result",
-        expandLabel = "Expand result",
-        fontConfig = font,
-        fallbackFontConfig = font,
-        onCopy = {},
-        providerInfos = results.associate { result ->
-            result.serviceId to ServiceInfo(result.serviceId, result.serviceName ?: result.serviceId, null, ServiceRole.TRANSLATOR)
-        }
-    )
+    private fun descendants(component: java.awt.Component): List<java.awt.Component> =
+        listOf(component) + if (component is java.awt.Container) {
+            component.components.flatMap(::descendants)
+        } else emptyList()
 
     private fun withTheme(background: Color, border: Color, focus: Color, block: () -> Unit) {
         val old = mapOf(
@@ -127,7 +194,9 @@ class ComparisonVisualCoverageTest {
             graphics.color = background
             graphics.fillRect(0, 0, image.width, image.height)
             component.isVisible = true
-            layoutRecursively(component)
+            // On the EDT: measuring a text pane takes its document read lock,
+            // which deadlocks against an async font rescan when done elsewhere.
+            SwingUtilities.invokeAndWait { layoutRecursively(component) }
             SwingUtilities.invokeAndWait { component.printAll(graphics) }
         } finally {
             graphics.dispose()

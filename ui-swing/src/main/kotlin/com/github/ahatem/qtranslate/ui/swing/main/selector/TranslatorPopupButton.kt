@@ -12,7 +12,9 @@ import kotlin.math.max
 
 class TranslatorPopupButton(
     private val iconManager: IconManager,
-    private val onTranslatorSelected: (serviceId: String) -> Unit
+    private val onTranslatorSelected: (serviceId: String) -> Unit,
+    /** When true the button shows "[icon] Name" as one selector control instead of icon only. */
+    var textMode: Boolean = false
 ) : JPanel(BorderLayout()), Renderable<TranslatorSelectorState> {
 
     private companion object {
@@ -47,7 +49,12 @@ class TranslatorPopupButton(
         } ?: createPlaceholderIcon()
 
         actionButton.icon = CompositeIcon(serviceIcon, arrowIcon)
-        actionButton.text = null
+        if (textMode) {
+            actionButton.text = selectedService?.name ?: "Select Translator"
+            actionButton.horizontalAlignment = SwingConstants.LEADING
+        } else {
+            actionButton.text = null
+        }
 
         actionButton.toolTipText = selectedService?.name ?: "Select Translator"
         actionButton.isEnabled = !state.isLoading && state.availableTranslators.isNotEmpty()
