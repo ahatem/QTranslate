@@ -550,10 +550,13 @@ class TranslationProviderView(
     fun headerActionsForTest(): JPanel = headerActions
     fun selectorForTest(): TranslatorPopupButton? = selector
 
+    /**
+     * Plain FlatLaf toolbar buttons: hover, pressed, and focus states all come
+     * from the look and feel. In particular [isContentAreaFilled] stays enabled —
+     * disabling it also disables FlatLaf's toolbar hover/pressed backgrounds.
+     */
     private fun toolbarButton(): JButton = JButton().apply {
-        isFocusable = false
-        isContentAreaFilled = false
-        isBorderPainted = false
+        isFocusable = true
         putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
     }
 

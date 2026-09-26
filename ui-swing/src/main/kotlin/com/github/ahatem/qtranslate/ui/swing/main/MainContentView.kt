@@ -9,6 +9,7 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
+import com.github.ahatem.qtranslate.core.settings.data.effectiveLayoutPresetId
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.api.plugin.StandardOptions
@@ -104,7 +105,9 @@ class MainContentView(
     private val comparisonPrimarySelector = TranslatorPopupButton(
         iconManager = iconManager,
         onTranslatorSelected = { serviceId ->
-            dispatchSettings(SettingsIntent.UpdateServiceInActivePreset(ServiceRole.TRANSLATOR, serviceId))
+            // Promotion, not plain selection: the old primary takes the
+            // promoted translator's comparison slot, so the set never shrinks.
+            dispatchSettings(SettingsIntent.PromoteTranslatorToPrimary(serviceId))
             dispatch(MainIntent.Translate())
         }
     )
@@ -235,6 +238,8 @@ class MainContentView(
     private var lastState: Pair<MainState, SettingsState>? = null
     private var lastDictionaryKey: DictionaryKey? = null
     private var currentLayoutId: String? = null
+    /** Last arranged layout, so eligibility changes re-arrange without rewriting the preference. */
+    private var lastEffectiveLayoutId: String? = null
     /** The translate binding the settings ask for, so an unchanged request is not re-issued. */
     private var requestedTranslateKeyStroke: KeyStroke? = null
 
@@ -277,16 +282,21 @@ class MainContentView(
 
     fun render(mainState: MainState, settingsState: SettingsState) {
         val config = settingsState.workingConfiguration
+        // Effective arrangement: a requested Comparison without two usable
+        // translators deterministically shows Classic. The saved preference is
+        // never rewritten, so eligibility restores Comparison naturally.
+        val effectiveLayoutId = config.effectiveLayoutPresetId(availableTranslatorIds(mainState))
 
         // Told outright rather than left to the orientation cascade, which reaches the split pane
         // at a point in startup that depends on when this view was added to the window.
         splitPane.isMirrored = localizer.isRtl
 
-        if (lastState == null || lastState?.second?.workingConfiguration?.layoutPresetId != config.layoutPresetId) {
-            layoutManager.switchLayout(config.layoutPresetId, localizer.isRtl)
-            currentLayoutId = config.layoutPresetId
+        if (lastState == null || lastState?.second?.workingConfiguration?.layoutPresetId != config.layoutPresetId || lastEffectiveLayoutId != effectiveLayoutId) {
+            layoutManager.switchLayout(effectiveLayoutId, localizer.isRtl)
+            currentLayoutId = effectiveLayoutId
+            lastEffectiveLayoutId = effectiveLayoutId
         }
-        translationHistoryBar.setStatusVisible(config.layoutPresetId != LayoutPresetIds.COMPARISON)
+        translationHistoryBar.setStatusVisible(effectiveLayoutId != LayoutPresetIds.COMPARISON)
 
         if (lastState == null ||
             lastState?.second?.workingConfiguration?.toolbarVisibility != config.toolbarVisibility ||
@@ -298,9 +308,12 @@ class MainContentView(
         updateTranslateKeyStroke(config)
         updateFocusKeyStrokes(config)
         renderDictionaryPanel(mainState, config)
-        renderComponents(mainState, config)
+        renderComponents(mainState, config, effectiveLayoutId)
         lastState = mainState to settingsState
     }
+
+    private fun availableTranslatorIds(mainState: MainState): Set<String> =
+        mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR).map { it.id }.toSet()
 
     /**
      * Keeps the per-pane translate keystroke in sync with the user's configured binding.
@@ -452,16 +465,10 @@ class MainContentView(
                 onCopy = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) }
             )
         }
-        val showNoProviders = config.layoutPresetId == LayoutPresetIds.COMPARISON &&
-            mainState.translatedText.isNotBlank() && comparisonIds.isEmpty()
         compareBoard.render(
             CompareBoardState(
                 primary = primaryState,
-                secondaries = secondaries,
-                showNoProviders = showNoProviders,
-                noProvidersText = localizer.getString("main_window.comparison_no_providers"),
-                configureLabel = localizer.getString("main_window.comparison_configure"),
-                onConfigure = { onOpenServiceSettings() }
+                secondaries = secondaries
             )
         )
     }
@@ -564,7 +571,7 @@ class MainContentView(
         }
     }
 
-    private fun renderComponents(mainState: MainState, config: Configuration) {
+    private fun renderComponents(mainState: MainState, config: Configuration, effectiveLayoutId: String) {
         currentTargetLanguage = mainState.targetLanguage
 
         // BackwardTranslate output is in the source language; all other extra output types are in target.
@@ -732,7 +739,7 @@ class MainContentView(
 
         // The board backing the Comparison layout renders only there; other
         // layouts keep using the classic output panel above.
-        if (config.layoutPresetId == LayoutPresetIds.COMPARISON) {
+        if (effectiveLayoutId == LayoutPresetIds.COMPARISON) {
             renderCompareBoard(mainState, config, selectedTranslatorId, selectedTranslator)
         }
 

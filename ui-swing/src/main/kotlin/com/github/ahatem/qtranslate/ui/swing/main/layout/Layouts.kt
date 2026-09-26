@@ -22,13 +22,20 @@ sealed interface LayoutComponentRefs {
 
     data class WithSplitPanes(
         val mainSplit: JSplitPane,
-        val extraSplit: JSplitPane
+        val extraSplit: JSplitPane,
+        /**
+         * Optional layout-owned boundary above the extra panel (Comparison
+         * only). Toggled together with the panel so a hidden Extra Output
+         * leaves no stray separation behind.
+         */
+        val extraBoundary: JComponent? = null
     ) : LayoutComponentRefs {
         override fun updateExtraOutputVisibility(visible: Boolean, extraPanel: JComponent) {
             SwingUtilities.invokeLater {
                 val wasContinuous = extraSplit.isContinuousLayout
                 extraSplit.isContinuousLayout = false
                 extraPanel.isVisible = visible
+                extraBoundary?.isVisible = visible
                 if (visible) {
                     extraSplit.dividerSize = UISpacing.DIVIDER_SIZE
                     extraSplit.resetToPreferredSizes()
@@ -333,9 +340,18 @@ object ComparisonLayout : LayoutStrategy {
             // Input takes roughly the top 28%; extra height favours the results.
             setLeadingProportion(0.28)
         }
+        // Layout-owned boundary between the comparison results and the derived
+        // Extra Output: a plain theme-aware separator, not a panel border and
+        // not a box around either region.
+        val extraBoundary = JSeparator(SwingConstants.HORIZONTAL)
+        val extraSection = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            add(extraBoundary, BorderLayout.NORTH)
+            add(components.extraOutputPanel, BorderLayout.CENTER)
+        }
         val extraSplit = LayoutBuilders.createVerticalSplit(
             top = mainSplit,
-            bottom = components.extraOutputPanel,
+            bottom = extraSection,
             resizeWeight = 0.8,
             bottomMinHeight = UISpacing.MIN_EXTRA_HEIGHT
         )
@@ -354,7 +370,7 @@ object ComparisonLayout : LayoutStrategy {
             add(contentPanel, BorderLayout.CENTER)
             add(bottomBar, BorderLayout.SOUTH)
         }
-        val refs = LayoutComponentRefs.WithSplitPanes(mainSplit, extraSplit)
+        val refs = LayoutComponentRefs.WithSplitPanes(mainSplit, extraSplit, extraBoundary)
         refs.syncExtraOutputState(components.extraOutputPanel)
         return ArrangedLayout(root, refs)
     }

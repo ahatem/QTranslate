@@ -185,8 +185,10 @@ class MainAppFrame(
             localizationManager = localizer,
             onDismiss = { mainStore.dispatch(MainIntent.HideQuickTranslate) },
             onTranslatorSelected = { serviceId ->
+                // Same promotion semantics as the Comparison header: the old
+                // primary takes the promoted translator's comparison slot.
                 settingsStore.dispatch(
-                    SettingsIntent.UpdateServiceInActivePreset(ServiceRole.TRANSLATOR, serviceId)
+                    SettingsIntent.PromoteTranslatorToPrimary(serviceId)
                 )
                 mainStore.dispatch(MainIntent.RetranslateQuickTranslate)
             },
@@ -237,6 +239,9 @@ class MainAppFrame(
         themeManager = themeManager,
         localizationManager = localizer,
         availableLanguages = { mainStore.state.value.availableLanguages },
+        availableTranslatorIds = {
+            mainStore.state.value.getAvailableServicesFor(ServiceRole.TRANSLATOR).map { it.id }.toSet()
+        },
         translateString = translateString,
         appSecrets = appSecrets,
         pauseGlobalHotkeys  = { globalKeyListener.setPaused(true) },
@@ -1200,6 +1205,10 @@ class MainAppFrame(
             checkForUpdates = localizer.getString("main_window_main_menu.check_for_updates"),
             exit = localizer.getString("main_window_main_menu.exit"),
             layoutPresets = localizer.getString("main_window_main_menu.layout_presets"),
+            layoutComparisonAvailable = currentConfig.isComparisonEligible(
+                mainStore.state.value.getAvailableServicesFor(ServiceRole.TRANSLATOR).map { it.id }.toSet()
+            ),
+            layoutComparisonUnavailableHint = localizer.getString("settings_window.layout_comparison_unavailable"),
             showHistoryControls = localizer.getString("main_window_main_menu.show_history_bar"),
             showLanguageBar = localizer.getString("main_window_main_menu.show_language_bar"),
             showServicesPanel = localizer.getString("main_window_main_menu.show_services_panel"),
@@ -1588,7 +1597,11 @@ class MainAppFrame(
             primaryBadge = localizer.getString("main_window.comparison_primary"),
             primaryProviderInfo = selectedTranslator,
             comparisonProviderInfos = mainState.availableServices.associateBy { it.id },
-            comparisonsEnabled = activePreset?.comparisonTranslatorIds.orEmpty().isNotEmpty()
+            // Canonical primary only with fewer than two usable translators;
+            // comparison results appear only once Comparison is eligible.
+            comparisonsEnabled = config.isComparisonEligible(
+                mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR).map { it.id }.toSet()
+            )
         )
     }
 
@@ -2124,6 +2137,7 @@ class MainAppFrame(
             StatusCode.TranslationTimeout           -> localizer.getString("status_bar.translation_timeout")
             is StatusCode.TranslationFailed         -> localizer.getString("status_bar.translation_failed", code.summary)
             StatusCode.NoTranslatorActive           -> localizer.getString("status_bar.no_translator_active")
+            StatusCode.ComparisonNeedsTwoTranslators -> localizer.getString("status_bar.comparison_needs_two_translators")
             StatusCode.PerformingBackwardTranslation -> localizer.getString("status_bar.performing_backward_translation")
             is StatusCode.UnexpectedError           -> localizer.getString("status_bar.unexpected_error", code.summary)
             StatusCode.NoTextToSpeak                -> localizer.getString("status_bar.no_text_to_speak")

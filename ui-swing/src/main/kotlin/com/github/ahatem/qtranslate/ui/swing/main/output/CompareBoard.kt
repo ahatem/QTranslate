@@ -6,25 +6,17 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import java.awt.Component
 import java.awt.Container
 import java.awt.Dimension
-import java.awt.FlowLayout
 import java.awt.LayoutManager
 import java.awt.Rectangle
 import javax.swing.BorderFactory
-import javax.swing.JButton
-import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JSeparator
 import javax.swing.Scrollable
 import javax.swing.SwingConstants
-import javax.swing.UIManager
 
 data class CompareBoardState(
     val primary: TranslationProviderState,
-    val secondaries: List<TranslationProviderState>,
-    val showNoProviders: Boolean = false,
-    val noProvidersText: String = "",
-    val configureLabel: String = "",
-    val onConfigure: () -> Unit = {}
+    val secondaries: List<TranslationProviderState>
 )
 
 /**
@@ -43,18 +35,6 @@ class CompareBoard(
     private val iconManagerRef = iconManager
     private val primaryView = TranslationProviderView(iconManagerRef, primarySelector)
     private val secondaryViews = linkedMapOf<String, TranslationProviderView>()
-
-    private val noProvidersLabel = JLabel()
-    private val configureButton = JButton().apply {
-        putClientProperty("JButton.buttonType", "toolBarButton")
-        isFocusable = true
-    }
-    private val noProvidersPanel = JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(4), 0)).apply {
-        isOpaque = false
-        isVisible = false
-        add(noProvidersLabel)
-        add(configureButton)
-    }
 
     private val boardLayout = CompareBoardLayout()
     private var lastOuterPad = -1
@@ -77,7 +57,6 @@ class CompareBoard(
         add(primaryView)
         add(primaryRule)
         add(centerRule)
-        add(noProvidersPanel)
         border = BorderFactory.createEmptyBorder(
             UIScale.scale(8), UIScale.scale(8), UIScale.scale(8), UIScale.scale(8)
         )
@@ -112,17 +91,6 @@ class CompareBoard(
             add(primaryView, 0)
         }
 
-        noProvidersPanel.isVisible = state.showNoProviders
-        if (state.showNoProviders) {
-            noProvidersLabel.text = state.noProvidersText
-            noProvidersLabel.foreground = UIManager.getColor("Label.disabledForeground")
-            configureButton.text = state.configureLabel
-            configureButton.isVisible = state.configureLabel.isNotBlank()
-            configureButton.actionListeners.forEach(configureButton::removeActionListener)
-            configureButton.addActionListener { state.onConfigure() }
-            if (noProvidersPanel.parent !== this) add(noProvidersPanel)
-        }
-
         updateOuterPadding()
         revalidate()
         repaint()
@@ -135,8 +103,6 @@ class CompareBoard(
         .map { it.serviceId }
 
     fun isWideForTest(): Boolean = boardLayout.wideMode
-
-    fun noProvidersVisibleForTest(): Boolean = noProvidersPanel.isVisible
 
     /** Pooled inter-provider rules; the layout shows only the needed prefix. */
     private fun syncInterRules(secondaryCount: Int) {
@@ -304,13 +270,6 @@ class CompareBoard(
                 y = maxOf(firstY, secondY)
             }
             for (i in usedRules until interRules.size) interRules[i].isVisible = false
-
-            if (noProvidersPanel.isVisible) {
-                noProvidersPanel.setSize(contentWidth, Int.MAX_VALUE)
-                val height = noProvidersPanel.preferredSize.height
-                noProvidersPanel.setBounds(insets.left, y, contentWidth, height)
-                y += height + gap
-            }
         }
 
         private fun isSingleColumn(): Boolean = quickMode
@@ -364,10 +323,6 @@ class CompareBoard(
                 height += maxOf(first, second)
             }
 
-            if (noProvidersPanel.isVisible) {
-                noProvidersPanel.setSize(contentWidth, Int.MAX_VALUE)
-                height += noProvidersPanel.preferredSize.height + gap
-            }
             return Dimension(width, height)
         }
     }

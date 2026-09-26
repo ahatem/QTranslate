@@ -341,6 +341,61 @@ class CompareProviderControlsTest {
         }
     }
 
+    // 18 + 19. Provider actions keep FlatLaf toolbar-button painting behavior.
+    @Test
+    fun `provider copy and listen keep flatlaf toolbar button behavior`() {
+        val view = TranslationProviderView(null)
+        renderOnEdt { view.render(primary(presentation = ProviderPresentation.MAIN)) }
+        SwingUtilities.invokeAndWait {
+            listOf(view.copyButtonForTest(), view.listenButtonForTest()).forEach { button ->
+                assertEquals(
+                    com.formdev.flatlaf.FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON,
+                    button.getClientProperty(com.formdev.flatlaf.FlatClientProperties.BUTTON_TYPE),
+                    "provider actions must stay FlatLaf toolbar buttons"
+                )
+                assertTrue(button.isContentAreaFilled, "hover/pressed backgrounds need a filled content area")
+                assertNotNull(button.toolTipText, "tooltips are retained")
+            }
+        }
+    }
+
+    // 20. Required provider action buttons are keyboard focusable.
+    @Test
+    fun `provider copy and listen are keyboard focusable`() {
+        val view = TranslationProviderView(null)
+        renderOnEdt { view.render(primary(presentation = ProviderPresentation.MAIN)) }
+        SwingUtilities.invokeAndWait {
+            assertTrue(view.copyButtonForTest().isFocusable, "Copy must accept keyboard focus")
+            assertTrue(view.listenButtonForTest().isFocusable, "Listen must accept keyboard focus")
+        }
+    }
+
+    // 21. No custom mouse-hover painting was introduced.
+    @Test
+    fun `provider actions add no custom hover painting`() {
+        val view = TranslationProviderView(null)
+        renderOnEdt { view.render(primary(presentation = ProviderPresentation.MAIN)) }
+        SwingUtilities.invokeAndWait {
+            // The look and feel (plus the tooltip manager, for the retained
+            // tooltips) installs its own listeners on every button; the point
+            // is that provider actions add nothing beyond stock Swing.
+            listOf(view.copyButtonForTest(), view.listenButtonForTest()).forEach { button ->
+                button.mouseListeners.forEach { listener ->
+                    assertTrue(
+                        listener.javaClass.name.startsWith("javax.swing."),
+                        "hover must come from FlatLaf, not custom mouse listeners: ${listener.javaClass.name}"
+                    )
+                }
+                assertTrue(
+                    button.border == null || button.border is javax.swing.plaf.UIResource,
+                    "no custom borders or radii on provider actions"
+                )
+            }
+        }
+        val source = File("src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/main/output/TranslationProviderView.kt").readText()
+        assertFalse(source.contains("isContentAreaFilled = false"), "content area must stay fillable for hover")
+    }
+
     @Test
     fun `failure header height stays stable against loading`() {
         val view = TranslationProviderView(null)

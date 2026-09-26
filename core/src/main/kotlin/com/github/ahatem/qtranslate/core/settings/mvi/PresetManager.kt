@@ -76,6 +76,21 @@ internal class PresetManager(
         applyUpdate(current.withComparisonTranslators(intent.serviceIds))
     }
 
+    fun promoteTranslatorToPrimary(
+        current: Configuration,
+        intent: SettingsIntent.PromoteTranslatorToPrimary
+    ) {
+        if (current.activeServicePresetId == null) {
+            logger.warn("No active preset — ignoring PromoteTranslatorToPrimary intent")
+            return
+        }
+
+        logger.info("Promoting translator to primary: ${intent.serviceId}")
+        applyUpdate(
+            current.withActivePreset { preset -> preset.withPromotedTranslator(intent.serviceId) }
+        )
+    }
+
     // -------------------------------------------------------------------------
     // Preset CRUD
     // -------------------------------------------------------------------------

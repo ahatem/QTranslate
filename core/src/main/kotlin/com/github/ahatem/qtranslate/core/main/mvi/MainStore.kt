@@ -10,6 +10,9 @@ import com.github.ahatem.qtranslate.core.history.HistoryRepository
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
+import com.github.ahatem.qtranslate.core.settings.data.effectiveLayoutPresetId
+import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.SelectionReadSource
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
@@ -96,6 +99,7 @@ class MainStore(
         observeSpellChecking()
         observeTtsPlayback()
         observeComparisonConfiguration()
+        observeComparisonEligibility()
         checkForUpdates()
     }
 
@@ -210,6 +214,62 @@ class MainStore(
         }
     }
 
+    /**
+     * Announces the deterministic Classic fallback once per entry: a requested
+     * Comparison with fewer than two effective translators shows Classic
+     * without rewriting the saved preference. Edge-triggered, so staying
+     * ineligible never spams; recovering eligibility re-arms the notice.
+     * Fires on subscribe too, covering startup with a stale saved layout.
+     */
+    private var comparisonFallbackAnnounced = false
+
+    private fun observeComparisonEligibility() {
+        scope.launch {
+            combine(
+                settingsState,
+                state.map { it.availableServices }
+            ) { config, services ->
+                val availableIds = services
+                    .filter { it.type == ServiceRole.TRANSLATOR }
+                    .map { it.id }
+                    .toSet()
+                config.layoutPresetId == LayoutPresetIds.COMPARISON &&
+                    !config.isComparisonEligible(availableIds)
+            }
+                .distinctUntilChanged()
+                .collect { needsFallback ->
+                    if (needsFallback && !comparisonFallbackAnnounced) {
+                        comparisonFallbackAnnounced = true
+                        updateStatusBar(
+                            StatusCode.ComparisonNeedsTwoTranslators,
+                            NotificationType.WARNING,
+                            true
+                        )
+                    } else if (!needsFallback) {
+                        comparisonFallbackAnnounced = false
+                    }
+                }
+        }
+    }
+
+    private fun availableTranslatorIds(): Set<String> =
+        _state.value.availableServices
+            .filter { it.type == ServiceRole.TRANSLATOR }
+            .map { it.id }
+            .toSet()
+
+    private fun mainComparisonPolicy(): ComparisonPolicy {
+        val config = settingsState.value
+        return mainTranslationComparisonPolicy(config.effectiveLayoutPresetId(availableTranslatorIds()))
+    }
+
+    private fun quickComparisonPolicy(): ComparisonPolicy =
+        if (settingsState.value.isComparisonEligible(availableTranslatorIds())) {
+            ComparisonPolicy.ENABLED
+        } else {
+            ComparisonPolicy.DISABLED
+        }
+
     @OptIn(FlowPreview::class)
     private fun observeSpellChecking() {
         scope.launch {
@@ -300,7 +360,7 @@ class MainStore(
             MainIntent.RetranslateQuickTranslate -> {
                 translateTextUseCase.cancel()
                 clearComparisonState()
-                scope.launch { translateText(comparisonPolicy = ComparisonPolicy.ENABLED) }
+                scope.launch { translateText(comparisonPolicy = quickComparisonPolicy()) }
             }
 
             MainIntent.UndoTranslation -> handleUndo()
@@ -322,7 +382,7 @@ class MainStore(
             is MainIntent.Translate -> {
                 translateTextUseCase.cancel()
                 clearComparisonState()
-                scope.launch { translateText(intent.text, comparisonPolicy = mainTranslationComparisonPolicy(settingsState.value.layoutPresetId)) }
+                scope.launch { translateText(intent.text, comparisonPolicy = mainComparisonPolicy()) }
             }
 
             is MainIntent.RefreshExtraOutput -> scope.launch {
@@ -602,7 +662,7 @@ class MainStore(
         }
 
         // Let TranslateTextUseCase own isLoading — it sets it at the start of the job.
-        val completion = translateText(comparisonPolicy = ComparisonPolicy.ENABLED)
+        val completion = translateText(comparisonPolicy = quickComparisonPolicy())
         if (readSource != SelectionReadSource.TRANSLATION ||
             !SelectionTranslationReadGuard.shouldRead(
                 readRequested = intent.readSelectionAloud,

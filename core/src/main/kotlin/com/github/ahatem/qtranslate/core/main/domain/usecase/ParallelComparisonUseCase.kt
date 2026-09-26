@@ -97,15 +97,18 @@ class ParallelComparisonUseCase(
                 .filter { it != request.primaryTranslatorId }
                 .toList()
 
-            val resolved = effectiveIds.map { id ->
-                id to activeServiceManager.resolve<Translator>(id, ServiceRole.TRANSLATOR)
+            // Unavailable configured ids stay stored for Settings recovery but are
+            // never executed and never rendered as fake provider cards — only
+            // translators that actually resolve take part in the comparison.
+            val resolved = effectiveIds.mapNotNull { id ->
+                activeServiceManager.resolve<Translator>(id, ServiceRole.TRANSLATOR)
+                    ?.let { id to it }
             }
             val initial = resolved.map { (id, active) ->
                 ComparisonTranslationResult(
                     serviceId = id,
-                    serviceName = active?.service?.name,
-                    status = if (active == null) ComparisonStatus.FAILURE else ComparisonStatus.LOADING,
-                    errorMessage = if (active == null) "Service unavailable." else null
+                    serviceName = active.service.name,
+                    status = ComparisonStatus.LOADING
                 )
             }
             updateState(initial)
@@ -130,7 +133,7 @@ class ParallelComparisonUseCase(
                     val comparisonParent = coroutineContext[Job]
                     resolved.mapIndexed { index, (id, active) ->
                         launch {
-                        if (active == null || !isCurrent()) return@launch
+                        if (!isCurrent()) return@launch
                         val translator = active.service
                         val compatibilityError = languageCompatibilityError(
                             translator.supportedLanguages,

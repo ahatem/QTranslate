@@ -2,14 +2,20 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.CloseButtonBehavior
+import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
+import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
+import java.awt.Component
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JLabel
+import javax.swing.JList
+import javax.swing.ListCellRenderer
+import javax.swing.UIManager
 
 /**
  * The main window: how it is arranged, what it shows, and what its close button does.
@@ -20,12 +26,19 @@ import javax.swing.JLabel
  */
 class LayoutPanel(
     private val store: SettingsStore,
-    private val localizationManager: LocalizationManager
+    private val localizationManager: LocalizationManager,
+    private val availableTranslatorIds: () -> Set<String> = { emptySet() }
 ) : SettingsPanel() {
 
     private val layouts = LayoutManager.getAvailableLayouts().map {
         LayoutInfo(it.id, localizationManager.getString("main_window_main_menu.${it.localizeId}"))
     }
+
+    /** Whether Comparison may be chosen right now; refreshed on every render. */
+    private var comparisonAvailable = true
+
+    private fun comparisonUnavailableHint(): String =
+        localizationManager.getString("settings_window.layout_comparison_unavailable")
 
     private lateinit var layoutCombo: JComboBox<LayoutInfo>
     private lateinit var historyCheck: JCheckBox
@@ -46,10 +59,20 @@ class LayoutPanel(
         addSeparator(localizationManager.getString("settings_window.layout_group"))
 
         layoutCombo = JComboBox<LayoutInfo>(layouts.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            setRenderer(LayoutPresetRenderer())
             addActionListener {
                 if (!isUpdatingFromState) {
                     val layout = selectedItem as? LayoutInfo ?: return@addActionListener
+                    if (layout.id == LayoutPresetIds.COMPARISON && !comparisonAvailable) {
+                        // Disabled entries cannot be picked: fall back to the
+                        // saved choice instead of writing an unusable layout.
+                        withoutTrigger {
+                            selectedItem = layouts.find {
+                                it.id == store.state.value.workingConfiguration.layoutPresetId
+                            }
+                        }
+                        return@addActionListener
+                    }
                     applyDraft(store) { it.copy(layoutPresetId = layout.id) }
                 }
             }
@@ -191,10 +214,46 @@ class LayoutPanel(
         finishLayout()
     }
 
+    /**
+     * Minimal layout-preset renderer: identical to a plain label except that
+     * an unavailable Comparison is shown disabled with its reason, using only
+     * FlatLaf semantic colors. Scoped to this picker — not a global ComboBox fix.
+     */
+    private inner class LayoutPresetRenderer : ListCellRenderer<LayoutInfo> {
+        private val label = JLabel()
+        override fun getListCellRendererComponent(
+            list: JList<out LayoutInfo>,
+            value: LayoutInfo?,
+            index: Int,
+            isSelected: Boolean,
+            cellHasFocus: Boolean
+        ): Component {
+            label.text = value?.displayName ?: ""
+            val disabled = value?.id == LayoutPresetIds.COMPARISON && !comparisonAvailable
+            label.toolTipText = if (disabled) comparisonUnavailableHint() else null
+            if (isSelected) {
+                label.background = list.selectionBackground
+                label.foreground =
+                    if (disabled) UIManager.getColor("Label.disabledForeground")
+                    else list.selectionForeground
+                label.isOpaque = true
+            } else {
+                label.isOpaque = false
+                label.foreground =
+                    if (disabled) UIManager.getColor("Label.disabledForeground")
+                    else list.foreground
+            }
+            return label
+        }
+    }
+
     override fun render(state: SettingsState) {
         val c = state.workingConfiguration
+        comparisonAvailable = c.isComparisonEligible(availableTranslatorIds())
         withoutTrigger {
             layoutCombo.selectedItem = layouts.find { it.id == c.layoutPresetId }
+            layoutCombo.toolTipText =
+                if (comparisonAvailable) null else comparisonUnavailableHint()
             historyCheck.isSelected = c.toolbarVisibility.isHistoryBarVisible
             languageCheck.isSelected = c.toolbarVisibility.isLanguageBarVisible
             servicesCheck.isSelected = c.toolbarVisibility.isServicesPanelVisible

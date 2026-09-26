@@ -306,29 +306,6 @@ class CompareBoardTest {
     }
 
     @Test
-    fun `no providers affordance is compact and fires configure`() {
-        var configured = false
-        val board = CompareBoard(iconManager = null)
-        render(
-            board, CompareBoardState(
-                primary = primary(),
-                secondaries = emptyList(),
-                showNoProviders = true,
-                noProvidersText = "No comparison translators selected.",
-                configureLabel = "Configure",
-                onConfigure = { configured = true }
-            )
-        )
-
-        assertTrue(board.noProvidersVisibleForTest())
-        val labels = descendants(board).filterIsInstance<JLabel>().mapNotNull { it.text }
-        assertTrue(labels.contains("No comparison translators selected."))
-        val button = descendants(board).filterIsInstance<JButton>().single { it.text == "Configure" }
-        SwingUtilities.invokeAndWait { button.doClick() }
-        assertTrue(configured)
-    }
-
-    @Test
     fun `failure keeps provider identity with selectable error summary`() {
         val board = CompareBoard(iconManager = null)
         render(
@@ -456,7 +433,8 @@ class CompareBoardTest {
                 secondaries = emptyList()
             )
         )
-        assertFalse(board.noProvidersVisibleForTest())
+        // No special one-provider states: the board is just the primary section.
+        assertFalse(board.primaryBoundaryForTest().isVisible)
         assertEquals("primary result", board.primaryProviderView.textPaneForTest().text)
     }
 }
