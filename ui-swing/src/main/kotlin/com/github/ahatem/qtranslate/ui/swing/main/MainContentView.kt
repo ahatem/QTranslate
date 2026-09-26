@@ -455,6 +455,7 @@ class MainContentView(
                 loadingText = localizer.getString("main_window.comparison_loading"),
                 failureText = localizer.getString("main_window.comparison_failure"),
                 copyLabel = localizer.getString("main_window.comparison_copy"),
+                detailsLabel = localizer.getString("main_window.comparison_details"),
                 fontConfig = config.scaledEditorFont,
                 fallbackFontConfig = config.scaledEditorFallbackFont,
                 onCopy = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) }

@@ -424,6 +424,7 @@ class QuickTranslateDialog(
                 loadingText = state.comparisonLoadingText,
                 failureText = state.comparisonFailureText,
                 copyLabel = state.comparisonCopyLabel,
+                detailsLabel = state.comparisonDetailsLabel,
                 fontConfig = state.config.font,
                 fallbackFontConfig = state.config.fallbackFont,
                 onCopy = { text -> text.copyToClipboard() }

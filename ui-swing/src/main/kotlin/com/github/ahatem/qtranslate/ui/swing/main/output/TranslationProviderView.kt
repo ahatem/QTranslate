@@ -69,6 +69,8 @@ data class TranslationProviderState(
     val loadingText: String = "",
     val failureText: String = "",
     val copyLabel: String = "",
+    /** Label of the control that reveals a secondary failure's error message; empty offers none. */
+    val detailsLabel: String = "",
     val listenLabel: String = "",
     val stopLabel: String = "",
     val isTtsPlaying: Boolean = false,
@@ -155,6 +157,18 @@ class TranslationProviderView(
     }
     private var isStopMode = false
 
+    private val detailsButton = createToolbarButton().apply {
+        isVisible = false
+        addActionListener { toggleFailureDetails() }
+    }
+
+    /** Set while a secondary failure has an error message worth showing; keys the expansion. */
+    private var failureDetailsKey: String? = null
+    private var expandedDetailsKey: String? = null
+    private var compactFailure = false
+    private var placeholderHasText = false
+    private var isPlaceholderStatus = false
+
     private val headerIdentity = JPanel(BorderLayout(UIScale.scale(6), 0)).apply {
         isOpaque = false
         add(providerIcon, BorderLayout.LINE_START)
@@ -168,6 +182,7 @@ class TranslationProviderView(
         // (trailing) column aligned with secondary providers' Copy.
         // FlowLayout.TRAILING is logical, so RTL mirrors without hard-coding sides.
         add(statusLabel)
+        add(detailsButton)
         add(listenButton)
         add(copyButton)
     }
@@ -246,6 +261,8 @@ class TranslationProviderView(
 
     fun bodyVisibleForTest(): Boolean = bodyStack.isVisible
 
+    fun detailsButtonForTest(): JButton = detailsButton
+
     init {
         isOpaque = false
         add(rail, BorderLayout.LINE_START)
@@ -300,6 +317,7 @@ class TranslationProviderView(
             loadingText = state.loadingText,
             failureText = state.failureText,
             copyLabel = state.copyLabel,
+            detailsLabel = state.detailsLabel,
             listenLabel = state.listenLabel,
             stopLabel = state.stopLabel,
             isTtsPlaying = state.isTtsPlaying,
@@ -443,13 +461,11 @@ class TranslationProviderView(
     }
 
     private fun renderBody(state: TranslationProviderState) {
+        placeholderHasText = state.placeholderTitle.isNotBlank() || state.placeholderSubtitle.isNotBlank()
+        renderFailureDetails(state)
         // All three bodies stay mounted under a CardLayout; only the active
         // card is shown, so the text component, its selection, and focus
         // survive state transitions.
-        // A placeholder with no text of its own (the Comparison board draws that state itself)
-        // leaves the provider as its header alone.
-        bodyStack.isVisible = state.status != ProviderStatus.PLACEHOLDER ||
-            state.placeholderTitle.isNotBlank() || state.placeholderSubtitle.isNotBlank()
         (bodyStack.layout as CardLayout).show(
             bodyStack, when (state.status) {
                 ProviderStatus.PLACEHOLDER -> PLACEHOLDER_CARD
@@ -497,6 +513,46 @@ class TranslationProviderView(
             }
         }
         updateReadableCap()
+    }
+
+    /**
+     * A failed secondary is compact: its header already says it failed, so the body stays hidden
+     * until the error message is asked for. The primary's failure is never compacted.
+     * Expansion is local to this view and lapses when the provider, its message or its status
+     * changes, which covers a new translation.
+     */
+    private fun renderFailureDetails(state: TranslationProviderState) {
+        isPlaceholderStatus = state.status == ProviderStatus.PLACEHOLDER
+        compactFailure = state.role == ProviderRole.SECONDARY && state.status == ProviderStatus.FAILURE
+        val message = state.errorMessage?.takeIf { it.isNotBlank() && it != state.failureText }
+        failureDetailsKey = if (compactFailure && message != null && state.detailsLabel.isNotBlank()) {
+            "${state.serviceId}|$message"
+        } else null
+        if (expandedDetailsKey != failureDetailsKey) expandedDetailsKey = null
+
+        detailsButton.isVisible = failureDetailsKey != null
+        detailsButton.text = state.detailsLabel
+        detailsButton.toolTipText = state.detailsLabel
+        updateBodyVisibility()
+    }
+
+    private fun toggleFailureDetails() {
+        expandedDetailsKey = if (expandedDetailsKey == null) failureDetailsKey else null
+        updateBodyVisibility()
+        revalidate()
+        repaint()
+    }
+
+    private fun updateBodyVisibility() {
+        val expanded = expandedDetailsKey != null && expandedDetailsKey == failureDetailsKey
+        detailsButton.isSelected = expanded
+        bodyStack.isVisible = when {
+            compactFailure -> expanded
+            // A placeholder with no text of its own (the Comparison board draws that state itself)
+            // leaves the provider as its header alone.
+            isPlaceholderStatus -> placeholderHasText
+            else -> true
+        }
     }
 
     private var primaryTagWanted = false
@@ -640,6 +696,7 @@ class TranslationProviderView(
         val loadingText: String,
         val failureText: String,
         val copyLabel: String,
+        val detailsLabel: String,
         val listenLabel: String,
         val stopLabel: String,
         val isTtsPlaying: Boolean,

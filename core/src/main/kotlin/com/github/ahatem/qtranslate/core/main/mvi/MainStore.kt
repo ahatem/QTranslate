@@ -332,16 +332,14 @@ class MainStore(
             // and then auto-hid anyway, which is the worst of both.
             MainIntent.HideQuickTranslate -> {
                 quickTranslateGenerations.incrementAndGet()
-                translateTextUseCase.cancel()
-                clearComparisonState()
-                _state.update {
-                    it.copy(
-                        isQuickTranslateDialogVisible = false,
-                        isQuickTranslateDialogPinned = false,
-                        isLoading = false,
-                        isExtraOutputLoading = false
-                    )
+                // Quick shares its result with the main window, so closing the popup keeps a
+                // finished translation and its comparisons. Only work still running is cancelled,
+                // with ownership invalidated so a late result cannot land afterwards.
+                if (_state.value.hasTranslationInFlight()) {
+                    translateTextUseCase.cancel()
+                    clearComparisonState()
                 }
+                _state.update { it.afterQuickClose() }
             }
 
             MainIntent.ToggleQuickTranslateDialogPin ->
