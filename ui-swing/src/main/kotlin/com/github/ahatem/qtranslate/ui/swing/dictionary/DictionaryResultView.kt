@@ -5,7 +5,7 @@ import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
-import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
+import com.github.ahatem.qtranslate.ui.swing.shared.util.createToolbarButton
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
 import java.awt.*
 import javax.swing.*
@@ -145,12 +145,8 @@ class DictionaryResultView(private val iconManager: IconManager) : JScrollPane()
         val label = wordLabel(word)
         val listen = onListen ?: return label
 
-        val button = createButtonWithIcon(iconManager, LISTEN_ICON, LISTEN_ICON_SIZE).apply {
-            putClientProperty("JButton.buttonType", "toolBarButton")
-            isFocusable = false
-            addActionListener {
-                if (isSpeaking) onStopListening?.invoke() else listen(headword)
-            }
+        val button = createToolbarButton(iconManager, LISTEN_ICON, LISTEN_ICON_SIZE) {
+            if (isSpeaking) onStopListening?.invoke() else listen(headword)
         }
         listenButton = button
         applySpeakingState()

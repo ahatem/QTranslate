@@ -25,6 +25,7 @@ import javax.swing.*
 import javax.swing.DefaultListCellRenderer
 import javax.swing.filechooser.FileNameExtensionFilter
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 
 class AppearancePanel(
     private val store: SettingsStore,
@@ -150,7 +151,7 @@ class AppearancePanel(
         addRow(localizationManager.getString("settings_appearance.theme_label"), themeCombo)
 
         iconSetCombo = JComboBox(IconSet.available().toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            renderer = DisplayValueRenderer<IconSetInfo>(text = { it?.displayName.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     val chosen = selectedItem as? IconSetInfo ?: return@addActionListener

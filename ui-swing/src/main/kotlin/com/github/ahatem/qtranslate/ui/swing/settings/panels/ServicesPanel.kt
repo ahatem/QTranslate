@@ -22,6 +22,7 @@ import javax.swing.event.DocumentListener
 import kotlin.math.min
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 
 class ServicesPanel(
     private val store: SettingsStore,
@@ -51,7 +52,7 @@ class ServicesPanel(
         addSeparator(localizationManager.getString("settings_services.presets_group"))
 
         presetCombo = JComboBox<PresetInfo>().apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.name ?: "") }
+            renderer = DisplayValueRenderer<PresetInfo>(text = { it?.name.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     (selectedItem as? PresetInfo)?.let {
@@ -160,9 +161,9 @@ class ServicesPanel(
 
     private fun buildServiceCombo(type: ServiceRole): JComboBox<ServiceOption> =
         JComboBox<ServiceOption>().apply {
-            setRenderer { _, value, _, _, _ ->
-                JLabel(value?.name ?: localizationManager.getString("common.none"))
-            }
+            renderer = DisplayValueRenderer<ServiceOption>(
+                text = { it?.name ?: localizationManager.getString("common.none") }
+            )
             addActionListener {
                 if (!isUpdatingFromState) {
                     if (type == ServiceRole.TRANSLATOR) {

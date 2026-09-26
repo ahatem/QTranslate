@@ -4,6 +4,7 @@ import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
+import com.github.ahatem.qtranslate.ui.swing.shared.util.createToolbarButton
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Color
@@ -52,9 +53,7 @@ class DictionaryPanel(
     private val offUnlinkIconBase: FlatSVGIcon =
         iconManager.getIcon(Icons.UNPIN, 13, 13) as FlatSVGIcon
 
-    private val autoSourceButton = JButton().apply {
-        putClientProperty("JButton.buttonType", "toolBarButton")
-        isFocusable = false
+    private val autoSourceButton = createToolbarButton().apply {
         iconTextGap = 4
     }
     private var currentAutoSource: DictionaryAutoSource = DictionaryAutoSource.TRANSLATED

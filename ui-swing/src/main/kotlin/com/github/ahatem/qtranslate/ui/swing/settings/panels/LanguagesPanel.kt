@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.LanguageComboBox
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
@@ -218,10 +219,10 @@ class LanguagesPanel(
 
     private fun showAddRuleDialog() {
         val sourceCombo = JComboBox<String>(COMMON_LANGUAGES).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(localizedName(value ?: "")) }
+            renderer = DisplayValueRenderer<String>(text = { localizedName(it ?: "") })
         }
         val targetCombo = JComboBox<String>(COMMON_LANGUAGES).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(localizedName(value ?: "")) }
+            renderer = DisplayValueRenderer<String>(text = { localizedName(it ?: "") })
         }
 
         val panel = JPanel(GridBagLayout()).apply {

@@ -5,9 +5,9 @@ import com.github.ahatem.qtranslate.core.settings.data.SelectionBehavior
 import com.github.ahatem.qtranslate.core.settings.data.SelectionReadSource
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
-import javax.swing.JLabel
 
 /**
  * Application-wide settings that belong to no other page: startup, updates, the selection
@@ -65,7 +65,7 @@ class GeneralPanel(
             SelectionBehaviorInfo(SelectionBehavior.TRANSLATE_AND_READ, localizationManager.getString("settings_general.selection_behavior_read"))
         )
         selectionBehaviorCombo = JComboBox(selectionBehaviors.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            renderer = DisplayValueRenderer<SelectionBehaviorInfo>(text = { it?.displayName.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     val behavior = (selectedItem as? SelectionBehaviorInfo)?.behavior ?: return@addActionListener
@@ -87,7 +87,7 @@ class GeneralPanel(
             )
         )
         selectionReadSourceCombo = JComboBox(selectionReadSources.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            renderer = DisplayValueRenderer<SelectionReadSourceInfo>(text = { it?.displayName.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     val source = (selectedItem as? SelectionReadSourceInfo)?.source

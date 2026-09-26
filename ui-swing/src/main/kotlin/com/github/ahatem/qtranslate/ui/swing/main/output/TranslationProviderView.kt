@@ -1,12 +1,12 @@
 package com.github.ahatem.qtranslate.ui.swing.main.output
 
-import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorPopupButton
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.util.createToolbarButton
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isRTL
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toFont
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
@@ -135,11 +135,11 @@ class TranslationProviderView(
         putClientProperty("FlatLaf.styleClass", "small")
     }
 
-    private val copyButton = toolbarButton().apply {
+    private val copyButton = createToolbarButton().apply {
         addActionListener { onCopyRef?.invoke(actionCommand ?: "") }
     }
 
-    private val listenButton = toolbarButton().apply {
+    private val listenButton = createToolbarButton().apply {
         addActionListener {
             val text = actionCommand ?: ""
             if (isStopMode) onStopRef?.invoke() else onListenRef?.invoke(text)
@@ -549,16 +549,6 @@ class TranslationProviderView(
     fun statusLabelForTest(): JLabel = statusLabel
     fun headerActionsForTest(): JPanel = headerActions
     fun selectorForTest(): TranslatorPopupButton? = selector
-
-    /**
-     * Plain FlatLaf toolbar buttons: hover, pressed, and focus states all come
-     * from the look and feel. In particular [isContentAreaFilled] stays enabled —
-     * disabling it also disables FlatLaf's toolbar hover/pressed backgrounds.
-     */
-    private fun toolbarButton(): JButton = JButton().apply {
-        isFocusable = true
-        putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
-    }
 
     private fun addFindInDictionaryItem(menu: JPopupMenu, clickPosition: Point) {
         dictMenuItem?.let(menu::remove)
