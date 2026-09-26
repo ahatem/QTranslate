@@ -27,7 +27,7 @@ import javax.swing.UIManager
 class LayoutPanel(
     private val store: SettingsStore,
     private val localizationManager: LocalizationManager,
-    private val availableTranslatorIds: () -> Set<String> = { emptySet() }
+    private val availableTranslatorIds: () -> List<String> = { emptyList() }
 ) : SettingsPanel() {
 
     private val layouts = LayoutManager.getAvailableLayouts().map {

@@ -56,7 +56,7 @@ class SettingsDialog(
      * Evaluated lazily so [LayoutPanel] always sees the latest registry —
      * not whatever was available when the dialog was constructed.
      */
-    private val availableTranslatorIds: () -> Set<String> = { emptySet() },
+    private val availableTranslatorIds: () -> List<String> = { emptyList() },
     /** Invoked just before the hotkey recorder opens; should disable global hotkeys. */
     private val pauseGlobalHotkeys:  (() -> Unit)? = null,
     /** Invoked after the recorder closes; should restore the global hotkey state. */

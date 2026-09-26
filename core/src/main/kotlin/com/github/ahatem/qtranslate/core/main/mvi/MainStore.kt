@@ -232,7 +232,6 @@ class MainStore(
                 val availableIds = services
                     .filter { it.type == ServiceRole.TRANSLATOR }
                     .map { it.id }
-                    .toSet()
                 config.layoutPresetId == LayoutPresetIds.COMPARISON &&
                     !config.isComparisonEligible(availableIds)
             }
@@ -252,11 +251,7 @@ class MainStore(
         }
     }
 
-    private fun availableTranslatorIds(): Set<String> =
-        _state.value.availableServices
-            .filter { it.type == ServiceRole.TRANSLATOR }
-            .map { it.id }
-            .toSet()
+    private fun availableTranslatorIds(): List<String> = _state.value.availableTranslatorIds
 
     private fun mainComparisonPolicy(): ComparisonPolicy {
         val config = settingsState.value

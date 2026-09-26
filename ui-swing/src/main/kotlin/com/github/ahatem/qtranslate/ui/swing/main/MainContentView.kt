@@ -286,7 +286,7 @@ class MainContentView(
         // Effective arrangement: a requested Comparison without two usable
         // translators deterministically shows Classic. The saved preference is
         // never rewritten, so eligibility restores Comparison naturally.
-        val effectiveLayoutId = config.effectiveLayoutPresetId(availableTranslatorIds(mainState))
+        val effectiveLayoutId = config.effectiveLayoutPresetId(mainState.availableTranslatorIds)
 
         // Told outright rather than left to the orientation cascade, which reaches the split pane
         // at a point in startup that depends on when this view was added to the window.
@@ -312,9 +312,6 @@ class MainContentView(
         renderComponents(mainState, config, effectiveLayoutId)
         lastState = mainState to settingsState
     }
-
-    private fun availableTranslatorIds(mainState: MainState): Set<String> =
-        mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR).map { it.id }.toSet()
 
     /**
      * Keeps the per-pane translate keystroke in sync with the user's configured binding.
@@ -394,9 +391,7 @@ class MainContentView(
             mainState.isLoading -> ProviderStatus.LOADING
             else -> ProviderStatus.PLACEHOLDER
         }
-        val readyCount = config.effectiveTranslatorCount(
-            mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR).map { it.id }.toSet()
-        )
+        val readyCount = config.effectiveTranslatorCount(mainState.availableTranslatorIds)
         val primaryState = TranslationProviderState(
             serviceId = selectedTranslatorId ?: "",
             serviceName = selectedTranslator?.name ?: localizer.getString("main_window.no_translator"),

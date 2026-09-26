@@ -239,9 +239,7 @@ class MainAppFrame(
         themeManager = themeManager,
         localizationManager = localizer,
         availableLanguages = { mainStore.state.value.availableLanguages },
-        availableTranslatorIds = {
-            mainStore.state.value.getAvailableServicesFor(ServiceRole.TRANSLATOR).map { it.id }.toSet()
-        },
+        availableTranslatorIds = { mainStore.state.value.availableTranslatorIds },
         translateString = translateString,
         appSecrets = appSecrets,
         pauseGlobalHotkeys  = { globalKeyListener.setPaused(true) },
@@ -1205,9 +1203,7 @@ class MainAppFrame(
             checkForUpdates = localizer.getString("main_window_main_menu.check_for_updates"),
             exit = localizer.getString("main_window_main_menu.exit"),
             layoutPresets = localizer.getString("main_window_main_menu.layout_presets"),
-            layoutComparisonAvailable = currentConfig.isComparisonEligible(
-                mainStore.state.value.getAvailableServicesFor(ServiceRole.TRANSLATOR).map { it.id }.toSet()
-            ),
+            layoutComparisonAvailable = currentConfig.isComparisonEligible(mainStore.state.value.availableTranslatorIds),
             layoutComparisonUnavailableHint = localizer.getString("settings_window.layout_comparison_unavailable"),
             showHistoryControls = localizer.getString("main_window_main_menu.show_history_bar"),
             showLanguageBar = localizer.getString("main_window_main_menu.show_language_bar"),
@@ -1599,9 +1595,7 @@ class MainAppFrame(
             comparisonProviderInfos = mainState.availableServices.associateBy { it.id },
             // Canonical primary only with fewer than two usable translators;
             // comparison results appear only once Comparison is eligible.
-            comparisonsEnabled = config.isComparisonEligible(
-                mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR).map { it.id }.toSet()
-            )
+            comparisonsEnabled = config.isComparisonEligible(mainState.availableTranslatorIds)
         )
     }
 

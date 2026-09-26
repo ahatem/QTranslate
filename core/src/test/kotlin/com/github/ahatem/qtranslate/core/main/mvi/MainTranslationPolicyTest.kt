@@ -26,7 +26,7 @@ class MainTranslationPolicyTest {
             layoutPresetId = LayoutPresetIds.CLASSIC
         )
 
-    private fun quickPolicy(cfg: Configuration, available: Set<String>): ComparisonPolicy =
+    private fun quickPolicy(cfg: Configuration, available: List<String>): ComparisonPolicy =
         quickTranslationComparisonPolicy(cfg.isComparisonEligible(available))
 
     @Test
@@ -39,11 +39,11 @@ class MainTranslationPolicyTest {
 
     @Test
     fun `quick with one effective translator is canonical only`() {
-        assertEquals(ComparisonPolicy.DISABLED, quickPolicy(config("google"), setOf("google")))
+        assertEquals(ComparisonPolicy.DISABLED, quickPolicy(config("google"), listOf("google")))
         // A configured but unavailable comparison id does not make Quick compare.
         assertEquals(
             ComparisonPolicy.DISABLED,
-            quickPolicy(config("google", listOf("ghost")), setOf("google"))
+            quickPolicy(config("google", listOf("ghost")), listOf("google"))
         )
     }
 
@@ -51,7 +51,16 @@ class MainTranslationPolicyTest {
     fun `quick with two effective translators compares`() {
         assertEquals(
             ComparisonPolicy.ENABLED,
-            quickPolicy(config("google", listOf("bing")), setOf("google", "bing"))
+            quickPolicy(config("google", listOf("bing")), listOf("google", "bing"))
+        )
+    }
+
+    @Test
+    fun `quick counts the resolved fallback primary`() {
+        // Saved primary is gone but google resolves: google + deepl is a real pair.
+        assertEquals(
+            ComparisonPolicy.ENABLED,
+            quickPolicy(config("ghost", listOf("deepl")), listOf("google", "deepl"))
         )
     }
 

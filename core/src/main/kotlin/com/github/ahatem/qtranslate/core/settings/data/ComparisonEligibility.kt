@@ -10,42 +10,46 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceRole
  * ordered `comparisonTranslatorIds`; availability is resolved against the
  * loaded registry at use time, never by rewriting the stored ids.
  *
+ * [translatorIds] are the loaded services holding the Translator role, in
+ * registry order (what `MainState.availableServices` lists for TRANSLATOR).
+ *
  * "Effective" is purely static configuration/service availability — no
- * transient network or API health:
- * - the id is configured,
- * - the translator resolves in the registry ([availableTranslatorIds]),
- * - the Translator role is enabled,
- * - the service itself is not disabled,
- * - ids are distinct,
- * - a resolved Primary counts as one.
+ * transient network or API health. The effective set is:
+ * 1. the REAL resolved canonical Primary, i.e. exactly what
+ *    `ActiveServiceManager.getActive(TRANSLATOR)` returns (the preset's choice,
+ *    else the first usable translator — both go through [resolveActiveServiceId]),
+ * 2. then the configured comparison ids, in persisted order, that resolve, are
+ *    not disabled, differ from the Primary and are not repeated.
+ *
+ * Only the Primary gets fallback; arbitrary installed translators are never
+ * comparison members. No usable Primary (role off, or no usable translator at
+ * all) means an empty set: Comparison needs a canonical translation, which
+ * translation itself cannot produce without a Primary.
  *
  * Unavailable configured ids stay stored (Settings shows them as
  * unavailable/removable) but never count and are never executed.
  */
-fun Configuration.effectiveTranslatorIds(availableTranslatorIds: Set<String>): List<String> {
+fun Configuration.effectiveTranslatorIds(translatorIds: List<String>): List<String> {
     val preset = getActivePreset() ?: return emptyList()
-    if (!isServiceRoleEnabled(ServiceRole.TRANSLATOR)) return emptyList()
-    fun isUsable(id: String): Boolean =
-        id in availableTranslatorIds && !isServiceDisabled(id, ServiceRole.TRANSLATOR)
-    val primary = preset.selectedServices[ServiceRole.TRANSLATOR]?.takeIf(::isUsable)
+    val primary = resolveActiveServiceId(ServiceRole.TRANSLATOR, translatorIds) ?: return emptyList()
     val comparisons = preset.comparisonTranslatorIds.asSequence()
         .distinct()
-        .filter { it != primary && isUsable(it) }
+        .filter { it != primary && it in translatorIds && !isServiceDisabled(it, ServiceRole.TRANSLATOR) }
         .toList()
-    return listOfNotNull(primary) + comparisons
+    return listOf(primary) + comparisons
 }
 
 /** Number of translators actually usable for comparison right now. */
-fun Configuration.effectiveTranslatorCount(availableTranslatorIds: Set<String>): Int =
-    effectiveTranslatorIds(availableTranslatorIds).size
+fun Configuration.effectiveTranslatorCount(translatorIds: List<String>): Int =
+    effectiveTranslatorIds(translatorIds).size
 
 /**
  * Comparison is available only with at least two effective translators.
  * Everything else (layout picker, runtime arrangement, execution fan-out,
  * Quick Translate) derives from this single predicate.
  */
-fun Configuration.isComparisonEligible(availableTranslatorIds: Set<String>): Boolean =
-    effectiveTranslatorCount(availableTranslatorIds) >= 2
+fun Configuration.isComparisonEligible(translatorIds: List<String>): Boolean =
+    effectiveTranslatorCount(translatorIds) >= 2
 
 /**
  * Deterministic runtime arrangement: a requested Comparison without two
@@ -53,9 +57,9 @@ fun Configuration.isComparisonEligible(availableTranslatorIds: Set<String>): Boo
  * preference is never rewritten — when Comparison becomes eligible again
  * it takes effect naturally.
  */
-fun Configuration.effectiveLayoutPresetId(availableTranslatorIds: Set<String>): String =
+fun Configuration.effectiveLayoutPresetId(translatorIds: List<String>): String =
     if (layoutPresetId == LayoutPresetIds.COMPARISON &&
-        !isComparisonEligible(availableTranslatorIds)
+        !isComparisonEligible(translatorIds)
     ) {
         LayoutPresetIds.CLASSIC
     } else {
