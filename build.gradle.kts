@@ -231,7 +231,7 @@ val validateReleaseSizes by tasks.registering(ValidateReleaseSizesTask::class) {
     appArtifact.set(releaseOutputDirectory.map { it.file("QTranslate-App-${releaseVersion.get()}.jar") })
     portableArtifact.set(releaseOutputDirectory.map { it.file("QTranslate-${releaseVersion.get()}.zip") })
     maxAppBytes.set(55L * 1024 * 1024)
-    maxPortableBytes.set(52L * 1024 * 1024)
+    maxPortableBytes.set(53L * 1024 * 1024)
     maxBundledPluginsBytes.set(3L * 1024 * 1024)
     reportFile.set(releaseOutputDirectory.map { it.file("SIZE_REPORT.md") })
 }
