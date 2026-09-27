@@ -19,18 +19,19 @@ import kotlin.test.assertTrue
  * with hundreds of pixels to spare.
  *
  * The cause is not language- or font-specific in principle, but it is font-specific in practice:
- * past that ligature, the JDK's own `TextLayout` hit-testing (`GlyphPainter2`, the painter Swing
- * picks for anything needing complex shaping) reports every later offset at the same position for
- * several fonts -- Rubik among them -- while others (Noto Naskh Arabic, Segoe UI) shape it
- * correctly. [SafeLabelView][WrappingEditorKit] does not special-case any font by name: instead it
- * samples a run's own hit-testing and checks it advances monotonically in reading order, which the
- * corruption this class works around never does. A run caught misbehaving falls back to measuring
- * itself from independently laid-out fragments, which fixes the wrap; a run that behaves is left
- * exactly as Swing would have handled it, at full precision.
+ * past that ligature, the JDK's own `TextLayout` hit-testing reports every later offset at the same
+ * position for several fonts -- Rubik among them -- while others (Noto Naskh Arabic, Segoe UI) shape
+ * it correctly. Nothing in production names a font. The font-fallback pass ([ShapingAwareFallback])
+ * checks the laid-out paragraph's own carets and hands a script's text to the configured fallback
+ * when the primary's layout is unsound and the fallback's is not; [WrappingEditorKit] then leaves a
+ * sound layout to Swing, and lays out a paragraph that no configured font shapes soundly with its
+ * measured last resort.
  *
- * This is run against three fonts on purpose: Rubik, which is known to trigger the fallback; Noto
- * Naskh Arabic, which is not; and a plain, unconfigured logical font, standing in for whatever a
- * platform without either bundled face would substitute.
+ * Every pane here is configured with one font as both primary and fallback, so nothing can be
+ * handed over and each font's own behaviour is what is tested: Rubik, which exercises the last
+ * resort; Noto Naskh Arabic, which is sound; and a plain, unconfigured logical font, standing in for
+ * whatever a platform without either bundled face would substitute. [ShapedTextContractTest] covers
+ * the configured pairs, including the product default.
  *
  * ### A known residual: JDK-level measurement variance
  * Under a full-suite run, Rubik's own text measurement has been observed to occasionally answer a
@@ -270,35 +271,30 @@ class ArabicShapingRegressionTest {
     }
 
     @Test
-    fun `caret and mouse hit testing stay usable past the affected ligature on the bundled fonts`() {
-        // The two faces the product actually ships and controls. A third-party or platform
-        // substitute standing in for "no bundled font available" is proven elsewhere to wrap
-        // correctly and never corrupt the document; how precisely an arbitrary, unknown substitute
-        // places a click after a ligature it may shape any number of ways is not a guarantee this
-        // suite can make on its behalf.
+    fun `caret and mouse hit testing past the affected ligature are exact on a sound font and word-accurate on the last resort`() {
         for (font in listOf(RubikSansFont.FAMILY, NotoNaskhArabicFont.FAMILY)) {
             val p = pane(realisticSentence, width = 640, fontFamily = font)
             val doc = p.styledDocument
-            var mismatches = 0
-            var worstDistance = 0
-            for (offset in 0..doc.length) {
-                val rect = p.modelToView2D(offset) ?: continue
-                val roundTripped = p.viewToModel2D(Point2D.Double(rect.centerX, rect.centerY))
-                val distance = kotlin.math.abs(roundTripped - offset)
-                if (distance > 1) mismatches++
-                worstDistance = maxOf(worstDistance, distance)
+            // With the same font as primary and fallback there is nothing to switch to: a font that
+            // shapes this soundly is left to Swing and must be exact, and one that does not is laid
+            // out by the measured last resort, which is exact between words and approximate only
+            // inside one.
+            val sound = onEdt {
+                !(p.ui.getRootView(p).getView(0).getView(0) as WrappingEditorKit.WrappingParagraphView).measuresRuns
             }
-            // A font whose own layout is sound is left untouched and should round-trip essentially
-            // perfectly. A font caught misbehaving falls back to an approximate measurement -- fixing
-            // the wrap, not achieving pixel-perfect caret placement -- so the *count* of imprecise
-            // positions is not held to a tight bound. What matters, and is checked instead, is that no
-            // single click or caret placement is thrown wildly far from where it belongs: nowhere near
-            // the opposite end of the run, which is the kind of failure that would actually be unusable.
-            val worstAcceptableDistance = doc.length / 3
-            assertTrue(
-                worstDistance <= worstAcceptableDistance,
-                "$font: no single position should land far from where it belongs, worst was $worstDistance of ${doc.length} ($mismatches imprecise of ${doc.length})"
-            )
+            for (offset in 0..doc.length) {
+                val rect = onEdt { p.modelToView2D(offset) } ?: continue
+                val back = onEdt { p.viewToModel2D(Point2D.Double(rect.centerX, rect.centerY)) }
+                if (back == offset) continue
+                val backRect = onEdt { p.modelToView2D(back) }!!
+                val sameSpot = kotlin.math.abs(backRect.x - rect.x) < 1.0 && backRect.y == rect.y
+                if (sound) {
+                    assertTrue(sameSpot, "$font: $offset came back as $back")
+                } else {
+                    val between = realisticSentence.substring(minOf(offset, back), maxOf(offset, back).coerceAtMost(realisticSentence.length))
+                    assertTrue(sameSpot || ' ' !in between, "$font: $offset came back as $back, in another word")
+                }
+            }
         }
     }
 }

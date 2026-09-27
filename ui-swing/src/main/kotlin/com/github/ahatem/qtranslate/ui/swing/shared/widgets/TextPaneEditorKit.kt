@@ -1,30 +1,38 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
 import com.github.ahatem.qtranslate.ui.swing.shared.textpane.GraphemeBoundary
+import com.github.ahatem.qtranslate.ui.swing.shared.textpane.LineBreakOpportunities
+import com.github.ahatem.qtranslate.ui.swing.shared.textpane.ShapedCarets
 import java.awt.Rectangle
 import java.awt.Shape
+import java.awt.font.FontRenderContext
+import java.awt.font.TextAttribute
+import java.awt.font.TextLayout
+import java.awt.geom.Rectangle2D
+import java.text.AttributedString
 import java.text.Bidi
-import java.text.BreakIterator
-import java.util.Locale
 import javax.swing.event.DocumentEvent
 import javax.swing.text.AbstractDocument
-import javax.swing.text.BadLocationException
 import javax.swing.text.BoxView
 import javax.swing.text.ComponentView
 import javax.swing.text.Element
+import javax.swing.text.FlowView
+import javax.swing.text.GlyphView
 import javax.swing.text.IconView
 import javax.swing.text.LabelView
 import javax.swing.text.ParagraphView
 import javax.swing.text.Position
 import javax.swing.text.StyleConstants
+import javax.swing.text.StyledDocument
 import javax.swing.text.StyledEditorKit
 import javax.swing.text.View
 import javax.swing.text.ViewFactory
 import kotlin.math.abs
 
 /**
- * The pane's view layer: a [StyledEditorKit] whose views break lines without splitting a grapheme
- * cluster and never trust a shaped run's hit-testing once it has been caught lying.
+ * The pane's view layer: a [StyledEditorKit] whose views break lines only where a line may legally
+ * end, never split a grapheme cluster, and never trust a shaped layout's hit-testing once it has been
+ * caught lying.
  */
 class WrappingEditorKit : StyledEditorKit() {
     private val viewFactory = WrappingViewFactory()
@@ -43,268 +51,210 @@ class WrappingEditorKit : StyledEditorKit() {
     }
 
     /**
-     * A [LabelView] that never breaks inside a grapheme cluster, and falls back to its own
-     * measurement for line breaking, the caret and the mouse whenever the run's own hit-testing is
-     * caught contradicting itself.
+     * A [LabelView] with an explicit line-breaking contract and exact caret placement inside
+     * ligatures.
+     *
+     * Line breaking, for every run:
+     * - a line ends at the last legal line-break opportunity that fits, judged from the paragraph
+     *   around the run rather than from the run alone (see [LineBreakOpportunities]);
+     * - a word that starts on a line but does not fit moves to the next line whole;
+     * - only a word wider than an empty line is cut inside, and only at a grapheme-cluster boundary.
+     *
+     * Hit-testing, for a shaped run (the `TextLayout`-backed painter Swing uses for bidi text,
+     * combining marks and ligatures): the run's own carets are checked with [ShapedCarets.areSound].
+     * A sound run keeps the standard implementation for everything, with exact corrections where the
+     * standard one falls short -- the positions inside a ligature, which the JDK collapses onto the
+     * ligature's trailing edge, are spread across the glyph so each one has a caret and a click of
+     * its own. Text that no configured font shapes soundly never gets this far: the font-fallback pass
+     * ([ShapingAwareFallback]) moves it to a font that does, and a paragraph where none does is laid
+     * out by [WrappingParagraphView]'s last-resort strategy with a [MeasuredRunPainter] instead.
      */
     private class SafeLabelView(elem: Element) : LabelView(elem) {
 
         private val graphemeBoundary = GraphemeBoundary()
 
         /**
-         * Cached once resolved, and invalidated by [changedUpdate]: a view survives an attribute-only
-         * change to the text it holds (this is exactly how the font-fallback pass hands a run a
-         * different font, well after this view was first measured), and a verdict reached under the
-         * font it had before that change says nothing about the one it has after.
+         * This run's carets, worked out once per painter. A view keeps its painter across layouts
+         * but is handed a new one whenever the flow strategy re-lays it out or an attribute change
+         * gives it a different font, and the carets of the old painter say nothing about the new.
          */
-        private var reliableCache: Boolean? = null
+        private var stops: CaretStops? = null
+        private var stopsPainter: GlyphView.GlyphPainter? = null
+
+        /** Answers for a shaped run caught unsound despite everything above; created only if one is. */
+        private var measured: MeasuredRunPainter? = null
 
         /**
-         * Whether this run's own hit-testing can be trusted for breaking, the caret and the mouse.
+         * Carets at every cluster boundary of a shaped run, relative to the run's own leading edge.
          *
-         * Swing measures anything needing complex shaping -- bidi text, combining marks, some
-         * ligatures -- through a `TextLayout`, and that layout's own character-by-character answers
-         * are not reliable for every font and glyph sequence: past a particular Arabic ligature,
-         * several font files (bundled and platform alike) report every later position as the same
-         * point, which is what makes Swing's line breaker give up far short of the room it actually
-         * has, and mouse and caret placement wrong the same way. [checkReliable] tells the two cases
-         * apart by sampling the run's own answers rather than by asking which font drew it, so a
-         * well-behaved shaped run -- most of them, on most fonts -- is left exactly as Swing would
-         * have handled it, at full precision, and only a run actually caught misbehaving falls back
-         * to this class's own, approximate-but-safe measurement.
+         * @property boundaries document offsets, ascending, from [getStartOffset] to [getEndOffset].
+         * @property reported what the run's own layout answers for each boundary.
+         * @property spread [reported] with ligature components spread across their glyph.
          */
-        private fun isReliable(): Boolean {
-            reliableCache?.let { return it }
-            val reliable = runCatching { checkReliable() }.getOrDefault(false)
-            reliableCache = reliable
-            return reliable
-        }
-
-        private fun needsFallback(): Boolean {
-            checkPainter()
-            if (glyphPainter?.javaClass?.simpleName != SHAPED_PAINTER) return false
-            return !isReliable()
+        private class CaretStops(
+            val boundaries: IntArray,
+            val reported: FloatArray,
+            val spread: FloatArray,
+            val sound: Boolean,
+        ) {
+            /** Index of [offset] in [boundaries] if it is a ligature component this class places itself. */
+            fun spreadIndexOf(offset: Int): Int {
+                val i = boundaries.binarySearch(offset)
+                return if (i >= 0 && spread[i] != reported[i]) i else -1
+            }
         }
 
         /**
-         * Samples a handful of offsets across the run and checks the stock implementation places
-         * their carets in non-decreasing order along the reading direction, within a tolerance loose
-         * enough to absorb ordinary sub-pixel measurement noise. The corruption this class works
-         * around is not subtle: it collapses many distinct offsets onto the same point, or moves
-         * backwards by a large fraction of the run's own width, which a run that is shaping correctly
-         * never does regardless of language -- a real regression is nothing like a rounding error.
+         * The standard painter, except inside a paragraph laid out by the last-resort strategy, which
+         * needs every run measured on its own. A fragment inherits its painter from the view it was cut
+         * from, so this only has to decide for views that already belong to a paragraph.
          */
-        private fun checkReliable(): Boolean {
-            val length = endOffset - startOffset
-            if (length <= 1) return true
-            val totalSpan = getPreferredSpan(X_AXIS)
+        override fun checkPainter() {
+            val paragraph = enclosingParagraph()
+            if (paragraph != null) {
+                val current = glyphPainter
+                if (paragraph.measuresRuns && current !is MeasuredRunPainter) setGlyphPainter(MeasuredRunPainter())
+                else if (!paragraph.measuresRuns && current is MeasuredRunPainter) setGlyphPainter(null)
+            }
+            super.checkPainter()
+        }
+
+        private fun enclosingParagraph(): WrappingParagraphView? {
+            var view = parent
+            while (view != null && view !is WrappingParagraphView) view = view.parent
+            return view as? WrappingParagraphView
+        }
+
+        private fun isShaped(): Boolean {
+            checkPainter()
+            return glyphPainter?.javaClass?.simpleName == SHAPED_PAINTER
+        }
+
+        /** The run's caret stops, or null for a run its painter measures without shaping. */
+        private fun caretStops(): CaretStops? {
+            if (!isShaped()) return null
+            val painter = glyphPainter
+            stops?.let { if (stopsPainter === painter) return it }
+            val computed = runCatching { measureStops() }.getOrNull()
+            stops = computed
+            stopsPainter = painter
+            return computed
+        }
+
+        private fun measureStops(): CaretStops {
+            val text = document.getText(startOffset, endOffset - startOffset)
+            val boundaries = intArrayOf(startOffset) +
+                graphemeBoundary.boundariesAfterStart(text).map { startOffset + it }
             // Wide enough for the run with generous room to spare, rather than an extreme value that
             // risks its own numerical surprises in whatever native text-layout code answers this.
-            val alloc = Rectangle(0, 0, (totalSpan * 4).toInt().coerceAtLeast(1000), 20)
-            val rtl = isRightToLeftRun()
-            val sampleCount = minOf(SAMPLE_COUNT, length + 1)
-            // A regression has to give back a meaningful fraction of the run's own width to count;
-            // this is what tells an actual corrupted jump apart from ordinary rounding noise between
-            // two otherwise-adjacent samples.
-            val tolerance = (totalSpan / sampleCount * 0.5).coerceAtLeast(1.0)
-            var previous: Double? = null
-            for (i in 0 until sampleCount) {
-                val offset = startOffset + (i * length) / (sampleCount - 1).coerceAtLeast(1)
+            val alloc = Rectangle(0, 0, (super.getPreferredSpan(X_AXIS) * 4).toInt().coerceAtLeast(1000), 20)
+            val reported = FloatArray(boundaries.size) { i ->
+                val offset = boundaries[i]
                 // Forward bias at this view's own endOffset asks for the position leaning toward the
-                // character that starts the *next* view, which is not this view's to answer and is
-                // exactly the kind of boundary Swing's own implementations handle inconsistently --
-                // backward bias keeps the query inside the range this view actually owns.
+                // character that starts the *next* view, which is not this view's to answer; backward
+                // bias keeps the query inside the range this view actually owns.
                 val bias = if (offset >= endOffset) Position.Bias.Backward else Position.Bias.Forward
-                val shape = super.modelToView(offset, alloc, bias)
-                val x = shape.bounds2D.x
-                if (previous != null) {
-                    val advanced = if (rtl) x < previous + tolerance else x > previous - tolerance
-                    if (!advanced) return false
-                }
-                previous = x
+                super.modelToView(offset, alloc, bias).bounds2D.x.toFloat()
             }
-            return true
+            val relative = boundaries.map { it - startOffset }.toIntArray()
+            val sound = ShapedCarets.areSound(text, relative, reported, readsRightToLeft())
+            val spread = if (sound) ShapedCarets.spreadLigatures(boundaries, reported, ::standaloneAdvance) else reported
+            return CaretStops(boundaries, reported, spread, sound)
+        }
+
+        /** Width of `[from, to)` laid out on its own, in this run's font. */
+        private fun standaloneAdvance(from: Int, to: Int): Float =
+            font.getStringBounds(document.getText(from, to - from), fontMetrics.fontRenderContext).width.toFloat()
+
+        /** The measured answers, for a shaped run whose own are unsound; null while they are sound. */
+        private fun unsound(): MeasuredRunPainter? {
+            if (caretStops()?.sound != false) return null
+            return measured ?: MeasuredRunPainter().also { measured = it }
+        }
+
+        override fun setGlyphPainter(p: GlyphView.GlyphPainter?) {
+            super.setGlyphPainter(p)
+            stops = null
+        }
+
+        override fun changedUpdate(e: DocumentEvent, a: Shape?, f: ViewFactory) {
+            stops = null
+            super.changedUpdate(e, a, f)
+        }
+
+        override fun insertUpdate(e: DocumentEvent, a: Shape?, f: ViewFactory) {
+            stops = null
+            super.insertUpdate(e, a, f)
+        }
+
+        override fun removeUpdate(e: DocumentEvent, a: Shape?, f: ViewFactory) {
+            stops = null
+            super.removeUpdate(e, a, f)
         }
 
         override fun getMinimumSpan(axis: Int): Float =
             if (axis == X_AXIS) super.getPreferredSpan(axis) / 4 else super.getMinimumSpan(axis)
 
-        override fun getBreakWeight(axis: Int, pos: Float, len: Float): Int =
-            if (axis == X_AXIS) GoodBreakWeight else super.getBreakWeight(axis, pos, len)
+        // ---------------------------------------------------------------------------------------
+        // Line breaking
+        // ---------------------------------------------------------------------------------------
 
-        /** An attribute-only change can hand this run a different font; the old reliability verdict does not carry over. */
-        override fun changedUpdate(e: DocumentEvent, a: Shape?, f: ViewFactory) {
-            reliableCache = null
-            super.changedUpdate(e, a, f)
+        /**
+         * Excellent where a legal break fits, Good where only a cut inside a word would -- which the
+         * flow strategy then takes only if nothing earlier on the row offers a legal break, meaning
+         * the word began the row and is wider than it -- and Bad where not even one cluster fits.
+         */
+        override fun getBreakWeight(axis: Int, pos: Float, len: Float): Int {
+            if (axis != X_AXIS) return super.getBreakWeight(axis, pos, len)
+            val p0 = startOffset
+            val fit = runCatching { fittingEnd(p0, pos, len) }.getOrDefault(p0)
+            if (fit <= p0) return BadBreakWeight
+            val spot = LineBreakOpportunities.lastIn(document, p0, hangingEnd(fit))
+            return if (spot > p0) ExcellentBreakWeight else GoodBreakWeight
         }
 
         /**
-         * The painter's choice can land on a code unit in the middle of a grapheme cluster, or, for
-         * an unreliable shaped run, come from broken hit-testing altogether; either way the result is
-         * checked against cluster boundaries, and an unreliable run is broken by [breakShaped]
-         * instead of trusting the standard implementation's break point.
+         * Ends the fragment at the last legal break that fits, or, when there is none, at the last
+         * cluster boundary that fits. The flow strategy only asks for the second after
+         * [getBreakWeight] has reported Good and no earlier view on the row offered anything better.
          *
-         * [needsFallback]'s sample is a prediction, taken before this specific break is asked for, and
-         * checked against a handful of points rather than every one; it can pass for a run that then
-         * goes on to answer a particular break request badly anyway. The result is checked again here,
-         * directly, against the one thing that actually matters: whether it fits the room it was asked
-         * to fit. A fragment that does not is retried with [breakShaped], whatever the sample said --
-         * an overflowing line is exactly the visible defect this class exists to prevent, so nothing is
-         * trusted merely because it came from the standard implementation.
+         * A result that still does not fit the room it was given is measured again run by run,
+         * whatever the painter said: an overflowing line is exactly the visible defect this class
+         * exists to prevent.
          */
-        override fun breakView(axis: Int, p0: Int, pos: Float, len: Float): View? {
+        override fun breakView(axis: Int, p0: Int, pos: Float, len: Float): View {
             if (axis != X_AXIS) return super.breakView(axis, p0, pos, len)
 
-            var standard = (
-                if (needsFallback()) runCatching { breakShaped(p0, len) }.getOrElse { super.breakView(axis, p0, pos, len) }
-                else super.breakView(axis, p0, pos, len)
-                ) ?: return null
-
-            val fits = runCatching { standard.getPreferredSpan(X_AXIS) }.getOrDefault(0f) <= len + OVERFLOW_TOLERANCE
-            if (!fits) {
-                standard = runCatching { breakShaped(p0, len) }.getOrNull() ?: standard
+            var broken = breakAt(p0, runCatching { fittingEnd(p0, pos, len) }.getOrDefault(p0))
+            val fits = runCatching { broken.getPreferredSpan(X_AXIS) }.getOrDefault(0f) <= len + OVERFLOW_TOLERANCE
+            if (!fits && glyphPainter !is MeasuredRunPainter) {
+                val remeasured = measured ?: MeasuredRunPainter().also { measured = it }
+                runCatching { breakAt(p0, safeBreakEnd(p0, remeasured.getBoundedPosition(this, p0, pos, len))) }
+                    .getOrNull()?.let { broken = it }
             }
-
-            if (standard === this) return this
-
-            val end = standard.endOffset
-            val safeEnd = safeBreakEnd(p0, end)
-            if (safeEnd == end) return standard
-            return if (safeEnd > p0) createFragment(p0, safeEnd) else null
+            return broken
         }
 
-        override fun modelToView(pos: Int, a: Shape, b: Position.Bias): Shape {
-            if (!needsFallback()) return super.modelToView(pos, a, b)
-            return runCatching { shapedCaretShape(pos, a) }.getOrElse { super.modelToView(pos, a, b) }
+        private fun breakAt(p0: Int, fit: Int): View {
+            val spot = LineBreakOpportunities.lastIn(document, p0, hangingEnd(fit))
+            var end = if (spot > p0) spot else fit
+            // Never an empty fragment: a line has to make progress, even if one cluster overflows it.
+            if (end <= p0) end = clusterCutsFrom(p0, endOffset).firstOrNull() ?: endOffset
+            end = end.coerceAtMost(endOffset)
+            return if (p0 == startOffset && end == endOffset) this else createFragment(p0, end)
         }
 
-        override fun modelToView(p0: Int, b0: Position.Bias, p1: Int, b1: Position.Bias, a: Shape): Shape {
-            if (!needsFallback()) return super.modelToView(p0, b0, p1, b1, a)
-            return runCatching { shapedRangeShape(p0, p1, a) }.getOrElse { super.modelToView(p0, b0, p1, b1, a) }
+        /** The largest cluster boundary from [p0] whose text fits in [len]. */
+        private fun fittingEnd(p0: Int, pos: Float, len: Float): Int {
+            val painter = unsound() ?: run { checkPainter(); glyphPainter }
+            return safeBreakEnd(p0, painter.getBoundedPosition(this, p0, pos, len))
         }
 
-        override fun viewToModel(x: Float, y: Float, a: Shape, biasReturn: Array<Position.Bias>): Int {
-            if (!needsFallback()) return super.viewToModel(x, y, a, biasReturn)
-            biasReturn[0] = Position.Bias.Forward
-            return runCatching { shapedViewToModel(x, a) }.getOrElse { super.viewToModel(x, y, a, biasReturn) }
-        }
-
-        private fun shapedCaretShape(pos: Int, a: Shape): Shape {
-            if (pos < startOffset || pos > endOffset) {
-                throw BadLocationException("Position not represented by view", pos)
-            }
-            val alloc = a.bounds
-            return Rectangle(caretX(alloc, pos), alloc.y, 0, alloc.height)
-        }
-
-        private fun shapedRangeShape(p0: Int, p1: Int, a: Shape): Shape {
-            val alloc = a.bounds
-            val from = caretX(alloc, p0)
-            val to = caretX(alloc, p1)
-            return Rectangle(minOf(from, to), alloc.y, abs(to - from), alloc.height)
-        }
-
-        private fun shapedViewToModel(x: Float, a: Shape): Int {
-            val alloc = a.bounds
-            val distance = if (isRightToLeftRun()) alloc.x + alloc.width - x else x - alloc.x
-            if (distance <= 0f) return startOffset
-
-            val cuts = clusterCutsFrom(startOffset, endOffset)
-            if (cuts.isEmpty()) return startOffset
-
-            var lo = 0
-            var hi = cuts.size - 1
-            var below = startOffset
-            while (lo <= hi) {
-                val mid = (lo + hi) ushr 1
-                if (spanOf(startOffset, cuts[mid]) <= distance) { below = cuts[mid]; lo = mid + 1 } else hi = mid - 1
-            }
-            val above = cuts.firstOrNull { it > below } ?: return below
-            val nearer = distance - spanOf(startOffset, below) < spanOf(startOffset, above) - distance
-            return if (nearer) below else above
-        }
-
-        /** Where the caret sits at [pos]: its distance along the run, from the edge the run starts at. */
-        private fun caretX(alloc: Rectangle, pos: Int): Int {
-            val along = spanOf(startOffset, pos)
-            return if (isRightToLeftRun()) (alloc.x + alloc.width - along).toInt() else (alloc.x + along).toInt()
-        }
-
-        private fun isRightToLeftRun(): Boolean {
-            val text = document.getText(startOffset, endOffset - startOffset)
-            return Bidi.requiresBidi(text.toCharArray(), 0, text.length) &&
-                Bidi(text, Bidi.DIRECTION_DEFAULT_LEFT_TO_RIGHT).isRightToLeft
-        }
-
-        /**
-         * Width of `[from, to)`, laid out as a fragment of its own -- which is how a wrapped row
-         * holds it -- rather than read from the run's own broken hit-test data.
-         *
-         * An approximation, not the exact answer a correctly shaping font would give: cutting a word
-         * changes which glyph forms its cut ends take, so a fragment's measured width drifts a little
-         * from its true share of the whole run's advance, more so the more of the word is cut away.
-         * That is an acceptable trade against the alternative, which is trusting data already shown
-         * to be wrong; it is only ever used once [needsFallback] has found the run's own numbers
-         * unreliable to begin with.
-         */
-        private fun spanOf(from: Int, to: Int): Float = when {
-            to <= from -> 0f
-            from == startOffset && to == endOffset -> getPreferredSpan(X_AXIS)
-            else -> createFragment(from, to).getPreferredSpan(X_AXIS)
-        }
-
-        /** Cluster boundaries in `(from, to]`, ascending. */
-        private fun clusterCutsFrom(from: Int, to: Int): IntArray {
-            if (to <= from) return IntArray(0)
-            val text = document.getText(from, to - from)
-            return graphemeBoundary.boundariesAfterStart(text).map { from + it }.toIntArray()
-        }
-
-        /** The fragment starting at [p0] that fills [room], ending at a line-break opportunity where there is one. */
-        private fun breakShaped(p0: Int, room: Float): View? {
-            val fit = fittingEnd(p0, room)
-            if (fit <= p0) return null
-            // A space that does not fit hangs past the line's end instead of starting the next one.
-            var trimmed = fit
-            while (trimmed < endOffset && document.getText(trimmed, 1) == " ") trimmed++
-            if (trimmed >= endOffset) return if (p0 == startOffset) this else createFragment(p0, endOffset)
-
-            val spot = lineBreakAtOrBefore(p0, trimmed)
-            return createFragment(p0, if (spot > p0) spot else trimmed)
-        }
-
-        /**
-         * The largest cluster boundary from [from] whose text still fits in [room].
-         *
-         * Looks at a window of the run that doubles while everything in it fits, so a break in a long
-         * run costs the length of the line, not the length of the whole run.
-         */
-        private fun fittingEnd(from: Int, room: Float): Int {
-            var reach = INITIAL_REACH
-            while (true) {
-                val windowEnd = minOf(endOffset, from + reach)
-                val cuts = clusterCutsFrom(from, windowEnd)
-                if (cuts.isEmpty()) return from
-
-                var lo = 0
-                var hi = cuts.size - 1
-                var best = -1
-                while (lo <= hi) {
-                    val mid = (lo + hi) ushr 1
-                    if (spanOf(from, cuts[mid]) <= room) { best = mid; lo = mid + 1 } else hi = mid - 1
-                }
-                val everythingFits = best == cuts.size - 1
-                if (!everythingFits || windowEnd >= endOffset) return if (best < 0) from else cuts[best]
-                reach *= 2
-            }
-        }
-
-        private fun lineBreakAtOrBefore(from: Int, fit: Int): Int {
-            val lookEnd = minOf(endOffset, fit + GraphemeBoundary.LOOKAHEAD)
-            val breaker = BreakIterator.getLineInstance(Locale.getDefault())
-            breaker.setText(document.getText(from, lookEnd - from))
-            val spot = breaker.preceding(fit - from + 1)
-            return if (spot == BreakIterator.DONE) from else from + spot
+        /** [fit] extended over the spaces after it, which hang past the line's end rather than start the next. */
+        private fun hangingEnd(fit: Int): Int {
+            var end = fit
+            while (end < endOffset && Character.getType(document.getText(end, 1)[0]) == Character.SPACE_SEPARATOR.toInt()) end++
+            return end
         }
 
         /** [proposedEnd] moved back to the nearest grapheme-cluster boundary at or below it. */
@@ -318,21 +268,175 @@ class WrappingEditorKit : StyledEditorKit() {
                 ?: return proposedEnd
             return start + graphemeBoundary.lastAtOrBelow(text, proposedEnd - start)
         }
+
+        /** Cluster boundaries in `(from, to]`, ascending. */
+        private fun clusterCutsFrom(from: Int, to: Int): IntArray {
+            if (to <= from) return IntArray(0)
+            val text = document.getText(from, to - from)
+            return graphemeBoundary.boundariesAfterStart(text).map { from + it }.toIntArray()
+        }
+
+        // ---------------------------------------------------------------------------------------
+        // Caret and mouse
+        // ---------------------------------------------------------------------------------------
+
+        override fun modelToView(pos: Int, a: Shape, b: Position.Bias): Shape {
+            val stops = caretStops() ?: return super.modelToView(pos, a, b)
+            if (!stops.sound) return unsound()!!.modelToView(this, pos, b, a)
+            val i = stops.spreadIndexOf(pos)
+            if (i < 0) return super.modelToView(pos, a, b)
+            val alloc = a.bounds2D
+            return Rectangle2D.Double(alloc.x + stops.spread[i], alloc.y, 1.0, alloc.height)
+        }
+
+        override fun modelToView(p0: Int, b0: Position.Bias, p1: Int, b1: Position.Bias, a: Shape): Shape {
+            (glyphPainter as? MeasuredRunPainter)?.let { return it.rangeShape(this, p0, p1, a) }
+            val stops = caretStops() ?: return super.modelToView(p0, b0, p1, b1, a)
+            if (!stops.sound) return unsound()!!.rangeShape(this, p0, p1, a)
+            if (stops.spreadIndexOf(p0) < 0 && stops.spreadIndexOf(p1) < 0) return super.modelToView(p0, b0, p1, b1, a)
+            // A run is unidirectional, so a range inside it is the span between its two carets.
+            val from = modelToView(p0, a, b0).bounds2D.x
+            val to = modelToView(p1, a, b1).bounds2D.x
+            val alloc = a.bounds2D
+            return Rectangle2D.Double(minOf(from, to), alloc.y, abs(to - from), alloc.height)
+        }
+
+        override fun viewToModel(x: Float, y: Float, a: Shape, biasReturn: Array<Position.Bias>): Int {
+            val stops = caretStops() ?: return super.viewToModel(x, y, a, biasReturn)
+            if (!stops.sound) return unsound()!!.viewToModel(this, x, y, a, biasReturn)
+            // The nearest cluster boundary, from the same carets modelToView draws, so a click on a
+            // caret always lands back on that caret's position. The standard painter's own answer is
+            // not used even where it would be right: it can only name a ligature's edges, and it
+            // moves a click at the end of a view that starts the document one position early (it
+            // compares a view-relative index with an absolute offset).
+            val along = x - a.bounds2D.x.toFloat()
+            val last = if (endsWithNewline()) stops.boundaries.size - 2 else stops.boundaries.size - 1
+            var nearest = 0
+            var nearestDistance = Float.MAX_VALUE
+            for (i in 0..last.coerceAtLeast(0)) {
+                val distance = abs(stops.spread[i] - along)
+                if (distance < nearestDistance) { nearest = i; nearestDistance = distance }
+            }
+            val offset = stops.boundaries[nearest]
+            // At a view's end the caret belongs to this row, not to the start of whatever follows.
+            biasReturn[0] = if (offset == endOffset && offset > startOffset) Position.Bias.Backward else Position.Bias.Forward
+            return offset
+        }
+
+        private fun endsWithNewline(): Boolean =
+            endOffset > startOffset && document.getText(endOffset - 1, 1) == "\n"
+
+        /**
+         * The standard step, except that it also stops at every cluster boundary inside a ligature,
+         * which the layout on its own treats as no caret position at all and steps straight over.
+         */
+        override fun getNextVisualPositionFrom(
+            pos: Int, b: Position.Bias, a: Shape, direction: Int, biasRet: Array<Position.Bias>,
+        ): Int {
+            checkPainter()
+            unsound()?.let { return it.getNextVisualPositionFrom(this, pos, b, a, direction, biasRet) }
+            val next = super.getNextVisualPositionFrom(pos, b, a, direction, biasRet)
+            if (pos < 0 || next < 0 || (direction != EAST && direction != WEST)) return next
+            val stops = caretStops() ?: return next
+            val skipped = stops.boundaries.filter { it in (minOf(pos, next) + 1) until maxOf(pos, next) }
+            if (skipped.isEmpty()) return next
+            biasRet[0] = Position.Bias.Forward
+            return if (next > pos) skipped.first() else skipped.last()
+        }
     }
 
     private companion object {
         /** `GlyphPainter2` is package-private in the JDK, so it can only be recognised by name. */
         const val SHAPED_PAINTER = "GlyphPainter2"
-        const val INITIAL_REACH = 48
 
-        /** Sample points used to check a shaped run's hit-testing advances monotonically. */
-        const val SAMPLE_COUNT = 8
+        /** `TextLayoutStrategy`, the flow strategy Swing gives a paragraph of bidi text; package-private too. */
+        const val SHAPED_STRATEGY = "TextLayoutStrategy"
 
         /** Slack allowed before a break result is treated as overflowing the room it was given. */
         const val OVERFLOW_TOLERANCE = 2f
     }
 
+    /**
+     * A paragraph that fills the pane's width, and that stops relying on its own shaped layout when
+     * that layout is unsound.
+     *
+     * For bidi text Swing lays a paragraph out with `TextLayoutStrategy`, which measures the whole
+     * paragraph as one `TextLayout` to decide where each row ends. When that layout's hit-testing is
+     * broken -- past one ligature, every later character reported at the same point -- the row
+     * decisions are broken with it, and no view below can undo them: a word the layout believes is as
+     * wide as the rest of the line gets cut wherever the measurement ran out. The font-fallback pass
+     * avoids this whenever a configured font shapes the text soundly. For the paragraph where none
+     * does, [MeasuredFlowStrategy] takes over: rows are built from the views' own break weights, in
+     * logical order and then reordered for display, and each run is measured by a [MeasuredRunPainter].
+     * The paragraph goes back to the standard strategy as soon as its layout is sound again.
+     */
     class WrappingParagraphView(elem: Element) : ParagraphView(elem) {
+
+        private val standardStrategy: FlowStrategy = strategy
+        private val measuredStrategy = MeasuredFlowStrategy()
+
+        /** True while this paragraph is laid out by the last-resort strategy. */
+        internal var measuresRuns = false
+            private set
+
+        override fun loadChildren(f: ViewFactory?) {
+            super.loadChildren(f)
+            chooseStrategy()
+        }
+
+        override fun insertUpdate(changes: DocumentEvent, a: Shape?, f: ViewFactory?) {
+            super.insertUpdate(changes, a, f)
+            chooseStrategy()
+        }
+
+        override fun removeUpdate(changes: DocumentEvent, a: Shape?, f: ViewFactory?) {
+            super.removeUpdate(changes, a, f)
+            chooseStrategy()
+        }
+
+        override fun changedUpdate(changes: DocumentEvent, a: Shape?, f: ViewFactory?) {
+            super.changedUpdate(changes, a, f)
+            chooseStrategy()
+        }
+
+        private fun chooseStrategy() {
+            val pool = layoutPool ?: return
+            // Only a paragraph Swing lays out as one shaped layout can be misled by one.
+            val shaped = standardStrategy.javaClass.simpleName == SHAPED_STRATEGY
+            val measure = shaped && !runCatching { shapesSoundly() }.getOrDefault(true)
+            if (measure == measuresRuns) return
+            measuresRuns = measure
+            strategy = if (measure) measuredStrategy else standardStrategy
+            // Each run picks the painter that goes with the new strategy the next time it is asked.
+            for (i in 0 until pool.viewCount) (pool.getView(i) as? GlyphView)?.glyphPainter = null
+            // Brings a TextLayoutStrategy back in step with the text it last saw.
+            strategy.insertUpdate(this, null, null)
+            layoutChanged(X_AXIS)
+            layoutChanged(Y_AXIS)
+        }
+
+        /** Whether this paragraph, laid out with its runs' own fonts, has sound hit-testing throughout. */
+        private fun shapesSoundly(): Boolean {
+            val doc = document as? StyledDocument ?: return true
+            val start = startOffset
+            var end = minOf(endOffset, doc.length)
+            if (end > start && doc.getText(end - 1, 1) == "\n") end--
+            if (end - start <= 1) return true
+            val text = doc.getText(start, end - start)
+            val attributed = AttributedString(text)
+            val paragraph = element
+            for (i in 0 until paragraph.elementCount) {
+                val run = paragraph.getElement(i)
+                val from = maxOf(run.startOffset, start) - start
+                val to = minOf(run.endOffset, end) - start
+                if (to > from) attributed.addAttribute(TextAttribute.FONT, doc.getFont(run.attributes), from, to)
+            }
+            val sample = doc.getFont(paragraph.getElement(0).attributes)
+            val renderContext = container?.getFontMetrics(sample)?.fontRenderContext ?: FontRenderContext(null, true, true)
+            val layout = TextLayout(attributed.iterator, renderContext)
+            return ShapedCarets.layoutIsSound(text, layout, 0, text.length)
+        }
+
         override fun layout(width: Int, height: Int) {
             super.layout(width, height)
             for (i in 0 until viewCount) {
@@ -346,5 +450,43 @@ class WrappingEditorKit : StyledEditorKit() {
 
         override fun getMaximumSpan(axis: Int): Float =
             if (axis == X_AXIS) Float.MAX_VALUE else super.getMaximumSpan(axis)
+    }
+
+    /**
+     * Fills rows from the views' own break weights, as the plain flow strategy does, with the two
+     * things `TextLayoutStrategy` would otherwise have supplied: no view spans two bidi levels, and
+     * each finished row is put into visual order.
+     */
+    private class MeasuredFlowStrategy : FlowView.FlowStrategy() {
+
+        override fun createView(fv: FlowView, startOffset: Int, spanLeft: Int, rowIndex: Int): View? {
+            val logical = getLogicalView(fv)
+            val v = logical.getView(logical.getViewIndex(startOffset, Position.Bias.Forward)) ?: return null
+            var end = v.endOffset
+            val doc = fv.document
+            if (doc is AbstractDocument) {
+                val bidi = doc.bidiRootElement
+                end = minOf(end, bidi.getElement(bidi.getElementIndex(startOffset)).endOffset)
+            }
+            return if (startOffset == v.startOffset && end == v.endOffset) v else v.createFragment(startOffset, end)
+        }
+
+        override fun layoutRow(fv: FlowView, rowIndex: Int, pos: Int): Int {
+            val next = super.layoutRow(fv, rowIndex, pos)
+            val row = fv.getView(rowIndex)
+            val doc = fv.document as? AbstractDocument ?: return next
+            val count = row.viewCount
+            if (count > 1) {
+                val bidi = doc.bidiRootElement
+                val levels = ByteArray(count) { i ->
+                    val level = StyleConstants.getBidiLevel(bidi.getElement(bidi.getElementIndex(row.getView(i).startOffset)).attributes)
+                    level.toByte()
+                }
+                val views = Array<Any>(count) { row.getView(it) }
+                Bidi.reorderVisually(levels, 0, views, 0, count)
+                row.replace(0, count, Array(count) { views[it] as View })
+            }
+            return next
+        }
     }
 }
