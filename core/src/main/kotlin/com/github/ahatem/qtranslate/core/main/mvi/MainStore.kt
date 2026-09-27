@@ -37,6 +37,30 @@ private data class ComparisonConfigKey(
     val disabledServices: Set<String>
 )
 
+internal data class SpellCheckInput(
+    val text: String,
+    val sourceLanguage: LanguageCode,
+    val detectedSourceLanguage: LanguageCode?,
+    val isEnabled: Boolean,
+) {
+    fun matches(state: MainState, enabled: Boolean): Boolean = this == from(state, enabled)
+
+    companion object {
+        fun from(state: MainState, enabled: Boolean) = SpellCheckInput(
+            state.inputText,
+            state.sourceLanguage,
+            state.detectedSourceLanguage.takeIf { state.sourceLanguage == LanguageCode.AUTO },
+            enabled,
+        )
+    }
+}
+
+internal fun spellCheckInputs(states: Flow<MainState>, enabled: Flow<Boolean>): Flow<SpellCheckInput> =
+    combine(
+        states.map { SpellCheckInput.from(it, false) }.distinctUntilChanged(),
+        enabled.distinctUntilChanged(),
+    ) { input, isEnabled -> input.copy(isEnabled = isEnabled) }.distinctUntilChanged()
+
 /**
  * MVI store for the main translation screen.
  *
@@ -266,12 +290,16 @@ class MainStore(
     @OptIn(FlowPreview::class)
     private fun observeSpellChecking() {
         scope.launch {
-            combine(
-                state.map { it.inputText }.distinctUntilChanged(),
-                settingsState.map { it.isSpellCheckingEnabled }.distinctUntilChanged()
-            ) { text, isEnabled -> text to isEnabled }
+            var previous: SpellCheckInput? = null
+            spellCheckInputs(state, settingsState.map { it.isSpellCheckingEnabled })
+                .onEach { input ->
+                    if (previous != null && previous != input) {
+                        _state.update { current -> current.copy(spellCheckCorrections = emptyList()) }
+                    }
+                    previous = input
+                }
                 .debounce(AppConstants.SPELL_CHECK_DEBOUNCE_MS)
-                .collectLatest { (text, isEnabled) -> handleSpellCheck(text, isEnabled) }
+                .collectLatest(::handleSpellCheck)
         }
     }
 
@@ -373,7 +401,7 @@ class MainStore(
             is MainIntent.TranslateDocument -> startDocumentTranslation(intent)
             MainIntent.CancelDocumentTranslation -> cancelDocumentTranslation()
             MainIntent.PerformSpellCheck -> scope.launch {
-                handleSpellCheck(_state.value.inputText, isEnabled = true)
+                handleSpellCheck(SpellCheckInput.from(_state.value, true), checkSetting = false)
             }
 
             is MainIntent.Translate -> {
@@ -762,20 +790,20 @@ class MainStore(
         )
     }
 
-    private suspend fun handleSpellCheck(text: String, isEnabled: Boolean) {
-        val sourceLanguage = _state.value.sourceLanguage
-        val corrections = if (isEnabled && text.isNotBlank()) {
+    private suspend fun handleSpellCheck(input: SpellCheckInput, checkSetting: Boolean = true) {
+        val snapshot = _state.value
+        if (!input.matches(snapshot, if (checkSetting) settingsState.value.isSpellCheckingEnabled else true)) return
+        val corrections = if (input.isEnabled && input.text.isNotBlank()) {
             performSpellCheckUseCase(
-                currentState   = _state.value,
-                text           = text,
+                currentState   = snapshot,
+                text           = input.text,
                 onStatusUpdate = ::updateStatusBar
             )
         } else {
             emptyList()
         }
         _state.update { current ->
-            if (current.inputText == text && current.sourceLanguage == sourceLanguage &&
-                settingsState.value.isSpellCheckingEnabled == isEnabled)
+            if (input.matches(current, if (checkSetting) settingsState.value.isSpellCheckingEnabled else true))
                 current.copy(spellCheckCorrections = corrections)
             else current
         }
