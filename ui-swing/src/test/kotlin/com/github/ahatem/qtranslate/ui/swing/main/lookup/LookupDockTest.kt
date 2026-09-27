@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.lookup
 
 import com.github.ahatem.qtranslate.core.main.mvi.LookupTool
+import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchPanel
 import com.github.ahatem.qtranslate.ui.swing.main.layout.ComponentRegistry
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
 import com.github.ahatem.qtranslate.ui.swing.main.layout.WorkspaceDockHost
@@ -134,16 +135,46 @@ class LookupDockTest {
         }
     }
 
-    // 23
+    // 40: main-window lookups always dock, at any window width
     @Test
-    fun `a window without room routes lookups to the floating popups`() {
+    fun `main window lookups always route to the dock, never to a width-dependent popup`() {
         val main = File("src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/main/MainContentView.kt").readText()
         val images = main.substringAfter("fun openImages(").substringBefore("fun openDictionary(")
-        assertTrue("if (!dockHost.canDock)" in images && "MainIntent.ShowImageSearch" in images, "images fall back to the popup")
         val dictionary = main.substringAfter("fun openDictionary(").substringBefore("fun toggleDictionary(")
-        assertTrue("if (!dockHost.canDock)" in dictionary && "onOpenFloatingDictionary" in dictionary, "the dictionary falls back to its popup")
+
+        assertFalse("canDock" in images, "opening Images no longer asks whether the window has room")
+        assertFalse("canDock" in dictionary, "opening the dictionary no longer asks whether the window has room")
+        assertFalse("ShowImageSearch" in images, "a main-window Images request no longer falls back to the floating popup")
+        assertFalse("onOpenFloatingDictionary" in dictionary, "a main-window dictionary request no longer falls back to the floating popup")
+
         assertTrue("MainIntent.OpenLookupDock(LookupTool.IMAGES)" in images)
         assertTrue("MainIntent.OpenLookupDock(LookupTool.DICTIONARY)" in dictionary)
+        assertTrue("onEnsureLookupDockRoom" in images, "the frame is given a chance to make room before the dock opens")
+        assertTrue("onEnsureLookupDockRoom" in dictionary)
+    }
+
+    // canDock as a routing decision is gone from the whole class, not merely unused in these two methods.
+    @Test
+    fun `the content view makes no width-based dock-or-float decision anywhere`() {
+        val main = File("src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/main/MainContentView.kt").readText()
+        assertFalse("canDock" in main, "MainContentView no longer has a canDock-shaped routing decision")
+    }
+
+    // Images owns its own margin (so it also looks right floating alone); Dictionary owns none.
+    @Test
+    fun `the dock wraps dictionary in its own margin but mounts images bare`() {
+        var dock: LookupDock? = null
+        var realImages: ImageSearchPanel? = null
+        SwingUtilities.invokeAndWait {
+            realImages = ImageSearchPanel()
+            dock = LookupDock(dictionary, realImages!!, TestIcons.iconManager(), {}, {})
+        }
+        val d = dock!!
+        assertTrue(
+            (d.tabsForTest().getComponentAt(0) as java.awt.Container).components.single() === dictionary,
+            "the dictionary tab is a wrapper around the dictionary content"
+        )
+        assertSame(realImages!!, d.tabsForTest().getComponentAt(1), "the images tab mounts the panel directly, with no extra wrapper")
     }
 
     @Test

@@ -65,8 +65,8 @@ class WorkspaceDockHostTest {
         val f = Fixture()
         f.show()
         assertTrue(f.dock.isVisible)
-        assertTrue(f.workspace.width >= UISpacing.WORKSPACE_MIN_WIDTH)
-        assertTrue(f.dock.width >= UISpacing.LOOKUP_DOCK_MIN_WIDTH)
+        assertTrue(f.workspace.width >= UISpacing.WORKSPACE_HARD_MIN_WIDTH)
+        assertTrue(f.dock.width >= UISpacing.LOOKUP_DOCK_HARD_MIN_WIDTH)
         assertEquals(f.hostWidth, f.workspace.width + f.divider.width + f.dock.width, "nothing is left over or overlapping")
     }
 
@@ -87,9 +87,9 @@ class WorkspaceDockHostTest {
         val f = Fixture()
         f.show()
         f.drag(-5000)
-        assertEquals(f.hostWidth - f.divider.width - UISpacing.WORKSPACE_MIN_WIDTH, f.dock.width, "the workspace keeps its minimum")
+        assertEquals(f.hostWidth - f.divider.width - UISpacing.WORKSPACE_HARD_MIN_WIDTH, f.dock.width, "the workspace keeps its hard minimum")
         f.drag(5000)
-        assertEquals(UISpacing.LOOKUP_DOCK_MIN_WIDTH, f.dock.width, "the dock keeps its minimum")
+        assertEquals(UISpacing.LOOKUP_DOCK_HARD_MIN_WIDTH, f.dock.width, "the dock keeps its hard minimum")
     }
 
     // 11
@@ -105,20 +105,21 @@ class WorkspaceDockHostTest {
         assertEquals(chosen, f.dock.width)
     }
 
+    // 21
     @Test
     fun `a width chosen wide is given back after the window shrinks and grows again`() {
         val f = Fixture()
         f.show()
         f.drag(-150)
         val chosen = f.dock.width
-        f.resize(900)
+        f.resize(700)
         assertTrue(f.dock.width < chosen, "squeezed while the window is small")
-        assertTrue(f.workspace.width >= UISpacing.WORKSPACE_MIN_WIDTH)
+        assertTrue(f.workspace.width >= UISpacing.WORKSPACE_HARD_MIN_WIDTH)
         f.resize(1200)
         assertEquals(chosen, f.dock.width)
     }
 
-    // 12
+    // 12, 22
     @Test
     fun `left to right puts the dock at the trailing right edge`() {
         val f = Fixture(rtl = false)
@@ -129,7 +130,7 @@ class WorkspaceDockHostTest {
         assertTrue(f.divider.x >= f.workspace.x + f.workspace.width)
     }
 
-    // 13
+    // 13, 22
     @Test
     fun `right to left puts the dock at the trailing left edge`() {
         val f = Fixture(rtl = true)
@@ -140,7 +141,7 @@ class WorkspaceDockHostTest {
         assertEquals(f.dock.width, f.divider.x)
     }
 
-    // 14
+    // 14, 23
     @Test
     fun `the divider follows the pointer in both directions`() {
         val ltr = Fixture(rtl = false)
@@ -158,6 +159,7 @@ class WorkspaceDockHostTest {
         assertEquals(rtlBefore, rtl.dock.width, "and dragging back returns it")
     }
 
+    // 26, 27
     @Test
     fun `the divider is a wide strip with the resize cursor and a thin line`() {
         val f = Fixture()
@@ -168,7 +170,7 @@ class WorkspaceDockHostTest {
         assertTrue(f.divider.isVisible && f.divider.height == 600)
     }
 
-    // 16
+    // 16, 27
     @Test
     fun `nothing of the divider remains while the dock is hidden`() {
         val f = Fixture()
@@ -179,37 +181,37 @@ class WorkspaceDockHostTest {
         assertEquals(1, f.host.components.count { it.isVisible }, "only the workspace is laid out")
     }
 
-    // 17
+    // 14: a requested dock stays visible regardless of the comfortable-width threshold
     @Test
-    fun `a window too narrow for both asks for floating and keeps the workspace whole`() {
-        val f = Fixture()
-        val changes = mutableListOf<Boolean>()
-        f.host.onDockabilityChanged = { changes += it }
+    fun `a requested dock stays presented in a window far below the comfortable width`() {
+        val f = Fixture(hostWidth = 1200)
         f.show()
-        assertTrue(f.host.canDock)
+        assertTrue(f.host.isDockPresented)
 
-        f.resize(f.host.dockingThreshold() - 1)
-        SwingUtilities.invokeAndWait { }
-        assertFalse(f.host.canDock)
-        assertFalse(f.host.isDockPresented)
-        assertFalse(f.dock.isVisible, "the dock is not squeezed in")
-        assertEquals(f.host.dockingThreshold() - 1, f.workspace.width, "the workspace keeps the whole window")
-        assertEquals(listOf(false), changes)
-
-        f.resize(f.host.dockingThreshold() + 200)
-        SwingUtilities.invokeAndWait { }
-        assertTrue(f.host.canDock)
-        assertEquals(listOf(false, true), changes)
-        assertTrue(f.dock.isVisible, "and it returns with room")
+        f.resize(f.host.comfortableWidth() - 300)
+        assertTrue(f.host.isDockPresented, "width affects sizing, not whether the dock exists")
+        assertTrue(f.dock.isVisible)
+        assertTrue(f.divider.isVisible)
     }
 
+    // 15: hard minimum and preferred width are distinct
     @Test
-    fun `the threshold is derived from what each side needs`() {
+    fun `the hard minimum is smaller than the comfortable width`() {
         val f = Fixture()
-        assertEquals(
-            UISpacing.WORKSPACE_MIN_WIDTH + UISpacing.DOCK_DIVIDER_HIT_WIDTH + UISpacing.LOOKUP_DOCK_MIN_WIDTH,
-            f.host.dockingThreshold()
-        )
+        val hardMinimum = UISpacing.WORKSPACE_HARD_MIN_WIDTH + UISpacing.DOCK_DIVIDER_HIT_WIDTH + UISpacing.LOOKUP_DOCK_HARD_MIN_WIDTH
+        assertTrue(hardMinimum < f.host.comfortableWidth(), "the hard minimum must ask for less room than the comfortable width")
+    }
+
+    // A screen too small for even the hard minimum still shows the dock at its hard minimum.
+    @Test
+    fun `a screen too small for comfort still presents the dock at its hard minimum`() {
+        val f = Fixture()
+        f.show()
+        val tiny = UISpacing.WORKSPACE_HARD_MIN_WIDTH + UISpacing.DOCK_DIVIDER_HIT_WIDTH + UISpacing.LOOKUP_DOCK_HARD_MIN_WIDTH
+        f.resize(tiny)
+        assertTrue(f.host.isDockPresented, "small screens still dock rather than falling back to a popup")
+        assertEquals(UISpacing.LOOKUP_DOCK_HARD_MIN_WIDTH, f.dock.width)
+        assertEquals(UISpacing.WORKSPACE_HARD_MIN_WIDTH, f.workspace.width)
     }
 
     // 15

@@ -86,8 +86,12 @@ class MainContentView(
     private val onNotificationsClicked: () -> Unit,
     private val onConfigureService: (String) -> Unit,
     private val onOpenServiceSettings: () -> Unit,
-    /** Shows the dictionary as the floating popup, for when the window has no room to dock it. */
-    private val onOpenFloatingDictionary: (word: String, language: LanguageCode) -> Unit,
+    /**
+     * Gives the main window enough width for the Lookup Dock before it opens, if it does not
+     * already have it: growing a resizable frame within its monitor's work area, or doing nothing
+     * when the frame is maximized or already wide enough.
+     */
+    private val onEnsureLookupDockRoom: () -> Unit,
     /** Opens the page an image came from. */
     private val onOpenImageSource: (ImageResult) -> Unit,
 ) : JPanel(BorderLayout(0, 0)) {
@@ -211,7 +215,7 @@ class MainContentView(
         },
     )
 
-    private val imageSearchPanel = ImageSearchPanel(padded = false)
+    private val imageSearchPanel = ImageSearchPanel()
 
     private val lookupDock = LookupDock(
         dictionary = dictionaryPanel,
@@ -864,33 +868,27 @@ class MainContentView(
         ).forEach { it.installContentDropHandler(onContent, onDragOver, onDropped) }
     }
 
-    /**
-     * Whether the window has room to dock a lookup beside the workspace right now.
-     *
-     * The answer routes lookups: a wide window docks them, a narrow one keeps the workspace whole
-     * and shows the floating popup instead. It is about presentation only; nothing about the
-     * translation layout changes either way.
-     */
-    val canDockLookup: Boolean get() = dockHost.canDock
+    /** The width, workspace plus dock, the frame should try to have before the dock opens. */
+    fun comfortableWidthWithDock(): Int = dockHost.comfortableWidth()
 
-    /** Shows the pictures for [word]: docked in a wide window, as the floating popup in a narrow one. */
+    /**
+     * Shows the pictures for [word] in the Lookup Dock.
+     *
+     * A main-window action always docks: the result belongs in the workspace it was asked from,
+     * not in a popup whose appearance would depend on how wide the window happened to be. Making
+     * room for it, when the window does not already have enough, is [onEnsureLookupDockRoom]'s job.
+     */
     fun openImages(word: String, language: LanguageCode = currentLookupLanguage) {
-        if (!dockHost.canDock) {
-            dispatch(MainIntent.ShowImageSearch(word, language))
-            return
-        }
+        onEnsureLookupDockRoom()
         dispatch(MainIntent.OpenLookupDock(LookupTool.IMAGES))
         if (word.isNotBlank()) dispatch(MainIntent.SearchImages(word, language))
         // Once the tab is on screen; asking earlier finds the field not yet showing.
         javax.swing.SwingUtilities.invokeLater { imageSearchPanel.focusSearchField() }
     }
 
-    /** Shows the dictionary for [word]: docked in a wide window, as the floating popup in a narrow one. */
+    /** Shows the dictionary for [word] in the Lookup Dock. See [openImages] for why this always docks. */
     fun openDictionary(word: String, language: LanguageCode = currentLookupLanguage) {
-        if (!dockHost.canDock) {
-            onOpenFloatingDictionary(word, language)
-            return
-        }
+        onEnsureLookupDockRoom()
         dictionaryPanel.setSearchWord(word)
         dispatch(MainIntent.OpenLookupDock(LookupTool.DICTIONARY))
         if (word.isNotBlank()) dispatch(MainIntent.LookupWord(word, language))
@@ -898,7 +896,7 @@ class MainContentView(
 
     /** The main menu's Dictionary entry: opens the dictionary, or closes it when it is what the dock shows. */
     fun toggleDictionary(initialWord: String) {
-        if (dockHost.canDock && lastState?.first?.isDictionaryPanelVisible == true) {
+        if (lastState?.first?.isDictionaryPanelVisible == true) {
             dispatch(MainIntent.CloseLookupDock)
         } else {
             openDictionary(initialWord)

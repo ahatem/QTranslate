@@ -43,7 +43,7 @@ class ImageSearchPanelTest {
         onSearch: (String) -> Unit = {},
     ) = ImageSearchPanelState(loading, found, term, failed, strings, onSearch, onImageOpened = {})
 
-    private fun panel(padded: Boolean = true) = ImageSearchPanel(padded).also { panels += it }
+    private fun panel() = ImageSearchPanel().also { panels += it }
 
     private fun onEdt(block: () -> Unit) = SwingUtilities.invokeAndWait(block)
 
@@ -148,7 +148,7 @@ class ImageSearchPanelTest {
         val main = File(root, "main/MainContentView.kt").readText()
 
         assertTrue("ImageSearchPanel()" in dialog, "the popup mounts the panel")
-        assertTrue("ImageSearchPanel(padded = false)" in main, "the dock mounts the panel")
+        assertTrue("ImageSearchPanel()" in main, "the dock mounts the exact same panel, with no host-supplied padding flag")
         // The popup is only the window around it: nothing of the content stayed behind.
         listOf("GridLayout", "ScaledImage", "ElidingLabel", "ThumbnailLoader", "JScrollPane").forEach {
             assertFalse(it in dialog, "ImageSearchDialog no longer owns $it")
@@ -156,19 +156,25 @@ class ImageSearchPanelTest {
         // And the panel knows nothing of either shell.
         val panel = File(root, "imagesearch/ImageSearchPanel.kt").readText()
         listOf("JDialog", "FloatingPopupBehavior", "WorkspaceDockHost", "LookupDock", "isDocked").forEach {
-            assertFalse(it in panel.substringAfter("class ImageSearchPanel("), "the panel does not mention $it")
+            assertFalse(it in panel.substringAfter("class ImageSearchPanel"), "the panel does not mention $it")
         }
     }
 
     @Test
-    fun `padding is optional so a host that insets its content does not double it`() {
-        val padded = panel(padded = true)
-        val bare = panel(padded = false)
-        onEdt { padded.render(state(term = "cat", found = results(2))); bare.render(state(term = "cat", found = results(2))) }
-        size(padded, 600)
-        size(bare, 600)
-        val paddedField = SwingUtilities.convertPoint(padded.searchFieldComponent, 0, 0, padded)
-        val bareField = SwingUtilities.convertPoint(bare.searchFieldComponent, 0, 0, bare)
-        assertTrue(paddedField.x > bareField.x, "a bare panel puts its field flush to the edge the host insets")
+    fun `the panel owns one content rhythm, with no host-supplied padding switch`() {
+        val panel = File("src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/imagesearch/ImageSearchPanel.kt").readText()
+        assertFalse("padded" in panel.substringAfter("class ImageSearchPanel"), "there is no per-host padding flag left to keep in sync")
+    }
+
+    @Test
+    fun `the search field and the tile grid share the same leading and trailing edge`() {
+        val panel = panel()
+        onEdt { panel.render(state(term = "cat", found = results(2))) }
+        size(panel, 600)
+        val grid = descendants(panel).first { it is java.awt.Container && it.layout is java.awt.GridLayout } as java.awt.Container
+        val tile = grid.getComponent(0)
+        val fieldPoint = SwingUtilities.convertPoint(panel.searchFieldComponent, 0, 0, panel)
+        val tilePoint = SwingUtilities.convertPoint(tile, 0, 0, panel)
+        assertTrue(kotlin.math.abs(fieldPoint.x - tilePoint.x) <= 1, "the search field and the first tile start at the same left edge (field=${fieldPoint.x} tile=${tilePoint.x})")
     }
 }

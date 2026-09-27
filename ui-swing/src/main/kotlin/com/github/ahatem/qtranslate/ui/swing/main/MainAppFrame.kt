@@ -51,6 +51,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.input.InputRuntimeState
 import com.github.ahatem.qtranslate.ui.swing.main.input.LocalHotkeyRegistration
 import com.github.ahatem.qtranslate.ui.swing.main.input.PasteInjector
 import com.github.ahatem.qtranslate.ui.swing.main.input.QInputPasteInjector
+import com.github.ahatem.qtranslate.ui.swing.main.layout.DockRoomPlanner
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
 import com.github.ahatem.qtranslate.ui.swing.main.menus.*
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBar
@@ -169,15 +170,6 @@ class MainAppFrame(
         DragOverlay(this) { localizer.getString("main_window.drop_hint") }
     }
 
-    /**
-     * Controls where the floating dictionary popup positions itself on first open.
-     * - `true`  → near the mouse cursor   (global hotkey trigger)
-     * - `false` → adjacent to the owner window (auto-lookup from translation)
-     * Set before dispatching [MainIntent.ShowQuickDictionary]; read in [buildQuickDictionaryDialogState].
-     */
-    @Volatile
-    private var quickDictionaryPositionNearMouse = true
-
     private val quickTranslateDialog by lazy {
         QuickTranslateDialog(
             owner = this,
@@ -265,11 +257,7 @@ class MainAppFrame(
             )
             dialog.isVisible = true
         },
-        onOpenFloatingDictionary = { word, language ->
-            // Opened from the main window, so it sits beside it rather than at the pointer.
-            quickDictionaryPositionNearMouse = false
-            mainStore.dispatch(MainIntent.ShowQuickDictionary(word, language))
-        },
+        onEnsureLookupDockRoom = { ensureRoomForLookupDock() },
         onOpenImageSource = { result -> openUrl(result.sourceUrl ?: result.fullUrl) }
     )
 
@@ -356,7 +344,6 @@ class MainAppFrame(
                 // in place and restarts its countdown — hiding it meant the popup vanished when
                 // the user was asking for more of it, and threw away a pin they had set.
                 val lang = mainStore.state.value.resolvedSourceLanguage
-                quickDictionaryPositionNearMouse = true   // hotkey — position near cursor
                 mainStore.dispatch(MainIntent.ShowQuickDictionary(selectedText, lang))
             }
         },
@@ -1737,6 +1724,34 @@ class MainAppFrame(
     }
 
     /**
+     * Grows the frame before a main-window lookup opens, if that would help: a resizable frame
+     * that is narrower than the workspace and dock together would comfortably like gets wider,
+     * clamped to its monitor's work area, with its height and position otherwise left alone.
+     *
+     * Left alone entirely while maximized (the dock adapts to whatever width that already gives)
+     * or while the frame already has enough room, so opening the dock a second time never moves
+     * anything.
+     */
+    private fun ensureRoomForLookupDock() {
+        if (!isVisible) return
+        val gc = graphicsConfiguration ?: return
+        val screenInsets = runCatching { toolkit.getScreenInsets(gc) }.getOrDefault(Insets(0, 0, 0, 0))
+        val screenBounds = gc.bounds
+        val workArea = Rectangle(
+            screenBounds.x + screenInsets.left,
+            screenBounds.y + screenInsets.top,
+            screenBounds.width - screenInsets.left - screenInsets.right,
+            screenBounds.height - screenInsets.top - screenInsets.bottom
+        )
+        val isMaximized = (extendedState and Frame.MAXIMIZED_HORIZ) == Frame.MAXIMIZED_HORIZ
+        val chromeWidth = width - contentPane.width
+        val wantedWidth = mainContentView.comfortableWidthWithDock() + chromeWidth
+
+        val plan = DockRoomPlanner.plan(bounds, workArea, wantedWidth, isMaximized) ?: return
+        bounds = plan
+    }
+
+    /**
      * Opens the image popup from a menu, seeded with the input text when it is a single word.
      *
      * The hotkey and the context menu both start from a selection; a menu click has none, so it
@@ -1911,7 +1926,9 @@ class MainAppFrame(
                 autoPositionEnabled  = config.isQuickDictionaryAutoPositionEnabled,
                 lastKnownSize        = config.quickDictionaryLastKnownSize,
                 lastKnownPosition    = config.quickDictionaryLastKnownPosition,
-                positionNearMouse    = quickDictionaryPositionNearMouse,
+                // The main window now always docks its own lookups, so this popup is only ever
+                // opened from the global hotkey, which fires with the pointer over the selection.
+                positionNearMouse    = true,
                 idleTimeoutSeconds   = config.quickDictionaryIdleTimeoutSeconds,
                 closeOnClickOutside  = config.closePopupsOnClickOutside,
                 transparencyPercentage = config.quickDictionaryTransparencyPercentage

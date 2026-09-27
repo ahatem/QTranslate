@@ -38,6 +38,11 @@ class MirroredSplitPane(
     private val trailing: Component,
 ) : JSplitPane(orientation, continuousLayout, leading, trailing) {
 
+    init {
+        // The same quiet hairline as the Lookup Dock's own divider, not FlatLaf's default grip dots.
+        setUI(ModernSplitPaneUI())
+    }
+
     /** Share of the space given to [leading] when the window is resized. */
     var leadingResizeWeight: Double = 0.5
         set(value) {

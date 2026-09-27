@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.main.lookup
 import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.main.mvi.LookupTool
+import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchPanel
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.createToolbarButton
@@ -46,7 +47,12 @@ class LookupDock(
         }
         tabs.putClientProperty(FlatClientProperties.TABBED_PANE_TRAILING_COMPONENT, closeHolder)
 
-        tools.forEach { (_, content) -> tabs.addTab("", padded(content)) }
+        tools.forEach { (_, content) ->
+            // Images already owns a margin equal to this wrapper's, as it must to also look right
+            // floating on its own; wrapping it again would double it. Dictionary owns none of its
+            // own, so it needs the wrapper as the only source of its outer breathing room.
+            tabs.addTab("", if (content is ImageSearchPanel) content else padded(content))
+        }
 
         tabs.addChangeListener {
             if (!isSelectingProgrammatically) onToolSelected(selectedTool)

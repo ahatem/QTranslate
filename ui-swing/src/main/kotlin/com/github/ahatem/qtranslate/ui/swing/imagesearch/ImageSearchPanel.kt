@@ -51,14 +51,14 @@ data class ImageSearchPanelState(
  * It is only content. It does not know whether it is docked in the main window or floating in a
  * popup, and owns nothing of a window: no title, no pin, no position. The hosts supply those, which
  * is what lets the dock and the popup show exactly the same thing.
+ *
+ * The content rhythm below -- outer inset, the gap from the search field to the results, the tile
+ * grid, the gap from a picture to its caption and from there to its credit -- belongs entirely to
+ * this panel. It is the same whichever host mounts it, so a host adds no padding of its own around
+ * it; one that already insets its own chrome, as the lookup dock's tab content does for the
+ * dictionary, mounts this panel directly rather than inside that inset.
  */
-class ImageSearchPanel(
-    /**
-     * Whether the panel pads itself. A window wants the padding; a host that already insets its
-     * content, as the lookup dock does, asks for none so the margins are not doubled.
-     */
-    padded: Boolean = true
-) : JPanel(BorderLayout()), Renderable<ImageSearchPanelState> {
+class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelState> {
 
     private companion object {
         /**
@@ -70,7 +70,22 @@ class ImageSearchPanel(
         const val MIN_TILE_WIDTH = 180
         const val MAX_COLUMNS = 4
         const val TILE_HEIGHT = 124
-        const val GRID_GAP = 6
+        const val GRID_GAP = 8
+
+        /** Left/right inset shared by the search row and the grid, so their edges line up. */
+        const val CONTENT_INSET = 12
+
+        /** Top inset for the search row, and bottom inset for the grid: the panel's own margin. */
+        const val OUTER_INSET = 12
+
+        /** Gap from the bottom of the search field to the first row of tiles. */
+        const val SEARCH_TO_RESULTS_GAP = 8
+
+        /** Gap from a picture to its caption. */
+        const val IMAGE_TO_CAPTION_GAP = 4
+
+        /** Gap from a tile's caption to its credit line. */
+        const val CAPTION_TO_CREDIT_GAP = 2
     }
 
     // Read on each use rather than captured once: a colour held in a field keeps the value the
@@ -91,11 +106,13 @@ class ImageSearchPanel(
 
     private val hintLabel = JLabel("", SwingConstants.CENTER).apply {
         foreground = UIManager.getColor("Label.disabledForeground")
-        border = EmptyBorder(24, 12, 24, 12)
+        border = EmptyBorder(UIScale.scale(24), UIScale.scale(CONTENT_INSET), UIScale.scale(24), UIScale.scale(CONTENT_INSET))
     }
 
-    private val grid = JPanel(GridLayout(0, 1, GRID_GAP, GRID_GAP)).apply {
-        border = if (padded) EmptyBorder(8, 8, 8, 8) else EmptyBorder(0, 0, 0, 0)
+    private val grid = JPanel(GridLayout(0, 1, UIScale.scale(GRID_GAP), UIScale.scale(GRID_GAP))).apply {
+        // No top inset: the search row's own bottom margin is the whole search-to-results gap, so
+        // the two are not added together into a double gap.
+        border = EmptyBorder(0, UIScale.scale(CONTENT_INSET), UIScale.scale(OUTER_INSET), UIScale.scale(CONTENT_INSET))
     }
 
     private val scroll = JScrollPane(grid).apply {
@@ -128,7 +145,10 @@ class ImageSearchPanel(
     init {
         val searchRow = JPanel(BorderLayout()).apply {
             isOpaque = false
-            border = if (padded) EmptyBorder(8, 10, 8, 10) else EmptyBorder(0, 0, UIScale.scale(8), 0)
+            border = EmptyBorder(
+                UIScale.scale(OUTER_INSET), UIScale.scale(CONTENT_INSET),
+                UIScale.scale(SEARCH_TO_RESULTS_GAP), UIScale.scale(CONTENT_INSET)
+            )
             add(searchField, BorderLayout.CENTER)
         }
         add(
@@ -295,10 +315,10 @@ class ImageSearchPanel(
             picture.image = image
         }
 
-        return JPanel(BorderLayout(0, 2)).apply {
+        return JPanel(BorderLayout(0, UIScale.scale(IMAGE_TO_CAPTION_GAP))).apply {
             add(picture, BorderLayout.CENTER)
             add(
-                JPanel(BorderLayout()).apply {
+                JPanel(BorderLayout(0, UIScale.scale(CAPTION_TO_CREDIT_GAP))).apply {
                     isOpaque = false
                     add(caption, BorderLayout.NORTH)
                     add(credit, BorderLayout.SOUTH)
@@ -345,8 +365,11 @@ class ImageSearchPanel(
             addActionListener { state.onImageOpened(result) }
         }
 
-        val footer = JPanel(BorderLayout(8, 0)).apply {
-            border = EmptyBorder(6, 8, 8, 8)
+        val footer = JPanel(BorderLayout(UIScale.scale(CONTENT_INSET), 0)).apply {
+            border = EmptyBorder(
+                UIScale.scale(SEARCH_TO_RESULTS_GAP), UIScale.scale(CONTENT_INSET),
+                UIScale.scale(OUTER_INSET), UIScale.scale(CONTENT_INSET)
+            )
             add(
                 JPanel(BorderLayout()).apply {
                     isOpaque = false
@@ -360,7 +383,7 @@ class ImageSearchPanel(
                     isOpaque = false
                     layout = BoxLayout(this, BoxLayout.X_AXIS)
                     add(back)
-                    add(Box.createHorizontalStrut(4))
+                    add(Box.createHorizontalStrut(UIScale.scale(CAPTION_TO_CREDIT_GAP * 2)))
                     add(open)
                 },
                 BorderLayout.LINE_END

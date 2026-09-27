@@ -35,14 +35,25 @@ object UISpacing {
     val SIDE_BY_SIDE_BREAKPOINT get() = 2 * SIDE_BY_SIDE_PANEL_WIDTH + DIVIDER_SIZE
 
     /**
-     * The least width the translation workspace keeps while a lookup dock is beside it: enough for
-     * the language bar and the translator selector to stay whole, which is what a stacked layout
-     * needs at its narrowest.
+     * The comfortable width the translation workspace wants while a lookup dock is beside it: enough
+     * for the language bar and the translator selector to stay whole, which is what a stacked layout
+     * needs at its narrowest. Used only to decide whether the main window should grow before a dock
+     * opens; below it the dock still opens, at [WORKSPACE_HARD_MIN_WIDTH] instead.
      */
-    val WORKSPACE_MIN_WIDTH get() = UIScale.scale(440)
+    val WORKSPACE_COMFORTABLE_WIDTH get() = UIScale.scale(440)
 
-    /** The least width a lookup dock keeps: a search field, its button and a readable result. */
-    val LOOKUP_DOCK_MIN_WIDTH get() = UIScale.scale(280)
+    /** The comfortable width a lookup dock wants: a search field, its button and a readable result. */
+    val LOOKUP_DOCK_COMFORTABLE_WIDTH get() = UIScale.scale(280)
+
+    /**
+     * The least width the workspace is ever squeezed to. A screen too small for
+     * [WORKSPACE_COMFORTABLE_WIDTH] and [LOOKUP_DOCK_COMFORTABLE_WIDTH] together still opens a
+     * requested dock; both sides give up comfort for room rather than the dock refusing to show.
+     */
+    val WORKSPACE_HARD_MIN_WIDTH get() = UIScale.scale(240)
+
+    /** The least width the lookup dock is ever squeezed to, still enough for its search field. */
+    val LOOKUP_DOCK_HARD_MIN_WIDTH get() = UIScale.scale(200)
 
     /** The width the dock first opens at, as a share of the window, before the user has resized it. */
     const val LOOKUP_DOCK_DEFAULT_SHARE = 0.36
