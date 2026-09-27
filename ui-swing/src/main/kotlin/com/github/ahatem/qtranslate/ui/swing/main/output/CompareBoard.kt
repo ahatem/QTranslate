@@ -143,9 +143,10 @@ class CompareBoard(
         }
         if (pad != lastOuterPad) {
             lastOuterPad = pad
-            border = BorderFactory.createEmptyBorder(
-                UIScale.scale(pad), UIScale.scale(pad), UIScale.scale(pad), UIScale.scale(pad)
-            )
+            // In the main window the results share the workspace's edge with the input
+            // and the language bar above them; only a popup pads its own sides.
+            val side = if (quickMode) UIScale.scale(pad) else 0
+            border = BorderFactory.createEmptyBorder(UIScale.scale(pad), side, UIScale.scale(pad), side)
         }
     }
 

@@ -104,6 +104,10 @@ data class TranslationProviderState(
  * Primary and secondary providers share this skeleton. The primary adds a live
  * translator selector, a thin accent rail on the interface-start edge, primary
  * actions, and its definition; secondaries show identity, status, body, and Copy.
+ *
+ * Every provider lines up on one leading column: all of them reserve the rail's
+ * width, only the primary paints it, and the primary's selector button is pulled
+ * back by its own inset so its icon sits where a secondary's icon does.
  */
 class TranslationProviderView(
     private val iconManager: IconManager?,
@@ -124,11 +128,10 @@ class TranslationProviderView(
     private var onSetAsInputRef: ((String) -> Unit)? = null
 
     private val rail = JPanel().apply {
-        isOpaque = true
+        isOpaque = false
         preferredSize = Dimension(UIScale.scale(2), 0)
         minimumSize = preferredSize
         maximumSize = Dimension(UIScale.scale(2), Int.MAX_VALUE)
-        isVisible = false
     }
 
     private val providerIcon = JLabel().apply {
@@ -361,15 +364,14 @@ class TranslationProviderView(
         repaint()
     }
 
+    private var headerLeadingPad = 12
+    private var headerTrailingPad = 6
+
     private fun applyPresentation(state: TranslationProviderState) {
         val quick = state.presentation == ProviderPresentation.QUICK
-        val headerPad = if (quick) 8 else 12
-        header.border = BorderFactory.createEmptyBorder(
-            UIScale.scale(6),
-            UIScale.scale(headerPad),
-            UIScale.scale(6),
-            UIScale.scale(if (quick) 8 else 6)
-        )
+        headerLeadingPad = if (quick) 8 else 12
+        headerTrailingPad = if (quick) 8 else 6
+        applyHeaderBorder()
         val bodyPad = if (quick) 8 else 12
         val bodyBottom = if (quick) 8 else 10
         bodyStack.border = BorderFactory.createEmptyBorder(
@@ -387,9 +389,29 @@ class TranslationProviderView(
         )
         textPane.margin = Insets(0, 0, 0, 0)
         providerIcon.preferredSize = Dimension(UIScale.scale(16), UIScale.scale(16))
-        rail.isVisible = state.role == ProviderRole.PRIMARY
-        if (rail.isVisible) refreshRail()
+        rail.isOpaque = state.role == ProviderRole.PRIMARY
+        if (rail.isOpaque) refreshRail()
     }
+
+    /**
+     * The header's padding on its leading and trailing sides. When the selector
+     * holds the identity, its button inset is taken off the leading side, so the
+     * button's hover surface reaches into the padding and its icon lines up with
+     * the plain icon of every other provider.
+     */
+    private fun applyHeaderBorder() {
+        val leftToRight = componentOrientation.isLeftToRight
+        val selectorInset = selector
+            ?.takeIf { it.isVisible && selectorHost.parent === headerIdentity }
+            ?.insets?.let { if (leftToRight) it.left else it.right } ?: 0
+        val leading = (UIScale.scale(headerLeadingPad) - selectorInset).coerceAtLeast(0)
+        val trailing = UIScale.scale(headerTrailingPad)
+        val wanted = Insets(UIScale.scale(6), if (leftToRight) leading else trailing, UIScale.scale(6), if (leftToRight) trailing else leading)
+        if (header.border?.getBorderInsets(header) != wanted) {
+            header.border = BorderFactory.createEmptyBorder(wanted.top, wanted.left, wanted.bottom, wanted.right)
+        }
+    }
+
 
     private fun renderHeader(state: TranslationProviderState) {
         val displayName = state.serviceName ?: ""
@@ -586,6 +608,8 @@ class TranslationProviderView(
     }
 
     override fun doLayout() {
+        // The selector's inset follows its own orientation and state, so the header is re-padded here.
+        applyHeaderBorder()
         super.doLayout()
         updateReadableCap()
     }
@@ -639,6 +663,7 @@ class TranslationProviderView(
     fun headerActionsForTest(): JPanel = headerActions
     fun selectorForTest(): TranslatorPopupButton? = selector
     fun selectorHostForTest(): JPanel = selectorHost
+    fun railForTest(): JPanel = rail
 
     private fun addFindInDictionaryItem(menu: JPopupMenu, clickPosition: Point) {
         dictMenuItem?.let(menu::remove)
