@@ -23,7 +23,11 @@ object UISpacing {
     /** Vertical gap between stacked components. */
     val V_GAP get() = UIScale.scale(8)
 
-    val DIVIDER_SIZE get() = UIScale.scale(8)
+    /**
+     * The gutter between two panes of an internal workspace split. Wide enough to grab easily and to
+     * hold [WorkspaceGripDivider]'s hover surface without it touching either pane.
+     */
+    val DIVIDER_SIZE get() = UIScale.scale(10)
     val MIN_PANEL_HEIGHT get() = UIScale.scale(150)
     val MIN_PANEL_WIDTH get() = UIScale.scale(200)
     val MIN_EXTRA_HEIGHT get() = UIScale.scale(100)

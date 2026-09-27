@@ -9,26 +9,24 @@ import javax.swing.plaf.basic.BasicSplitPaneDivider
 import javax.swing.plaf.basic.BasicSplitPaneUI
 
 /**
- * Gives a [JSplitPane] the workspace half of [ModernSplitDivider]'s shared language, instead of
- * FlatLaf's default three-dot grip.
+ * Gives a [JSplitPane] the [WorkspaceGripDivider] every internal workspace split is resized by,
+ * instead of FlatLaf's default three-dot grip.
  *
- * Unlike [WorkspaceDockHost]'s own boundary, which rests as a hairline because it separates the
- * whole workspace from a side panel, these dividers split two panes of the same region and rest at
- * a visibly thicker line so they still read as a real, discoverable splitter — not merely a border
- * — while staying just as calm as the dock's until the pointer approaches. One-touch expand arrows
- * are switched off unconditionally: QTranslate already owns whether a region is visible, and the
- * arrows are dated, unused chrome on top of that.
+ * The gutter itself paints nothing; only the grip at its centre does, and it shows its hover surface
+ * while the pointer is anywhere over the gutter, not only over the grip, because the whole gutter is
+ * the drag target. One-touch expand arrows are switched off unconditionally: QTranslate already owns
+ * whether a region is visible, and the arrows are dated, unused chrome on top of that.
  */
 class ModernSplitPaneUI : FlatSplitPaneUI() {
 
-    override fun createDefaultDivider(): BasicSplitPaneDivider = ModernDivider(this)
+    override fun createDefaultDivider(): BasicSplitPaneDivider = GripDivider(this)
 
     override fun installDefaults() {
         super.installDefaults()
         splitPane.isOneTouchExpandable = false
     }
 
-    private class ModernDivider(ui: BasicSplitPaneUI) : BasicSplitPaneDivider(ui) {
+    private class GripDivider(ui: BasicSplitPaneUI) : BasicSplitPaneDivider(ui) {
         private var hovered = false
         private var dragging = false
 
@@ -44,8 +42,12 @@ class ModernSplitPaneUI : FlatSplitPaneUI() {
         }
 
         override fun paint(g: Graphics) {
-            val vertical = orientation == JSplitPane.HORIZONTAL_SPLIT
-            ModernSplitDivider.paint(g, width, height, vertical, active = hovered || dragging, style = ModernSplitDivider.Style.WORKSPACE)
+            val state = when {
+                dragging -> WorkspaceGripDivider.State.DRAG
+                hovered -> WorkspaceGripDivider.State.HOVER
+                else -> WorkspaceGripDivider.State.REST
+            }
+            WorkspaceGripDivider.paint(g, width, height, vertical = orientation == JSplitPane.HORIZONTAL_SPLIT, state = state)
         }
     }
 

@@ -39,7 +39,7 @@ class MirroredSplitPane(
 ) : JSplitPane(orientation, continuousLayout, leading, trailing) {
 
     init {
-        // The workspace divider language shared with the Lookup Dock's boundary, not FlatLaf's grip dots.
+        // The workspace's own grip, not FlatLaf's grip dots.
         setUI(ModernSplitPaneUI())
     }
 

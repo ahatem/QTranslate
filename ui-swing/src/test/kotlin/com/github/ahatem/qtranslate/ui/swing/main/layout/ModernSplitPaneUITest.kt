@@ -1,8 +1,10 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
+import com.formdev.flatlaf.util.UIScale
 import java.awt.Color
 import java.awt.ComponentOrientation
 import java.awt.Cursor
+import java.awt.Rectangle
 import java.awt.image.BufferedImage
 import java.io.File
 import javax.swing.JLabel
@@ -16,10 +18,11 @@ import kotlin.test.assertTrue
 
 /**
  * Every surviving main-workspace [JSplitPane] gets its divider through [MirroredSplitPane], which
- * installs [ModernSplitPaneUI] unconditionally: this proves that shared UI carries the workspace
- * half of [ModernSplitDivider]'s language -- a visibly thicker rest line than the Lookup Dock's own
- * boundary, both thickening further to the theme's accent on hover and while dragging -- with no
- * grip, no one-touch arrows, and no change in the divider's own bounds between states.
+ * installs [ModernSplitPaneUI] unconditionally: this proves that UI resizes through a
+ * [WorkspaceGripDivider] -- an empty gutter with a small two-stroke grip at its centre, a compact
+ * accent surface behind it on hover and while dragging, and never a line along the gutter -- with no
+ * one-touch arrows and no change in the divider's own bounds between states. The Lookup Dock's
+ * [BoundaryDivider] is a different role and keeps its full-length hairline.
  */
 class ModernSplitPaneUITest {
 
@@ -101,20 +104,101 @@ class ModernSplitPaneUITest {
         assertTrue(after != before, "dragging must still move the divider in a mirrored pane")
     }
 
-    /** How many pixels of a 1x21 strip a rest-state paint actually colours, centred vertically. */
-    private fun restLinePixels(style: ModernSplitDivider.Style): Int {
-        val image = BufferedImage(21, 21, BufferedImage.TYPE_INT_ARGB)
+    private fun gutter(width: Int, height: Int, vertical: Boolean, state: WorkspaceGripDivider.State): BufferedImage {
+        val image = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
         val g = image.createGraphics()
-        ModernSplitDivider.paint(g, 21, 21, vertical = true, active = false, style = style)
+        WorkspaceGripDivider.paint(g, width, height, vertical, state)
         g.dispose()
-        return (0 until 21).count { x -> Color(image.getRGB(x, 10), true).alpha > 0 }
+        return image
+    }
+
+    private fun painted(image: BufferedImage, x: Int, y: Int) = Color(image.getRGB(x, y), true).alpha > 0
+
+    /** The smallest rectangle holding every painted pixel, or null if nothing was painted. */
+    private fun paintedBounds(image: BufferedImage): Rectangle? {
+        var bounds: Rectangle? = null
+        for (y in 0 until image.height) for (x in 0 until image.width) {
+            if (!painted(image, x, y)) continue
+            bounds = bounds?.apply { add(Rectangle(x, y, 1, 1)) } ?: Rectangle(x, y, 1, 1)
+        }
+        return bounds
+    }
+
+    private val gutterThickness get() = UISpacing.DIVIDER_SIZE
+
+    @Test
+    fun `at rest a horizontal gutter paints only a small centred grip of two parallel strokes`() {
+        val image = gutter(400, gutterThickness, vertical = false, state = WorkspaceGripDivider.State.REST)
+        val bounds = paintedBounds(image)!!
+        // No line along the gutter: everything painted sits in a short span around the centre.
+        assertTrue(bounds.width <= UIScale.scale(22), "grip spans ${bounds.width}px, not the gutter")
+        assertTrue(bounds.width >= UIScale.scale(16), "grip spans ${bounds.width}px, too short to read as a grip")
+        assertTrue(kotlin.math.abs(bounds.centerX - 200) <= 1.0, "the grip is centred along the gutter")
+        assertFalse(painted(image, 10, gutterThickness / 2), "the gutter's ends stay empty")
+        // Two strokes with a gap between them, across the gutter at its centre.
+        val column = (0 until gutterThickness).map { painted(image, 200, it) }
+        val strokes = column.indices.count { it > 0 && column[it] && !column[it - 1] } + if (column[0]) 1 else 0
+        assertEquals(2, strokes, "two parallel strokes, got $column")
     }
 
     @Test
-    fun `a workspace divider rests visibly thicker than the dock's own quiet boundary`() {
-        val boundary = restLinePixels(ModernSplitDivider.Style.BOUNDARY)
-        val workspace = restLinePixels(ModernSplitDivider.Style.WORKSPACE)
-        assertTrue(workspace > boundary, "workspace ($workspace) should read as more than a border, unlike the dock's boundary ($boundary)")
+    fun `a left to right gutter paints the same grip turned a quarter`() {
+        val horizontal = paintedBounds(gutter(400, gutterThickness, vertical = false, state = WorkspaceGripDivider.State.HOVER))!!
+        val vertical = paintedBounds(gutter(gutterThickness, 400, vertical = true, state = WorkspaceGripDivider.State.HOVER))!!
+        assertEquals(horizontal.width, vertical.height)
+        assertEquals(horizontal.height, vertical.width)
+    }
+
+    @Test
+    fun `hover adds a compact surface around the grip, never a band along the gutter`() {
+        val rest = gutter(400, gutterThickness, vertical = false, state = WorkspaceGripDivider.State.REST)
+        val hover = gutter(400, gutterThickness, vertical = false, state = WorkspaceGripDivider.State.HOVER)
+        val bounds = paintedBounds(hover)!!
+        assertTrue(bounds.width <= UIScale.scale(36), "hover surface spans ${bounds.width}px")
+        assertTrue(bounds.height < gutterThickness, "the surface leaves the gutter's edges clear of both panes")
+        assertFalse(painted(hover, 10, gutterThickness / 2), "the gutter's ends stay empty on hover")
+        assertTrue(paintedBounds(rest)!!.width < bounds.width, "hover shows a surface the rest state does not")
+    }
+
+    @Test
+    fun `drag is stronger than hover and paints the same geometry`() {
+        val hover = gutter(400, gutterThickness, vertical = false, state = WorkspaceGripDivider.State.HOVER)
+        val drag = gutter(400, gutterThickness, vertical = false, state = WorkspaceGripDivider.State.DRAG)
+        assertEquals(paintedBounds(hover), paintedBounds(drag), "no geometry change between hover and drag")
+        val surfaceX = 200 + UIScale.scale(14)
+        val surfaceY = gutterThickness / 2
+        val hoverAlpha = Color(hover.getRGB(surfaceX, surfaceY), true).alpha
+        val dragAlpha = Color(drag.getRGB(surfaceX, surfaceY), true).alpha
+        assertTrue(dragAlpha > hoverAlpha, "the drag surface ($dragAlpha) is stronger than hover ($hoverAlpha)")
+    }
+
+    @Test
+    fun `the real divider paints the grip and switches to its hover state under the pointer`() {
+        val pane = split(JSplitPane.VERTICAL_SPLIT)
+        val d = divider(pane)
+        fun snapshot(): BufferedImage = onEdt {
+            BufferedImage(d.width, d.height, BufferedImage.TYPE_INT_ARGB).also { image ->
+                val g = image.createGraphics()
+                d.paint(g)
+                g.dispose()
+            }
+        }
+        val rest = snapshot()
+        assertTrue(paintedBounds(rest)!!.width < d.width / 4, "at rest the divider paints a grip, not a line")
+        onEdt { d.dispatchEvent(java.awt.event.MouseEvent(d, java.awt.event.MouseEvent.MOUSE_ENTERED, 0L, 0, 2, 5, 0, false)) }
+        val hover = snapshot()
+        assertTrue(paintedBounds(hover)!!.width > paintedBounds(rest)!!.width, "hovering shows the grip's surface")
+    }
+
+    @Test
+    fun `the lookup dock boundary keeps its full length hairline at rest`() {
+        val image = BufferedImage(21, 200, BufferedImage.TYPE_INT_ARGB)
+        val g = image.createGraphics()
+        BoundaryDivider.paint(g, 21, 200, vertical = true, active = false)
+        g.dispose()
+        val bounds = paintedBounds(image)!!
+        assertEquals(200, bounds.height, "the boundary runs the whole seam")
+        assertEquals(UIScale.scale(1), bounds.width, "a hairline at rest")
     }
 
     @Test

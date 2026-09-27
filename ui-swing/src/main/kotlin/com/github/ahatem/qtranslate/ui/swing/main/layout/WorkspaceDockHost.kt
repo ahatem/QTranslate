@@ -146,9 +146,10 @@ class WorkspaceDockHost(
      * host, less the distance from the strip's edge at which it was grabbed, so the divider stays
      * under the pointer whichever side the dock is on and however the window was laid out.
      *
-     * At rest it paints a single hairline, the boundary half of [ModernSplitDivider]'s shared
-     * language; on hover and while dragging that line thickens to the theme's accent colour, painted
-     * inside the same fixed-width strip so the hover state never moves or resizes either region.
+     * Painted by [BoundaryDivider]: a hairline at rest that thickens to the theme's accent colour on
+     * hover and while dragging, inside the same fixed-width strip so the hover state never moves or
+     * resizes either region. It marks where the workspace ends, so unlike the workspace's own
+     * internal splits ([WorkspaceGripDivider]) it is a line, not a grip.
      */
     private inner class DockDivider : JComponent() {
         private var grabOffset = 0
@@ -186,7 +187,7 @@ class WorkspaceDockHost(
         }
 
         override fun paintComponent(g: Graphics) {
-            ModernSplitDivider.paint(g, width, height, vertical = true, active = hovered || dragging, style = ModernSplitDivider.Style.BOUNDARY)
+            BoundaryDivider.paint(g, width, height, vertical = true, active = hovered || dragging)
         }
     }
 }
