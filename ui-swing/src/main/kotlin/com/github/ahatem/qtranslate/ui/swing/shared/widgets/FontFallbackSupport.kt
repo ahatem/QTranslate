@@ -157,19 +157,13 @@ class FontFallbackDocumentListener(
 }
 
 /**
- * Moves text the primary font claims to cover, but cannot shape soundly, to the fallback font.
+ * Moves text the primary font covers but cannot shape soundly to the fallback font.
  *
- * Covering a character is not the same as shaping it correctly. A font can hold a glyph for every
- * letter of a script and still produce a layout whose hit-testing is broken -- past a particular
- * ligature, every later caret reports the same point -- which breaks wrapping, the caret and the
- * mouse together. Whether that has happened is decided by [ShapedCarets.layoutIsSound] from the
- * layout's own answers, never from which script or font is involved.
- *
- * The decision is made per script within a paragraph, so a paragraph's text in one script is either
- * all in the primary face or all in the fallback one, and text in another script is never moved
- * because this one had a problem. The primary stays wherever it is sound, and the fallback is only
- * used where it is sound itself; if neither is, nothing changes and the view layer's own last-resort
- * measurement takes over.
+ * A font can hold every glyph of a script and still produce a layout with broken hit-testing, which
+ * breaks wrapping, the caret and the mouse together. [ShapedCarets.layoutIsSound] decides that from
+ * the layout's own carets. The decision is per script within a paragraph, so one script's text is
+ * all in one face and other scripts never move. The primary stays wherever it is sound, and the
+ * fallback is used only where it is sound itself; otherwise the view layer's last resort applies.
  *
  * [fonts] holds [primary], [fallback] or null per character of [text] and is rewritten in place.
  * [text] must start at a paragraph boundary.
@@ -237,7 +231,7 @@ internal class ShapingAwareFallback(
 
     /**
      * The paragraph `[start, end)` cut into runs of one script each. Characters shared between
-     * scripts -- spaces, punctuation, digits, combining marks -- belong to the run around them, and
+     * scripts (spaces, punctuation, digits, combining marks) belong to the run around them, and
      * any before the first letter to the run that letter starts.
      */
     private fun scriptRuns(start: Int, end: Int): List<ScriptRun> {

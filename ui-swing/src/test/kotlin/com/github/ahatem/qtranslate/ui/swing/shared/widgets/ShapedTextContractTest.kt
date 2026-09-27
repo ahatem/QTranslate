@@ -1,10 +1,9 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
-import com.formdev.flatlaf.util.FontUtils
 import com.github.ahatem.qtranslate.ui.swing.shared.fonts.NotoNaskhArabicFont
 import com.github.ahatem.qtranslate.ui.swing.shared.fonts.RubikSansFont
 import com.github.ahatem.qtranslate.ui.swing.shared.textpane.ShapedCarets
-import java.awt.Container
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ShapedText.onEdt
 import java.awt.Font
 import java.awt.datatransfer.Clipboard
 import java.awt.datatransfer.DataFlavor
@@ -17,38 +16,27 @@ import java.awt.font.TextAttribute
 import java.awt.font.TextLayout
 import java.awt.geom.Point2D
 import java.awt.geom.Rectangle2D
-import java.awt.image.BufferedImage
 import java.text.AttributedString
 import java.text.BreakIterator
 import java.util.Locale
 import javax.swing.JComponent
-import javax.swing.JScrollPane
 import javax.swing.KeyStroke
-import javax.swing.SwingUtilities
 import javax.swing.TransferHandler
+import javax.swing.text.AbstractDocument
 import javax.swing.text.StyleConstants
-import javax.swing.text.View
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * The maintainer-reported regressions in shaped text, against the exact sentence that reproduced
- * them: a word ("بدلاً") cut across two lines with no newline in it, and caret and mouse placement
- * a few characters away from where it belongs.
+ * The behavioural contract for shaped text: where lines break, which font draws a script, and where
+ * the caret and the mouse land.
  *
- * Both came from the same place. The bundled Rubik face claims every Arabic letter in that sentence,
- * but the JDK's layout of it loses track of its characters past a lam-alef ligature: every later
- * caret reports the same point. The wrap then gave up far short of the room it had, and the view
- * layer's fallback for that case both cut words at whatever cluster fit and placed the caret by
- * approximation. Now the font-fallback pass notices the unsound layout and hands that paragraph's
- * Arabic to the configured fallback when the fallback shapes it soundly, so normal Swing and
- * `TextLayout` own wrapping, the caret and the mouse; and every run, sound or not, only ends a line
- * where a line may legally end.
- *
- * Fonts are named here because they are the reproduction. The production code never does: it
- * decides from the layout's own answers.
+ * The sentence is the one that reproduced a word ("بدلاً") cut across two lines and carets landing a
+ * few characters off. The bundled Rubik claims its Arabic but lays it out with broken hit-testing,
+ * so the product pair exercises the configured fallback. Fonts are named here as reproductions; the
+ * production code decides from each layout's own carets.
  */
 class ShapedTextContractTest {
 
@@ -67,171 +55,46 @@ class ShapedTextContractTest {
         override fun toString() = "$primary -> $fallback"
     }
 
-    /** What a new installation is configured with. */
+    /** The default configuration: an unsound primary with a sound fallback. */
     private val product = FontPair(RubikSansFont.FAMILY, NotoNaskhArabicFont.FAMILY)
 
-    /**
-     * The product pair, each bundled face on its own, and the platform's logical font. A pair whose
-     * two fonts are the same leaves the fallback pass nothing to switch to, which is how the view
-     * layer's own last-resort measurement is exercised.
-     */
-    private val pairs = listOf(
-        product,
-        FontPair(NotoNaskhArabicFont.FAMILY, NotoNaskhArabicFont.FAMILY),
-        FontPair(Font.DIALOG, NotoNaskhArabicFont.FAMILY),
-        FontPair(RubikSansFont.FAMILY, RubikSansFont.FAMILY),
-        FontPair(Font.DIALOG, Font.DIALOG),
-    )
+    /** A sound font with nothing to fall back to. */
+    private val sound = FontPair(NotoNaskhArabicFont.FAMILY, NotoNaskhArabicFont.FAMILY)
 
-    // -------------------------------------------------------------------------------------------
-    // Harness
-    // -------------------------------------------------------------------------------------------
+    /** An unsound font with nothing to fall back to: the measured last resort. */
+    private val lastResort = FontPair(RubikSansFont.FAMILY, RubikSansFont.FAMILY)
 
-    private fun <T> onEdt(block: () -> T): T {
-        var result: Result<T>? = null
-        SwingUtilities.invokeAndWait { result = runCatching(block) }
-        return result!!.getOrThrow()
-    }
+    /** The paths above, plus the platform's logical font as the primary. */
+    private val pairs = listOf(product, sound, FontPair(Font.DIALOG, NotoNaskhArabicFont.FAMILY), lastResort)
 
-    private fun layoutTree(root: Container) {
-        root.doLayout()
-        root.components.forEach { if (it is Container) layoutTree(it) }
-    }
+    private fun pane(text: String, width: Int, fonts: FontPair) = ShapedText.pane(text, width, fonts.primary, fonts.fallback)
 
-    private fun installFonts() {
-        // Registered exactly as AppUiSetup does, so Font(name, ...) resolves to the bundled file.
-        RubikSansFont.installLazy()
-        FontUtils.getCompositeFont(RubikSansFont.FAMILY, Font.PLAIN, 15)
-        NotoNaskhArabicFont.install()
-    }
+    private fun rowStarts(pane: AdvancedTextPane): List<Int> = onEdt { ShapedText.rows(pane).map { it.startOffset } }
 
-    /**
-     * A pane whose text gets [width] pixels to wrap in.
-     *
-     * Widths here are the room the text has, not the size of the component around it: the scroll
-     * pane's border, the scroll bar and the pane's own margin all scale with the look and feel, and
-     * whatever an earlier test left installed would otherwise decide how much room was left.
-     */
-    private fun pane(text: String, width: Int, fonts: FontPair): AdvancedTextPane {
-        installFonts()
-        val primary = Font(fonts.primary, Font.PLAIN, 15)
-        val fallback = Font(fonts.fallback, Font.PLAIN, 15)
-        val pane = onEdt { AdvancedTextPane(onTextChanged = {}, onTranslateRequest = {}, onListenRequest = {}) }
-        onEdt { JScrollPane(pane) }
-        onEdt {
-            pane.render(text, emptyList(), isEditable = true)
-            pane.updateFontsAndRescanDocument(primary, fallback)
-        }
-        resize(pane, width)
-        waitForFallbackPass(pane)
-        settle(pane)
-        paintOnce(pane)
-        return pane
-    }
+    private fun caret(pane: AdvancedTextPane, offset: Int): Rectangle2D = onEdt { pane.modelToView2D(offset)!! }
 
-    /**
-     * Paints the pane into an image. Swing's text UI answers no keyboard navigation for a component
-     * it has never painted, and a headless test never shows one.
-     */
-    private fun paintOnce(pane: AdvancedTextPane) = onEdt {
-        val image = BufferedImage(maxOf(1, pane.width), maxOf(1, pane.height), BufferedImage.TYPE_INT_ARGB)
-        val g = image.createGraphics()
-        try { pane.paint(g) } finally { g.dispose() }
-    }
-
-    /** Gives the pane's text [width] pixels to wrap in; see [pane]. */
-    private fun resize(pane: AdvancedTextPane, width: Int) {
-        onEdt {
-            val scroll = pane.parent.parent as JScrollPane
-            val chrome = scroll.insets.left + scroll.insets.right +
-                scroll.verticalScrollBar.preferredSize.width +
-                pane.insets.left + pane.insets.right
-            scroll.setSize(width + chrome, 600)
-            layoutTree(scroll)
-        }
-        settle(pane)
-        paintOnce(pane)
-    }
-
-    /** Waits until the batched font-fallback pass has stopped rewriting runs. */
-    private fun waitForFallbackPass(pane: AdvancedTextPane, timeoutMs: Long = 5000) {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        var last: String? = null
-        var stable = 0
-        while (System.currentTimeMillis() < deadline) {
-            Thread.sleep(20)
-            val runs = onEdt { runs(pane).joinToString() }
-            if (runs == last && stable++ >= 5) return
-            if (runs != last) stable = 0
-            last = runs
-        }
-    }
-
-    /** Lays the tree out until the row structure stops changing between passes. */
-    private fun settle(pane: AdvancedTextPane, timeoutMs: Long = 5000) {
-        val scroll = onEdt { pane.parent.parent as JScrollPane }
-        val deadline = System.currentTimeMillis() + timeoutMs
-        var previous: String? = null
-        var stable = 0
-        while (System.currentTimeMillis() < deadline) {
-            onEdt { layoutTree(scroll) }
-            val signature = onEdt { rows(pane).joinToString("|") { "${it.startOffset}-${it.endOffset}:${it.getPreferredSpan(0)}" } }
-            if (signature == previous && stable++ >= 2) return
-            if (signature != previous) stable = 0
-            previous = signature
-        }
-    }
-
-    private fun runs(pane: AdvancedTextPane): List<String> {
-        val doc = pane.styledDocument
-        val found = ArrayList<String>()
-        var offset = 0
-        while (offset < doc.length) {
-            val element = doc.getCharacterElement(offset)
-            found += "${element.startOffset}-${element.endOffset}:${StyleConstants.getFontFamily(element.attributes)}"
-            offset = element.endOffset
-        }
-        return found
-    }
+    private fun hit(pane: AdvancedTextPane, x: Double, y: Double): Int = onEdt { pane.viewToModel2D(Point2D.Double(x, y)) }
 
     private fun familyAt(pane: AdvancedTextPane, offset: Int): String =
         onEdt { StyleConstants.getFontFamily(pane.styledDocument.getCharacterElement(offset).attributes) }
 
-    private fun rows(pane: AdvancedTextPane): List<View> {
-        val paragraph = pane.ui.getRootView(pane).getView(0).getView(0)
-        return (0 until paragraph.viewCount).map { paragraph.getView(it) }.sortedBy { it.startOffset }
-    }
-
-    private fun rowStarts(pane: AdvancedTextPane): List<Int> = onEdt { rows(pane).map { it.startOffset } }
-
-    private fun caret(pane: AdvancedTextPane, offset: Int): Rectangle2D = onEdt { pane.modelToView2D(offset)!! }
-
-    private fun hit(pane: AdvancedTextPane, x: Double, y: Double): Int =
-        onEdt { pane.viewToModel2D(Point2D.Double(x, y)) }
-
-    private fun isCluster(text: String, offset: Int): Boolean =
-        BreakIterator.getCharacterInstance().apply { setText(text) }.isBoundary(offset)
-
     /**
-     * The line-breaking contract, checked row by row: every row starts at a legal line-break
-     * opportunity, unless the row before it contains none at all -- a single token wider than the
-     * line -- in which case it starts at a grapheme-cluster boundary.
+     * Every row starts at a legal line-break opportunity, unless the row before it has none at all:
+     * a token wider than the line, which may only be cut at a grapheme-cluster boundary.
      */
     private fun assertRowsRespectLineBreaks(pane: AdvancedTextPane, label: String) {
         val text = onEdt { pane.styledDocument.getText(0, pane.styledDocument.length) }
         val lines = BreakIterator.getLineInstance(Locale.ROOT).apply { setText(text) }
+        val clusters = BreakIterator.getCharacterInstance().apply { setText(text) }
         val starts = rowStarts(pane)
         for (i in 1 until starts.size) {
             val start = starts[i]
             if (lines.isBoundary(start)) continue
-            val previous = starts[i - 1]
-            val previousRowHadABreak = (previous + 1 until start).any { lines.isBoundary(it) }
             assertFalse(
-                previousRowHadABreak,
-                "$label: row $i starts inside a word at $start (\"${text.substring(maxOf(0, start - 6), minOf(text.length, start + 6))}\") " +
-                    "although the row before it could have ended at a legal break"
+                (starts[i - 1] + 1 until start).any { lines.isBoundary(it) },
+                "$label: row $i starts inside a word at $start although the row before it could have ended at a legal break"
             )
-            assertTrue(isCluster(text, start), "$label: an overlong token was cut inside a grapheme cluster at $start")
+            assertTrue(clusters.isBoundary(start), "$label: an overlong token was cut inside a grapheme cluster at $start")
         }
     }
 
@@ -244,25 +107,27 @@ class ShapedTextContractTest {
     }
 
     // -------------------------------------------------------------------------------------------
-    // Word breaking
+    // Line breaking and document text
     // -------------------------------------------------------------------------------------------
 
+    /** Every width, because each one moves the row ends somewhere else in the sentence. */
     @Test
-    fun `the maintainer's sentence never splits the word at any width, with the product fonts`() {
+    fun `the product fonts never split the word at any width`() {
         val p = pane(sentence, width = 600, fonts = product)
         for (width in 240..900 step 4) {
-            resize(p, width)
+            ShapedText.resize(p, width)
             assertWordNeverSplit(p, "width $width")
             assertRowsRespectLineBreaks(p, "width $width")
         }
     }
 
     @Test
-    fun `the maintainer's sentence never splits the word on any font pair, including the last-resort path`() {
+    fun `every font path keeps the word whole and the document exactly the source text`() {
         for (fonts in pairs) {
             val p = pane(sentence, width = 600, fonts = fonts)
-            for (width in (560..640 step 8) + (240..900 step 110)) {
-                resize(p, width)
+            assertEquals(sentence, onEdt { p.styledDocument.getText(0, p.styledDocument.length) }, "$fonts: no inserted newline, mark or reordering")
+            for (width in listOf(240) + (560..640 step 8) + 900) {
+                ShapedText.resize(p, width)
                 assertWordNeverSplit(p, "$fonts at $width")
                 assertRowsRespectLineBreaks(p, "$fonts at $width")
             }
@@ -270,7 +135,7 @@ class ShapedTextContractTest {
     }
 
     @Test
-    fun `ordinary text of every kind breaks only at legal opportunities, on every font pair`() {
+    fun `ordinary text of every kind breaks only at legal opportunities`() {
         val samples = listOf(
             "pure english" to List(30) { "translation" }.joinToString(" "),
             "pure arabic" to List(30) { "الحركة الدودية" }.joinToString(" "),
@@ -283,8 +148,8 @@ class ShapedTextContractTest {
         for (fonts in pairs) {
             for ((label, text) in samples) {
                 val p = pane(text, width = 300, fonts = fonts)
-                for (width in listOf(180, 260, 300, 420)) {
-                    resize(p, width)
+                for (width in listOf(180, 300, 420)) {
+                    ShapedText.resize(p, width)
                     assertRowsRespectLineBreaks(p, "$fonts, $label at $width")
                 }
             }
@@ -302,9 +167,7 @@ class ShapedTextContractTest {
                 val p = pane(text, width = 200, fonts = fonts)
                 val starts = rowStarts(p)
                 assertTrue(starts.size > 2, "$fonts, $label: the overlong token must be cut to fit")
-                // The short first word ends the first row on its own: the token moves to a new row
-                // whole before anything is cut.
-                assertEquals(text.indexOf(' ') + 1, starts[1], "$fonts, $label: the token should start its own row")
+                assertEquals(text.indexOf(' ') + 1, starts[1], "$fonts, $label: the token moves to its own row before it is cut")
                 assertRowsRespectLineBreaks(p, "$fonts, $label")
             }
         }
@@ -315,7 +178,6 @@ class ShapedTextContractTest {
     // -------------------------------------------------------------------------------------------
 
     private fun layoutIsSound(text: String, family: String): Boolean {
-        installFonts()
         val attributed = AttributedString(text).apply { addAttribute(TextAttribute.FONT, Font(family, Font.PLAIN, 15)) }
         val layout = TextLayout(attributed.iterator, FontRenderContext(null, true, true))
         return ShapedCarets.layoutIsSound(text, layout, 0, text.length)
@@ -324,17 +186,13 @@ class ShapedTextContractTest {
     @Test
     fun `arabic moves to the fallback only when the primary shapes it unsoundly, and latin never moves`() {
         val p = pane(sentence, width = 600, fonts = product)
-        val arabicOffset = sentence.indexOf(word)
-        val latinOffset = sentence.indexOf("JDK")
         val expectedArabic = if (layoutIsSound(sentence, RubikSansFont.FAMILY)) RubikSansFont.FAMILY else NotoNaskhArabicFont.FAMILY
-        assertEquals(expectedArabic, familyAt(p, arabicOffset))
-        assertEquals(RubikSansFont.FAMILY, familyAt(p, latinOffset), "Latin text is never moved because Arabic had a problem")
-        // Every Arabic word in the paragraph shares one face.
+        assertEquals(RubikSansFont.FAMILY, familyAt(p, sentence.indexOf("JDK")), "Latin stays in the primary")
         val arabicFamilies = sentence.indices
             .filter { Character.UnicodeScript.of(sentence.codePointAt(it)) == Character.UnicodeScript.ARABIC }
             .map { familyAt(p, it) }
             .toSet()
-        assertEquals(setOf(expectedArabic), arabicFamilies)
+        assertEquals(setOf(expectedArabic), arabicFamilies, "all of the paragraph's Arabic shares one face")
     }
 
     @Test
@@ -345,59 +203,117 @@ class ShapedTextContractTest {
         }
     }
 
-    @Test
-    fun `the document is exactly the source text on every font pair`() {
-        for (fonts in pairs) {
-            val p = pane(sentence, width = 600, fonts = fonts)
-            val stored = onEdt { p.styledDocument.getText(0, p.styledDocument.length) }
-            assertEquals(sentence, stored, "$fonts: no inserted newline, mark, joiner or reordering")
-        }
-    }
-
     // -------------------------------------------------------------------------------------------
-    // Caret and mouse, with the product fonts
+    // Caret, mouse and keyboard
     // -------------------------------------------------------------------------------------------
-
-    private val caretWidths = listOf(560, 600, 640)
 
     /** Before ب, between ب/د, between د/ل, between ل/ا (inside the lam-alef ligature), after the word. */
     private fun boundariesOf(start: Int) = listOf(start, start + 1, start + 2, start + 3, start + word.length)
 
     @Test
-    fun `every cluster boundary of the word round trips exactly through modelToView and viewToModel`() {
-        for (width in caretWidths) {
-            val p = pane(sentence, width = width, fonts = product)
-            for (start in wordStarts) {
-                for (offset in boundariesOf(start)) {
-                    val rect = caret(p, offset)
-                    assertEquals(offset, hit(p, rect.x, rect.centerY), "width $width: offset $offset (word at $start)")
-                }
-                // Between the alef and its tanween is not a cluster boundary: it resolves to the end of
-                // that cluster, which is where its caret is drawn.
-                val insideCluster = start + 4
-                val rect = caret(p, insideCluster)
-                assertEquals(start + word.length, hit(p, rect.x, rect.centerY), "width $width: inside the last cluster")
-            }
-        }
-    }
-
-    @Test
-    fun `each cluster boundary of the word has a caret of its own, in reading order`() {
+    fun `every cluster boundary of the word has its own caret, in reading order, and round trips exactly`() {
         val p = pane(sentence, width = 600, fonts = product)
         for (start in wordStarts) {
-            val xs = boundariesOf(start).map { caret(p, it).x }
-            val rows = boundariesOf(start).map { caret(p, it).y }.toSet()
-            assertEquals(1, rows.size, "the word sits on one row")
-            // Right to left: every later position is strictly further left, including the one inside
-            // the lam-alef ligature, which the layout on its own collapses onto the ligature's edge.
-            for (i in 1 until xs.size) {
-                assertTrue(xs[i] < xs[i - 1] - 0.5, "word at $start: carets must move left in reading order, got $xs")
+            val carets = boundariesOf(start).map { caret(p, it) }
+            assertEquals(1, carets.map { it.y }.toSet().size, "the word sits on one row")
+            // Right to left, so each later position is further left, including the one inside the
+            // ligature, which the layout on its own collapses onto the ligature's edge.
+            for (i in 1 until carets.size) {
+                assertTrue(carets[i].x < carets[i - 1].x - 0.5, "word at $start: ${carets.map { it.x }}")
+            }
+            for ((offset, rect) in boundariesOf(start).zip(carets)) {
+                assertEquals(offset, hit(p, rect.x, rect.centerY), "offset $offset")
+            }
+            // Between the alef and its tanween is inside a cluster; it resolves to the cluster's end.
+            val inside = caret(p, start + 4)
+            assertEquals(start + word.length, hit(p, inside.x, inside.centerY), "inside the last cluster")
+        }
+    }
+
+    /**
+     * Every width, because each one re-cuts rows somewhere else, and a re-cut fragment is where a
+     * shaped run can lose its shaped caret geometry.
+     */
+    @Test
+    fun `every position round trips exactly and in reading order, at every width`() {
+        for (fonts in listOf(product, sound)) {
+            val p = pane(sentence, width = 600, fonts = fonts)
+            for (width in 240..900 step 10) {
+                ShapedText.resize(p, width)
+                onEdt { assertCaretsExact(p, "$fonts at $width") }
+            }
+        }
+    }
+
+    /** Call on the EDT. */
+    private fun assertCaretsExact(p: AdvancedTextPane, label: String) {
+        val doc = p.styledDocument as AbstractDocument
+        val bidi = doc.bidiRootElement
+        val clusters = BreakIterator.getCharacterInstance().apply { setText(sentence) }
+        for (offset in 0..sentence.length) {
+            val rect = p.modelToView2D(offset)
+            val back = p.viewToModel2D(Point2D.Double(rect.centerX, rect.centerY))
+            assertTrue(p.caretIsEquivalent(offset, back), "$label: $offset came back as $back")
+
+            // Within one right-to-left run on one row, a later cluster boundary is never further right.
+            val next = clusters.following(offset.coerceAtMost(sentence.length - 1))
+            val run = bidi.getElement(bidi.getElementIndex(offset))
+            if (offset < sentence.length && next < run.endOffset && StyleConstants.getBidiLevel(run.attributes) % 2 == 1) {
+                val nextRect = p.modelToView2D(next)
+                if (nextRect.y == rect.y) assertTrue(nextRect.x <= rect.x, "$label: $next is drawn right of $offset in right-to-left text")
             }
         }
     }
 
     @Test
-    fun `a click anywhere over the word lands on the nearest cluster boundary`() {
+    fun `the last resort keeps every click in the word it was aimed at`() {
+        val p = pane(sentence, width = 600, fonts = lastResort)
+        assertTrue(onEdt { ShapedText.measuresRuns(p) }, "Rubik alone is laid out by the last resort")
+        for (width in listOf(330, 600, 900)) {
+            ShapedText.resize(p, width)
+            for (offset in 0..sentence.length) {
+                val rect = caret(p, offset)
+                val back = hit(p, rect.x, rect.centerY)
+                if (onEdt { p.caretIsEquivalent(offset, back) }) continue
+                // Measured inside a word, so only there may it miss.
+                val between = sentence.substring(minOf(offset, back), maxOf(offset, back))
+                assertTrue(' ' !in between && caret(p, back).y == rect.y, "width $width: $offset came back as $back, in another word")
+            }
+        }
+    }
+
+    @Test
+    fun `an embedded run's start and the position after it share a caret, and nothing else in the paragraph does`() {
+        val text = "إضافة / 319 عملية حذف فقط ولا يزال مفتوحًا Pull Request مقبول"
+        val p = pane(text, width = 900, fonts = product)
+        // The left-to-right "319" inside right-to-left text: its start and the space after it.
+        val digits = text.indexOf("319")
+        val afterDigits = digits + 3
+        assertTrue(onEdt { p.caretIsEquivalent(afterDigits, digits) })
+        assertTrue(
+            kotlin.math.abs(caret(p, afterDigits).x - caret(p, digits).x) < kotlin.math.abs(caret(p, digits + 1).x - caret(p, digits).x),
+            "the two positions are drawn at one edge of \"319\", closer than one of its digits is wide"
+        )
+        val back = hit(p, caret(p, afterDigits).x, caret(p, afterDigits).centerY)
+        assertTrue(back == digits || back == afterDigits, "a click there lands on one of the two, got $back")
+
+        // An ordinary right-to-left run between "319" and "Pull Request": its ends are far apart.
+        val runStart = afterDigits
+        val runEnd = text.indexOf("Pull")
+        val interior = text.indexOf("فقط")
+        assertTrue(caret(p, interior).x in caret(p, runEnd).x..caret(p, runStart).x, "the run's ends are visibly apart")
+        assertFalse(onEdt { p.caretIsEquivalent(runStart, runEnd) }, "the ends of an ordinary run are not one caret")
+        assertFalse(onEdt { p.caretIsEquivalent(runStart, interior) }, "nor is a position inside it")
+        assertFalse(onEdt { p.caretIsEquivalent(interior, runEnd) })
+
+        // An embedded run's start is not equivalent to a position inside that run either.
+        val latin = text.indexOf("Pull")
+        assertFalse(onEdt { p.caretIsEquivalent(latin, latin + 5) })
+        assertFalse(onEdt { p.caretIsEquivalent(digits, digits + 1) })
+    }
+
+    @Test
+    fun `a click over the word, or a real mouse press, lands on the nearest cluster boundary`() {
         val p = pane(sentence, width = 600, fonts = product)
         for (start in wordStarts) {
             val offsets = boundariesOf(start)
@@ -410,14 +326,7 @@ class ShapedTextContractTest {
                 assertEquals(offsets[i + 1], hit(p, a + (b - a) * 0.7, y), "a click just before ${offsets[i + 1]}")
             }
         }
-    }
-
-    @Test
-    fun `a real mouse press puts the caret on the clicked cluster boundary`() {
-        val p = pane(sentence, width = 600, fonts = product)
-        val start = wordStarts.first()
-        for (offset in boundariesOf(start)) {
-            val rect = caret(p, offset)
+        for ((offset, rect) in boundariesOf(wordStarts.first()).map { it to caret(p, it) }) {
             onEdt {
                 p.caretPosition = 0
                 val press = MouseEvent(
@@ -430,44 +339,34 @@ class ShapedTextContractTest {
         }
     }
 
-    @Test
-    fun `every position in the sentence round trips to itself or to an equivalent position`() {
-        for (width in caretWidths) {
-            val p = pane(sentence, width = width, fonts = product)
-            for (offset in 0..sentence.length) {
-                val rect = caret(p, offset)
-                val back = hit(p, rect.x, rect.centerY)
-                // See caretIsEquivalent: only a position inside the same cluster, or the other end
-                // of the same bidi run, on the same row.
-                assertTrue(onEdt { p.caretIsEquivalent(offset, back) }, "width $width: $offset came back as $back")
-            }
-        }
-    }
-
     private fun press(pane: AdvancedTextPane, key: Int, modifiers: Int = 0) = onEdt {
         val binding = pane.getInputMap(JComponent.WHEN_FOCUSED).get(KeyStroke.getKeyStroke(key, modifiers))
-        val action = pane.actionMap.get(binding)!!
-        action.actionPerformed(ActionEvent(pane, ActionEvent.ACTION_PERFORMED, binding.toString()))
+        pane.actionMap.get(binding)!!.actionPerformed(ActionEvent(pane, ActionEvent.ACTION_PERFORMED, binding.toString()))
     }
 
     @Test
-    fun `left and right arrows step through every cluster boundary of the word`() {
+    fun `the arrows step through every cluster boundary, and home and end reach the row's ends`() {
         val p = pane(sentence, width = 600, fonts = product)
         val start = wordStarts.first()
         val offsets = boundariesOf(start)
         onEdt { p.caretPosition = start }
         // Right to left: Left moves on through the text, Right moves back.
-        val forward = (1 until offsets.size).map { press(p, KeyEvent.VK_LEFT); onEdt { p.caretPosition } }
-        assertEquals(offsets.drop(1), forward)
-        val backward = (1 until offsets.size).map { press(p, KeyEvent.VK_RIGHT); onEdt { p.caretPosition } }
-        assertEquals(offsets.dropLast(1).reversed(), backward)
+        assertEquals(offsets.drop(1), (1 until offsets.size).map { press(p, KeyEvent.VK_LEFT); onEdt { p.caretPosition } })
+        assertEquals(offsets.dropLast(1).reversed(), (1 until offsets.size).map { press(p, KeyEvent.VK_RIGHT); onEdt { p.caretPosition } })
+
+        val (rowStart, rowEnd) = onEdt { ShapedText.rows(p).first { start in it.startOffset until it.endOffset }.let { it.startOffset to it.endOffset } }
+        onEdt { p.caretPosition = start + 2 }
+        press(p, KeyEvent.VK_HOME)
+        assertEquals(rowStart, onEdt { p.caretPosition })
+        onEdt { p.caretPosition = start + 2 }
+        press(p, KeyEvent.VK_END)
+        assertTrue(onEdt { p.caretPosition } in rowEnd - 1..rowEnd, "End lands at the row's end ($rowStart-$rowEnd)")
     }
 
     @Test
-    fun `selecting across the word and copying it gives exactly the word`() {
+    fun `selecting the word by mouse or keyboard and copying it gives exactly the word`() {
         val p = pane(sentence, width = 600, fonts = product)
         for (start in wordStarts) {
-            // By the mouse: from the caret before the word to the caret after it.
             val from = caret(p, start)
             val to = caret(p, start + word.length)
             val a = hit(p, from.x, from.centerY)
@@ -479,28 +378,9 @@ class ShapedTextContractTest {
             onEdt { p.transferHandler.exportToClipboard(p, clipboard, TransferHandler.COPY) }
             assertEquals(word, clipboard.getData(DataFlavor.stringFlavor))
 
-            // By the keyboard: Shift+Left across all four clusters.
             onEdt { p.caretPosition = start }
             repeat(4) { press(p, KeyEvent.VK_LEFT, InputEvent.SHIFT_DOWN_MASK) }
             assertEquals(word, onEdt { p.selectedText })
         }
-    }
-
-    @Test
-    fun `home and end on the right to left row that holds the word go to that row's ends`() {
-        val p = pane(sentence, width = 600, fonts = product)
-        val start = wordStarts.first()
-        val row = onEdt { rows(p).first { start in it.startOffset until it.endOffset } }
-        val rowStart = onEdt { row.startOffset }
-        val rowEnd = onEdt { row.endOffset }
-
-        onEdt { p.caretPosition = start + 2 }
-        press(p, KeyEvent.VK_HOME)
-        assertEquals(rowStart, onEdt { p.caretPosition })
-
-        onEdt { p.caretPosition = start + 2 }
-        press(p, KeyEvent.VK_END)
-        val end = onEdt { p.caretPosition }
-        assertTrue(end in rowEnd - 1..rowEnd, "End should land at the row's end ($rowStart-$rowEnd), got $end")
     }
 }

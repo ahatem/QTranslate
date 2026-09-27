@@ -6,17 +6,11 @@ import javax.swing.text.AbstractDocument
 import javax.swing.text.Document
 
 /**
- * Where a line may legally end, decided from the paragraph around a position rather than from
- * whichever view fragment happens to hold it.
+ * Where a line may legally end, decided from the paragraph around a position. A view can start or end
+ * inside a word (at a font, style or bidi run boundary), so the view's own text is not enough.
  *
- * A view can start or end in the middle of a word -- a font-fallback run, a styling change or a bidi
- * run boundary splits the text wherever the attributes change, not where the words do -- so the
- * fragment on its own would make its first character look like the start of a word. The rules are
- * applied to the document text on both sides of the candidate instead.
- *
- * The iterator is created for [Locale.ROOT]. The JDK's line-break rules are the same for every locale
- * except those that need a word dictionary, and the text in a translation pane is not in the user's
- * OS locale anyway, so nothing is gained by asking for it.
+ * [Locale.ROOT]: the JDK's line-break rules only differ by locale for dictionary-based scripts, and a
+ * translation is not in the OS locale anyway.
  */
 internal object LineBreakOpportunities {
 

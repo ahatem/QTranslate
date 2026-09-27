@@ -5,30 +5,22 @@ import java.awt.font.TextLayout
 import java.text.BreakIterator
 
 /**
- * Judges whether a shaped layout's own caret positions can be trusted, and fills in the positions a
- * sound layout leaves collapsed inside a ligature.
+ * Judges a shaped layout's carets, taken at grapheme-cluster boundaries in logical order across one
+ * unidirectional run, and fills in the positions a sound layout collapses inside a ligature. Nothing
+ * here depends on the script or the font.
  *
- * Every check here works on the carets a layout reports for grapheme-cluster boundaries, in logical
- * order, across one unidirectional run. Nothing depends on the script or on which font drew the run:
- *
- * - A sound run moves every caret the same way along the reading direction, or not at all.
- * - A caret that does not move is normal inside a ligature: the JDK gives a ligature glyph's whole
- *   advance to its first character and records every character "ligatured away" into it at the
- *   glyph's trailing edge with zero advance (see `sun.font.ExtendedTextSourceLabel`).
- * - What never happens in a sound run is a space collapsing to zero advance. A space is never part of
- *   a ligature, so a zero-advance cluster containing one means the layout has lost track of where its
- *   characters are. That is exactly what the corrupted runs this class exists for look like: past one
- *   ligature, every later caret, spaces included, reports the same point.
+ * - A sound run moves every caret one way along the reading direction, or not at all.
+ * - Not moving is normal inside a ligature: the JDK gives the glyph's advance to its first character
+ *   and puts every character ligatured into it at the glyph's trailing edge with zero advance.
+ * - A space never collapses in a sound run, since a space is never part of a ligature. Some fonts'
+ *   layouts collapse every later caret, spaces included, onto one point past a ligature.
  */
 internal object ShapedCarets {
 
     /** Below this, two carets are the same point. */
     private const val COLLAPSE_EPSILON = 0.01f
 
-    /**
-     * How far a caret may move against the reading direction before it counts as going backwards.
-     * Generous enough for sub-pixel measurement noise; the corruption this catches is not subtle.
-     */
+    /** How far a caret may move against the reading direction before it counts as going backwards. */
     private const val REGRESSION_TOLERANCE = 1f
 
     /**
@@ -48,13 +40,8 @@ internal object ShapedCarets {
     }
 
     /**
-     * [xs] with the carets of a sound run's ligature components spread across the ligature glyph.
-     *
-     * A run of carets at the same point, preceded by a caret that is not, is a ligature: its glyph
-     * spans from that preceding caret to the shared point, and every cluster in between was drawn
-     * as part of it. The glyph's width is shared out in proportion to the width each cluster has on
-     * its own ([standaloneAdvance]), so a cluster that genuinely has no width -- a zero-width space,
-     * a joiner -- takes none and keeps its caret where the layout put it.
+     * [xs] with a sound run's ligature components spread across the ligature glyph, in proportion to
+     * each cluster's own width ([standaloneAdvance]), so a genuinely zero-width cluster keeps its caret.
      */
     fun spreadLigatures(boundaries: IntArray, xs: FloatArray, standaloneAdvance: (Int, Int) -> Float): FloatArray {
         val spread = xs.copyOf()

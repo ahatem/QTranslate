@@ -7,6 +7,7 @@ import java.awt.Graphics2D
 import java.awt.Shape
 import java.awt.font.FontRenderContext
 import java.awt.font.TextAttribute
+import java.awt.font.TextHitInfo
 import java.awt.font.TextLayout
 import java.awt.geom.Rectangle2D
 import java.text.AttributedString
@@ -36,50 +37,36 @@ internal fun GlyphView.readsRightToLeft(): Boolean {
 }
 
 /**
- * The last-resort painter, for text no configured font lays out with sound hit-testing.
+ * Paints one unidirectional run from a `TextLayout` of its own text, font and direction.
  *
- * A layout whose carets have been caught contradicting themselves (see
- * [ShapedCarets][com.github.ahatem.qtranslate.ui.swing.shared.textpane.ShapedCarets]) cannot say
- * where any of its characters are, so nothing here asks it. Each question is answered by laying out
- * the part of the run it is about on its own and reading that layout's total advance -- a quantity the
- * corruption does not touch. The whole run is still drawn as one layout, in context, so what is
- * painted looks exactly as it would anywhere else; only the caret, the mouse and line breaking are
- * measured.
+ * Used where Swing's shaped painter is not available:
+ * - a fragment re-cut from a shaped run ([measured] false). Swing's shaped painter cannot be carried
+ *   into a new range, and its fallback assumes left-to-right text. Carets come from this layout,
+ *   which is exact because a re-cut lands at a legal break and no script joins across one;
+ * - the last resort, text no configured font shapes soundly ([measured] true). That layout's carets
+ *   cannot be trusted, so each position is measured instead: exact between words, since no script
+ *   shapes across a space, and approximate inside one.
  *
- * Between words the measurement is exact, since no script shapes across a space. Inside a word it
- * is an approximation: the part of a word before a position, laid out on its own, takes the glyph
- * forms of a cut word, so its advance drifts slightly from its share of the whole word. This painter
- * is used only where the alternative is a layout already shown to be wrong, and never for text any
- * configured font shapes soundly.
+ * Either way the whole run is drawn as one layout, so what is painted is shaped in context.
  */
-internal class MeasuredRunPainter : GlyphView.GlyphPainter() {
+internal class RunLayoutPainter(val measured: Boolean) : GlyphView.GlyphPainter() {
 
     private val clusters = GraphemeBoundary()
 
     private data class LayoutKey(val start: Int, val text: String, val font: Font, val rightToLeft: Boolean)
 
-    private var wholeKey: LayoutKey? = null
+    private var key: LayoutKey? = null
     private var whole: TextLayout? = null
     private var measure: Measure? = null
 
     /** The whole run, laid out once for as long as its text, font and direction stay the same. */
     private fun wholeLayout(v: GlyphView): TextLayout {
-        refresh(v)
-        return whole!!
-    }
-
-    private fun measureOf(v: GlyphView): Measure {
-        refresh(v)
-        return measure!!
-    }
-
-    private fun refresh(v: GlyphView) {
         val text = v.document.getText(v.startOffset, v.endOffset - v.startOffset)
-        val key = LayoutKey(v.startOffset, text, v.font, v.readsRightToLeft())
-        if (key == wholeKey && whole != null) return
-        wholeKey = key
-        whole = layoutOf(v, text)
-        measure = Measure(v, text)
+        val current = LayoutKey(v.startOffset, text, v.font, v.readsRightToLeft())
+        whole?.let { if (current == key) return it }
+        key = current
+        measure = null
+        return layoutOf(v, text).also { whole = it }
     }
 
     private fun layoutOf(v: GlyphView, text: String): TextLayout {
@@ -95,16 +82,26 @@ internal class MeasuredRunPainter : GlyphView.GlyphPainter() {
     private fun renderContext(v: GlyphView): FontRenderContext =
         v.container?.getFontMetrics(v.font)?.fontRenderContext ?: FontRenderContext(null, true, true)
 
+    /** Distance from the run's leading edge to the caret at document offset [pos]. */
+    private fun along(v: GlyphView, pos: Int): Float {
+        val layout = wholeLayout(v)
+        val relative = (pos - v.startOffset).coerceIn(0, v.endOffset - v.startOffset)
+        if (measured) {
+            val m = measure ?: Measure(v, v.document.getText(v.startOffset, v.endOffset - v.startOffset)).also { measure = it }
+            return m.along(relative)
+        }
+        val length = layout.characterCount
+        val hit = if (relative < length) TextHitInfo.leading(relative) else TextHitInfo.trailing(length - 1)
+        val x = layout.getCaretInfo(hit)[0]
+        return if (v.readsRightToLeft()) layout.advance - x else x
+    }
+
     /**
-     * How far along the run each position is, from the run's leading edge.
-     *
-     * No script shapes across a space, so the run is measured a word at a time: the words and the
-     * spaces between them are each laid out once, and a position inside a word adds only the part of
-     * that word before it. That keeps every question about a long run to one short layout at most,
-     * instead of laying out everything in front of the position again for each one.
+     * The last resort's measurement: the words of the run and the spaces between them are each laid
+     * out once, and a position inside a word adds only the part of that word before it.
      */
     private inner class Measure(private val v: GlyphView, private val text: String) {
-        /** Start of each piece -- a word, or the spaces between two -- relative to the run. */
+        /** Start of each piece (a word, or the spaces between two), relative to the run. */
         private val pieceStarts: IntArray
         /** Advance of everything before each piece. */
         private val before: FloatArray
@@ -123,15 +120,16 @@ internal class MeasuredRunPainter : GlyphView.GlyphPainter() {
             }
         }
 
-        /** Distance from the run's leading edge to the caret at document offset [pos]. */
-        fun along(pos: Int): Float {
-            val relative = (pos - v.startOffset).coerceIn(0, text.length)
+        fun along(relative: Int): Float {
             if (relative == text.length) return before.last()
             var piece = pieceStarts.binarySearch(relative)
             if (piece >= 0) return before[piece]
             piece = -piece - 2
+            // A cut word takes the forms of a cut word, so its start can measure wider than the whole
+            // word; kept within the word's own extent, a position never lands beyond it.
             return partial.getOrPut(relative) {
-                before[piece] + layoutOf(v, text.substring(pieceStarts[piece], relative)).advance
+                (before[piece] + layoutOf(v, text.substring(pieceStarts[piece], relative)).advance)
+                    .coerceIn(before[piece], before[piece + 1])
             }
         }
 
@@ -139,11 +137,7 @@ internal class MeasuredRunPainter : GlyphView.GlyphPainter() {
     }
 
     /** Advance of `[p0, p1)`. */
-    private fun span(v: GlyphView, p0: Int, p1: Int): Float = when {
-        p1 <= p0 -> 0f
-        p0 == v.startOffset && p1 == v.endOffset -> measureOf(v).along(p1)
-        else -> measureOf(v).let { it.along(p1) - it.along(p0) }
-    }
+    private fun span(v: GlyphView, p0: Int, p1: Int): Float = if (p1 <= p0) 0f else along(v, p1) - along(v, p0)
 
     override fun getSpan(v: GlyphView, p0: Int, p1: Int, e: TabExpander?, x: Float): Float = span(v, p0, p1)
 
@@ -163,18 +157,17 @@ internal class MeasuredRunPainter : GlyphView.GlyphPainter() {
             layout.draw(g2, x, y)
             return
         }
-        // Part of the run, such as a selection: the whole run drawn, clipped to that part, so every
-        // glyph keeps the form it has in context.
+        // Part of the run, such as a selection: the whole run clipped to that part, so every glyph
+        // keeps the form it has in context.
         val oldClip = g2.clip
         g2.clip(rangeShape(v, p0, p1, a))
         layout.draw(g2, x, y)
         g2.clip = oldClip
     }
 
-    /** Where the caret sits at [pos]. */
     private fun caretX(v: GlyphView, pos: Int, alloc: Rectangle2D): Double {
-        val along = span(v, v.startOffset, pos)
-        return if (v.readsRightToLeft()) alloc.x + span(v, v.startOffset, v.endOffset) - along else alloc.x + along
+        val along = along(v, pos)
+        return if (v.readsRightToLeft()) alloc.x + along(v, v.endOffset) - along else alloc.x + along
     }
 
     override fun modelToView(v: GlyphView, pos: Int, bias: Position.Bias, a: Shape): Shape {
@@ -192,31 +185,27 @@ internal class MeasuredRunPainter : GlyphView.GlyphPainter() {
 
     override fun viewToModel(v: GlyphView, x: Float, y: Float, a: Shape, biasReturn: Array<Position.Bias>): Int {
         val alloc = a.bounds2D
-        val along = if (v.readsRightToLeft()) (alloc.x + span(v, v.startOffset, v.endOffset) - x).toFloat() else (x - alloc.x).toFloat()
+        val target = if (v.readsRightToLeft()) (alloc.x + along(v, v.endOffset) - x).toFloat() else (x - alloc.x).toFloat()
         val stops = caretStops(v)
-        // Prefix advances only grow along the run, so the nearest stop is found by bisection.
+        // Positions only move forward along the run, so the nearest stop is found by bisection.
         var lo = 0
         var hi = stops.size - 1
         var below = 0
         while (lo <= hi) {
             val mid = (lo + hi) ushr 1
-            if (span(v, v.startOffset, stops[mid]) <= along) { below = mid; lo = mid + 1 } else hi = mid - 1
+            if (along(v, stops[mid]) <= target) { below = mid; lo = mid + 1 } else hi = mid - 1
         }
         var found = stops[below]
-        if (below + 1 < stops.size) {
-            val before = along - span(v, v.startOffset, stops[below])
-            val after = span(v, v.startOffset, stops[below + 1]) - along
-            if (after < before) found = stops[below + 1]
+        if (below + 1 < stops.size && along(v, stops[below + 1]) - target < target - along(v, stops[below])) {
+            found = stops[below + 1]
         }
         biasReturn[0] = if (found == v.endOffset && found > v.startOffset) Position.Bias.Backward else Position.Bias.Forward
         return found
     }
 
     /**
-     * The largest cluster boundary from [p0] whose text fits in [len].
-     *
-     * Looks at a window of the run that doubles while everything in it fits, so a break in a long run
-     * costs the length of the line, not the length of the whole run.
+     * The largest cluster boundary from [p0] whose text fits in [len], looking at a window of the run
+     * that doubles while everything in it fits, so a break costs the length of a line.
      */
     override fun getBoundedPosition(v: GlyphView, p0: Int, x: Float, len: Float): Int {
         var reach = INITIAL_REACH
@@ -236,11 +225,11 @@ internal class MeasuredRunPainter : GlyphView.GlyphPainter() {
         }
     }
 
-    override fun getPainter(v: GlyphView, p0: Int, p1: Int): GlyphView.GlyphPainter = MeasuredRunPainter()
+    override fun getPainter(v: GlyphView, p0: Int, p1: Int): GlyphView.GlyphPainter = RunLayoutPainter(measured)
 
     /**
-     * One cluster per step, in the direction the run reads, and -1 once the step leaves the run so
-     * the row moves on to the next one -- the same contract the JDK's shaped painter keeps.
+     * One cluster per step in the direction the run reads, and -1 once the step leaves the run, the
+     * same contract the JDK's shaped painter keeps.
      */
     override fun getNextVisualPositionFrom(
         v: GlyphView, pos: Int, b: Position.Bias, a: Shape, direction: Int, biasRet: Array<Position.Bias>,
