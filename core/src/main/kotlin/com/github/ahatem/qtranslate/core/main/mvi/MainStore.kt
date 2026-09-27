@@ -61,6 +61,9 @@ internal fun spellCheckInputs(states: Flow<MainState>, enabled: Flow<Boolean>): 
         enabled.distinctUntilChanged(),
     ) { input, isEnabled -> input.copy(isEnabled = isEnabled) }.distinctUntilChanged()
 
+internal fun MainState.clearSpellCorrectionsForInputChange(previous: SpellCheckInput?, incoming: SpellCheckInput): MainState =
+    if (previous != null && previous != incoming) copy(spellCheckCorrections = emptyList()) else this
+
 /**
  * MVI store for the main translation screen.
  *
@@ -293,9 +296,7 @@ class MainStore(
             var previous: SpellCheckInput? = null
             spellCheckInputs(state, settingsState.map { it.isSpellCheckingEnabled })
                 .onEach { input ->
-                    if (previous != null && previous != input) {
-                        _state.update { current -> current.copy(spellCheckCorrections = emptyList()) }
-                    }
+                    _state.update { it.clearSpellCorrectionsForInputChange(previous, input) }
                     previous = input
                 }
                 .debounce(AppConstants.SPELL_CHECK_DEBOUNCE_MS)

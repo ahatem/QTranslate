@@ -8,6 +8,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -69,5 +70,33 @@ class SpellCheckObservationTest {
             spellCheckCorrections = emptyList())
         assertFalse(input.matches(changed, true))
         assertEquals(emptyList(), changed.spellCheckCorrections)
+    }
+
+    @Test fun `actual detection clears locale fallback corrections and triggers another check`() = runTest {
+        val fallbackCorrection = Correction("Ths", 0, 3, listOf("This"))
+        val state = MutableStateFlow(MainState(
+            inputText = "Ths text",
+            sourceLanguage = LanguageCode.AUTO,
+            spellCheckCorrections = listOf(fallbackCorrection),
+        ))
+        val enabled = MutableStateFlow(true)
+        val inputs = mutableListOf<SpellCheckInput>()
+        var previous: SpellCheckInput? = null
+        val job = launch {
+            spellCheckInputs(state, enabled).collect { input ->
+                state.update { it.clearSpellCorrectionsForInputChange(previous, input) }
+                previous = input
+                inputs += input
+            }
+        }
+        runCurrent()
+        assertEquals(listOf(fallbackCorrection), state.value.spellCheckCorrections)
+        state.update { it.copy(detectedSourceLanguage = LanguageCode.ARABIC) }
+        runCurrent()
+        assertEquals(emptyList(), state.value.spellCheckCorrections)
+        assertEquals(null, inputs.first().detectedSourceLanguage)
+        assertEquals(LanguageCode.ARABIC, inputs.last().detectedSourceLanguage)
+        assertEquals(2, inputs.size)
+        job.cancel()
     }
 }

@@ -17,10 +17,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import com.github.ahatem.qtranslate.core.shared.util.shortSummary
+import java.util.Locale
 
 class PerformSpellCheckUseCase(
     private val activeServiceManager: ActiveServiceManager,
-    loggerFactory: LoggerFactory
+    loggerFactory: LoggerFactory,
+    private val userLocale: () -> Locale = { Locale.getDefault() },
 ) {
     private val logger: Logger = loggerFactory.getLogger("PerformSpellCheckUseCase")
     private val dynamicLanguagesMutex = Mutex()
@@ -102,6 +104,11 @@ class PerformSpellCheckUseCase(
             } ?: return null
         }
         if (LanguageCode.AUTO in supported) return LanguageCode.AUTO
-        return state.detectedSourceLanguage?.takeIf { it in supported }
+        state.detectedSourceLanguage?.let { return it.takeIf { language -> language in supported } }
+        val localeTag = userLocale().toLanguageTag()
+        if (localeTag == "und") return null
+        supported.firstOrNull { it.tag.equals(localeTag, ignoreCase = true) }?.let { return it }
+        val base = localeTag.substringBefore('-')
+        return supported.firstOrNull { it.tag.equals(base, ignoreCase = true) }
     }
 }
