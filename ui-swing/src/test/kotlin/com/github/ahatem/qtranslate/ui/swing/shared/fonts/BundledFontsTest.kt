@@ -8,10 +8,16 @@ import kotlin.test.assertTrue
 
 /**
  * The Arabic fallback only works if the bundled face is actually registered under the family name
- * the default configuration asks for. Both halves have been wrong before: the fonts shipped in a
- * module whose code never loaded them, and the default fallback pointed at Rubik, which has no
- * Arabic glyphs. Neither failure is visible until someone translates into Arabic on a machine
- * without an Arabic font, which is not a case anyone runs by accident.
+ * the default configuration asks for. That half has been wrong before: the fonts shipped in a
+ * module whose code never loaded them. Not visible until someone translates into Arabic on a
+ * machine without an Arabic font, which is not a case anyone runs by accident.
+ *
+ * The fallback's own reason for existing is not that Rubik lacks Arabic glyphs -- it turns out the
+ * bundled file does carry some -- but that Rubik's Arabic shaping tables are incomplete, which
+ * corrupts Swing's own line-breaking and caret placement past certain ligatures. That defect is
+ * guarded structurally, by the text pane falling back to its own measurement whenever a run's
+ * hit-testing is caught behaving inconsistently (see `WrappingEditorKit`), rather than by a claim
+ * about glyph coverage this class used to make and which registering the real font disproves.
  */
 class BundledFontsTest {
 
@@ -44,18 +50,5 @@ class BundledFontsTest {
 
         // "الترجمة" — the word this font exists to render.
         assertEquals(-1, font.canDisplayUpTo("الترجمة"))
-    }
-
-    @Test
-    fun `the interface face does not cover Arabic, which is why a fallback is configured`() {
-        RubikSansFont.installLazy()
-        val rubik = Font(RubikSansFont.FAMILY, Font.PLAIN, 15)
-
-        // Guards the reasoning behind the default: if Rubik ever gains Arabic coverage this test
-        // fails and the separate fallback can be reconsidered.
-        assertTrue(
-            rubik.family != RubikSansFont.FAMILY || rubik.canDisplayUpTo("الت") != -1,
-            "Rubik unexpectedly covers Arabic"
-        )
     }
 }

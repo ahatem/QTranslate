@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
-import com.github.ahatem.qtranslate.ui.swing.shared.fonts.RubikSansFont
 import java.awt.Font
 import java.awt.font.FontRenderContext
 import javax.swing.SwingUtilities
@@ -95,63 +94,41 @@ class FontFallbackDocumentListener(
         }
     }
 
-    /**
-     * Assigns each run of the text to whichever of the two fonts should draw it.
-     *
-     * Ordinarily that is whichever font [Font.canDisplay] says can, primary first. Rubik specifically
-     * is an exception for Arabic: `canDisplay` answers true there too, because the bundled file does
-     * carry glyphs for it, but its Arabic shaping tables are incomplete and corrupt a ligature the
-     * fallback face shapes correctly (a lam-alef followed by a tanween mark breaks line-wrapping and
-     * caret placement well past where it sits). Narrowed to that one named font rather than every
-     * Arabic character on any primary: forcing the split unconditionally fragments a paragraph's
-     * font runs at every script boundary even where nothing is wrong, and Swing's own complex-text
-     * layout can throw when an edit later removes text that spans one of those extra boundaries.
-     */
     private fun applyFontFallback(doc: StyledDocument, offset: Int, length: Int, primary: Font, fallback: Font) {
         if (length <= 0) return
         val text = doc.getText(offset, length)
+        // A char array so canDisplayUpTo can continue from an offset without allocating substrings.
         val chars = text.toCharArray()
         val end = chars.size
         var pos = 0
 
         while (pos < end) {
-            val codePoint = Character.codePointAt(chars, pos)
-            val runFont = fontFor(codePoint, primary, fallback)
-            val charCount = Character.charCount(codePoint)
+            val primaryFail = primary.canDisplayUpTo(chars, pos, end)
 
-            if (runFont == null) {
-                // Neither font supports this code point; leave it unchanged.
-                pos += charCount
+            if (primaryFail == -1) {
+                applyRunAttributes(offset + pos, end - pos, primary)
+                break
+            }
+            if (primaryFail > pos) {
+                applyRunAttributes(offset + pos, primaryFail - pos, primary)
+                pos = primaryFail
                 continue
             }
 
-            var runEnd = pos + charCount
-            while (runEnd < end) {
-                val nextCodePoint = Character.codePointAt(chars, runEnd)
-                if (fontFor(nextCodePoint, primary, fallback) != runFont) break
-                runEnd += Character.charCount(nextCodePoint)
+            val fallbackFail = fallback.canDisplayUpTo(chars, pos, end)
+            if (fallbackFail == -1) {
+                applyRunAttributes(offset + pos, end - pos, fallback)
+                break
             }
-            applyRunAttributes(offset + pos, runEnd - pos, runFont)
-            pos = runEnd
+            if (fallbackFail > pos) {
+                applyRunAttributes(offset + pos, fallbackFail - pos, fallback)
+                pos = fallbackFail
+                continue
+            }
+
+            // Neither font supports this code point; leave it unchanged.
+            pos += Character.charCount(Character.codePointAt(chars, pos))
         }
-    }
-
-    /** Which of the two fonts should draw [codePoint], or null when neither can. */
-    private fun fontFor(codePoint: Int, primary: Font, fallback: Font): Font? {
-        val mustUseFallback = primary.family == RubikSansFont.FAMILY &&
-            isArabicScript(codePoint) && fallback.canDisplay(codePoint)
-        if (!mustUseFallback && primary.canDisplay(codePoint)) return primary
-        if (fallback.canDisplay(codePoint)) return fallback
-        return primary.takeIf { it.canDisplay(codePoint) }
-    }
-
-    private fun isArabicScript(codePoint: Int): Boolean = when (Character.UnicodeBlock.of(codePoint)) {
-        Character.UnicodeBlock.ARABIC,
-        Character.UnicodeBlock.ARABIC_SUPPLEMENT,
-        Character.UnicodeBlock.ARABIC_EXTENDED_A,
-        Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_A,
-        Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_B -> true
-        else -> false
     }
 
     private fun applyRunAttributes(docOffset: Int, runLength: Int, font: Font) {

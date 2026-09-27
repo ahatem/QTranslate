@@ -1,7 +1,9 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
+import java.awt.Color
 import java.awt.ComponentOrientation
 import java.awt.Cursor
+import java.awt.image.BufferedImage
 import java.io.File
 import javax.swing.JLabel
 import javax.swing.JSplitPane
@@ -14,9 +16,10 @@ import kotlin.test.assertTrue
 
 /**
  * Every surviving main-workspace [JSplitPane] gets its divider through [MirroredSplitPane], which
- * installs [ModernSplitPaneUI] unconditionally: this proves that shared UI carries the same rest
- * hairline / hover-and-drag accent language as [WorkspaceDockHost]'s own boundary, with no grip,
- * no one-touch arrows, and no change in the divider's own bounds between states.
+ * installs [ModernSplitPaneUI] unconditionally: this proves that shared UI carries the workspace
+ * half of [ModernSplitDivider]'s language -- a visibly thicker rest line than the Lookup Dock's own
+ * boundary, both thickening further to the theme's accent on hover and while dragging -- with no
+ * grip, no one-touch arrows, and no change in the divider's own bounds between states.
  */
 class ModernSplitPaneUITest {
 
@@ -96,6 +99,22 @@ class ModernSplitPaneUITest {
         }
         val after = onEdt { pane.leadingProportion }
         assertTrue(after != before, "dragging must still move the divider in a mirrored pane")
+    }
+
+    /** How many pixels of a 1x21 strip a rest-state paint actually colours, centred vertically. */
+    private fun restLinePixels(style: ModernSplitDivider.Style): Int {
+        val image = BufferedImage(21, 21, BufferedImage.TYPE_INT_ARGB)
+        val g = image.createGraphics()
+        ModernSplitDivider.paint(g, 21, 21, vertical = true, active = false, style = style)
+        g.dispose()
+        return (0 until 21).count { x -> Color(image.getRGB(x, 10), true).alpha > 0 }
+    }
+
+    @Test
+    fun `a workspace divider rests visibly thicker than the dock's own quiet boundary`() {
+        val boundary = restLinePixels(ModernSplitDivider.Style.BOUNDARY)
+        val workspace = restLinePixels(ModernSplitDivider.Style.WORKSPACE)
+        assertTrue(workspace > boundary, "workspace ($workspace) should read as more than a border, unlike the dock's boundary ($boundary)")
     }
 
     @Test
