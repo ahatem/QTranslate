@@ -2,7 +2,6 @@ package com.github.ahatem.qtranslate.app
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
-import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.system.WindowsStartupRegistration
@@ -226,12 +225,6 @@ fun main(args: Array<String>) = runBlocking {
             pendingFocusRequest = false
             frame.showAndFocus()
         }
-
-        // One check per run, gated on the setting inside the use case itself: never a second
-        // system alongside the manual "Check for Updates" menu action, which dispatches the same
-        // intent. Posted after the frame exists so it never delays the window itself; plugin
-        // loading below runs independently, so it is not delayed either.
-        deps.mainStore.dispatch(MainIntent.CheckForUpdates)
     }
 
     logger.info("Loading plugins...")

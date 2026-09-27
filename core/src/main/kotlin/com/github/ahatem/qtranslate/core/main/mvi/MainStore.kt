@@ -960,6 +960,10 @@ class MainStore(
     }
 
     suspend fun onShutdown() {
+        // First: a normal translation or comparison request still in flight uses plugin
+        // services, and application shutdown disables plugins and closes their resources
+        // right after this returns.
+        translateTextUseCase.cancel()
         cancelDocumentTranslation()
         if (settingsState.value.clearHistoryOnExit) {
             historyRepository.clearHistory()
