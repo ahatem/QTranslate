@@ -18,6 +18,12 @@ internal object DividerTheme {
             ?: UIManager.getColor("Component.borderColor")
             ?: Color.GRAY
 
+    /**
+     * The muted foreground a small control rests in: the disabled text colour, which stays
+     * discoverable at a couple of pixels where the separator colour all but disappears.
+     */
+    fun muted(): Color = UIManager.getColor("Label.disabledForeground") ?: rest()
+
     /** The focus accent the dock boundary takes: as light as a focus ring, which a full-length line needs. */
     fun accent(): Color =
         UIManager.getColor("Component.focusColor")
@@ -27,7 +33,8 @@ internal object DividerTheme {
 
     /**
      * The saturated theme accent, for a small control such as the workspace grip: a couple of pixels
-     * of the lighter focus accent barely separate from the gutter behind them.
+     * of the lighter focus accent barely separate from the gutter behind them. This is the accent the
+     * application's theme sets, so it follows a custom accent such as gold.
      */
     fun controlAccent(): Color = UIManager.getColor("Component.accentColor") ?: accent()
 

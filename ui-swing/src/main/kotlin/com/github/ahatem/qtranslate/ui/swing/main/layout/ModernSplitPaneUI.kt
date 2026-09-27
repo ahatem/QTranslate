@@ -10,12 +10,12 @@ import javax.swing.plaf.basic.BasicSplitPaneUI
 
 /**
  * Gives a [JSplitPane] the [WorkspaceGripDivider] every internal workspace split is resized by,
- * instead of FlatLaf's default three-dot grip.
+ * instead of FlatLaf's own divider and its gutter-coloured grip.
  *
- * The gutter itself paints nothing; only the grip at its centre does, and it shows its hover surface
- * while the pointer is anywhere over the gutter, not only over the grip, because the whole gutter is
- * the drag target. One-touch expand arrows are switched off unconditionally: QTranslate already owns
- * whether a region is visible, and the arrows are dated, unused chrome on top of that.
+ * The gutter itself paints nothing; only the grip marks at its centre do, and they take their hover
+ * colour while the pointer is anywhere over the gutter, not only over the marks, because the whole
+ * gutter is the drag target. One-touch expand arrows are switched off unconditionally: QTranslate
+ * already owns whether a region is visible, and the arrows are dated, unused chrome on top of that.
  */
 class ModernSplitPaneUI : FlatSplitPaneUI() {
 

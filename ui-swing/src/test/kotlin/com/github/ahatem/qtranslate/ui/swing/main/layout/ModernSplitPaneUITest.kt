@@ -19,9 +19,9 @@ import kotlin.test.assertTrue
 /**
  * Every surviving main-workspace [JSplitPane] gets its divider through [MirroredSplitPane], which
  * installs [ModernSplitPaneUI] unconditionally: this proves that UI resizes through a
- * [WorkspaceGripDivider] -- an empty gutter with a small two-stroke grip at its centre, a compact
- * accent surface behind it on hover and while dragging, and never a line along the gutter -- with no
- * one-touch arrows and no change in the divider's own bounds between states. The Lookup Dock's
+ * [WorkspaceGripDivider] -- an empty gutter with three small centred marks, recoloured to the accent
+ * on hover and while dragging, with no surface behind them and never a line along the gutter -- with
+ * no one-touch arrows and no change in the divider's own bounds between states. The Lookup Dock's
  * [BoundaryDivider] is a different role and keeps its full-length hairline.
  */
 class ModernSplitPaneUITest {
@@ -126,50 +126,68 @@ class ModernSplitPaneUITest {
 
     private val gutterThickness get() = UISpacing.DIVIDER_SIZE
 
+    /** Painted runs along a line: how many separate marks it crosses. */
+    private fun marksAlong(image: BufferedImage, horizontal: Boolean, at: Int): Int {
+        val length = if (horizontal) image.width else image.height
+        var marks = 0
+        var inside = false
+        for (i in 0 until length) {
+            val hit = if (horizontal) painted(image, i, at) else painted(image, at, i)
+            if (hit && !inside) marks++
+            inside = hit
+        }
+        return marks
+    }
+
+    private fun opaquePixels(image: BufferedImage): Int =
+        (0 until image.height).sumOf { y -> (0 until image.width).count { x -> painted(image, x, y) } }
+
     @Test
-    fun `at rest a horizontal gutter paints only a small centred grip of two parallel strokes`() {
+    fun `at rest a horizontal gutter paints only three small centred marks in a row`() {
         val image = gutter(400, gutterThickness, vertical = false, state = WorkspaceGripDivider.State.REST)
         val bounds = paintedBounds(image)!!
-        // No line along the gutter: everything painted sits in a short span around the centre.
-        assertTrue(bounds.width <= UIScale.scale(22), "grip spans ${bounds.width}px, not the gutter")
-        assertTrue(bounds.width >= UIScale.scale(16), "grip spans ${bounds.width}px, too short to read as a grip")
+        assertEquals(3, marksAlong(image, horizontal = true, at = gutterThickness / 2), "three marks across the gutter")
+        assertEquals(1, marksAlong(image, horizontal = false, at = 200), "one row of marks, not stacked strokes")
+        // Small marks, compactly spaced, centred, and nothing along the rest of the gutter.
+        assertTrue(bounds.height <= UIScale.scale(4), "marks are ${bounds.height}px tall")
+        assertTrue(bounds.width <= UIScale.scale(14), "the grip spans ${bounds.width}px, not the gutter")
         assertTrue(kotlin.math.abs(bounds.centerX - 200) <= 1.0, "the grip is centred along the gutter")
+        assertTrue(kotlin.math.abs(bounds.centerY - gutterThickness / 2.0) <= 1.0, "the grip is centred across the gutter")
         assertFalse(painted(image, 10, gutterThickness / 2), "the gutter's ends stay empty")
-        // Two strokes with a gap between them, across the gutter at its centre.
-        val column = (0 until gutterThickness).map { painted(image, 200, it) }
-        val strokes = column.indices.count { it > 0 && column[it] && !column[it - 1] } + if (column[0]) 1 else 0
-        assertEquals(2, strokes, "two parallel strokes, got $column")
     }
 
     @Test
-    fun `a left to right gutter paints the same grip turned a quarter`() {
-        val horizontal = paintedBounds(gutter(400, gutterThickness, vertical = false, state = WorkspaceGripDivider.State.HOVER))!!
-        val vertical = paintedBounds(gutter(gutterThickness, 400, vertical = true, state = WorkspaceGripDivider.State.HOVER))!!
+    fun `a left to right gutter stacks the same three marks in a column`() {
+        val image = gutter(gutterThickness, 400, vertical = true, state = WorkspaceGripDivider.State.REST)
+        assertEquals(3, marksAlong(image, horizontal = false, at = gutterThickness / 2), "three marks down the gutter")
+        assertEquals(1, marksAlong(image, horizontal = true, at = 200))
+        val horizontal = paintedBounds(gutter(400, gutterThickness, vertical = false, state = WorkspaceGripDivider.State.REST))!!
+        val vertical = paintedBounds(image)!!
         assertEquals(horizontal.width, vertical.height)
         assertEquals(horizontal.height, vertical.width)
     }
 
     @Test
-    fun `hover adds a compact surface around the grip, never a band along the gutter`() {
+    fun `hover recolours the marks to the accent without any surface behind them`() {
         val rest = gutter(400, gutterThickness, vertical = false, state = WorkspaceGripDivider.State.REST)
         val hover = gutter(400, gutterThickness, vertical = false, state = WorkspaceGripDivider.State.HOVER)
+        assertEquals(3, marksAlong(hover, horizontal = true, at = gutterThickness / 2), "still three separate marks: no capsule joins them")
         val bounds = paintedBounds(hover)!!
-        assertTrue(bounds.width <= UIScale.scale(36), "hover surface spans ${bounds.width}px")
-        assertTrue(bounds.height < gutterThickness, "the surface leaves the gutter's edges clear of both panes")
-        assertFalse(painted(hover, 10, gutterThickness / 2), "the gutter's ends stay empty on hover")
-        assertTrue(paintedBounds(rest)!!.width < bounds.width, "hover shows a surface the rest state does not")
+        val restBounds = paintedBounds(rest)!!
+        // At most a pixel of growth each side, about the same centres.
+        assertTrue(bounds.width - restBounds.width <= 2 * UIScale.scale(1), "hover grows the marks only slightly")
+        assertEquals(restBounds.centerX, bounds.centerX, 1.0)
+        assertFalse(painted(hover, 200 + UIScale.scale(14), gutterThickness / 2), "nothing is painted beyond the marks")
+        assertTrue(Color(hover.getRGB(200, gutterThickness / 2), true) != Color(rest.getRGB(200, gutterThickness / 2), true), "the marks change colour")
     }
 
     @Test
-    fun `drag is stronger than hover and paints the same geometry`() {
+    fun `drag paints the same marks as hover in a stronger accent`() {
         val hover = gutter(400, gutterThickness, vertical = false, state = WorkspaceGripDivider.State.HOVER)
         val drag = gutter(400, gutterThickness, vertical = false, state = WorkspaceGripDivider.State.DRAG)
         assertEquals(paintedBounds(hover), paintedBounds(drag), "no geometry change between hover and drag")
-        val surfaceX = 200 + UIScale.scale(14)
-        val surfaceY = gutterThickness / 2
-        val hoverAlpha = Color(hover.getRGB(surfaceX, surfaceY), true).alpha
-        val dragAlpha = Color(drag.getRGB(surfaceX, surfaceY), true).alpha
-        assertTrue(dragAlpha > hoverAlpha, "the drag surface ($dragAlpha) is stronger than hover ($hoverAlpha)")
+        val centre = gutterThickness / 2
+        assertTrue(Color(drag.getRGB(200, centre), true).alpha > Color(hover.getRGB(200, centre), true).alpha, "drag is the full accent")
     }
 
     @Test
@@ -187,7 +205,8 @@ class ModernSplitPaneUITest {
         assertTrue(paintedBounds(rest)!!.width < d.width / 4, "at rest the divider paints a grip, not a line")
         onEdt { d.dispatchEvent(java.awt.event.MouseEvent(d, java.awt.event.MouseEvent.MOUSE_ENTERED, 0L, 0, 2, 5, 0, false)) }
         val hover = snapshot()
-        assertTrue(paintedBounds(hover)!!.width > paintedBounds(rest)!!.width, "hovering shows the grip's surface")
+        assertTrue(opaquePixels(hover) > opaquePixels(rest), "hovering strengthens the grip")
+        assertEquals(paintedBounds(rest)!!.centerX, paintedBounds(hover)!!.centerX, 1.0)
     }
 
     @Test
