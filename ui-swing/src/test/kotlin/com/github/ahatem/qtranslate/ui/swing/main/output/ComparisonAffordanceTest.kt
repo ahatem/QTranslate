@@ -184,10 +184,10 @@ class ComparisonAffordanceTest {
         val selector = textSelector()
         assertNotNull(selector.icon)
         assertEquals("Google Translate", selector.text)
-        // The chevron is reserved room inside the button's own margin, on the trailing side.
-        assertTrue(selector.margin.right > selector.margin.left, "left to right: room for the chevron on the right")
+        // The chevron is reserved room inside the button's own insets, on the trailing side.
+        assertTrue(selector.insets.right > selector.insets.left, "left to right: room for the chevron on the right")
         onEdt { selector.applyComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT) }
-        assertTrue(selector.margin.left > selector.margin.right, "right to left: the chevron moves to the left")
+        assertTrue(selector.insets.left > selector.insets.right, "right to left: the chevron moves to the left")
     }
 
     @Test

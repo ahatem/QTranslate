@@ -4,7 +4,6 @@ import com.formdev.flatlaf.extras.components.FlatButton
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
-import java.awt.ComponentOrientation
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.Graphics
@@ -87,7 +86,7 @@ class TranslatorPopupButton(
             icon = CompositeIcon(serviceIcon, arrowIcon)
             text = null
         }
-        applyChevronRoom()
+        applyToolbarMargin()
 
         toolTipText = actionTooltip ?: selectedService?.name ?: "Select Translator"
         isEnabled = !state.isLoading && state.availableTranslators.isNotEmpty()
@@ -95,25 +94,29 @@ class TranslatorPopupButton(
         repaint()
     }
 
-    /** The room the chevron needs at the trailing edge, on whichever side that is. */
-    private fun applyChevronRoom() {
+    private fun applyToolbarMargin() {
         val base = UIManager.getInsets("Button.toolbar.margin") ?: Insets(3, 3, 3, 3)
-        val room = if (textMode) arrowIcon.iconWidth + UIScale.scale(CHEVRON_GAP) else 0
-        val leftToRight = componentOrientation.isLeftToRight
-        margin = Insets(
-            base.top, base.left + if (leftToRight) 0 else room,
-            base.bottom, base.right + if (leftToRight) room else 0
-        )
-    }
-
-    override fun setComponentOrientation(orientation: ComponentOrientation) {
-        super.setComponentOrientation(orientation)
-        applyChevronRoom()
+        margin = Insets(base.top, base.left, base.bottom, base.right)
     }
 
     override fun updateUI() {
         super.updateUI()
-        if (currentState != null) applyChevronRoom()
+        if (currentState != null) applyToolbarMargin()
+    }
+
+    /**
+     * The room the chevron needs at the trailing edge, on whichever side that is. Added to the
+     * insets rather than the [margin]: it is already in pixels, and FlatLaf's border scales the margin.
+     */
+    override fun getInsets(): Insets = withChevronRoom(super.getInsets())
+
+    override fun getInsets(insets: Insets?): Insets = withChevronRoom(super.getInsets(insets))
+
+    private fun withChevronRoom(insets: Insets): Insets {
+        if (!textMode) return insets
+        val room = arrowIcon.iconWidth + UIScale.scale(CHEVRON_GAP)
+        if (componentOrientation.isLeftToRight) insets.right += room else insets.left += room
+        return insets
     }
 
     override fun paintComponent(g: Graphics) {

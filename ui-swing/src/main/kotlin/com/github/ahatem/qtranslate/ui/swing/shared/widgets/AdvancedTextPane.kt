@@ -44,9 +44,6 @@ import javax.swing.text.StyleContext
 import javax.swing.text.StyledDocument
 import javax.swing.undo.UndoManager
 
-/** Shared because it is only ever read; a fresh one per paint was pure garbage. */
-private val EMPTY_INSETS = Insets(0, 0, 0, 0)
-
 private fun File.isImageFile(): Boolean =
     extension.lowercase() in setOf("png", "jpg", "jpeg", "bmp", "gif", "tiff", "tif", "webp")
 
@@ -119,6 +116,7 @@ class AdvancedTextPane(
     private var cachedCounterValue: Int = -1
     private var cachedCounterText: String = ""
     private var cachedDisabledFg: Color? = null
+    private val paintInsets = Insets(0, 0, 0, 0)
 
     private val contextMenu: JPopupMenu by lazy { createContextMenu() }
     private val fallbackListener: FontFallbackDocumentListener
@@ -167,8 +165,8 @@ class AdvancedTextPane(
             KeyboardFocusManager.BACKWARD_TRAVERSAL_KEYS,
             setOf(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, InputEvent.SHIFT_DOWN_MASK))
         )
-        val padding = UIScale.scale(6)
-        margin = Insets(padding, padding, padding, padding)
+        // Unscaled: FlatLaf's text border scales the margin itself.
+        margin = Insets(PADDING, PADDING, PADDING, PADDING)
 
         document.addUndoableEditListener(undoManager)
         document.addDocumentListener(documentListener)
@@ -274,7 +272,8 @@ class AdvancedTextPane(
             if (!hasHint && !hasCounter) return
 
             // Only touched when something is actually drawn — paint runs on every caret blink.
-            val insets = margin ?: EMPTY_INSETS
+            // The border's insets, not the raw margin: the margin is unscaled, the border scales it.
+            val insets = getInsets(paintInsets)
             val disabledFg = cachedDisabledFg
                 ?: (UIManager.getColor("Label.disabledForeground") ?: Color.GRAY).also { cachedDisabledFg = it }
             val ltr = componentOrientation.isLeftToRight
@@ -581,5 +580,8 @@ class AdvancedTextPane(
 
         /** Gap below a paragraph, before scaling. */
         const val PARAGRAPH_GAP = 6f
+
+        /** Space between the text and each edge, before scaling. */
+        const val PADDING = 6
     }
 }
