@@ -7,6 +7,9 @@ import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.plugins.systemservices.backend.SystemOcrBackend
 import com.github.ahatem.qtranslate.plugins.systemservices.backend.SystemOcrBackends
+import com.github.ahatem.qtranslate.plugins.systemservices.spell.SpellLanguageMapper
+import com.github.ahatem.qtranslate.plugins.systemservices.spell.SystemSpellCheckerBackend
+import com.github.ahatem.qtranslate.plugins.systemservices.spell.SystemSpellCheckerBackends
 import com.github.ahatem.qtranslate.plugins.systemservices.tts.SystemTtsBackend
 import com.github.ahatem.qtranslate.plugins.systemservices.tts.SystemTtsBackends
 import com.github.ahatem.qtranslate.plugins.systemservices.tts.VoiceLocaleMapper
@@ -18,8 +21,9 @@ import kotlinx.coroutines.CancellationException
 class SystemServicesPlugin internal constructor(
     private val ocrDiscovery: suspend (PluginContext) -> Result<SystemOcrBackend, ServiceError>,
     private val ttsDiscovery: suspend (PluginContext) -> Result<SystemTtsBackend, ServiceError>,
+    private val spellDiscovery: suspend (PluginContext) -> Result<SystemSpellCheckerBackend, ServiceError>,
 ) : Plugin<PluginSettings.None> {
-    constructor() : this({ SystemOcrBackends.create(it) }, { SystemTtsBackends.create(it) })
+    constructor() : this({ SystemOcrBackends.create(it) }, { SystemTtsBackends.create(it) }, { SystemSpellCheckerBackends.create(it) })
 
     private lateinit var context: PluginContext
     private var services: List<Service> = emptyList()
@@ -31,6 +35,7 @@ class SystemServicesPlugin internal constructor(
     }
 
     override suspend fun onEnable(): Result<Unit, ServiceError> {
+        closeSpellChecker()
         services = emptyList()
         val found = mutableListOf<Service>()
         discover("OCR") {
@@ -59,6 +64,31 @@ class SystemServicesPlugin internal constructor(
                 failure = { context.logger.info("System TTS unavailable: " + it.message) },
             )
         }
+        discover("Spell Checker") {
+            spellDiscovery(context).fold(
+                success = { backend ->
+                    var registered = false
+                    try {
+                        backend.languages().fold(
+                            success = { languages ->
+                                if (SpellLanguageMapper(languages).supported.isEmpty()) {
+                                    context.logger.info("System Spell Checker unavailable: no usable dictionaries")
+                                } else {
+                                    found += SystemSpellCheckerService(backend, languages, context.logger)
+                                    registered = true
+                                }
+                            },
+                            failure = {
+                                context.logger.info("System Spell Checker unavailable: " + it.javaClass.simpleName)
+                            },
+                        )
+                    } finally {
+                        if (!registered) backend.close()
+                    }
+                },
+                failure = { context.logger.info("System Spell Checker unavailable: " + it.javaClass.simpleName) },
+            )
+        }
         services = found.distinctBy { it.key }
         context.logger.info("System Services enabled with " + services.size + " service(s)")
         return Ok(Unit)
@@ -75,12 +105,18 @@ class SystemServicesPlugin internal constructor(
     }
 
     override suspend fun onDisable() {
+        closeSpellChecker()
         services = emptyList()
         context.logger.info("System Services plugin disabled")
     }
 
     override suspend fun shutdown() {
+        closeSpellChecker()
         services = emptyList()
+    }
+
+    private suspend fun closeSpellChecker() {
+        services.filterIsInstance<SystemSpellCheckerService>().forEach { it.close() }
     }
 
     override fun getServices(): List<Service> = services

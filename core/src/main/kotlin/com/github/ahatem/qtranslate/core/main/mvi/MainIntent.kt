@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.core.main.mvi
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.ImageData
+import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
@@ -98,11 +99,11 @@ sealed interface MainIntent : UiIntent {
 
     /**
      * User clicked a spell-check suggestion to apply it.
-     * @property original   The misspelled word as it appears in [MainState.inputText].
+     * @property correction The selected correction and its range in [MainState.inputText].
      * @property suggestion The correction to substitute in.
      */
     data class ApplyCorrection(
-        val original: String,
+        val correction: Correction,
         val suggestion: String
     ) : MainIntent
 

@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # The Vision helper is Swift, so it can only be built on macOS, while the artifacts that need it
+  # The native helpers are Swift, so they can only be built on macOS, while the artifacts that need them
   # are packaged on Windows and Linux. Building it once here and passing the binary on is what lets
   # the released ZIP and plugin JARs carry a working macOS backend.
   macos-helper:
@@ -35,14 +35,22 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       # Produces one universal arm64 + x86_64 binary, so it serves Apple Silicon and Intel alike.
-      - name: Build universal Vision helper
-        run: ./gradlew :plugins:system-services:buildMacVisionHelper --no-daemon
+      - name: Build universal macOS helpers
+        run: ./gradlew :plugins:system-services:buildMacVisionHelper :plugins:system-services:buildMacSpellHelper --no-daemon
 
       - name: Upload Vision helper
         uses: actions/upload-artifact@v7
         with:
           name: macos-vision-ocr
           path: plugins/system-services/build/generated/mac-helper-build/vision_ocr
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload spell helper
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-system-spell
+          path: plugins/system-services/build/generated/mac-spell-build/system_spell
           if-no-files-found: error
           retention-days: 7
 
@@ -60,6 +68,12 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: macos-vision-ocr
+          path: macos-helper
+
+      - name: Download macOS spell helper
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-system-spell
           path: macos-helper
 
       - name: Set up Java 21
@@ -120,7 +134,7 @@ jobs:
         # The property must be quoted: PowerShell otherwise splits the argument at the
         # first dot, passing Gradle a bogus ".3.0" task name and failing the build.
         # Stages the macOS binary the previous job built, which this runner cannot compile itself.
-        run: ./gradlew assemblePortable "-PreleaseVersion=${{ steps.version.outputs.version }}" "-PmacVisionHelper=macos-helper/vision_ocr" --no-daemon
+        run: ./gradlew assemblePortable "-PreleaseVersion=${{ steps.version.outputs.version }}" "-PmacVisionHelper=macos-helper/vision_ocr" "-PmacSpellHelper=macos-helper/system_spell" --no-daemon
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
@@ -221,9 +235,15 @@ jobs:
           name: macos-vision-ocr
           path: macos-helper
 
+      - name: Download macOS spell helper
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-system-spell
+          path: macos-helper
+
       # The individual plugin JARs are published from this job, so they need the macOS helper too.
       - name: Build release variants
-        run: ./gradlew assembleReleaseVariants "-PreleaseVersion=${{ steps.version.outputs.version }}" "-PmacVisionHelper=macos-helper/vision_ocr" --no-daemon
+        run: ./gradlew assembleReleaseVariants "-PreleaseVersion=${{ steps.version.outputs.version }}" "-PmacVisionHelper=macos-helper/vision_ocr" "-PmacSpellHelper=macos-helper/system_spell" --no-daemon
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 

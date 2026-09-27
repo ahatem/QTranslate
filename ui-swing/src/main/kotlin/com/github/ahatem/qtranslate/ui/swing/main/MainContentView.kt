@@ -149,8 +149,8 @@ class MainContentView(
         onTextChanged = { text -> dispatch(MainIntent.UpdateInputText(text)) },
         onListen = { text -> dispatch(MainIntent.ListenToText(TextSource.Input, text)) },
         onTranslateRequest = { text -> dispatch(MainIntent.Translate(text)) },
-        onCorrectionApplied = { original, suggestion ->
-            dispatch(MainIntent.ApplyCorrection(original, suggestion))
+        onCorrectionApplied = { correction, suggestion ->
+            dispatch(MainIntent.ApplyCorrection(correction, suggestion))
         },
         onImageDropped = { image -> dispatch(MainIntent.OcrAndTranslateImage(image.toImageData("png"))) },
         onDocumentPasted = { file -> onOpenDocumentTranslation(file) },

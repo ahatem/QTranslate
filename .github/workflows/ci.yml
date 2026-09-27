@@ -64,7 +64,7 @@ jobs:
   # built once on a macOS runner and handed over. Without it they would validate a plugin JAR that is
   # missing a resource the released artifact carries.
   macos-helper:
-    name: Build macOS Vision helper
+    name: Build macOS helpers
     runs-on: macos-14
     timeout-minutes: 20
 
@@ -81,14 +81,22 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Build universal Vision helper
-        run: ./gradlew :plugins:system-services:buildMacVisionHelper --no-daemon
+      - name: Build universal macOS helpers
+        run: ./gradlew :plugins:system-services:buildMacVisionHelper :plugins:system-services:buildMacSpellHelper --no-daemon
 
       - name: Upload Vision helper
         uses: actions/upload-artifact@v7
         with:
           name: macos-vision-ocr
           path: plugins/system-services/build/generated/mac-helper-build/vision_ocr
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload spell helper
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-system-spell
+          path: plugins/system-services/build/generated/mac-spell-build/system_spell
           if-no-files-found: error
           retention-days: 7
 
@@ -118,6 +126,12 @@ jobs:
           name: macos-vision-ocr
           path: macos-helper
 
+      - name: Download macOS spell helper
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-system-spell
+          path: macos-helper
+
       - name: Set up Java 17
         uses: actions/setup-java@v6
         with:
@@ -131,7 +145,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev pkg-config
 
       - name: Build ${{ matrix.task }}
-        run: ./gradlew ${{ matrix.task }} -PreleaseVersion=ci -PmacVisionHelper=macos-helper/vision_ocr --no-daemon
+        run: ./gradlew ${{ matrix.task }} -PreleaseVersion=ci -PmacVisionHelper=macos-helper/vision_ocr -PmacSpellHelper=macos-helper/system_spell --no-daemon
 
       - name: Upload ${{ matrix.variant }}
         uses: actions/upload-artifact@v7

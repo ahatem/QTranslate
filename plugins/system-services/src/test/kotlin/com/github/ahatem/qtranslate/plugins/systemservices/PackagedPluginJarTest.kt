@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.systemservices
 
 import com.github.ahatem.qtranslate.plugins.systemservices.backend.MAC_VISION_HELPER_RESOURCE
+import com.github.ahatem.qtranslate.plugins.systemservices.spell.SystemSpellCheckerBackends
 import java.io.File
 import java.util.zip.ZipFile
 import kotlin.test.Test
@@ -21,6 +22,8 @@ class PackagedPluginJarTest {
     private val jarPath: String? = System.getProperty("systemServices.pluginJar")
     private val macHelperPackaged: Boolean =
         System.getProperty("systemServices.macHelperPackaged")?.toBoolean() ?: false
+    private val macSpellPackaged: Boolean =
+        System.getProperty("systemServices.macSpellPackaged")?.toBoolean() ?: false
 
     private val entries: Set<String> by lazy { readEntries() }
 
@@ -47,6 +50,7 @@ class PackagedPluginJarTest {
         assertTrue("assets/system-services-icon.svg" in entries, "the plugin icon is missing")
         assertTrue("assets/system-ocr-icon.svg" in entries, "the OCR icon is missing")
         assertTrue("assets/system-tts-icon.svg" in entries, "the TTS icon is missing")
+        assertTrue("assets/system-spell-icon.svg" in entries, "the spell checker icon is missing")
         assertTrue(PLUGIN_SERVICE_ENTRY in entries, "the ServiceLoader registration is missing")
     }
 
@@ -69,6 +73,7 @@ class PackagedPluginJarTest {
         assertTrue("scripts/windows-ocr.ps1" in entries, "the Windows OCR helper script is missing")
         assertTrue("scripts/windows-tts.ps1" in entries, "the Windows TTS helper script is missing")
         assertTrue("scripts/vision_ocr.swift" in entries, "the Vision helper source is missing")
+        assertTrue("scripts/system_spell.swift" in entries, "the spell helper source is missing")
     }
 
     @Test
@@ -98,6 +103,13 @@ class PackagedPluginJarTest {
         // Guards against the helper being staged under a doubled prefix the runtime cannot find.
         val nested = entries.filter { it.contains("native/macos/native/macos") }
         assertTrue(nested.isEmpty(), "the Vision helper was nested at a duplicated path: $nested")
+    }
+
+    @Test fun `the macOS spell helper packaging matches runtime lookup`() {
+        val entries = skipIfNoJar()
+        if (entries.isEmpty()) return
+        if (macSpellPackaged) assertTrue(SystemSpellCheckerBackends.MAC_RESOURCE in entries)
+        else assertFalse(SystemSpellCheckerBackends.MAC_RESOURCE in entries)
     }
 
     private fun readEntry(name: String): String {

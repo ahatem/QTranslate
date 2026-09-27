@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.core.main.mvi
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
+import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationException
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationRequest
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
@@ -270,7 +271,7 @@ class MainStore(
                 settingsState.map { it.isSpellCheckingEnabled }.distinctUntilChanged()
             ) { text, isEnabled -> text to isEnabled }
                 .debounce(AppConstants.SPELL_CHECK_DEBOUNCE_MS)
-                .collect { (text, isEnabled) -> handleSpellCheck(text, isEnabled) }
+                .collectLatest { (text, isEnabled) -> handleSpellCheck(text, isEnabled) }
         }
     }
 
@@ -296,7 +297,7 @@ class MainStore(
                     intent.text.replace("\n", " ").replace("\r", "").replace("  ", " ").trim()
                 else intent.text
                 clearComparisonState()
-                _state.update { it.copy(inputText = cleaned, detectedSourceLanguage = null) }
+                _state.update { it.copy(inputText = cleaned, detectedSourceLanguage = null, spellCheckCorrections = emptyList()) }
                 // With instant translate enabled, cancel any in-flight translation immediately
                 // so the loading indicator clears and the debounce can queue the next request.
                 // Without this, the collect coroutine in observeInstantTranslation stays
@@ -312,7 +313,7 @@ class MainStore(
             is MainIntent.SelectSourceLanguage ->
                 run {
                     clearComparisonState()
-                    _state.update { it.copy(sourceLanguage = intent.language, detectedSourceLanguage = null) }
+                    _state.update { it.copy(sourceLanguage = intent.language, detectedSourceLanguage = null, spellCheckCorrections = emptyList()) }
                 }
 
             is MainIntent.SelectTargetLanguage ->
@@ -324,7 +325,12 @@ class MainStore(
             is MainIntent.ApplyCorrection ->
                 run {
                     clearComparisonState()
-                    _state.update { it.copy(inputText = it.inputText.replaceFirst(intent.original, intent.suggestion)) }
+                    _state.update { current ->
+                        val replacement = if (intent.correction in current.spellCheckCorrections)
+                            replaceCorrectionAtRange(current.inputText, intent.correction, intent.suggestion)
+                        else null
+                        replacement?.let { current.copy(inputText = it, spellCheckCorrections = emptyList()) } ?: current
+                    }
                 }
 
             // Closing clears the pin. A pin says "keep this one around", not "and every one
@@ -757,6 +763,7 @@ class MainStore(
     }
 
     private suspend fun handleSpellCheck(text: String, isEnabled: Boolean) {
+        val sourceLanguage = _state.value.sourceLanguage
         val corrections = if (isEnabled && text.isNotBlank()) {
             performSpellCheckUseCase(
                 currentState   = _state.value,
@@ -766,7 +773,12 @@ class MainStore(
         } else {
             emptyList()
         }
-        _state.update { it.copy(spellCheckCorrections = corrections) }
+        _state.update { current ->
+            if (current.inputText == text && current.sourceLanguage == sourceLanguage &&
+                settingsState.value.isSpellCheckingEnabled == isEnabled)
+                current.copy(spellCheckCorrections = corrections)
+            else current
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -933,4 +945,11 @@ class MainStore(
     ) {
         _eventChannel.send(MainEvent.UpdateStatusBar(code, type, isTemporary))
     }
+}
+
+internal fun replaceCorrectionAtRange(text: String, correction: Correction, suggestion: String): String? {
+    if (correction.startIndex < 0 || correction.endIndex > text.length ||
+        correction.startIndex >= correction.endIndex ||
+        text.substring(correction.startIndex, correction.endIndex) != correction.original) return null
+    return text.replaceRange(correction.startIndex, correction.endIndex, suggestion)
 }
