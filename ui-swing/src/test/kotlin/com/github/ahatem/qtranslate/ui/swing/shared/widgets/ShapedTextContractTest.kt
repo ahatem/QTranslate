@@ -431,20 +431,15 @@ class ShapedTextContractTest {
     }
 
     @Test
-    fun `every position in the sentence round trips to itself or to a position drawn at the same place`() {
+    fun `every position in the sentence round trips to itself or to an equivalent position`() {
         for (width in caretWidths) {
             val p = pane(sentence, width = width, fonts = product)
             for (offset in 0..sentence.length) {
                 val rect = caret(p, offset)
                 val back = hit(p, rect.x, rect.centerY)
-                if (back == offset) continue
-                val backRect = caret(p, back)
-                // Two positions can share one visual location: inside a grapheme cluster, and at a
-                // boundary between text of opposite directions. Anything else is a real miss.
-                assertTrue(
-                    kotlin.math.abs(backRect.x - rect.x) < 1.0 && backRect.y == rect.y,
-                    "width $width: $offset came back as $back (drawn at ${rect.x} vs ${backRect.x})"
-                )
+                // See caretIsEquivalent: only a position inside the same cluster, or the other end
+                // of the same bidi run, on the same row.
+                assertTrue(onEdt { p.caretIsEquivalent(offset, back) }, "width $width: $offset came back as $back")
             }
         }
     }

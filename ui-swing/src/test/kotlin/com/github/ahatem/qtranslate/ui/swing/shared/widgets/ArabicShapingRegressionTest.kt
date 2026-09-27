@@ -18,29 +18,17 @@ import kotlin.test.assertTrue
  * as "مفتوحًا/قابلاً" (a tanween mark, then a lam-alef ligature) broke onto its own short line even
  * with hundreds of pixels to spare.
  *
- * The cause is not language- or font-specific in principle, but it is font-specific in practice:
- * past that ligature, the JDK's own `TextLayout` hit-testing reports every later offset at the same
- * position for several fonts -- Rubik among them -- while others (Noto Naskh Arabic, Segoe UI) shape
- * it correctly. Nothing in production names a font. The font-fallback pass ([ShapingAwareFallback])
- * checks the laid-out paragraph's own carets and hands a script's text to the configured fallback
- * when the primary's layout is unsound and the fallback's is not; [WrappingEditorKit] then leaves a
- * sound layout to Swing, and lays out a paragraph that no configured font shapes soundly with its
- * measured last resort.
+ * Some fonts -- Rubik among them -- lay this text out with broken hit-testing past that ligature,
+ * while others (Noto Naskh Arabic) shape it soundly. Nothing in production names a font: the
+ * font-fallback pass ([ShapingAwareFallback]) moves a script's text to a configured fallback that
+ * shapes it soundly, [WrappingEditorKit] leaves a sound layout to Swing, and a paragraph no
+ * configured font shapes soundly is laid out by its measured last resort.
  *
- * Every pane here is configured with one font as both primary and fallback, so nothing can be
- * handed over and each font's own behaviour is what is tested: Rubik, which exercises the last
- * resort; Noto Naskh Arabic, which is sound; and a plain, unconfigured logical font, standing in for
- * whatever a platform without either bundled face would substitute. [ShapedTextContractTest] covers
- * the configured pairs, including the product default.
- *
- * ### A known residual: JDK-level measurement variance
- * Under a full-suite run, Rubik's own text measurement has been observed to occasionally answer a
- * little differently for the same text depending on JDK/AWT font-rendering state established
- * elsewhere in that JVM process -- which physical font backend answers first, apparently, which is
- * not something a Kotlin-level fix controls. The wrap is always dramatically better than the
- * original defect in both states (the room used goes from roughly a tenth of the width to well over
- * a third, sometimes to nearly all of it); the bounds below are set to hold in both, rather than
- * quietly retrying until the more favourable one shows up.
+ * Every pane here uses one font as both primary and fallback, so nothing can be handed over and each
+ * font's own behaviour is tested: Rubik exercises the last resort, Noto Naskh Arabic is sound, and
+ * the logical "Dialog" stands in for whatever a platform without either bundled face substitutes.
+ * [ShapedTextContractTest] covers the configured pairs, including the product default, and the
+ * exact caret contract.
  */
 class ArabicShapingRegressionTest {
 
@@ -206,10 +194,9 @@ class ArabicShapingRegressionTest {
         for (font in fonts) {
             for (sample in samples) {
                 val p = pane(sample, width = 300, fontFamily = font)
-                // A little slack over the exact width: the residual JDK-level measurement variance
-                // documented above can push a row a few pixels past the nominal width in the less
-                // favourable state, which is not the mid-word, tens-of-pixels-early wrap this guards
-                // against.
+                // Deliberately loose: this guards against the original defect, a wrap tens of pixels
+                // early, not against a row's exact fit. The exact line-breaking contract is
+                // ShapedTextContractTest's.
                 assertTrue(widestRow(p) <= 300f * 1.6f, "$font: \"$sample\" (row width ${widestRow(p)})")
             }
         }
@@ -275,25 +262,21 @@ class ArabicShapingRegressionTest {
         for (font in listOf(RubikSansFont.FAMILY, NotoNaskhArabicFont.FAMILY)) {
             val p = pane(realisticSentence, width = 640, fontFamily = font)
             val doc = p.styledDocument
-            // With the same font as primary and fallback there is nothing to switch to: a font that
-            // shapes this soundly is left to Swing and must be exact, and one that does not is laid
-            // out by the measured last resort, which is exact between words and approximate only
-            // inside one.
+            // Nothing can be handed to a fallback here: a font that shapes this soundly is left to
+            // Swing and must be exact, and one that does not is laid out by the measured last
+            // resort, which is exact between words and approximate only inside one.
             val sound = onEdt {
                 !(p.ui.getRootView(p).getView(0).getView(0) as WrappingEditorKit.WrappingParagraphView).measuresRuns
             }
             for (offset in 0..doc.length) {
                 val rect = onEdt { p.modelToView2D(offset) } ?: continue
                 val back = onEdt { p.viewToModel2D(Point2D.Double(rect.centerX, rect.centerY)) }
-                if (back == offset) continue
-                val backRect = onEdt { p.modelToView2D(back) }!!
-                val sameSpot = kotlin.math.abs(backRect.x - rect.x) < 1.0 && backRect.y == rect.y
-                if (sound) {
-                    assertTrue(sameSpot, "$font: $offset came back as $back")
-                } else {
-                    val between = realisticSentence.substring(minOf(offset, back), maxOf(offset, back).coerceAtMost(realisticSentence.length))
-                    assertTrue(sameSpot || ' ' !in between, "$font: $offset came back as $back, in another word")
-                }
+                // Exact means the same position or an equivalent one (see caretIsEquivalent): the
+                // start of "319" and the space after it are one visual edge in this sentence.
+                if (onEdt { p.caretIsEquivalent(offset, back) }) continue
+                assertFalse(sound, "$font: $offset came back as $back")
+                val between = realisticSentence.substring(minOf(offset, back), maxOf(offset, back).coerceAtMost(realisticSentence.length))
+                assertTrue(' ' !in between && onEdt { p.modelToView2D(back).y == rect.y }, "$font: $offset came back as $back, in another word")
             }
         }
     }
