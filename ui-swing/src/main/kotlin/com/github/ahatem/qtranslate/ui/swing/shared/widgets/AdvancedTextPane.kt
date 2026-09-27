@@ -73,6 +73,19 @@ class AdvancedTextPane(
 
     private val directions = TextPaneDirections(this)
 
+    /** Set once [directions] exists; the orientation is first set while the superclass is still being built. */
+    private var directionsReady = true
+
+    /**
+     * Direction belongs to the text, not to the interface around it: a translation in English
+     * inside an Arabic interface reads left to right, and the cascade that mirrors the window must
+     * not turn it around.
+     */
+    override fun setComponentOrientation(orientation: java.awt.ComponentOrientation) {
+        val ofTheText = if (directionsReady) directions.contentOrientation() else null
+        super.setComponentOrientation(ofTheText ?: orientation)
+    }
+
     private val keyBindings = TextPaneKeyBindings(
         pane = this,
         onTranslateRequest = onTranslateRequest,
@@ -485,6 +498,18 @@ class AdvancedTextPane(
 
     override fun getScrollableTracksViewportWidth(): Boolean =
         parent is JViewport && parent.width > 0
+
+    /**
+     * The scroll pane's own size request, which for a pane that wraps to its viewport is that
+     * viewport's width. Left alone it would be the width of the longest unwrapped line, and a
+     * split pane sizing itself from its children's requests would give a long translation half
+     * the window before it had been laid out once.
+     */
+    override fun getPreferredScrollableViewportSize(): Dimension {
+        val size = super.getPreferredScrollableViewportSize()
+        if (getScrollableTracksViewportWidth()) size.width = size.width.coerceAtMost(parent.width)
+        return size
+    }
 
     override fun getScrollableBlockIncrement(visibleRect: Rectangle?, orientation: Int, direction: Int): Int =
         font.size * 2

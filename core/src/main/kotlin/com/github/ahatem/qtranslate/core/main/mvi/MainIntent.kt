@@ -180,8 +180,20 @@ sealed interface MainIntent : UiIntent {
         val language: LanguageCode = LanguageCode.ENGLISH
     ) : MainIntent
 
-    /** User toggled the inline dictionary panel open or closed. */
+    /**
+     * User toggled the dictionary in the lookup dock: opens the dock on the dictionary, or closes
+     * it when the dictionary is what it already shows.
+     */
     data object ToggleDictionaryPanel : MainIntent
+
+    /** User opened the lookup dock on [tool], or switched an open dock to it. */
+    data class OpenLookupDock(val tool: LookupTool) : MainIntent
+
+    /** User picked another tool in an open lookup dock. */
+    data class SelectLookupTool(val tool: LookupTool) : MainIntent
+
+    /** User closed the lookup dock. */
+    data object CloseLookupDock : MainIntent
 
     /**
      * User triggered the floating dictionary popup (e.g. via global hotkey or auto-lookup).

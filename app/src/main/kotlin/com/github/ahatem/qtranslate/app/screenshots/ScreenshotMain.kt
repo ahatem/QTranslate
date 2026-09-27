@@ -7,8 +7,11 @@ import com.github.ahatem.qtranslate.app.AppDependencies
 import com.github.ahatem.qtranslate.app.AppUiSetup
 import com.github.ahatem.qtranslate.app.ConsoleLoggerFactory
 import com.github.ahatem.qtranslate.app.buildDependencies
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
+import com.github.ahatem.qtranslate.core.main.mvi.LookupTool
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
@@ -148,9 +151,27 @@ private class Shots(
         translate(LanguageCode("ar"), Scenes.PERISTALSIS)
         capture("layout-side-by-side-narrow-dark")
 
-        start(Scenes.comparison(Scenes.DARK))
+        // Classic in a window too narrow for anything but a stack, with a long right-to-left result.
+        start(Scenes.classic(Scenes.DARK))
+        resizeWindow(Scenes.NARROW_WINDOW)
+        translate(LanguageCode("ar"), Scenes.PERISTALSIS)
+        capture("layout-classic-narrow-arabic-dark")
+
+        // Google as Primary, one working comparison and one that cannot be reached, so the failed
+        // secondary shows its compact form.
+        start(comparisonConfig(Scenes.DARK, listOf("MyMemory", "LibreTranslate")))
         translate(LanguageCode("fr"), Scenes.LIBRARY)
-        capture("layout-comparison-empty-dark")
+        capture("layout-comparison-dark")
+
+        start(comparisonConfig(Scenes.DARK, listOf("MyMemory", "LibreTranslate")))
+        translate(LanguageCode("fr"), Scenes.LIBRARY)
+        openDictionary("library")
+        capture("layout-comparison-dock-dark")
+
+        start(Scenes.classic(Scenes.DARK))
+        translate(LanguageCode("fr"), Scenes.LIBRARY)
+        openImages("library")
+        capture("dock-images-dark")
 
         // The hero: input, backward translation and the dictionary all at once. Backward
         // translation rather than Summary or Rewrite — those are AI-only, and without an API key
@@ -206,6 +227,11 @@ private class Shots(
         start(Scenes.arabic("side_by_side"))
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
         capture("rtl-side-by-side")
+
+        start(Scenes.arabic("side_by_side"))
+        translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
+        openDictionary("peristalsis")
+        capture("rtl-side-by-side-dock")
     }
 
     // ── quick translate ───────────────────────────────────────────────────────
@@ -393,21 +419,37 @@ private class Shots(
     }
 
     private suspend fun openDictionary(word: String) {
-        if (!deps.mainStore.state.value.isDictionaryPanelVisible) {
-            deps.mainStore.dispatch(MainIntent.ToggleDictionaryPanel)
-            delay(600)
-        }
+        deps.mainStore.dispatch(MainIntent.OpenLookupDock(LookupTool.DICTIONARY))
+        delay(600)
         deps.mainStore.dispatch(MainIntent.LookupWord(word))
         // Long enough that the status bar has settled off "Looking up…".
         delay(5_000)
-        // The dictionary opens at whatever the app last remembers; the shot needs the column the
-        // same every time it appears, so pin its split once it has settled.
-        onUi {
-            splitsOf(requireFrame().rootPane).filterIsInstance<MirroredSplitPane>()
-                .filter { it.orientation == JSplitPane.HORIZONTAL_SPLIT }
-                .forEach { it.setLeadingProportion(Scenes.DICTIONARY_SPLIT) }
+    }
+
+    /** Opens the pictures tab of the lookup dock, as choosing Search Images in a wide window does. */
+    private suspend fun openImages(term: String) {
+        deps.mainStore.dispatch(MainIntent.OpenLookupDock(LookupTool.IMAGES))
+        delay(600)
+        deps.mainStore.dispatch(MainIntent.SearchImages(term))
+        delay(6_000)
+    }
+
+    /**
+     * A Comparison scene with Google as Primary and [secondaries] named after the loaded
+     * translators, so the set is real and the ids are whatever this run's registry composed.
+     */
+    private fun comparisonConfig(theme: String, secondaries: List<String>): Configuration {
+        val translators = deps.mainStore.state.value.getAvailableServicesFor(ServiceRole.TRANSLATOR)
+        fun idOf(name: String) = translators.firstOrNull { it.name.contains(name, ignoreCase = true) }?.id
+        val base = Scenes.comparison(theme)
+        val preset = (base.getActivePreset() ?: ServicePreset.createDefault()).let { active ->
+            active.copy(
+                selectedServices = active.selectedServices +
+                    (ServiceRole.TRANSLATOR to (idOf("Google") ?: active.selectedServices[ServiceRole.TRANSLATOR])),
+                comparisonTranslatorIds = secondaries.mapNotNull(::idOf)
+            )
         }
-        delay(500)
+        return base.copy(servicePresets = listOf(preset), activeServicePresetId = preset.id)
     }
 
     /**

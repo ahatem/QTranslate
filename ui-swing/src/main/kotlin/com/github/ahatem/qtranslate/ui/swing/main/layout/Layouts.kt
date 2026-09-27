@@ -36,6 +36,9 @@ sealed interface LayoutComponentRefs {
                 extraSplit.isContinuousLayout = false
                 extraPanel.isVisible = visible
                 extraBoundary?.isVisible = visible
+                // Whatever holds the panel in the split goes with it: a hidden panel inside a visible
+                // holder still claims the holder's minimum height, and leaves an empty band.
+                extraSplit.bottomComponent?.isVisible = visible
                 if (visible) {
                     extraSplit.dividerSize = UISpacing.DIVIDER_SIZE
                     extraSplit.resetToPreferredSizes()
@@ -158,7 +161,7 @@ object ClassicLayout : LayoutStrategy {
 
         val outputSection = JPanel(BorderLayout()).apply {
             add(LayoutBuilders.wrapLanguageBar(components.languageBar), BorderLayout.NORTH)
-            add(LayoutBuilders.wrapScrollable(components.outputPanel), BorderLayout.CENTER)
+            add(components.outputPanel, BorderLayout.CENTER)
         }
         val mainSplit = LayoutBuilders.createVerticalSplit(
             top = components.inputPanel, bottom = outputSection, resizeWeight = 0.5
@@ -200,7 +203,7 @@ object SideBySideLayout : LayoutStrategy {
 
         val mainSplit = ResponsivePairSplit(
             leading = components.inputPanel,
-            trailing = LayoutBuilders.wrapScrollable(components.outputPanel),
+            trailing = components.outputPanel,
             isRtl = isRtl
         ).split
         val extraSplit = LayoutBuilders.createVerticalSplit(

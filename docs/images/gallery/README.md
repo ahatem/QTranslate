@@ -14,11 +14,14 @@ This folder is the full set, and is what the website gallery draws from.
 | `main-dark`, `main-light` | The main window in both themes, classic layout |
 | `layout-side-by-side-dark`, `layout-side-by-side-light` | Source and translation in parallel columns |
 | `layout-side-by-side-narrow-dark` | The same layout in a narrow window, where the panes stack |
+| `layout-classic-narrow-arabic-dark` | Classic in a narrow window with a long right-to-left translation |
+| `layout-comparison-dark`, `layout-comparison-dock-dark` | Comparison with a failed provider kept compact, and with the lookup dock beside it |
+| `dock-images-dark` | The lookup dock on its Images tab |
 | `hero-dark`, `hero-light` | Everything at once: input, translation, backward translation and the docked dictionary |
-| `dictionary-docked-dark`, `dictionary-docked-light` | The dictionary panel beside a translation |
+| `dictionary-docked-dark`, `dictionary-docked-light` | The lookup dock on the dictionary, beside a translation |
 | `dictionary-quick-dark` | The floating dictionary popup, which is what <kbd>Ctrl+D</kbd> opens over other apps |
 | `quick-translate-dark`, `quick-translate-light` | The <kbd>Ctrl+Q</kbd> popup — select text anywhere, read it translated |
-| `rtl-main`, `rtl-side-by-side`, `rtl-dictionary` | The Arabic interface, mirrored right to left |
+| `rtl-main`, `rtl-side-by-side`, `rtl-side-by-side-dock`, `rtl-dictionary` | The Arabic interface, mirrored right to left |
 | `history` | The translation history |
 | `document-translation` | Translating a document while preserving its structure |
 | `settings-appearance-*`, `settings-behavior-*`, `settings-general-*`, `settings-hotkeys-*`, `settings-languages-*`, `settings-layout-*`, `settings-network-*`, `settings-plugins-*`, `settings-popups-*`, `settings-services-*` | All ten settings pages, in both themes |

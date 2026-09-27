@@ -33,4 +33,20 @@ object UISpacing {
 
     /** Below this width Side By Side stacks its Input and Output instead of setting them side by side. */
     val SIDE_BY_SIDE_BREAKPOINT get() = 2 * SIDE_BY_SIDE_PANEL_WIDTH + DIVIDER_SIZE
+
+    /**
+     * The least width the translation workspace keeps while a lookup dock is beside it: enough for
+     * the language bar and the translator selector to stay whole, which is what a stacked layout
+     * needs at its narrowest.
+     */
+    val WORKSPACE_MIN_WIDTH get() = UIScale.scale(440)
+
+    /** The least width a lookup dock keeps: a search field, its button and a readable result. */
+    val LOOKUP_DOCK_MIN_WIDTH get() = UIScale.scale(280)
+
+    /** The width the dock first opens at, as a share of the window, before the user has resized it. */
+    const val LOOKUP_DOCK_DEFAULT_SHARE = 0.36
+
+    /** The draggable strip between the workspace and the dock; the line drawn in it is thinner. */
+    val DOCK_DIVIDER_HIT_WIDTH get() = UIScale.scale(8)
 }

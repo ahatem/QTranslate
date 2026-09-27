@@ -53,6 +53,28 @@ class KeyboardPanel(
 
     private val nonEditableActions    = emptySet<HotkeyAction>()
 
+    /**
+     * Table metrics, authored for a 100% display and scaled where they are used: a table row and
+     * its columns are plain pixel counts to Swing, and left raw they stay the same size while the
+     * text and key chips inside them grow with the display.
+     */
+    private companion object {
+        const val ROW_HEIGHT = 34
+        const val ACTION_MIN_WIDTH = 170
+        const val ACTION_PREFERRED_WIDTH = 310
+        const val HOTKEY_MIN_WIDTH = 125
+        const val HOTKEY_PREFERRED_WIDTH = 190
+        const val HOTKEY_MAX_WIDTH = 320
+        const val SCOPE_MIN_WIDTH = 64
+        const val SCOPE_PREFERRED_WIDTH = 80
+        const val SCOPE_MAX_WIDTH = 120
+        const val CHIP_ARC = 8
+        const val CHIP_PADDING_Y = 4
+        const val CHIP_PADDING_X = 9
+        const val CHIP_GAP = 4
+        const val TABLE_PREFERRED_WIDTH = 580
+    }
+
     private val COL_ACTION = 0
     private val COL_HOTKEY = 1
     private val COL_SCOPE  = 2
@@ -132,22 +154,29 @@ class KeyboardPanel(
 
         table = JTable(model).apply {
             fillsViewportHeight = true
-            rowHeight           = 34
+            rowHeight           = UIScale.scale(ROW_HEIGHT)
             autoResizeMode      = JTable.AUTO_RESIZE_ALL_COLUMNS
             setShowGrid(false)
             intercellSpacing    = Dimension(0, 0)
             setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
             putClientProperty("FlatLaf.style", "showCellFocusIndicator: false")
 
-            columnModel.getColumn(COL_ACTION).apply { preferredWidth = UIScale.scale(310); minWidth = UIScale.scale(170) }
+            // Hotkey and Scope are capped so that extra width goes to the Action names, which are
+            // the text people read, rather than stretching a column that holds a few key chips.
+            columnModel.getColumn(COL_ACTION).apply {
+                preferredWidth = UIScale.scale(ACTION_PREFERRED_WIDTH)
+                minWidth       = UIScale.scale(ACTION_MIN_WIDTH)
+            }
             columnModel.getColumn(COL_HOTKEY).apply {
-                preferredWidth = UIScale.scale(190)
-                minWidth       = UIScale.scale(125)
+                preferredWidth = UIScale.scale(HOTKEY_PREFERRED_WIDTH)
+                minWidth       = UIScale.scale(HOTKEY_MIN_WIDTH)
+                maxWidth       = UIScale.scale(HOTKEY_MAX_WIDTH)
                 cellRenderer   = HotkeyColumnRenderer()
             }
             columnModel.getColumn(COL_SCOPE).apply {
-                preferredWidth = UIScale.scale(80)
-                minWidth       = UIScale.scale(64)
+                preferredWidth = UIScale.scale(SCOPE_PREFERRED_WIDTH)
+                minWidth       = UIScale.scale(SCOPE_MIN_WIDTH)
+                maxWidth       = UIScale.scale(SCOPE_MAX_WIDTH)
                 cellRenderer   = ScopeColumnRenderer()
             }
 
@@ -175,10 +204,14 @@ class KeyboardPanel(
         }
 
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
-            .insets(4, 0, 0, 0)
+            .insets(UIScale.scale(4), 0, 0, 0)
             .add(JScrollPane(table).apply {
-                preferredSize = Dimension(UIScale.scale(580), UIScale.scale(actionOrder.size * 34 + 4))
                 border = themeAwareBorder()
+                // Every row and the header, so nothing is hidden behind a scrollbar by default.
+                preferredSize = Dimension(
+                    UIScale.scale(TABLE_PREFERRED_WIDTH),
+                    table.rowHeight * actionOrder.size + table.tableHeader.preferredSize.height + UIScale.scale(4)
+                )
             })
 
         editButton  = JButton(localizationManager.getString("settings_hotkeys.edit_button"))
@@ -193,8 +226,8 @@ class KeyboardPanel(
         resetButton.addActionListener { onResetAll() }
 
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
-            .insets(6, 0, 0, 0)
-            .add(JPanel(FlowLayout(FlowLayout.LEADING, 4, 0)).apply {
+            .insets(UIScale.scale(6), 0, 0, 0)
+            .add(JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(4), 0)).apply {
                 isOpaque = false
                 add(editButton)
                 add(clearButton)
@@ -276,6 +309,9 @@ class KeyboardPanel(
     private fun saveBinding(binding: HotkeyBinding) {
         applyDraft(store) { HotkeyDraftOperations.replaceBinding(it, binding) }
     }
+
+    /** The bindings table, for tests that check how it is sized. */
+    internal fun tableForTest(): JTable = table
 
     private fun bindingFor(action: HotkeyAction): HotkeyBinding? =
         store.state.value.workingConfiguration.hotkeys.find { it.action == action }
@@ -398,7 +434,7 @@ class KeyboardPanel(
         /**
          * Builds a row of key chips, vertically and horizontally centered in the table cell.
          * Uses a GridBagLayout outer panel so the inner FlowLayout strip sits in the middle
-         * of the fixed-height (34 px) row rather than being pinned to the top.
+         * of the fixed-height row rather than being pinned to the top.
          */
         private fun chipRow(
             tokens: List<String>,
@@ -408,7 +444,7 @@ class KeyboardPanel(
         ): JPanel = JPanel(GridBagLayout()).apply {
             background  = bg
             toolTipText = tooltip
-            val inner = JPanel(FlowLayout(FlowLayout.CENTER, 4, 0)).apply {
+            val inner = JPanel(FlowLayout(FlowLayout.CENTER, UIScale.scale(CHIP_GAP), 0)).apply {
                 isOpaque = false
                 tokens.forEach { add(KeyChip(it, muted)) }
             }
@@ -432,7 +468,7 @@ class KeyboardPanel(
      */
     private inner class KeyChip(label: String, private val muted: Boolean) : JLabel(label) {
 
-        private val arc = 8
+        private val arc = UIScale.scale(CHIP_ARC)
         private val borderAlpha = if (muted) 90 else 150
 
         init {
@@ -453,7 +489,10 @@ class KeyboardPanel(
             }
 
             // Balanced padding
-            border = BorderFactory.createEmptyBorder(4, 9, 4, 9)
+            border = BorderFactory.createEmptyBorder(
+                UIScale.scale(CHIP_PADDING_Y), UIScale.scale(CHIP_PADDING_X),
+                UIScale.scale(CHIP_PADDING_Y), UIScale.scale(CHIP_PADDING_X)
+            )
         }
 
         private fun createMonoFont(size: Int, style: Int): Font {
@@ -870,7 +909,7 @@ object HotkeyRecorderDialog {
         })
 
         dialog.pack()
-        dialog.minimumSize = Dimension(360, dialog.preferredSize.height)
+        dialog.minimumSize = Dimension(UIScale.scale(360), dialog.preferredSize.height)
         dialog.setLocationRelativeTo(owner)
 
         // Disable global hotkeys while the dialog is open so a shortcut being recorded

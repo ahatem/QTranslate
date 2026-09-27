@@ -40,6 +40,18 @@ class IconScalingConventionTest {
     }
 
     @Test
+    fun `no icon is requested from the icon manager with a pre-scaled size`() {
+        // The manager builds the same self-scaling icons, so the same rule applies one call earlier.
+        val offenders = uiSwingSources()
+            .flatMap { file ->
+                file.readText().let { text -> MANAGER_DOUBLE_SCALED.findAll(text).map { "${file.name}: ${it.value.take(80)}" } }
+            }
+        if (offenders.isNotEmpty()) {
+            fail("IconManager.getIcon scales its own size; pass the unscaled size:" + offenders.joinToString("") { "\n  $it" })
+        }
+    }
+
+    @Test
     fun `the scan actually reaches the source it is meant to guard`() {
         // Without this, a wrong path makes the test above pass by finding nothing, which is the
         // failure mode every file-scanning test has and the reason so few of them are worth having.
@@ -56,5 +68,8 @@ class IconScalingConventionTest {
     private companion object {
         /** A `UIScale.scale(...)` anywhere inside a `FlatSVGIcon(...)` construction. */
         val DOUBLE_SCALED = Regex("""FlatSVGIcon\s*\([^)]*UIScale\.scale""")
+
+        /** A `UIScale.scale(...)` among the arguments of an `iconManager.getIcon(...)` call. */
+        val MANAGER_DOUBLE_SCALED = Regex("""[iI]conManager\??\.getIcon\s*\((?:[^()]|\([^()]*\))*UIScale\.scale""")
     }
 }

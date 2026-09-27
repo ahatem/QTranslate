@@ -81,7 +81,7 @@ class MainStore(
 
     private val _state = MutableStateFlow(
         MainState(
-            isDictionaryPanelVisible = settingsState.value.showDictionaryPanel,
+            isLookupDockOpen         = settingsState.value.showDictionaryPanel,
             isQuickDictionaryPinned  = settingsState.value.isQuickDictionaryPinned,
             targetLanguage           = LanguageCode(settingsState.value.preferredTargetLanguage),
             sourceLanguage           = LanguageCode(settingsState.value.preferredSourceLanguage)
@@ -426,9 +426,13 @@ class MainStore(
 
             is MainIntent.LookupWord -> scope.launch { handleLookupWord(intent) }
 
-            is MainIntent.ToggleDictionaryPanel -> _state.update {
-                it.copy(isDictionaryPanelVisible = !it.isDictionaryPanelVisible)
-            }
+            is MainIntent.ToggleDictionaryPanel -> _state.update { it.withDictionaryPanelToggled() }
+
+            is MainIntent.OpenLookupDock -> _state.update { it.withLookupDockOn(intent.tool) }
+
+            is MainIntent.SelectLookupTool -> _state.update { it.copy(lookupDockTool = intent.tool) }
+
+            is MainIntent.CloseLookupDock -> _state.update { it.copy(isLookupDockOpen = false) }
 
             is MainIntent.ShowQuickDictionary -> scope.launch {
                 // Pre-set dictionaryWord so the dialog's search field is already populated

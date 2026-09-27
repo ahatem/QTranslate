@@ -119,6 +119,31 @@ class LayoutSystemTest {
     }
 
     @Test
+    fun `a hidden Extra Output leaves no empty band below the results in any layout`() {
+        strategies.forEach { strategy ->
+            val leaves = Leaves()
+            val arranged = strategy.arrange(leaves.registry, isRtl = false)
+            val refs = arranged.componentRefs as LayoutComponentRefs.WithSplitPanes
+
+            SwingUtilities.invokeAndWait { refs.updateExtraOutputVisibility(false, leaves.extra) }
+            flush()
+            SwingUtilities.invokeAndWait {
+                refs.extraSplit.setSize(1200, 800)
+                layoutTree(refs.extraSplit)
+            }
+            assertEquals(
+                refs.extraSplit.height, refs.mainSplit.height,
+                "${strategy.id}: the workspace takes the whole height when there is no Extra Output"
+            )
+        }
+    }
+
+    private fun layoutTree(root: Container) {
+        root.doLayout()
+        root.components.forEach { if (it is Container) layoutTree(it) }
+    }
+
+    @Test
     fun `a right to left rebuild of every layout stays valid`() {
         val container = JPanel(BorderLayout())
         val leaves = Leaves()

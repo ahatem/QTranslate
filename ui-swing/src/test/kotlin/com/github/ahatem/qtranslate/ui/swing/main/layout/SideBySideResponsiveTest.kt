@@ -157,6 +157,7 @@ class SideBySideResponsiveTest {
 
         assertSame(output, pair.split.leftComponent)
         assertSame(input, pair.split.rightComponent)
+        assertTrue(output.x < input.x, "and it is drawn there, not only declared there")
     }
 
     @Test

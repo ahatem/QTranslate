@@ -130,33 +130,26 @@ class CompareProviderControlsTest {
         assertFalse(providerIconVisible, "separate provider icon must not duplicate the selector identity")
         assertFalse(providerNameVisible, "separate provider name must not duplicate the selector identity")
         var buttonText: String? = null
-        SwingUtilities.invokeAndWait { buttonText = selector.buttonForTest().text }
+        SwingUtilities.invokeAndWait { buttonText = selector.text }
         assertEquals("Google Translate", buttonText)
     }
 
-    // 2. Text-mode translator selector orders icon -> provider name -> chevron.
+    // 2. Text-mode translator selector is one button: icon, provider name, then a drawn chevron.
     @Test
-    fun `text mode selector orders icon then name then chevron`() {
+    fun `text mode selector is a single button owning icon and name`() {
         val selector = TranslatorPopupButton(blindIconManager(), {})
         renderOnEdt {
             selector.textMode = true
             selector.render(selectorState())
         }
-        lateinit var button: JButton
-        lateinit var chevron: JLabel
-        SwingUtilities.invokeAndWait {
-            button = selector.buttonForTest()
-            chevron = selector.chevronForTest()
-        }
-        assertNotNull(button.icon, "selector button must own the provider icon")
-        assertEquals("Google Translate", button.text)
-        assertEquals(SwingConstants.LEADING, button.horizontalAlignment)
-        assertTrue(chevron.isVisible, "text-mode chevron must be visible")
-        // Logical trailing position: CENTER button first, LINE_END chevron last,
-        // so LTR reads icon -> name -> chevron and RTL mirrors without hard-coding sides.
-        val layout = selector.layout as BorderLayout
-        assertEquals(BorderLayout.CENTER, layout.getConstraints(button))
-        assertEquals(BorderLayout.LINE_END, layout.getConstraints(chevron))
+        assertTrue(selector is JButton, "the whole identity is one button")
+        assertNotNull(selector.icon, "the button owns the provider icon")
+        assertEquals("Google Translate", selector.text)
+        assertEquals(SwingConstants.LEADING, selector.horizontalAlignment)
+        assertEquals(0, selector.componentCount, "no separate child, such as a chevron label, carries its own clicks")
+        assertTrue(selector.isFocusable, "reachable from the keyboard")
+        assertFalse(selector.isRequestFocusEnabled, "a click does not pull focus out of the text being edited")
+        assertEquals(com.formdev.flatlaf.extras.components.FlatButton.ButtonType.toolBarButton, selector.buttonType)
     }
 
     @Test
@@ -167,14 +160,10 @@ class CompareProviderControlsTest {
             selector.render(selectorState())
         }
         var buttonText: String? = "unset"
-        var chevronVisible = true
-        SwingUtilities.invokeAndWait {
-            buttonText = selector.buttonForTest().text
-            chevronVisible = selector.chevronForTest().isVisible
-        }
+        SwingUtilities.invokeAndWait { buttonText = selector.text }
         assertNull(buttonText, "icon-only mode must not show text")
-        assertFalse(chevronVisible, "icon-only mode keeps its composite affordance, not the trailing chevron")
-        assertNotNull(selector.buttonForTest().icon)
+        assertEquals(0, selector.componentCount, "icon-only mode keeps its composite icon and adds no child")
+        assertNotNull(selector.icon)
     }
 
     // 3. Provider FAILURE does not increase header height via a dialog-sized icon.

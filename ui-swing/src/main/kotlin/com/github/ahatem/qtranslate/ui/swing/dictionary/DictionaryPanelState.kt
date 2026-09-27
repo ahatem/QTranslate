@@ -5,9 +5,7 @@ import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 
 data class DictionaryPanelState(
-    val title: String,
     val lookupButtonLabel: String,
-    val closeLabel: String,
     val hintMessage: String,
     val notFoundMessage: String,
     val loadingMessage: String,

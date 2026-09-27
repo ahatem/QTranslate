@@ -36,7 +36,7 @@ import com.github.ahatem.qtranslate.ui.swing.dictionary.QuickDictionaryStrings
 import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchConfig
 import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchDialog
 import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchDialogState
-import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchStrings
+import com.github.ahatem.qtranslate.ui.swing.imagesearch.imageSearchStrings
 import com.github.ahatem.qtranslate.ui.swing.document.DocumentTranslationDialog
 import com.github.ahatem.qtranslate.ui.swing.document.DocumentTranslationStrings
 import com.github.ahatem.qtranslate.ui.swing.history.HistoryDialog
@@ -264,7 +264,13 @@ class MainAppFrame(
                 else ComponentOrientation.LEFT_TO_RIGHT
             )
             dialog.isVisible = true
-        }
+        },
+        onOpenFloatingDictionary = { word, language ->
+            // Opened from the main window, so it sits beside it rather than at the pointer.
+            quickDictionaryPositionNearMouse = false
+            mainStore.dispatch(MainIntent.ShowQuickDictionary(word, language))
+        },
+        onOpenImageSource = { result -> openUrl(result.sourceUrl ?: result.fullUrl) }
     )
 
     private val selectionTranslateButton = SelectionTranslateButton(
@@ -970,10 +976,10 @@ class MainAppFrame(
                 }
         }
 
-        // Persist dictionary panel visibility whenever it changes.
+        // Persist whether the lookup dock is open, which is what the "show dictionary panel" setting remembers.
         appScope.launch(handler) {
             mainStore.state
-                .map { it.isDictionaryPanelVisible }
+                .map { it.isLookupDockOpen }
                 .distinctUntilChanged()
                 .drop(1)
                 .collect { visible ->
@@ -1739,23 +1745,20 @@ class MainAppFrame(
     private fun showImageSearchDialog() {
         val term = mainStore.state.value.inputText.trim()
             .takeIf { it.isNotBlank() && !it.contains(' ') } ?: ""
-        mainStore.dispatch(MainIntent.ShowImageSearch(term, mainStore.state.value.resolvedSourceLanguage))
+        val language = mainStore.state.value.resolvedSourceLanguage
+        // From the main window the pictures dock beside the workspace when there is room; from the
+        // tray there is no window to dock in, so they appear as the popup.
+        if (isVisible) mainContentView.openImages(term, language)
+        else mainStore.dispatch(MainIntent.ShowImageSearch(term, language))
     }
 
     private fun showDictionaryDialog() {
         val initialWord = mainStore.state.value.inputText.trim()
             .takeIf { it.isNotBlank() && !it.contains(' ') } ?: ""
 
-        // Main window visible → toggle the inline panel.
+        // Main window visible → the dock beside the workspace, or the popup if it has no room.
         if (isVisible) {
-            val wasVisible = mainStore.state.value.isDictionaryPanelVisible
-            mainStore.dispatch(MainIntent.ToggleDictionaryPanel)
-            if (!wasVisible) {
-                mainContentView.setDictionarySearchWord(initialWord)
-                if (initialWord.isNotBlank()) {
-                    mainStore.dispatch(MainIntent.LookupWord(initialWord))
-                }
-            }
+            mainContentView.toggleDictionary(initialWord)
         } else {
             dictionaryDialog.setSearchWord(initialWord)
             dictionaryDialog.render(buildDictionaryDialogState())
@@ -1851,23 +1854,7 @@ class MainAppFrame(
                 closeOnClickOutside = config.closePopupsOnClickOutside,
                 transparencyPercentage = config.imageSearchTransparencyPercentage
             ),
-            strings = ImageSearchStrings(
-                title             = localizer.getString("image_search_dialog.title"),
-                hintMessage       = localizer.getString("image_search_dialog.hint_message"),
-                loadingMessage    = localizer.getString("image_search_dialog.loading_message"),
-                notFoundMessage   = localizer.getString(
-                    "image_search_dialog.not_found_message",
-                    mainState.imageSearchTerm
-                ),
-                errorMessage      = localizer.getString("image_search_dialog.error_message"),
-                searchButtonLabel = localizer.getString("image_search_dialog.search_button"),
-                openTooltip       = localizer.getString("image_search_dialog.open_tooltip"),
-                openSourceLabel   = localizer.getString("image_search_dialog.open_source"),
-                backLabel         = localizer.getString("image_search_dialog.back"),
-                pinTooltip        = localizer.getString("common.pin"),
-                unpinTooltip      = localizer.getString("common.unpin"),
-                closeTooltip      = localizer.getString("common.close")
-            ),
+            strings = imageSearchStrings(localizer, mainState.imageSearchTerm),
             onSearch = { term -> mainStore.dispatch(MainIntent.SearchImages(term, language)) },
             onServiceSelected = { serviceId ->
                 settingsStore.dispatch(SettingsIntent.UpdateServiceInActivePreset(serviceType, serviceId))

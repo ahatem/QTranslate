@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.imagesearch
 
 import com.github.ahatem.qtranslate.api.imagesearch.ImageResult
+import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.settings.data.Position
 import com.github.ahatem.qtranslate.core.settings.data.Size
@@ -63,4 +64,20 @@ data class ImageSearchStrings(
     val pinTooltip: String,
     val unpinTooltip: String,
     val closeTooltip: String
+)
+
+/** The image search strings in the interface language, shared by the dock and the popup. */
+fun imageSearchStrings(localizer: LocalizationManager, term: String) = ImageSearchStrings(
+    title = localizer.getString("image_search_dialog.title"),
+    hintMessage = localizer.getString("image_search_dialog.hint_message"),
+    loadingMessage = localizer.getString("image_search_dialog.loading_message"),
+    notFoundMessage = localizer.getString("image_search_dialog.not_found_message", term),
+    errorMessage = localizer.getString("image_search_dialog.error_message"),
+    searchButtonLabel = localizer.getString("image_search_dialog.search_button"),
+    openTooltip = localizer.getString("image_search_dialog.open_tooltip"),
+    openSourceLabel = localizer.getString("image_search_dialog.open_source"),
+    backLabel = localizer.getString("image_search_dialog.back"),
+    pinTooltip = localizer.getString("common.pin"),
+    unpinTooltip = localizer.getString("common.unpin"),
+    closeTooltip = localizer.getString("common.close")
 )

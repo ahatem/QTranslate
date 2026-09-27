@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.dictionary
 
 import com.formdev.flatlaf.extras.FlatSVGIcon
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
@@ -8,16 +9,21 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.createToolbarButton
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Color
-import java.awt.Dimension
+import java.awt.FlowLayout
 import javax.swing.*
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ServiceInfoRenderer
 
+/**
+ * The dictionary lookup: a search field, the results, and the dictionary and auto-lookup pickers.
+ *
+ * Content only. Its title, its close control and the boundary against the workspace belong to
+ * whatever hosts it, which is the lookup dock, so it draws no header or edge of its own.
+ */
 class DictionaryPanel(
     private val iconManager: IconManager,
     private val onLookup: (word: String) -> Unit,
     private val onServiceSelected: (serviceId: String) -> Unit,
-    private val onClose: () -> Unit,
 ) : JPanel(BorderLayout()) {
 
     private var isInitialized = false
@@ -59,27 +65,10 @@ class DictionaryPanel(
     private var currentAutoSource: DictionaryAutoSource = DictionaryAutoSource.TRANSLATED
 
     init {
-        val titleLabel = JLabel().apply { putClientProperty("FlatLaf.styleClass", "h4") }
-        val closeButton = JButton().apply {
-            putClientProperty("JButton.buttonType", "toolBarButton")
-            addActionListener { onClose() }
-        }
-
-        val rightButtons = JPanel().apply {
+        val headerPanel = JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)).apply {
             isOpaque = false
-            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            border = BorderFactory.createEmptyBorder(0, 0, UIScale.scale(8), 0)
             add(autoSourceButton)
-            add(Box.createRigidArea(Dimension(4, 0)))
-            add(closeButton)
-        }
-
-        val headerPanel = JPanel(BorderLayout(8, 0)).apply {
-            isOpaque = false
-            border = BorderFactory.createEmptyBorder(0, 0, 8, 0)
-            add(titleLabel, BorderLayout.CENTER)
-            add(rightButtons, BorderLayout.LINE_END)
-            putClientProperty("titleLabel", titleLabel)
-            putClientProperty("closeButton", closeButton)
         }
 
         val searchPanel = JPanel(BorderLayout(6, 0)).apply {
@@ -109,11 +98,8 @@ class DictionaryPanel(
             add(cardPanel, BorderLayout.CENTER)
         }
 
-        // Build border — defer to refreshBorder() to avoid duplication
         add(topPanel, BorderLayout.NORTH)
         add(contentArea, BorderLayout.CENTER)
-
-        putClientProperty("headerPanel", headerPanel)
 
         searchField.addActionListener { triggerLookup() }
         lookupButton.addActionListener { triggerLookup() }
@@ -149,29 +135,8 @@ class DictionaryPanel(
     }
 
     private fun refreshAllColors() {
-        refreshBorder()
         refreshLabelColors()
         refreshIcons()
-    }
-
-    private fun refreshBorder() {
-        val borderColor = UIManager.getColor("Component.borderColor")
-            ?: UIManager.getColor("Panel.background")?.darker()
-            ?: Color.GRAY
-
-        // The rule separates this panel from the content it is docked beside, so it belongs on
-        // whichever edge faces that content — the left in a left-to-right interface, the right in
-        // a right-to-left one, where the panel sits on the other side of the divider.
-        val facingContent = if (componentOrientation.isLeftToRight) 1 else 0
-        border = BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, facingContent, 0, 1 - facingContent, borderColor),
-            BorderFactory.createEmptyBorder(12, 12, 12, 12)
-        )
-    }
-
-    override fun setComponentOrientation(orientation: java.awt.ComponentOrientation) {
-        super.setComponentOrientation(orientation)
-        refreshBorder()
     }
 
     private fun refreshLabelColors() {
@@ -202,13 +167,6 @@ class DictionaryPanel(
     }
 
     fun render(state: DictionaryPanelState) {
-        val headerPanel = getClientProperty("headerPanel") as? JPanel
-        (headerPanel?.getClientProperty("titleLabel") as? JLabel)?.text = state.title
-        (headerPanel?.getClientProperty("closeButton") as? JButton)?.apply {
-            text = state.closeLabel
-            toolTipText = state.closeLabel
-        }
-
         // Sync auto-source button
         putClientProperty("onAutoSourceChanged", state.onAutoSourceChanged)
         if (currentAutoSource != state.autoSource) {

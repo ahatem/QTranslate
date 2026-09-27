@@ -77,9 +77,7 @@ class ResponsivePairSplit(
         val minimum = if (isStacked) Dimension(0, UISpacing.MIN_PANEL_HEIGHT) else Dimension(UISpacing.MIN_PANEL_WIDTH, 0)
         leading.minimumSize = minimum
         trailing.minimumSize = minimum
-        // Exchanged before the orientation changes: swapping the sides of a pane whose orientation
-        // has just changed leaves its layout drawing them the wrong way round.
-        split.isMirrored = isRtl && !isStacked
         split.orientation = if (isStacked) JSplitPane.VERTICAL_SPLIT else JSplitPane.HORIZONTAL_SPLIT
+        split.isMirrored = isRtl && !isStacked
     }
 }

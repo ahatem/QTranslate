@@ -1,10 +1,10 @@
 package com.github.ahatem.qtranslate.ui.swing.main
 
-import com.formdev.flatlaf.util.UIScale
-import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
+import com.github.ahatem.qtranslate.api.imagesearch.ImageResult
+import com.github.ahatem.qtranslate.core.main.mvi.LookupTool
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
@@ -29,6 +29,11 @@ import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguageSelectionB
 import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguageSelectionBarStrings
 import com.github.ahatem.qtranslate.ui.swing.main.layout.ComponentRegistry
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
+import com.github.ahatem.qtranslate.ui.swing.main.layout.WorkspaceDockHost
+import com.github.ahatem.qtranslate.ui.swing.main.lookup.LookupDock
+import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchPanel
+import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchPanelState
+import com.github.ahatem.qtranslate.ui.swing.imagesearch.imageSearchStrings
 import com.github.ahatem.qtranslate.ui.swing.main.output.ExtraOutputPanel
 import com.github.ahatem.qtranslate.ui.swing.main.output.ExtraOutputState
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextPanel
@@ -61,11 +66,10 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.choices
 import com.github.ahatem.qtranslate.ui.swing.shared.util.selectedIdOr
 import com.github.ahatem.qtranslate.ui.swing.shared.util.withKey
 import java.awt.BorderLayout
-import java.awt.Dimension
+import java.awt.ComponentOrientation
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.KeyStroke
-import javax.swing.UIManager
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 class MainContentView(
@@ -82,6 +86,10 @@ class MainContentView(
     private val onNotificationsClicked: () -> Unit,
     private val onConfigureService: (String) -> Unit,
     private val onOpenServiceSettings: () -> Unit,
+    /** Shows the dictionary as the floating popup, for when the window has no room to dock it. */
+    private val onOpenFloatingDictionary: (word: String, language: LanguageCode) -> Unit,
+    /** Opens the page an image came from. */
+    private val onOpenImageSource: (ImageResult) -> Unit,
 ) : JPanel(BorderLayout(0, 0)) {
 
     private val translationHistoryBar: TranslationHistoryBar = TranslationHistoryBar(
@@ -112,7 +120,7 @@ class MainContentView(
             dispatchSettings(SettingsIntent.PromoteTranslatorToPrimary(serviceId))
             dispatch(MainIntent.Translate())
         }
-    )
+    ).apply { actionTooltip = localizer.getString("main_window.comparison_change_primary") }
 
     private val languageSelectionBar = LanguageSelectionBar(
         iconManager = iconManager,
@@ -201,10 +209,17 @@ class MainContentView(
             val word = lastDictionaryKey?.word ?: ""
             if (word.isNotBlank()) dispatch(MainIntent.LookupWord(word, currentLookupLanguage))
         },
-        onClose  = { dispatch(MainIntent.ToggleDictionaryPanel) },
-    ).apply {
-        minimumSize = Dimension(UIScale.scale(220), 0)
-    }
+    )
+
+    private val imageSearchPanel = ImageSearchPanel(padded = false)
+
+    private val lookupDock = LookupDock(
+        dictionary = dictionaryPanel,
+        images = imageSearchPanel,
+        iconManager = iconManager,
+        onToolSelected = { tool -> dispatch(MainIntent.SelectLookupTool(tool)) },
+        onClose = { dispatch(MainIntent.CloseLookupDock) },
+    )
 
     // Separate wrapper so LayoutManager.switchLayout()'s removeAll() never touches dictionaryPanel.
     private val contentWrapper = JPanel(BorderLayout())
@@ -222,20 +237,12 @@ class MainContentView(
         ), contentWrapper
     )
 
-    // MirroredSplitPane rather than a plain JSplitPane: with the interface in Arabic the whole
-    // window is flipped to right-to-left, and Swing implements that on a split pane by inverting
-    // the axis its divider is dragged along — the dictionary could not be resized. This mirrors by
-    // exchanging the two sides instead, so the divider still follows the mouse.
-    private val splitPane = MirroredSplitPane(
-        javax.swing.JSplitPane.HORIZONTAL_SPLIT, true, contentWrapper, dictionaryPanel
-    ).apply {
-        leadingResizeWeight = 1.0 // main content gets all extra space when window is resized
-        dividerSize = 0           // collapsed until panel is first shown
-        border = null
-        dictionaryPanel.isVisible = false
-    }
-
-    private var savedDividerLocation: Int = -1
+    /**
+     * The whole workspace and, beside it, the lookup dock. Its own component rather than a split
+     * pane: the dock has one edge to drag, one side to be on, and a width to remember, and a split
+     * pane's inverted axis in a right-to-left interface made all three unreliable.
+     */
+    private val dockHost = WorkspaceDockHost(contentWrapper, lookupDock)
 
     private var lastState: Pair<MainState, SettingsState>? = null
     private var lastDictionaryKey: DictionaryKey? = null
@@ -266,7 +273,7 @@ class MainContentView(
     )
 
     init {
-        add(splitPane, BorderLayout.CENTER)
+        add(dockHost, BorderLayout.CENTER)
 
         // Escape is owned by MainWindowEscapeBinding on the frame's root pane
         // (cancel in-flight translation first, otherwise hide the window).
@@ -281,9 +288,10 @@ class MainContentView(
         // never rewritten, so eligibility restores Comparison naturally.
         val effectiveLayoutId = config.effectiveLayoutPresetId(mainState.availableTranslatorIds)
 
-        // Told outright rather than left to the orientation cascade, which reaches the split pane
-        // at a point in startup that depends on when this view was added to the window.
-        splitPane.isMirrored = localizer.isRtl
+        // Told outright rather than left to the orientation cascade, which reaches the host at a
+        // point in startup that depends on when this view was added to the window.
+        val direction = if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT else ComponentOrientation.LEFT_TO_RIGHT
+        if (dockHost.componentOrientation != direction) dockHost.componentOrientation = direction
 
         if (lastState == null || lastState?.second?.workingConfiguration?.layoutPresetId != config.layoutPresetId || lastEffectiveLayoutId != effectiveLayoutId) {
             layoutManager.switchLayout(effectiveLayoutId, localizer.isRtl)
@@ -300,7 +308,7 @@ class MainContentView(
         }
 
         updateTranslateKeyStroke(config)
-        renderDictionaryPanel(mainState, config)
+        renderLookupDock(mainState, config)
         renderComponents(mainState, config, effectiveLayoutId)
         lastState = mainState to settingsState
     }
@@ -421,6 +429,41 @@ class MainContentView(
         )
     }
 
+    /**
+     * Keeps the lookup dock in step with the state: whether it is open, which tool it shows, and
+     * what that tool shows.
+     *
+     * Open is a request, not a promise of room: the host presents the dock only while the window is
+     * wide enough for it and the workspace, and otherwise leaves the workspace whole.
+     */
+    private fun renderLookupDock(mainState: MainState, config: Configuration) {
+        dockHost.isDockVisible = mainState.isLookupDockOpen
+        lookupDock.showTool(mainState.lookupDockTool)
+        lookupDock.setLabels(
+            dictionary = localizer.getString("dictionary_dialog.title"),
+            images = localizer.getString("image_search_dialog.title"),
+            close = localizer.getString("common.close")
+        )
+
+        renderDictionaryPanel(mainState, config)
+        if (mainState.isImagesDockVisible) renderImageSearchPanel(mainState)
+    }
+
+    private fun renderImageSearchPanel(mainState: MainState) {
+        val language = mainState.resolvedSourceLanguage
+        imageSearchPanel.render(
+            ImageSearchPanelState(
+                isLoading = mainState.isImageSearchLoading,
+                results = mainState.imageResults,
+                searchedTerm = mainState.imageSearchTerm,
+                hasFailed = mainState.imageSearchFailed,
+                strings = imageSearchStrings(localizer, mainState.imageSearchTerm),
+                onSearch = { term -> dispatch(MainIntent.SearchImages(term, language)) },
+                onImageOpened = onOpenImageSource
+            )
+        )
+    }
+
     private fun renderDictionaryPanel(mainState: MainState, config: Configuration) {
         val resolvedLang = mainState.resolvedSourceLanguage
         currentLookupLanguage = resolvedLang
@@ -447,38 +490,10 @@ class MainContentView(
         if (key == lastDictionaryKey) return
         lastDictionaryKey = key
 
-        if (dictionaryPanel.isVisible != key.isVisible) {
-            if (key.isVisible) {
-                dictionaryPanel.isVisible = true
-                val dividerPx = UIManager.getInt("SplitPane.dividerSize").coerceAtLeast(4)
-                splitPane.dividerSize = dividerPx
-                val loc = if (savedDividerLocation > 0) savedDividerLocation else -1
-                if (loc > 0 && loc < splitPane.width - dictionaryPanel.minimumSize.width) {
-                    splitPane.dividerLocation = loc
-                } else {
-                    // setDividerLocation(double) requires the pane to have a real pixel width.
-                    // Defer via invokeLater so it fires after the layout pass — otherwise
-                    // splitPane.width is still 0 and the panel opens with the wrong size.
-                    javax.swing.SwingUtilities.invokeLater {
-                        // Leading proportion, not a raw one: in a right-to-left interface the
-                        // dictionary sits on the other side of the divider.
-                        splitPane.setLeadingProportion(0.65)
-                    }
-                }
-            } else {
-                savedDividerLocation = splitPane.dividerLocation
-                dictionaryPanel.isVisible = false
-                splitPane.dividerSize = 0
-            }
-            revalidate()
-            repaint()
-        }
         if (key.isVisible) {
             dictionaryPanel.render(
                 DictionaryPanelState(
-                    title                 = localizer.getString("dictionary_dialog.title"),
                     lookupButtonLabel     = localizer.getString("dictionary_dialog.lookup_button"),
-                    closeLabel            = localizer.getString("common.close"),
                     hintMessage           = localizer.getString("dictionary_dialog.hint_message"),
                     notFoundMessage       = localizer.getString("dictionary_dialog.not_found_message", key.word),
                     loadingMessage        = localizer.getString("dictionary_dialog.loading_message"),
@@ -850,20 +865,49 @@ class MainContentView(
     }
 
     /**
-     * Opens the floating image popup for [word].
+     * Whether the window has room to dock a lookup beside the workspace right now.
      *
-     * A popup rather than an inline panel: the pictures are a glance on the way through a text,
-     * not something to keep half the window reserved for.
+     * The answer routes lookups: a wide window docks them, a narrow one keeps the workspace whole
+     * and shows the floating popup instead. It is about presentation only; nothing about the
+     * translation layout changes either way.
      */
-    private fun showImagesForWord(word: String, language: LanguageCode = currentLookupLanguage) {
-        dispatch(MainIntent.ShowImageSearch(word, language))
+    val canDockLookup: Boolean get() = dockHost.canDock
+
+    /** Shows the pictures for [word]: docked in a wide window, as the floating popup in a narrow one. */
+    fun openImages(word: String, language: LanguageCode = currentLookupLanguage) {
+        if (!dockHost.canDock) {
+            dispatch(MainIntent.ShowImageSearch(word, language))
+            return
+        }
+        dispatch(MainIntent.OpenLookupDock(LookupTool.IMAGES))
+        if (word.isNotBlank()) dispatch(MainIntent.SearchImages(word, language))
+        // Once the tab is on screen; asking earlier finds the field not yet showing.
+        javax.swing.SwingUtilities.invokeLater { imageSearchPanel.focusSearchField() }
     }
 
-    private fun showDictionaryWithWord(word: String, language: LanguageCode = currentLookupLanguage) {
-        dictionaryPanel.setSearchWord(word)
-        if (!dictionaryPanel.isVisible) {
-            dispatch(MainIntent.ToggleDictionaryPanel)
+    /** Shows the dictionary for [word]: docked in a wide window, as the floating popup in a narrow one. */
+    fun openDictionary(word: String, language: LanguageCode = currentLookupLanguage) {
+        if (!dockHost.canDock) {
+            onOpenFloatingDictionary(word, language)
+            return
         }
-        dispatch(MainIntent.LookupWord(word, language))
+        dictionaryPanel.setSearchWord(word)
+        dispatch(MainIntent.OpenLookupDock(LookupTool.DICTIONARY))
+        if (word.isNotBlank()) dispatch(MainIntent.LookupWord(word, language))
     }
+
+    /** The main menu's Dictionary entry: opens the dictionary, or closes it when it is what the dock shows. */
+    fun toggleDictionary(initialWord: String) {
+        if (dockHost.canDock && lastState?.first?.isDictionaryPanelVisible == true) {
+            dispatch(MainIntent.CloseLookupDock)
+        } else {
+            openDictionary(initialWord)
+        }
+    }
+
+    private fun showImagesForWord(word: String, language: LanguageCode = currentLookupLanguage) =
+        openImages(word, language)
+
+    private fun showDictionaryWithWord(word: String, language: LanguageCode = currentLookupLanguage) =
+        openDictionary(word, language)
 }
