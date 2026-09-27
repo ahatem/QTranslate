@@ -8,11 +8,13 @@ import javazoom.jl.player.Player
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
@@ -87,11 +89,18 @@ internal object SystemAudioOutputFactory : AudioOutputFactory {
 
 /** Plays MP3 with JLayer and PCM WAV with Java Sound. */
 class JLayerAudioPlayer internal constructor(
-    private val scope: CoroutineScope,
+    parentScope: CoroutineScope,
     private val logger: Logger,
     private val outputFactory: AudioOutputFactory,
 ) : AudioPlayer {
     constructor(scope: CoroutineScope, logger: Logger) : this(scope, logger, SystemAudioOutputFactory)
+
+    /**
+     * A child of [parentScope]'s job, not [parentScope] itself: [close] must be able to stop
+     * this player's own work without cancelling a scope owned and shared elsewhere (the root
+     * application scope, in production).
+     */
+    private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext.job))
 
     private val lock = Any()
     private var generation = 0L
