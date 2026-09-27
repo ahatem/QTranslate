@@ -16,10 +16,7 @@ internal class MacTtsBackend(
         val outcome = runner.run(listOf(say, "-v", "?"), 10_000L).bind()
         TtsProcessSupport.checked(outcome, displayName).bind()
         outcome.stdout.lineSequence().mapNotNull { line ->
-            VOICE_LINE.find(line)?.let { match ->
-                val name = match.groupValues[1].trim()
-                SystemVoice(name, name, match.groupValues[2].replace('_', '-'))
-            }
+            parseVoiceLine(line)
         }.distinctBy { it.id }.toList()
     }
 
@@ -42,7 +39,12 @@ internal class MacTtsBackend(
         }
     }
 
+    internal fun parseVoiceLine(line: String): SystemVoice? = VOICE_LINE.find(line)?.let { match ->
+        val name = match.groupValues[1].trim()
+        SystemVoice(name, name, match.groupValues[2].replace('_', '-'))
+    }
+
     private companion object {
-        val VOICE_LINE = Regex("^(.+?)\\s+([a-z]{2,3}[_-][A-Za-z]{2,4})\\s+#")
+        private val VOICE_LINE = Regex("^(.+?)\\s+([A-Za-z]{2,8}(?:[_-](?:[A-Za-z]{4}|[A-Za-z]{2}|[0-9]{3}))*)\\s+#")
     }
 }

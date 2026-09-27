@@ -34,7 +34,7 @@ internal class SystemTtsService(
     override val key: String = "system-tts"
     override val name: String = "System TTS (Offline)"
     override val version: String = "1.0.0"
-    override val iconPath: String = "assets/system-ocr-icon.svg"
+    override val iconPath: String = "assets/system-tts-icon.svg"
     override val metadata: ServiceMetadata = ServiceMetadata(
         requiresConfiguration = false,
         isFree = true,

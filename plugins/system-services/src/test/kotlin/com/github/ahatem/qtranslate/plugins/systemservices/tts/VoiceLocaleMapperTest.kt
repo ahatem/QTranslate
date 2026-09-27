@@ -11,6 +11,8 @@ class VoiceLocaleMapperTest {
         assertTrue(VoiceLocaleMapper.codes("en-US").containsAll(setOf(LanguageCode("en-US"), LanguageCode.ENGLISH)))
         assertTrue(VoiceLocaleMapper.codes("ar_EG").containsAll(setOf(LanguageCode("ar-EG"), LanguageCode.ARABIC)))
         assertTrue(VoiceLocaleMapper.codes("zh-CN").contains(LanguageCode.CHINESE_SIMPLIFIED))
+        assertTrue(VoiceLocaleMapper.codes("es_419").contains(LanguageCode("es-419")))
+        assertTrue(VoiceLocaleMapper.codes("ar_001").contains(LanguageCode("ar-001")))
     }
 
     @Test fun `unknown locale does not produce a voice language`() {

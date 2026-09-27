@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.plugins.systemservices.tts
 
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.tts.Gender
+import com.github.ahatem.qtranslate.plugins.systemservices.backend.ProcessOutcome
 import com.github.ahatem.qtranslate.plugins.systemservices.backend.ProcessRunner
 import com.github.ahatem.qtranslate.plugins.systemservices.backend.TempFiles
 import com.github.michaelbull.result.Err
@@ -15,7 +16,7 @@ import java.io.IOException
 internal class WindowsTtsBackend(
     runner: ProcessRunner, private val powershell: String, private val script: File
 ) : FileTtsBackend(runner) {
-    override val displayName: String = "Windows SAPI"
+    override val displayName: String = "Windows WinRT"
 
     override suspend fun discoverVoices(): Result<List<SystemVoice>, ServiceError> {
         var output: File? = null
@@ -24,7 +25,7 @@ internal class WindowsTtsBackend(
             val target = output
             coroutineBinding {
                 val outcome = runner.run(command("voices", target), DISCOVERY_TIMEOUT).bind()
-                TtsProcessSupport.checked(outcome, displayName).bind()
+                checked(outcome).bind()
                 val records = try {
                     Json.decodeFromString<List<WindowsVoiceRecord>>(target.readText(Charsets.UTF_8))
                 } catch (_: Exception) {
@@ -44,8 +45,19 @@ internal class WindowsTtsBackend(
     ): Result<Unit, ServiceError> = coroutineBinding {
         val outcome = runner.run(command("synthesize", output) +
             listOf("-InputPath", input.absolutePath, "-Voice", voiceId, "-Rate",
-                ((speed - 1f) * 10f).toInt().coerceIn(-10, 10).toString()), SYNTHESIS_TIMEOUT).bind()
-        TtsProcessSupport.checked(outcome, displayName).bind()
+                speed.coerceIn(0.5f, 6f).toString()), SYNTHESIS_TIMEOUT).bind()
+        checked(outcome).bind()
+    }
+
+    private fun checked(outcome: ProcessOutcome): Result<Unit, ServiceError> {
+        if (outcome.exitCode == 2 && !outcome.timedOut)
+            return Err(ServiceError.InvalidInputError("The selected Windows voice is no longer installed."))
+        if (outcome.exitCode == 3 && !outcome.timedOut)
+            return Err(ServiceError.InvalidResponseError("Windows WinRT returned an unsupported audio format."))
+        val nativeCode = Regex("HRESULT=0x[0-9A-Fa-f]{8}").find(outcome.stderr)?.value
+        if (nativeCode != null && outcome.exitCode != 0 && !outcome.timedOut)
+            return Err(ServiceError.ServiceUnavailableError("Windows WinRT speech synthesis failed ($nativeCode)."))
+        return TtsProcessSupport.checked(outcome, displayName)
     }
 
     internal fun command(action: String, output: File): List<String> =

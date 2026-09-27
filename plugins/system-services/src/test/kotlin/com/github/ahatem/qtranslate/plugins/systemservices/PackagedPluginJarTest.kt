@@ -44,7 +44,9 @@ class PackagedPluginJarTest {
         if (entries.isEmpty()) return
 
         assertTrue("plugin.json" in entries, "plugin.json is missing from the packaged jar")
-        assertTrue("assets/system-ocr-icon.svg" in entries, "the plugin icon is missing")
+        assertTrue("assets/system-services-icon.svg" in entries, "the plugin icon is missing")
+        assertTrue("assets/system-ocr-icon.svg" in entries, "the OCR icon is missing")
+        assertTrue("assets/system-tts-icon.svg" in entries, "the TTS icon is missing")
         assertTrue(PLUGIN_SERVICE_ENTRY in entries, "the ServiceLoader registration is missing")
     }
 

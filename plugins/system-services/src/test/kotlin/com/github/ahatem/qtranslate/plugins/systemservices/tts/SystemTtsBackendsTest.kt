@@ -65,17 +65,19 @@ class SystemTtsBackendsTest {
         val runner = FakeProcessRunner { command ->
             output = File(command.argumentValue("-OutputPath")!!)
             if ("voices" in command) {
-                output!!.writeText("""[{"id":"Microsoft David Desktop","name":"David","locale":"en-US","gender":"Male"}]""")
+                output!!.writeText("""[{"id":"HKEY_LOCAL_MACHINE\\WinRT\\Voice\\David","name":"David","locale":"en-US","gender":"Male"}]""")
             } else {
                 input = File(command.argumentValue("-InputPath")!!)
                 assertEquals("Unicode مرحبا", input!!.readText(Charsets.UTF_8))
+                assertEquals("HKEY_LOCAL_MACHINE\\WinRT\\Voice\\David", command.argumentValue("-Voice"))
+                assertEquals("1.0", command.argumentValue("-Rate"))
                 output!!.writeBytes(wav())
             }
             ok()
         }
         val backend = WindowsTtsBackend(runner, "powershell.exe", File("helper.ps1"))
-        assertEquals("Microsoft David Desktop", backend.discoverVoices().unwrap().single().id)
-        assertEquals(wav().size, backend.synthesize("Unicode مرحبا", "Microsoft David Desktop", 1f).unwrap().size)
+        assertEquals("HKEY_LOCAL_MACHINE\\WinRT\\Voice\\David", backend.discoverVoices().unwrap().single().id)
+        assertEquals(wav().size, backend.synthesize("Unicode مرحبا", "HKEY_LOCAL_MACHINE\\WinRT\\Voice\\David", 1f).unwrap().size)
         assertTrue(runner.commands.last().none { "Unicode" in it || "مرحبا" in it })
         assertFalse(input!!.exists())
         assertFalse(output!!.exists())
@@ -107,6 +109,44 @@ class SystemTtsBackendsTest {
         assertFalse(output!!.exists())
     }
 
+    @Test fun `macOS locale parsing accepts numeric regions and scripts`() {
+        val backend = MacTtsBackend(FakeProcessRunner { ok() }, "say", "afconvert")
+        val cases = mapOf("en_US" to "en-US", "ar_SA" to "ar-SA",
+            "es_419" to "es-419", "ar_001" to "ar-001",
+            "zh_Hant_TW" to "zh-Hant-TW")
+        cases.forEach { (input, expected) ->
+            assertEquals(expected, backend.parseVoiceLine("Voice Name    $input    # sample")?.locale)
+        }
+        assertEquals(null, backend.parseVoiceLine("Voice Name    invalid!    # sample"))
+    }
+
+    @Test fun `Windows helper errors expose native code without leaking text`() = runBlocking {
+        val backend = WindowsTtsBackend(FakeProcessRunner {
+            ProcessOutcome(1, "", "winrt_speech_failed HRESULT=0x800455A0 type=System.Exception", false)
+        }, "powershell.exe", File("helper.ps1"))
+        val error = backend.discoverVoices().unwrapError()
+        assertIs<ServiceError.ServiceUnavailableError>(error)
+        assertTrue(error.message.contains("0x800455A0"))
+        val missing = WindowsTtsBackend(FakeProcessRunner {
+            ProcessOutcome(2, "", "voice_not_installed", false)
+        }, "powershell.exe", File("helper.ps1"))
+        assertIs<ServiceError.InvalidInputError>(missing.synthesize("private text", "gone", 1f).unwrapError())
+    }
+
+    @Test fun `Windows helper source uses WinRT and file argument plan`() {
+        val script = checkNotNull(javaClass.getResourceAsStream("/scripts/windows-tts.ps1"))
+            .bufferedReader().use { it.readText() }
+        assertTrue("SpeechSynthesizer]::AllVoices" in script)
+        assertTrue("SynthesizeTextToStreamAsync" in script)
+        assertTrue("System.WindowsRuntimeSystemExtensions" in script)
+        assertTrue("ReadAllText($" + "InputPath" in script)
+        assertFalse("SAPI.SpVoice" in script)
+        val command = WindowsTtsBackend(FakeProcessRunner { ok() }, "powershell.exe", File("helper.ps1"))
+            .command("synthesize", File("output.wav"))
+        assertEquals("synthesize", command.argumentValue("-Command"))
+        assertEquals(File("output.wav").absolutePath, command.argumentValue("-OutputPath"))
+        assertFalse(command.any { "private text" in it })
+    }
     @Test fun `cancellation deletes TTS input and output files`() = runBlocking {
         val paths = CompletableDeferred<Pair<File, File>>()
         val runner = object : ProcessRunner {
