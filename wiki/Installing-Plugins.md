@@ -18,6 +18,7 @@ Plugins extend QTranslate with new translation engines, OCR providers, TTS servi
 
 ## Configuring a plugin
 
+System Services uses available local OCR and speech engines with no account, API key, or network access.
 Most plugins that connect to external APIs require at least an API key.
 
 1. Go to **Settings → Plugins**

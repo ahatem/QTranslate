@@ -82,13 +82,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Build universal Vision helper
-        run: ./gradlew :plugins:system-ocr:buildMacVisionHelper --no-daemon
+        run: ./gradlew :plugins:system-services:buildMacVisionHelper --no-daemon
 
       - name: Upload Vision helper
         uses: actions/upload-artifact@v7
         with:
           name: macos-vision-ocr
-          path: plugins/system-ocr/build/generated/mac-helper-build/vision_ocr
+          path: plugins/system-services/build/generated/mac-helper-build/vision_ocr
           if-no-files-found: error
           retention-days: 7
 
