@@ -74,7 +74,6 @@ import java.net.URI
 import java.util.*
 import javax.imageio.ImageIO
 import javax.swing.*
-import kotlin.system.exitProcess
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.connectedScreenBounds
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isPositionReachable
@@ -95,6 +94,13 @@ class MainAppFrame(
     private val translateString: (suspend (String, LanguageCode) -> Result<String>)? = null,
     /** The application's own secrets, for the proxy password on the Network settings page. */
     private val appSecrets: AppSecretStore? = null,
+    /**
+     * The single entry point into application shutdown, invoked once every exit route (main
+     * window EXIT close, tray Exit, close-dialog Exit) has disposed the frame. Receives the
+     * final window bounds, captured here while the frame is still live. This frame does not
+     * own application-level shutdown itself: it only reports that the user asked to exit.
+     */
+    private val onApplicationExit: (Size, Position) -> Unit = { _, _ -> },
     /**
      * True when this process was launched from the Windows startup registration (#226).
      *
@@ -530,7 +536,6 @@ class MainAppFrame(
             setupWindowListeners()
             setupMenuBar()
             setupTrayMenu()
-            setupGlobalHotkeys()
             setupDropTarget()
             escapeBinding.register()
 
@@ -1316,6 +1321,7 @@ class MainAppFrame(
         addWindowListener(object : WindowAdapter() {
             override fun windowOpened(e: WindowEvent?) {
                 mainContentView.requestFocusOnInput()
+                initializeGlobalHotkeys()
             }
 
             override fun windowClosing(e: WindowEvent?) {
@@ -1334,13 +1340,29 @@ class MainAppFrame(
                 mainContentView.requestFocusOnInput()
             }
 
+            /**
+             * Single convergence point for every exit route: main-window EXIT close, tray
+             * Exit and the close dialog's Exit all call [dispose], which fires this event
+             * exactly once. Stops locally-owned resources synchronously, so no new global
+             * hotkey or tray event can start after this point, then hands off to the
+             * application-level shutdown owner for the suspend teardown and process exit.
+             * Capturing bounds here, not via [saveWindowBounds], because by the time
+             * shutdown finishes off the EDT the frame may already be disposed.
+             */
             override fun windowClosed(e: WindowEvent?) {
-                appScope.cancel()
+                globalKeyListener.shutdown()
+                selectionTranslateButton.dispose()
                 trayIcon?.let { SystemTray.getSystemTray().remove(it) }
                 trayIcon = null
-                exitProcess(0)
+                appScope.cancel()
+                onApplicationExit(Size(width, height), Position(x, y))
             }
         })
+        // Global hotkeys must work even when the frame starts hidden in the tray (#226):
+        // windowOpened only fires once the window is first shown, which a login launch may
+        // never do until the user restores it. Initializing here as well is safe: the
+        // backend guards with an atomic check-and-set and local registration reinstalls.
+        initializeGlobalHotkeys()
     }
 
     private fun saveWindowBounds() {
@@ -1632,26 +1654,6 @@ class MainAppFrame(
         rootPane.installContentDropHandler(onContent, onDragOver, onDropped)
         dragOverlay.component.installContentDropHandler(onContent, onDragOver, onDropped)
         mainContentView.installDropHandling(onContent, onDragOver, onDropped)
-    }
-
-    private fun setupGlobalHotkeys() {
-        addWindowListener(object : WindowAdapter() {
-            override fun windowOpened(e: WindowEvent?) {
-                initializeGlobalHotkeys()
-            }
-
-            override fun windowClosed(e: WindowEvent?) {
-                selectionTranslateButton.dispose()
-                globalKeyListener.shutdown()
-                System.runFinalization()
-                exitProcess(0)
-            }
-        })
-        // Global hotkeys must work even when the frame starts hidden in the tray (#226):
-        // windowOpened only fires once the window is first shown, which a login launch may
-        // never do until the user restores it. Initializing here as well is safe — the
-        // backend guards with an atomic check-and-set and local registration reinstalls.
-        initializeGlobalHotkeys()
     }
 
     private fun initializeGlobalHotkeys() {

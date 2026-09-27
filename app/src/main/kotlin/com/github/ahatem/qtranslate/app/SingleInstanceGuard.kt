@@ -18,8 +18,13 @@ object SingleInstanceGuard {
             serverSocket = ServerSocket(PORT, 1, InetAddress.getByName("localhost"))
             Thread {
                 while (true) {
+                    // Checked before each accept, not only after a failure: release() closes
+                    // this socket from another thread, and accept() on a closed socket throws
+                    // immediately, which would otherwise spin the loop until the JVM exits.
+                    val socket = serverSocket
+                    if (socket == null || socket.isClosed) break
                     runCatching {
-                        serverSocket?.accept()?.use { client ->
+                        socket.accept().use { client ->
                             val signal = client.getInputStream().bufferedReader().readLine()
                             if (signal == FOCUS_SIGNAL) onFocusRequested()
                         }
