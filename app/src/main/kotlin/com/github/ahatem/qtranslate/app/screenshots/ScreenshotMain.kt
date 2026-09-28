@@ -100,7 +100,9 @@ fun main(args: Array<String>): Unit = runBlocking {
     } ?: logger.warn("No services became available; shots will show the empty state.")
 
     with(Shots(deps, outputDir, logger)) {
-        if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "selector") {
+        if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "document") {
+            documentTranslation()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "selector") {
             selectorAudit()
             selectorDensityAudit()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "presentation") {
@@ -346,7 +348,9 @@ private class Shots(
     suspend fun documentTranslation() {
         start(Scenes.classic(Scenes.LIGHT))
         invokeAppAction("TRANSLATE_DOCUMENT")
-        val sample = File(outputDir, "Research notes.txt").apply {
+        // The path is visible in the capture, so QTRANSLATE_SCREENSHOT_DOCS can point it at a neutral folder.
+        val sampleDir = System.getenv("QTRANSLATE_SCREENSHOT_DOCS")?.let(::File)?.also(File::mkdirs) ?: outputDir
+        val sample = File(sampleDir, "Research notes.txt").apply {
             writeText("Peristalsis moves food through the digestive tract by rhythmic contraction of smooth muscle.\n")
         }
         onUi {
