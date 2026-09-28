@@ -44,7 +44,8 @@ The path is printed in the logs at startup:
 
 **2. Copy the English source file**
 
-Open the `languages/` subfolder. Copy `en.toml` and rename it to your language code:
+Open the `languages/` subfolder. Copy `en-GB.toml` and rename it to your language code — it carries
+the complete, always-current key set:
 
 | Language | Filename |
 |----------|----------|
