@@ -5,6 +5,7 @@ kotlinxSerializationJSON = "1.11.0"
 result = "2.3.1"
 ktor = "3.6.0"
 flatlaf = "3.7.2"
+flatlafFontsInter = "4.1"
 
 jna = "5.19.1"
 qinput = "0.2.0"
@@ -46,6 +47,7 @@ result-coroutines = { module = "com.michael-bull.kotlin-result:kotlin-result-cor
 flatlaf = { module = "com.formdev:flatlaf", version.ref = "flatlaf" }
 flatlaf-intellij = { module = "com.formdev:flatlaf-intellij-themes", version.ref = "flatlaf" }
 flatlaf-extras = { module = "com.formdev:flatlaf-extras", version.ref = "flatlaf" }
+flatlaf-fonts-inter = { module = "com.formdev:flatlaf-fonts-inter", version.ref = "flatlafFontsInter" }
 jlayer = { module = "com.github.umjammer:jlayer", version.ref = "jlayer" }
 jsvg = { module = "com.github.weisj:jsvg", version.ref = "jsvg" }
 miglayout = { module = "com.miglayout:miglayout-swing", version.ref = "miglayout" }

@@ -29,4 +29,8 @@ dependencies {
 
     testImplementation(kotlin("test"))
     testImplementation(libs.kotlinxCoroutinesTest)
+    // Test-only: production code never references FlatInterFont from this module — AppUiSetup in
+    // :app is the only runtime caller — but the font-resolution tests want a real bundled family
+    // to prove toFont() loads it lazily.
+    testImplementation(libs.flatlaf.fonts.inter)
 }

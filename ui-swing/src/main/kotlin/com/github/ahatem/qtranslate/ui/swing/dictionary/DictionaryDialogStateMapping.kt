@@ -4,7 +4,6 @@ import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
-import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 import com.github.ahatem.qtranslate.core.settings.data.Position
 import com.github.ahatem.qtranslate.core.settings.data.Size
 
@@ -54,7 +53,6 @@ internal fun buildQuickDictionaryDialogState(
     onListen: (String) -> Unit,
     onStopListening: () -> Unit,
     onDictionarySelected: (String) -> Unit,
-    onAutoSourceChanged: (DictionaryAutoSource) -> Unit,
     onPinToggled: () -> Unit,
     onClose: () -> Unit,
     onSavePosition: (Position) -> Unit,
@@ -74,10 +72,6 @@ internal fun buildQuickDictionaryDialogState(
         triggerCount         = mainState.quickDictionaryTriggerCount,
         availableDictionaries = availableDicts,
         selectedDictionaryId  = selectedDictId,
-        autoSource               = config.dictionaryAutoSource,
-        autoSourceOffLabel       = localizer.getString("dictionary_dialog.auto_source_off"),
-        autoSourceTranslatedLabel = localizer.getString("dictionary_dialog.auto_source_translated"),
-        autoSourceSourceLabel    = localizer.getString("dictionary_dialog.auto_source_source"),
         config = QuickDictionaryConfig(
             autoPositionEnabled  = config.isQuickDictionaryAutoPositionEnabled,
             lastKnownSize        = config.quickDictionaryLastKnownSize,
@@ -108,7 +102,6 @@ internal fun buildQuickDictionaryDialogState(
         onListen = onListen,
         onStopListening = onStopListening,
         onDictionarySelected = onDictionarySelected,
-        onAutoSourceChanged = onAutoSourceChanged,
         onPinToggled = onPinToggled,
         onClose = onClose,
         onSavePosition = onSavePosition,

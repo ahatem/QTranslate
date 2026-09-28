@@ -25,6 +25,12 @@ import kotlin.system.exitProcess
 
 fun main(args: Array<String>) = runBlocking {
 
+    if (args.firstOrNull() == "--release-probe") {
+        require(args.size == 2) { "Expected packaged distribution directory" }
+        runReleaseArtifactProbe(arrayOf(args[1]))
+        return@runBlocking
+    }
+
     var frame: MainAppFrame? = null
     // Set when a second launch's FOCUS request arrives before `frame` exists (possible during
     // the brief window between acquiring the instance lock and the frame being constructed on

@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import java.awt.*
 import javax.swing.*
@@ -110,22 +111,17 @@ object LayoutBuilders {
         }
     }
 
-    fun wrapWithPadding(component: JComponent): JComponent {
-        return JPanel(BorderLayout()).apply {
-            border = BorderFactory.createEmptyBorder(0, UISpacing.PADDING, 0, UISpacing.PADDING)
-            add(component, BorderLayout.CENTER)
-        }
-    }
-
     fun createBottomBar(translatorSelector: JComponent, statusBar: JComponent): JComponent {
-        return JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-
-            val paddedTranslatorSelector = wrapWithPadding(translatorSelector)
-
-            add(paddedTranslatorSelector)
-            add(Box.createRigidArea(Dimension(0, UISpacing.V_GAP)))
-            add(statusBar)
+        return JPanel(BorderLayout(0, UIScale.scale(4))).apply {
+            val selectorRow = JPanel(BorderLayout()).apply {
+                border = BorderFactory.createEmptyBorder(
+                    UIScale.scale(2), UISpacing.PADDING,
+                    UIScale.scale(2), UISpacing.PADDING
+                )
+                add(translatorSelector, BorderLayout.CENTER)
+            }
+            add(selectorRow, BorderLayout.NORTH)
+            add(statusBar, BorderLayout.SOUTH)
         }
     }
 

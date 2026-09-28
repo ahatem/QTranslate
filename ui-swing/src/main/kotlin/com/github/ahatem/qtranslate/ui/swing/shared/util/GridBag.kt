@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.util
 
+import com.formdev.flatlaf.util.UIScale
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.GridBagConstraints
@@ -118,8 +119,11 @@ class GridBag(
 
     private fun applyGaps() {
         val currentInsets = temporaryConstraints.insets ?: Insets(0, 0, 0, 0)
-        val top = if (cursorY > 0) verticalGap else 0
-        val left = if (cursorX > 0) horizontalGap else 0
+        // horizontalGap/verticalGap are logical pixels, like every other constant callers pass
+        // here -- scaled once, at the point of use, rather than asking every caller to scale its
+        // own constructor arguments.
+        val top = if (cursorY > 0) UIScale.scale(verticalGap) else 0
+        val left = if (cursorX > 0) UIScale.scale(horizontalGap) else 0
 
         if (top > 0 || left > 0) {
             temporaryConstraints.insets = Insets(

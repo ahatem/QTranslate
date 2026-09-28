@@ -26,14 +26,8 @@ data class VersionInfo(
     /**
      * Returns `true` if this release is strictly newer than [currentVersion].
      *
-     * Version strings are compared as semantic versions (MAJOR.MINOR.PATCH).
-     * A leading `"v"` prefix is stripped before comparison, so `"v1.2.0"` and
-     * `"1.2.0"` are treated identically.
-     *
-     * Non-numeric components (e.g. pre-release suffixes like `"1.2.0-beta"`) are
-     * stripped — only the numeric prefix is compared. This is intentionally
-     * conservative: a pre-release tag will not be offered as an update unless its
-     * numeric component is strictly greater.
+     * Uses SemVer precedence, ignoring build metadata. A leading `v` is accepted
+     * for GitHub tags. A stable version outranks prereleases of the same base.
      *
      * Returns `false` if either version string cannot be parsed.
      *
@@ -51,24 +45,45 @@ data class VersionInfo(
     }
 
     private fun parseVersion(raw: String): Version? {
-        val cleaned = raw.trimStart('v', 'V')
-            .substringBefore('-')   // strip pre-release suffix
-            .substringBefore('+')   // strip build metadata
-        val parts = cleaned.split('.').mapNotNull { it.toIntOrNull() }
-        if (parts.isEmpty()) return null
+        val match = SEMVER.matchEntire(raw.removePrefix("v").removePrefix("V")) ?: return null
+        val prerelease = match.groupValues[4].takeIf { it.isNotEmpty() }?.split('.')
+        if (prerelease?.any { it.length > 1 && it[0] == '0' && it.all(Char::isDigit) } == true) return null
         return Version(
-            major = parts.getOrElse(0) { 0 },
-            minor = parts.getOrElse(1) { 0 },
-            patch = parts.getOrElse(2) { 0 }
+            major = match.groupValues[1].toIntOrNull() ?: return null,
+            minor = match.groupValues[2].toIntOrNull() ?: return null,
+            patch = match.groupValues[3].toIntOrNull() ?: return null,
+            prerelease = prerelease
         )
+    }
+
+    private companion object {
+        val SEMVER = Regex("(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?")
     }
 
     private data class Version(
         val major: Int,
         val minor: Int,
-        val patch: Int
+        val patch: Int,
+        val prerelease: List<String>?
     ) : Comparable<Version> {
-        override fun compareTo(other: Version): Int =
-            compareValuesBy(this, other, Version::major, Version::minor, Version::patch)
+        override fun compareTo(other: Version): Int {
+            val base = compareValuesBy(this, other, Version::major, Version::minor, Version::patch)
+            if (base != 0) return base
+            if (prerelease == null) return if (other.prerelease == null) 0 else 1
+            if (other.prerelease == null) return -1
+            for ((left, right) in prerelease.zip(other.prerelease)) {
+                val leftNumber = left.all(Char::isDigit)
+                val rightNumber = right.all(Char::isDigit)
+                val order = when {
+                    leftNumber && rightNumber -> compareValues(left.length, right.length).takeIf { it != 0 }
+                        ?: left.compareTo(right)
+                    leftNumber -> -1
+                    rightNumber -> 1
+                    else -> left.compareTo(right)
+                }
+                if (order != 0) return order
+            }
+            return prerelease.size.compareTo(other.prerelease.size)
+        }
     }
 }

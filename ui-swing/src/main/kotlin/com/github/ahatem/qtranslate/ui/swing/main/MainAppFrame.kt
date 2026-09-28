@@ -669,14 +669,6 @@ class MainAppFrame(
                                                 )
                                             }
                                         },
-                                        onAutoSourceChanged = { newSource ->
-                                            settingsStore.dispatch(
-                                                SettingsIntent.ToggleSetting {
-                                                    it.copy(dictionaryAutoSource = newSource)
-                                                }
-                                            )
-                                            settingsStore.dispatch(SettingsIntent.SaveChanges)
-                                        },
                                         onPinToggled = {
                                             mainStore.dispatch(MainIntent.ToggleQuickDictionaryPin)
                                         },
@@ -1129,6 +1121,7 @@ class MainAppFrame(
                     SettingsIntent.ToggleSetting { it.copy(layoutPresetId = layoutId) }
                 )
             },
+            onOpenServicesSettings = { openSettingsDialog(openToServices = true) },
             onToggleHistoryControls = { enabled ->
                 settingsStore.dispatch(
                     SettingsIntent.ToggleSetting {
@@ -1185,6 +1178,7 @@ class MainAppFrame(
             layoutPresets = localizer.getString("main_window_main_menu.layout_presets"),
             layoutComparisonAvailable = currentConfig.isComparisonEligible(mainStore.state.value.availableTranslatorIds),
             layoutComparisonUnavailableHint = localizer.getString("settings_window.layout_comparison_unavailable"),
+            layoutComparisonConfigureLabel = localizer.getString("settings_window.layout_comparison_configure"),
             showHistoryControls = localizer.getString("main_window_main_menu.show_history_bar"),
             showLanguageBar = localizer.getString("main_window_main_menu.show_language_bar"),
             showServicesPanel = localizer.getString("main_window_main_menu.show_services_panel"),
@@ -1504,6 +1498,28 @@ class MainAppFrame(
         settingsStore.dispatch(SettingsIntent.SaveChanges)
     }
 
+    /**
+     * Session state only: a pin that survived a restart would be surprising the next time the
+     * window opened for an entirely different reason, and nothing else about it needs saving.
+     */
+    private val pinButton: FlatButton = createToolbarButton(iconManager, Icons.PIN, 14).apply {
+        addActionListener {
+            isAlwaysOnTop = !isAlwaysOnTop
+            updatePinButtonStyle()
+        }
+    }
+
+    private fun updatePinButtonStyle() {
+        // A handful of window managers offer no always-on-top support at all; a toggle that
+        // silently does nothing there is worse than no toggle.
+        pinButton.isVisible = isAlwaysOnTopSupported
+        pinButton.isSelected = isAlwaysOnTop
+        pinButton.toolTipText = localizer.getString(
+            if (isAlwaysOnTop) "main_window_main_menu.stop_keeping_on_top"
+            else "main_window_main_menu.keep_on_top"
+        )
+    }
+
     private fun setupMenuBar() {
         val settingsButton = createButtonWithIcon(iconManager, Icons.SETTINGS, 18).apply {
             buttonType = FlatButton.ButtonType.toolBarButton
@@ -1513,9 +1529,11 @@ class MainAppFrame(
                 popupMenu.show(this, 0, height)
             }
         }
+        updatePinButtonStyle()
 
         jMenuBar = JMenuBar().apply {
             add(Box.createHorizontalGlue())
+            add(pinButton)
             add(settingsButton)
         }
     }
@@ -1532,12 +1550,13 @@ class MainAppFrame(
     }
 
     /** Opens Settings with the correct orientation. Shared by the menu and the Ctrl+Comma binding. */
-    private fun openSettingsDialog() {
+    private fun openSettingsDialog(openToServices: Boolean = false) {
         val dialog = createSettingsDialog()
         dialog.applyComponentOrientation(
             if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
             else ComponentOrientation.LEFT_TO_RIGHT
         )
+        if (openToServices) dialog.showServicesPage()
         dialog.isVisible = true
     }
 

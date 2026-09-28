@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Container
+import java.awt.Dimension
 import javax.swing.JPanel
 import javax.swing.JTabbedPane
 import javax.swing.SwingUtilities
@@ -141,6 +142,24 @@ class LayoutSystemTest {
     private fun layoutTree(root: Container) {
         root.doLayout()
         root.components.forEach { if (it is Container) layoutTree(it) }
+    }
+
+    @Test
+    fun `the selector row keeps its preferred height when the bottom bar has spare space`() {
+        val selector = JPanel().apply { preferredSize = Dimension(300, 24) }
+        val status = JPanel().apply { preferredSize = Dimension(300, 20) }
+        val bottomBar = LayoutBuilders.createBottomBar(selector, status)
+
+        SwingUtilities.invokeAndWait {
+            bottomBar.setSize(800, 200)
+            layoutTree(bottomBar)
+        }
+
+        assertEquals(24, selector.height)
+        assertEquals(20, status.height)
+        val selectorX = SwingUtilities.convertPoint(selector, 0, 0, bottomBar).x
+        assertEquals(UISpacing.PADDING, selectorX)
+        assertEquals(UISpacing.PADDING, bottomBar.width - selectorX - selector.width)
     }
 
     @Test

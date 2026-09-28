@@ -47,6 +47,10 @@ dependencies {
     // Also a transitive dep via :ui-swing, but needed here for compilation.
     implementation(libs.bundles.flatlaf)
 
+    // The default UI/editor typeface. Only AppUiSetup references it, so it stays out of the
+    // shared flatlaf bundle rather than becoming an unused transitive dependency of :ui-swing.
+    implementation(libs.flatlaf.fonts.inter)
+
     // Logging — SLF4J API + Logback backend
     // SLF4J is the facade; Logback does the actual writing.
     // The :api module's Logger interface bridges to SLF4J here in :app.
@@ -71,6 +75,11 @@ tasks.shadowJar {
     mergeServiceFiles()
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
+
+    // The Inter font pack's "Light" weight: nothing in the interface uses FlatLaf's "light"
+    // typography style class (only "h2"/"h4"/"small"/"mini", none of which resolve to it), so
+    // these two faces would only ever add release-artifact weight, never a pixel on screen.
+    exclude("com/formdev/flatlaf/fonts/inter/Inter-Light.otf", "com/formdev/flatlaf/fonts/inter/Inter-LightItalic.otf")
 }
 
 val manualQaPluginProjects = rootProject.subprojects.filter {

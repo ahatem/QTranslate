@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
+import com.formdev.flatlaf.fonts.inter.FlatInterFont
 import com.formdev.flatlaf.util.FontUtils
 import com.github.ahatem.qtranslate.ui.swing.shared.fonts.NotoNaskhArabicFont
 import com.github.ahatem.qtranslate.ui.swing.shared.fonts.RubikSansFont
@@ -32,7 +33,10 @@ internal object ShapedText {
      * installed.
      */
     fun pane(text: String, width: Int, primary: String, fallback: String): AdvancedTextPane {
-        // Registered as AppUiSetup does, so Font(name, ...) resolves to the bundled file.
+        // Forced to load now rather than lazily, so the plain Font(name, ...) calls below (and in
+        // callers) resolve to the bundled file instead of silently substituting.
+        FlatInterFont.installLazy()
+        FontUtils.getCompositeFont(FlatInterFont.FAMILY, Font.PLAIN, 15)
         RubikSansFont.installLazy()
         FontUtils.getCompositeFont(RubikSansFont.FAMILY, Font.PLAIN, 15)
         NotoNaskhArabicFont.install()
