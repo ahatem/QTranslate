@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.app.screenshots
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.core.settings.data.FontConfig
 import com.github.ahatem.qtranslate.core.settings.data.SelectionBehavior
 
 /**
@@ -46,7 +47,12 @@ internal object Scenes {
         autoCheckForUpdates = false,
         isInstantTranslationEnabled = false,
         selectionBehavior = SelectionBehavior.OFF,
-        isGlobalHotkeysEnabled = false
+        isGlobalHotkeysEnabled = false,
+        // Deliberate presentation choice for the public screenshot gallery only -- production's
+        // own default (Inter) is untouched. The fallback stays whatever the production default
+        // is, so scripts Rubik cannot render still fall back the same way a real install would.
+        uiFontConfig = FontConfig(name = "Rubik", size = Configuration.DEFAULT.uiFontConfig.size),
+        editorFontConfig = FontConfig(name = "Rubik", size = Configuration.DEFAULT.editorFontConfig.size)
     )
 
 // ── size ─────────────────────────────────────────────────────────────────
