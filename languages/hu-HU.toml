@@ -110,6 +110,9 @@ auto_check_for_updates = "Frissítések automatikus ellenőrzése"
 check_for_updates = "Frissítések keresése"
 about_qtranslate = "QTranslate névjegye"
 exit = "Kilépés"
+layout_preset_comparison = "Összehasonlítás"
+keep_on_top = "Ablak kitűzése legfelülre"
+stop_keeping_on_top = "Kitűzés megszüntetése"
 
 [document_translation]
 title = "Dokumentum fordítása"
@@ -198,6 +201,12 @@ clear_history_on_exit = "Előzmények törlése az alkalmazás bezárásakor"
 clear_history_hint = "A mentett fordítások kilépéskor véglegesen törlődnek, amikor ez be van kapcsolva."
 selection_read_aloud = "Felolvasás"
 selection_read_original = "Eredeti szöveg"
+selection_behavior = "Szöveg kijelölése után"
+selection_behavior_off = "Kikapcsolva"
+selection_behavior_icon = "Fordítási ikon megjelenítése"
+selection_behavior_translate = "Fordítás azonnal"
+selection_behavior_read = "Fordítás és felolvasás"
+selection_behavior_hint = "Válassza ki, hogy a QTranslate mit tegyen, miután szöveget jelölt ki az egérrel egy másik alkalmazásban."
 
 [settings_appearance]
 language_group = "Nyelv"
@@ -245,6 +254,7 @@ fallback_font = "Tartalék betűtípus:"
 fallback_hint = "A tartalék betűtípust azokhoz a karakterekhez használják, amelyeket a szerkesztő betűtípusa nem tud megjeleníteni."
 loading_fonts = "<Betűtípusok betöltése...>"
 font_preview_text = "A gyors barna róka átugrik a lusta kutyán — The quick brown fox jumps over the lazy dog"
+automatic_fallback = "Automatikus (ajánlott)"
 
 [settings_services]
 presets_group = "Aktív előbeállítás"
@@ -423,6 +433,8 @@ rewrite_style_casual = "Közvetlen"
 rewrite_style_concise = "Tömör"
 rewrite_style_detailed = "Részletes"
 rewrite_style_simplified = "Egyszerű"
+dict_auto_lookup_enabled = "Egyszavas fordítások automatikus keresése"
+dict_auto_lookup_source_label = "Keresés:"
 
 [settings_languages]
 defaults_group = "Alapértelmezett nyelvek"
@@ -491,6 +503,7 @@ close_behavior_hint = "Ez szabályozza, mi történik, amikor az X bezárás gom
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION
 # ===================================================================
+layout_comparison_configure = "Összehasonlítás — Fordítók beállítása…"
 [plugin_config]
 title_format = "Konfigurálás — %s"
 required_fields_error_title = "Kötelező mezők"
@@ -539,6 +552,8 @@ error_message = "A képkeresés nem sikerült. Próbálja meg újra."
 open_tooltip = "Forrásoldal megnyitása a böngészőben"
 open_source = "Forrásoldal"
 back = "Vissza"
+previous = "Előző"
+next = "Következő"
 
 [preset_selector]
 manage_tooltip = "Szolgáltatás előbeállítások kezelése"

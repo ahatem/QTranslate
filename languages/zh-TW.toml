@@ -33,12 +33,30 @@ auto_detect = "自動偵測"
 # ===================================================================
 # MAIN APPLICATION WINDOW
 # ===================================================================
+undo = "復原"
+redo = "重做"
+cut = "剪下"
+paste = "貼上"
+select_all = "全選"
+new = "新增…"
+rename = "重新命名"
+delete = "刪除"
+search = "搜尋"
 [main_window]
 status_format = "正在使用 %s: %s → %s"
 no_translator = "未選擇翻譯器"
 drop_hint = "拖曳圖片或文件至此進行翻譯"
 no_service_message = "未設定翻譯服務。"
 no_service_action = "開啟服務設定"
+comparison_loading = "正在翻譯..."
+comparison_unavailable = "無法使用的服務"
+comparison_failure = "翻譯失敗"
+comparison_copy = "複製"
+comparison_details = "詳細資訊"
+comparison_primary = "主要"
+comparison_change_primary = "變更主要翻譯器"
+comparison_empty = "準備比較"
+comparison_empty_subtitle = "在上方輸入文字並選擇「翻譯」。來自 %s 個翻譯服務的結果將顯示在這裡。"
 
 [main_window_history_bar]
 backward_tooltip = "返回翻譯歷史紀錄"
@@ -64,6 +82,11 @@ search_images = "搜尋圖片"
 set_as_input = "設為輸入"
 input_hint = "輸入要翻譯的文字..."
 output_hint = "翻譯結果將在此處顯示…"
+undo = "@common.undo"
+redo = "@common.redo"
+cut = "@common.cut"
+paste = "@common.paste"
+select_all = "@common.select_all"
 
 
 [main_window_main_menu]
@@ -88,6 +111,9 @@ auto_check_for_updates = "自動檢查更新"
 check_for_updates = "檢查更新"
 about_qtranslate = "關於 QTranslate"
 exit = "結束"
+layout_preset_comparison = "比較"
+keep_on_top = "將視窗保持在最上層"
+stop_keeping_on_top = "停止將視窗保持在最上層"
 
 [document_translation]
 title = "翻譯文件"
@@ -176,6 +202,14 @@ history_group = "歷史紀錄"
 enable_history = "啟用翻譯歷史紀錄"
 clear_history_on_exit = "關閉程式時清除歷史紀錄"
 clear_history_hint = "開啟此項後，儲存的翻譯將在結束時永久刪除。"
+selection_behavior = "選取文字後"
+selection_behavior_off = "關閉"
+selection_behavior_icon = "顯示翻譯圖示"
+selection_behavior_translate = "立即翻譯"
+selection_behavior_read = "翻譯並朗讀"
+selection_behavior_hint = "選擇在其他應用程式中以滑鼠選取文字後，QTranslate 要執行的動作。"
+selection_read_aloud = "朗讀"
+selection_read_original = "原文"
 
 [settings_appearance]
 language_group = "語言"
@@ -223,6 +257,7 @@ fallback_font = "備用字型："
 fallback_hint = "當編輯器字型無法顯示某些字元時，將使用備用字型。"
 loading_fonts = "<正在載入字型...>"
 font_preview_text = "中文測試：敏捷的棕色狐狸跳過了懶狗 — 大きな茶色の狐が怠け者の犬を飛び越えた"
+automatic_fallback = "自動（建議）"
 
 [settings_services]
 presets_group = "目前預設"
@@ -245,6 +280,24 @@ rename_preset_title = "重新命名預設"
 rename_preset_prompt = "輸入新名稱："
 delete_preset_title = "刪除預設"
 delete_preset_confirm = "確定要刪除預設 \"%s\" 嗎？\n此操作無法復原。"
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+translators_group = "翻譯器"
+translator_primary = "主要"
+translator_make_primary = "設為主要"
+translator_add = "新增翻譯器"
+translator_remove = "移除翻譯器"
+translator_move_up = "上移"
+translator_move_down = "下移"
+translator_none = "未選取任何翻譯器。"
+translator_set_ready = "比較功能會使用此組合中所有可用的翻譯器。"
+translator_set_needs_more = "再新增一個可用的翻譯器以使用比較功能。"
+translator_set_disabled = "翻譯器已關閉，因此無法使用比較功能。"
+no_comparison_services = "沒有其他可用的翻譯器"
+unavailable_suffix = "不可用"
+other_services_group = "其他服務"
+automatic = "自動"
 
 [settings_plugins]
 install_plugin = "安裝外掛..."
@@ -346,6 +399,15 @@ recorder_hint = "按下組合鍵，然後點擊確定 · 按 Esc 取消"
 recorder_modifier_hint = "現在按一個字母、數字或功能鍵"
 recorder_hint_confirm = "按另一個組合鍵更改 · 按 Esc 清除"
 recorder_invalid_key = "此鍵不能用作快捷鍵"
+preset_label = "快捷鍵預設"
+preset_legacy = "舊版 QTranslate"
+preset_modern = "現代"
+preset_custom = "自訂"
+show_main_group = "顯示主視窗"
+shortcut_label = "快捷鍵"
+change_button = "變更…"
+double_ctrl_label = "連按兩次 Ctrl"
+double_ctrl_description = "連按兩次 Ctrl 以顯示主視窗"
 
 
 [settings_translation]
@@ -381,6 +443,8 @@ rewrite_style_casual = "休閒"
 rewrite_style_concise = "簡練"
 rewrite_style_detailed = "詳細"
 rewrite_style_simplified = "精簡"
+dict_auto_lookup_enabled = "自動查詢單一詞彙的翻譯"
+dict_auto_lookup_source_label = "查詢對象："
 
 [settings_languages]
 defaults_group = "預設語言"
@@ -449,6 +513,8 @@ close_behavior_hint    = "控制點擊 × 按鈕時的行為。您也可以在�
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION
 # ===================================================================
+layout_comparison_unavailable = "請至少選擇兩個翻譯器以使用比較功能。"
+layout_comparison_configure = "比較 — 設定翻譯器…"
 [plugin_config]
 title_format = "設定 — %s"
 required_fields_error_title = "必填項目"
@@ -500,6 +566,8 @@ error_message = "圖片搜尋失敗，請重試。"
 open_tooltip = "在瀏覽器中開啟來源網頁"
 open_source = "來源網頁"
 back = "返回"
+previous = "上一張"
+next = "下一張"
 
 [preset_selector]
 manage_tooltip  = "管理服務預設"
@@ -538,6 +606,7 @@ label_rewrite = "文字改寫"
 # ===================================================================
 # NOTIFICATIONS & ERRORS
 # ===================================================================
+placeholder = "翻譯後可用"
 [notifications]
 language_not_supported_format = "%2$s 不支援語言 '%1$s'。"
 tts_not_supported_format = "%s 不支援語音合成 (TTS)。"
@@ -614,6 +683,7 @@ image_search_ready = "已找到圖片。"
 images_not_found = "未找到 \"%s\" 的圖片。"
 image_search_timeout = "圖片搜尋逾時。"
 image_search_failed = "圖片搜尋失敗：%s"
+comparison_needs_two_translators = "比較功能需要兩個翻譯器。正在顯示經典版面。"
 
 [layout_compact]
 tab_input_tooltip = "原始文字 (%s)"

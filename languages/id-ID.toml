@@ -33,12 +33,30 @@ auto_detect = "Deteksi Otomatis"
 # ===================================================================
 # MAIN APPLICATION WINDOW
 # ===================================================================
+undo = "Urungkan"
+redo = "Ulangi"
+cut = "Potong"
+paste = "Tempel"
+select_all = "Pilih Semua"
+new = "Baru…"
+rename = "Ganti Nama"
+delete = "Hapus"
+search = "Cari"
 [main_window]
 status_format = "Menggunakan %s: %s → %s"
 no_translator = "Tidak Ada Penerjemah"
 drop_hint = "Jatuhkan gambar atau dokumen untuk diterjemahkan"
 no_service_message = "Belum ada layanan penerjemahan yang dikonfigurasi."
 no_service_action = "Buka pengaturan Layanan"
+comparison_loading = "Menerjemahkan..."
+comparison_unavailable = "Layanan tidak tersedia"
+comparison_failure = "Terjemahan gagal"
+comparison_copy = "Salin"
+comparison_details = "Detail"
+comparison_primary = "Utama"
+comparison_change_primary = "Ubah penerjemah utama"
+comparison_empty = "Siap membandingkan"
+comparison_empty_subtitle = "Masukkan teks di atas lalu pilih Terjemahkan. Hasil dari %s layanan terjemahan akan muncul di sini."
 
 [main_window_history_bar]
 backward_tooltip = "Kembali dalam riwayat terjemahan"
@@ -64,6 +82,11 @@ search_images = "Cari Gambar"
 set_as_input = "Jadikan Masukan"
 input_hint = "Masukkan teks untuk diterjemahkan..."
 output_hint = "Terjemahan akan muncul di sini…"
+undo = "@common.undo"
+redo = "@common.redo"
+cut = "@common.cut"
+paste = "@common.paste"
+select_all = "@common.select_all"
 
 
 [main_window_main_menu]
@@ -88,6 +111,9 @@ auto_check_for_updates = "Periksa Pembaruan Otomatis"
 check_for_updates = "Periksa Pembaruan"
 about_qtranslate = "Tentang QTranslate"
 exit = "Keluar"
+layout_preset_comparison = "Perbandingan"
+keep_on_top = "Tetap di atas"
+stop_keeping_on_top = "Berhenti tetap di atas"
 
 [document_translation]
 title = "Terjemahkan Dokumen"
@@ -176,6 +202,14 @@ history_group = "Riwayat"
 enable_history = "Aktifkan riwayat terjemahan"
 clear_history_on_exit = "Hapus riwayat saat aplikasi ditutup"
 clear_history_hint = "Terjemahan tersimpan akan dihapus secara permanen saat keluar jika opsi ini aktif."
+selection_behavior = "Setelah memilih teks"
+selection_behavior_off = "Nonaktif"
+selection_behavior_icon = "Tampilkan ikon terjemahan"
+selection_behavior_translate = "Terjemahkan langsung"
+selection_behavior_read = "Terjemahkan dan bacakan"
+selection_behavior_hint = "Pilih tindakan QTranslate setelah Anda memilih teks dengan mouse di aplikasi lain."
+selection_read_aloud = "Bacakan"
+selection_read_original = "Teks asli"
 
 [settings_appearance]
 language_group = "Bahasa"
@@ -223,6 +257,7 @@ fallback_font = "Font Cadangan:"
 fallback_hint = "Font cadangan digunakan untuk karakter yang tidak dapat ditampilkan oleh font editor."
 loading_fonts = "<Memuat font...>"
 font_preview_text = "The quick brown fox jumps over the lazy dog — 大きな茶色の狐が怠け者の犬を飛び越えた"
+automatic_fallback = "Otomatis (Disarankan)"
 
 [settings_services]
 presets_group = "Preset Aktif"
@@ -245,6 +280,24 @@ rename_preset_title = "Ganti Nama Preset"
 rename_preset_prompt = "Masukkan nama baru:"
 delete_preset_title = "Hapus Preset"
 delete_preset_confirm = "Hapus preset \"%s\"?\nTindakan ini tidak dapat dibatalkan."
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+translators_group = "Penerjemah"
+translator_primary = "Utama"
+translator_make_primary = "Jadikan utama"
+translator_add = "Tambah penerjemah"
+translator_remove = "Hapus penerjemah"
+translator_move_up = "Pindahkan ke atas"
+translator_move_down = "Pindahkan ke bawah"
+translator_none = "Tidak ada penerjemah yang dipilih."
+translator_set_ready = "Perbandingan menggunakan semua penerjemah yang tersedia dalam set ini."
+translator_set_needs_more = "Tambahkan satu penerjemah tersedia lagi untuk menggunakan Perbandingan."
+translator_set_disabled = "Penerjemah dimatikan, sehingga Perbandingan tidak tersedia."
+no_comparison_services = "Tidak ada penerjemah lain yang tersedia"
+unavailable_suffix = "Tidak tersedia"
+other_services_group = "Layanan Lainnya"
+automatic = "Otomatis"
 
 [settings_plugins]
 install_plugin = "Pasang Plugin..."
@@ -346,6 +399,15 @@ recorder_hint = "Tekan kombinasi tombol, lalu klik OK · Esc untuk membatalkan"
 recorder_modifier_hint = "Sekarang tekan huruf, angka, atau tombol fungsi"
 recorder_hint_confirm = "Tekan kombinasi lain untuk mengubah · Esc untuk menghapus"
 recorder_invalid_key = "Tombol ini tidak dapat digunakan sebagai pintasan"
+preset_label = "Preset Pintasan"
+preset_legacy = "QTranslate Klasik"
+preset_modern = "Modern"
+preset_custom = "Kustom"
+show_main_group = "Tampilkan Jendela Utama"
+shortcut_label = "Pintasan"
+change_button = "Ubah…"
+double_ctrl_label = "Ctrl Ganda"
+double_ctrl_description = "Tekan Ctrl dua kali untuk menampilkan jendela utama"
 
 
 [settings_translation]
@@ -381,6 +443,8 @@ rewrite_style_casual = "Santai"
 rewrite_style_concise = "Ringkas"
 rewrite_style_detailed = "Terperinci"
 rewrite_style_simplified = "Disederhanakan"
+dict_auto_lookup_enabled = "Cari terjemahan kata tunggal secara otomatis"
+dict_auto_lookup_source_label = "Cari:"
 
 [settings_languages]
 defaults_group = "Bahasa Bawaan"
@@ -449,6 +513,8 @@ close_behavior_hint    = "Mengatur tindakan saat Anda mengklik tombol ×. Anda j
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION
 # ===================================================================
+layout_comparison_unavailable = "Pilih setidaknya dua penerjemah untuk menggunakan Perbandingan."
+layout_comparison_configure = "Perbandingan — Siapkan penerjemah…"
 [plugin_config]
 title_format = "Konfigurasi — %s"
 required_fields_error_title = "Kolom Wajib"
@@ -500,6 +566,8 @@ error_message = "Pencarian gambar gagal. Silakan coba lagi."
 open_tooltip = "Buka halaman sumber di browser Anda"
 open_source = "Halaman sumber"
 back = "Kembali"
+previous = "Sebelumnya"
+next = "Berikutnya"
 
 [preset_selector]
 manage_tooltip  = "Kelola Preset Layanan"
@@ -538,6 +606,7 @@ label_rewrite = "Penulisan Ulang"
 # ===================================================================
 # NOTIFICATIONS & ERRORS
 # ===================================================================
+placeholder = "Tersedia setelah penerjemahan"
 [notifications]
 language_not_supported_format = "Bahasa '%s' tidak didukung oleh %s."
 tts_not_supported_format = "Teks ke ucapan tidak didukung oleh %s."
@@ -614,6 +683,7 @@ image_search_ready = "Gambar ditemukan."
 images_not_found = "Tidak ditemukan gambar untuk \"%s\"."
 image_search_timeout = "Waktu pencarian gambar habis."
 image_search_failed = "Pencarian gambar gagal: %s"
+comparison_needs_two_translators = "Perbandingan membutuhkan dua penerjemah. Menampilkan Klasik."
 
 [layout_compact]
 tab_input_tooltip = "Teks sumber (%s)"

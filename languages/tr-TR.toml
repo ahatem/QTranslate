@@ -34,12 +34,29 @@ auto_detect = "Otomatik Algıla"
 # ===================================================================
 # MAIN APPLICATION WINDOW
 # ===================================================================
+undo = "Geri Al"
+redo = "Yinele"
+cut = "Kes"
+paste = "Yapıştır"
+select_all = "Tümünü Seç"
+rename = "Yeniden Adlandır"
+delete = "Sil"
+search = "Ara"
 [main_window]
 status_format = "Kullanılan %s: %s → %s"
 no_translator = "Çevirmen Yok"
 drop_hint = "Çevrilecek bir resmi veya belgeyi bırakın"
 no_service_message = "Yapılandırılmış çeviri hizmeti yok."
 no_service_action = "Hizmetler ayarlarını aç"
+comparison_loading = "Çevriliyor..."
+comparison_unavailable = "Kullanılamayan hizmet"
+comparison_failure = "Çeviri başarısız oldu"
+comparison_copy = "Kopyala"
+comparison_details = "Ayrıntılar"
+comparison_primary = "Birincil"
+comparison_change_primary = "Birincil çevirmeni değiştir"
+comparison_empty = "Karşılaştırmaya hazır"
+comparison_empty_subtitle = "Yukarıya metin girin ve Çevir'i seçin. %s çeviri hizmetinden alınan sonuçlar burada görünecek."
 
 [main_window_history_bar]
 backward_tooltip = "Çeviri geçmişinde geri git"
@@ -65,6 +82,11 @@ search_images = "Resimleri Ara"
 set_as_input = "Girdi olarak ayarla"
 input_hint = "Çevrilecek metni girin..."
 output_hint = "Çeviri burada görünecek…"
+undo = "@common.undo"
+redo = "@common.redo"
+cut = "@common.cut"
+paste = "@common.paste"
+select_all = "@common.select_all"
 
 
 [main_window_main_menu]
@@ -89,6 +111,9 @@ auto_check_for_updates = "Güncellemeleri Otomatik Denetle"
 check_for_updates = "Güncellemeleri Denetle"
 about_qtranslate = "QTranslate Hakkında"
 exit = "Çıkış"
+layout_preset_comparison = "Karşılaştırma"
+keep_on_top = "Pencereyi üstte tut"
+stop_keeping_on_top = "Pencereyi üstte tutmayı bırak"
 
 [document_translation]
 title = "Belgeyi Çevir"
@@ -175,6 +200,14 @@ history_group = "Geçmiş"
 enable_history = "Çeviri geçmişini etkinleştir"
 clear_history_on_exit = "Uygulama kapandığında geçmişi temizle"
 clear_history_hint = "Bu seçenek açık olduğunda, kaydedilen çeviriler çıkışta kalıcı olarak silinir."
+selection_behavior = "Metin seçtikten sonra"
+selection_behavior_off = "Kapalı"
+selection_behavior_icon = "Çeviri simgesini göster"
+selection_behavior_translate = "Hemen çevir"
+selection_behavior_read = "Çevir ve sesli oku"
+selection_behavior_hint = "Fareyle başka bir uygulamada metin seçtikten sonra QTranslate'in ne yapacağını seçin."
+selection_read_aloud = "Sesli oku"
+selection_read_original = "Orijinal metin"
 
 [settings_appearance]
 language_group = "Dil"
@@ -222,6 +255,7 @@ fallback_font = "Yedek Yazı Tipi:"
 fallback_hint = "Yedek yazı tipi, düzenleyici yazı tipinin görüntülenemediği karakterler için kullanılır."
 loading_fonts = "<Yazı tipleri yükleniyor...>"
 font_preview_text = "Pijamalı hasta yağız şoföre çabucak güvendi. — The quick brown fox jumps over the lazy dog"
+automatic_fallback = "Otomatik (Önerilen)"
 
 [settings_services]
 presets_group = "Etkin Ön Ayar"
@@ -245,6 +279,23 @@ rename_preset_title = "Ön Ayarı Yeniden Adlandır"
 rename_preset_prompt = "Yeni ad girin:"
 delete_preset_title = "Ön Ayarı Sil"
 delete_preset_confirm = "\"%s\" ön ayarı silinsin mi?\nBu işlem geri alınamaz."
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+translators_group = "Çevirmenler"
+translator_primary = "Birincil"
+translator_make_primary = "Birincil yap"
+translator_add = "Çevirmen ekle"
+translator_remove = "Çevirmeni kaldır"
+translator_move_up = "Yukarı taşı"
+translator_move_down = "Aşağı taşı"
+translator_none = "Seçili çevirmen yok."
+translator_set_ready = "Karşılaştırma, bu setteki tüm kullanılabilir çevirmenleri kullanır."
+translator_set_needs_more = "Karşılaştırma'yı kullanmak için bir kullanılabilir çevirmen daha ekleyin."
+translator_set_disabled = "Çevirmenler kapalı, bu yüzden Karşılaştırma kullanılamıyor."
+no_comparison_services = "Başka kullanılabilir çevirmen yok"
+unavailable_suffix = "Kullanılamıyor"
+other_services_group = "Diğer Hizmetler"
+automatic = "Otomatik"
 
 [settings_plugins]
 install_plugin = "Eklenti Yükle..."
@@ -341,6 +392,15 @@ recorder_hint = "Bir tuş birleşimine basın, ardından Tamam'a tıklayın · i
 recorder_modifier_hint = "Şimdi bir harf, rakam veya işlev tuşuna basın"
 recorder_hint_confirm = "Değiştirmek için başka bir tuş birleşimine basın · temizlemek için Esc tuşu"
 recorder_invalid_key = "Bu tuş bir kısayol olarak kullanılamaz"
+preset_label = "Kısayol Ön Ayarı"
+preset_legacy = "Eski QTranslate"
+preset_modern = "Modern"
+preset_custom = "Özel"
+show_main_group = "Ana Pencereyi Göster"
+shortcut_label = "Kısayol"
+change_button = "Değiştir…"
+double_ctrl_label = "Çift Ctrl"
+double_ctrl_description = "Ana pencereyi göstermek için Ctrl'ye iki kez basın"
 
 
 [settings_translation]
@@ -376,6 +436,8 @@ rewrite_style_casual = "Günlük"
 rewrite_style_concise = "Kısa ve Öz"
 rewrite_style_detailed = "Ayrıntılı"
 rewrite_style_simplified = "Basitleştirilmiş"
+dict_auto_lookup_enabled = "Tek kelimelik çevirileri otomatik olarak ara"
+dict_auto_lookup_source_label = "Ara:"
 
 [settings_languages]
 defaults_group = "Varsayılan Diller"
@@ -444,6 +506,8 @@ close_behavior_hint = "× düğmesine tıkladığınızda ne olacağını denetl
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION
 # ===================================================================
+layout_comparison_unavailable = "Karşılaştırma'yı kullanmak için en az iki çevirmen seçin."
+layout_comparison_configure = "Karşılaştırma — Çevirmenleri ayarla…"
 [plugin_config]
 title_format = "Yapılandır — %s"
 required_fields_error_title = "Gerekli Alanlar"
@@ -495,6 +559,8 @@ error_message = "Resim arama başarısız oldu. Lütfen tekrar deneyin."
 open_tooltip = "Kaynak sayfayı tarayıcınızda açın"
 open_source = "Kaynak sayfa"
 back = "Geri"
+previous = "Önceki"
+next = "Sonraki"
 
 [preset_selector]
 manage_tooltip = "Hizmet Ön Ayarlarını Yönet"
@@ -533,6 +599,7 @@ label_rewrite = "Yeniden Yazım"
 # ===================================================================
 # NOTIFICATIONS & ERRORS
 # ===================================================================
+placeholder = "Çeviriden sonra kullanılabilir"
 [notifications]
 language_not_supported_format = "'%s' dili %s tarafından desteklenmiyor."
 tts_not_supported_format = "Metin okuma özelliği %s tarafından desteklenmiyor."
@@ -609,6 +676,7 @@ image_search_ready = "Resimler bulundu."
 images_not_found = "\"%s\" için bulunan resimler yok."
 image_search_timeout = "Resim araması zaman aşımına uğradı."
 image_search_failed = "Resim araması başarısız oldu: %s"
+comparison_needs_two_translators = "Karşılaştırma için iki çevirmen gerekli. Klasik gösteriliyor."
 
 [layout_compact]
 tab_input_tooltip = "Kaynak metin (%s)"
