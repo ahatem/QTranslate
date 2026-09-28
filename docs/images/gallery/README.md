@@ -37,3 +37,6 @@ the Classic selector at two widths and Settings at 100%. The regular run include
 candidate set and Settings at 200%.
 Use `QTRANSLATE_SCREENSHOT_SCENES=selector` to capture only the Classic selector audit at 100%
 and 200%, plus RTL and light theme.
+Use `QTRANSLATE_SCREENSHOT_SCENES=document` to capture only the document dialog. Its file paths are
+visible in the image, so also set `QTRANSLATE_SCREENSHOT_DOCS` to a neutral folder such as
+`C:\Users\Public\Documents` first.
