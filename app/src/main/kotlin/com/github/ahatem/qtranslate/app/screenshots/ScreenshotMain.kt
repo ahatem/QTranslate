@@ -308,9 +308,18 @@ private class Shots(
         delay(1_200)
 
         for ((row, name) in Scenes.SETTINGS_PAGES) {
-            onUi { find<JTree>(dialog)?.setSelectionRow(row) }
+            onUi {
+                val tree = find<JTree>(dialog)
+                    ?: error("Settings page tree not found while capturing '$name' — dialog layout changed?")
+                tree.setSelectionRow(row)
+            }
             delay(900)
-            paint("settings-$name-$suffix", dialog.rootPane)
+            // Every other capture path in this file goes through paintAfterLayout, which forces a
+            // revalidate/repaint and lets it settle before painting. This loop used to call paint()
+            // directly, skipping that step — the one gap that let a page swap (and, for Plugins, its
+            // async plugin-list population) get rasterized mid-layout, producing a blank panel with
+            // only the page title drawn.
+            paintAfterLayout("settings-$name-$suffix", dialog.rootPane)
         }
         onUi { dialog.dispose() }
         delay(400)
