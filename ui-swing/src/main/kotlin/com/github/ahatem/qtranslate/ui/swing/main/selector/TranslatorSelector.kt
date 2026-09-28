@@ -56,15 +56,7 @@ class TranslatorSelector(
         toolTipText = "Configure active translation service"
         addActionListener { activeServiceId?.let(onConfigureService) }
     }
-    private val classic = object : JPanel(BorderLayout(UIScale.scale(6), 0)) {
-        override fun paintChildren(g: Graphics) {
-            super.paintChildren(g)
-            val oldColor = g.color
-            g.color = UIManager.getColor("Component.borderColor") ?: Color.GRAY
-            g.drawLine(0, height - 1, width - 1, height - 1)
-            g.color = oldColor
-        }
-    }.apply {
+    private val classic = JPanel(BorderLayout(UIScale.scale(6), 0)).apply {
         isOpaque = false
         add(serviceStrip, BorderLayout.CENTER)
         add(configureActive, BorderLayout.LINE_END)
