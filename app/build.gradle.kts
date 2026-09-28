@@ -75,6 +75,11 @@ tasks.shadowJar {
     mergeServiceFiles()
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
+
+    // The Inter font pack's "Light" weight: nothing in the interface uses FlatLaf's "light"
+    // typography style class (only "h2"/"h4"/"small"/"mini", none of which resolve to it), so
+    // these two faces would only ever add release-artifact weight, never a pixel on screen.
+    exclude("com/formdev/flatlaf/fonts/inter/Inter-Light.otf", "com/formdev/flatlaf/fonts/inter/Inter-LightItalic.otf")
 }
 
 val manualQaPluginProjects = rootProject.subprojects.filter {

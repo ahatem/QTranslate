@@ -47,6 +47,11 @@ object AppUiSetup {
      * [com.github.ahatem.qtranslate.ui.swing.shared.util.toFont] resolving a saved editor or
      * fallback font. A fresh installation asks for "Inter" and "SansSerif" only, so Rubik and Noto
      * cost nothing here unless a configuration actually names them.
+     *
+     * Inter's "Light" weight is deliberately not requested: the interface has no use of FlatLaf's
+     * "light" typography style class (only "h2", which is semibold, and "h4", which is bold), and
+     * that pair of faces is excluded from the packaged build for exactly that reason — see the
+     * shadowJar configuration in this module's build script.
      */
     private fun installFonts() {
         FlatInterFont.installLazy()
@@ -54,7 +59,6 @@ object AppUiSetup {
         NotoNaskhArabicFont.installLazy()
 
         FlatLaf.setPreferredFontFamily(FlatInterFont.FAMILY)
-        FlatLaf.setPreferredLightFontFamily(FlatInterFont.FAMILY_LIGHT)
         FlatLaf.setPreferredSemiboldFontFamily(FlatInterFont.FAMILY_SEMIBOLD)
     }
 
