@@ -299,8 +299,16 @@ jobs:
           test "${#archive[@]}" -eq 1
           unzip -q "${archive[0]}" -d "$candidate_dir"
           root="$candidate_dir/QTranslate"
-          timeout 120s java -Djava.awt.headless=true -cp "$root/QTranslate.jar" \
-            com.github.ahatem.qtranslate.app.ReleaseArtifactProbeKt "$root"
+          python3 - "$root" <<'PY'
+          import os
+          import subprocess
+          import sys
+          root = sys.argv[1]
+          subprocess.run([
+              "java", "-Djava.awt.headless=true", "-cp", os.path.join(root, "QTranslate.jar"),
+              "com.github.ahatem.qtranslate.app.ReleaseArtifactProbeKt", root,
+          ], check=True, timeout=120)
+          PY
           plugin="$root/plugins/system-services-plugin.jar"
           for helper in vision_ocr system_spell; do
             binary="$candidate_dir/$helper"
