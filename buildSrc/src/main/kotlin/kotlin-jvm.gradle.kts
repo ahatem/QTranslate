@@ -15,7 +15,7 @@ kotlin {
     jvmToolchain(21)
 
     compilerOptions {
-        // Target Java 11 bytecode — the output JAR runs on Java 11+.
+        // Keep the public plugin API's bytecode at Java 11; release dependencies require Java 17.
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
 }

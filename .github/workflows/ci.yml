@@ -50,6 +50,9 @@ jobs:
       - name: Build and test all modules
         run: ./gradlew build --no-daemon
 
+      - name: Test release class-version verifier
+        run: ./gradlew -p buildSrc test --no-daemon
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -111,10 +114,13 @@ jobs:
         include:
           - variant: app-only
             task: assembleAppOnly
+            verification: validateAppOnlyClassVersions
           - variant: portable
             task: validateReleaseSizes
+            verification: validatePortableClassVersions
           - variant: plugins
             task: assembleIndividualPlugins
+            verification: validateStandalonePluginClassVersions
 
     steps:
       - name: Checkout
@@ -145,7 +151,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev pkg-config
 
       - name: Build ${{ matrix.task }}
-        run: ./gradlew ${{ matrix.task }} -PreleaseVersion=ci -PmacVisionHelper=macos-helper/vision_ocr -PmacSpellHelper=macos-helper/system_spell --no-daemon
+        run: ./gradlew ${{ matrix.task }} ${{ matrix.verification }} -PreleaseVersion=ci -PmacVisionHelper=macos-helper/vision_ocr -PmacSpellHelper=macos-helper/system_spell --no-daemon
 
       - name: Upload ${{ matrix.variant }}
         uses: actions/upload-artifact@v7
@@ -154,3 +160,36 @@ jobs:
           path: build/release/
           if-no-files-found: error
           retention-days: 7
+
+  portable-runtime:
+    name: Portable runtime (Java ${{ matrix.java }})
+    runs-on: ubuntu-latest
+    needs: release-variants
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['17', '21']
+
+    steps:
+      - name: Download assembled portable candidate
+        uses: actions/download-artifact@v8
+        with:
+          name: qtranslate-portable
+          path: candidate
+
+      - name: Set up Java ${{ matrix.java }}
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      - name: Check extracted portable candidate
+        run: |
+          test -f candidate/QTranslate-ci.zip
+          candidate_dir="$(mktemp -d)"
+          unzip -q candidate/QTranslate-ci.zip -d "$candidate_dir"
+          test -f "$candidate_dir/QTranslate/portable-plugin-ids.txt"
+          timeout 120s java -Djava.awt.headless=true -cp "$candidate_dir/QTranslate/QTranslate.jar" \
+            com.github.ahatem.qtranslate.app.ReleaseArtifactProbeKt \
+            "$candidate_dir/QTranslate"

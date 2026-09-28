@@ -166,8 +166,8 @@ All downloads live on the [**latest release page**](https://github.com/ahatem/QT
 | Your platform | Download | Java required |
 |---|---|---|
 | **Windows** | `QTranslate-<version>-windows-x64.zip` | **No** — Java is included |
-| **macOS / Linux** | `QTranslate-<version>.zip` | Java 11+ |
-| **Any (app only, no plugins)** | `QTranslate-App-<version>.jar` | Java 11+ |
+| **macOS / Linux** | `QTranslate-<version>.zip` | Java 17+ |
+| **Any (app only, no plugins)** | `QTranslate-App-<version>.jar` | Java 17+ |
 
 The Windows and portable ZIP packages contain all bundled plugins, languages, themes, and icon sets. The app-only JAR contains no plugins and is intended for an existing or manually assembled setup.
 
@@ -181,7 +181,7 @@ No Java installation needed — the package ships its own trimmed runtime.
 
 ### macOS and Linux
 
-1. Install **Java 11 or later** ([Temurin](https://adoptium.net) recommended)
+1. Install **Java 17 or later** ([Temurin](https://adoptium.net) recommended)
 2. Download and extract `QTranslate-<version>.zip`
 3. Run `QTranslate.jar`, or `java -jar QTranslate.jar` from a terminal
 

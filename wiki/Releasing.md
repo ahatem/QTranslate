@@ -82,8 +82,8 @@ Confirm each JAR under `build/release/plugins/` has a matching entry in `release
 
 Use fresh temporary folders so existing settings do not hide first-run problems.
 
-1. **Java 11 portable test:** run the portable ZIP using a Java 11 runtime and `java -jar QTranslate.jar`.
-2. **Current Java portable test:** repeat with Java 17 or 21.
+1. **Java 17 portable check:** PR CI extracts the assembled portable ZIP and runs its readiness check on Java 17. This verifies bundled plugin discovery and JLayer loading without a desktop or network request.
+2. **Current Java portable check:** the same ZIP is checked on Java 21 in PR CI. Launch the candidate UI manually on a supported desktop as a spot check.
 3. **App-only test:** run `QTranslate-App-1.3.0.jar`, confirm the empty plugin state is clear, then install one individual plugin JAR from `build/release/plugins/`.
 4. **Windows package test:** download the Windows artifact produced by a prerelease tag or workflow run, extract it on a machine without relying on `JAVA_HOME`, and run `QTranslate.exe`.
 5. Confirm a second app instance is rejected cleanly.
