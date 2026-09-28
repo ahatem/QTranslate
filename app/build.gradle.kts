@@ -47,6 +47,10 @@ dependencies {
     // Also a transitive dep via :ui-swing, but needed here for compilation.
     implementation(libs.bundles.flatlaf)
 
+    // The default UI/editor typeface. Only AppUiSetup references it, so it stays out of the
+    // shared flatlaf bundle rather than becoming an unused transitive dependency of :ui-swing.
+    implementation(libs.flatlaf.fonts.inter)
+
     // Logging — SLF4J API + Logback backend
     // SLF4J is the facade; Logback does the actual writing.
     // The :api module's Logger interface bridges to SLF4J here in :app.

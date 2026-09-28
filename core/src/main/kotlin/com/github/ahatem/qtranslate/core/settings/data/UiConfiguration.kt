@@ -15,6 +15,18 @@ data class ToolbarVisibility(
 @Serializable
 data class FontConfig(val name: String, val size: Int) {
     init { require(size > 0) { "Font size must be positive, was $size." } }
+
+    companion object {
+        /**
+         * The stored [name] for "Automatic (Recommended)": resolved by the runtime to a suitable
+         * font for whatever the primary font cannot draw, rather than naming one specific installed
+         * or bundled family.
+         *
+         * Equal to `java.awt.Font.SANS_SERIF`, kept as a literal so this module does not depend on
+         * AWT. `ui-swing` is where that equality is put to use.
+         */
+        const val AUTOMATIC: String = "SansSerif"
+    }
 }
 
 @Serializable

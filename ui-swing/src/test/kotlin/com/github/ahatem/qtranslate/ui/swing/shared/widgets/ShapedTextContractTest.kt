@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
+import com.formdev.flatlaf.fonts.inter.FlatInterFont
+import com.github.ahatem.qtranslate.core.settings.data.FontConfig
 import com.github.ahatem.qtranslate.ui.swing.shared.fonts.NotoNaskhArabicFont
 import com.github.ahatem.qtranslate.ui.swing.shared.fonts.RubikSansFont
 import com.github.ahatem.qtranslate.ui.swing.shared.textpane.ShapedCarets
@@ -64,8 +66,11 @@ class ShapedTextContractTest {
     /** An unsound font with nothing to fall back to: the measured last resort. */
     private val lastResort = FontPair(RubikSansFont.FAMILY, RubikSansFont.FAMILY)
 
+    /** The new default pair: Inter has no Arabic coverage at all, so every run moves to Automatic. */
+    private val defaultTypography = FontPair(FlatInterFont.FAMILY, FontConfig.AUTOMATIC)
+
     /** The paths above, plus the platform's logical font as the primary. */
-    private val pairs = listOf(product, sound, FontPair(Font.DIALOG, NotoNaskhArabicFont.FAMILY), lastResort)
+    private val pairs = listOf(product, sound, FontPair(Font.DIALOG, NotoNaskhArabicFont.FAMILY), lastResort, defaultTypography)
 
     private fun pane(text: String, width: Int, fonts: FontPair) = ShapedText.pane(text, width, fonts.primary, fonts.fallback)
 
