@@ -7,7 +7,6 @@ import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
-import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.*
 import java.awt.event.ComponentAdapter
@@ -50,7 +49,10 @@ class TranslatorSelector(
         toolTipText = "All services"
         addActionListener { showOverflowMenu(this) }
     }
-    private val configureActive = createButtonWithIcon(iconManager, Icons.SETTINGS, 16).apply {
+    private val configureActive = JButton(iconManager.getIcon(Icons.SETTINGS, 16, 16)).apply {
+        putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
+        putClientProperty(FlatClientProperties.STYLE, "arc: 0")
+        margin = compactButtonMargin()
         toolTipText = "Configure active translation service"
         addActionListener { activeServiceId?.let(onConfigureService) }
     }
