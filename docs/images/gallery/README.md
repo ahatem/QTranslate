@@ -14,7 +14,7 @@ smaller tour; its main images are copied to `docs/images/`.
 | --- | --- |
 | `hero-dark` | Translation, backward translation and a docked dictionary |
 | `quick-translate-dark` | The <kbd>Ctrl+Q</kbd> popup for selected text |
-| `classic-selector-dark`, `classic-selector-narrow-dark` | Compact one-click services at wide and narrow widths, with the active provider and a single More menu |
+| `classic-selector-dark`, `classic-selector-narrow-dark`, `classic-selector-light` | The original QTranslate's adjacent service tabs, adapted for both themes and narrow widths with one More menu |
 | `layout-comparison-dark` | Google, Bing, DeepL and Yandex results in one configured Comparison set |
 | `dictionary-quick-dark` | The floating dictionary popup for selected words |
 | `dock-images-dark`, `dock-image-viewer-dark` | Image results and the opened viewer with source credit |
@@ -28,12 +28,12 @@ The capture harness drives the real application window and paints it to PNG. It 
 `app/src/main/kotlin/com/github/ahatem/qtranslate/app/screenshots/` and runs with:
 
 ```
-gradlew :app:captureScreenshots
+gradlew captureScreenshots
 ```
 
 Review the generated candidates in `build/screenshots/`, then copy only the selected captures here.
 Use `QTRANSLATE_SCREENSHOT_SCENES=presentation` to regenerate the visual audit scenes, including
 the Classic selector at two widths and Settings at 100%. The regular run includes the full
 candidate set and Settings at 200%.
-Use `QTRANSLATE_SCREENSHOT_SCENES=selector` to capture only the Classic selector density audit
-at 100% and 200%, plus RTL.
+Use `QTRANSLATE_SCREENSHOT_SCENES=selector` to capture only the Classic selector audit at 100%
+and 200%, plus RTL and light theme.

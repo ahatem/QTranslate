@@ -253,6 +253,10 @@ private class Shots(
         start(Scenes.arabic("classic").copy(serviceSelectorStyle = ServiceSelectorStyle.CLASSIC))
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
         capture("classic-selector-rtl-dark")
+
+        start(Scenes.classicSelector(Scenes.LIGHT))
+        translate(LanguageCode("fr"), Scenes.SELECTION)
+        capture("classic-selector-light")
     }
 
     suspend fun settingsDensityAudit() {

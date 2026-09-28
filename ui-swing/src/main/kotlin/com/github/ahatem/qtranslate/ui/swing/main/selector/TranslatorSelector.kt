@@ -14,6 +14,7 @@ import java.awt.event.ComponentEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.*
+import javax.swing.border.AbstractBorder
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 class TranslatorSelector(
@@ -24,30 +25,53 @@ class TranslatorSelector(
     private companion object { const val CLASSIC = "classic"; const val ENHANCED = "enhanced"; const val ICON_SIZE = 16 }
 
     private var state = TranslatorSelectorState(emptyList(), null, false)
-    private val activeSlot = JPanel(BorderLayout()).apply { isOpaque = false }
-    private val otherButtons = JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(2), 0)).apply { isOpaque = false }
+    private var activeServiceId: String? = null
+    // Classic keeps the original QTranslate's adjacent bottom tabs, with complete labels and
+    // a single adaptive overflow menu for today's larger plugin set.
+    private val serviceStrip = object : JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)) {
+        override fun paintChildren(g: Graphics) {
+            super.paintChildren(g)
+            val segments = components.sortedBy { it.x }
+            g.color = UIManager.getColor("Component.borderColor") ?: Color.GRAY
+            val inset = UIScale.scale(4)
+            segments.drop(1).forEach { segment ->
+                g.drawLine(segment.x, inset, segment.x, height - inset - 1)
+            }
+        }
+    }.apply { isOpaque = false }
     private var activeButton: JToggleButton? = null
     private var remainingButtons: List<JToggleButton> = emptyList()
     private val overflowMenu = JButton("More ▾").apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
+        putClientProperty(FlatClientProperties.STYLE, "arc: 0")
         margin = compactButtonMargin()
         toolTipText = "All services"
         addActionListener { showOverflowMenu(this) }
     }
     private val configureActive = JButton(iconManager.getIcon(Icons.SETTINGS, 16, 16)).apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
+        putClientProperty(FlatClientProperties.STYLE, "arc: 0")
         margin = compactButtonMargin()
         toolTipText = "Configure active translation service"
-        addActionListener { state.selectedTranslatorId?.let(onConfigureService) }
+        addActionListener { activeServiceId?.let(onConfigureService) }
     }
-    private val classicControls = JPanel(FlowLayout(FlowLayout.TRAILING, 0, 0)).apply {
-        isOpaque = false; add(overflowMenu); add(configureActive)
-    }
-    private val classic = JPanel(BorderLayout(UIScale.scale(2), 0)).apply {
-        isOpaque = false
-        add(activeSlot, BorderLayout.LINE_START)
-        add(otherButtons, BorderLayout.CENTER)
-        add(classicControls, BorderLayout.LINE_END)
+    private val classic = JPanel(BorderLayout()).apply {
+        border = object : AbstractBorder() {
+            override fun getBorderInsets(c: Component) = Insets(
+                UIScale.scale(1), UIScale.scale(1), UIScale.scale(1), UIScale.scale(1)
+            )
+
+            override fun paintBorder(c: Component, g: Graphics, x: Int, y: Int, width: Int, height: Int) {
+                val original = g.color
+                g.color = UIManager.getColor("Component.borderColor") ?: Color.GRAY
+                repeat(UIScale.scale(1)) { inset ->
+                    g.drawRect(x + inset, y + inset, width - 1 - inset * 2, height - 1 - inset * 2)
+                }
+                g.color = original
+            }
+        }
+        add(serviceStrip, BorderLayout.LINE_START)
+        add(configureActive, BorderLayout.LINE_END)
         addComponentListener(object : ComponentAdapter() {
             override fun componentResized(e: ComponentEvent) = fitClassicButtons()
         })
@@ -60,6 +84,7 @@ class TranslatorSelector(
 
     override fun render(state: TranslatorSelectorState) {
         this.state = state
+        serviceStrip.componentOrientation = componentOrientation
         if (state.style == ServiceSelectorStyle.CLASSIC) rebuildClassic() else rebuildEnhanced()
         (layout as CardLayout).show(this, if (state.style == ServiceSelectorStyle.CLASSIC) CLASSIC else ENHANCED)
         revalidate(); repaint()
@@ -68,6 +93,7 @@ class TranslatorSelector(
     private fun rebuildClassic() {
         val services = state.availableTranslators
         val selected = services.find { it.id == state.selectedTranslatorId } ?: services.firstOrNull()
+        activeServiceId = selected?.id
         val group = ButtonGroup()
         val buttons = services.associate { service ->
             val serviceIcon = loadIcon(service)
@@ -80,6 +106,7 @@ class TranslatorSelector(
                 toolTipText = service.name; isSelected = service.id == selected?.id
                 isEnabled = !state.isLoading; isOpaque = false
                 putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
+                putClientProperty(FlatClientProperties.STYLE, "arc: 0")
                 margin = compactButtonMargin()
                 addActionListener { onServiceSelected(ServiceRole.TRANSLATOR, service.id) }
                 addMouseListener(object : MouseAdapter() {
@@ -87,9 +114,7 @@ class TranslatorSelector(
                 })
             }.also(group::add)
         }
-        activeSlot.removeAll()
         activeButton = selected?.let { buttons[it.id] }
-        activeButton?.let { activeSlot.add(it) }
         remainingButtons = services.filter { it.id != selected?.id }.mapNotNull { buttons[it.id] }
         configureActive.isEnabled = !state.isLoading && selected != null
         overflowMenu.isEnabled = !state.isLoading
@@ -100,25 +125,24 @@ class TranslatorSelector(
     private fun fitClassicButtons() {
         val width = classic.width
         if (width <= 0) return
-        val gap = UIScale.scale(2)
         val activeWidth = activeButton?.preferredSize?.width ?: 0
-        overflowMenu.isVisible = false
-        val needed = remainingButtons.sumOf { it.preferredSize.width + gap }
-        val basicSpace = width - classic.insets.left - classic.insets.right - activeWidth -
-            classicControls.preferredSize.width - gap * 4
-        val overflow = needed > basicSpace
-        overflowMenu.isVisible = overflow
-        val room = (width - classic.insets.left - classic.insets.right - activeWidth -
-            classicControls.preferredSize.width - gap * 4).coerceAtLeast(0)
-        otherButtons.removeAll()
+        val room = (width - classic.insets.left - classic.insets.right -
+            configureActive.preferredSize.width - activeWidth).coerceAtLeast(0)
+        val overflow = remainingButtons.sumOf { it.preferredSize.width } > room
+        val serviceRoom = (room - if (overflow) overflowMenu.preferredSize.width else 0).coerceAtLeast(0)
+        val visibleButtons = mutableListOf<AbstractButton>()
+        activeButton?.let { visibleButtons.add(it) }
         var used = 0
         for (button in remainingButtons) {
-            val next = button.preferredSize.width + gap
-            if (used + next > room) break
-            otherButtons.add(button)
-            used += next
+            if (used + button.preferredSize.width > serviceRoom) break
+            visibleButtons.add(button)
+            used += button.preferredSize.width
         }
-        overflowMenu.isVisible = overflow || otherButtons.componentCount < remainingButtons.size
+        if (overflow) visibleButtons.add(overflowMenu)
+        if (serviceStrip.components.toList() != visibleButtons) {
+            serviceStrip.removeAll()
+            visibleButtons.forEach { serviceStrip.add(it) }
+        }
         classic.revalidate()
         classic.repaint()
     }
@@ -165,7 +189,7 @@ class TranslatorSelector(
         val menu = JPopupMenu()
         val group = ButtonGroup()
         state.availableTranslators.forEach { service ->
-            menu.add(JRadioButtonMenuItem(service.name, loadIcon(service), service.id == state.selectedTranslatorId).apply {
+            menu.add(JRadioButtonMenuItem(service.name, loadIcon(service), service.id == activeServiceId).apply {
                 isEnabled = !state.isLoading
                 addActionListener { onServiceSelected(ServiceRole.TRANSLATOR, service.id) }
                 group.add(this)

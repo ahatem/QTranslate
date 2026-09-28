@@ -131,6 +131,32 @@ class TranslatorSelectorTest {
     }
 
     @Test
+    fun `More follows the last visible service in the Classic strip`() {
+        val selector = selector()
+        onEdt { selector.render(state(services(12))) }
+        size(selector, 500)
+
+        val more = descendants(selector).filterIsInstance<JButton>().first { it.toolTipText == "All services" }
+        val preceding = more.parent.components.filterIsInstance<JToggleButton>().last()
+        assertEquals(preceding.x + preceding.width, more.x)
+    }
+
+    @Test
+    fun `the first service remains configurable and marked when no selection is saved`() {
+        val configured = mutableListOf<String>()
+        val selector = TranslatorSelector(TestIcons.iconManager(), { _, _ -> }, configured::add)
+        onEdt { selector.render(state(services(2), selectedId = null)) }
+        size(selector, 300)
+
+        val gear = descendants(selector).filterIsInstance<JButton>()
+            .first { it.toolTipText == "Configure active translation service" }
+        onEdt { gear.doClick() }
+
+        assertEquals(listOf("service-0"), configured)
+        assertTrue(selector.overflowMenuForTest().components.filterIsInstance<JRadioButtonMenuItem>().first().isSelected)
+    }
+
+    @Test
     fun `appearance controls whether icon, text, or both are shown`() {
         val selector = selector()
         val translators = services(1)
