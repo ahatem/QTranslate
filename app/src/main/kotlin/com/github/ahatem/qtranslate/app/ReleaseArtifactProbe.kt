@@ -11,13 +11,19 @@ import java.io.File
 
 private object ProbeLocation
 
-/** Readiness check launched from the extracted portable distribution in CI. */
+/** Readiness check launched from an extracted release distribution in CI. */
 fun main(args: Array<String>) = runBlocking {
     require(args.size == 1) { "Expected extracted QTranslate directory" }
     val distribution = File(args[0]).canonicalFile
     val expectedIds = File(distribution, "portable-plugin-ids.txt").readLines().filter(String::isNotBlank).toSet()
     require(expectedIds.isNotEmpty()) { "Bundled plugin inventory is empty" }
-    val appJar = File(distribution, "QTranslate.jar").canonicalFile
+    val portableJar = File(distribution, "QTranslate.jar")
+    val packagedJar = File(distribution, "app/QTranslate.jar")
+    val appJar = when {
+        portableJar.isFile -> portableJar
+        packagedJar.isFile -> packagedJar
+        else -> error("QTranslate.jar is missing from the release distribution")
+    }.canonicalFile
     val runningJar = File(ProbeLocation::class.java.protectionDomain.codeSource.location.toURI()).canonicalFile
     check(appJar == runningJar) { "Readiness check must run from the extracted QTranslate.jar" }
     check(File(distribution, "languages").isDirectory) { "Bundled languages directory is missing" }
@@ -52,7 +58,7 @@ fun main(args: Array<String>) = runBlocking {
         }
         Class.forName("javazoom.jl.player.Player")
         Class.forName("javazoom.jl.decoder.Bitstream")
-        println("Portable readiness passed: ${plugins.size} plugins and JLayer loaded on Java ${Runtime.version().feature()}")
+        println("Release readiness passed: ${plugins.size} plugins and JLayer loaded on Java ${Runtime.version().feature()}")
     } finally {
         try {
             dependencies.pluginManager.shutdown()
