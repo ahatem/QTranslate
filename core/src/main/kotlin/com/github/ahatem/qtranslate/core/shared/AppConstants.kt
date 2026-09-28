@@ -10,7 +10,7 @@ object AppConstants {
     // ============================================================
 
     /** Exact release identity used by About and the updater; candidate and tag builds validate it. */
-    const val APP_VERSION = "1.4.1"
+    const val APP_VERSION = "1.5.0-rc.1"
 
     // ============================================================
     // Timing
