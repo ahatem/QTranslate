@@ -238,7 +238,7 @@ data class Configuration(
     val closePopupsOnClickOutside: Boolean = true,
     val mainWindowSize: Size? = null,
     val mainWindowPosition: Position? = null,
-    val uiFontConfig: FontConfig = FontConfig(name = "Rubik", size = 13),
+    val uiFontConfig: FontConfig = FontConfig(name = "Inter", size = 13),
     val uiScale: Int = 100,
     val themeId: String = "os_default",
     /**
@@ -248,18 +248,20 @@ data class Configuration(
      * somebody's choice, and an unknown one falls back rather than leaving no icons at all.
      */
     val iconSetId: String = "lucide",
-    val editorFontConfig: FontConfig = FontConfig(name = "Rubik", size = 15),
+    val editorFontConfig: FontConfig = FontConfig(name = "Inter", size = 15),
     /**
      * The face used for characters the editor font has no glyph for.
      *
-     * Defaults to the bundled Arabic face rather than to Rubik, which covers no Arabic at all.
-     * Pointing the fallback at a font with the same gap as the primary meant right-to-left output
-     * was left to whatever the platform substituted, so the same translation rendered differently
-     * on Windows, on Linux and in a container with no Arabic font installed.
+     * [FontConfig.AUTOMATIC] rather than a specific bundled face: QTranslate serves users across
+     * every script, and a single physical font — however good its own coverage — is never the
+     * right universal answer for text it was never designed to draw. The runtime's own logical
+     * font resolves per platform instead, with the application's existing shaped-text machinery
+     * still guarding correctness wherever that resolution is unsound.
      *
-     * Only new installations pick this up; an existing configuration keeps whatever is stored.
+     * Only new installations pick this up; an existing configuration keeps whatever is stored,
+     * including a prior install's explicit "Noto Naskh Arabic".
      */
-    val editorFallbackFontConfig: FontConfig = FontConfig(name = "Noto Naskh Arabic", size = 15),
+    val editorFallbackFontConfig: FontConfig = FontConfig(name = FontConfig.AUTOMATIC, size = 15),
     val useUnifiedTitleBar: Boolean = true,
     val layoutPresetId: String = "classic",
     val toolbarVisibility: ToolbarVisibility = ToolbarVisibility.DEFAULT,
@@ -342,9 +344,9 @@ data class Configuration(
                 clearHistoryOnExit           = false,
                 uiScale                      = 100,
                 themeId                      = "os_default",
-                uiFontConfig                 = FontConfig(name = "Rubik", size = 13),
-                editorFontConfig             = FontConfig(name = "Rubik", size = 15),
-                editorFallbackFontConfig     = FontConfig(name = "Noto Naskh Arabic", size = 15),
+                uiFontConfig                 = FontConfig(name = "Inter", size = 13),
+                editorFontConfig             = FontConfig(name = "Inter", size = 15),
+                editorFallbackFontConfig     = FontConfig(name = FontConfig.AUTOMATIC, size = 15),
                 useUnifiedTitleBar           = true,
                 layoutPresetId               = "classic",
                 toolbarVisibility            = ToolbarVisibility.DEFAULT,

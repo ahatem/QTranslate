@@ -269,8 +269,11 @@ val validateReleaseSizes by tasks.registering(ValidateReleaseSizesTask::class) {
     dependsOn(assembleAppOnly, assemblePortable)
     appArtifact.set(releaseOutputDirectory.map { it.file("QTranslate-App-${releaseVersion.get()}.jar") })
     portableArtifact.set(releaseOutputDirectory.map { it.file("QTranslate-${releaseVersion.get()}.zip") })
-    maxAppBytes.set(55L * 1024 * 1024)
-    maxPortableBytes.set(53L * 1024 * 1024)
+    // Raised for the bundled Inter typeface (P10-C2), a deliberate ~1.4 MiB of packaged product
+    // functionality rather than accidental bloat. Budgets stay tight enough to catch a real
+    // regression on top of it.
+    maxAppBytes.set(58L * 1024 * 1024)
+    maxPortableBytes.set(55L * 1024 * 1024)
     maxBundledPluginsBytes.set(3L * 1024 * 1024)
     reportFile.set(releaseOutputDirectory.map { it.file("SIZE_REPORT.md") })
 }
