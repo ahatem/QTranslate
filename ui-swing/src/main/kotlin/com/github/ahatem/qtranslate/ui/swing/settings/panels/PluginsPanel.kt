@@ -118,10 +118,13 @@ class PluginsPanel(
     }
 
     init {
-        // PluginsPanel overrides the SettingsPanel GridBag layout
+        // PluginsPanel overrides the SettingsPanel GridBag layout, but its outer edge still
+        // matches SettingsPanel.EDGE (scaled) so the page doesn't read as a different density
+        // from its siblings the moment the sidebar selects it.
         removeAll()
         layout = BorderLayout()
-        border = BorderFactory.createEmptyBorder(10, 8, 8, 10)
+        val edge = UIScale.scale(SettingsPanel.EDGE)
+        border = BorderFactory.createEmptyBorder(edge, UIScale.scale(8), UIScale.scale(8), edge)
 
         searchField.apply {
             putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT,

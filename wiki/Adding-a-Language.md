@@ -6,21 +6,30 @@ QTranslate's interface can be translated into any language using a plain TOML fi
 
 ## Bundled languages
 
-These languages ship with QTranslate and are always available:
+English (US) is the source language, embedded directly in the application as the fallback every
+other language completes from — it isn't a file under `languages/`. Alongside it, QTranslate ships
+18 `languages/*.toml` files and is always able to use any of them:
 
 | Language | File | RTL |
 |----------|------|-----|
-| English (US) | `en` *(default)* | No |
 | English (UK) | `en-GB` | No |
 | Arabic (Saudi Arabia) | `ar-SA` | **Yes** |
+| Bengali (Bangladesh) | `bn-BD` | No |
 | Chinese (Simplified) | `zh-CN` | No |
+| Chinese (Traditional) | `zh-TW` | No |
 | French | `fr-FR` | No |
 | German | `de-DE` | No |
+| Hungarian | `hu-HU` | No |
+| Indonesian | `id-ID` | No |
+| Italian | `it-IT` | No |
 | Japanese | `ja-JP` | No |
+| Korean | `ko-KR` | No |
 | Portuguese (Brazil) | `pt-BR` | No |
 | Russian | `ru-RU` | No |
 | Spanish (Spain) | `es-ES` | No |
 | Turkish | `tr-TR` | No |
+| Ukrainian | `uk-UA` | No |
+| Vietnamese | `vi-VN` | No |
 
 ---
 
@@ -35,7 +44,8 @@ The path is printed in the logs at startup:
 
 **2. Copy the English source file**
 
-Open the `languages/` subfolder. Copy `en.toml` and rename it to your language code:
+Open the `languages/` subfolder. Copy `en-GB.toml` and rename it to your language code — it carries
+the complete, always-current key set:
 
 | Language | Filename |
 |----------|----------|

@@ -215,7 +215,7 @@ class MainContentView(
         },
     )
 
-    private val imageSearchPanel = ImageSearchPanel()
+    private val imageSearchPanel = ImageSearchPanel(iconManager)
 
     private val lookupDock = LookupDock(
         dictionary = dictionaryPanel,
@@ -271,7 +271,6 @@ class MainContentView(
         val lookupLanguage: LanguageCode,
         val selectedDictionaryId: String?,
         val dictionaryCount: Int,
-        val autoSource: com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource,
         /** Part of the key so the headword's Listen control flips when playback starts or stops. */
         val isTtsPlaying: Boolean,
     )
@@ -450,11 +449,16 @@ class MainContentView(
         )
 
         renderDictionaryPanel(mainState, config)
-        if (mainState.isImagesDockVisible) renderImageSearchPanel(mainState)
+        if (mainState.isImagesDockVisible) renderImageSearchPanel(mainState, config)
     }
 
-    private fun renderImageSearchPanel(mainState: MainState) {
+    private fun renderImageSearchPanel(mainState: MainState, config: Configuration) {
         val language = mainState.resolvedSourceLanguage
+        val availableServices = mainState.getAvailableServicesFor(
+            com.github.ahatem.qtranslate.api.plugin.ServiceRole.IMAGE_SEARCH
+        )
+        val selectedServiceId = config.getActivePreset()
+            ?.selectedServices?.get(com.github.ahatem.qtranslate.api.plugin.ServiceRole.IMAGE_SEARCH)
         imageSearchPanel.render(
             ImageSearchPanelState(
                 isLoading = mainState.isImageSearchLoading,
@@ -463,6 +467,17 @@ class MainContentView(
                 hasFailed = mainState.imageSearchFailed,
                 strings = imageSearchStrings(localizer, mainState.imageSearchTerm),
                 onSearch = { term -> dispatch(MainIntent.SearchImages(term, language)) },
+                availableServices = availableServices,
+                selectedServiceId = selectedServiceId,
+                onServiceSelected = { serviceId ->
+                    dispatchSettings(
+                        SettingsIntent.UpdateServiceInActivePreset(
+                            com.github.ahatem.qtranslate.api.plugin.ServiceRole.IMAGE_SEARCH, serviceId
+                        )
+                    )
+                    val term = mainState.imageSearchTerm
+                    if (term.isNotBlank()) dispatch(MainIntent.SearchImages(term, language))
+                },
                 onImageOpened = onOpenImageSource
             )
         )
@@ -488,7 +503,6 @@ class MainContentView(
             lookupLanguage    = resolvedLang,
             selectedDictionaryId = selectedDictId,
             dictionaryCount   = availableDicts.size,
-            autoSource        = config.dictionaryAutoSource,
             isTtsPlaying      = mainState.isTtsPlaying,
         )
         if (key == lastDictionaryKey) return
@@ -512,15 +526,6 @@ class MainContentView(
                     hasFailed             = key.hasFailed,
                     availableDictionaries = availableDicts,
                     selectedDictionaryId  = key.selectedDictionaryId,
-                    autoSource            = key.autoSource,
-                    autoSourceOffLabel        = localizer.getString("dictionary_dialog.auto_source_off"),
-                    autoSourceTranslatedLabel = localizer.getString("dictionary_dialog.auto_source_translated"),
-                    autoSourceSourceLabel     = localizer.getString("dictionary_dialog.auto_source_source"),
-                    onAutoSourceChanged   = { newSource ->
-                        dispatchSettings(
-                            SettingsIntent.ToggleSetting { it.copy(dictionaryAutoSource = newSource) }
-                        )
-                    },
                     // The headword belongs to the lookup, not to a panel, so it carries the
                     // language the lookup was made in rather than the input panel's.
                     onListen = { word ->

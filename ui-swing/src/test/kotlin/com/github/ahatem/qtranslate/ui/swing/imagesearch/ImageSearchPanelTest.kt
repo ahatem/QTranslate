@@ -1,6 +1,9 @@
 package com.github.ahatem.qtranslate.ui.swing.imagesearch
 
 import com.github.ahatem.qtranslate.api.imagesearch.ImageResult
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
+import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
+import com.github.ahatem.qtranslate.ui.swing.shared.TestIcons
 import java.awt.Component
 import java.awt.Container
 import java.awt.event.MouseEvent
@@ -27,6 +30,7 @@ class ImageSearchPanelTest {
         title = "Image Search", hintMessage = "Type a word", loadingMessage = "Searching",
         notFoundMessage = "Nothing found", errorMessage = "Failed", searchButtonLabel = "Search",
         openTooltip = "Open", openSourceLabel = "Open source", backLabel = "Back",
+        previousLabel = "Previous", nextLabel = "Next",
         pinTooltip = "Pin", unpinTooltip = "Unpin", closeTooltip = "Close"
     )
 
@@ -35,15 +39,26 @@ class ImageSearchPanelTest {
         ImageResult("http://127.0.0.1:1/t$it.png", "http://127.0.0.1:1/f$it.png", title = "Picture $it", license = "CC BY")
     }
 
+    private fun service(id: String, name: String = id) = ServiceInfo(id, name, iconPath = null, type = ServiceRole.IMAGE_SEARCH)
+
     private fun state(
         term: String = "",
         found: List<ImageResult> = emptyList(),
         loading: Boolean = false,
         failed: Boolean = false,
         onSearch: (String) -> Unit = {},
-    ) = ImageSearchPanelState(loading, found, term, failed, strings, onSearch, onImageOpened = {})
+        availableServices: List<ServiceInfo> = emptyList(),
+        selectedServiceId: String? = null,
+        onServiceSelected: (String) -> Unit = {},
+    ) = ImageSearchPanelState(
+        loading, found, term, failed, strings, onSearch,
+        availableServices = availableServices,
+        selectedServiceId = selectedServiceId,
+        onServiceSelected = onServiceSelected,
+        onImageOpened = {}
+    )
 
-    private fun panel() = ImageSearchPanel().also { panels += it }
+    private fun panel() = ImageSearchPanel(TestIcons.iconManager()).also { panels += it }
 
     private fun onEdt(block: () -> Unit) = SwingUtilities.invokeAndWait(block)
 
@@ -147,8 +162,8 @@ class ImageSearchPanelTest {
         val dialog = File(root, "imagesearch/ImageSearchDialog.kt").readText()
         val main = File(root, "main/MainContentView.kt").readText()
 
-        assertTrue("ImageSearchPanel()" in dialog, "the popup mounts the panel")
-        assertTrue("ImageSearchPanel()" in main, "the dock mounts the exact same panel, with no host-supplied padding flag")
+        assertTrue("ImageSearchPanel(" in dialog, "the popup mounts the panel")
+        assertTrue("ImageSearchPanel(" in main, "the dock mounts the exact same panel, with no host-supplied padding flag")
         // The popup is only the window around it: nothing of the content stayed behind.
         listOf("GridLayout", "ScaledImage", "ElidingLabel", "ThumbnailLoader", "JScrollPane").forEach {
             assertFalse(it in dialog, "ImageSearchDialog no longer owns $it")
@@ -176,5 +191,56 @@ class ImageSearchPanelTest {
         val fieldPoint = SwingUtilities.convertPoint(panel.searchFieldComponent, 0, 0, panel)
         val tilePoint = SwingUtilities.convertPoint(tile, 0, 0, panel)
         assertTrue(kotlin.math.abs(fieldPoint.x - tilePoint.x) <= 1, "the search field and the first tile start at the same left edge (field=${fieldPoint.x} tile=${tilePoint.x})")
+    }
+
+    @Test
+    fun `the provider picker stays hidden with zero or one Image Search service`() {
+        val panel = panel()
+        onEdt { panel.render(state()) }
+        assertFalse(panel.isServicePickerVisibleForTest(), "no services -- nothing to pick between")
+
+        onEdt { panel.render(state(availableServices = listOf(service("wikimedia")))) }
+        assertFalse(panel.isServicePickerVisibleForTest(), "one service -- still nothing to pick between")
+        assertEquals("wikimedia", panel.serviceIdentityForTest(), "one provider is named beside search")
+    }
+
+    @Test
+    fun `the provider picker appears once a second Image Search service exists, and reports a selection`() {
+        val reported = mutableListOf<String>()
+        val panel = panel()
+        val services = listOf(service("wikimedia", "Wikimedia Commons"), service("other-provider", "Other Provider"))
+        onEdt {
+            panel.render(
+                state(
+                    availableServices = services,
+                    selectedServiceId = "wikimedia",
+                    onServiceSelected = { reported += it }
+                )
+            )
+        }
+        assertTrue(panel.isServicePickerVisibleForTest(), "two services -- a real choice exists")
+        assertEquals("wikimedia", panel.selectedServiceForTest()?.id)
+
+        onEdt { panel.selectServiceForTest(services[1]) }
+        assertEquals(listOf("other-provider"), reported)
+    }
+
+    @Test
+    fun `opening a picture shows Previous and Next only when there is somewhere to browse`() {
+        val panel = panel()
+        onEdt { panel.render(state(term = "cat", found = results(1))) }
+        size(panel, 700)
+        val soleTile = descendants(panel).first { it.cursor.type == java.awt.Cursor.HAND_CURSOR }
+        onEdt { soleTile.dispatchEvent(MouseEvent(soleTile, MouseEvent.MOUSE_CLICKED, 0L, 0, 5, 5, 1, false)) }
+        assertFalse("Previous" in panel.previewActionLabelsForTest(), "one result -- nothing to browse to")
+        onEdt { panel.stepBack() }
+
+        onEdt { panel.render(state(term = "cat", found = results(3))) }
+        size(panel, 700)
+        val tiles = descendants(panel).filter { it.cursor.type == java.awt.Cursor.HAND_CURSOR }
+        onEdt { tiles[0].dispatchEvent(MouseEvent(tiles[0], MouseEvent.MOUSE_CLICKED, 0L, 0, 5, 5, 1, false)) }
+        val labelsAtFirst = panel.previewActionLabelsForTest()
+        assertTrue("Next" in labelsAtFirst, "more results exist ahead")
+        assertTrue("Previous" in labelsAtFirst, "Previous is shown even though disabled at the first result")
     }
 }

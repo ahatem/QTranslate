@@ -74,11 +74,6 @@ class QuickTranslateDialog(
             ?: UIManager.getColor("Component.accentColor")
             ?: borderColor
 
-    /** A field, not an inline lambda, so it can be detached when the window goes away. */
-    private val themeListener = java.beans.PropertyChangeListener { event ->
-        if (event.propertyName == "lookAndFeel") SwingUtilities.invokeLater { refreshTheme() }
-    }
-
     /** Panels carrying a themed divider, kept so it can be redrawn in the new theme's colour. */
     private val dividedPanels = mutableListOf<Pair<JPanel, () -> javax.swing.border.Border>>()
 
@@ -233,7 +228,7 @@ class QuickTranslateDialog(
         mainPanel.add(resultsView, BorderLayout.CENTER)
 
         setupWindowBehavior(topPanel)
-        UIManager.addPropertyChangeListener(themeListener)
+        popup.installTheme(::refreshTheme)
         updatePinButtonStyle(isPinned)
     }
 
@@ -774,7 +769,7 @@ class QuickTranslateDialog(
             override fun windowClosing(e: WindowEvent) = onDismiss()
             override fun windowClosed(e: WindowEvent) {
                 uninstallAwtMouseListener()
-                UIManager.removePropertyChangeListener(themeListener)
+                popup.uninstallTheme()
             }
         })
 

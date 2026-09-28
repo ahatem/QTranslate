@@ -9,9 +9,41 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **System Services plugin.** Offline OCR, text-to-speech, and spell checking using each platform's own capabilities — no account, API key, or network access required. Windows and macOS ship fully self-contained; on Linux, OCR needs `tesseract`, TTS needs `espeak`/`espeak-ng`, and spell checking needs `enchant` or `hunspell` installed and on `PATH`
+- **Parallel translation comparison.** Configure a primary translator and one or more secondary translators as a translator set, and see every result side by side in the new Comparison layout — useful for catching an odd phrasing or checking one engine's output against another
+- **Hotkey presets.** Switch the whole hotkey scheme between **Legacy QTranslate** and **Modern** from one dropdown, or customize individual bindings freely — QTranslate tracks which preset (if any) your current bindings match and shows **Custom** the moment you diverge
+- **Keep the main window on top.** A small pin next to the Settings gear keeps QTranslate above other windows until you unpin it. It's a per-session choice, not a saved setting
+- Image Search now offers a provider picker in both the docked and floating views, the same way Dictionary already did — it stays hidden until a second Image Search plugin is actually installed
+- **Indonesian**, contributed by [@Yoruxyv](https://github.com/Yoruxyv); **Ukrainian**, contributed by [@AOgit](https://github.com/AOgit) and [@kopejkin](https://github.com/kopejkin); **Traditional Chinese**, contributed by [@afunnyfrog](https://github.com/afunnyfrog); and **Korean**, translated by [@Apious](https://github.com/Apious) — bringing the interface to 18 bundled locale files
+
 ### Changed
 - Project source code is now licensed under the Mozilla Public License 2.0. Earlier revisions remain under MIT, and release packages now carry the project and third-party licensing notices.
 - Salmon and Clean Sheet now ship as separate files in the `themes/` directory instead of being embedded in the application JAR. Existing saved selections for either theme continue to work.
+- **Global hotkeys now run on QInput**, a new low-level input backend, replacing the previous hook-based capture path. Existing hotkey bindings and the global/app-local distinction carry over unchanged
+- **Main window layouts simplified to three**: Classic, Side-by-side, and the new Comparison. The old Compact layout is gone — pick whichever of the three fits your screen. Choosing Comparison without two usable translators now tells you so directly, from the layout picker itself, instead of quietly greying out
+- **Translator configuration unified.** Services & Presets now configures one ordered translator set (primary plus secondaries) instead of a separate comparison-translator list
+- **Typography defaults modernized.** New installations default to Inter for the interface and editor font, with a platform-resolved fallback for scripts the interface font doesn't cover, replacing the previous Rubik/bundled-Arabic-font defaults. Existing configurations keep whatever font they already had
+- **Clean-install defaults are more deliberate per service role.** Translator and TTS stay on Google; Spell Checker and Dictionary now default to System Spell Checker and Wiktionary, since Google's versions of both depend on an unofficial, no-fallback endpoint that can be rate-limited independently of Translator's own; OCR now defaults to System OCR rather than a Google option that never actually registers without a Vision API key. Existing configurations are unaffected
+- **Dictionary auto-lookup is a checkbox plus a choice, not a three-way dropdown that hid "off" as one of its own values.** The floating popup's identical cryptic toggle is gone the same way
+- The enlarged view in Image Search now loads the full-resolution picture instead of the same thumbnail as the grid, with Previous/Next buttons when there's more than one result to browse
+- The Classic service row gained a one-click "all services" menu for anything scrolled out of view, its spacing now follows the display's zoom level, and every button in it is reachable from the keyboard
+- Settings pages have slightly more breathing room, and that spacing now follows the display's zoom level correctly instead of staying a fixed size at 125%/150%/200%
+- **Release packaging hardened.** The portable build now enforces a maximum bytecode version so it stays runnable on the oldest supported Java runtime, and every release artifact — checksums, metadata, plugin inventory, bundled native helpers — is verified before publishing
+- The updater now compares versions using full SemVer precedence instead of ignoring prerelease suffixes, so a stable release and a same-numbered prerelease (e.g. `1.5.0` vs `1.5.0-rc.1`) are ordered correctly
+
+### Fixed
+- Application startup and shutdown hardened against partial-initialization failures
+- Windows "launch on startup" now registers correctly and starts hidden in the tray
+- **Escape** reliably hides output panes and the main window again, and focus returns to the right place afterward
+- The floating selection button now scales correctly with per-monitor DPI in multi-monitor setups
+- The clipboard is preserved during selection capture instead of being left in an intermediate state
+- Google services automatically bypass the unofficial endpoint when it's unhealthy, instead of failing outright
+- Dangling localization references were repaired, and multiline locale values are now rejected during loading instead of corrupting adjacent keys
+- Draft settings changes are preserved until you click Apply, instead of being lost if you switch pages first
+- The Modern hotkey preset no longer binds Show Dictionary and Translate Document to the same shortcut
+- A fresh install now picks up your system's language automatically, the same way it did before an unrelated fix accidentally pinned it to English
+- Quick Translate's theme refresh now goes through the same shared mechanism as Quick Dictionary and Image Search, instead of a separate copy of it
 
 ## [1.4.1] — 2026-08-18
 

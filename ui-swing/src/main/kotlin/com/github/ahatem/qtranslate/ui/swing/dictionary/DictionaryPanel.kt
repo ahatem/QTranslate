@@ -1,17 +1,11 @@
 package com.github.ahatem.qtranslate.ui.swing.dictionary
 
-import com.formdev.flatlaf.extras.FlatSVGIcon
-import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
-import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
-import com.github.ahatem.qtranslate.ui.swing.shared.util.createToolbarButton
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Color
-import java.awt.FlowLayout
 import javax.swing.*
-import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ServiceInfoRenderer
 
 /**
@@ -54,23 +48,7 @@ class DictionaryPanel(
 
     private var updatingFromState = false
 
-    private val activeLinkIconBase: FlatSVGIcon =
-        iconManager.getIcon(Icons.NETWORK, 13, 13) as FlatSVGIcon
-    private val offUnlinkIconBase: FlatSVGIcon =
-        iconManager.getIcon(Icons.UNPIN, 13, 13) as FlatSVGIcon
-
-    private val autoSourceButton = createToolbarButton().apply {
-        iconTextGap = 4
-    }
-    private var currentAutoSource: DictionaryAutoSource = DictionaryAutoSource.TRANSLATED
-
     init {
-        val headerPanel = JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)).apply {
-            isOpaque = false
-            border = BorderFactory.createEmptyBorder(0, 0, UIScale.scale(8), 0)
-            add(autoSourceButton)
-        }
-
         val searchPanel = JPanel(BorderLayout(6, 0)).apply {
             isOpaque = false
             border = BorderFactory.createEmptyBorder(0, 0, 8, 0)
@@ -82,14 +60,12 @@ class DictionaryPanel(
         cardPanel.add(loadingLabel, "loading")
         cardPanel.add(resultView, "results")
 
+        // Provider, search term, Look Up -- automatic lookup behavior is configured in Settings,
+        // not here, so there is nothing else in this header.
         val topPanel = JPanel(BorderLayout()).apply {
             isOpaque = false
-            add(headerPanel, BorderLayout.NORTH)
-            add(JPanel(BorderLayout()).apply {
-                isOpaque = false
-                add(serviceRow, BorderLayout.NORTH)
-                add(searchPanel, BorderLayout.CENTER)
-            }, BorderLayout.CENTER)
+            add(serviceRow, BorderLayout.NORTH)
+            add(searchPanel, BorderLayout.CENTER)
         }
 
         val contentArea = JPanel(BorderLayout()).apply {
@@ -111,15 +87,6 @@ class DictionaryPanel(
             }
         }
 
-        autoSourceButton.addActionListener {
-            val next = when (currentAutoSource) {
-                DictionaryAutoSource.OFF -> DictionaryAutoSource.TRANSLATED
-                DictionaryAutoSource.TRANSLATED -> DictionaryAutoSource.SOURCE
-                DictionaryAutoSource.SOURCE -> DictionaryAutoSource.OFF
-            }
-            (getClientProperty("onAutoSourceChanged") as? (DictionaryAutoSource) -> Unit)?.invoke(next)
-        }
-
         // Apply initial styling
         isInitialized = true
         refreshAllColors()
@@ -136,7 +103,6 @@ class DictionaryPanel(
 
     private fun refreshAllColors() {
         refreshLabelColors()
-        refreshIcons()
     }
 
     private fun refreshLabelColors() {
@@ -150,46 +116,7 @@ class DictionaryPanel(
         loadingLabel.foreground = disabledColor
     }
 
-    private fun refreshIcons() {
-        val accentColor = UIManager.getColor("Component.accentColor")
-            ?: UIManager.getColor("Actions.Blue")
-            ?: Color(0x2675BF)
-
-        val disabledColor = UIManager.getColor("Label.disabledForeground")
-            ?: UIManager.getColor("Label.foreground")?.let {
-                Color(it.red, it.green, it.blue, 128)
-            }
-            ?: Color.GRAY
-
-        // Recreate icons with current theme colors
-        activeLinkIconBase.colorFilter = FlatSVGIcon.ColorFilter { accentColor }
-        offUnlinkIconBase.colorFilter = FlatSVGIcon.ColorFilter { disabledColor }
-    }
-
     fun render(state: DictionaryPanelState) {
-        // Sync auto-source button
-        putClientProperty("onAutoSourceChanged", state.onAutoSourceChanged)
-        if (currentAutoSource != state.autoSource) {
-            currentAutoSource = state.autoSource
-        }
-        val (autoLabel, autoTip) = when (state.autoSource) {
-            DictionaryAutoSource.OFF -> state.autoSourceOffLabel to state.autoSourceOffLabel
-            DictionaryAutoSource.TRANSLATED -> state.autoSourceTranslatedLabel to state.autoSourceTranslatedLabel
-            DictionaryAutoSource.SOURCE -> state.autoSourceSourceLabel to state.autoSourceSourceLabel
-        }
-        autoSourceButton.text = autoLabel
-        autoSourceButton.toolTipText = autoTip
-
-        val isActive = state.autoSource != DictionaryAutoSource.OFF
-        val accentColor = UIManager.getColor("Component.accentColor")
-            ?: UIManager.getColor("Actions.Blue")
-            ?: Color(0x2675BF)
-        val disabledColor = UIManager.getColor("Label.disabledForeground")
-            ?: Color.GRAY
-
-        autoSourceButton.icon = if (isActive) activeLinkIconBase else offUnlinkIconBase
-        autoSourceButton.foreground = if (isActive) accentColor else disabledColor
-
         lookupButton.text = state.lookupButtonLabel
         loadingLabel.text = state.loadingMessage
 

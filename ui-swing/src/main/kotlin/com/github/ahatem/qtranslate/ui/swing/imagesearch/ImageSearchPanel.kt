@@ -4,9 +4,12 @@ import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.icons.FlatSearchIcon
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.imagesearch.ImageResult
+import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.InlineLoadingBar
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ServiceInfoRenderer
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Cursor
@@ -21,9 +24,8 @@ import java.awt.event.ComponentEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.BorderFactory
-import javax.swing.Box
-import javax.swing.BoxLayout
 import javax.swing.JButton
+import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
@@ -41,6 +43,9 @@ data class ImageSearchPanelState(
     val hasFailed: Boolean,
     val strings: ImageSearchStrings,
     val onSearch: (term: String) -> Unit,
+    val availableServices: List<ServiceInfo> = emptyList(),
+    val selectedServiceId: String? = null,
+    val onServiceSelected: (serviceId: String) -> Unit = {},
     val onImageOpened: (ImageResult) -> Unit
 ) : UiState
 
@@ -58,7 +63,9 @@ data class ImageSearchPanelState(
  * it; one that already insets its own chrome, as the lookup dock's tab content does for the
  * dictionary, mounts this panel directly rather than inside that inset.
  */
-class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelState> {
+class ImageSearchPanel(
+    private val iconManager: IconManager
+) : JPanel(BorderLayout()), Renderable<ImageSearchPanelState> {
 
     private companion object {
         /**
@@ -125,6 +132,29 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
     private val loadingBar = InlineLoadingBar()
     private val body = JPanel(BorderLayout())
 
+    /** A quiet provider identity becomes a picker when there is a real choice. */
+    private val serviceCombo = JComboBox<ServiceInfo>().apply {
+        putClientProperty("JComboBox.isTableCellEditor", true)
+        renderer = ServiceInfoRenderer(iconManager)
+        addActionListener {
+            if (!updatingFromState) {
+                val selected = selectedItem as? ServiceInfo ?: return@addActionListener
+                currentState?.onServiceSelected?.invoke(selected.id)
+            }
+        }
+    }
+    private val serviceIdentity = JLabel().apply {
+        putClientProperty("FlatLaf.styleClass", "small")
+        foreground = UIManager.getColor("Label.disabledForeground")
+    }
+    private val serviceRow = JPanel(BorderLayout(6, 0)).apply {
+        isOpaque = false
+        border = EmptyBorder(0, UIScale.scale(8), 0, 0)
+        add(serviceIdentity, BorderLayout.CENTER)
+        isVisible = false
+    }
+    private var updatingFromState = false
+
     /** The enlarged view, or null when the grid is showing. */
     private var preview: ImageResult? = null
 
@@ -142,6 +172,9 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
     /** The term the field was last set from, so a render never overwrites what is being typed. */
     private var appliedTerm = ""
 
+    /** Toggled off while an image is enlarged, so the preview gets the space instead. */
+    private val topBar: JPanel
+
     init {
         val searchRow = JPanel(BorderLayout()).apply {
             isOpaque = false
@@ -150,15 +183,14 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
                 UIScale.scale(SEARCH_TO_RESULTS_GAP), UIScale.scale(CONTENT_INSET)
             )
             add(searchField, BorderLayout.CENTER)
+            add(serviceRow, BorderLayout.LINE_END)
         }
-        add(
-            JPanel(BorderLayout()).apply {
-                isOpaque = false
-                add(searchRow, BorderLayout.CENTER)
-                add(loadingBar, BorderLayout.SOUTH)
-            },
-            BorderLayout.NORTH
-        )
+        topBar = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            add(searchRow, BorderLayout.CENTER)
+            add(loadingBar, BorderLayout.SOUTH)
+        }
+        add(topBar, BorderLayout.NORTH)
         add(body.apply { add(scroll, BorderLayout.CENTER) }, BorderLayout.CENTER)
 
         installResponsiveColumns()
@@ -195,6 +227,7 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
      */
     fun refreshTheme() {
         hintLabel.foreground = UIManager.getColor("Label.disabledForeground")
+        serviceIdentity.foreground = UIManager.getColor("Label.disabledForeground")
         // Tiles carry a border and a dimmed credit line, and are cheapest to simply rebuild.
         renderedResults = emptyList()
         currentState?.let { rebuildGridIfChanged(it) }
@@ -212,6 +245,7 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
             else -> state.strings.hintMessage
         }
         rebuildGridIfChanged(state)
+        syncServicePicker(state)
 
         // The field shows the word being searched when that changes from outside, such as a new
         // selection, and is otherwise left to whoever is typing in it.
@@ -220,6 +254,42 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
             if (state.searchedTerm.isNotBlank() && searchField.text != state.searchedTerm) {
                 searchField.text = state.searchedTerm
             }
+        }
+    }
+
+    private fun syncServicePicker(state: ImageSearchPanelState) {
+        val services = state.availableServices
+        serviceRow.isVisible = services.isNotEmpty()
+        if (services.size == 1) {
+            val service = services.first()
+            serviceIdentity.text = service.name
+            serviceIdentity.icon = service.iconPath?.let { iconManager.getIcon(service.id, it, 16, 16) }
+            if (serviceIdentity.parent !== serviceRow) {
+                serviceRow.removeAll()
+                serviceRow.add(serviceIdentity, BorderLayout.CENTER)
+            }
+            return
+        }
+        if (services.isEmpty()) return
+        if (serviceCombo.parent !== serviceRow) {
+            serviceRow.removeAll()
+            serviceRow.add(serviceCombo, BorderLayout.CENTER)
+        }
+
+        updatingFromState = true
+        try {
+            if (serviceCombo.itemCount != services.size ||
+                (0 until serviceCombo.itemCount).any { serviceCombo.getItemAt(it) != services[it] }
+            ) {
+                serviceCombo.removeAllItems()
+                services.forEach { serviceCombo.addItem(it) }
+            }
+            val toSelect = services.find { it.id == state.selectedServiceId }
+            if (toSelect != null && serviceCombo.selectedItem != toSelect) {
+                serviceCombo.selectedItem = toSelect
+            }
+        } finally {
+            updatingFromState = false
         }
     }
 
@@ -256,6 +326,23 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
     internal fun columnCountForTest(): Int = (grid.layout as GridLayout).columns
 
     internal fun tileCountForTest(): Int = grid.componentCount
+
+    internal fun isServicePickerVisibleForTest(): Boolean = serviceRow.isVisible && serviceCombo.parent === serviceRow
+
+    internal fun serviceIdentityForTest(): String? = serviceIdentity.takeIf { it.parent === serviceRow }?.text
+
+    internal fun selectedServiceForTest(): ServiceInfo? = serviceCombo.selectedItem as? ServiceInfo
+
+    internal fun selectServiceForTest(service: ServiceInfo) {
+        serviceCombo.selectedItem = service
+    }
+
+    /** The text of whatever action buttons the enlarged view is currently showing. */
+    internal fun previewActionLabelsForTest(): List<String> =
+        descendantsInternal(body).filterIsInstance<JButton>().flatMap { listOfNotNull(it.text, it.toolTipText) }
+
+    private fun descendantsInternal(root: java.awt.Container): List<java.awt.Component> =
+        root.components.flatMap { listOf(it) + if (it is java.awt.Container) descendantsInternal(it) else emptyList() }
 
     private fun rebuildGridIfChanged(state: ImageSearchPanelState) {
         if (state.results.isEmpty()) {
@@ -309,11 +396,11 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
             toolTipText = fullCreditFor(result)
         }
 
-        thumbnails.load(result.thumbnailUrl) { image ->
+        thumbnails.load(result.thumbnailUrl, onLoaded = { image ->
             // The grid may have been rebuilt by a newer search while this was in flight.
             if (picture.parent == null) return@load
             picture.image = image
-        }
+        })
 
         return JPanel(BorderLayout(0, UIScale.scale(IMAGE_TO_CAPTION_GAP))).apply {
             add(picture, BorderLayout.CENTER)
@@ -337,14 +424,24 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
         }
     }
 
-    /** Fills the panel with one image. */
+    /**
+     * Fills the panel with one image at full resolution.
+     *
+     * The search row is hidden while previewing -- it has nothing to do until Back is pressed, and
+     * the picture is what the reader asked to see enlarged.
+     */
     private fun showPreview(result: ImageResult) {
         val state = currentState ?: return
         preview = result
+        topBar.isVisible = false
 
         // Sizes itself to the panel as it changes, without rescaling work per resize event.
-        val picture = ScaledImage()
-        thumbnails.load(result.thumbnailUrl) { image -> picture.image = image }
+        val picture = ScaledImage().apply { statusText = "Loading image…" }
+
+        // The thumbnail is almost always already cached from the grid tile just clicked, so it
+        // fills the space at once as a stand-in while the full-resolution image loads in the
+        // background, and stays put -- rather than leaving an empty area -- if that load fails.
+        var hasFullImage = false
 
         val caption = ElidingLabel(result.title.orEmpty()).apply {
             putClientProperty("FlatLaf.styleClass", "h4")
@@ -355,51 +452,105 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
             toolTipText = fullCreditFor(result)
         }
 
-        val back = JButton(state.strings.backLabel).apply {
+        val index = renderedResults.indexOf(result)
+
+        val rtl = !componentOrientation.isLeftToRight
+        val back = JButton("${if (rtl) "→" else "←"} ${state.strings.backLabel}").apply {
             putClientProperty("JButton.buttonType", "toolBarButton")
             addActionListener { showGrid() }
         }
-        val open = JButton(state.strings.openSourceLabel).apply {
+        val previous = JButton(if (rtl) "›" else "‹").apply {
+            putClientProperty("JButton.buttonType", "toolBarButton")
+            toolTipText = state.strings.previousLabel
+            accessibleContext.accessibleName = state.strings.previousLabel
+            isEnabled = index > 0
+            addActionListener { if (index > 0) showPreview(renderedResults[index - 1]) }
+        }
+        val next = JButton(if (rtl) "‹" else "›").apply {
+            putClientProperty("JButton.buttonType", "toolBarButton")
+            toolTipText = state.strings.nextLabel
+            accessibleContext.accessibleName = state.strings.nextLabel
+            isEnabled = index in 0 until renderedResults.size - 1
+            addActionListener {
+                if (index in 0 until renderedResults.size - 1) showPreview(renderedResults[index + 1])
+            }
+        }
+        val open = JButton("${state.strings.openSourceLabel} ↗").apply {
             putClientProperty("JButton.buttonType", "toolBarButton")
             toolTipText = state.strings.openTooltip
             addActionListener { state.onImageOpened(result) }
         }
 
-        val footer = JPanel(BorderLayout(UIScale.scale(CONTENT_INSET), 0)).apply {
+        val viewerBar = JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
+            isOpaque = false
+            border = EmptyBorder(
+                UIScale.scale(OUTER_INSET), UIScale.scale(CONTENT_INSET),
+                UIScale.scale(SEARCH_TO_RESULTS_GAP), UIScale.scale(CONTENT_INSET)
+            )
+            add(back, BorderLayout.LINE_START)
+            add(JLabel("${index + 1} / ${renderedResults.size}", SwingConstants.CENTER), BorderLayout.CENTER)
+            add(open, BorderLayout.LINE_END)
+        }
+
+        val pictureRow = JPanel(BorderLayout(UIScale.scale(4), 0)).apply {
+            isOpaque = false
+            border = EmptyBorder(0, UIScale.scale(CONTENT_INSET), 0, UIScale.scale(CONTENT_INSET))
+            preferredSize = Dimension(0, UIScale.scale(300))
+            if (renderedResults.size > 1) add(previous, BorderLayout.LINE_START)
+            add(picture, BorderLayout.CENTER)
+            if (renderedResults.size > 1) add(next, BorderLayout.LINE_END)
+        }
+        val metadata = JPanel(BorderLayout(0, UIScale.scale(CAPTION_TO_CREDIT_GAP))).apply {
+            isOpaque = false
             border = EmptyBorder(
                 UIScale.scale(SEARCH_TO_RESULTS_GAP), UIScale.scale(CONTENT_INSET),
                 UIScale.scale(OUTER_INSET), UIScale.scale(CONTENT_INSET)
             )
-            add(
-                JPanel(BorderLayout()).apply {
-                    isOpaque = false
-                    add(caption, BorderLayout.NORTH)
-                    add(credit, BorderLayout.SOUTH)
-                },
-                BorderLayout.CENTER
-            )
-            add(
-                JPanel().apply {
-                    isOpaque = false
-                    layout = BoxLayout(this, BoxLayout.X_AXIS)
-                    add(back)
-                    add(Box.createHorizontalStrut(UIScale.scale(CAPTION_TO_CREDIT_GAP * 2)))
-                    add(open)
-                },
-                BorderLayout.LINE_END
-            )
+            add(caption, BorderLayout.NORTH)
+            add(credit, BorderLayout.SOUTH)
         }
+        val viewer = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            add(viewerBar, BorderLayout.NORTH)
+            add(pictureRow, BorderLayout.CENTER)
+            add(metadata, BorderLayout.SOUTH)
+        }
+        viewer.applyComponentOrientation(componentOrientation)
 
         body.removeAll()
-        body.add(picture, BorderLayout.CENTER)
-        body.add(footer, BorderLayout.SOUTH)
+        body.add(viewer, BorderLayout.NORTH)
         body.revalidate()
         body.repaint()
+
+        fun display(image: Image) {
+            picture.image = image
+            picture.statusText = null
+            val imageWidth = image.getWidth(null).coerceAtLeast(1)
+            val imageHeight = image.getHeight(null).coerceAtLeast(1)
+            val availableWidth = (body.width - UIScale.scale(92)).coerceAtLeast(UIScale.scale(180))
+            val naturalHeight = (availableWidth.toLong() * imageHeight / imageWidth).toInt()
+            pictureRow.preferredSize = Dimension(0, naturalHeight.coerceIn(UIScale.scale(140), UIScale.scale(360)))
+            viewer.revalidate()
+        }
+        thumbnails.load(result.thumbnailUrl,
+            onLoaded = { image -> if (!hasFullImage && preview == result) display(image) },
+            onFailed = { if (!hasFullImage && preview == result && picture.image == null) picture.statusText = "Image unavailable" }
+        )
+        thumbnails.load(result.fullUrl,
+            onLoaded = { image ->
+                if (preview == result) {
+                    hasFullImage = true
+                    display(image)
+                }
+            },
+            onFailed = { if (preview == result && picture.image == null) picture.statusText = "Image unavailable" }
+        )
     }
 
     /** Returns from the enlarged view to the grid, leaving the tiles and their images intact. */
     private fun showGrid() {
         preview = null
+        topBar.isVisible = true
         body.removeAll()
         body.add(scroll, BorderLayout.CENTER)
         body.revalidate()
@@ -463,6 +614,12 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
      */
     private class ScaledImage : JComponent() {
 
+        var statusText: String? = null
+            set(value) {
+                field = value
+                repaint()
+            }
+
         var image: Image? = null
             set(value) {
                 field = value
@@ -470,7 +627,14 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
             }
 
         override fun paintComponent(g: Graphics) {
-            val source = image ?: return
+            val source = image ?: run {
+                statusText?.let { message ->
+                    g.color = UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
+                    val metrics = g.getFontMetrics(font)
+                    g.drawString(message, (width - metrics.stringWidth(message)) / 2, height / 2)
+                }
+                return
+            }
             val sourceWidth = source.getWidth(null)
             val sourceHeight = source.getHeight(null)
             if (sourceWidth <= 0 || sourceHeight <= 0) return

@@ -57,11 +57,12 @@ class ThumbnailLoader(private val maxEntries: Int = 120) {
     /**
      * Loads [url], calling [onLoaded] on the event thread.
      *
-     * [onLoaded] is not called if the image cannot be fetched or decoded: a tile that stays a
-     * placeholder is better than one showing a broken-image glyph, and the reason — an expired
-     * URL, a format Java cannot read — is not something the reader can act on.
+     * Grid tiles pass no [onFailed]: a tile that stays a placeholder is better than one showing a
+     * broken-image glyph, and the reason — an expired URL, a format Java cannot read — is not
+     * something the reader can act on there. A caller that has something better to fall back to
+     * (the enlarged preview, showing the thumbnail it already has) passes one.
      */
-    fun load(url: String, onLoaded: (Image) -> Unit) {
+    fun load(url: String, onLoaded: (Image) -> Unit, onFailed: () -> Unit = {}) {
         cache[url]?.let {
             // Still asynchronous, so a caller building tiles in a loop cannot be re-entered
             // half-way through its own layout pass.
@@ -73,7 +74,12 @@ class ThumbnailLoader(private val maxEntries: Int = 120) {
         pool.execute {
             // Checked before the fetch, which is the expensive part and the point of cancelling.
             if (requested != generation) return@execute
-            val image = runCatching { fetch(url) }.getOrNull() ?: return@execute
+            val image = runCatching { fetch(url) }.getOrNull()
+            if (image == null) {
+                if (requested != generation) return@execute
+                SwingUtilities.invokeLater { onFailed() }
+                return@execute
+            }
             // Cached regardless: it was paid for, and the same term searched again should be free.
             cache[url] = image
             if (requested != generation) return@execute
