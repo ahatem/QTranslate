@@ -53,6 +53,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.input.PasteInjector
 import com.github.ahatem.qtranslate.ui.swing.main.input.QInputPasteInjector
 import com.github.ahatem.qtranslate.ui.swing.main.layout.DockRoomPlanner
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
+import com.github.ahatem.qtranslate.ui.swing.main.lookup.AutoLookupCoordinator
 import com.github.ahatem.qtranslate.ui.swing.main.menus.*
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBar
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBarState
@@ -265,6 +266,14 @@ class MainAppFrame(
         },
         onEnsureLookupDockRoom = { ensureRoomForLookupDock() },
         onOpenImageSource = { result -> openUrl(result.sourceUrl ?: result.fullUrl) }
+    )
+
+    private val autoLookupCoordinator = AutoLookupCoordinator(
+        mainState = mainStore.state,
+        settingsState = settingsStore.state,
+        dispatch = { mainStore.dispatch(it) },
+        isMainVisible = { isVisible },
+        setDictionarySearchWord = { mainContentView.setDictionarySearchWord(it) },
     )
 
     private val selectionTranslateButton = SelectionTranslateButton(
@@ -847,125 +856,8 @@ class MainAppFrame(
                 }
         }
 
-        // Auto-lookup single words after a translation completes.
-        //
-        // Uses scan() to observe (previous, current) pairs so we can detect the exact
-        // moment isLoading transitions true→false (= translation finished).  This is the
-        // ONLY moment a new auto-lookup is allowed to fire, which prevents the dictionary
-        // from reacting to every keystroke.
-        //
-        // Additional trigger: a relevant *setting* changed (autoSource cycling, panel
-        // opening) while we are already idle and a translated result is on screen.
-        //
-        // isLoading=true is also passed through so the collect block can dismiss a stale
-        // popup the instant a new translation starts.
         appScope.launch(handler) {
-            mainStore.state
-                .combine(settingsStore.state) { m, s -> m to s }
-                .map { (m, s) ->
-                    AutoLookupKey(
-                        panelVisible   = m.isDictionaryPanelVisible,
-                        isLoading      = m.isLoading,
-                        inputText      = m.inputText.trim(),
-                        translatedText = m.translatedText.trim(),
-                        targetLang     = m.targetLanguage,
-                        resolvedSourceLang = m.resolvedSourceLanguage,
-                        autoSource     = s.workingConfiguration.dictionaryAutoSource,
-                        mainVisible    = isVisible,
-                        isQuickDictionaryVisible = m.isQuickDictionaryVisible,
-                        isQuickDictionaryPinned  = m.isQuickDictionaryPinned,
-                        isDictionaryAutoPopupEnabled = s.workingConfiguration.isDictionaryAutoPopupEnabled,
-                    )
-                }
-                .scan(Pair<AutoLookupKey?, AutoLookupKey?>(null, null)) { (_, prev), curr -> prev to curr }
-                .filter { (prev, curr) ->
-                    when {
-                        curr == null -> false
-                        // Always pass isLoading=true so the collect block can dismiss stale popups.
-                        curr.isLoading -> true
-                        // Need a previous snapshot to detect transitions.
-                        prev == null -> false
-                        // The definition strip is switched off entirely.
-                        //
-                        // Gated on its own setting rather than on dictionaryAutoSource. That
-                        // setting used to mean "open the dictionary popup by itself", and anyone
-                        // who found that intrusive turned it off — which would now also cost them
-                        // the quiet one-line definition, a different thing they never refused.
-                        !curr.isDictionaryAutoPopupEnabled -> false
-                        else -> {
-                            // Primary trigger: translation just finished.
-                            val justFinishedLoading = prev.isLoading && !curr.isLoading
-                            // Secondary trigger: a setting changed while already idle and a
-                            // translation result is already on screen.
-                            val settingChangedIdle = curr.translatedText.isNotBlank() && (
-                                prev.autoSource != curr.autoSource ||
-                                prev.isDictionaryAutoPopupEnabled != curr.isDictionaryAutoPopupEnabled ||
-                                (!prev.panelVisible && curr.panelVisible)
-                            )
-                            justFinishedLoading || settingChangedIdle
-                        }
-                    }
-                }
-                .mapNotNull { it.second }
-                .collect { key ->
-                    // Translation started — dismiss any unpinned auto-triggered popup.
-                    if (key.isLoading) {
-                        if (key.isQuickDictionaryVisible && !key.isQuickDictionaryPinned) {
-                            mainStore.dispatch(MainIntent.HideQuickDictionary)
-                        }
-                        return@collect
-                    }
-                    // Both sides of the translation are offered, in preference order. SOURCE means
-                    // the user asked for the word they typed; otherwise the translation comes
-                    // first, since that is what they are looking at.
-                    //
-                    // Both matter because dictionaries are lopsided. Translating English into
-                    // Arabic and defining only the Arabic would ask Google Dictionary for a
-                    // language it barely holds, and produce nothing every single time.
-                    val preferSource =
-                        key.autoSource == DictionaryAutoSource.SOURCE
-                    val (word, lang) =
-                        if (preferSource) key.inputText to key.resolvedSourceLang
-                        else key.translatedText to key.targetLang
-                    val (alternate, alternateLang) =
-                        if (preferSource) key.translatedText to key.targetLang
-                        else key.inputText to key.resolvedSourceLang
-
-                    // Not a single word, so no definition belongs under the result.
-                    if (word.isBlank() || word.contains(Regex("\\s")) || word.length < 2) {
-                        mainStore.dispatch(MainIntent.UpdateInlineDefinition(""))
-                        return@collect
-                    }
-
-                    // A single word: fetch the short definition that sits beneath the translation,
-                    // in the popup and in the main window alike. Nothing is opened for it.
-                    mainStore.dispatch(
-                        MainIntent.UpdateInlineDefinition(
-                            word = word,
-                            language = lang,
-                            alternateWord = alternate.takeIf { it.isNotBlank() && it.none(Char::isWhitespace) }.orEmpty(),
-                            alternateLanguage = alternateLang
-                        )
-                    )
-                    val current = mainStore.state.value.dictionaryWord
-                    if (word.equals(current, ignoreCase = true)) return@collect
-
-                    // Only ever fills in a dictionary the user already has open, and only in the
-                    // main window. It never summons one.
-                    //
-                    // Translating a single word used to make the dictionary popup appear on its
-                    // own. That was wrong twice over: it fired during Quick Translate with the
-                    // main window hidden, so a hotkey translation produced two windows when one
-                    // was asked for; and even in the main window it decided for the user that a
-                    // short word meant they wanted a definition. Looking a word up is now an
-                    // action they take — see the definition button on the output pane.
-                    if (key.panelVisible && key.mainVisible) {
-                        withContext(Dispatchers.Swing) {
-                            mainContentView.setDictionarySearchWord(word)
-                        }
-                        mainStore.dispatch(MainIntent.LookupWord(word, lang))
-                    }
-                }
+            autoLookupCoordinator.observe()
         }
 
         // Persist whether the lookup dock is open, which is what the "show dictionary panel" setting remembers.
@@ -2247,18 +2139,3 @@ private class TextPaneCycleFocusPolicy(
     override fun getDefaultComponent(aContainer: Container): Component =
         panes().firstOrNull() ?: fallback.getDefaultComponent(aContainer)
 }
-
-/** Snapshot used to deduplicate auto-lookup triggers. */
-private data class AutoLookupKey(
-    val panelVisible: Boolean,
-    val isLoading: Boolean,
-    val inputText: String,
-    val translatedText: String,
-    val targetLang: LanguageCode,
-    val resolvedSourceLang: LanguageCode,
-    val autoSource: DictionaryAutoSource,
-    val mainVisible: Boolean,
-    val isQuickDictionaryVisible: Boolean,
-    val isQuickDictionaryPinned: Boolean,
-    val isDictionaryAutoPopupEnabled: Boolean,
-)
