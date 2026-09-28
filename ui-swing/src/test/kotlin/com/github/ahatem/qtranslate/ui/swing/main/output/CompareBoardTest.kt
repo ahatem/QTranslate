@@ -369,7 +369,7 @@ class CompareBoardTest {
             )
         )
         assertTrue(selector.isVisible)
-        assertEquals("Google Translate", selector.buttonForTest().text)
+        assertEquals("Google Translate", selector.text)
     }
 
     @Test

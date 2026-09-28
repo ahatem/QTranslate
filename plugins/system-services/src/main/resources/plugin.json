@@ -3,7 +3,7 @@
   "name": "System Services",
   "version": "1.0.0",
   "author": "Ahmed Hatem",
-  "description": "Local OCR and text-to-speech using capabilities available on this device. No accounts, API keys, or network access required.",
+  "description": "Local OCR, text-to-speech, and spell checking using capabilities available on this device. No accounts, API keys, or network access required.",
   "minApiVersion": "2.0.0",
   "icon": "assets/system-services-icon.svg"
 }

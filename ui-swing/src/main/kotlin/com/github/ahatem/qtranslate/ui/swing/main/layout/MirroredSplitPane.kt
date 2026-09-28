@@ -38,6 +38,11 @@ class MirroredSplitPane(
     private val trailing: Component,
 ) : JSplitPane(orientation, continuousLayout, leading, trailing) {
 
+    init {
+        // The workspace's own grip, not FlatLaf's grip dots.
+        setUI(ModernSplitPaneUI())
+    }
+
     /** Share of the space given to [leading] when the window is resized. */
     var leadingResizeWeight: Double = 0.5
         set(value) {
@@ -66,40 +71,69 @@ class MirroredSplitPane(
     }
 
     /**
-     * Gives [leading] the requested share of the width.
+     * Answered here as well, because a pane built after the interface was mirrored is handed the
+     * direction when it is added to its parent, without passing through the setter above. Left
+     * alone, it would then lay itself out inverted, and a split created by switching layouts in a
+     * right-to-left interface would come out with its sides the wrong way round.
+     */
+    override fun getComponentOrientation(): ComponentOrientation = ComponentOrientation.LEFT_TO_RIGHT
+
+    /** Size along the split axis that the divider divides, or 0 while the pane has none. */
+    private val splitExtent: Int
+        get() = ((if (orientation == HORIZONTAL_SPLIT) width else height) - dividerSize).coerceAtLeast(0)
+
+    /** The share of the space currently held by [leading], or null while the pane has no size. */
+    val leadingProportion: Double?
+        get() {
+            val extent = splitExtent
+            if (extent == 0) return null
+            val proportion = dividerLocation.toDouble() / extent
+            return if (isMirrored) 1.0 - proportion else proportion
+        }
+
+    /**
+     * Gives [leading] the share [proportion] of the space along the split axis, right now.
      *
      * Callers think in reading order, so the proportion is for the leading component and is
      * converted here — passing it raw would put the panel on the wrong side of the divider in a
      * right-to-left interface.
+     *
+     * @return false, having done nothing, while the pane has no size to divide.
+     */
+    fun applyLeadingProportion(proportion: Double): Boolean {
+        if (splitExtent == 0) return false
+        setDividerLocation(if (isMirrored) 1.0 - proportion else proportion)
+        return true
+    }
+
+    /**
+     * Like [applyLeadingProportion], but holds the request until the pane can honour it.
      *
      * [setDividerLocation] with a proportion is silently ignored while the pane has no size,
      * which is the usual reason a panel opens pinned to its minimum width instead of the share it
      * asked for. If the size is not known yet the request is held until the first layout.
      */
     fun setLeadingProportion(proportion: Double) {
-        val wanted = if (isMirrored) 1.0 - proportion else proportion
-        if (isShowing && width > 0) {
-            setDividerLocation(wanted)
-        } else {
-            addComponentListener(object : ComponentAdapter() {
-                override fun componentResized(e: ComponentEvent) {
-                    if (width <= 0) return
-                    removeComponentListener(this)
-                    setDividerLocation(wanted)
-                }
-            })
-        }
+        if (isShowing && applyLeadingProportion(proportion)) return
+        addComponentListener(object : ComponentAdapter() {
+            override fun componentResized(e: ComponentEvent) {
+                if (!applyLeadingProportion(proportion)) return
+                removeComponentListener(this)
+            }
+        })
     }
 
     private fun rearrange() {
-        val proportion = if (width > 0) dividerLocation.toDouble() / width else -1.0
+        val proportion = if (splitExtent > 0) dividerLocation.toDouble() / splitExtent else -1.0
 
         // JSplitPane refuses a component that is still installed in the other slot, so both have
-        // to be detached before either is put back.
-        leftComponent = null
-        rightComponent = null
-        leftComponent = if (isMirrored) trailing else leading
-        rightComponent = if (isMirrored) leading else trailing
+        // to be detached before either is put back. The setters are called by name: written as
+        // property assignments, Kotlin resolves them to the superclass's protected fields, which
+        // swaps what the pane reports without ever telling its layout.
+        setLeftComponent(null)
+        setRightComponent(null)
+        setLeftComponent(if (isMirrored) trailing else leading)
+        setRightComponent(if (isMirrored) leading else trailing)
 
         revalidate()
         if (proportion > 0.0 && proportion < 1.0) setDividerLocation(1.0 - proportion)

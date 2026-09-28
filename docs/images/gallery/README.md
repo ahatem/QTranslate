@@ -1,38 +1,42 @@
 # Screenshot gallery
 
-Every image here is a capture of the running application — real plugins, real translation
-requests, real dictionary lookups. Nothing is staged or mocked up, and nothing is an upscale:
-they are rendered at twice the size natively, so they stay sharp on high-density displays.
+These are selected captures of the running application with bundled plugins and chosen sample
+inputs. Translation, dictionary and image results come from the actual providers. The harness
+renders at 200% through the app's own UI scale for sharp images on high-density displays.
 
-The eight images one level up (`docs/images/screenshot-*.png`) are the subset the README uses.
-This folder is the full set, and is what the website gallery draws from.
+The capture harness produces additional candidates for visual review. This folder contains the
+public set: each image should demonstrate a different part of the product. The README embeds a
+smaller tour; its main images are copied to `docs/images/`.
 
 ## The set
 
 | File | Shows |
 | --- | --- |
-| `main-dark`, `main-light` | The main window in both themes, classic layout |
-| `layout-side-by-side-dark`, `layout-side-by-side-light` | Source and translation in parallel columns |
-| `layout-compact-dark`, `layout-compact-light` | Compact layout, where the panes become tabs |
-| `hero-dark`, `hero-light` | Everything at once: input, translation, backward translation and the docked dictionary |
-| `dictionary-docked-dark`, `dictionary-docked-light` | The dictionary panel beside a translation |
-| `dictionary-quick-dark` | The floating dictionary popup, which is what <kbd>Ctrl+D</kbd> opens over other apps |
-| `quick-translate-dark`, `quick-translate-light` | The <kbd>Ctrl+Q</kbd> popup — select text anywhere, read it translated |
-| `rtl-main`, `rtl-compact`, `rtl-dictionary` | The Arabic interface, mirrored right to left |
-| `history` | The translation history |
-| `document-translation` | Translating a document while preserving its structure |
-| `settings-appearance-*`, `settings-behavior-*`, `settings-general-*`, `settings-hotkeys-*`, `settings-languages-*`, `settings-layout-*`, `settings-network-*`, `settings-plugins-*`, `settings-popups-*`, `settings-services-*` | All ten settings pages, in both themes |
+| `hero-dark` | Translation, backward translation and a docked dictionary |
+| `quick-translate-dark` | The <kbd>Ctrl+Q</kbd> popup for selected text |
+| `classic-selector-dark`, `classic-selector-narrow-dark`, `classic-selector-light` | The original QTranslate's adjacent service tabs, adapted for both themes and narrow widths with one More menu |
+| `layout-comparison-dark` | Google, Bing, DeepL and Yandex results in one configured Comparison set |
+| `dictionary-quick-dark` | The floating dictionary popup for selected words |
+| `dock-images-dark`, `dock-image-viewer-dark` | Image results and the opened viewer with source credit |
+| `document-translation` | A document selected for translation |
+| `settings-services-dark`, `settings-plugins-dark` | Service presets, System Services and runtime plugin management |
+| `rtl-main` | The Arabic interface mirrored right to left |
 
 ## Regenerating
 
-These are produced by a capture harness that drives the real application window and paints it to
-a PNG. The harness lives in the repository under
-`app/src/main/kotlin/com/github/ahatem/qtranslate/app/screenshots/` — it exists to maintain this
-folder, not to ship with the app — and is run with:
+The capture harness drives the real application window and paints it to PNG. It lives under
+`app/src/main/kotlin/com/github/ahatem/qtranslate/app/screenshots/` and runs with:
 
 ```
-gradlew :app:captureScreenshots
+gradlew captureScreenshots
 ```
 
-If a screenshot is out of date, re-run the harness rather than replacing it by hand: a hand-taken
-screenshot will not match the rest of the set on scale, window size or content.
+Review the generated candidates in `build/screenshots/`, then copy only the selected captures here.
+Use `QTRANSLATE_SCREENSHOT_SCENES=presentation` to regenerate the visual audit scenes, including
+the Classic selector at two widths and Settings at 100%. The regular run includes the full
+candidate set and Settings at 200%.
+Use `QTRANSLATE_SCREENSHOT_SCENES=selector` to capture only the Classic selector audit at 100%
+and 200%, plus RTL and light theme.
+Use `QTRANSLATE_SCREENSHOT_SCENES=document` to capture only the document dialog. Its file paths are
+visible in the image, so also set `QTRANSLATE_SCREENSHOT_DOCS` to a neutral folder such as
+`C:\Users\Public\Documents` first.

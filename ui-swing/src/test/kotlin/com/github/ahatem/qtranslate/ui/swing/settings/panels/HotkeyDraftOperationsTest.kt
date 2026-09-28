@@ -41,9 +41,18 @@ class HotkeyDraftOperationsTest {
         }
         assertTrue(expectedKeys.keys.all { action -> modernGlobal.first { it.action == action }.hasBinding })
         assertTrue(HotkeyPresets.MODERN.first { it.action == HotkeyAction.SHOW_MAIN_WINDOW }.isDoubleCtrlEnabled)
+        // Every LOCAL binding matches Legacy except TRANSLATE_DOCUMENT: Modern's GLOBAL
+        // SHOW_DICTIONARY override above claims Ctrl+Shift+D, which Legacy's LOCAL
+        // TRANSLATE_DOCUMENT binding already used, so Modern moves it to Ctrl+Shift+F to avoid
+        // shipping the same accelerator on two actions (see HotkeyPresetsTest for the collision
+        // check across every preset).
         assertTrue(HotkeyPresets.MODERN
-            .filter { it.scope == HotkeyScope.LOCAL }
+            .filter { it.scope == HotkeyScope.LOCAL && it.action != HotkeyAction.TRANSLATE_DOCUMENT }
             .all { binding -> binding == HotkeyPresets.LEGACY.first { it.action == binding.action } })
+        val modernDocumentTranslate = HotkeyPresets.MODERN.first { it.action == HotkeyAction.TRANSLATE_DOCUMENT }
+        assertEquals(HotkeyScope.LOCAL, modernDocumentTranslate.scope)
+        assertEquals(KeyEvent.VK_F, modernDocumentTranslate.keyCode)
+        assertEquals(InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK, modernDocumentTranslate.modifiers)
     }
 
     @Test

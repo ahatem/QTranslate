@@ -10,6 +10,16 @@ internal class TextPaneDirections(private val pane: AdvancedTextPane) {
 
     private var isTextRtl = false
 
+    /**
+     * The orientation the text itself calls for, or null while there is no text to go by.
+     *
+     * The interface's direction is applied to every component at once, which is right for an empty
+     * pane and wrong for one holding text in the other direction. Holding text is what decides.
+     */
+    fun contentOrientation(): ComponentOrientation? =
+        if (pane.styledDocument.length == 0) null
+        else if (isTextRtl) ComponentOrientation.RIGHT_TO_LEFT else ComponentOrientation.LEFT_TO_RIGHT
+
     // Per-paragraph direction as of the last pass, parallel to the root element's children, so a
     // keystroke only re-measures the paragraph it touched.
     private val paragraphRtl = ArrayList<Boolean>()
@@ -88,7 +98,11 @@ internal class TextPaneDirections(private val pane: AdvancedTextPane) {
         // The component follows the majority: it decides which side the scrollbar and the caret's
         // home position sit on.
         val documentIsRtl = rtlParagraphCount * 2 > paragraphCount
-        if (documentIsRtl != isTextRtl) {
+        // Also when the direction is unchanged but something else set the orientation: the
+        // interface's own direction is cascaded onto every component, and text in the other
+        // direction must not be left following it.
+        val orientationDiffers = styledDocument.length > 0 && pane.componentOrientation.isLeftToRight == documentIsRtl
+        if (documentIsRtl != isTextRtl || orientationDiffers) {
             isTextRtl = documentIsRtl
             pane.componentOrientation =
                 if (documentIsRtl) ComponentOrientation.RIGHT_TO_LEFT else ComponentOrientation.LEFT_TO_RIGHT

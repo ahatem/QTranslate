@@ -10,7 +10,7 @@ class LayoutTypeTest {
     fun `comparison is a persisted first class layout after the existing presets`() {
         assertEquals(LayoutPresetIds.COMPARISON, LayoutType.COMPARISON.id)
         assertEquals(
-            listOf(LayoutType.CLASSIC, LayoutType.SIDE_BY_SIDE, LayoutType.COMPACT, LayoutType.COMPARISON),
+            listOf(LayoutType.CLASSIC, LayoutType.SIDE_BY_SIDE, LayoutType.COMPARISON),
             LayoutManager.getAvailableLayouts().map { it.type }
         )
     }

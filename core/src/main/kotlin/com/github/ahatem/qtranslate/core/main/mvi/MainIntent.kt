@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.core.main.mvi
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.ImageData
+import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
@@ -98,11 +99,11 @@ sealed interface MainIntent : UiIntent {
 
     /**
      * User clicked a spell-check suggestion to apply it.
-     * @property original   The misspelled word as it appears in [MainState.inputText].
+     * @property correction The selected correction and its range in [MainState.inputText].
      * @property suggestion The correction to substitute in.
      */
     data class ApplyCorrection(
-        val original: String,
+        val correction: Correction,
         val suggestion: String
     ) : MainIntent
 
@@ -180,8 +181,20 @@ sealed interface MainIntent : UiIntent {
         val language: LanguageCode = LanguageCode.ENGLISH
     ) : MainIntent
 
-    /** User toggled the inline dictionary panel open or closed. */
+    /**
+     * User toggled the dictionary in the lookup dock: opens the dock on the dictionary, or closes
+     * it when the dictionary is what it already shows.
+     */
     data object ToggleDictionaryPanel : MainIntent
+
+    /** User opened the lookup dock on [tool], or switched an open dock to it. */
+    data class OpenLookupDock(val tool: LookupTool) : MainIntent
+
+    /** User picked another tool in an open lookup dock. */
+    data class SelectLookupTool(val tool: LookupTool) : MainIntent
+
+    /** User closed the lookup dock. */
+    data object CloseLookupDock : MainIntent
 
     /**
      * User triggered the floating dictionary popup (e.g. via global hotkey or auto-lookup).

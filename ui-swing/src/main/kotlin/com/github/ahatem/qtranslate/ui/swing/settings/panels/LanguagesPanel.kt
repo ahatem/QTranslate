@@ -164,7 +164,7 @@ class LanguagesPanel(
             setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
             tableHeader.reorderingAllowed = false
             tableHeader.resizingAllowed   = true
-            rowHeight               = 28
+            rowHeight               = UIScale.scale(28)
             showHorizontalLines     = true
             showVerticalLines       = false
             intercellSpacing        = Dimension(0, 1)

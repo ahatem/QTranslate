@@ -1,10 +1,12 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
+import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
@@ -28,6 +30,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -115,8 +118,11 @@ class SettingsComboRendererTest {
 
     @Test
     fun `translation page combos preserve native selection`() {
+        // Was 4 before the dictionary auto-lookup source combo (Off/Translated/Source) was
+        // replaced with an explicit checkbox plus a radio group -- the on/off state no longer
+        // hides inside a combo box value.
         val panel = onEdt { TranslationPanel(newStore(), localizer) }
-        assertNativeRows(panel, expectedCombos = 4)
+        assertNativeRows(panel, expectedCombos = 3)
     }
 
     @Test
@@ -125,10 +131,64 @@ class SettingsComboRendererTest {
         assertNativeRows(panel, expectedCombos = 4)
     }
 
+    private fun JComboBox<*>.layoutIds(): List<String> =
+        (0 until itemCount).map { Regex("""id=([^,]+),""").find(getItemAt(it).toString())!!.groupValues[1] }
+
+    private fun comparisonConfig(layoutPresetId: String) = Configuration.DEFAULT.copy(
+        servicePresets = listOf(
+            ServicePreset(
+                id = "preset",
+                name = "preset",
+                selectedServices = mapOf(ServiceRole.TRANSLATOR to "google"),
+                comparisonTranslatorIds = listOf("bing")
+            )
+        ),
+        activeServicePresetId = "preset",
+        layoutPresetId = layoutPresetId
+    )
+
+    @Test
+    fun `layout picker offers exactly Classic, Side By Side and Comparison`() {
+        val panel = onEdt { LayoutPanel(newStore(), localizer) }
+        val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
+
+        assertEquals(listOf("classic", "side_by_side", "comparison"), onEdt { layoutCombo.layoutIds() })
+        assertEquals(
+            listOf("Classic", "Side By Side", "Comparison"),
+            onEdt { (0 until layoutCombo.itemCount).map { layoutCombo.rowAt(it, selected = false).text } }
+        )
+        assertFalse(onEdt { layoutCombo.hasLayoutId("compact") })
+    }
+
+    @Test
+    fun `comparison is selectable once two translators are usable`() {
+        val store = newStore(comparisonConfig(LayoutPresetIds.CLASSIC))
+        val panel = onEdt { LayoutPanel(store, localizer, availableTranslatorIds = { listOf("google", "bing") }) }
+        onEdt { panel.render(store.state.value) }
+        val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
+
+        onEdt {
+            val row = layoutCombo.rowAt(layoutCombo.indexOfLayoutId(LayoutPresetIds.COMPARISON), selected = false)
+            assertNull(row.toolTipText, "an eligible Comparison carries no unavailable hint")
+            assertNull(layoutCombo.toolTipText)
+        }
+    }
+
+    @Test
+    fun `a saved compact layout is selected as Classic rather than left blank`() {
+        val store = newStore(Configuration.DEFAULT.copy(layoutPresetId = "compact"))
+        val panel = onEdt { LayoutPanel(store, localizer) }
+        onEdt { panel.render(store.state.value) }
+        val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
+
+        val selected = onEdt { layoutCombo.selectedItem.toString() }
+        assertTrue(selected.startsWith("LayoutInfo(id=classic,"), "selected was $selected")
+    }
+
     @Test
     fun `unavailable comparison layout is dimmed with its reason and other layouts are not`() {
         val store = newStore()
-        val panel = onEdt { LayoutPanel(store, localizer) { emptyList() } }
+        val panel = onEdt { LayoutPanel(store, localizer, availableTranslatorIds = { emptyList() }) }
         onEdt { panel.render(store.state.value) }
         val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
 
@@ -157,5 +217,30 @@ class SettingsComboRendererTest {
         } finally {
             UIManager.put("Label.disabledForeground", previous)
         }
+    }
+
+    @Test
+    fun `picking the unavailable comparison entry opens Services settings instead of doing nothing`() {
+        val store = newStore()
+        var opened = 0
+        val panel = onEdt {
+            LayoutPanel(store, localizer, availableTranslatorIds = { emptyList() }, onOpenServicesSettings = { opened++ })
+        }
+        onEdt { panel.render(store.state.value) }
+        val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
+
+        val comparisonIndex = onEdt { layoutCombo.indexOfLayoutId(LayoutPresetIds.COMPARISON) }
+        // Its own label is an action, not just a disabled name -- the row text should not simply
+        // read "Comparison" while unavailable.
+        val rowText = onEdt { layoutCombo.rowAt(comparisonIndex, selected = true).text }
+        assertEquals(localizer.getString("settings_window.layout_comparison_configure"), rowText)
+
+        onEdt { layoutCombo.selectedIndex = comparisonIndex }
+        assertEquals(1, opened, "selecting the unavailable entry sends the user to fix it")
+        val selected = onEdt { layoutCombo.selectedItem.toString() }
+        assertTrue(
+            selected.startsWith("LayoutInfo(id=classic,"),
+            "the combo itself still falls back to the saved choice rather than writing Comparison, was $selected"
+        )
     }
 }

@@ -1,13 +1,8 @@
 package com.github.ahatem.qtranslate.core.settings.data
 
 import com.github.ahatem.qtranslate.api.plugin.StandardOptions
-import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
-import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
-import javax.swing.KeyStroke
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 @Serializable
 enum class ExtraOutputType {
@@ -23,9 +18,25 @@ enum class ExtraOutputSource {
 object LayoutPresetIds {
     const val CLASSIC = "classic"
     const val SIDE_BY_SIDE = "side_by_side"
-    const val COMPACT = "compact"
     const val COMPARISON = "comparison"
+
+    /** A retired layout. Older configurations may still carry it, so it is only ever read, never offered. */
+    const val LEGACY_COMPACT = "compact"
+
+    /** The layout that [id] stands for: [LEGACY_COMPACT] and unrecognised ids resolve to Classic. */
+    fun resolve(id: String): String = when (id) {
+        CLASSIC, SIDE_BY_SIDE, COMPARISON -> id
+        else -> CLASSIC
+    }
 }
+
+/** Replaces a retired layout id with its successor, so the next write persists the current one. */
+fun Configuration.withoutRetiredLayout(): Configuration =
+    if (layoutPresetId == LayoutPresetIds.LEGACY_COMPACT) {
+        copy(layoutPresetId = LayoutPresetIds.resolve(layoutPresetId))
+    } else {
+        this
+    }
 
 /**
  * The complete request needed to compute one Extra Output result.
@@ -74,6 +85,21 @@ enum class SelectionReadSource {
     TRANSLATION
 }
 
+/**
+ * Controls which word is used for automatic dictionary lookups when a
+ * single word is translated.
+ *
+ * [OFF]        — no automatic lookup; user searches manually.
+ * [TRANSLATED] — looks up the translated (target-language) word.
+ * [SOURCE]     — looks up the source (input) word.
+ */
+@Serializable
+enum class DictionaryAutoSource {
+    OFF,
+    TRANSLATED,
+    SOURCE
+}
+
 val SelectionBehavior.selectionCaptureEnabled: Boolean
     get() = this != SelectionBehavior.OFF
 
@@ -95,210 +121,6 @@ enum class ServiceSelectorStyle { CLASSIC, ENHANCED }
 
 @Serializable
 enum class ServiceSelectorAppearance { ICONS_ONLY, ICONS_AND_TEXT, TEXT_ONLY }
-
-// -------------------------------------------------------------------------
-// UI layout types
-// -------------------------------------------------------------------------
-@Serializable
-data class ToolbarVisibility(
-    val isHistoryBarVisible: Boolean    = true,
-    val isLanguageBarVisible: Boolean   = true,
-    val isServicesPanelVisible: Boolean = true,
-    val isStatusBarVisible: Boolean     = true
-) {
-    companion object { val DEFAULT = ToolbarVisibility() }
-}
-
-@Serializable
-data class FontConfig(val name: String, val size: Int) {
-    init { require(size > 0) { "Font size must be positive, was $size." } }
-}
-
-@Serializable
-data class Size(val width: Int, val height: Int) {
-    init { require(width > 0 && height > 0) { "Size must be positive, was ${width}x${height}." } }
-}
-
-/**
- * A saved window position, in the virtual screen coordinates AWT reports.
- *
- * Deliberately unconstrained. This used to require both coordinates to be non-negative, which is
- * simply not true of a real desktop: a display arranged to the left of or above the primary one
- * occupies negative coordinates, and a window sitting on it has an ordinary, valid, negative
- * position. The requirement turned that into an IllegalArgumentException thrown from the middle of
- * saving, so call sites clamped to zero to get past it, which then moved the window to the primary
- * display on the next launch.
- *
- * A position that is no longer on any connected display is a genuine worry, but it belongs to the
- * moment the window is placed rather than the moment the number is stored, because the displays
- * can change in between. `isPositionReachable` in ui-swing handles it there.
- */
-@Serializable
-data class Position(val x: Int, val y: Int)
-
-// -------------------------------------------------------------------------
-// Hotkeys
-// -------------------------------------------------------------------------
-
-/**
- * Stable identifiers for every bindable action.
- * Never rename these — they are persisted in the config file.
- */
-@Serializable
-enum class HotkeyAction {
-    SHOW_MAIN_WINDOW,
-    SHOW_QUICK_TRANSLATE,
-    LISTEN_TO_TEXT,
-    OPEN_OCR,
-    REPLACE_WITH_TRANSLATION,  // Rob #2 / Davide — translate and replace selected text
-    CYCLE_TARGET_LANGUAGE,     // Yan #3 — cycle through available target languages
-    SHOW_DICTIONARY,           // open floating dictionary popup
-    SHOW_IMAGES,               // open floating image popup (default: Ctrl+Shift+Q, GLOBAL)
-    TRANSLATE,                 // trigger translation (default: Ctrl+Enter, LOCAL)
-    FOCUS_INPUT,               // move keyboard focus to the input text pane (default: Alt+1, LOCAL)
-    FOCUS_OUTPUT,              // move keyboard focus to the output text pane (default: Alt+2, LOCAL)
-    FOCUS_EXTRA_OUTPUT,        // move keyboard focus to the extra-output pane (default: Alt+3, LOCAL)
-    COPY_TRANSLATION,          // copy the translated text (default: Ctrl+Shift+C, LOCAL)
-    CLEAR_INPUT,               // clear the input pane (default: Ctrl+Shift+X, LOCAL)
-    SWAP_LANGUAGES,            // swap source and target languages (default: Ctrl+Shift+S, LOCAL)
-    OPEN_SETTINGS,             // open the settings dialog (default: Ctrl+Comma, LOCAL)
-    SHOW_HISTORY,              // open the translation history dialog (default: Ctrl+Shift+H, LOCAL)
-    TRANSLATE_DOCUMENT         // open the document translation dialog (default: Ctrl+Shift+D, LOCAL)
-}
-
-/**
- * Controls which word is used for automatic dictionary lookups when a
- * single word is translated.
- *
- * [OFF]        — no automatic lookup; user searches manually.
- * [TRANSLATED] — looks up the translated (target-language) word.
- * [SOURCE]     — looks up the source (input) word.
- */
-@Serializable
-enum class DictionaryAutoSource {
-    OFF,
-    TRANSLATED,
-    SOURCE
-}
-
-/**
- * Whether a hotkey fires globally (system-wide via the global input backend) or
- * locally (only when QTranslate has focus, via Swing InputMap).
- *
- * Global hotkeys intercept keys from any application — use sparingly.
- * Local hotkeys only fire inside QTranslate — safe for common shortcuts.
- *
- * Dinar's request: allow per-action control so e.g. Ctrl+Tab isn't
- * stolen from the browser while still keeping Ctrl+Q global.
- */
-@Serializable
-enum class HotkeyScope {
-    GLOBAL,  // Registered with the global input backend — fires system-wide
-    LOCAL    // Registered via Swing InputMap — fires only inside QTranslate
-}
-
-/**
- * A user-configurable hotkey binding stored as raw [keyCode] + [modifiers] integers.
- *
- * ### Why integers, not a string?
- * [KeyStroke.getKeyStroke] (String) fails for many keys (slash, page up, numpad keys).
- * Storing keyCode + modifiers avoids all string parsing.
- * Reconstruct: `KeyStroke.getKeyStroke(keyCode, modifiers)`
- *
- * [keyCode] = 0 means "no binding" (SHOW_MAIN_WINDOW uses double-Ctrl via raw key events).
- *
- * [isDoubleCtrlEnabled] only applies to [HotkeyAction.SHOW_MAIN_WINDOW].
- * When false the double-tap Ctrl sequence is suppressed so other applications
- * that react to Ctrl-key events are not accidentally triggered.
- */
-@Serializable
-data class HotkeyBinding(
-    val action: HotkeyAction,
-    val keyCode: Int = 0,
-    val modifiers: Int = 0,
-    val isEnabled: Boolean = true,
-    val scope: HotkeyScope = HotkeyScope.GLOBAL,
-    val isDoubleCtrlEnabled: Boolean = true   // SHOW_MAIN_WINDOW only
-) {
-    val hasBinding: Boolean get() = keyCode != 0
-
-    fun toKeyStroke(): KeyStroke? =
-        if (hasBinding) KeyStroke.getKeyStroke(keyCode, modifiers) else null
-
-    companion object {
-        val DEFAULTS: List<HotkeyBinding> = listOf(
-            // SHOW_MAIN_WINDOW: double-Ctrl via raw key events — no KeyStroke, always GLOBAL
-            HotkeyBinding(HotkeyAction.SHOW_MAIN_WINDOW,         keyCode = 0,                                          modifiers = 0,                                         scope = HotkeyScope.GLOBAL, isDoubleCtrlEnabled = true),
-            HotkeyBinding(HotkeyAction.SHOW_QUICK_TRANSLATE,     keyCode = java.awt.event.KeyEvent.VK_Q,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.GLOBAL),
-            HotkeyBinding(HotkeyAction.LISTEN_TO_TEXT,           keyCode = java.awt.event.KeyEvent.VK_E,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.GLOBAL),
-            HotkeyBinding(HotkeyAction.OPEN_OCR,                 keyCode = java.awt.event.KeyEvent.VK_I,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.GLOBAL),
-            HotkeyBinding(HotkeyAction.REPLACE_WITH_TRANSLATION, keyCode = java.awt.event.KeyEvent.VK_T,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.GLOBAL),
-            HotkeyBinding(HotkeyAction.CYCLE_TARGET_LANGUAGE,    keyCode = java.awt.event.KeyEvent.VK_L,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.LOCAL),
-            HotkeyBinding(HotkeyAction.SHOW_DICTIONARY,          keyCode = java.awt.event.KeyEvent.VK_D,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.GLOBAL),
-            // Shift+the quick-translate key: this is the same gesture on the same selection,
-            // asking for pictures instead of words. Ctrl+Shift+I would read as a variant of OCR.
-            HotkeyBinding(HotkeyAction.SHOW_IMAGES,              keyCode = java.awt.event.KeyEvent.VK_Q,               modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.GLOBAL),
-            HotkeyBinding(HotkeyAction.TRANSLATE,                keyCode = java.awt.event.KeyEvent.VK_ENTER,            modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.LOCAL),
-            HotkeyBinding(HotkeyAction.FOCUS_INPUT,              keyCode = java.awt.event.KeyEvent.VK_1,                modifiers = java.awt.event.InputEvent.ALT_DOWN_MASK,   scope = HotkeyScope.LOCAL),
-            HotkeyBinding(HotkeyAction.FOCUS_OUTPUT,             keyCode = java.awt.event.KeyEvent.VK_2,                modifiers = java.awt.event.InputEvent.ALT_DOWN_MASK,   scope = HotkeyScope.LOCAL),
-            HotkeyBinding(HotkeyAction.FOCUS_EXTRA_OUTPUT,       keyCode = java.awt.event.KeyEvent.VK_3,                modifiers = java.awt.event.InputEvent.ALT_DOWN_MASK,   scope = HotkeyScope.LOCAL),
-            // All LOCAL — these act on the focused window, so they must not take the key
-            // combination away from other applications the way a GLOBAL binding would.
-            HotkeyBinding(HotkeyAction.COPY_TRANSLATION,         keyCode = java.awt.event.KeyEvent.VK_C,                modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.LOCAL),
-            HotkeyBinding(HotkeyAction.CLEAR_INPUT,              keyCode = java.awt.event.KeyEvent.VK_X,                modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.LOCAL),
-            HotkeyBinding(HotkeyAction.SWAP_LANGUAGES,           keyCode = java.awt.event.KeyEvent.VK_S,                modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.LOCAL),
-            HotkeyBinding(HotkeyAction.OPEN_SETTINGS,            keyCode = java.awt.event.KeyEvent.VK_COMMA,            modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.LOCAL),
-            HotkeyBinding(HotkeyAction.SHOW_HISTORY,             keyCode = java.awt.event.KeyEvent.VK_H,                modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.LOCAL),
-            HotkeyBinding(HotkeyAction.TRANSLATE_DOCUMENT,       keyCode = java.awt.event.KeyEvent.VK_D,                modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.LOCAL),
-        )
-    }
-}
-
-// -------------------------------------------------------------------------
-// Service presets
-// -------------------------------------------------------------------------
-
-@Serializable
-data class ServicePreset(
-    val id: String,
-    val name: String,
-    val selectedServices: Map<ServiceRole, String?>,
-    val comparisonTranslatorIds: List<String> = emptyList()
-) {
-    companion object {
-
-        const val DEFAULT_PRESET_NAME = "__default__" // internal sentinel, never shown to user
-
-        // Composed ids, matching what the registry keys these services under. A fresh install must
-        // be valid on its own rather than depend on a migration to become so.
-        private const val GOOGLE = "google-services"
-        private val DEFAULT_TRANSLATOR    = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-translator")
-        private val DEFAULT_TTS           = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-tts")
-        private val DEFAULT_SPELL_CHECKER = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-spell-checker")
-        private val DEFAULT_OCR           = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-ocr")
-        private val DEFAULT_DICTIONARY    = ServiceId.of(GOOGLE, ServiceId.DEFAULT_INSTANCE, "google-dictionary")
-
-        @OptIn(ExperimentalUuidApi::class)
-        fun createDefault(name: String = DEFAULT_PRESET_NAME): ServicePreset = ServicePreset(
-            id = Uuid.random().toString(),
-            name = name,
-            selectedServices = mapOf(
-                ServiceRole.TRANSLATOR    to DEFAULT_TRANSLATOR,
-                ServiceRole.TTS           to DEFAULT_TTS,
-                ServiceRole.SPELL_CHECKER to DEFAULT_SPELL_CHECKER,
-                ServiceRole.OCR           to DEFAULT_OCR,
-                ServiceRole.DICTIONARY    to DEFAULT_DICTIONARY
-            )
-        )
-    }
-}
-
-
-@Serializable
-data class TranslationRule(
-    val sourceLanguage: String,
-    val targetLanguage: String
-)
 
 // -------------------------------------------------------------------------
 // Root configuration
@@ -416,7 +238,7 @@ data class Configuration(
     val closePopupsOnClickOutside: Boolean = true,
     val mainWindowSize: Size? = null,
     val mainWindowPosition: Position? = null,
-    val uiFontConfig: FontConfig = FontConfig(name = "Rubik", size = 13),
+    val uiFontConfig: FontConfig = FontConfig(name = "Inter", size = 13),
     val uiScale: Int = 100,
     val themeId: String = "os_default",
     /**
@@ -426,18 +248,20 @@ data class Configuration(
      * somebody's choice, and an unknown one falls back rather than leaving no icons at all.
      */
     val iconSetId: String = "lucide",
-    val editorFontConfig: FontConfig = FontConfig(name = "Rubik", size = 15),
+    val editorFontConfig: FontConfig = FontConfig(name = "Inter", size = 15),
     /**
      * The face used for characters the editor font has no glyph for.
      *
-     * Defaults to the bundled Arabic face rather than to Rubik, which covers no Arabic at all.
-     * Pointing the fallback at a font with the same gap as the primary meant right-to-left output
-     * was left to whatever the platform substituted, so the same translation rendered differently
-     * on Windows, on Linux and in a container with no Arabic font installed.
+     * [FontConfig.AUTOMATIC] rather than a specific bundled face: QTranslate serves users across
+     * every script, and a single physical font — however good its own coverage — is never the
+     * right universal answer for text it was never designed to draw. The runtime's own logical
+     * font resolves per platform instead, with the application's existing shaped-text machinery
+     * still guarding correctness wherever that resolution is unsound.
      *
-     * Only new installations pick this up; an existing configuration keeps whatever is stored.
+     * Only new installations pick this up; an existing configuration keeps whatever is stored,
+     * including a prior install's explicit "Noto Naskh Arabic".
      */
-    val editorFallbackFontConfig: FontConfig = FontConfig(name = "Noto Naskh Arabic", size = 15),
+    val editorFallbackFontConfig: FontConfig = FontConfig(name = FontConfig.AUTOMATIC, size = 15),
     val useUnifiedTitleBar: Boolean = true,
     val layoutPresetId: String = "classic",
     val toolbarVisibility: ToolbarVisibility = ToolbarVisibility.DEFAULT,
@@ -506,7 +330,11 @@ data class Configuration(
                 selectionReadSource          = SelectionReadSource.TRANSLATION,
                 legacySelectionIconEnabled   = null,
                 autoCheckForUpdates          = true,
-                interfaceLanguage            = "en",
+                // Blank, not "en": this is the sentinel Main.kt's startup path reads as "the user
+                // hasn't chosen a language yet" and resolves via OsLanguageDetector against the
+                // bundled locales, falling back to English only when none match. Defaulting this to
+                // an explicit "en" would skip that detection on every fresh install.
+                interfaceLanguage            = "",
                 isInstantTranslationEnabled  = false,
                 isSpellCheckingEnabled       = true,
                 extraOutputType              = ExtraOutputType.None,
@@ -520,9 +348,9 @@ data class Configuration(
                 clearHistoryOnExit           = false,
                 uiScale                      = 100,
                 themeId                      = "os_default",
-                uiFontConfig                 = FontConfig(name = "Rubik", size = 13),
-                editorFontConfig             = FontConfig(name = "Rubik", size = 15),
-                editorFallbackFontConfig     = FontConfig(name = "Noto Naskh Arabic", size = 15),
+                uiFontConfig                 = FontConfig(name = "Inter", size = 13),
+                editorFontConfig             = FontConfig(name = "Inter", size = 15),
+                editorFallbackFontConfig     = FontConfig(name = FontConfig.AUTOMATIC, size = 15),
                 useUnifiedTitleBar           = true,
                 layoutPresetId               = "classic",
                 toolbarVisibility            = ToolbarVisibility.DEFAULT,
@@ -533,55 +361,5 @@ data class Configuration(
                 popupLastKnownPosition       = Position(x = 0, y = 0)
             )
         }
-    }
-}
-
-/**
- * How the application reaches the network, for every plugin at once.
- *
- * Stored here rather than per plugin because that is the whole point: a proxy or a timeout is a
- * property of where the user is sitting, not of which translation service they happen to be using,
- * and setting it eight times is seven times too many. Plugins are handed a client built from this,
- * so none of them has to know it exists.
- *
- * The proxy password is deliberately absent. Configuration is written to disk as plain JSON, and a
- * password belongs in the secret store next to the API keys. See [proxyPasswordKey].
- */
-@Serializable
-data class NetworkConfig(
-    val proxyEnabled: Boolean = false,
-    /** For example `http://proxy.example:3128`. Credentials are separate fields, not userinfo. */
-    val proxyUrl: String = "",
-    val proxyUsername: String = "",
-
-    val requestTimeoutSeconds: Int = 30,
-    val connectTimeoutSeconds: Int = 15,
-    val socketTimeoutSeconds: Int = 15,
-
-    val retryEnabled: Boolean = true,
-    val maxRetries: Int = 2,
-    /**
-     * Seconds before the first retry. Each attempt after waits twice the last, plus jitter.
-     *
-     * One number rather than a written-out ladder: a fixed interval is the wrong answer for
-     * a rate limit, and a hand-written 5/10/15 is four more values to get wrong that a
-     * server's Retry-After overrides anyway whenever it appears.
-     */
-    val retryInitialDelaySeconds: Int = 1,
-
-    val maxConnectionsPerHost: Int = 8,
-    val maxConnectionsTotal: Int = 64,
-
-    /**
-     * Longer timeouts for particular hosts, keyed by hostname.
-     *
-     * A local model is the case this exists for: it may think for a minute before its first token,
-     * where a cloud endpoint that has not answered in ten seconds is not going to.
-     */
-    val hostTimeoutSeconds: Map<String, Int> = emptyMap()
-) {
-    companion object {
-        /** Where the proxy password lives, in the secret store rather than in this file. */
-        const val proxyPasswordKey: String = "network.proxy.password"
     }
 }

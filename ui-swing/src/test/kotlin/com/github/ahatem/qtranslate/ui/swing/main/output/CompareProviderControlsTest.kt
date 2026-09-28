@@ -130,33 +130,26 @@ class CompareProviderControlsTest {
         assertFalse(providerIconVisible, "separate provider icon must not duplicate the selector identity")
         assertFalse(providerNameVisible, "separate provider name must not duplicate the selector identity")
         var buttonText: String? = null
-        SwingUtilities.invokeAndWait { buttonText = selector.buttonForTest().text }
+        SwingUtilities.invokeAndWait { buttonText = selector.text }
         assertEquals("Google Translate", buttonText)
     }
 
-    // 2. Text-mode translator selector orders icon -> provider name -> chevron.
+    // 2. Text-mode translator selector is one button: icon, provider name, then a drawn chevron.
     @Test
-    fun `text mode selector orders icon then name then chevron`() {
+    fun `text mode selector is a single button owning icon and name`() {
         val selector = TranslatorPopupButton(blindIconManager(), {})
         renderOnEdt {
             selector.textMode = true
             selector.render(selectorState())
         }
-        lateinit var button: JButton
-        lateinit var chevron: JLabel
-        SwingUtilities.invokeAndWait {
-            button = selector.buttonForTest()
-            chevron = selector.chevronForTest()
-        }
-        assertNotNull(button.icon, "selector button must own the provider icon")
-        assertEquals("Google Translate", button.text)
-        assertEquals(SwingConstants.LEADING, button.horizontalAlignment)
-        assertTrue(chevron.isVisible, "text-mode chevron must be visible")
-        // Logical trailing position: CENTER button first, LINE_END chevron last,
-        // so LTR reads icon -> name -> chevron and RTL mirrors without hard-coding sides.
-        val layout = selector.layout as BorderLayout
-        assertEquals(BorderLayout.CENTER, layout.getConstraints(button))
-        assertEquals(BorderLayout.LINE_END, layout.getConstraints(chevron))
+        assertTrue(selector is JButton, "the whole identity is one button")
+        assertNotNull(selector.icon, "the button owns the provider icon")
+        assertEquals("Google Translate", selector.text)
+        assertEquals(SwingConstants.LEADING, selector.horizontalAlignment)
+        assertEquals(0, selector.componentCount, "no separate child, such as a chevron label, carries its own clicks")
+        assertTrue(selector.isFocusable, "reachable from the keyboard")
+        assertFalse(selector.isRequestFocusEnabled, "a click does not pull focus out of the text being edited")
+        assertEquals(com.formdev.flatlaf.extras.components.FlatButton.ButtonType.toolBarButton, selector.buttonType)
     }
 
     @Test
@@ -167,14 +160,10 @@ class CompareProviderControlsTest {
             selector.render(selectorState())
         }
         var buttonText: String? = "unset"
-        var chevronVisible = true
-        SwingUtilities.invokeAndWait {
-            buttonText = selector.buttonForTest().text
-            chevronVisible = selector.chevronForTest().isVisible
-        }
+        SwingUtilities.invokeAndWait { buttonText = selector.text }
         assertNull(buttonText, "icon-only mode must not show text")
-        assertFalse(chevronVisible, "icon-only mode keeps its composite affordance, not the trailing chevron")
-        assertNotNull(selector.buttonForTest().icon)
+        assertEquals(0, selector.componentCount, "icon-only mode keeps its composite icon and adds no child")
+        assertNotNull(selector.icon)
     }
 
     // 3. Provider FAILURE does not increase header height via a dialog-sized icon.
@@ -331,11 +320,15 @@ class CompareProviderControlsTest {
             }
             assertEquals("Primary", tagText)
             assertEquals(muted, tagColor, "Primary tag must use the semantic muted foreground, not accent text")
-            val source = File("src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/main/output/TranslationProviderView.kt").readText()
-            assertTrue(
-                source.contains("rail.isVisible = state.role == ProviderRole.PRIMARY"),
-                "the 2px primary rail remains the canonical accent marker"
-            )
+            val secondaryView = TranslationProviderView(null)
+            renderOnEdt { secondaryView.render(secondary()) }
+            SwingUtilities.invokeAndWait {
+                val primaryRail = view.railForTest()
+                val secondaryRail = secondaryView.railForTest()
+                assertTrue(primaryRail.isVisible && primaryRail.isOpaque, "the primary paints the accent rail")
+                assertTrue(secondaryRail.isVisible && !secondaryRail.isOpaque, "a secondary keeps the rail's slot but paints nothing")
+                assertEquals(primaryRail.preferredSize.width, secondaryRail.preferredSize.width)
+            }
         } finally {
             UIManager.put("Label.disabledForeground", old)
         }
@@ -418,5 +411,57 @@ class CompareProviderControlsTest {
             failureHeight <= loadingHeight + UIScale.scale(4),
             "failure header must not grow beyond loading (loading=$loadingHeight failure=$failureHeight)"
         )
+    }
+
+    /**
+     * The results share the workspace's edge, and every provider shares one leading column for its
+     * identity and one for its text, in both directions: the primary's selector button is pulled
+     * back by its own inset, and every provider reserves the primary's rail.
+     */
+    @Test
+    fun `every provider lines up on the board's edge, one identity column and one text column`() {
+        for (orientation in listOf(ComponentOrientation.LEFT_TO_RIGHT, ComponentOrientation.RIGHT_TO_LEFT)) {
+            val selector = TranslatorPopupButton(blindIconManager(), {})
+            val board = CompareBoard(primarySelector = selector, iconManager = null)
+            renderOnEdt {
+                board.render(
+                    CompareBoardState(
+                        primary = primary(selectorState = selectorState()),
+                        secondaries = listOf(secondary(), secondary().copy(serviceId = "third", serviceName = "Third"))
+                    )
+                )
+                board.applyComponentOrientation(orientation)
+                board.setSize(UIScale.scale(720), UIScale.scale(900))
+            }
+            renderOnEdt { layoutTree(board) }
+            renderOnEdt { layoutTree(board) }
+            SwingUtilities.invokeAndWait {
+                val ltr = orientation.isLeftToRight
+                fun leadingX(c: Component, inset: Int = 0) =
+                    SwingUtilities.convertPoint(c, if (ltr) inset else c.width - inset, 0, board).x
+                val views = listOf(board.primaryProviderView) + listOf("second", "third").map { board.secondaryViewForTest(it)!! }
+
+                val boardEdge = if (ltr) board.insets.left else board.width - board.insets.right
+                assertEquals(0, if (ltr) board.insets.left else board.insets.right, "$orientation: the board adds no side padding")
+                views.forEach { assertEquals(boardEdge, leadingX(it), "$orientation: ${it.serviceId} starts on the board's edge") }
+
+                val selectorInset = selector.insets.let { if (ltr) it.left else it.right }
+                val primaryIdentity = leadingX(selector, selectorInset)
+                views.drop(1).forEach {
+                    assertEquals(primaryIdentity, leadingX(it.providerNameForTest()), "$orientation: ${it.serviceId}'s identity column")
+                }
+                val textColumn = leadingX(views.first().textPaneForTest())
+                views.drop(1).forEach {
+                    assertEquals(textColumn, leadingX(it.textPaneForTest()), "$orientation: ${it.serviceId}'s text column")
+                }
+            }
+        }
+    }
+
+    private fun layoutTree(component: Component) {
+        if (component is Container) {
+            component.doLayout()
+            component.components.forEach(::layoutTree)
+        }
     }
 }

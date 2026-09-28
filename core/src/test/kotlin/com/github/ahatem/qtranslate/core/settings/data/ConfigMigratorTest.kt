@@ -211,4 +211,44 @@ class ConfigMigratorTest {
         assertFalse("isSelectionIconEnabled" in encoded)
         assertEquals(SelectionBehavior.OFF, Configuration.DEFAULT.selectionBehavior)
     }
+
+    // -------------------------------------------------------------------------
+    // Font defaults — P10-C2
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `a configuration with no stored font keys resolves to the current defaults`() {
+        // What an installation with no font opinion of its own looks like on disk: the keys are
+        // simply absent, exactly as an install that has never touched Appearance would write them.
+        val decoded = Json {}.decodeFromString<Configuration>("{\"configVersion\":7}")
+        assertEquals(FontConfig("Inter", 13), decoded.uiFontConfig)
+        assertEquals(FontConfig("Inter", 15), decoded.editorFontConfig)
+        assertEquals(FontConfig(FontConfig.AUTOMATIC, 15), decoded.editorFallbackFontConfig)
+    }
+
+    @Test
+    fun `a configuration with explicit legacy font values keeps them`() {
+        val decoded = Json {}.decodeFromString<Configuration>(
+            "{\"configVersion\":7," +
+                "\"uiFontConfig\":{\"name\":\"Rubik\",\"size\":13}," +
+                "\"editorFontConfig\":{\"name\":\"Rubik\",\"size\":15}," +
+                "\"editorFallbackFontConfig\":{\"name\":\"Noto Naskh Arabic\",\"size\":15}}"
+        )
+        assertEquals(FontConfig("Rubik", 13), decoded.uiFontConfig)
+        assertEquals(FontConfig("Rubik", 15), decoded.editorFontConfig)
+        assertEquals(FontConfig("Noto Naskh Arabic", 15), decoded.editorFallbackFontConfig)
+    }
+
+    @Test
+    fun `default font configuration is not written to disk, so an untouched install keeps following future defaults`() {
+        // This, together with the two tests above, is the entire compatibility policy: whether a
+        // stored configuration carries an opinion on fonts is decided by whether the key exists,
+        // and the two tests above show that decision is preserved through decode. This test protects
+        // the half that makes it true — an untouched default is never written, so it is free to mean
+        // whatever the current build's default means, on every future upgrade.
+        val encoded = Json {}.encodeToString(Configuration.serializer(), Configuration.DEFAULT)
+        assertFalse("uiFontConfig" in encoded)
+        assertFalse("editorFontConfig" in encoded)
+        assertFalse("editorFallbackFontConfig" in encoded)
+    }
 }

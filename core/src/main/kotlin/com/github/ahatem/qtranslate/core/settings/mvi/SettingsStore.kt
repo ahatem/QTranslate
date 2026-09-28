@@ -270,43 +270,68 @@ class SettingsStore(
         onSuccess: (Configuration) -> Unit
     ) {
         scope.launch {
-            saveMutex.withLock {
-                val current = _state.value
-                val configToSave = update(current.originalConfiguration)
-                logger.info("Saving scoped configuration update...")
-                _state.update { it.copy(isSaving = true) }
-                settingsRepository.updateConfiguration(configToSave).fold(
-                    success = {
-                        _state.update { current ->
-                            val workingConfiguration = if (current.isDirty) {
-                                update(current.workingConfiguration)
-                            } else {
-                                configToSave
-                            }
-                            current.copy(
-                                originalConfiguration = configToSave,
-                                workingConfiguration = workingConfiguration,
-                                isDirty = workingConfiguration != configToSave,
-                                isSaving = false
-                            )
-                        }
-                        onSuccess(configToSave)
-                        _eventChannel.send(
-                            SettingsEvent.ShowMessage("Settings saved", NotificationType.SUCCESS)
-                        )
-                    },
-                    failure = { error ->
-                        logger.error("Failed to save configuration: ${error.message}")
-                        _state.update { it.copy(isSaving = false) }
-                        _eventChannel.send(
-                            SettingsEvent.ShowMessage(
-                                "Failed to save settings: ${error.message}",
-                                NotificationType.ERROR
-                            )
-                        )
-                    }
-                )
-            }
+            saveMutex.withLock { performScopedSave(update, onSuccess, notify = true) }
         }
+    }
+
+    /**
+     * Same persistence as [SettingsIntent.ToggleSetting], but suspends until the write
+     * completes instead of firing on [scope] and returning immediately.
+     *
+     * For a caller that must know the write finished before moving on, such as application
+     * shutdown persisting the final window bounds, rather than racing an independent
+     * [scope]-launched save.
+     *
+     * @return true if the configuration was persisted, false on failure.
+     */
+    suspend fun persistScopedUpdateAndAwait(update: (Configuration) -> Configuration): Boolean =
+        saveMutex.withLock { performScopedSave(update, onSuccess = {}, notify = false) }
+
+    private suspend fun performScopedSave(
+        update: (Configuration) -> Configuration,
+        onSuccess: (Configuration) -> Unit,
+        notify: Boolean
+    ): Boolean {
+        val current = _state.value
+        val configToSave = update(current.originalConfiguration)
+        logger.info("Saving scoped configuration update...")
+        _state.update { it.copy(isSaving = true) }
+        return settingsRepository.updateConfiguration(configToSave).fold(
+            success = {
+                _state.update { current ->
+                    val workingConfiguration = if (current.isDirty) {
+                        update(current.workingConfiguration)
+                    } else {
+                        configToSave
+                    }
+                    current.copy(
+                        originalConfiguration = configToSave,
+                        workingConfiguration = workingConfiguration,
+                        isDirty = workingConfiguration != configToSave,
+                        isSaving = false
+                    )
+                }
+                onSuccess(configToSave)
+                if (notify) {
+                    _eventChannel.send(
+                        SettingsEvent.ShowMessage("Settings saved", NotificationType.SUCCESS)
+                    )
+                }
+                true
+            },
+            failure = { error ->
+                logger.error("Failed to save configuration: ${error.message}")
+                _state.update { it.copy(isSaving = false) }
+                if (notify) {
+                    _eventChannel.send(
+                        SettingsEvent.ShowMessage(
+                            "Failed to save settings: ${error.message}",
+                            NotificationType.ERROR
+                        )
+                    )
+                }
+                false
+            }
+        )
     }
 }

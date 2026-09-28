@@ -23,7 +23,9 @@ import javax.swing.JComboBox
 class LayoutPanel(
     private val store: SettingsStore,
     private val localizationManager: LocalizationManager,
-    private val availableTranslatorIds: () -> List<String> = { emptyList() }
+    private val availableTranslatorIds: () -> List<String> = { emptyList() },
+    /** Invoked when the user acts on the unavailable-Comparison entry, to send them to fix it. */
+    private val onOpenServicesSettings: () -> Unit = {}
 ) : SettingsPanel() {
 
     private val layouts = LayoutManager.getAvailableLayouts().map {
@@ -35,6 +37,10 @@ class LayoutPanel(
 
     private fun comparisonUnavailableHint(): String =
         localizationManager.getString("settings_window.layout_comparison_unavailable")
+
+    /** The unavailable entry's own display text -- an action, not just a disabled label. */
+    private fun comparisonConfigureLabel(): String =
+        localizationManager.getString("settings_window.layout_comparison_configure")
 
     private lateinit var layoutCombo: JComboBox<LayoutInfo>
     private lateinit var historyCheck: JCheckBox
@@ -60,13 +66,15 @@ class LayoutPanel(
                 if (!isUpdatingFromState) {
                     val layout = selectedItem as? LayoutInfo ?: return@addActionListener
                     if (layout.id == LayoutPresetIds.COMPARISON && !comparisonAvailable) {
-                        // Disabled entries cannot be picked: fall back to the
-                        // saved choice instead of writing an unusable layout.
+                        // Disabled entries cannot be picked: fall back to the saved choice instead
+                        // of writing an unusable layout. But the click itself is not wasted -- it
+                        // reads as "take me to fix this," so it does.
                         withoutTrigger {
                             selectedItem = layouts.find {
-                                it.id == store.state.value.workingConfiguration.layoutPresetId
+                                it.id == LayoutPresetIds.resolve(store.state.value.workingConfiguration.layoutPresetId)
                             }
                         }
+                        onOpenServicesSettings()
                         return@addActionListener
                     }
                     applyDraft(store) { it.copy(layoutPresetId = layout.id) }
@@ -210,9 +218,12 @@ class LayoutPanel(
         finishLayout()
     }
 
-    /** Shows an unavailable Comparison dimmed, with the reason as its tooltip. */
+    /**
+     * Shows an unavailable Comparison dimmed, but its own label says what to do about it rather
+     * than just that it can't be picked -- "Comparison" alone, greyed out, teaches nothing.
+     */
     private fun layoutPresetRenderer() = DisplayValueRenderer<LayoutInfo>(
-        text = { it?.displayName.orEmpty() },
+        text = { if (isUnavailableComparison(it)) comparisonConfigureLabel() else it?.displayName.orEmpty() },
         isDisabled = ::isUnavailableComparison,
         tooltip = { if (isUnavailableComparison(it)) comparisonUnavailableHint() else null }
     )
@@ -224,7 +235,7 @@ class LayoutPanel(
         val c = state.workingConfiguration
         comparisonAvailable = c.isComparisonEligible(availableTranslatorIds())
         withoutTrigger {
-            layoutCombo.selectedItem = layouts.find { it.id == c.layoutPresetId }
+            layoutCombo.selectedItem = layouts.find { it.id == LayoutPresetIds.resolve(c.layoutPresetId) }
             layoutCombo.toolTipText =
                 if (comparisonAvailable) null else comparisonUnavailableHint()
             historyCheck.isSelected = c.toolbarVisibility.isHistoryBarVisible

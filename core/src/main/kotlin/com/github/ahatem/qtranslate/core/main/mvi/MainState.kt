@@ -12,6 +12,9 @@ import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonTranslation
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
 
+/** The tools the main window's lookup dock can show, one at a time. */
+enum class LookupTool { DICTIONARY, IMAGES }
+
 /**
  * Complete UI state for the main translation screen.
  *
@@ -78,7 +81,13 @@ data class MainState(
      */
     val dictionaryLanguage: LanguageCode = LanguageCode.ENGLISH,
     val dictionaryFailed: Boolean = false,
-    val isDictionaryPanelVisible: Boolean = false,
+    /**
+     * Whether the lookup dock is open, whichever tool it shows. This is the flag that is remembered
+     * between sessions as the "show dictionary panel" setting.
+     */
+    val isLookupDockOpen: Boolean = false,
+    /** The tool the lookup dock shows while it is open. */
+    val lookupDockTool: LookupTool = LookupTool.DICTIONARY,
     val spellCheckCorrections: List<Correction> = emptyList(),
     val isQuickTranslateDialogVisible: Boolean = false,
     val isQuickTranslateDialogPinned: Boolean = false,
@@ -127,6 +136,14 @@ data class MainState(
             ?: detectedSourceLanguage
             ?: LanguageCode.ENGLISH
 
+    /** Whether the dictionary is what the open lookup dock is showing. */
+    val isDictionaryPanelVisible: Boolean
+        get() = isLookupDockOpen && lookupDockTool == LookupTool.DICTIONARY
+
+    /** Whether the images are what the open lookup dock is showing. */
+    val isImagesDockVisible: Boolean
+        get() = isLookupDockOpen && lookupDockTool == LookupTool.IMAGES
+
     /** `true` when there is a previous history entry to restore. */
     val canUndo: Boolean
         get() = historyIndex > 0
@@ -154,3 +171,12 @@ data class MainState(
     val availableTranslatorIds: List<String>
         get() = getAvailableServicesFor(ServiceRole.TRANSLATOR).map { it.id }
 }
+
+/** Opens the lookup dock on the dictionary, or closes it when the dictionary is what it shows. */
+fun MainState.withDictionaryPanelToggled(): MainState =
+    if (isDictionaryPanelVisible) copy(isLookupDockOpen = false)
+    else copy(isLookupDockOpen = true, lookupDockTool = LookupTool.DICTIONARY)
+
+/** Opens the lookup dock on [tool], or switches an open one to it. */
+fun MainState.withLookupDockOn(tool: LookupTool): MainState =
+    copy(isLookupDockOpen = true, lookupDockTool = tool)

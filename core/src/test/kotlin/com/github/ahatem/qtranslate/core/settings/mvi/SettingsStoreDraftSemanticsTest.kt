@@ -272,6 +272,20 @@ class SettingsStoreDraftSemanticsTest {
         assertFalse(cancelStore.state.value.originalConfiguration.isGlobalHotkeysEnabled)
     }
 
+    @Test
+    fun `persistScopedUpdateAndAwait persists before returning and preserves an unrelated draft`() = runTest {
+        val initial = Configuration.DEFAULT.copy(interfaceLanguage = "en")
+        val store = store(initial)
+
+        store.dispatch(SettingsIntent.UpdateDraft(initial.copy(interfaceLanguage = "ar")))
+
+        val persisted = store.persistScopedUpdateAndAwait { it.copy(isGlobalHotkeysEnabled = false) }
+
+        assertTrue(persisted)
+        assertFalse(store.state.value.originalConfiguration.isGlobalHotkeysEnabled)
+        assertEquals("ar", store.state.value.workingConfiguration.interfaceLanguage)
+    }
+
     private fun translatorConfig(primary: String, vararg comparisons: String): Configuration {
         val preset = Configuration.DEFAULT.getActivePreset()!!.let {
             it.copy(

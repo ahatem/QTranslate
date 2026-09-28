@@ -55,7 +55,11 @@ import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
  * and consumed by the UI layer.
  *
  * Everything in this class is a singleton for the lifetime of the process.
- * The [appScope] is the root coroutine scope — cancelling it shuts everything down.
+ * [appScope] is the root coroutine scope: work started here dies with it. Cancelling it is
+ * necessary but not sufficient to shut down cleanly: [mainStore], [pluginManager] and
+ * [httpClient] each have their own explicit shutdown/close with real persistence and resource
+ * cleanup, which application shutdown must call directly rather than relying on cancellation
+ * alone. [appScope] is cancelled last, once those have finished.
  */
 class AppDependencies(
     val appScope: CoroutineScope,
@@ -70,7 +74,14 @@ class AppDependencies(
     /** The application's own secrets, distinct from any plugin's. */
     val appSecrets: AppSecretStore,
     /** Where languages, themes and icon sets are read from. */
-    val appDataDirectory: File
+    val appDataDirectory: File,
+    /**
+     * Shared host HTTP client: one connection pool for the host app, used by [Updater] and any
+     * other host-side network call. Distinct from a plugin's own sandboxed client, which the
+     * plugin's lifecycle owns and closes. This one is owned by the application root: closed
+     * exactly once, by application shutdown.
+     */
+    val httpClient: HttpClient
 )
 
 /**
@@ -305,6 +316,7 @@ suspend fun buildDependencies(
         iconManager         = iconManager,
         themeManager        = themeManager,
         localizationManager = localizationManager,
-        notificationBus     = notificationBus
+        notificationBus     = notificationBus,
+        httpClient          = httpClient
     )
 }

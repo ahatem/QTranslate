@@ -44,9 +44,6 @@ import javax.swing.text.StyleContext
 import javax.swing.text.StyledDocument
 import javax.swing.undo.UndoManager
 
-/** Shared because it is only ever read; a fresh one per paint was pure garbage. */
-private val EMPTY_INSETS = Insets(0, 0, 0, 0)
-
 private fun File.isImageFile(): Boolean =
     extension.lowercase() in setOf("png", "jpg", "jpeg", "bmp", "gif", "tiff", "tif", "webp")
 
@@ -72,6 +69,19 @@ class AdvancedTextPane(
     private val correctionHighlights = CorrectionHighlighter(this)
 
     private val directions = TextPaneDirections(this)
+
+    /** Set once [directions] exists; the orientation is first set while the superclass is still being built. */
+    private var directionsReady = true
+
+    /**
+     * Direction belongs to the text, not to the interface around it: a translation in English
+     * inside an Arabic interface reads left to right, and the cascade that mirrors the window must
+     * not turn it around.
+     */
+    override fun setComponentOrientation(orientation: java.awt.ComponentOrientation) {
+        val ofTheText = if (directionsReady) directions.contentOrientation() else null
+        super.setComponentOrientation(ofTheText ?: orientation)
+    }
 
     private val keyBindings = TextPaneKeyBindings(
         pane = this,
@@ -106,6 +116,7 @@ class AdvancedTextPane(
     private var cachedCounterValue: Int = -1
     private var cachedCounterText: String = ""
     private var cachedDisabledFg: Color? = null
+    private val paintInsets = Insets(0, 0, 0, 0)
 
     private val contextMenu: JPopupMenu by lazy { createContextMenu() }
     private val fallbackListener: FontFallbackDocumentListener
@@ -154,8 +165,8 @@ class AdvancedTextPane(
             KeyboardFocusManager.BACKWARD_TRAVERSAL_KEYS,
             setOf(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, InputEvent.SHIFT_DOWN_MASK))
         )
-        val padding = UIScale.scale(6)
-        margin = Insets(padding, padding, padding, padding)
+        // Unscaled: FlatLaf's text border scales the margin itself.
+        margin = Insets(PADDING, PADDING, PADDING, PADDING)
 
         document.addUndoableEditListener(undoManager)
         document.addDocumentListener(documentListener)
@@ -261,7 +272,8 @@ class AdvancedTextPane(
             if (!hasHint && !hasCounter) return
 
             // Only touched when something is actually drawn — paint runs on every caret blink.
-            val insets = margin ?: EMPTY_INSETS
+            // The border's insets, not the raw margin: the margin is unscaled, the border scales it.
+            val insets = getInsets(paintInsets)
             val disabledFg = cachedDisabledFg
                 ?: (UIManager.getColor("Label.disabledForeground") ?: Color.GRAY).also { cachedDisabledFg = it }
             val ltr = componentOrientation.isLeftToRight
@@ -486,6 +498,18 @@ class AdvancedTextPane(
     override fun getScrollableTracksViewportWidth(): Boolean =
         parent is JViewport && parent.width > 0
 
+    /**
+     * The scroll pane's own size request, which for a pane that wraps to its viewport is that
+     * viewport's width. Left alone it would be the width of the longest unwrapped line, and a
+     * split pane sizing itself from its children's requests would give a long translation half
+     * the window before it had been laid out once.
+     */
+    override fun getPreferredScrollableViewportSize(): Dimension {
+        val size = super.getPreferredScrollableViewportSize()
+        if (getScrollableTracksViewportWidth()) size.width = size.width.coerceAtMost(parent.width)
+        return size
+    }
+
     override fun getScrollableBlockIncrement(visibleRect: Rectangle?, orientation: Int, direction: Int): Int =
         font.size * 2
 
@@ -556,5 +580,8 @@ class AdvancedTextPane(
 
         /** Gap below a paragraph, before scaling. */
         const val PARAGRAPH_GAP = 6f
+
+        /** Space between the text and each edge, before scaling. */
+        const val PADDING = 6
     }
 }

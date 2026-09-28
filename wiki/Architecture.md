@@ -195,12 +195,14 @@ The key rule: never use absolute constants (`WEST`, `EAST`, `LEFT`, `RIGHT`) in 
 Hotkeys are data-driven — stored in `Configuration.hotkeys` as `List<HotkeyBinding>`. Each binding holds a `keyCode`, `modifiers`, `HotkeyAction`, and `HotkeyScope`.
 
 `HotkeyScope` controls where the hotkey fires:
-- `GLOBAL` — registered with jKeymaster, fires system-wide even when QTranslate is not focused
+- `GLOBAL` — registered with the native input backend, fires system-wide even when QTranslate is not focused
 - `LOCAL` — registered via Swing `InputMap`/`ActionMap`, fires only when QTranslate has focus
 
-`MainGlobalKeyListener` splits bindings by scope: GLOBAL bindings go to jKeymaster, LOCAL bindings are returned via `getLocalBindings()` for `MainAppFrame` to register on the `rootPane`.
+Global input runs on **QInput** (`ui-swing/.../main/input/QInputBackend.kt`), a native runtime accessed through the `GlobalInputBackend` interface. `MainGlobalKeyListener` owns the boundary between the two scopes and the backend: it derives the desired `GLOBAL` registration set from the current bindings, reconciles it against the backend through a `HotkeyRegistrationLedger` — so a registration the platform refuses to release stays non-dispatchable instead of silently firing — and exposes `LOCAL` bindings via `getLocalBindings()` for `MainAppFrame` to register on the `rootPane`.
 
-`SHOW_MAIN_WINDOW` is special — it uses a double-Ctrl sequence via JNativeHook, not a standard KeyStroke.
+`SHOW_MAIN_WINDOW` is always `GLOBAL` and special-cased: it fires on a double-Ctrl sequence tracked from raw key events by `DoubleCtrlDetector`, not a registered KeyStroke.
+
+**Hotkey presets** (`HotkeyPresets.LEGACY`, `HotkeyPresets.MODERN`) are ready-made binding sets a user can switch to from Settings → Hotkeys. `HotkeyPresets.identify()` compares the current bindings against both and reports `HotkeyPresetKind.CUSTOM` the moment they diverge from either — there is no persisted "which preset am I on" flag, it is always derived from the bindings themselves.
 
 ---
 

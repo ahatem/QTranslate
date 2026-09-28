@@ -8,18 +8,20 @@ Plugins extend QTranslate with new translation engines, OCR providers, TTS servi
 
 1. Download the plugin `.jar` file from its repository or release page
 2. In QTranslate, open **Settings → Plugins**
-3. Click **Install Plugin…**
-4. Select the `.jar` file
-5. The plugin appears in the list — enable it with the **Enable** button
-6. If the plugin requires configuration (API key, region, etc.), click **Configure…** and fill in the fields
-7. Open **Settings → Services & Presets** and assign the new service to your active preset
+3. Click **Install Plugin…** and select the `.jar` file, or just drag and drop the `.jar` file onto the plugin panel
+4. The plugin appears in the list — enable it with the **Enable** button
+5. If the plugin requires configuration (API key, region, etc.), click **Configure…** and fill in the fields
+6. Open **Settings → Services & Presets** and assign the new service to your active preset
 
 ---
 
 ## Configuring a plugin
 
-System Services uses available local OCR and speech engines with no account, API key, or network access.
-Most plugins that connect to external APIs require at least an API key.
+System Services (OCR, text-to-speech, and spell checking) needs no account, API key, or network
+access. It's self-contained on Windows and macOS; on Linux each capability uses whatever's already
+on your system — OCR needs `tesseract`, TTS needs `espeak`/`espeak-ng`, and spell checking needs
+`enchant` or `hunspell` on `PATH`. A missing tool shows a clear error rather than failing silently.
+Most other plugins that connect to external APIs require at least an API key.
 
 1. Go to **Settings → Plugins**
 2. Select the plugin in the list

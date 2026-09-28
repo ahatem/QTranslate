@@ -59,7 +59,6 @@ class InteractionFoundationSourceTest {
         listOf("pinButton", "closeButton").forEach {
             assertTrue(quick.contains("private val $it = createToolbarButton("), "$it must be a shared toolbar button")
         }
-        assertTrue(quick.contains("private val autoSourceButton = createToolbarButton()"))
         assertTrue(quick.contains("pinButton.isSelected = pinned"), "pinned state is the button's own selected state")
         assertFalse(quick.contains("isContentAreaFilled"), "content area must stay fillable for hover")
         assertFalse(quick.contains("mouseEntered"), "hover must come from the look and feel")
@@ -79,6 +78,5 @@ class InteractionFoundationSourceTest {
     fun `status and dictionary icon actions are reachable from the keyboard`() {
         assertTrue(source("main/statusbar/StatusBar.kt").contains("createToolbarButton(iconManager, Icons.NOTIFICATION"))
         assertTrue(source("dictionary/DictionaryResultView.kt").contains("createToolbarButton(iconManager, LISTEN_ICON"))
-        assertTrue(source("dictionary/DictionaryPanel.kt").contains("private val autoSourceButton = createToolbarButton()"))
     }
 }

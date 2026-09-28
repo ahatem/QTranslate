@@ -43,6 +43,7 @@ data class MenuStrings(
     val layoutPresets: String,
     val layoutComparisonAvailable: Boolean = true,
     val layoutComparisonUnavailableHint: String = "",
+    val layoutComparisonConfigureLabel: String = "",
     val showHistoryControls: String,
     val showLanguageBar: String,
     val showServicesPanel: String,
@@ -71,7 +72,8 @@ data class MenuActions(
     val onToggleHistoryControls: (Boolean) -> Unit,
     val onToggleLanguageBar: (Boolean) -> Unit,
     val onToggleServicesPanel: (Boolean) -> Unit,
-    val onToggleStatusBar: (Boolean) -> Unit
+    val onToggleStatusBar: (Boolean) -> Unit,
+    val onOpenServicesSettings: () -> Unit = {}
 )
 
 class LayoutPresetsMenu(
@@ -80,18 +82,28 @@ class LayoutPresetsMenu(
     private val activeLayoutId: String,
     private val onLayoutSelected: (String) -> Unit,
     private val comparisonAvailable: Boolean = true,
-    private val comparisonUnavailableHint: String = ""
+    private val comparisonUnavailableHint: String = "",
+    /** The unavailable entry's own label -- an action ("Set up translators...") rather than a name. */
+    private val comparisonConfigureLabel: String = "",
+    /** Where the unavailable entry sends the user, instead of doing nothing. */
+    private val onOpenServicesSettings: () -> Unit = {}
 ) : JMenu(title) {
     init {
         val group = ButtonGroup()
         for (layout in availableLayouts) {
-            // Comparison stays visible but disabled while fewer than two
-            // translators are usable, with the reason as its tooltip.
+            // Comparison stays visible while fewer than two translators are usable, but as an
+            // actionable item rather than a disabled one: its own label says what to do, and
+            // clicking it takes the user to fix it instead of doing nothing.
             val unavailable = layout.id == LayoutPresetIds.COMPARISON && !comparisonAvailable
+            if (unavailable) {
+                add(JMenuItem(comparisonConfigureLabel).apply {
+                    toolTipText = comparisonUnavailableHint
+                    addActionListener { onOpenServicesSettings() }
+                })
+                continue
+            }
             add(JRadioButtonMenuItem(layout.name).apply {
                 isSelected = layout.id == activeLayoutId
-                isEnabled = !unavailable
-                toolTipText = if (unavailable) comparisonUnavailableHint else null
                 group.add(this)
                 addActionListener { onLayoutSelected(layout.id) }
             })
@@ -133,10 +145,12 @@ class ViewOptionsMenu(
             LayoutPresetsMenu(
                 strings.layoutPresets,
                 availableLayouts,
-                config.layoutPresetId,
+                LayoutPresetIds.resolve(config.layoutPresetId),
                 actions.onChangeLayoutPreset,
                 strings.layoutComparisonAvailable,
-                strings.layoutComparisonUnavailableHint
+                strings.layoutComparisonUnavailableHint,
+                strings.layoutComparisonConfigureLabel,
+                actions.onOpenServicesSettings
             )
         )
         add(JSeparator())

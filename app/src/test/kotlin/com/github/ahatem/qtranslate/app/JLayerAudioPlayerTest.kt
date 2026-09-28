@@ -6,7 +6,10 @@ import com.github.ahatem.qtranslate.api.tts.TTSAudio
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.CountDownLatch
@@ -125,5 +128,35 @@ class JLayerAudioPlayerTest {
             assertFails { SystemAudioOutputFactory.create(AudioFormat.WAV, byteArrayOf(1, 2, 3)) }
         } finally { player.close() }
         Unit
+    }
+
+    @Test fun `close stops playback but leaves the parent scope active`() = runBlocking {
+        val parentScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val output = Output(releaseOnClose = false)
+        val player = JLayerAudioPlayer(parentScope, Log(), AudioOutputFactory { _, _ -> output })
+
+        player.play(audio(AudioFormat.WAV))
+        until { player.isPlaying.value }
+
+        player.close()
+
+        until { !player.isPlaying.value }
+        assertEquals(1, output.closed.get())
+        assertTrue(parentScope.isActive)
+
+        // The parent scope must still be usable for unrelated application work.
+        val ran = CountDownLatch(1)
+        parentScope.launch { ran.countDown() }
+        assertTrue(ran.await(5, TimeUnit.SECONDS))
+        parentScope.cancel()
+    }
+
+    @Test fun `close is safe to call more than once`() = runBlocking {
+        val player = player(Log(), AudioOutputFactory { _, _ -> Output() })
+        player.play(audio(AudioFormat.WAV))
+        until { player.isPlaying.value }
+        player.close()
+        player.close()
+        assertFalse(player.isPlaying.value)
     }
 }

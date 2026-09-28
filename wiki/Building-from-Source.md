@@ -8,13 +8,13 @@ This guide walks you through compiling QTranslate from source and running it loc
 
 | Tool | Version | Notes |
 |------|---------|-------|
-| Java | 11+ (to run) | [Temurin](https://adoptium.net) recommended |
+| Java | 17+ (to run) | [Temurin](https://adoptium.net) recommended |
 | Git | any | |
 | IntelliJ IDEA | 2023+ | Optional but recommended |
 
 You do not need to install Gradle — the project includes a Gradle wrapper (`./gradlew`).
 
-> **To build from source**, the Gradle build uses `jvmToolchain(21)` for compilation. Gradle will automatically download and use Java 21 via its toolchain provisioning — you do not need to install it manually. The compiled JAR targets Java 11 bytecode, so the final `QTranslate.jar` runs on any Java 11 or later installation.
+> **To build from source**, the Gradle build uses `jvmToolchain(21)` for compilation. Gradle can provision Java 21 automatically. Project classes target Java 11 bytecode for plugin API compatibility, but the complete application and portable ZIP require Java 17 or later because of bundled dependencies. The Windows package includes its own runtime.
 
 ---
 
@@ -149,7 +149,7 @@ qtranslate/
 ## Troubleshooting
 
 **`java.lang.UnsupportedClassVersionError`**
-Your Java version is too old. Run `java -version` and make sure it's 11 or later.
+Your Java version is too old. Run `java -version` and make sure it's 17 or later.
 
 **Build fails on `ui-swing`**
 Make sure you have internet access — FlatLaf and other dependencies are downloaded from Maven Central on first build. If you are behind a proxy, configure it in `~/.gradle/gradle.properties`.

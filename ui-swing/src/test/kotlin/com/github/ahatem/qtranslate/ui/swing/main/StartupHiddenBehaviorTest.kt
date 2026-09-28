@@ -88,10 +88,10 @@ class StartupHiddenBehaviorTest {
 
     @Test
     fun `global hotkeys initialize eagerly instead of waiting for first show`() {
-        val calls = invokedMethods(MainAppFrame::class.java, "setupGlobalHotkeys")
+        val calls = invokedMethods(MainAppFrame::class.java, "setupWindowListeners")
         assertTrue(
             "initializeGlobalHotkeys" in calls,
-            "setupGlobalHotkeys must initialize hotkeys eagerly — windowOpened never fires " +
+            "setupWindowListeners must initialize hotkeys eagerly: windowOpened never fires " +
                 "while the frame starts hidden; found: $calls",
         )
     }
@@ -146,7 +146,7 @@ class StartupHiddenBehaviorTest {
 
     private fun hotkeyWindowListenerClass(): Class<*> {
         val loader = MainAppFrame::class.java.classLoader
-        val prefix = "${MainAppFrame::class.java.name}\$setupGlobalHotkeys\$"
+        val prefix = "${MainAppFrame::class.java.name}\$setupWindowListeners\$"
         for (n in 1..32) {
             val candidate = runCatching { Class.forName(prefix + n, false, loader) }.getOrNull()
                 ?: continue

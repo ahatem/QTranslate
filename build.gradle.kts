@@ -22,8 +22,14 @@ data class BundledPlugin(
 
 val releaseVersion = providers.gradleProperty("releaseVersion")
     .orElse(providers.environmentVariable("APP_VERSION"))
-    .orElse("dev")
+    .orElse(providers.provider { appVersionFromSource(file("core/src/main/kotlin/com/github/ahatem/qtranslate/core/shared/AppConstants.kt")) })
 val releaseOutputDirectory = layout.buildDirectory.dir("release")
+val validateReleaseVersion by tasks.registering(ValidateReleaseVersionTask::class) {
+    group = "verification"
+    description = "Checks candidate/tag artifact identity against the compiled runtime version."
+    constantsFile.set(layout.projectDirectory.file("core/src/main/kotlin/com/github/ahatem/qtranslate/core/shared/AppConstants.kt"))
+    expectedVersion.set(releaseVersion)
+}
 evaluationDependsOn(":app")
 evaluationDependsOn(":ui-swing")
 val appProject = project(":app")
@@ -83,6 +89,7 @@ tasks.register<JavaExec>("smokeTestAllPlugins") {
 }
 
 val screenshotDirectory = layout.buildDirectory.dir("screenshots")
+val portablePluginInventoryFile = layout.buildDirectory.file("portable-plugin-ids.txt")
 
 // The same layout the portable bundle ships. Without `languages/` the localizer falls back to the
 // embedded English strings, so a right-to-left interface never actually loads.
@@ -120,11 +127,13 @@ fun Zip.configurePortableBundle(plugins: List<BundledPlugin>) {
     group = "distribution"
     description = "Builds the portable QTranslate distribution."
     dependsOn(appArchive)
+    dependsOn("generatePortablePluginInventory")
     dependsOn(plugins.map { "${it.projectPath}:jar" })
     destinationDirectory.set(releaseOutputDirectory)
     archiveFileName.set("QTranslate-${releaseVersion.get()}.zip")
 
     into("QTranslate") {
+        from(portablePluginInventoryFile)
         from(appArchiveFile) {
             rename { "QTranslate.jar" }
         }
@@ -163,6 +172,7 @@ val assembleAppOnly by tasks.registering(Copy::class) {
     group = "distribution"
     description = "Builds the standalone application JAR without plugins."
     dependsOn(cleanRelease, appArchive)
+    dependsOn(validateReleaseVersion)
     into(releaseOutputDirectory)
     from(appArchiveFile)
     rename("QTranslate.jar", "QTranslate-App-${releaseVersion.get()}.jar")
@@ -171,12 +181,14 @@ val assembleAppOnly by tasks.registering(Copy::class) {
 val assemblePortable by tasks.registering(Zip::class) {
     configurePortableBundle(bundledPlugins)
     dependsOn(cleanRelease)
+    dependsOn(validateReleaseVersion)
 }
 
 val assembleIndividualPlugins by tasks.registering(Copy::class) {
     group = "distribution"
     description = "Builds every plugin as an independently versioned JAR."
     dependsOn(cleanRelease)
+    dependsOn(validateReleaseVersion)
     dependsOn(bundledPlugins.map { "${it.projectPath}:shadowJar" })
     into(releaseOutputDirectory.map { it.dir("plugins") })
     bundledPlugins.forEach { plugin ->
@@ -185,6 +197,42 @@ val assembleIndividualPlugins by tasks.registering(Copy::class) {
         }
     }
     notCompatibleWithConfigurationCache("Plugin archives are discovered from plugin manifests.")
+}
+
+val generatePortablePluginInventory by tasks.registering(GeneratePortablePluginInventoryTask::class) {
+    group = "verification"
+    description = "Writes the bundled plugin IDs used by portable release assembly."
+    pluginIds.set(bundledPlugins.map { it.id })
+    inventoryFile.set(portablePluginInventoryFile)
+}
+
+tasks.register<ValidateReleaseClassVersionsTask>("validatePortableClassVersions") {
+    group = "verification"
+    description = "Checks every class in the assembled portable ZIP against Java 17."
+    dependsOn(assemblePortable)
+    mustRunAfter(assembleAppOnly, assembleIndividualPlugins)
+    artifacts.from(releaseOutputDirectory.map { it.file("QTranslate-${releaseVersion.get()}.zip") })
+    maximumMajor.set(61)
+}
+
+tasks.register<ValidateReleaseClassVersionsTask>("validateAppOnlyClassVersions") {
+    group = "verification"
+    description = "Checks the assembled app-only JAR against Java 17."
+    dependsOn(assembleAppOnly)
+    mustRunAfter(assemblePortable, assembleIndividualPlugins)
+    artifacts.from(releaseOutputDirectory.map { it.file("QTranslate-App-${releaseVersion.get()}.jar") })
+    maximumMajor.set(61)
+}
+
+tasks.register<ValidateReleaseClassVersionsTask>("validateStandalonePluginClassVersions") {
+    group = "verification"
+    description = "Checks every standalone plugin release JAR against Java 17."
+    dependsOn(assembleIndividualPlugins)
+    mustRunAfter(assembleAppOnly, assemblePortable)
+    bundledPlugins.forEach { plugin ->
+        artifacts.from(releaseOutputDirectory.map { it.file("plugins/${plugin.releaseFileName}") })
+    }
+    maximumMajor.set(61)
 }
 
 val releaseMetadata = linkedMapOf(
@@ -230,8 +278,11 @@ val validateReleaseSizes by tasks.registering(ValidateReleaseSizesTask::class) {
     dependsOn(assembleAppOnly, assemblePortable)
     appArtifact.set(releaseOutputDirectory.map { it.file("QTranslate-App-${releaseVersion.get()}.jar") })
     portableArtifact.set(releaseOutputDirectory.map { it.file("QTranslate-${releaseVersion.get()}.zip") })
-    maxAppBytes.set(55L * 1024 * 1024)
-    maxPortableBytes.set(53L * 1024 * 1024)
+    // Raised for the bundled Inter typeface (P10-C2), a deliberate ~1.4 MiB of packaged product
+    // functionality rather than accidental bloat. Budgets stay tight enough to catch a real
+    // regression on top of it.
+    maxAppBytes.set(58L * 1024 * 1024)
+    maxPortableBytes.set(55L * 1024 * 1024)
     maxBundledPluginsBytes.set(3L * 1024 * 1024)
     reportFile.set(releaseOutputDirectory.map { it.file("SIZE_REPORT.md") })
 }
@@ -240,6 +291,7 @@ val generateReleaseChecksums by tasks.registering(GenerateReleaseChecksumsTask::
     group = "distribution"
     description = "Writes SHA-256 checksums for every release artifact."
     dependsOn(generateReleaseMetadata, validateReleaseSizes)
+    dependsOn("validateAppOnlyClassVersions", "validatePortableClassVersions", "validateStandalonePluginClassVersions")
     releaseDirectory.set(releaseOutputDirectory)
     outputFile.set(releaseOutputDirectory.map { it.file("SHA256SUMS.txt") })
 }
@@ -249,4 +301,19 @@ tasks.register("assembleReleaseVariants") {
     description = "Builds app-only, portable, and individual plugin release artifacts."
     dependsOn(generateReleaseChecksums)
     notCompatibleWithConfigurationCache("Release assembly includes dynamic plugin artifacts.")
+}
+
+tasks.register<VerifyReleaseArtifactsTask>("verifyReleaseArtifacts") {
+    group = "verification"
+    description = "Checks the complete assembled artifact inventory, metadata, and SHA-256 sums."
+    dependsOn(validateReleaseVersion)
+    releaseDirectory.set(releaseOutputDirectory)
+    expectedVersion.set(releaseVersion)
+    expectedPluginsJson.set(JsonOutput.toJson(bundledPlugins.map { plugin ->
+        mapOf("id" to plugin.id, "version" to plugin.version,
+            "minApiVersion" to plugin.minApiVersion, "file" to "plugins/${plugin.releaseFileName}",
+            "bundledFile" to plugin.bundledFileName)
+    }))
+    requireWindows.set(providers.gradleProperty("requireWindowsArtifact").map(String::toBoolean).orElse(false))
+    requireMacHelpers.set(providers.gradleProperty("requireMacHelpers").map(String::toBoolean).orElse(false))
 }

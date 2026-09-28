@@ -14,8 +14,11 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DefinitionStrip
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.InlineLoadingBar
 import java.awt.BorderLayout
 import java.awt.CardLayout
+import java.awt.Component
 import java.awt.ComponentOrientation
+import java.awt.Container
 import java.awt.Dimension
+import java.awt.LayoutManager
 import java.awt.FlowLayout
 import java.awt.Insets
 import java.awt.Font
@@ -30,6 +33,7 @@ import javax.swing.JMenuItem
 import javax.swing.JPanel
 import javax.swing.JPopupMenu
 import javax.swing.JSeparator
+import javax.swing.SwingConstants
 import javax.swing.UIManager
 
 enum class ProviderRole {
@@ -100,6 +104,10 @@ data class TranslationProviderState(
  * Primary and secondary providers share this skeleton. The primary adds a live
  * translator selector, a thin accent rail on the interface-start edge, primary
  * actions, and its definition; secondaries show identity, status, body, and Copy.
+ *
+ * Every provider lines up on one leading column: all of them reserve the rail's
+ * width, only the primary paints it, and the primary's selector button is pulled
+ * back by its own inset so its icon sits where a secondary's icon does.
  */
 class TranslationProviderView(
     private val iconManager: IconManager?,
@@ -120,11 +128,10 @@ class TranslationProviderView(
     private var onSetAsInputRef: ((String) -> Unit)? = null
 
     private val rail = JPanel().apply {
-        isOpaque = true
+        isOpaque = false
         preferredSize = Dimension(UIScale.scale(2), 0)
         minimumSize = preferredSize
         maximumSize = Dimension(UIScale.scale(2), Int.MAX_VALUE)
-        isVisible = false
     }
 
     private val providerIcon = JLabel().apply {
@@ -157,8 +164,15 @@ class TranslationProviderView(
     }
     private var isStopMode = false
 
+    /**
+     * Shows or hides a failed provider's message. The label names the action and the chevron the
+     * state: pointing along the reading direction while closed, down while open. Both are the look
+     * and feel's own disclosure icons, which follow the theme and mirror for right-to-left.
+     */
     private val detailsButton = createToolbarButton().apply {
         isVisible = false
+        horizontalTextPosition = SwingConstants.LEADING
+        iconTextGap = UIScale.scale(4)
         addActionListener { toggleFailureDetails() }
     }
 
@@ -168,6 +182,12 @@ class TranslationProviderView(
     private var compactFailure = false
     private var placeholderHasText = false
     private var isPlaceholderStatus = false
+
+    /** Holds the primary's selector at its own width, so only the identity is a click target. */
+    private val selectorHost = JPanel(LeadingFitLayout()).apply {
+        isOpaque = false
+        if (selector != null) add(selector)
+    }
 
     private val headerIdentity = JPanel(BorderLayout(UIScale.scale(6), 0)).apply {
         isOpaque = false
@@ -344,15 +364,14 @@ class TranslationProviderView(
         repaint()
     }
 
+    private var headerLeadingPad = 12
+    private var headerTrailingPad = 6
+
     private fun applyPresentation(state: TranslationProviderState) {
         val quick = state.presentation == ProviderPresentation.QUICK
-        val headerPad = if (quick) 8 else 12
-        header.border = BorderFactory.createEmptyBorder(
-            UIScale.scale(6),
-            UIScale.scale(headerPad),
-            UIScale.scale(6),
-            UIScale.scale(if (quick) 8 else 6)
-        )
+        headerLeadingPad = if (quick) 8 else 12
+        headerTrailingPad = if (quick) 8 else 6
+        applyHeaderBorder()
         val bodyPad = if (quick) 8 else 12
         val bodyBottom = if (quick) 8 else 10
         bodyStack.border = BorderFactory.createEmptyBorder(
@@ -370,9 +389,29 @@ class TranslationProviderView(
         )
         textPane.margin = Insets(0, 0, 0, 0)
         providerIcon.preferredSize = Dimension(UIScale.scale(16), UIScale.scale(16))
-        rail.isVisible = state.role == ProviderRole.PRIMARY
-        if (rail.isVisible) refreshRail()
+        rail.isOpaque = state.role == ProviderRole.PRIMARY
+        if (rail.isOpaque) refreshRail()
     }
+
+    /**
+     * The header's padding on its leading and trailing sides. When the selector
+     * holds the identity, its button inset is taken off the leading side, so the
+     * button's hover surface reaches into the padding and its icon lines up with
+     * the plain icon of every other provider.
+     */
+    private fun applyHeaderBorder() {
+        val leftToRight = componentOrientation.isLeftToRight
+        val selectorInset = selector
+            ?.takeIf { it.isVisible && selectorHost.parent === headerIdentity }
+            ?.insets?.let { if (leftToRight) it.left else it.right } ?: 0
+        val leading = (UIScale.scale(headerLeadingPad) - selectorInset).coerceAtLeast(0)
+        val trailing = UIScale.scale(headerTrailingPad)
+        val wanted = Insets(UIScale.scale(6), if (leftToRight) leading else trailing, UIScale.scale(6), if (leftToRight) trailing else leading)
+        if (header.border?.getBorderInsets(header) != wanted) {
+            header.border = BorderFactory.createEmptyBorder(wanted.top, wanted.left, wanted.bottom, wanted.right)
+        }
+    }
+
 
     private fun renderHeader(state: TranslationProviderState) {
         val displayName = state.serviceName ?: ""
@@ -387,17 +426,17 @@ class TranslationProviderView(
             selector.textMode = true
             selector.isVisible = true
             state.selectorState?.let(selector::render)
-            if (selector.parent !== headerIdentity) {
+            if (selectorHost.parent !== headerIdentity) {
                 headerIdentity.remove(providerName)
-                headerIdentity.add(selector, BorderLayout.CENTER)
+                headerIdentity.add(selectorHost, BorderLayout.CENTER)
             }
         } else {
             providerIcon.icon = state.iconPath?.let { path ->
-                iconManager?.getIcon(state.serviceId, path, UIScale.scale(16), UIScale.scale(16))
+                iconManager?.getIcon(state.serviceId, path, ICON_SIZE, ICON_SIZE)
             }
             providerIcon.isVisible = providerIcon.icon != null
-            selector?.takeIf { it.parent === headerIdentity }?.let {
-                headerIdentity.remove(it)
+            if (selectorHost.parent === headerIdentity) {
+                headerIdentity.remove(selectorHost)
                 headerIdentity.add(providerName, BorderLayout.CENTER)
             }
             providerName.isVisible = true
@@ -422,7 +461,7 @@ class TranslationProviderView(
                 // Inline failure state: standard action-size warning glyph, never the
                 // dialog-scale OptionPane error icon (which grows the header).
                 // Text-only when no icon manager is available (e.g. tests).
-                statusLabel.icon = iconManager?.getIcon(Icons.WARNING, UIScale.scale(16), UIScale.scale(16))
+                statusLabel.icon = iconManager?.getIcon(Icons.WARNING, ICON_SIZE, ICON_SIZE)
                 statusLabel.foreground = UIManager.getColor("Component.error.focusedBorderColor")
                     ?: UIManager.getColor("Component.error.foreground")
                     ?: UIManager.getColor("Label.disabledForeground")
@@ -440,7 +479,7 @@ class TranslationProviderView(
         } else state.text
         copyButton.actionCommand = bodyText
         copyButton.toolTipText = state.copyLabel
-        copyButton.icon = iconManager?.getIcon(Icons.COPY, UIScale.scale(16), UIScale.scale(16))
+        copyButton.icon = iconManager?.getIcon(Icons.COPY, ICON_SIZE, ICON_SIZE)
         copyButton.isVisible = !isQuickPrimary &&
             state.status == ProviderStatus.SUCCESS && state.text.isNotBlank()
 
@@ -449,7 +488,7 @@ class TranslationProviderView(
             listenButton.actionCommand = state.text
             listenButton.icon = iconManager?.getIcon(
                 if (state.isTtsPlaying) Icons.CLOSE else Icons.SPEAK,
-                UIScale.scale(16), UIScale.scale(16)
+                ICON_SIZE, ICON_SIZE
             )
             listenButton.toolTipText = if (state.isTtsPlaying) state.stopLabel else state.listenLabel
             listenButton.isVisible =
@@ -546,6 +585,7 @@ class TranslationProviderView(
     private fun updateBodyVisibility() {
         val expanded = expandedDetailsKey != null && expandedDetailsKey == failureDetailsKey
         detailsButton.isSelected = expanded
+        detailsButton.icon = UIManager.getIcon(if (expanded) "Tree.expandedIcon" else "Tree.collapsedIcon")
         bodyStack.isVisible = when {
             compactFailure -> expanded
             // A placeholder with no text of its own (the Comparison board draws that state itself)
@@ -568,6 +608,8 @@ class TranslationProviderView(
     }
 
     override fun doLayout() {
+        // The selector's inset follows its own orientation and state, so the header is re-padded here.
+        applyHeaderBorder()
         super.doLayout()
         updateReadableCap()
     }
@@ -607,6 +649,7 @@ class TranslationProviderView(
             refreshRail()
             primaryTag.foreground = UIManager.getColor("Label.disabledForeground")
                 ?: UIManager.getColor("Label.foreground")
+            updateBodyVisibility()
         }
     }
 
@@ -619,6 +662,8 @@ class TranslationProviderView(
     fun statusLabelForTest(): JLabel = statusLabel
     fun headerActionsForTest(): JPanel = headerActions
     fun selectorForTest(): TranslatorPopupButton? = selector
+    fun selectorHostForTest(): JPanel = selectorHost
+    fun railForTest(): JPanel = rail
 
     private fun addFindInDictionaryItem(menu: JPopupMenu, clickPosition: Point) {
         dictMenuItem?.let(menu::remove)
@@ -713,6 +758,8 @@ class TranslationProviderView(
     )
 
     companion object {
+        /** The design size of the icons in the header; the icon classes scale it themselves. */
+        private const val ICON_SIZE = 16
         const val READABLE_BODY_MAX = 760
         const val WIDE_BOARD_MIN = 880
         const val WIDE_BOARD_RELEASE = 848
@@ -720,5 +767,35 @@ class TranslationProviderView(
         private const val BODY_CARD = "body"
         private const val PLACEHOLDER_CARD = "placeholder"
         private const val LOADING_CARD = "loading"
+    }
+}
+
+/**
+ * Sizes its one child to its own preferred width, at the reading-start edge, and lets it shrink
+ * when the row is narrower. A wide row therefore leaves the empty space beside a control
+ * unclickable, while a narrow one still truncates the control's text instead of overflowing.
+ */
+private class LeadingFitLayout : LayoutManager {
+    override fun addLayoutComponent(name: String?, comp: Component?) = Unit
+    override fun removeLayoutComponent(comp: Component?) = Unit
+
+    override fun preferredLayoutSize(parent: Container): Dimension {
+        val child = parent.components.firstOrNull { it.isVisible } ?: return Dimension()
+        val size = child.preferredSize
+        return Dimension(size.width + parent.insets.left + parent.insets.right, size.height + parent.insets.top + parent.insets.bottom)
+    }
+
+    override fun minimumLayoutSize(parent: Container): Dimension =
+        Dimension(0, preferredLayoutSize(parent).height)
+
+    override fun layoutContainer(parent: Container) {
+        val insets = parent.insets
+        val available = parent.width - insets.left - insets.right
+        parent.components.forEach { child ->
+            val wanted = child.preferredSize.width
+            val width = minOf(wanted, available).coerceAtLeast(0)
+            val x = if (parent.componentOrientation.isLeftToRight) insets.left else parent.width - insets.right - width
+            child.setBounds(x, insets.top, width, parent.height - insets.top - insets.bottom)
+        }
     }
 }

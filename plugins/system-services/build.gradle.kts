@@ -7,6 +7,7 @@ plugins {
 dependencies {
     implementation(project(":api"))
     implementation(libs.kotlinxSerialization)
+    implementation(libs.jna)
 
     testImplementation(kotlin("test"))
     testImplementation(testFixtures(project(":plugins:common")))
@@ -126,4 +127,64 @@ tasks.named<Test>("test") {
     dependsOn(tasks.named("jar"))
     systemProperty("systemServices.pluginJar", layout.buildDirectory.file("libs/system-services.jar").get().asFile.absolutePath)
     systemProperty("systemServices.macHelperPackaged", macVisionHelperWillBePackaged.toString())
+    systemProperty("systemServices.macSpellPackaged", (providers.gradleProperty("macSpellHelper").orNull != null || isMacHost).toString())
+}
+
+// The NSSpellChecker helper is built on macOS and included in packages assembled elsewhere.
+val macSpellResource = "native/macos/system_spell"
+val providedMacSpellHelper = providers.gradleProperty("macSpellHelper").orNull?.let { rootProject.file(it) }
+val packageMacSpell = providedMacSpellHelper != null || isMacHost
+val spellBuildDir = layout.buildDirectory.dir("generated/mac-spell-build")
+val spellResourcesDir = layout.buildDirectory.dir("generated/mac-spell-resources")
+val spellArm64 = spellBuildDir.map { it.file("system_spell-arm64") }
+val spellX64 = spellBuildDir.map { it.file("system_spell-x86_64") }
+val spellUniversal = spellBuildDir.map { it.file("system_spell") }
+
+fun registerSpellCompile(name: String, target: String, output: Provider<RegularFile>): TaskProvider<Exec> {
+    val source = layout.projectDirectory.file("src/main/resources/scripts/system_spell.swift")
+    val destination = output.get().asFile
+    return tasks.register(name, Exec::class.java) {
+        group = "build"
+        enabled = isMacHost && providedMacSpellHelper == null
+        inputs.file(source)
+        outputs.file(output)
+        doFirst { destination.parentFile.mkdirs() }
+        commandLine("swiftc", "-O", "-target", target, source.asFile.absolutePath, "-o", destination.absolutePath)
+    }
+}
+
+val spellCompileArm64 = registerSpellCompile("compileMacSpellArm64", "arm64-apple-macos11", spellArm64)
+val spellCompileX64 = registerSpellCompile("compileMacSpellX64", "x86_64-apple-macos11", spellX64)
+val lipoMacSpell = tasks.register("lipoMacSpell", Exec::class.java) {
+    group = "build"
+    enabled = isMacHost && providedMacSpellHelper == null
+    dependsOn(spellCompileArm64, spellCompileX64)
+    inputs.files(spellArm64, spellX64)
+    outputs.file(spellUniversal)
+    val destination = spellUniversal.get().asFile
+    doFirst { destination.parentFile.mkdirs() }
+    commandLine("lipo", "-create", "-output", destination.absolutePath,
+        spellArm64.get().asFile.absolutePath, spellX64.get().asFile.absolutePath)
+}
+
+tasks.register("buildMacSpellHelper") {
+    group = "build"
+    dependsOn(lipoMacSpell)
+}
+
+val prepareMacSpell = tasks.register("prepareMacSpellHelper", Copy::class.java) {
+    enabled = packageMacSpell
+    dependsOn(lipoMacSpell)
+    when {
+        providedMacSpellHelper != null -> from(providedMacSpellHelper)
+        isMacHost -> from(spellUniversal)
+    }
+    into(spellResourcesDir.map { it.dir(macSpellResource.substringBeforeLast('/')) })
+    val fileName = macSpellResource.substringAfterLast('/')
+    rename { fileName }
+}
+
+tasks.named<ProcessResources>("processResources") {
+    dependsOn(prepareMacSpell)
+    if (packageMacSpell) from(spellResourcesDir)
 }

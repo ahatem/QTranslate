@@ -37,7 +37,7 @@ class OutputTextPanel(
         onTranslateRequest = onTranslateRequest
     )
     private val actionsPanel = TextActionsPanel(iconManager)
-    private val readOnlyPanel = ReadOnlyTextPanel(textPane, actionsPanel, scrollable = false)
+    private val readOnlyPanel = ReadOnlyTextPanel(textPane, actionsPanel)
     // The definition belongs to the translated result and does not add a divider of its own.
     private val definitionStrip = DefinitionStrip(showDivider = false)
 

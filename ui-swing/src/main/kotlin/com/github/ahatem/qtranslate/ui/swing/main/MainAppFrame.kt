@@ -19,43 +19,38 @@ import com.github.ahatem.qtranslate.core.settings.data.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.core.shared.AppConstants
-import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.notification.AppNotification
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
-import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.ui.swing.about.InfoDialog
 import com.github.ahatem.qtranslate.ui.swing.about.InfoDialogState
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryDialog
-import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryDialogState
 import com.github.ahatem.qtranslate.ui.swing.dictionary.QuickDictionaryDialog
-import com.github.ahatem.qtranslate.ui.swing.dictionary.QuickDictionaryConfig
-import com.github.ahatem.qtranslate.ui.swing.dictionary.QuickDictionaryDialogState
-import com.github.ahatem.qtranslate.ui.swing.dictionary.QuickDictionaryStrings
-import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchConfig
+import com.github.ahatem.qtranslate.ui.swing.dictionary.buildDictionaryDialogState
+import com.github.ahatem.qtranslate.ui.swing.dictionary.buildQuickDictionaryDialogState
 import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchDialog
-import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchDialogState
-import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchStrings
+import com.github.ahatem.qtranslate.ui.swing.imagesearch.buildImageSearchDialogState
 import com.github.ahatem.qtranslate.ui.swing.document.DocumentTranslationDialog
 import com.github.ahatem.qtranslate.ui.swing.document.DocumentTranslationStrings
 import com.github.ahatem.qtranslate.ui.swing.history.HistoryDialog
-import com.github.ahatem.qtranslate.ui.swing.history.HistoryDialogState
-import com.github.ahatem.qtranslate.ui.swing.history.HistoryEntryState
-import com.github.ahatem.qtranslate.ui.swing.main.statusbar.ErrorDetailPopup
+import com.github.ahatem.qtranslate.ui.swing.history.buildHistoryDialogState
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.NotificationPopover
+import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBarController
 import com.github.ahatem.qtranslate.ui.swing.update.UpdateDialog
 import com.github.ahatem.qtranslate.ui.swing.update.UpdateDialogState
-import java.text.SimpleDateFormat
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputRuntimeState
 import com.github.ahatem.qtranslate.ui.swing.main.input.LocalHotkeyRegistration
 import com.github.ahatem.qtranslate.ui.swing.main.input.PasteInjector
 import com.github.ahatem.qtranslate.ui.swing.main.input.QInputPasteInjector
+import com.github.ahatem.qtranslate.ui.swing.main.layout.DockRoomPlanner
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
+import com.github.ahatem.qtranslate.ui.swing.main.lookup.AutoLookupCoordinator
 import com.github.ahatem.qtranslate.ui.swing.main.menus.*
-import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBar
-import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBarState
-import com.github.ahatem.qtranslate.ui.swing.quicktranslate.*
+import com.github.ahatem.qtranslate.ui.swing.quicktranslate.QuickTranslateDialog
+import com.github.ahatem.qtranslate.ui.swing.quicktranslate.LoadingIndicator
+import com.github.ahatem.qtranslate.ui.swing.quicktranslate.LoadingIndicatorState
+import com.github.ahatem.qtranslate.ui.swing.quicktranslate.buildQuickTranslateDialogState
 import com.github.ahatem.qtranslate.ui.swing.settings.SettingsDialog
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.DynamicPluginSettingsDialog
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
@@ -70,13 +65,12 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
 import java.awt.datatransfer.StringSelection
 import java.awt.event.*
 import java.net.URI
-import java.util.*
 import javax.imageio.ImageIO
 import javax.swing.*
-import kotlin.system.exitProcess
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.connectedScreenBounds
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isPositionReachable
+import java.util.Locale
 
 class MainAppFrame(
     private val mainStore: MainStore,
@@ -94,6 +88,13 @@ class MainAppFrame(
     private val translateString: (suspend (String, LanguageCode) -> Result<String>)? = null,
     /** The application's own secrets, for the proxy password on the Network settings page. */
     private val appSecrets: AppSecretStore? = null,
+    /**
+     * The single entry point into application shutdown, invoked once every exit route (main
+     * window EXIT close, tray Exit, close-dialog Exit) has disposed the frame. Receives the
+     * final window bounds, captured here while the frame is still live. This frame does not
+     * own application-level shutdown itself: it only reports that the user asked to exit.
+     */
+    private val onApplicationExit: (Size, Position) -> Unit = { _, _ -> },
     /**
      * True when this process was launched from the Windows startup registration (#226).
      *
@@ -168,15 +169,6 @@ class MainAppFrame(
     private val dragOverlay by lazy {
         DragOverlay(this) { localizer.getString("main_window.drop_hint") }
     }
-
-    /**
-     * Controls where the floating dictionary popup positions itself on first open.
-     * - `true`  → near the mouse cursor   (global hotkey trigger)
-     * - `false` → adjacent to the owner window (auto-lookup from translation)
-     * Set before dispatching [MainIntent.ShowQuickDictionary]; read in [buildQuickDictionaryDialogState].
-     */
-    @Volatile
-    private var quickDictionaryPositionNearMouse = true
 
     private val quickTranslateDialog by lazy {
         QuickTranslateDialog(
@@ -264,7 +256,17 @@ class MainAppFrame(
                 else ComponentOrientation.LEFT_TO_RIGHT
             )
             dialog.isVisible = true
-        }
+        },
+        onEnsureLookupDockRoom = { ensureRoomForLookupDock() },
+        onOpenImageSource = { result -> openUrl(result.sourceUrl ?: result.fullUrl) }
+    )
+
+    private val autoLookupCoordinator = AutoLookupCoordinator(
+        mainState = mainStore.state,
+        settingsState = settingsStore.state,
+        dispatch = { mainStore.dispatch(it) },
+        isMainVisible = { isVisible },
+        setDictionarySearchWord = { mainContentView.setDictionarySearchWord(it) },
     )
 
     private val selectionTranslateButton = SelectionTranslateButton(
@@ -350,7 +352,6 @@ class MainAppFrame(
                 // in place and restarts its countdown — hiding it meant the popup vanished when
                 // the user was asking for more of it, and threw away a pin they had set.
                 val lang = mainStore.state.value.resolvedSourceLanguage
-                quickDictionaryPositionNearMouse = true   // hotkey — position near cursor
                 mainStore.dispatch(MainIntent.ShowQuickDictionary(selectedText, lang))
             }
         },
@@ -391,11 +392,11 @@ class MainAppFrame(
         rootPane = rootPane,
         bindings = { globalKeyListener.getLocalBindings() },
         directHandlers = mapOf(
-            // FOCUS_* need layout-aware handling (Compact layout must switch tabs before
-            // focusing), so they go to MainContentView directly.
-            HotkeyAction.FOCUS_INPUT        to { mainContentView.switchToAndFocusInput() },
-            HotkeyAction.FOCUS_OUTPUT       to { mainContentView.switchToAndFocusOutput() },
-            HotkeyAction.FOCUS_EXTRA_OUTPUT to { mainContentView.switchToAndFocusExtraOutput() },
+            // FOCUS_* depend on which panes the current layout shows, so they go to
+            // MainContentView directly.
+            HotkeyAction.FOCUS_INPUT        to { mainContentView.focusInput() },
+            HotkeyAction.FOCUS_OUTPUT       to { mainContentView.focusOutput() },
+            HotkeyAction.FOCUS_EXTRA_OUTPUT to { mainContentView.focusExtraOutput() },
             // These need something the frame owns: a dialog, the clipboard, or the content view.
             HotkeyAction.COPY_TRANSLATION to {
                 val text = mainStore.state.value.translatedText
@@ -406,7 +407,7 @@ class MainAppFrame(
             },
             HotkeyAction.CLEAR_INPUT to {
                 mainStore.dispatch(MainIntent.UpdateInputText(""))
-                mainContentView.switchToAndFocusInput()
+                mainContentView.focusInput()
             },
             HotkeyAction.SWAP_LANGUAGES     to { mainStore.dispatch(MainIntent.SwapLanguages) },
             HotkeyAction.OPEN_SETTINGS      to { openSettingsDialog() },
@@ -478,8 +479,11 @@ class MainAppFrame(
         }
     }
 
-    private val statusBarController = StatusBarController(
+    private val statusBarController: StatusBarController = StatusBarController(
         statusBar = mainContentView.statusBar,
+        notificationPopover = notificationPopover,
+        iconManager = iconManager,
+        localizer = localizer,
         scope = appScope,
         defaultMessage = localizer.getString("main_window_status_bar.ready_message")
     )
@@ -532,14 +536,11 @@ class MainAppFrame(
             restorePosition(config.mainWindowPosition)
 
             // Enforce Input → Output → Extra (→ Input) Tab cycle across all layouts.
-            // In Compact layout the policy also switches tabs so hidden panes become
-            // visible before Swing calls requestFocusInWindow() on them.
             focusTraversalPolicy = TextPaneCycleFocusPolicy(mainContentView)
 
             setupWindowListeners()
             setupMenuBar()
             setupTrayMenu()
-            setupGlobalHotkeys()
             setupDropTarget()
             escapeBinding.register()
 
@@ -636,22 +637,110 @@ class MainAppFrame(
                             mainContentView.render(filteredState, settingsState)
 
                             if (mainState.isQuickTranslateDialogVisible || quickTranslateDialog.isVisible) {
-                                val dialogState = mapToQuickTranslateState(
+                                val dialogState = buildQuickTranslateDialogState(
                                     mainState,
-                                    settingsState.workingConfiguration
+                                    settingsState.workingConfiguration,
+                                    localizer
                                 )
                                 quickTranslateDialog.render(dialogState)
                             }
 
                             if (mainState.isQuickDictionaryVisible || quickDictionaryDialog.isVisible) {
                                 quickDictionaryDialog.render(
-                                    buildQuickDictionaryDialogState(mainState, settingsState.workingConfiguration)
+                                    buildQuickDictionaryDialogState(
+                                        mainState = mainState,
+                                        config = settingsState.workingConfiguration,
+                                        localizer = localizer,
+                                        onLookup = { word ->
+                                            mainStore.dispatch(MainIntent.LookupWord(word, mainState.resolvedSourceLanguage))
+                                        },
+                                        onListen = { word -> listenToLookedUpWord(word) },
+                                        onStopListening = { mainStore.dispatch(MainIntent.StopTTS) },
+                                        onDictionarySelected = { serviceId ->
+                                            settingsStore.dispatch(
+                                                SettingsIntent.UpdateServiceInActivePreset(
+                                                    ServiceRole.DICTIONARY, serviceId
+                                                )
+                                            )
+                                            val currentWord = mainStore.state.value.dictionaryWord
+                                            if (currentWord.isNotBlank()) {
+                                                mainStore.dispatch(
+                                                    MainIntent.LookupWord(currentWord, mainState.resolvedSourceLanguage)
+                                                )
+                                            }
+                                        },
+                                        onPinToggled = {
+                                            mainStore.dispatch(MainIntent.ToggleQuickDictionaryPin)
+                                        },
+                                        onClose = { mainStore.dispatch(MainIntent.HideQuickDictionary) },
+                                        onSavePosition = { position ->
+                                            settingsStore.dispatch(
+                                                SettingsIntent.ToggleSetting {
+                                                    it.copy(quickDictionaryLastKnownPosition = position)
+                                                }
+                                            )
+                                            settingsStore.dispatch(SettingsIntent.SaveChanges)
+                                        },
+                                        onSaveSize = { size ->
+                                            settingsStore.dispatch(
+                                                SettingsIntent.ToggleSetting {
+                                                    it.copy(quickDictionaryLastKnownSize = size)
+                                                }
+                                            )
+                                            settingsStore.dispatch(SettingsIntent.SaveChanges)
+                                        }
+                                    )
                                 )
                             }
 
                             if (mainState.isImageSearchVisible || imageSearchDialog.isVisible) {
                                 imageSearchDialog.render(
-                                    buildImageSearchDialogState(mainState, settingsState.workingConfiguration)
+                                    buildImageSearchDialogState(
+                                        mainState = mainState,
+                                        config = settingsState.workingConfiguration,
+                                        localizer = localizer,
+                                        onSearch = { term ->
+                                            mainStore.dispatch(
+                                                MainIntent.SearchImages(term, mainState.resolvedSourceLanguage)
+                                            )
+                                        },
+                                        onServiceSelected = { serviceId ->
+                                            settingsStore.dispatch(
+                                                SettingsIntent.UpdateServiceInActivePreset(
+                                                    ServiceRole.IMAGE_SEARCH, serviceId
+                                                )
+                                            )
+                                            val term = mainStore.state.value.imageSearchTerm
+                                            if (term.isNotBlank()) {
+                                                mainStore.dispatch(
+                                                    MainIntent.SearchImages(term, mainState.resolvedSourceLanguage)
+                                                )
+                                            }
+                                        },
+                                        onImageOpened = { result ->
+                                            openUrl(result.sourceUrl ?: result.fullUrl)
+                                        },
+                                        onPinToggled = {
+                                            mainStore.dispatch(MainIntent.ToggleImageSearchPin)
+                                        },
+                                        onClose = { mainStore.dispatch(MainIntent.HideImageSearch) },
+                                        onSavePosition = { position ->
+                                            settingsStore.dispatch(
+                                                SettingsIntent.ToggleSetting {
+                                                    it.copy(imageSearchLastKnownPosition = position)
+                                                }
+                                            )
+                                            settingsStore.dispatch(SettingsIntent.SaveChanges)
+                                        },
+                                        onSaveSize = { size ->
+                                            settingsStore.dispatch(
+                                                SettingsIntent.ToggleSetting {
+                                                    it.copy(imageSearchLastKnownSize = size)
+                                                }
+                                            )
+                                            settingsStore.dispatch(SettingsIntent.SaveChanges)
+                                        }
+                                    )
                                 )
                             }
                         } catch (e: Exception) {
@@ -851,131 +940,14 @@ class MainAppFrame(
                 }
         }
 
-        // Auto-lookup single words after a translation completes.
-        //
-        // Uses scan() to observe (previous, current) pairs so we can detect the exact
-        // moment isLoading transitions true→false (= translation finished).  This is the
-        // ONLY moment a new auto-lookup is allowed to fire, which prevents the dictionary
-        // from reacting to every keystroke.
-        //
-        // Additional trigger: a relevant *setting* changed (autoSource cycling, panel
-        // opening) while we are already idle and a translated result is on screen.
-        //
-        // isLoading=true is also passed through so the collect block can dismiss a stale
-        // popup the instant a new translation starts.
         appScope.launch(handler) {
-            mainStore.state
-                .combine(settingsStore.state) { m, s -> m to s }
-                .map { (m, s) ->
-                    AutoLookupKey(
-                        panelVisible   = m.isDictionaryPanelVisible,
-                        isLoading      = m.isLoading,
-                        inputText      = m.inputText.trim(),
-                        translatedText = m.translatedText.trim(),
-                        targetLang     = m.targetLanguage,
-                        resolvedSourceLang = m.resolvedSourceLanguage,
-                        autoSource     = s.workingConfiguration.dictionaryAutoSource,
-                        mainVisible    = isVisible,
-                        isQuickDictionaryVisible = m.isQuickDictionaryVisible,
-                        isQuickDictionaryPinned  = m.isQuickDictionaryPinned,
-                        isDictionaryAutoPopupEnabled = s.workingConfiguration.isDictionaryAutoPopupEnabled,
-                    )
-                }
-                .scan(Pair<AutoLookupKey?, AutoLookupKey?>(null, null)) { (_, prev), curr -> prev to curr }
-                .filter { (prev, curr) ->
-                    when {
-                        curr == null -> false
-                        // Always pass isLoading=true so the collect block can dismiss stale popups.
-                        curr.isLoading -> true
-                        // Need a previous snapshot to detect transitions.
-                        prev == null -> false
-                        // The definition strip is switched off entirely.
-                        //
-                        // Gated on its own setting rather than on dictionaryAutoSource. That
-                        // setting used to mean "open the dictionary popup by itself", and anyone
-                        // who found that intrusive turned it off — which would now also cost them
-                        // the quiet one-line definition, a different thing they never refused.
-                        !curr.isDictionaryAutoPopupEnabled -> false
-                        else -> {
-                            // Primary trigger: translation just finished.
-                            val justFinishedLoading = prev.isLoading && !curr.isLoading
-                            // Secondary trigger: a setting changed while already idle and a
-                            // translation result is already on screen.
-                            val settingChangedIdle = curr.translatedText.isNotBlank() && (
-                                prev.autoSource != curr.autoSource ||
-                                prev.isDictionaryAutoPopupEnabled != curr.isDictionaryAutoPopupEnabled ||
-                                (!prev.panelVisible && curr.panelVisible)
-                            )
-                            justFinishedLoading || settingChangedIdle
-                        }
-                    }
-                }
-                .mapNotNull { it.second }
-                .collect { key ->
-                    // Translation started — dismiss any unpinned auto-triggered popup.
-                    if (key.isLoading) {
-                        if (key.isQuickDictionaryVisible && !key.isQuickDictionaryPinned) {
-                            mainStore.dispatch(MainIntent.HideQuickDictionary)
-                        }
-                        return@collect
-                    }
-                    // Both sides of the translation are offered, in preference order. SOURCE means
-                    // the user asked for the word they typed; otherwise the translation comes
-                    // first, since that is what they are looking at.
-                    //
-                    // Both matter because dictionaries are lopsided. Translating English into
-                    // Arabic and defining only the Arabic would ask Google Dictionary for a
-                    // language it barely holds, and produce nothing every single time.
-                    val preferSource =
-                        key.autoSource == DictionaryAutoSource.SOURCE
-                    val (word, lang) =
-                        if (preferSource) key.inputText to key.resolvedSourceLang
-                        else key.translatedText to key.targetLang
-                    val (alternate, alternateLang) =
-                        if (preferSource) key.translatedText to key.targetLang
-                        else key.inputText to key.resolvedSourceLang
-
-                    // Not a single word, so no definition belongs under the result.
-                    if (word.isBlank() || word.contains(Regex("\\s")) || word.length < 2) {
-                        mainStore.dispatch(MainIntent.UpdateInlineDefinition(""))
-                        return@collect
-                    }
-
-                    // A single word: fetch the short definition that sits beneath the translation,
-                    // in the popup and in the main window alike. Nothing is opened for it.
-                    mainStore.dispatch(
-                        MainIntent.UpdateInlineDefinition(
-                            word = word,
-                            language = lang,
-                            alternateWord = alternate.takeIf { it.isNotBlank() && it.none(Char::isWhitespace) }.orEmpty(),
-                            alternateLanguage = alternateLang
-                        )
-                    )
-                    val current = mainStore.state.value.dictionaryWord
-                    if (word.equals(current, ignoreCase = true)) return@collect
-
-                    // Only ever fills in a dictionary the user already has open, and only in the
-                    // main window. It never summons one.
-                    //
-                    // Translating a single word used to make the dictionary popup appear on its
-                    // own. That was wrong twice over: it fired during Quick Translate with the
-                    // main window hidden, so a hotkey translation produced two windows when one
-                    // was asked for; and even in the main window it decided for the user that a
-                    // short word meant they wanted a definition. Looking a word up is now an
-                    // action they take — see the definition button on the output pane.
-                    if (key.panelVisible && key.mainVisible) {
-                        withContext(Dispatchers.Swing) {
-                            mainContentView.setDictionarySearchWord(word)
-                        }
-                        mainStore.dispatch(MainIntent.LookupWord(word, lang))
-                    }
-                }
+            autoLookupCoordinator.observe()
         }
 
-        // Persist dictionary panel visibility whenever it changes.
+        // Persist whether the lookup dock is open, which is what the "show dictionary panel" setting remembers.
         appScope.launch(handler) {
             mainStore.state
-                .map { it.isDictionaryPanelVisible }
+                .map { it.isLookupDockOpen }
                 .distinctUntilChanged()
                 .drop(1)
                 .collect { visible ->
@@ -1008,7 +980,7 @@ class MainAppFrame(
                 .collect {
                     withContext(Dispatchers.Swing) {
                         if (historyDialog.isVisible) {
-                            historyDialog.render(buildHistoryDialogState())
+                            renderHistoryDialog()
                         }
                     }
                 }
@@ -1022,7 +994,7 @@ class MainAppFrame(
                 .collect {
                     withContext(Dispatchers.Swing) {
                         if (dictionaryDialog.isVisible) {
-                            dictionaryDialog.render(buildDictionaryDialogState())
+                            renderDictionaryDialog()
                         }
                     }
                 }
@@ -1149,6 +1121,7 @@ class MainAppFrame(
                     SettingsIntent.ToggleSetting { it.copy(layoutPresetId = layoutId) }
                 )
             },
+            onOpenServicesSettings = { openSettingsDialog(openToServices = true) },
             onToggleHistoryControls = { enabled ->
                 settingsStore.dispatch(
                     SettingsIntent.ToggleSetting {
@@ -1205,6 +1178,7 @@ class MainAppFrame(
             layoutPresets = localizer.getString("main_window_main_menu.layout_presets"),
             layoutComparisonAvailable = currentConfig.isComparisonEligible(mainStore.state.value.availableTranslatorIds),
             layoutComparisonUnavailableHint = localizer.getString("settings_window.layout_comparison_unavailable"),
+            layoutComparisonConfigureLabel = localizer.getString("settings_window.layout_comparison_configure"),
             showHistoryControls = localizer.getString("main_window_main_menu.show_history_bar"),
             showLanguageBar = localizer.getString("main_window_main_menu.show_language_bar"),
             showServicesPanel = localizer.getString("main_window_main_menu.show_services_panel"),
@@ -1325,6 +1299,7 @@ class MainAppFrame(
         addWindowListener(object : WindowAdapter() {
             override fun windowOpened(e: WindowEvent?) {
                 mainContentView.requestFocusOnInput()
+                initializeGlobalHotkeys()
             }
 
             override fun windowClosing(e: WindowEvent?) {
@@ -1343,13 +1318,29 @@ class MainAppFrame(
                 mainContentView.requestFocusOnInput()
             }
 
+            /**
+             * Single convergence point for every exit route: main-window EXIT close, tray
+             * Exit and the close dialog's Exit all call [dispose], which fires this event
+             * exactly once. Stops locally-owned resources synchronously, so no new global
+             * hotkey or tray event can start after this point, then hands off to the
+             * application-level shutdown owner for the suspend teardown and process exit.
+             * Capturing bounds here, not via [saveWindowBounds], because by the time
+             * shutdown finishes off the EDT the frame may already be disposed.
+             */
             override fun windowClosed(e: WindowEvent?) {
-                appScope.cancel()
+                globalKeyListener.shutdown()
+                selectionTranslateButton.dispose()
                 trayIcon?.let { SystemTray.getSystemTray().remove(it) }
                 trayIcon = null
-                exitProcess(0)
+                appScope.cancel()
+                onApplicationExit(Size(width, height), Position(x, y))
             }
         })
+        // Global hotkeys must work even when the frame starts hidden in the tray (#226):
+        // windowOpened only fires once the window is first shown, which a login launch may
+        // never do until the user restores it. Initializing here as well is safe: the
+        // backend guards with an atomic check-and-set and local registration reinstalls.
+        initializeGlobalHotkeys()
     }
 
     private fun saveWindowBounds() {
@@ -1507,6 +1498,28 @@ class MainAppFrame(
         settingsStore.dispatch(SettingsIntent.SaveChanges)
     }
 
+    /**
+     * Session state only: a pin that survived a restart would be surprising the next time the
+     * window opened for an entirely different reason, and nothing else about it needs saving.
+     */
+    private val pinButton: FlatButton = createToolbarButton(iconManager, Icons.PIN, 14).apply {
+        addActionListener {
+            isAlwaysOnTop = !isAlwaysOnTop
+            updatePinButtonStyle()
+        }
+    }
+
+    private fun updatePinButtonStyle() {
+        // A handful of window managers offer no always-on-top support at all; a toggle that
+        // silently does nothing there is worse than no toggle.
+        pinButton.isVisible = isAlwaysOnTopSupported
+        pinButton.isSelected = isAlwaysOnTop
+        pinButton.toolTipText = localizer.getString(
+            if (isAlwaysOnTop) "main_window_main_menu.stop_keeping_on_top"
+            else "main_window_main_menu.keep_on_top"
+        )
+    }
+
     private fun setupMenuBar() {
         val settingsButton = createButtonWithIcon(iconManager, Icons.SETTINGS, 18).apply {
             buttonType = FlatButton.ButtonType.toolBarButton
@@ -1516,9 +1529,11 @@ class MainAppFrame(
                 popupMenu.show(this, 0, height)
             }
         }
+        updatePinButtonStyle()
 
         jMenuBar = JMenuBar().apply {
             add(Box.createHorizontalGlue())
+            add(pinButton)
             add(settingsButton)
         }
     }
@@ -1534,79 +1549,14 @@ class MainAppFrame(
         }
     }
 
-    private fun mapToQuickTranslateState(mainState: MainState, config: Configuration): QuickTranslateDialogState {
-        val displaySourceLanguage = mainState.detectedSourceLanguage ?: mainState.sourceLanguage
-
-        val activePreset = config.getActivePreset()
-        val selectedTranslatorId = activePreset?.selectedServices?.get(ServiceRole.TRANSLATOR)
-        val selectedTranslator = mainState.availableServices.find { it.id == selectedTranslatorId }
-
-        return QuickTranslateDialogState(
-            isVisible = mainState.isQuickTranslateDialogVisible,
-            isLoading = mainState.isLoading,
-            translatedText = mainState.translatedText,
-            isPinned = mainState.isQuickTranslateDialogPinned,
-            triggerCount = mainState.quickTranslateTriggerCount,
-            isTtsPlaying = mainState.isTtsPlaying,
-            definition = mainState.inlineDefinition,
-
-            sourceLanguage = displaySourceLanguage,
-            targetLanguage = mainState.targetLanguage,
-            availableLanguages = mainState.availableLanguages,
-            detectedSourceLanguage = mainState.detectedSourceLanguage,
-
-            translatorSelectorState = QuickTranslateSelectorState(
-                availableTranslators = mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR),
-                selectedTranslatorId = selectedTranslator?.id
-            ),
-            actionsState = QuickTranslateActionsState(
-                canCopy = mainState.translatedText.isNotBlank(),
-                canListen = mainState.translatedText.isNotBlank()
-            ),
-            config = DialogConfig(
-                font = config.scaledEditorFont,
-                fallbackFont = config.scaledEditorFallbackFont,
-                autoSizeEnabled = config.isPopupAutoSizeEnabled,
-                autoPositionEnabled = config.isPopupAutoPositionEnabled,
-                transparencyPercentage = config.popupTransparencyPercentage,
-                idleTimeoutSeconds = config.popupIdleTimeoutSeconds,
-                closeOnClickOutside = config.closePopupsOnClickOutside,
-                lastKnownSize = config.popupLastKnownSize,
-                lastKnownPosition = config.popupLastKnownPosition
-            ),
-            strings = DialogStrings(
-                copyTooltip = localizer.getString("common.copy"),
-                closeTooltip = localizer.getString("common.close"),
-                listenTooltip = localizer.getString("common.listen"),
-                stopListeningTooltip = localizer.getString("common.stop"),
-                pinTooltip = localizer.getString("common.pin"),
-                unpinTooltip = localizer.getString("common.unpin"),
-                swapTooltip = localizer.getString("main_window_language_bar.swap_languages_tooltip"),
-                loadingText = localizer.getString("common.loading")
-            ),
-            comparisonResults = mainState.comparisonResults,
-            comparisonLoadingText = localizer.getString("main_window.comparison_loading"),
-            comparisonUnavailableText = localizer.getString("main_window.comparison_unavailable"),
-            comparisonFailureText = localizer.getString("main_window.comparison_failure"),
-            comparisonCopyLabel = localizer.getString("main_window.comparison_copy"),
-            comparisonDetailsLabel = localizer.getString("main_window.comparison_details"),
-            primaryProviderName = selectedTranslator?.name ?: localizer.getString("main_window.no_translator"),
-            primaryBadge = localizer.getString("main_window.comparison_primary"),
-            primaryProviderInfo = selectedTranslator,
-            comparisonProviderInfos = mainState.availableServices.associateBy { it.id },
-            // Canonical primary only with fewer than two usable translators;
-            // comparison results appear only once Comparison is eligible.
-            comparisonsEnabled = config.isComparisonEligible(mainState.availableTranslatorIds)
-        )
-    }
-
     /** Opens Settings with the correct orientation. Shared by the menu and the Ctrl+Comma binding. */
-    private fun openSettingsDialog() {
+    private fun openSettingsDialog(openToServices: Boolean = false) {
         val dialog = createSettingsDialog()
         dialog.applyComponentOrientation(
             if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
             else ComponentOrientation.LEFT_TO_RIGHT
         )
+        if (openToServices) dialog.showServicesPage()
         dialog.isVisible = true
     }
 
@@ -1641,26 +1591,6 @@ class MainAppFrame(
         rootPane.installContentDropHandler(onContent, onDragOver, onDropped)
         dragOverlay.component.installContentDropHandler(onContent, onDragOver, onDropped)
         mainContentView.installDropHandling(onContent, onDragOver, onDropped)
-    }
-
-    private fun setupGlobalHotkeys() {
-        addWindowListener(object : WindowAdapter() {
-            override fun windowOpened(e: WindowEvent?) {
-                initializeGlobalHotkeys()
-            }
-
-            override fun windowClosed(e: WindowEvent?) {
-                selectionTranslateButton.dispose()
-                globalKeyListener.shutdown()
-                System.runFinalization()
-                exitProcess(0)
-            }
-        })
-        // Global hotkeys must work even when the frame starts hidden in the tray (#226):
-        // windowOpened only fires once the window is first shown, which a login launch may
-        // never do until the user restores it. Initializing here as well is safe — the
-        // backend guards with an atomic check-and-set and local registration reinstalls.
-        initializeGlobalHotkeys()
     }
 
     private fun initializeGlobalHotkeys() {
@@ -1733,6 +1663,34 @@ class MainAppFrame(
     }
 
     /**
+     * Grows the frame before a main-window lookup opens, if that would help: a resizable frame
+     * that is narrower than the workspace and dock together would comfortably like gets wider,
+     * clamped to its monitor's work area, with its height and position otherwise left alone.
+     *
+     * Left alone entirely while maximized (the dock adapts to whatever width that already gives)
+     * or while the frame already has enough room, so opening the dock a second time never moves
+     * anything.
+     */
+    private fun ensureRoomForLookupDock() {
+        if (!isVisible) return
+        val gc = graphicsConfiguration ?: return
+        val screenInsets = runCatching { toolkit.getScreenInsets(gc) }.getOrDefault(Insets(0, 0, 0, 0))
+        val screenBounds = gc.bounds
+        val workArea = Rectangle(
+            screenBounds.x + screenInsets.left,
+            screenBounds.y + screenInsets.top,
+            screenBounds.width - screenInsets.left - screenInsets.right,
+            screenBounds.height - screenInsets.top - screenInsets.bottom
+        )
+        val isMaximized = (extendedState and Frame.MAXIMIZED_HORIZ) == Frame.MAXIMIZED_HORIZ
+        val chromeWidth = width - contentPane.width
+        val wantedWidth = mainContentView.comfortableWidthWithDock() + chromeWidth
+
+        val plan = DockRoomPlanner.plan(bounds, workArea, wantedWidth, isMaximized) ?: return
+        bounds = plan
+    }
+
+    /**
      * Opens the image popup from a menu, seeded with the input text when it is a single word.
      *
      * The hotkey and the context menu both start from a selection; a menu click has none, so it
@@ -1741,26 +1699,23 @@ class MainAppFrame(
     private fun showImageSearchDialog() {
         val term = mainStore.state.value.inputText.trim()
             .takeIf { it.isNotBlank() && !it.contains(' ') } ?: ""
-        mainStore.dispatch(MainIntent.ShowImageSearch(term, mainStore.state.value.resolvedSourceLanguage))
+        val language = mainStore.state.value.resolvedSourceLanguage
+        // From the main window the pictures dock beside the workspace when there is room; from the
+        // tray there is no window to dock in, so they appear as the popup.
+        if (isVisible) mainContentView.openImages(term, language)
+        else mainStore.dispatch(MainIntent.ShowImageSearch(term, language))
     }
 
     private fun showDictionaryDialog() {
         val initialWord = mainStore.state.value.inputText.trim()
             .takeIf { it.isNotBlank() && !it.contains(' ') } ?: ""
 
-        // Main window visible → toggle the inline panel.
+        // Main window visible → the dock beside the workspace, or the popup if it has no room.
         if (isVisible) {
-            val wasVisible = mainStore.state.value.isDictionaryPanelVisible
-            mainStore.dispatch(MainIntent.ToggleDictionaryPanel)
-            if (!wasVisible) {
-                mainContentView.setDictionarySearchWord(initialWord)
-                if (initialWord.isNotBlank()) {
-                    mainStore.dispatch(MainIntent.LookupWord(initialWord))
-                }
-            }
+            mainContentView.toggleDictionary(initialWord)
         } else {
             dictionaryDialog.setSearchWord(initialWord)
-            dictionaryDialog.render(buildDictionaryDialogState())
+            renderDictionaryDialog()
             if (initialWord.isNotBlank()) {
                 mainStore.dispatch(MainIntent.LookupWord(initialWord))
             }
@@ -1769,45 +1724,30 @@ class MainAppFrame(
         }
     }
 
-    private fun buildDictionaryDialogState(): DictionaryDialogState {
-        val s = mainStore.state.value
-        val config = settingsStore.state.value.workingConfiguration
-        val availableDicts = s.getAvailableServicesFor(ServiceRole.DICTIONARY)
-        val selectedDictId = config.getActivePreset()
-            ?.selectedServices?.get(ServiceRole.DICTIONARY)
-
-        val resolvedLang = s.resolvedSourceLanguage
-
-        return DictionaryDialogState(
-            title                 = localizer.getString("dictionary_dialog.title"),
-            lookupButtonLabel     = localizer.getString("dictionary_dialog.lookup_button"),
-            closeLabel            = localizer.getString("common.close"),
-            hintMessage           = localizer.getString("dictionary_dialog.hint_message"),
-            notFoundMessage       = localizer.getString("dictionary_dialog.not_found_message", s.dictionaryWord),
-            loadingMessage        = localizer.getString("dictionary_dialog.loading_message"),
-            errorMessage          = localizer.getString("dictionary_dialog.error_message"),
-            synonymsLabel         = localizer.getString("dictionary_dialog.synonyms_label"),
-            listenTooltip         = localizer.getString("common.listen"),
-            stopListeningTooltip  = localizer.getString("common.stop"),
-            isLoading             = s.isDictionaryLoading,
-            isTtsPlaying          = s.isTtsPlaying,
-            entries               = s.dictionaryEntries,
-            lookedUpWord          = s.dictionaryWord,
-            hasFailed             = s.dictionaryFailed,
-            availableDictionaries = availableDicts,
-            selectedDictionaryId  = selectedDictId,
-            onLookup = { word -> mainStore.dispatch(MainIntent.LookupWord(word, resolvedLang)) },
-            onListen = { word -> listenToLookedUpWord(word) },
-            onStopListening = { mainStore.dispatch(MainIntent.StopTTS) },
-            onDictionarySelected = { serviceId ->
-                settingsStore.dispatch(
-                    SettingsIntent.UpdateServiceInActivePreset(
-                        ServiceRole.DICTIONARY, serviceId
+    private fun renderDictionaryDialog() {
+        val mainState = mainStore.state.value
+        dictionaryDialog.render(
+            buildDictionaryDialogState(
+                mainState = mainState,
+                config = settingsStore.state.value.workingConfiguration,
+                localizer = localizer,
+                onLookup = { word ->
+                    mainStore.dispatch(MainIntent.LookupWord(word, mainState.resolvedSourceLanguage))
+                },
+                onListen = { word -> listenToLookedUpWord(word) },
+                onStopListening = { mainStore.dispatch(MainIntent.StopTTS) },
+                onDictionarySelected = { serviceId ->
+                    settingsStore.dispatch(
+                        SettingsIntent.UpdateServiceInActivePreset(ServiceRole.DICTIONARY, serviceId)
                     )
-                )
-                val currentWord = mainStore.state.value.dictionaryWord
-                if (currentWord.isNotBlank()) mainStore.dispatch(MainIntent.LookupWord(currentWord, resolvedLang))
-            }
+                    val currentWord = mainStore.state.value.dictionaryWord
+                    if (currentWord.isNotBlank()) {
+                        mainStore.dispatch(
+                            MainIntent.LookupWord(currentWord, mainState.resolvedSourceLanguage)
+                        )
+                    }
+                }
+            )
         )
     }
 
@@ -1827,378 +1767,26 @@ class MainAppFrame(
         )
     }
 
-    private fun buildImageSearchDialogState(
-        mainState: MainState,
-        config: Configuration
-    ): ImageSearchDialogState {
-        val serviceType = ServiceRole.IMAGE_SEARCH
-        val available = mainState.getAvailableServicesFor(serviceType)
-        val selectedId = config.getActivePreset()?.selectedServices?.get(serviceType)
-        val language = mainState.resolvedSourceLanguage
-
-        return ImageSearchDialogState(
-            isVisible         = mainState.isImageSearchVisible,
-            isLoading         = mainState.isImageSearchLoading,
-            results           = mainState.imageResults,
-            searchedTerm      = mainState.imageSearchTerm,
-            hasFailed         = mainState.imageSearchFailed,
-            isPinned          = mainState.isImageSearchPinned,
-            triggerCount      = mainState.imageSearchTriggerCount,
-            availableServices = available,
-            selectedServiceId = selectedId,
-            config = ImageSearchConfig(
-                lastKnownSize     = config.imageSearchLastKnownSize,
-                lastKnownPosition = config.imageSearchLastKnownPosition,
-                positionNearMouse = config.isImageSearchAutoPositionEnabled,
-                closeOnClickOutside = config.closePopupsOnClickOutside,
-                transparencyPercentage = config.imageSearchTransparencyPercentage
-            ),
-            strings = ImageSearchStrings(
-                title             = localizer.getString("image_search_dialog.title"),
-                hintMessage       = localizer.getString("image_search_dialog.hint_message"),
-                loadingMessage    = localizer.getString("image_search_dialog.loading_message"),
-                notFoundMessage   = localizer.getString(
-                    "image_search_dialog.not_found_message",
-                    mainState.imageSearchTerm
-                ),
-                errorMessage      = localizer.getString("image_search_dialog.error_message"),
-                searchButtonLabel = localizer.getString("image_search_dialog.search_button"),
-                openTooltip       = localizer.getString("image_search_dialog.open_tooltip"),
-                openSourceLabel   = localizer.getString("image_search_dialog.open_source"),
-                backLabel         = localizer.getString("image_search_dialog.back"),
-                pinTooltip        = localizer.getString("common.pin"),
-                unpinTooltip      = localizer.getString("common.unpin"),
-                closeTooltip      = localizer.getString("common.close")
-            ),
-            onSearch = { term -> mainStore.dispatch(MainIntent.SearchImages(term, language)) },
-            onServiceSelected = { serviceId ->
-                settingsStore.dispatch(SettingsIntent.UpdateServiceInActivePreset(serviceType, serviceId))
-                val term = mainStore.state.value.imageSearchTerm
-                if (term.isNotBlank()) mainStore.dispatch(MainIntent.SearchImages(term, language))
-            },
-            // The description page rather than the raw image: it carries the licence and the
-            // caption, which is what someone looking a term up actually wants to read.
-            onImageOpened = { result -> openUrl(result.sourceUrl ?: result.fullUrl) },
-            onPinToggled = { mainStore.dispatch(MainIntent.ToggleImageSearchPin) },
-            onClose = { mainStore.dispatch(MainIntent.HideImageSearch) },
-            onSavePosition = { position ->
-                settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting { it.copy(imageSearchLastKnownPosition = position) }
-                )
-                settingsStore.dispatch(SettingsIntent.SaveChanges)
-            },
-            onSaveSize = { size ->
-                settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting { it.copy(imageSearchLastKnownSize = size) }
-                )
-                settingsStore.dispatch(SettingsIntent.SaveChanges)
-            }
-        )
-    }
-
-    private fun buildQuickDictionaryDialogState(
-        mainState: MainState,
-        config: Configuration
-    ): QuickDictionaryDialogState {
-        val availableDicts = mainState.getAvailableServicesFor(
-            ServiceRole.DICTIONARY
-        )
-        val selectedDictId = config.getActivePreset()
-            ?.selectedServices?.get(ServiceRole.DICTIONARY)
-
-        val resolvedLang = mainState.resolvedSourceLanguage
-
-        return QuickDictionaryDialogState(
-            isVisible            = mainState.isQuickDictionaryVisible,
-            isLoading            = mainState.isDictionaryLoading,
-            entries              = mainState.dictionaryEntries,
-            lookedUpWord         = mainState.dictionaryWord,
-            hasFailed            = mainState.dictionaryFailed,
-            isPinned             = mainState.isQuickDictionaryPinned,
-            triggerCount         = mainState.quickDictionaryTriggerCount,
-            availableDictionaries = availableDicts,
-            selectedDictionaryId  = selectedDictId,
-            autoSource               = config.dictionaryAutoSource,
-            autoSourceOffLabel       = localizer.getString("dictionary_dialog.auto_source_off"),
-            autoSourceTranslatedLabel = localizer.getString("dictionary_dialog.auto_source_translated"),
-            autoSourceSourceLabel    = localizer.getString("dictionary_dialog.auto_source_source"),
-            config = QuickDictionaryConfig(
-                autoPositionEnabled  = config.isQuickDictionaryAutoPositionEnabled,
-                lastKnownSize        = config.quickDictionaryLastKnownSize,
-                lastKnownPosition    = config.quickDictionaryLastKnownPosition,
-                positionNearMouse    = quickDictionaryPositionNearMouse,
-                idleTimeoutSeconds   = config.quickDictionaryIdleTimeoutSeconds,
-                closeOnClickOutside  = config.closePopupsOnClickOutside,
-                transparencyPercentage = config.quickDictionaryTransparencyPercentage
-            ),
-            strings = QuickDictionaryStrings(
-                title            = localizer.getString("dictionary_dialog.title"),
-                hintMessage      = localizer.getString("dictionary_dialog.hint_message"),
-                loadingMessage   = localizer.getString("dictionary_dialog.loading_message"),
-                notFoundMessage  = localizer.getString("dictionary_dialog.not_found_message", mainState.dictionaryWord),
-                errorMessage     = localizer.getString("dictionary_dialog.error_message"),
-                lookupButtonLabel = localizer.getString("dictionary_dialog.lookup_button"),
-                synonymsLabel    = localizer.getString("dictionary_dialog.synonyms_label"),
-                pinTooltip       = localizer.getString("common.pin"),
-                unpinTooltip     = localizer.getString("common.unpin"),
-                closeTooltip     = localizer.getString("common.close"),
-                listenTooltip    = localizer.getString("common.listen"),
-                stopListeningTooltip = localizer.getString("common.stop")
-            ),
-            isTtsPlaying = mainState.isTtsPlaying,
-            onLookup = { word -> mainStore.dispatch(MainIntent.LookupWord(word, resolvedLang)) },
-            onListen = { word -> listenToLookedUpWord(word) },
-            onStopListening = { mainStore.dispatch(MainIntent.StopTTS) },
-            onDictionarySelected = { serviceId ->
-                settingsStore.dispatch(
-                    SettingsIntent.UpdateServiceInActivePreset(
-                        ServiceRole.DICTIONARY, serviceId
-                    )
-                )
-                val currentWord = mainStore.state.value.dictionaryWord
-                if (currentWord.isNotBlank()) mainStore.dispatch(MainIntent.LookupWord(currentWord, resolvedLang))
-            },
-            onAutoSourceChanged = { newSource ->
-                settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting { it.copy(dictionaryAutoSource = newSource) }
-                )
-                settingsStore.dispatch(SettingsIntent.SaveChanges)
-            },
-            onPinToggled = { mainStore.dispatch(MainIntent.ToggleQuickDictionaryPin) },
-            onClose = { mainStore.dispatch(MainIntent.HideQuickDictionary) },
-            onSavePosition = { pos ->
-                settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting { it.copy(quickDictionaryLastKnownPosition = pos) }
-                )
-                settingsStore.dispatch(SettingsIntent.SaveChanges)
-            },
-            onSaveSize = { size ->
-                settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting { it.copy(quickDictionaryLastKnownSize = size) }
-                )
-                settingsStore.dispatch(SettingsIntent.SaveChanges)
-            }
-        )
-    }
-
     private fun showHistoryDialog() {
-        historyDialog.render(buildHistoryDialogState())
+        renderHistoryDialog()
         historyDialog.isVisible = true
         historyDialog.toFront()
     }
 
-    private fun buildHistoryDialogState(): HistoryDialogState {
-        val fmt = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
-        val services = mainStore.state.value.availableServices
-        val entries = mainStore.state.value.history.reversed().map { snap ->
-            val serviceName = services.find { it.id == snap.translatorId }?.name ?: snap.translatorId
-
-            val sourceLanguage = LanguageCode(snap.sourceLanguage).getDisplayName(autoDetectLabel = localizer.getString("common.auto_detect"))
-            val targetLanguage = LanguageCode(snap.targetLanguage).getDisplayName(autoDetectLabel = localizer.getString("common.auto_detect"))
-
-            HistoryEntryState(
-                date = fmt.format(Date(snap.timestamp)),
-                sourceText = snap.inputText.take(80).let { if (snap.inputText.length > 80) "$it…" else it },
-                translatedText = snap.translatedText.take(80).let { if (snap.translatedText.length > 80) "$it…" else it },
-                languages = "$sourceLanguage → $targetLanguage",
-                service = serviceName,
-                snapshot = snap
+    private fun renderHistoryDialog() {
+        historyDialog.render(
+            buildHistoryDialogState(
+                mainState = mainStore.state.value,
+                localizer = localizer,
+                onEntrySelected = { snapshot ->
+                    mainStore.dispatch(MainIntent.RestoreHistoryEntry(snapshot))
+                    historyDialog.isVisible = false
+                },
+                onClearAll = { mainStore.dispatch(MainIntent.ClearHistory) }
             )
-        }
-        return HistoryDialogState(
-            title = localizer.getString("history_dialog.title"),
-            columnDate = localizer.getString("history_dialog.column_date"),
-            columnSource = localizer.getString("history_dialog.column_source"),
-            columnTranslation = localizer.getString("history_dialog.column_translation"),
-            columnLanguages = localizer.getString("history_dialog.column_languages"),
-            columnService = localizer.getString("history_dialog.column_service"),
-            emptyMessage = localizer.getString("history_dialog.empty_message"),
-            clearAllLabel = localizer.getString("common.clear_all"),
-            closeLabel = localizer.getString("common.close"),
-            restoreTooltip = localizer.getString("history_dialog.restore_tooltip"),
-            entries = entries,
-            onEntrySelected = { snapshot ->
-                mainStore.dispatch(MainIntent.RestoreHistoryEntry(snapshot))
-                historyDialog.isVisible = false
-            },
-            onClearAll = { mainStore.dispatch(MainIntent.ClearHistory) }
         )
     }
 
-    inner class StatusBarController(
-        private val statusBar: StatusBar,
-        private val scope: CoroutineScope,
-        private val defaultMessage: String,
-    ) {
-        private var clearMessageJob: Job? = null
-        private var currentMessage: String = defaultMessage
-        private var currentType: NotificationType = NotificationType.INFO
-        private var isLoading: Boolean = false
-        private var unreadCount: Int = 0
-
-        // -----------------------------------------------------------------------
-        // Error-detail popup
-        // -----------------------------------------------------------------------
-
-        private val errorDetailPopup = ErrorDetailPopup(iconManager)
-
-        /** Message currently shown in the popup, null when popup is hidden. */
-        private var shownDetailMessage: String? = null
-
-        init {
-            errorDetailPopup.errorLabel   = localizer.getString("main_window_status_bar.error_detail_error")
-            errorDetailPopup.warningLabel = localizer.getString("main_window_status_bar.error_detail_warning")
-            errorDetailPopup.copyLabel    = localizer.getString("main_window_status_bar.error_detail_copy")
-            errorDetailPopup.copiedLabel  = localizer.getString("main_window_status_bar.error_detail_copied")
-            errorDetailPopup.closeLabel   = localizer.getString("common.close")
-
-            statusBar.onErrorClicked = { message ->
-                shownDetailMessage = message
-                errorDetailPopup.show(message, currentType, statusBar)
-            }
-
-            render()
-        }
-
-        /** Called for transient action feedback ("Translating…", "Playing audio…"). */
-        fun handleEvent(event: MainEvent.UpdateStatusBar) {
-            clearMessageJob?.cancel()
-            currentMessage = resolveStatusMessage(event.code)
-            currentType = event.type
-            render()
-            if (event.isTemporary) {
-                val snapshot = currentMessage
-                clearMessageJob = scope.launch {
-                    delay(AppConstants.STATUS_MESSAGE_DURATION_MS)
-                    if (currentMessage == snapshot) {
-                        currentMessage = defaultMessage
-                        currentType = NotificationType.INFO
-                        render()
-                    }
-                }
-            }
-        }
-
-        /** Called for background/system events — adds to popover, updates bell badge. */
-        fun addToPopover(notification: AppNotification) {
-            val message = resolveNotificationMessage(notification.code)
-            notificationPopover.addNotification(NotificationPopover.NotificationEntry(message, notification.type))
-            unreadCount++
-            render()
-        }
-
-        /** Reflects the main loading state (translation / OCR in progress). */
-        fun setLoading(loading: Boolean) {
-            if (isLoading == loading) return
-            isLoading = loading
-            render()
-        }
-
-        /** Called when the user clears all notifications. */
-        fun onPopoverCleared() {
-            unreadCount = 0
-            render()
-        }
-
-        private fun bellTooltip(): String {
-            val base = localizer.getString("main_window_status_bar.notifications_tooltip")
-            return if (unreadCount > 0) "$base ($unreadCount)" else base
-        }
-
-        private fun render() {
-            // Auto-dismiss the detail popup when the displayed message changes or
-            // when the type is no longer an error/warning.
-            val isErrorOrWarning = currentType == NotificationType.ERROR || currentType == NotificationType.WARNING
-            if (errorDetailPopup.isVisible && (!isErrorOrWarning || shownDetailMessage != currentMessage)) {
-                errorDetailPopup.dismiss()
-                shownDetailMessage = null
-            }
-
-            statusBar.render(
-                StatusBarState(
-                    message = currentMessage,
-                    type = currentType,
-                    isLoading = isLoading,
-                    notificationTooltip = bellTooltip(),
-                    isNotificationButtonEnabled = true
-                )
-            )
-        }
-
-        private fun resolveStatusMessage(code: StatusCode): String = when (code) {
-            StatusCode.Translating                  -> localizer.getString("status_bar.translating")
-            StatusCode.TranslationComplete          -> localizer.getString("status_bar.translation_complete")
-            StatusCode.TranslationCancelled         -> localizer.getString("status_bar.translation_cancelled")
-            StatusCode.TranslationTimeout           -> localizer.getString("status_bar.translation_timeout")
-            is StatusCode.TranslationFailed         -> localizer.getString("status_bar.translation_failed", code.summary)
-            StatusCode.NoTranslatorActive           -> localizer.getString("status_bar.no_translator_active")
-            StatusCode.ComparisonNeedsTwoTranslators -> localizer.getString("status_bar.comparison_needs_two_translators")
-            StatusCode.PerformingBackwardTranslation -> localizer.getString("status_bar.performing_backward_translation")
-            is StatusCode.UnexpectedError           -> localizer.getString("status_bar.unexpected_error", code.summary)
-            StatusCode.NoTextToSpeak                -> localizer.getString("status_bar.no_text_to_speak")
-            StatusCode.CannotDetermineLanguage      -> localizer.getString("status_bar.cannot_determine_language")
-            StatusCode.NoTtsServiceActive           -> localizer.getString("status_bar.no_tts_active")
-            is StatusCode.TtsLanguageNotSupported   -> localizer.getString("status_bar.tts_language_not_supported", code.serviceName)
-            StatusCode.ConvertingToSpeech           -> localizer.getString("status_bar.converting_to_speech")
-            StatusCode.TtsTimeout                   -> localizer.getString("status_bar.tts_timeout")
-            StatusCode.PlayingAudio                 -> localizer.getString("status_bar.playing_audio")
-            StatusCode.AudioPlaybackComplete        -> localizer.getString("status_bar.audio_playback_complete")
-            StatusCode.TtsStopped                   -> localizer.getString("status_bar.tts_stopped")
-            StatusCode.DownloadingAudio             -> localizer.getString("status_bar.downloading_audio")
-            StatusCode.AudioDownloadFailed          -> localizer.getString("status_bar.audio_download_failed")
-            is StatusCode.TtsFailed                 -> localizer.getString("status_bar.tts_failed", code.summary)
-            StatusCode.NoOcrServiceActive           -> localizer.getString("status_bar.no_ocr_active")
-            StatusCode.RecognizingText              -> localizer.getString("status_bar.recognizing_text")
-            StatusCode.OcrTimeout                   -> localizer.getString("status_bar.ocr_timeout")
-            StatusCode.NoTextInImage                -> localizer.getString("status_bar.no_text_in_image")
-            StatusCode.OcrComplete                  -> localizer.getString("status_bar.ocr_complete")
-            StatusCode.OcrTextCopied               -> localizer.getString("status_bar.ocr_text_copied")
-            StatusCode.TextCopied                  -> localizer.getString("status_bar.text_copied")
-            is StatusCode.OcrFailed                 -> localizer.getString("status_bar.ocr_failed", code.summary)
-            StatusCode.NoSummarizerActive           -> localizer.getString("status_bar.no_summarizer_active")
-            StatusCode.Summarizing                  -> localizer.getString("status_bar.summarizing")
-            StatusCode.SummarizeTimeout             -> localizer.getString("status_bar.summarize_timeout")
-            StatusCode.SummaryReady                 -> localizer.getString("status_bar.summary_ready")
-            is StatusCode.SummarizeFailed           -> localizer.getString("status_bar.summarize_failed", code.summary)
-            StatusCode.NoRewriterActive             -> localizer.getString("status_bar.no_rewriter_active")
-            StatusCode.Rewriting                    -> localizer.getString("status_bar.rewriting")
-            StatusCode.RewriteTimeout               -> localizer.getString("status_bar.rewrite_timeout")
-            StatusCode.RewriteReady                 -> localizer.getString("status_bar.rewrite_ready")
-            is StatusCode.RewriteFailed             -> localizer.getString("status_bar.rewrite_failed", code.summary)
-            StatusCode.SpellCheckTimeout            -> localizer.getString("status_bar.spell_check_timeout")
-            is StatusCode.SpellCheckFailed          -> localizer.getString("status_bar.spell_check_failed", code.summary)
-            StatusCode.NoWordToLookup               -> localizer.getString("status_bar.no_word_to_lookup")
-            StatusCode.NoDictionaryServiceActive    -> localizer.getString("status_bar.no_dictionary_active")
-            StatusCode.LookingUpWord                -> localizer.getString("status_bar.looking_up_word")
-            StatusCode.DictionaryReady              -> localizer.getString("status_bar.dictionary_ready")
-            is StatusCode.DictionaryNotFound        -> localizer.getString("status_bar.dictionary_not_found", code.word)
-            StatusCode.DictionaryTimeout            -> localizer.getString("status_bar.dictionary_timeout")
-            is StatusCode.DictionaryFailed          -> localizer.getString("status_bar.dictionary_failed", code.summary)
-            StatusCode.NoTermToIllustrate           -> localizer.getString("status_bar.no_term_to_illustrate")
-            StatusCode.NoImageSearchServiceActive   -> localizer.getString("status_bar.no_image_search_active")
-            StatusCode.SearchingImages              -> localizer.getString("status_bar.searching_images")
-            StatusCode.ImageSearchReady             -> localizer.getString("status_bar.image_search_ready")
-            is StatusCode.ImagesNotFound            -> localizer.getString("status_bar.images_not_found", code.term)
-            StatusCode.ImageSearchTimeout           -> localizer.getString("status_bar.image_search_timeout")
-            is StatusCode.ImageSearchFailed         -> localizer.getString("status_bar.image_search_failed", code.summary)
-            is StatusCode.AlreadyUpToDate           -> localizer.getString("status_bar.already_up_to_date", code.version)
-            StatusCode.UpdateCheckNetworkError      -> localizer.getString("status_bar.update_check_network_error")
-            StatusCode.UpdateCheckParseError        -> localizer.getString("status_bar.update_check_parse_error")
-            StatusCode.UpdateCheckUnknownError      -> localizer.getString("status_bar.update_check_unknown_error")
-        }
-
-        private fun resolveNotificationMessage(code: NotificationCode): String = when (code) {
-            is NotificationCode.LanguageNotSupported ->
-                localizer.getString("notifications.language_not_supported_format", code.lang, code.serviceId)
-            is NotificationCode.TtsNotSupported ->
-                localizer.getString("notifications.tts_not_supported_format", code.serviceId)
-            is NotificationCode.UnknownError ->
-                localizer.getString("notifications.unknown_error")
-            is NotificationCode.Custom -> if (code.title.isNotBlank()) "${code.title}: ${code.body}" else code.body
-            is NotificationCode.UpdateAvailable -> ""
-        }
-
-    }
 }
 
 /**
@@ -2206,8 +1794,7 @@ class MainAppFrame(
  *
  * When Tab/Shift+Tab is pressed inside any of the three text panes (input, output, extra),
  * focus moves directly to the next/previous pane in the cycle — skipping toolbar buttons,
- * scrollbars, and other intermediate components.  For Compact (tabbed) layout the policy
- * also selects the target tab so the pane is visible before Swing calls requestFocusInWindow().
+ * scrollbars, and other intermediate components.
  *
  * When Tab is pressed from any component that is NOT one of the managed text panes the
  * standard [LayoutFocusTraversalPolicy] takes over, preserving normal keyboard navigation
@@ -2225,18 +1812,14 @@ private class TextPaneCycleFocusPolicy(
         val all = panes()
         val idx = all.indexOfFirst { it === aComponent }
         if (idx < 0) return fallback.getComponentAfter(aContainer, aComponent)
-        val nextIdx = (idx + 1) % all.size
-        contentView.ensureCompactTabVisible(nextIdx)
-        return all[nextIdx]
+        return all[(idx + 1) % all.size]
     }
 
     override fun getComponentBefore(aContainer: Container, aComponent: Component): Component {
         val all = panes()
         val idx = all.indexOfFirst { it === aComponent }
         if (idx < 0) return fallback.getComponentBefore(aContainer, aComponent)
-        val prevIdx = (idx - 1 + all.size) % all.size
-        contentView.ensureCompactTabVisible(prevIdx)
-        return all[prevIdx]
+        return all[(idx - 1 + all.size) % all.size]
     }
 
     override fun getFirstComponent(aContainer: Container): Component =
@@ -2248,18 +1831,3 @@ private class TextPaneCycleFocusPolicy(
     override fun getDefaultComponent(aContainer: Container): Component =
         panes().firstOrNull() ?: fallback.getDefaultComponent(aContainer)
 }
-
-/** Snapshot used to deduplicate auto-lookup triggers. */
-private data class AutoLookupKey(
-    val panelVisible: Boolean,
-    val isLoading: Boolean,
-    val inputText: String,
-    val translatedText: String,
-    val targetLang: LanguageCode,
-    val resolvedSourceLang: LanguageCode,
-    val autoSource: DictionaryAutoSource,
-    val mainVisible: Boolean,
-    val isQuickDictionaryVisible: Boolean,
-    val isQuickDictionaryPinned: Boolean,
-    val isDictionaryAutoPopupEnabled: Boolean,
-)

@@ -1,12 +1,15 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.ui.swing.shared.textpane.GraphemeBoundary
 import com.github.ahatem.qtranslate.ui.swing.shared.textpane.MenuShortcutModifier
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isRTL
+import com.github.ahatem.qtranslate.ui.swing.shared.util.withFlatLafScale
 import java.awt.Dimension
 import java.awt.Font
 import java.awt.GraphicsEnvironment
+import java.awt.Insets
 import java.awt.Toolkit
 import java.awt.event.ActionEvent
 import java.awt.event.InputEvent
@@ -65,6 +68,20 @@ class AdvancedTextPaneTest {
     private fun trigger(pane: AdvancedTextPane, action: String) {
         val event = ActionEvent(pane, ActionEvent.ACTION_PERFORMED, action)
         onEdt { pane.actionMap.get(action)?.actionPerformed(event) }
+    }
+
+    // -----------------------------------------------------------------------
+    // Padding
+    // -----------------------------------------------------------------------
+
+    /** FlatLaf's text border scales the margin it is given, so the pane must hand it the unscaled padding. */
+    @Test
+    fun `padding is scaled exactly once`() {
+        val (expected, insets) = withFlatLafScale(fontSize = 48) {
+            onEdt { UIScale.scale(6) to newPane().insets }
+        }
+        assertTrue(expected > 6, "UIScale is not reporting a raised factor, so this test proves nothing")
+        assertEquals(Insets(expected, expected, expected, expected), insets)
     }
 
     // -----------------------------------------------------------------------

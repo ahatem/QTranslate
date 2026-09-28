@@ -857,6 +857,15 @@ class SettingsDialog(
 
     // ── Panel management ──────────────────────────────────────────────────────
 
+    /**
+     * Jumps straight to Services & Presets.
+     *
+     * The one external navigation entry point this dialog offers, for callers outside it that
+     * have a specific reason to send the user to that page -- today, Comparison's unavailable
+     * state telling the user where to go set up a second translator.
+     */
+    fun showServicesPage() = selectPage(label("services"))
+
     /** Moves the sidebar selection to [pageLabel], which in turn shows its panel. */
     private fun selectPage(pageLabel: String) {
         for (row in 0 until tree.rowCount) {
@@ -931,7 +940,7 @@ class SettingsDialog(
             LanguagesPanel(settingsStore, localizationManager, availableLanguages)
 
         label("layout") ->
-            LayoutPanel(settingsStore, localizationManager, availableTranslatorIds)
+            LayoutPanel(settingsStore, localizationManager, availableTranslatorIds, onOpenServicesSettings = ::showServicesPage)
 
         label("popups") ->
             PopupsPanel(settingsStore, localizationManager)

@@ -57,14 +57,14 @@ fun Configuration.isComparisonEligible(translatorIds: List<String>): Boolean =
  * preference is never rewritten — when Comparison becomes eligible again
  * it takes effect naturally.
  */
-fun Configuration.effectiveLayoutPresetId(translatorIds: List<String>): String =
-    if (layoutPresetId == LayoutPresetIds.COMPARISON &&
-        !isComparisonEligible(translatorIds)
-    ) {
+fun Configuration.effectiveLayoutPresetId(translatorIds: List<String>): String {
+    val saved = LayoutPresetIds.resolve(layoutPresetId)
+    return if (saved == LayoutPresetIds.COMPARISON && !isComparisonEligible(translatorIds)) {
         LayoutPresetIds.CLASSIC
     } else {
-        layoutPresetId
+        saved
     }
+}
 
 /**
  * Promotes [serviceId] to Primary while preserving the whole translator set:

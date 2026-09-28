@@ -31,6 +31,18 @@ internal class GraphemeBoundary {
         return boundary
     }
 
+    /** Every cluster boundary in [text] after its start, ascending; the last is `text.length`. */
+    fun boundariesAfterStart(text: String): IntArray {
+        iterator.setText(text)
+        val found = ArrayList<Int>()
+        var next = iterator.next()
+        while (next != BreakIterator.DONE) {
+            found += next
+            next = iterator.next()
+        }
+        return found.toIntArray()
+    }
+
     companion object {
         const val LOOKAHEAD = 64
     }
