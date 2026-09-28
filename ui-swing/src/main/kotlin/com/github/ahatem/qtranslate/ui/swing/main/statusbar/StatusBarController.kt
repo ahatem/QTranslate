@@ -13,7 +13,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-class StatusBarController(
+internal class StatusBarController(
     private val statusBar: StatusBar,
     private val notificationPopover: NotificationPopover,
     private val iconManager: IconManager,
