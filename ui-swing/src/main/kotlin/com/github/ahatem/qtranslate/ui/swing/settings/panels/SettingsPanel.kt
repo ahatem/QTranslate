@@ -75,7 +75,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
     protected val gb = GridBag(this, horizontalGap = 8, verticalGap = ROW_GAP)
 
     init {
-        border = BorderFactory.createEmptyBorder(EDGE, EDGE, EDGE, EDGE)
+        border = BorderFactory.createEmptyBorder(UIScale.scale(EDGE), UIScale.scale(EDGE), UIScale.scale(EDGE), UIScale.scale(EDGE))
         gb.defaultAnchor(GridBagConstraints.LINE_START)
         gb.defaultFill(GridBagConstraints.NONE)
     }
@@ -151,7 +151,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
             .spanLine()
             .weightX(1.0)
             .fill(GridBagConstraints.HORIZONTAL)
-            .insets(if (isFirst) 0 else SECTION_GAP, 0, 4, 0)
+            .insets(if (isFirst) 0 else UIScale.scale(SECTION_GAP), 0, UIScale.scale(4), 0)
             .add(
                 if (trailing == null) header
                 else JPanel(BorderLayout(UIScale.scale(10), 0)).apply {
@@ -184,7 +184,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
             .spanLine()
             .weightX(1.0)
             .fill(GridBagConstraints.HORIZONTAL)
-            .insets(SECTION_GAP - 4, 4, 2, 0)
+            .insets(UIScale.scale(SECTION_GAP - 4), UIScale.scale(4), UIScale.scale(2), 0)
             .add(label)
     }
 
@@ -353,7 +353,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
             .spanLine()
             .weightX(1.0)
             .fill(GridBagConstraints.HORIZONTAL)
-            .insets(0, 2, 3, 0)
+            .insets(0, UIScale.scale(2), UIScale.scale(3), 0)
             .add(hint)
 
         // Attached to the setting above rather than indexed on its own, so searching for a word
@@ -418,15 +418,18 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
          * Four numbers were chosen separately at four call sites and drifted: a section break sat
          * twenty-six pixels above its title while the rows under it sat four apart, which at 150%
          * scale is a forty-pixel hole between groups and a cramped list inside them. They are one
-         * scale now — attached, separated, sectioned — and the page reads tighter for it.
+         * scale now — attached, separated, sectioned. Nudged up slightly from the original 3/11/10
+         * (rows/section/edge): tight enough to still fit the dialog's own 860x580 minimum with
+         * room to spare, loose enough that adjacent rows and page edges no longer read as pressed
+         * against each other. Every value here is scaled at its point of use, not stored pre-scaled.
          */
-        const val ROW_GAP = 3
+        const val ROW_GAP = 5
 
         /** Space above a section title. The only gap meant to be noticed. */
-        const val SECTION_GAP = 11
+        const val SECTION_GAP = 14
 
         /** Padding around the page itself. */
-        const val EDGE = 10
+        const val EDGE = 12
 
         /** Measure a hint wraps at, before scaling. Roughly a comfortable line of prose. */
         const val HINT_WIDTH = 460
