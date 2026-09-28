@@ -163,7 +163,7 @@ class SettingsComboRendererTest {
     @Test
     fun `comparison is selectable once two translators are usable`() {
         val store = newStore(comparisonConfig(LayoutPresetIds.CLASSIC))
-        val panel = onEdt { LayoutPanel(store, localizer) { listOf("google", "bing") } }
+        val panel = onEdt { LayoutPanel(store, localizer, availableTranslatorIds = { listOf("google", "bing") }) }
         onEdt { panel.render(store.state.value) }
         val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
 
@@ -188,7 +188,7 @@ class SettingsComboRendererTest {
     @Test
     fun `unavailable comparison layout is dimmed with its reason and other layouts are not`() {
         val store = newStore()
-        val panel = onEdt { LayoutPanel(store, localizer) { emptyList() } }
+        val panel = onEdt { LayoutPanel(store, localizer, availableTranslatorIds = { emptyList() }) }
         onEdt { panel.render(store.state.value) }
         val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
 
@@ -217,5 +217,30 @@ class SettingsComboRendererTest {
         } finally {
             UIManager.put("Label.disabledForeground", previous)
         }
+    }
+
+    @Test
+    fun `picking the unavailable comparison entry opens Services settings instead of doing nothing`() {
+        val store = newStore()
+        var opened = 0
+        val panel = onEdt {
+            LayoutPanel(store, localizer, availableTranslatorIds = { emptyList() }, onOpenServicesSettings = { opened++ })
+        }
+        onEdt { panel.render(store.state.value) }
+        val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
+
+        val comparisonIndex = onEdt { layoutCombo.indexOfLayoutId(LayoutPresetIds.COMPARISON) }
+        // Its own label is an action, not just a disabled name -- the row text should not simply
+        // read "Comparison" while unavailable.
+        val rowText = onEdt { layoutCombo.rowAt(comparisonIndex, selected = true).text }
+        assertEquals(localizer.getString("settings_window.layout_comparison_configure"), rowText)
+
+        onEdt { layoutCombo.selectedIndex = comparisonIndex }
+        assertEquals(1, opened, "selecting the unavailable entry sends the user to fix it")
+        val selected = onEdt { layoutCombo.selectedItem.toString() }
+        assertTrue(
+            selected.startsWith("LayoutInfo(id=classic,"),
+            "the combo itself still falls back to the saved choice rather than writing Comparison, was $selected"
+        )
     }
 }

@@ -1121,6 +1121,7 @@ class MainAppFrame(
                     SettingsIntent.ToggleSetting { it.copy(layoutPresetId = layoutId) }
                 )
             },
+            onOpenServicesSettings = { openSettingsDialog(openToServices = true) },
             onToggleHistoryControls = { enabled ->
                 settingsStore.dispatch(
                     SettingsIntent.ToggleSetting {
@@ -1177,6 +1178,7 @@ class MainAppFrame(
             layoutPresets = localizer.getString("main_window_main_menu.layout_presets"),
             layoutComparisonAvailable = currentConfig.isComparisonEligible(mainStore.state.value.availableTranslatorIds),
             layoutComparisonUnavailableHint = localizer.getString("settings_window.layout_comparison_unavailable"),
+            layoutComparisonConfigureLabel = localizer.getString("settings_window.layout_comparison_configure"),
             showHistoryControls = localizer.getString("main_window_main_menu.show_history_bar"),
             showLanguageBar = localizer.getString("main_window_main_menu.show_language_bar"),
             showServicesPanel = localizer.getString("main_window_main_menu.show_services_panel"),
@@ -1524,12 +1526,13 @@ class MainAppFrame(
     }
 
     /** Opens Settings with the correct orientation. Shared by the menu and the Ctrl+Comma binding. */
-    private fun openSettingsDialog() {
+    private fun openSettingsDialog(openToServices: Boolean = false) {
         val dialog = createSettingsDialog()
         dialog.applyComponentOrientation(
             if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
             else ComponentOrientation.LEFT_TO_RIGHT
         )
+        if (openToServices) dialog.showServicesPage()
         dialog.isVisible = true
     }
 
