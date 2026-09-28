@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.main.selector
 
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.formdev.flatlaf.FlatClientProperties
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
@@ -22,26 +23,37 @@ class TranslatorSelector(
     private companion object { const val CLASSIC = "classic"; const val ENHANCED = "enhanced"; const val ICON_SIZE = 16 }
 
     private var state = TranslatorSelectorState(emptyList(), null, false)
-    private val classicButtons = JPanel(FlowLayout(FlowLayout.LEADING, 2, 0)).apply { isOpaque = false }
+    private val classicButtons = JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(2), 0)).apply { isOpaque = false }
     private val classicScroll = JScrollPane(classicButtons).apply {
         clearBorder(); isOpaque = false; viewport.isOpaque = false
         verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_NEVER
         horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-        horizontalScrollBar.unitIncrement = 24
+        horizontalScrollBar.unitIncrement = UIScale.scale(24)
         mouseWheelListeners.forEach(::removeMouseWheelListener)
         addMouseWheelListener { e -> scrollClassic(e.wheelRotation * horizontalScrollBar.unitIncrement) }
     }
-    private val scrollBack = createScrollButton(Icons.NAV_BACK, -96, "Previous services")
-    private val scrollForward = createScrollButton(Icons.NAV_FORWARD, 96, "More services")
+    private val scrollBack = createScrollButton(Icons.NAV_BACK, -UIScale.scale(96), "Previous services")
+    private val scrollForward = createScrollButton(Icons.NAV_FORWARD, UIScale.scale(96), "More services")
+
+    /**
+     * One click to any service, however many are scrolled out of view -- the arrows only reach
+     * neighbours, so an overflowing row otherwise needs several clicks to get to the far end.
+     * Shown only while overflowing, next to the arrows it complements rather than replaces.
+     */
+    private val overflowMenu = JButton(iconManager.getIcon(Icons.NAV_FORWARD, 16, 16)).apply {
+        putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
+        toolTipText = "All services"
+        addActionListener { showOverflowMenu(this) }
+    }
     private val configureActive = JButton(iconManager.getIcon(Icons.SETTINGS, 16, 16)).apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
-        toolTipText = "Configure active translation service"; isFocusable = false
+        toolTipText = "Configure active translation service"
         addActionListener { state.selectedTranslatorId?.let(onConfigureService) }
     }
     private val classicControls = JPanel(FlowLayout(FlowLayout.TRAILING, 0, 0)).apply {
-        isOpaque = false; add(scrollForward); add(configureActive)
+        isOpaque = false; add(scrollForward); add(overflowMenu); add(configureActive)
     }
-    private val classic = JPanel(BorderLayout(2, 0)).apply {
+    private val classic = JPanel(BorderLayout(UIScale.scale(2), 0)).apply {
         isOpaque = false; add(scrollBack, BorderLayout.LINE_START); add(classicScroll); add(classicControls, BorderLayout.LINE_END)
     }
     private val enhanced = JPanel(GridLayout(1, 0, 8, 0)).apply { isOpaque = false }
@@ -71,9 +83,9 @@ class TranslatorSelector(
                     else -> service.name
                 }
                 toolTipText = service.name; isSelected = service.id == state.selectedTranslatorId
-                isEnabled = !state.isLoading; isFocusable = false; isOpaque = false
+                isEnabled = !state.isLoading; isOpaque = false
                 putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
-                margin = Insets(4, 6, 4, 6)
+                margin = Insets(UIScale.scale(4), UIScale.scale(6), UIScale.scale(4), UIScale.scale(6))
                 addActionListener { onServiceSelected(ServiceRole.TRANSLATOR, service.id) }
                 addMouseListener(object : MouseAdapter() {
                     override fun mousePressed(e: MouseEvent) { if (SwingUtilities.isRightMouseButton(e)) onConfigureService(service.id) }
@@ -138,9 +150,22 @@ class TranslatorSelector(
         val visibilityChanged = scrollBack.isVisible != overflowing || scrollForward.isVisible != overflowing
         scrollBack.isVisible = overflowing
         scrollForward.isVisible = overflowing
+        overflowMenu.isVisible = overflowing
         scrollBack.isEnabled = overflowing && bar.value > bar.minimum
         scrollForward.isEnabled = overflowing && bar.value + bar.visibleAmount < bar.maximum
         if (visibilityChanged) classic.revalidate()
+    }
+
+    /** Every service, so one click reaches any of them regardless of how far it has scrolled off. */
+    private fun showOverflowMenu(anchor: JComponent) {
+        if (state.availableTranslators.isEmpty()) return
+        val menu = JPopupMenu()
+        state.availableTranslators.forEach { service ->
+            menu.add(JMenuItem(service.name, loadIcon(service)).apply {
+                addActionListener { onServiceSelected(ServiceRole.TRANSLATOR, service.id) }
+            })
+        }
+        menu.show(anchor, 0, anchor.height)
     }
 
     private fun loadIcon(service: ServiceInfo): Icon? = service.iconPath?.let { iconManager.getIcon(service.id, it, ICON_SIZE, ICON_SIZE) }
