@@ -14,7 +14,6 @@ import java.awt.event.ComponentEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.*
-import javax.swing.border.AbstractBorder
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 class TranslatorSelector(
@@ -37,6 +36,7 @@ class TranslatorSelector(
             segments.drop(1).forEach { segment ->
                 g.drawLine(segment.x, inset, segment.x, height - inset - 1)
             }
+            if (segments.isNotEmpty()) g.drawLine(0, height - 1, width - 1, height - 1)
         }
     }.apply { isOpaque = false }
     private var activeButton: JToggleButton? = null
@@ -56,20 +56,7 @@ class TranslatorSelector(
         addActionListener { activeServiceId?.let(onConfigureService) }
     }
     private val classic = JPanel(BorderLayout()).apply {
-        border = object : AbstractBorder() {
-            override fun getBorderInsets(c: Component) = Insets(
-                UIScale.scale(1), UIScale.scale(1), UIScale.scale(1), UIScale.scale(1)
-            )
-
-            override fun paintBorder(c: Component, g: Graphics, x: Int, y: Int, width: Int, height: Int) {
-                val original = g.color
-                g.color = UIManager.getColor("Component.borderColor") ?: Color.GRAY
-                repeat(UIScale.scale(1)) { inset ->
-                    g.drawRect(x + inset, y + inset, width - 1 - inset * 2, height - 1 - inset * 2)
-                }
-                g.color = original
-            }
-        }
+        isOpaque = false
         add(serviceStrip, BorderLayout.LINE_START)
         add(configureActive, BorderLayout.LINE_END)
         addComponentListener(object : ComponentAdapter() {
@@ -201,7 +188,7 @@ class TranslatorSelector(
     private fun loadIcon(service: ServiceInfo): Icon? = service.iconPath?.let { iconManager.getIcon(service.id, it, ICON_SIZE, ICON_SIZE) }
 
     private fun compactButtonMargin() = Insets(
-        UIScale.scale(1), UIScale.scale(6), UIScale.scale(1), UIScale.scale(6)
+        UIScale.scale(1), UIScale.scale(4), UIScale.scale(1), UIScale.scale(4)
     )
 
     private inner class ServiceRenderer : DefaultListCellRenderer() {

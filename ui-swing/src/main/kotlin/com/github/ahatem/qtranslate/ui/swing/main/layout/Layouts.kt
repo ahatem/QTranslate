@@ -115,8 +115,8 @@ object LayoutBuilders {
         return JPanel(BorderLayout(0, UIScale.scale(4))).apply {
             val selectorRow = JPanel(BorderLayout()).apply {
                 border = BorderFactory.createEmptyBorder(
-                    UIScale.scale(2), UIScale.scale(9),
-                    UIScale.scale(2), UIScale.scale(9)
+                    UIScale.scale(2), UISpacing.PADDING,
+                    UIScale.scale(2), UISpacing.PADDING
                 )
                 add(translatorSelector, BorderLayout.CENTER)
             }

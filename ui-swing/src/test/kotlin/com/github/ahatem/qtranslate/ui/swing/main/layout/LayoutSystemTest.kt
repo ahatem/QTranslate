@@ -157,6 +157,9 @@ class LayoutSystemTest {
 
         assertEquals(24, selector.height)
         assertEquals(20, status.height)
+        val selectorX = SwingUtilities.convertPoint(selector, 0, 0, bottomBar).x
+        assertEquals(UISpacing.PADDING, selectorX)
+        assertEquals(UISpacing.PADDING, bottomBar.width - selectorX - selector.width)
     }
 
     @Test
