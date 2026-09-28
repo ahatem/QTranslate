@@ -13,6 +13,7 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
+import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
@@ -99,7 +100,10 @@ fun main(args: Array<String>): Unit = runBlocking {
     } ?: logger.warn("No services became available; shots will show the empty state.")
 
     with(Shots(deps, outputDir, logger)) {
-        if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "presentation") {
+        if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "selector") {
+            selectorAudit()
+            selectorDensityAudit()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "presentation") {
             mainWindow()
             layouts()
             selectorAudit()
@@ -140,6 +144,7 @@ private class Shots(
     private val logger: Logger,
 ) {
     private var frame: MainAppFrame? = null
+    private var sceneScalePercent = Scenes.SCALE_PERCENT
 
     // ── main window ───────────────────────────────────────────────────────────
 
@@ -233,6 +238,21 @@ private class Shots(
         capture("classic-selector-dark")
         resizeWindow(Scenes.NARROW_WINDOW)
         capture("classic-selector-narrow-dark")
+    }
+
+    suspend fun selectorDensityAudit() {
+        start(Scenes.classicSelector(Scenes.DARK).copy(
+            uiScale = 100,
+            mainWindowSize = Size(Scenes.WINDOW.first, Scenes.WINDOW.second)
+        ))
+        translate(LanguageCode("fr"), Scenes.SELECTION)
+        capture("classic-selector-wide-100-dark")
+        resizeWindow(Scenes.NARROW_WINDOW)
+        capture("classic-selector-narrow-100-dark")
+
+        start(Scenes.arabic("classic").copy(serviceSelectorStyle = ServiceSelectorStyle.CLASSIC))
+        translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
+        capture("classic-selector-rtl-dark")
     }
 
     suspend fun settingsDensityAudit() {
@@ -420,6 +440,7 @@ private class Shots(
      * the application quitting and calls `exitProcess`, so disposing one would end the run.
      */
     private suspend fun start(configuration: Configuration) {
+        sceneScalePercent = configuration.uiScale
         deps.settingsStore.dispatch(SettingsIntent.ToggleSetting { configuration })
         delay(900)
 
@@ -485,7 +506,10 @@ private class Shots(
         onUi {
             requireFrame().apply {
                 minimumSize = Dimension(0, 0)
-                setSize(windowSize(size).width, windowSize(size).height)
+                setSize(
+                    size.first * sceneScalePercent / 100,
+                    size.second * sceneScalePercent / 100
+                )
             }
         }
         delay(800)

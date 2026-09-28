@@ -30,11 +30,13 @@ class TranslatorSelector(
     private var remainingButtons: List<JToggleButton> = emptyList()
     private val overflowMenu = JButton("More ▾").apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
+        margin = compactButtonMargin()
         toolTipText = "All services"
         addActionListener { showOverflowMenu(this) }
     }
     private val configureActive = JButton(iconManager.getIcon(Icons.SETTINGS, 16, 16)).apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
+        margin = compactButtonMargin()
         toolTipText = "Configure active translation service"
         addActionListener { state.selectedTranslatorId?.let(onConfigureService) }
     }
@@ -78,7 +80,7 @@ class TranslatorSelector(
                 toolTipText = service.name; isSelected = service.id == selected?.id
                 isEnabled = !state.isLoading; isOpaque = false
                 putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
-                margin = Insets(UIScale.scale(4), UIScale.scale(6), UIScale.scale(4), UIScale.scale(6))
+                margin = compactButtonMargin()
                 addActionListener { onServiceSelected(ServiceRole.TRANSLATOR, service.id) }
                 addMouseListener(object : MouseAdapter() {
                     override fun mousePressed(e: MouseEvent) { if (SwingUtilities.isRightMouseButton(e)) onConfigureService(service.id) }
@@ -173,6 +175,10 @@ class TranslatorSelector(
     }
 
     private fun loadIcon(service: ServiceInfo): Icon? = service.iconPath?.let { iconManager.getIcon(service.id, it, ICON_SIZE, ICON_SIZE) }
+
+    private fun compactButtonMargin() = Insets(
+        UIScale.scale(1), UIScale.scale(6), UIScale.scale(1), UIScale.scale(6)
+    )
 
     private inner class ServiceRenderer : DefaultListCellRenderer() {
         override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component =

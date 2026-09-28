@@ -14,7 +14,7 @@ smaller tour; its main images are copied to `docs/images/`.
 | --- | --- |
 | `hero-dark` | Translation, backward translation and a docked dictionary |
 | `quick-translate-dark` | The <kbd>Ctrl+Q</kbd> popup for selected text |
-| `classic-selector-dark` | One-click services with the active provider and a single More menu |
+| `classic-selector-dark`, `classic-selector-narrow-dark` | Compact one-click services at wide and narrow widths, with the active provider and a single More menu |
 | `layout-comparison-dark` | Google, Bing, DeepL and Yandex results in one configured Comparison set |
 | `dictionary-quick-dark` | The floating dictionary popup for selected words |
 | `dock-images-dark`, `dock-image-viewer-dark` | Image results and the opened viewer with source credit |
@@ -35,3 +35,5 @@ Review the generated candidates in `build/screenshots/`, then copy only the sele
 Use `QTRANSLATE_SCREENSHOT_SCENES=presentation` to regenerate the visual audit scenes, including
 the Classic selector at two widths and Settings at 100%. The regular run includes the full
 candidate set and Settings at 200%.
+Use `QTRANSLATE_SCREENSHOT_SCENES=selector` to capture only the Classic selector density audit
+at 100% and 200%, plus RTL.
