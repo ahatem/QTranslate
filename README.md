@@ -10,6 +10,8 @@
 
 Free · Open source · Plugin-powered · Local or cloud services
 
+Windows · macOS · Linux — self-contained download for Windows, no Java required
+
 [![Release](https://img.shields.io/github/v/release/ahatem/QTranslate?style=flat-square&color=4A90D9&label=latest)](https://github.com/ahatem/QTranslate/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/ahatem/QTranslate/total?style=flat-square&color=4A90D9&label=downloads)](https://github.com/ahatem/QTranslate/releases)
 [![License](https://img.shields.io/github/license/ahatem/QTranslate?style=flat-square)](LICENSE)
@@ -21,7 +23,7 @@ Free · Open source · Plugin-powered · Local or cloud services
 
 <br>
 
-<img src="docs/images/screenshot-extra-output.png" alt="QTranslate — backward translation and Quick Dictionary" width="720">
+<img src="docs/images/hero-dark.png" alt="QTranslate — translation, backward translation, and the docked dictionary" width="720">
 
 </div>
 
@@ -48,7 +50,7 @@ I built QTranslate for myself first, but I keep it free and open source because 
 Select text anywhere → press `Ctrl+Q` → translation appears instantly. That's the core of it.
 
 <div align="center">
-<img src="docs/images/screenshot-quick-translate.png" alt="Quick Translate popup" width="500">
+<img src="docs/images/quick-translate-dark.png" alt="Quick Translate popup" width="500">
 <br><sub>Quick Translate — select text in any app, press <kbd>Ctrl+Q</kbd></sub>
 </div>
 
@@ -60,28 +62,32 @@ For longer work: open the main window, type or paste, translate. Switch engines 
 <table>
 <tr>
 <td align="center" width="50%">
-<img src="docs/images/screenshot-main-dark.png" alt="Main window — dark theme" width="340"><br>
-<sub>Translate, summarize, rewrite, spell-check, and revisit past translations</sub>
-</td>
-<td align="center" width="50%">
-<img src="docs/images/screenshot-rtl.png" alt="RTL layout — Arabic" width="340"><br>
-<sub>Use Arabic, Hebrew, Farsi, and other RTL languages with a mirrored layout</sub>
-</td>
-</tr>
-<tr>
-<td align="center" width="50%">
-<img src="docs/images/screenshot-side-by-side.png" alt="Side-by-side layout" width="340"><br>
+<img src="docs/images/layout-side-by-side-dark.png" alt="Side-by-side layout" width="340"><br>
 <sub>Compare source and translation without switching panes</sub>
 </td>
 <td align="center" width="50%">
-<img src="docs/images/screenshot-settings.png" alt="Settings — Services and Presets" width="340"><br>
-<sub>Choose services, save presets, and manage API keys in one place</sub>
+<img src="docs/images/layout-comparison-dark.png" alt="Comparison layout" width="340"><br>
+<sub>See every translator in your set side by side</sub>
 </td>
 </tr>
 <tr>
 <td align="center" width="50%">
-<img src="docs/images/screenshot-document.png" alt="Document translation" width="340"><br>
+<img src="docs/images/rtl-main.png" alt="RTL layout — Arabic" width="340"><br>
+<sub>Use Arabic, Hebrew, Farsi, and other RTL languages with a mirrored layout</sub>
+</td>
+<td align="center" width="50%">
+<img src="docs/images/document-translation.png" alt="Document translation" width="340"><br>
 <sub>Translate DOCX, PDF, TXT, SRT, and VTT with progress and cancellation</sub>
+</td>
+</tr>
+<tr>
+<td align="center" width="50%">
+<img src="docs/images/settings-services-dark.png" alt="Settings — Services and Presets" width="340"><br>
+<sub>Choose services, save presets, and manage API keys in one place</sub>
+</td>
+<td align="center" width="50%">
+<img src="docs/images/settings-plugins-dark.png" alt="Settings — Plugins" width="340"><br>
+<sub>Install, configure, and enable or disable plugins without restarting</sub>
 </td>
 </tr>
 </table>
@@ -119,7 +125,8 @@ Plugins run on your computer with access to local resources, so install third-pa
 | **Rewrite** | Rewrite in a different style: Formal, Casual, Concise, Detailed, or Simplified |
 | **Translation history** | Full undo/redo through every past translation |
 | **Translation rules** | Auto-correct source text before translating — fix common mistakes, expand abbreviations, normalize input |
-| **Document translation** | Translate DOCX, PDF, TXT, SRT, and VTT files with progress and cancellation; DOCX structure and subtitle timing are preserved |
+| **Document translation** | Translate DOCX, PDF, TXT, SRT, and VTT files with progress and cancellation; DOCX structure and subtitle timing are preserved, PDF layout is reconstructed on a best-effort basis |
+| **Parallel comparison** | Configure a primary translator and one or more secondaries as a set, and see every result side by side in the Comparison layout |
 
 ### Input
 
@@ -140,7 +147,7 @@ Plugins run on your computer with access to local resources, so install third-pa
 | **Service presets** | Save different engine combinations for different contexts |
 | **Google Services** | Translator, TTS, OCR, Spell Checker, Dictionary — included |
 | **Bing Services** | Translator, TTS, Spell Checker — included |
-| **System Services** | Local OCR and speech using available Windows, macOS, or Linux engines; offline with no account or API key |
+| **System Services** | Offline OCR, text-to-speech, and spell checking using each platform's own engines — no account or API key. Self-contained on Windows and macOS; on Linux it uses whatever OCR/TTS/spell-check tools you have installed |
 | **AI Services** | Translator, Summarizer, Rewriter, Spell Checker, Dictionary, Vision OCR — via [OpenRouter](https://openrouter.ai) or another OpenAI-compatible endpoint. [Setup guide](wiki/AI-Services.md) |
 | **Free translation choices** | Mozhi, MyMemory, DeepL web fallback, Reverso, and Yandex Web work without an API key; unofficial endpoints may change or be rate-limited |
 | **Local and self-hosted options** | Point AI Services at a local [Ollama](https://ollama.com) or LM Studio server, or use a self-hosted LibreTranslate instance. Local endpoints need no account or API key. [Setup guide](wiki/AI-Services.md) |
@@ -151,8 +158,8 @@ Plugins run on your computer with access to local resources, so install third-pa
 
 | | |
 |---|---|
-| **Three layouts** | Classic (stacked), Side-by-side (stacks when the window is narrow), Comparison |
-| **Global hotkeys** | Every action is bindable, configurable as global or app-local |
+| **Three layouts** | Classic (stacked), Side-by-side (stacks when the window is narrow), Comparison (every result from your translator set, side by side) |
+| **Global hotkeys** | Every action is bindable, configurable as global or app-local. Switch the whole scheme with a **Legacy QTranslate** or **Modern** preset, or customize freely |
 | **RTL support** | Full layout mirroring for Arabic, Hebrew, Farsi, and more |
 | **QTranslate Light & Dark** | Purpose-built defaults with OS light/dark synchronization, plus 30+ FlatLaf themes and custom IntelliJ `.theme.json` support |
 | **Portable** | Runs from any folder, all data lives next to the JAR |
@@ -222,6 +229,10 @@ Bundled plugins: Google, Bing, System Services, AI Services, DeepL, Mozhi, MyMem
 > **Individual plugin JARs** are also attached to each release. They are only for adding or
 > updating a single plugin in an existing install — you do not need them for a fresh setup.
 
+> **Verifying a download** — each release includes `SHA256SUMS.txt`. Compare it against your
+> downloaded file with `sha256sum -c SHA256SUMS.txt` (Linux/macOS) or
+> `Get-FileHash <file> -Algorithm SHA256` (PowerShell) before running it.
+
 > **Getting "This application requires a Java Runtime Environment"?**
 > Java isn't installed or `JAVA_HOME` isn't set — or use the Windows package, which needs neither.
 > **▶ [How to Install Java JDK and Set JAVA_HOME](https://youtu.be/VTzzmqNwGzM)** *(first 7 minutes)*
@@ -283,9 +294,9 @@ All bundled plugins are open source under `plugins/`. They provide real-world ex
 
 ## Translate the interface
 
-QTranslate ships with 16 built-in locale files:
+QTranslate ships with 18 built-in locale files:
 
-**Arabic · Bengali · Chinese (Simplified and Traditional) · English · French · German · Hungarian · Italian · Japanese · Portuguese · Russian · Spanish · Turkish · Ukrainian · Vietnamese**
+**Arabic · Bengali · Chinese (Simplified and Traditional) · English · French · German · Hungarian · Indonesian · Italian · Japanese · Korean · Portuguese · Russian · Spanish · Turkish · Ukrainian · Vietnamese**
 
 Want another language? Copy `languages/en-GB.toml`, rename it to your language code, translate the values. No code needed.
 
@@ -320,7 +331,7 @@ If QTranslate saves you time, helps you study, or becomes one of those utilities
 
 [**GitHub Sponsors**](https://github.com/sponsors/ahatem) · [**Buy Me a Coffee**](https://www.buymeacoffee.com/ahmedhatem) · [**Supporters**](SPONSORS.md)
 
-Financial support is completely optional. You can also help by starring and sharing QTranslate, reporting reproducible bugs, translating the interface, improving documentation, building plugins, or contributing code.
+Financial support is completely optional. You can also help by starring and sharing QTranslate, [reporting reproducible bugs](https://github.com/ahatem/QTranslate/issues/new/choose), translating the interface, improving documentation, building plugins, or contributing code.
 
 — **Ahmed**
 

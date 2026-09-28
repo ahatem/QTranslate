@@ -96,7 +96,7 @@ dependencies {
     // compileOnly — available at compile time, NOT bundled in your JAR.
     // QTranslate provides this at runtime. Never use "implementation" here —
     // it causes classloader conflicts and bloats your JAR.
-    compileOnly("com.github.ahatem:qtranslate-api:2.0.0")
+    compileOnly("com.github.ahatem:qtranslate-api:2.1.0")
 
     // Your own dependencies go as "implementation" — they ARE bundled
     implementation("io.ktor:ktor-client-core:3.5.2")
@@ -148,6 +148,41 @@ class MyPlugin : Plugin<PluginSettings.None> {
         // context.secrets  — the same, for API keys and tokens
         return Ok(Unit)
     }
+}
+```
+
+**Full lifecycle** — `initialize()` is the only method you must implement. Override the others when you need them:
+
+```kotlin
+class MyPlugin : Plugin<PluginSettings.None> {
+    // supportsMultipleInstances defaults to false — override it to let a user
+    // install this plugin more than once, each with its own settings and credentials
+    // (e.g. one instance per account, or one per configured endpoint).
+    override val supportsMultipleInstances = true
+
+    override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> {
+        // one-time setup: HTTP clients, native libraries
+        return Ok(Unit)
+    }
+
+    override suspend fun onEnable(): Result<Unit, ServiceError> {
+        // called after initialize succeeds, and again on every re-enable
+        return Ok(Unit)
+    }
+
+    override suspend fun onDisable() {
+        // release resources; context.scope is cancelled right after this returns
+    }
+
+    override suspend fun shutdown() {
+        // once, on app close, for final irreversible cleanup
+    }
+
+    // onSettingsChanged() is never called when getSettings() returns PluginSettings.None —
+    // override it on a Plugin<MySettings> instead, to validate and apply each save.
+
+    override fun getServices() = listOf(MyTranslatorService())
+    override fun getSettings() = PluginSettings.None
 }
 ```
 
@@ -243,6 +278,8 @@ class MyPlugin : Plugin<MySettings> {
 | `NUMBER` | Numeric spinner |
 | `SLIDER` | Slider with `minValue`/`maxValue`/`step` |
 | `FILE_PATH` | Text field + file chooser button |
+| `DIRECTORY_PATH` | Text field + directory chooser button |
+| `CUSTOM_PANEL` | A full `JComponent` your settings class builds itself, via a no-arg factory method named in `Setting.actionMethod`. Last-resort escape hatch for inputs no other type can express |
 
 **Grouping** — add `@SettingGroups(...)` to the settings class and reference the group `key` in each `@field:Setting`. Groups with `collapsible = true` can be collapsed by the user.
 
@@ -326,6 +363,7 @@ class MyTranslatorService(
 | `ServiceError.UnsupportedLanguageError` | The language pair is out of range |
 | `ServiceError.InvalidInputError` | Blank or malformed input |
 | `ServiceError.InvalidResponseError` | The API returned an unexpected format |
+| `ServiceError.ValidationError` | A specific field or parameter failed validation; the caller must correct it before retrying |
 | `ServiceError.UnknownError` | Anything else |
 
 `ConfigurationError` and `AuthenticationError` are deliberately separate: the first means the user
@@ -333,6 +371,10 @@ has not finished setting the service up, the second means they did and it was re
 application words them differently because they call for different actions.
 
 **Other service types** (`TextToSpeech`, `OCR`, `SpellChecker`, `Dictionary`, `ImageSearch`) follow the exact same pattern — implement the interface, return `Ok`/`Err`. See the Google plugin for a complete TTS and OCR example.
+
+**User-selectable modifiers** — override `Service.options: List<ServiceOption>` to offer controls like summary length or rewrite style; the host renders them and passes the chosen values back in the request. Leave it as the default empty list when your service takes no modifiers.
+
+**Test connection** — override `Service.validate()` to check the service is configured and reachable without doing real work. It powers the settings panel's "test connection" affordance. Return `ServiceError.ConfigurationError` when required settings are missing and `ServiceError.AuthenticationError` when they're present but rejected — the host words these differently. Defaults to success, which is correct for services that need no configuration.
 
 ---
 
@@ -347,13 +389,13 @@ application words them differently because they call for different actions.
   "version":       "1.0.0",
   "author":        "Your Name",
   "description":   "Translates using the Example API.",
-  "minApiVersion": "2.0.0",
+  "minApiVersion": "2.1.0",
   "icon":          "assets/icon.svg"
 }
 ```
 
 - `id` must match your `Plugin` class exactly — this is your plugin's permanent identifier
-- `minApiVersion` — `2.0.0` is the current API. The major version must match the host's, and the
+- `minApiVersion` — `2.1.0` is the current API. The major version must match the host's, and the
   minor must not exceed it, so declare the oldest version your plugin actually needs
 - `icon` — path inside your JAR resources
 
@@ -414,6 +456,9 @@ Then restart QTranslate. Much faster than reinstalling through the UI every time
 - `context.http` — the host's configured HTTP client. Use it rather than building your own, or the
   user's proxy and timeout settings will not apply to your plugin
 - `context.getPluginDataDirectory()` — your sandboxed folder on disk
+- `context.notify(title, body, type)` — shows a host notification to the user (`NotificationType.INFO`
+  by default). Use it for things the user should know about outside your settings panel, such as a
+  background sync finishing or a credential expiring
 
 **Never import `:core` or `:ui-swing`** — your plugin must only depend on `:api`. If you need something that isn't in the API, open an issue.
 
@@ -500,7 +545,7 @@ This forward-compatible file records metadata that a future catalog can consume:
   "author":        "your-github-username",
   "description":   "One-sentence plugin description.",
   "serviceTypes":  ["TRANSLATOR"],
-  "minApiVersion": "2.0.0",
+  "minApiVersion": "2.1.0",
   "sha256":        "abc123...",
   "icon":          "assets/icon.svg"
 }
