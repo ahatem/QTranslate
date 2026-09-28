@@ -7,8 +7,11 @@ import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
 import com.github.ahatem.qtranslate.ui.swing.shared.TestIcons
 import java.awt.Component
 import java.awt.Container
+import java.awt.ComponentOrientation
 import javax.swing.JButton
 import javax.swing.JToggleButton
+import javax.swing.JRadioButtonMenuItem
+import javax.swing.JScrollPane
 import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,8 +19,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * Classic mode: a row of one-click toggle buttons, with an escape hatch to any service that has
- * scrolled out of view. Enhanced mode is a different picker entirely and is not covered here.
+ * Classic mode: active provider, complete fitting buttons, and a single menu for the rest.
  */
 class TranslatorSelectorTest {
 
@@ -65,6 +67,7 @@ class TranslatorSelectorTest {
         val selector = selector()
         val translators = services(3)
         onEdt { selector.render(state(translators, selectedId = "service-1")) }
+        size(selector, 800)
 
         val buttons = descendants(selector).filterIsInstance<JToggleButton>()
         assertEquals(3, buttons.size)
@@ -75,6 +78,7 @@ class TranslatorSelectorTest {
     fun `classic toggle buttons are reachable from the keyboard`() {
         val selector = selector()
         onEdt { selector.render(state(services(3))) }
+        size(selector, 800)
 
         val buttons = descendants(selector).filterIsInstance<JToggleButton>()
         assertTrue(buttons.isNotEmpty())
@@ -87,6 +91,7 @@ class TranslatorSelectorTest {
         val selector = selector { role, id -> reported += role to id }
         val translators = services(3)
         onEdt { selector.render(state(translators, selectedId = "service-0")) }
+        size(selector, 800)
 
         val target = descendants(selector).filterIsInstance<JToggleButton>().first { it.text == "Service 3" }
         onEdt { target.doClick() }
@@ -114,6 +119,15 @@ class TranslatorSelectorTest {
 
         val overflowButton = descendants(selector).filterIsInstance<JButton>().first { it.toolTipText == "All services" }
         assertTrue(overflowButton.isVisible, "overflow menu must be discoverable once the row no longer fits")
+        assertTrue(descendants(selector).none { it is JScrollPane }, "the row has no scrolling surface")
+        val visible = descendants(selector).filterIsInstance<JToggleButton>()
+        assertEquals("Service 1", visible.first().text, "active service stays visible")
+        assertTrue(visible.size < translators.size, "only complete fitting services are inline")
+        val menu = selector.overflowMenuForTest().components.filterIsInstance<JRadioButtonMenuItem>()
+        assertEquals(translators.size, menu.size)
+        assertTrue(menu.first().isSelected, "the menu identifies the active service")
+        onEdt { menu.last().doClick() }
+        assertEquals(listOf("service-11"), reported)
     }
 
     @Test
@@ -122,6 +136,7 @@ class TranslatorSelectorTest {
         val translators = services(1)
 
         onEdt { selector.render(state(translators, appearance = ServiceSelectorAppearance.TEXT_ONLY)) }
+        size(selector, 600)
         val textOnly = descendants(selector).filterIsInstance<JToggleButton>().first()
         assertEquals(null, textOnly.icon)
         assertEquals("Service 1", textOnly.text)
@@ -129,12 +144,34 @@ class TranslatorSelectorTest {
         onEdt { selector.render(state(translators, appearance = ServiceSelectorAppearance.ICONS_AND_TEXT)) }
         val both = descendants(selector).filterIsInstance<JToggleButton>().first()
         assertEquals("Service 1", both.text)
+
+        onEdt { selector.render(state(translators, appearance = ServiceSelectorAppearance.ICONS_ONLY)) }
+        val iconsOnlyFallback = descendants(selector).filterIsInstance<JToggleButton>().first()
+        assertEquals("Service 1", iconsOnlyFallback.text, "a service without an icon keeps its name")
+    }
+
+    @Test
+    fun `the selected provider remains visible at narrow width in RTL`() {
+        val selector = selector()
+        onEdt {
+            selector.applyComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT)
+            selector.render(state(services(12), selectedId = "service-11"))
+        }
+        size(selector, 340)
+        val active = descendants(selector).filterIsInstance<JToggleButton>().single { it.isSelected }
+        val gear = descendants(selector).filterIsInstance<JButton>().first { it.toolTipText == "Configure active translation service" }
+        val activeX = SwingUtilities.convertPoint(active, 0, 0, selector).x
+        val gearX = SwingUtilities.convertPoint(gear, 0, 0, selector).x
+        assertEquals("Service 12", active.text)
+        assertTrue(activeX > gearX, "the active slot mirrors to the right in RTL")
+        assertTrue(selector.overflowMenuForTest().components.filterIsInstance<JRadioButtonMenuItem>().last().isSelected)
     }
 
     @Test
     fun `a loading selector disables every service button`() {
         val selector = selector()
         onEdt { selector.render(state(services(2), loading = true)) }
+        size(selector, 600)
 
         val buttons = descendants(selector).filterIsInstance<JToggleButton>()
         assertTrue(buttons.isNotEmpty())

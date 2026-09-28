@@ -6,25 +6,46 @@
 
 **The translation tool that Questsoft abandoned. Rebuilt from scratch. Built to last.**
 
-**Select text in any application → press `Ctrl+Q` → get the translation without leaving what you're doing.**
+**Select text in any application → press `Ctrl+Q` → understand it without leaving what you're doing.**
 
-Free · Open source · Plugin-powered · Local or cloud services
+Translate with the provider you trust. Compare several translations, look up a word or picture, read a document, or use your computer's own OCR, speech, and spell checking.
 
-Windows · macOS · Linux — self-contained download for Windows, no Java required
+Free and open source · Windows, macOS, Linux · Plugins for local and cloud services
 
 [![Release](https://img.shields.io/github/v/release/ahatem/QTranslate?style=flat-square&color=4A90D9&label=latest)](https://github.com/ahatem/QTranslate/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/ahatem/QTranslate/total?style=flat-square&color=4A90D9&label=downloads)](https://github.com/ahatem/QTranslate/releases)
 [![License](https://img.shields.io/github/license/ahatem/QTranslate?style=flat-square)](LICENSE)
 [![Build](https://img.shields.io/github/actions/workflow/status/ahatem/QTranslate/ci.yml?branch=develop&style=flat-square&label=build)](https://github.com/ahatem/QTranslate/actions)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
-[![Made with Kotlin](https://img.shields.io/badge/Kotlin-2.x-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 
-[**Download**](#installation) · [**Plugin Guide**](wiki/Creating-a-Plugin.md) · [**Build from source**](wiki/Building-from-Source.md) · [**Support**](#support-qtranslate) · [**Contributing**](CONTRIBUTING.md) · [**Wiki**](wiki/Home.md)
+[**Download QTranslate**](https://github.com/ahatem/QTranslate/releases/latest) · [**See the features**](#what-qtranslate-does) · [**Install a plugin**](wiki/Installing-Plugins.md) · [**Wiki**](wiki/Home.md)
 
 <br>
 
 <img src="docs/images/hero-dark.png" alt="QTranslate — translation, backward translation, and the docked dictionary" width="720">
+<br><sub>One workspace for translation and reference, with a dictionary beside your text.</sub>
 
+</div>
+
+---
+
+## Start with the right download
+
+| Platform | Get this from the [latest release](https://github.com/ahatem/QTranslate/releases/latest) | Run |
+|---|---|---|
+| Windows | `QTranslate-<version>-windows-x64.zip` | Extract and open `QTranslate.exe`. Java is included. |
+| macOS or Linux | `QTranslate-<version>.zip` | Install Java 17+, extract, and open `QTranslate.jar`. |
+
+The ZIP packages include the bundled plugins, languages, themes, and icon sets. The standalone app JAR is for an existing or manually assembled setup. [Installation details](#installation) · [First shortcuts](#quick-start)
+
+## What makes it different
+
+- **Several answers when one is not enough.** Pick a translator with one click or configure a Comparison set to read provider results together.
+- **Useful without another account.** System Services use your computer's OCR, speech, and spell checker. Wiktionary and Wikimedia Commons add word and image reference. Availability of system engines varies by platform.
+- **Your services, your setup.** Plugins can be installed while the app runs. Use cloud translators, a self-hosted LibreTranslate server, or a local Ollama or LM Studio endpoint for AI features.
+- **Work where the text is.** Quick Translate, document translation, selection OCR, inline replacement, and RTL interface layouts cover more than pasted sentences.
+
+<div align="center">
+<img src="docs/images/layout-comparison-dark.png" alt="Comparison layout with several translation providers" width="560">
+<br><sub>Comparison — read translations from your configured providers together.</sub>
 </div>
 
 ---
@@ -45,7 +66,7 @@ I built QTranslate for myself first, but I keep it free and open source because 
 
 ---
 
-## What it does
+## What QTranslate does
 
 Select text anywhere → press `Ctrl+Q` → translation appears instantly. That's the core of it.
 
@@ -56,38 +77,38 @@ Select text anywhere → press `Ctrl+Q` → translation appears instantly. That'
 
 <br>
 
-For longer work: open the main window, type or paste, translate. Switch engines in one click. Translate a document while preserving its structure. Run OCR on a screenshot. Listen to pronunciation. Check spelling. Browse history. All from the keyboard, all without opening a browser.
+For longer work, open the main window to translate text or a document, compare providers, check a term in the Dictionary or Images panel, and switch services without losing your place.
 
 <div align="center">
 <table>
 <tr>
 <td align="center" width="50%">
-<img src="docs/images/layout-side-by-side-dark.png" alt="Side-by-side layout" width="340"><br>
-<sub>Compare source and translation without switching panes</sub>
-</td>
-<td align="center" width="50%">
-<img src="docs/images/layout-comparison-dark.png" alt="Comparison layout" width="340"><br>
-<sub>See every translator in your set side by side</sub>
-</td>
-</tr>
-<tr>
-<td align="center" width="50%">
-<img src="docs/images/rtl-main.png" alt="RTL layout — Arabic" width="340"><br>
-<sub>Use Arabic, Hebrew, Farsi, and other RTL languages with a mirrored layout</sub>
+<img src="docs/images/gallery/dock-images-dark.png" alt="Image search beside a translation" width="340"><br>
+<sub>Find visual context beside the text, with source and licence visible</sub>
 </td>
 <td align="center" width="50%">
 <img src="docs/images/document-translation.png" alt="Document translation" width="340"><br>
-<sub>Translate DOCX, PDF, TXT, SRT, and VTT with progress and cancellation</sub>
+<sub>Translate DOCX, PDF, text and subtitles with progress you can follow</sub>
 </td>
 </tr>
 <tr>
 <td align="center" width="50%">
 <img src="docs/images/settings-services-dark.png" alt="Settings — Services and Presets" width="340"><br>
-<sub>Choose services, save presets, and manage API keys in one place</sub>
+<sub>Choose engines, build a Comparison set, and keep presets for different work</sub>
 </td>
+<td align="center" width="50%">
+<img src="docs/images/rtl-main.png" alt="RTL layout — Arabic" width="340"><br>
+<sub>Use Arabic and other RTL languages in a mirrored interface</sub>
+</td>
+</tr>
+<tr>
 <td align="center" width="50%">
 <img src="docs/images/settings-plugins-dark.png" alt="Settings — Plugins" width="340"><br>
 <sub>Install, configure, and enable or disable plugins without restarting</sub>
+</td>
+<td align="center" width="50%">
+<img src="docs/images/gallery/dock-image-viewer-dark.png" alt="An image opened in the lookup viewer" width="340"><br>
+<sub>Open a result in place; keep its title, attribution, and source close by</sub>
 </td>
 </tr>
 </table>

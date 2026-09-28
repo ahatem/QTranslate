@@ -423,13 +423,13 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
          * room to spare, loose enough that adjacent rows and page edges no longer read as pressed
          * against each other. Every value here is scaled at its point of use, not stored pre-scaled.
          */
-        const val ROW_GAP = 5
+        const val ROW_GAP = 4
 
         /** Space above a section title. The only gap meant to be noticed. */
-        const val SECTION_GAP = 14
+        const val SECTION_GAP = 11
 
         /** Padding around the page itself. */
-        const val EDGE = 12
+        const val EDGE = 10
 
         /** Measure a hint wraps at, before scaling. Roughly a comfortable line of prose. */
         const val HINT_WIDTH = 460

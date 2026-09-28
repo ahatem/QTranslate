@@ -10,13 +10,17 @@ import com.github.ahatem.qtranslate.app.buildDependencies
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.main.mvi.LookupTool
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
+import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.ui.swing.main.MainAppFrame
+import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchPanel
+import com.github.ahatem.qtranslate.ui.swing.document.DocumentTranslationDialog
 import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
+import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoard
 import com.github.ahatem.qtranslate.ui.swing.settings.SettingsDialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -24,18 +28,24 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import java.awt.Component
 import java.awt.Container
+import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.RenderingHints
 import java.awt.Window
 import java.awt.event.ActionEvent
+import java.awt.event.MouseEvent
 import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
 import javax.swing.JComponent
 import javax.swing.JSplitPane
+import javax.swing.JScrollPane
+import javax.swing.JLabel
+import javax.swing.JPanel
 import javax.swing.JTree
 import javax.swing.RootPaneContainer
 import javax.swing.SwingUtilities
+import javax.swing.text.JTextComponent
 
 /**
  * Regenerates the application screenshots.
@@ -89,14 +99,23 @@ fun main(args: Array<String>): Unit = runBlocking {
     } ?: logger.warn("No services became available; shots will show the empty state.")
 
     with(Shots(deps, outputDir, logger)) {
-        mainWindow()
-        layouts()
-        dictionary()
-        rightToLeft()
-        quickTranslate()
-        history()
-        documentTranslation()
-        settings()
+        if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "presentation") {
+            mainWindow()
+            layouts()
+            selectorAudit()
+            settingsDensityAudit()
+            documentTranslation()
+            settingsShowcase()
+        } else {
+            mainWindow()
+            layouts()
+            dictionary()
+            rightToLeft()
+            quickTranslate()
+            history()
+            documentTranslation()
+            settings()
+        }
         close()
     }
 
@@ -157,14 +176,17 @@ private class Shots(
         translate(LanguageCode("ar"), Scenes.PERISTALSIS)
         capture("layout-classic-narrow-arabic-dark")
 
-        // Google as Primary, one working comparison and one that cannot be reached, so the failed
-        // secondary shows its compact form.
-        start(comparisonConfig(Scenes.DARK, listOf("MyMemory", "LibreTranslate")))
-        translate(LanguageCode("fr"), Scenes.LIBRARY)
+        // Use the bundled named translators and give the board a taller scene of its own.
+        start(comparisonConfig(Scenes.DARK, listOf("Bing Translate", "DeepL", "Yandex Web")))
+        translate(LanguageCode("fr"), Scenes.COMPARISON)
+        awaitComparison()
+        scrollComparisonToTop()
         capture("layout-comparison-dark")
 
-        start(comparisonConfig(Scenes.DARK, listOf("MyMemory", "LibreTranslate")))
-        translate(LanguageCode("fr"), Scenes.LIBRARY)
+        start(comparisonConfig(Scenes.DARK, listOf("Bing Translate", "DeepL", "Yandex Web")))
+        translate(LanguageCode("fr"), Scenes.COMPARISON)
+        awaitComparison()
+        scrollComparisonToTop()
         openDictionary("library")
         capture("layout-comparison-dock-dark")
 
@@ -172,19 +194,51 @@ private class Shots(
         translate(LanguageCode("fr"), Scenes.LIBRARY)
         openImages("library")
         capture("dock-images-dark")
+        onUi {
+            val panel = find<ImageSearchPanel>(requireFrame().rootPane)
+            val queue = ArrayDeque<Container>()
+            if (panel != null) queue.add(panel)
+            val tiles = mutableListOf<Component>()
+            while (queue.isNotEmpty()) {
+                for (child in queue.removeFirst().components) {
+                    if (child.cursor.type == Cursor.HAND_CURSOR) tiles.add(child)
+                    if (child is Container) queue.add(child)
+                }
+            }
+            val tile = tiles.getOrNull(1) ?: tiles.firstOrNull()
+            tile?.dispatchEvent(MouseEvent(tile, MouseEvent.MOUSE_CLICKED, 0L, 0, 5, 5, 1, false))
+        }
+        delay(3_000)
+        capture("dock-image-viewer-dark")
 
         // The hero: input, backward translation and the dictionary all at once. Backward
         // translation rather than Summary or Rewrite — those are AI-only, and without an API key
         // they would render as an authentication error.
         start(Scenes.hero(Scenes.DARK))
-        translate(LanguageCode("ar"), Scenes.PITCH)
+        translate(LanguageCode("fr"), Scenes.PERISTALSIS_HERO)
         openDictionary("peristalsis")
+        scrollAllToTop()
         capture("hero-dark")
 
         start(Scenes.hero(Scenes.LIGHT))
         translate(LanguageCode("fr"), Scenes.PITCH)
         openDictionary("threshold")
         capture("hero-light")
+    }
+
+    suspend fun selectorAudit() {
+        deps.mainStore.dispatch(MainIntent.CloseLookupDock)
+        start(Scenes.classicSelector(Scenes.DARK))
+        translate(LanguageCode("fr"), Scenes.SELECTION)
+        capture("classic-selector-dark")
+        resizeWindow(Scenes.NARROW_WINDOW)
+        capture("classic-selector-narrow-dark")
+    }
+
+    suspend fun settingsDensityAudit() {
+        val config = Scenes.classic(Scenes.DARK).copy(uiScale = 100, mainWindowSize = Size(1000, 650))
+        start(config)
+        capturePages(Scenes.DARK, "100", listOf(3 to "services"))
     }
 
     // ── dictionary ────────────────────────────────────────────────────────────
@@ -268,6 +322,13 @@ private class Shots(
     suspend fun documentTranslation() {
         start(Scenes.classic(Scenes.LIGHT))
         invokeAppAction("TRANSLATE_DOCUMENT")
+        val sample = File(outputDir, "Research notes.txt").apply {
+            writeText("Peristalsis moves food through the digestive tract by rhythmic contraction of smooth muscle.\n")
+        }
+        onUi {
+            Window.getWindows().filterIsInstance<DocumentTranslationDialog>()
+                .firstOrNull { it.isVisible }?.openWith(sample)
+        }
         delay(1_500)
         captureFloatingWindow("document-translation")
     }
@@ -279,14 +340,23 @@ private class Shots(
      * modally, which would block the event thread this harness drives.
      */
     suspend fun settings() {
-        start(Scenes.classic(Scenes.DARK))
+        start(settingsConfig(Scenes.DARK))
         capturePages(Scenes.DARK, "dark")
 
-        start(Scenes.classic(Scenes.LIGHT))
+        start(settingsConfig(Scenes.LIGHT))
         capturePages(Scenes.LIGHT, "light")
     }
 
-    private suspend fun capturePages(theme: String, suffix: String) {
+    suspend fun settingsShowcase() {
+        start(settingsConfig(Scenes.DARK))
+        capturePages(Scenes.DARK, "dark", listOf(3 to "services", 10 to "plugins"))
+    }
+
+    private fun settingsConfig(theme: String): Configuration =
+        comparisonConfig(theme, listOf("Bing Translate", "DeepL", "Yandex Web"))
+            .copy(layoutPresetId = "classic", mainWindowSize = windowSize(Scenes.WINDOW))
+
+    private suspend fun capturePages(theme: String, suffix: String, pages: List<Pair<Int, String>> = Scenes.SETTINGS_PAGES) {
         val owner = requireFrame()
         lateinit var dialog: SettingsDialog
         onUi {
@@ -307,11 +377,15 @@ private class Shots(
         }
         delay(1_200)
 
-        for ((row, name) in Scenes.SETTINGS_PAGES) {
+        for ((row, name) in pages) {
             onUi {
                 val tree = find<JTree>(dialog)
                     ?: error("Settings page tree not found while capturing '$name' — dialog layout changed?")
                 tree.setSelectionRow(row)
+            }
+            if (name == "plugins") {
+                delay(300)
+                onUi { selectPluginRow(dialog, "DeepL Services") }
             }
             delay(900)
             // Every other capture path in this file goes through paintAfterLayout, which forces a
@@ -390,7 +464,12 @@ private class Shots(
                     .forEach { it.setLeadingProportion(0.5) }
             } else if (layoutPresetId == "comparison") {
                 panes.filter { it.orientation == JSplitPane.VERTICAL_SPLIT }
-                    .lastOrNull()?.setLeadingProportion(0.28)
+                    .lastOrNull()?.let { split ->
+                        // Screenshot scene only: the source is short, so let all provider cards
+                        // fit above the fold without changing the product's minimum pane size.
+                        split.topComponent.minimumSize = Dimension(0, UIScale.scale(80))
+                        split.setLeadingProportion(0.12)
+                    }
             } else {
                 panes.filter { it.orientation == JSplitPane.VERTICAL_SPLIT }
                     .lastOrNull()?.setLeadingProportion(0.5)
@@ -427,6 +506,64 @@ private class Shots(
         delay(1_400)
     }
 
+    private suspend fun awaitComparison() {
+        withTimeoutOrNull(35_000) {
+            while (deps.mainStore.state.value.comparisonResults.any { it.status == ComparisonStatus.LOADING } ||
+                deps.mainStore.state.value.comparisonResults.isEmpty()
+            ) delay(200)
+        } ?: logger.warn("comparison providers did not all settle before capture")
+        deps.mainStore.state.value.comparisonResults.forEach {
+            if (it.status != ComparisonStatus.SUCCESS) logger.warn("comparison ${it.serviceName}: ${it.status} ${it.errorMessage}")
+        }
+    }
+
+    private suspend fun scrollComparisonToTop() {
+        onUi {
+            val board = find<CompareBoard>(requireFrame().rootPane)
+            val scroll = board?.let { SwingUtilities.getAncestorOfClass(JScrollPane::class.java, it) as? JScrollPane }
+            scroll?.verticalScrollBar?.value = 0
+        }
+        delay(500)
+    }
+
+    private suspend fun scrollAllToTop() {
+        onUi {
+            val queue = ArrayDeque<Container>().apply { add(requireFrame().rootPane) }
+            while (queue.isNotEmpty()) {
+                for (child in queue.removeFirst().components) {
+                    if (child is JTextComponent && child.text.isNotEmpty()) child.caretPosition = 0
+                    if (child is JScrollPane) child.verticalScrollBar.value = 0
+                    if (child is Container) queue.add(child)
+                }
+            }
+        }
+        delay(500)
+    }
+
+    private fun selectPluginRow(dialog: SettingsDialog, name: String) {
+        val queue = ArrayDeque<Container>().apply { add(dialog) }
+        while (queue.isNotEmpty()) {
+            for (child in queue.removeFirst().components) {
+                if (child is JPanel && child.cursor.type == Cursor.HAND_CURSOR) {
+                    val labels = ArrayDeque<Container>().apply { add(child) }
+                    var matches = false
+                    while (labels.isNotEmpty()) {
+                        for (part in labels.removeFirst().components) {
+                            if (part is JLabel && part.text == name) matches = true
+                            if (part is Container) labels.add(part)
+                        }
+                    }
+                    if (matches) {
+                        child.dispatchEvent(MouseEvent(child, MouseEvent.MOUSE_PRESSED, 0L, 0, 5, 5, 1, false))
+                        return
+                    }
+                }
+                if (child is Container) queue.add(child)
+            }
+        }
+        logger.warn("plugin row not found for screenshot: $name")
+    }
+
     private suspend fun openDictionary(word: String) {
         deps.mainStore.dispatch(MainIntent.OpenLookupDock(LookupTool.DICTIONARY))
         delay(600)
@@ -450,6 +587,7 @@ private class Shots(
     private fun comparisonConfig(theme: String, secondaries: List<String>): Configuration {
         val translators = deps.mainStore.state.value.getAvailableServicesFor(ServiceRole.TRANSLATOR)
         fun idOf(name: String) = translators.firstOrNull { it.name.contains(name, ignoreCase = true) }?.id
+        secondaries.filter { idOf(it) == null }.forEach { logger.warn("comparison provider unavailable: $it") }
         val base = Scenes.comparison(theme)
         val preset = (base.getActivePreset() ?: ServicePreset.createDefault()).let { active ->
             active.copy(

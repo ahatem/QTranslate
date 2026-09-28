@@ -201,6 +201,7 @@ class ImageSearchPanelTest {
 
         onEdt { panel.render(state(availableServices = listOf(service("wikimedia")))) }
         assertFalse(panel.isServicePickerVisibleForTest(), "one service -- still nothing to pick between")
+        assertEquals("wikimedia", panel.serviceIdentityForTest(), "one provider is named beside search")
     }
 
     @Test

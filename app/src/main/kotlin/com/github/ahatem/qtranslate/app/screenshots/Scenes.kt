@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
 import com.github.ahatem.qtranslate.core.settings.data.SelectionBehavior
+import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
 
 /**
  * The gallery of scenes, in the order they are captured.
@@ -70,6 +71,9 @@ internal object Scenes {
      */
     val WINDOW = 920 to 520
 
+    /** A taller frame gives the Comparison board room for several readable results. */
+    val COMPARISON_WINDOW = 760 to 700
+
     /** Narrow enough that Side By Side stacks its Input and Output. */
     val NARROW_WINDOW = 520 to 520
 
@@ -83,6 +87,10 @@ internal object Scenes {
             "muscle. The wave begins in the oesophagus and continues through the stomach and " +
             "intestines, so swallowing works even when you are lying down."
 
+    const val PERISTALSIS_HERO =
+        "Peristalsis moves food through the digestive tract by rhythmic contraction of smooth " +
+            "muscle. The wave continues through the stomach and intestines."
+
     const val PITCH =
         "QTranslate puts a translator one shortcut away. Select text anywhere, press the " +
             "shortcut, and read the translation without leaving what you were doing."
@@ -91,6 +99,9 @@ internal object Scenes {
         "The library will be closed on Monday for the public holiday and will reopen on Tuesday " +
             "morning at nine. Books due over the weekend may be returned using the drop box " +
             "beside the main entrance."
+
+    const val COMPARISON =
+        "The library will close for the public holiday on Monday and reopen at nine on Tuesday morning."
 
     const val VACCINE =
         "Store the vaccine between two and eight degrees Celsius and protect it from light. Do " +
@@ -139,10 +150,13 @@ internal object Scenes {
     fun classic(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
         BASE.copy(themeId = theme, layoutPresetId = "classic", mainWindowSize = windowSize(size))
 
+    fun classicSelector(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
+        classic(theme, size).copy(serviceSelectorStyle = ServiceSelectorStyle.CLASSIC)
+
     fun sideBySide(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
         BASE.copy(themeId = theme, layoutPresetId = "side_by_side", mainWindowSize = windowSize(size))
 
-    fun comparison(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
+    fun comparison(theme: String, size: Pair<Int, Int> = COMPARISON_WINDOW): Configuration =
         BASE.copy(themeId = theme, layoutPresetId = "comparison", mainWindowSize = windowSize(size))
 
     fun hero(theme: String, size: Pair<Int, Int> = WINDOW): Configuration = BASE.copy(
