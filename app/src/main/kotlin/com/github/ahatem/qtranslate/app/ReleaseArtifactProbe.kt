@@ -8,11 +8,16 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 private object ProbeLocation
 
 /** Readiness check launched from an extracted release distribution in CI. */
-fun main(args: Array<String>) = runBlocking {
+fun main(args: Array<String>) = runBlocking { runReleaseArtifactProbe(args) }
+
+/** Also invoked through the packaged launcher, before the desktop UI starts. */
+suspend fun runReleaseArtifactProbe(args: Array<String>) {
     require(args.size == 1) { "Expected extracted QTranslate directory" }
     val distribution = File(args[0]).canonicalFile
     val expectedIds = File(distribution, "portable-plugin-ids.txt").readLines().filter(String::isNotBlank).toSet()
@@ -26,6 +31,14 @@ fun main(args: Array<String>) = runBlocking {
     }.canonicalFile
     val runningJar = File(ProbeLocation::class.java.protectionDomain.codeSource.location.toURI()).canonicalFile
     check(appJar == runningJar) { "Readiness check must run from the extracted QTranslate.jar" }
+    val focusRequested = CountDownLatch(1)
+    check(SingleInstanceGuard.tryLock { focusRequested.countDown() }) { "Could not acquire packaged instance lock" }
+    try {
+        check(!SingleInstanceGuard.tryLock { }) { "Second instance was not rejected" }
+        check(focusRequested.await(5, TimeUnit.SECONDS)) { "Second instance did not hand off focus" }
+    } finally {
+        SingleInstanceGuard.release()
+    }
     check(File(distribution, "languages").isDirectory) { "Bundled languages directory is missing" }
     check(File(distribution, "themes").isDirectory) { "Bundled themes directory is missing" }
     val pluginJars = File(distribution, "plugins").listFiles { file -> file.isFile && file.extension == "jar" }

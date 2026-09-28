@@ -22,8 +22,14 @@ data class BundledPlugin(
 
 val releaseVersion = providers.gradleProperty("releaseVersion")
     .orElse(providers.environmentVariable("APP_VERSION"))
-    .orElse("dev")
+    .orElse(providers.provider { appVersionFromSource(file("core/src/main/kotlin/com/github/ahatem/qtranslate/core/shared/AppConstants.kt")) })
 val releaseOutputDirectory = layout.buildDirectory.dir("release")
+val validateReleaseVersion by tasks.registering(ValidateReleaseVersionTask::class) {
+    group = "verification"
+    description = "Checks candidate/tag artifact identity against the compiled runtime version."
+    constantsFile.set(layout.projectDirectory.file("core/src/main/kotlin/com/github/ahatem/qtranslate/core/shared/AppConstants.kt"))
+    expectedVersion.set(releaseVersion)
+}
 evaluationDependsOn(":app")
 evaluationDependsOn(":ui-swing")
 val appProject = project(":app")
@@ -166,6 +172,7 @@ val assembleAppOnly by tasks.registering(Copy::class) {
     group = "distribution"
     description = "Builds the standalone application JAR without plugins."
     dependsOn(cleanRelease, appArchive)
+    dependsOn(validateReleaseVersion)
     into(releaseOutputDirectory)
     from(appArchiveFile)
     rename("QTranslate.jar", "QTranslate-App-${releaseVersion.get()}.jar")
@@ -174,12 +181,14 @@ val assembleAppOnly by tasks.registering(Copy::class) {
 val assemblePortable by tasks.registering(Zip::class) {
     configurePortableBundle(bundledPlugins)
     dependsOn(cleanRelease)
+    dependsOn(validateReleaseVersion)
 }
 
 val assembleIndividualPlugins by tasks.registering(Copy::class) {
     group = "distribution"
     description = "Builds every plugin as an independently versioned JAR."
     dependsOn(cleanRelease)
+    dependsOn(validateReleaseVersion)
     dependsOn(bundledPlugins.map { "${it.projectPath}:shadowJar" })
     into(releaseOutputDirectory.map { it.dir("plugins") })
     bundledPlugins.forEach { plugin ->
@@ -292,4 +301,19 @@ tasks.register("assembleReleaseVariants") {
     description = "Builds app-only, portable, and individual plugin release artifacts."
     dependsOn(generateReleaseChecksums)
     notCompatibleWithConfigurationCache("Release assembly includes dynamic plugin artifacts.")
+}
+
+tasks.register<VerifyReleaseArtifactsTask>("verifyReleaseArtifacts") {
+    group = "verification"
+    description = "Checks the complete assembled artifact inventory, metadata, and SHA-256 sums."
+    dependsOn(validateReleaseVersion)
+    releaseDirectory.set(releaseOutputDirectory)
+    expectedVersion.set(releaseVersion)
+    expectedPluginsJson.set(JsonOutput.toJson(bundledPlugins.map { plugin ->
+        mapOf("id" to plugin.id, "version" to plugin.version,
+            "minApiVersion" to plugin.minApiVersion, "file" to "plugins/${plugin.releaseFileName}",
+            "bundledFile" to plugin.bundledFileName)
+    }))
+    requireWindows.set(providers.gradleProperty("requireWindowsArtifact").map(String::toBoolean).orElse(false))
+    requireMacHelpers.set(providers.gradleProperty("requireMacHelpers").map(String::toBoolean).orElse(false))
 }

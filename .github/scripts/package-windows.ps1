@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)][string] $Version,
     [Parameter(Mandatory = $true)][string] $PortableArchive,
     [Parameter(Mandatory = $true)][string] $OutputDirectory,
-    [string] $PackageVersion = (($Version -split '-')[0])
+    [string] $PackageVersion = (($Version -split '[-+]')[0])
 )
 
 $ErrorActionPreference = 'Stop'

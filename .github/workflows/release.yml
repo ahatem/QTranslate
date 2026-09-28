@@ -92,42 +92,9 @@ jobs:
           $version = "${{ github.ref_name }}" -replace '^v', ''
           "version=$version" >> $env:GITHUB_OUTPUT
 
-      # Artifacts take their version from the tag while AppConstants.APP_VERSION is compiled in,
-      # and nothing kept the two together. The constant sat at 1.3.0 through the whole 1.4.0
-      # cycle, which would have shipped an app comparing its own version against the release it
-      # came from and telling every new user an update was waiting.
-      #
-      # Checked before anything is built, so a mismatch costs seconds rather than a published
-      # release that has to be withdrawn.
-      - name: Verify APP_VERSION matches the tag
+      - name: Verify tag and runtime version identity
         shell: pwsh
-        run: |
-          $expected = "${{ steps.version.outputs.version }}"
-          $constants = "core/src/main/kotlin/com/github/ahatem/qtranslate/core/shared/AppConstants.kt"
-          $match = Select-String -Path $constants -Pattern 'const val APP_VERSION = "([^"]+)"'
-          if (-not $match) {
-            Write-Error "Could not find APP_VERSION in $constants"
-            exit 1
-          }
-          $actual = $match.Matches[0].Groups[1].Value
-
-          # A prerelease may carry either form. Tagging v1.4.0-rc.1 with APP_VERSION at 1.4.0 is
-          # not the mistake this check exists to catch, and demanding an exact match would mean
-          # editing the constant for every candidate and again for the final tag — churn that
-          # invites the very drift being guarded against. A stale 1.3.0 still fails either way.
-          $expectedBase = ($expected -split '-')[0]
-          if ($actual -ne $expected -and $actual -ne $expectedBase) {
-            Write-Error @"
-          APP_VERSION does not match the release tag.
-            tag:          $expected
-            APP_VERSION:  $actual
-          Update $constants and push a new tag. The compiled-in version is what the
-          in-app updater compares against, so a mismatch tells every new install that an
-          update is already available.
-          "@
-            exit 1
-          }
-          Write-Host "APP_VERSION $actual matches tag $expected."
+        run: ./gradlew validateReleaseVersion "-PreleaseVersion=${{ steps.version.outputs.version }}" --no-daemon
 
       - name: Build full distribution
         shell: pwsh
@@ -141,6 +108,10 @@ jobs:
       - name: Assemble portable Windows app image
         shell: pwsh
         run: ./.github/scripts/package-windows.ps1 -Version "${{ steps.version.outputs.version }}" -PortableArchive "build/release/QTranslate-${{ steps.version.outputs.version }}.zip" -OutputDirectory windows-candidate
+
+      - name: Verify bundled runtime and packaged launcher
+        shell: pwsh
+        run: ./.github/scripts/verify-windows-package.ps1 -Version "${{ steps.version.outputs.version }}" -PackageDirectory windows-candidate
 
       - name: Upload Windows package
         uses: actions/upload-artifact@v7
@@ -202,6 +173,9 @@ jobs:
         run: |
           cd build/release
           sha256sum "QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip" >> SHA256SUMS.txt
+
+      - name: Verify release inventory and checksums before publishing
+        run: ./gradlew verifyReleaseArtifacts "-PreleaseVersion=${{ steps.version.outputs.version }}" -PrequireWindowsArtifact=true -PrequireMacHelpers=true --no-daemon
 
       - name: Generate changelog
         id: changelog
