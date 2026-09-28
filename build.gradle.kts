@@ -279,6 +279,7 @@ val generateReleaseChecksums by tasks.registering(GenerateReleaseChecksumsTask::
     group = "distribution"
     description = "Writes SHA-256 checksums for every release artifact."
     dependsOn(generateReleaseMetadata, validateReleaseSizes)
+    dependsOn("validateAppOnlyClassVersions", "validatePortableClassVersions", "validateStandalonePluginClassVersions")
     releaseDirectory.set(releaseOutputDirectory)
     outputFile.set(releaseOutputDirectory.map { it.file("SHA256SUMS.txt") })
 }
