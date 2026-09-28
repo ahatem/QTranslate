@@ -330,7 +330,11 @@ data class Configuration(
                 selectionReadSource          = SelectionReadSource.TRANSLATION,
                 legacySelectionIconEnabled   = null,
                 autoCheckForUpdates          = true,
-                interfaceLanguage            = "en",
+                // Blank, not "en": this is the sentinel Main.kt's startup path reads as "the user
+                // hasn't chosen a language yet" and resolves via OsLanguageDetector against the
+                // bundled locales, falling back to English only when none match. Defaulting this to
+                // an explicit "en" would skip that detection on every fresh install.
+                interfaceLanguage            = "",
                 isInstantTranslationEnabled  = false,
                 isSpellCheckingEnabled       = true,
                 extraOutputType              = ExtraOutputType.None,
