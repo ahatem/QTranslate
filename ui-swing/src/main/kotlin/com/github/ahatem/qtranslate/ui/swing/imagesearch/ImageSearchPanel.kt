@@ -4,9 +4,12 @@ import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.icons.FlatSearchIcon
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.imagesearch.ImageResult
+import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.InlineLoadingBar
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ServiceInfoRenderer
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Cursor
@@ -24,6 +27,7 @@ import javax.swing.BorderFactory
 import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.JButton
+import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
@@ -41,6 +45,9 @@ data class ImageSearchPanelState(
     val hasFailed: Boolean,
     val strings: ImageSearchStrings,
     val onSearch: (term: String) -> Unit,
+    val availableServices: List<ServiceInfo> = emptyList(),
+    val selectedServiceId: String? = null,
+    val onServiceSelected: (serviceId: String) -> Unit = {},
     val onImageOpened: (ImageResult) -> Unit
 ) : UiState
 
@@ -58,7 +65,9 @@ data class ImageSearchPanelState(
  * it; one that already insets its own chrome, as the lookup dock's tab content does for the
  * dictionary, mounts this panel directly rather than inside that inset.
  */
-class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelState> {
+class ImageSearchPanel(
+    private val iconManager: IconManager
+) : JPanel(BorderLayout()), Renderable<ImageSearchPanelState> {
 
     private companion object {
         /**
@@ -125,6 +134,29 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
     private val loadingBar = InlineLoadingBar()
     private val body = JPanel(BorderLayout())
 
+    /**
+     * Provider picker, shown above the search field -- same shape as Dictionary's. Hidden rather
+     * than shown with one disabled entry when only one Image Search service is installed, since a
+     * picker with nothing to pick between teaches nothing.
+     */
+    private val serviceCombo = JComboBox<ServiceInfo>().apply {
+        putClientProperty("JComboBox.isTableCellEditor", true)
+        renderer = ServiceInfoRenderer(iconManager)
+        addActionListener {
+            if (!updatingFromState) {
+                val selected = selectedItem as? ServiceInfo ?: return@addActionListener
+                currentState?.onServiceSelected?.invoke(selected.id)
+            }
+        }
+    }
+    private val serviceRow = JPanel(BorderLayout(6, 0)).apply {
+        isOpaque = false
+        border = EmptyBorder(0, 0, UIScale.scale(SEARCH_TO_RESULTS_GAP), 0)
+        add(serviceCombo, BorderLayout.CENTER)
+        isVisible = false
+    }
+    private var updatingFromState = false
+
     /** The enlarged view, or null when the grid is showing. */
     private var preview: ImageResult? = null
 
@@ -142,6 +174,9 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
     /** The term the field was last set from, so a render never overwrites what is being typed. */
     private var appliedTerm = ""
 
+    /** Toggled off while an image is enlarged, so the preview gets the space instead. */
+    private val topBar: JPanel
+
     init {
         val searchRow = JPanel(BorderLayout()).apply {
             isOpaque = false
@@ -149,16 +184,15 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
                 UIScale.scale(OUTER_INSET), UIScale.scale(CONTENT_INSET),
                 UIScale.scale(SEARCH_TO_RESULTS_GAP), UIScale.scale(CONTENT_INSET)
             )
+            add(serviceRow, BorderLayout.NORTH)
             add(searchField, BorderLayout.CENTER)
         }
-        add(
-            JPanel(BorderLayout()).apply {
-                isOpaque = false
-                add(searchRow, BorderLayout.CENTER)
-                add(loadingBar, BorderLayout.SOUTH)
-            },
-            BorderLayout.NORTH
-        )
+        topBar = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            add(searchRow, BorderLayout.CENTER)
+            add(loadingBar, BorderLayout.SOUTH)
+        }
+        add(topBar, BorderLayout.NORTH)
         add(body.apply { add(scroll, BorderLayout.CENTER) }, BorderLayout.CENTER)
 
         installResponsiveColumns()
@@ -212,6 +246,7 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
             else -> state.strings.hintMessage
         }
         rebuildGridIfChanged(state)
+        syncServicePicker(state)
 
         // The field shows the word being searched when that changes from outside, such as a new
         // selection, and is otherwise left to whoever is typing in it.
@@ -220,6 +255,33 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
             if (state.searchedTerm.isNotBlank() && searchField.text != state.searchedTerm) {
                 searchField.text = state.searchedTerm
             }
+        }
+    }
+
+    /**
+     * Shows the provider picker only when there is a real choice to make -- one bundled Image
+     * Search plugin today (Wikimedia Commons), so it stays hidden until a second one is installed,
+     * exactly when [ImageSearchPanelState.availableServices] grows past one.
+     */
+    private fun syncServicePicker(state: ImageSearchPanelState) {
+        serviceRow.isVisible = state.availableServices.size > 1
+        if (state.availableServices.size <= 1) return
+
+        updatingFromState = true
+        try {
+            val services = state.availableServices
+            if (serviceCombo.itemCount != services.size ||
+                (0 until serviceCombo.itemCount).any { serviceCombo.getItemAt(it) != services[it] }
+            ) {
+                serviceCombo.removeAllItems()
+                services.forEach { serviceCombo.addItem(it) }
+            }
+            val toSelect = services.find { it.id == state.selectedServiceId }
+            if (toSelect != null && serviceCombo.selectedItem != toSelect) {
+                serviceCombo.selectedItem = toSelect
+            }
+        } finally {
+            updatingFromState = false
         }
     }
 
@@ -256,6 +318,21 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
     internal fun columnCountForTest(): Int = (grid.layout as GridLayout).columns
 
     internal fun tileCountForTest(): Int = grid.componentCount
+
+    internal fun isServicePickerVisibleForTest(): Boolean = serviceRow.isVisible
+
+    internal fun selectedServiceForTest(): ServiceInfo? = serviceCombo.selectedItem as? ServiceInfo
+
+    internal fun selectServiceForTest(service: ServiceInfo) {
+        serviceCombo.selectedItem = service
+    }
+
+    /** The text of whatever action buttons the enlarged view is currently showing. */
+    internal fun previewActionLabelsForTest(): List<String> =
+        descendantsInternal(body).filterIsInstance<JButton>().map { it.text }
+
+    private fun descendantsInternal(root: java.awt.Container): List<java.awt.Component> =
+        root.components.flatMap { listOf(it) + if (it is java.awt.Container) descendantsInternal(it) else emptyList() }
 
     private fun rebuildGridIfChanged(state: ImageSearchPanelState) {
         if (state.results.isEmpty()) {
@@ -309,11 +386,11 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
             toolTipText = fullCreditFor(result)
         }
 
-        thumbnails.load(result.thumbnailUrl) { image ->
+        thumbnails.load(result.thumbnailUrl, onLoaded = { image ->
             // The grid may have been rebuilt by a newer search while this was in flight.
             if (picture.parent == null) return@load
             picture.image = image
-        }
+        })
 
         return JPanel(BorderLayout(0, UIScale.scale(IMAGE_TO_CAPTION_GAP))).apply {
             add(picture, BorderLayout.CENTER)
@@ -337,14 +414,37 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
         }
     }
 
-    /** Fills the panel with one image. */
+    /**
+     * Fills the panel with one image at full resolution.
+     *
+     * The search row is hidden while previewing -- it has nothing to do until Back is pressed, and
+     * the picture is what the reader asked to see enlarged.
+     */
     private fun showPreview(result: ImageResult) {
         val state = currentState ?: return
         preview = result
+        topBar.isVisible = false
 
         // Sizes itself to the panel as it changes, without rescaling work per resize event.
         val picture = ScaledImage()
-        thumbnails.load(result.thumbnailUrl) { image -> picture.image = image }
+
+        // The thumbnail is almost always already cached from the grid tile just clicked, so it
+        // fills the space at once as a stand-in while the full-resolution image loads in the
+        // background, and stays put -- rather than leaving an empty area -- if that load fails.
+        var hasFullImage = false
+        thumbnails.load(
+            result.thumbnailUrl,
+            onLoaded = { image -> if (!hasFullImage && preview == result) picture.image = image }
+        )
+        thumbnails.load(
+            result.fullUrl,
+            onLoaded = { image ->
+                if (preview == result) {
+                    hasFullImage = true
+                    picture.image = image
+                }
+            }
+        )
 
         val caption = ElidingLabel(result.title.orEmpty()).apply {
             putClientProperty("FlatLaf.styleClass", "h4")
@@ -355,9 +455,28 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
             toolTipText = fullCreditFor(result)
         }
 
+        val index = renderedResults.indexOf(result)
+
         val back = JButton(state.strings.backLabel).apply {
             putClientProperty("JButton.buttonType", "toolBarButton")
             addActionListener { showGrid() }
+        }
+        // Text rather than directional icons: BorderLayout.LINE_END/LINE_START already mirror this
+        // whole row under RTL, but a fixed left/right-pointing glyph would then point the wrong
+        // way. "Previous"/"Next" read correctly regardless of layout direction.
+        val previous = JButton(state.strings.previousLabel).apply {
+            putClientProperty("JButton.buttonType", "toolBarButton")
+            toolTipText = state.strings.previousLabel
+            isEnabled = index > 0
+            addActionListener { if (index > 0) showPreview(renderedResults[index - 1]) }
+        }
+        val next = JButton(state.strings.nextLabel).apply {
+            putClientProperty("JButton.buttonType", "toolBarButton")
+            toolTipText = state.strings.nextLabel
+            isEnabled = index in 0 until renderedResults.size - 1
+            addActionListener {
+                if (index in 0 until renderedResults.size - 1) showPreview(renderedResults[index + 1])
+            }
         }
         val open = JButton(state.strings.openSourceLabel).apply {
             putClientProperty("JButton.buttonType", "toolBarButton")
@@ -384,6 +503,13 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
                     layout = BoxLayout(this, BoxLayout.X_AXIS)
                     add(back)
                     add(Box.createHorizontalStrut(UIScale.scale(CAPTION_TO_CREDIT_GAP * 2)))
+                    // Only worth showing when there is somewhere to go -- a lone result, or a
+                    // provider that returned one, needs no browsing controls.
+                    if (renderedResults.size > 1) {
+                        add(previous)
+                        add(next)
+                        add(Box.createHorizontalStrut(UIScale.scale(CAPTION_TO_CREDIT_GAP * 2)))
+                    }
                     add(open)
                 },
                 BorderLayout.LINE_END
@@ -400,6 +526,7 @@ class ImageSearchPanel : JPanel(BorderLayout()), Renderable<ImageSearchPanelStat
     /** Returns from the enlarged view to the grid, leaving the tiles and their images intact. */
     private fun showGrid() {
         preview = null
+        topBar.isVisible = true
         body.removeAll()
         body.add(scroll, BorderLayout.CENTER)
         body.revalidate()

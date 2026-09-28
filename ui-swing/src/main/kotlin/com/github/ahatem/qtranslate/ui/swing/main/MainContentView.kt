@@ -215,7 +215,7 @@ class MainContentView(
         },
     )
 
-    private val imageSearchPanel = ImageSearchPanel()
+    private val imageSearchPanel = ImageSearchPanel(iconManager)
 
     private val lookupDock = LookupDock(
         dictionary = dictionaryPanel,
@@ -449,11 +449,16 @@ class MainContentView(
         )
 
         renderDictionaryPanel(mainState, config)
-        if (mainState.isImagesDockVisible) renderImageSearchPanel(mainState)
+        if (mainState.isImagesDockVisible) renderImageSearchPanel(mainState, config)
     }
 
-    private fun renderImageSearchPanel(mainState: MainState) {
+    private fun renderImageSearchPanel(mainState: MainState, config: Configuration) {
         val language = mainState.resolvedSourceLanguage
+        val availableServices = mainState.getAvailableServicesFor(
+            com.github.ahatem.qtranslate.api.plugin.ServiceRole.IMAGE_SEARCH
+        )
+        val selectedServiceId = config.getActivePreset()
+            ?.selectedServices?.get(com.github.ahatem.qtranslate.api.plugin.ServiceRole.IMAGE_SEARCH)
         imageSearchPanel.render(
             ImageSearchPanelState(
                 isLoading = mainState.isImageSearchLoading,
@@ -462,6 +467,17 @@ class MainContentView(
                 hasFailed = mainState.imageSearchFailed,
                 strings = imageSearchStrings(localizer, mainState.imageSearchTerm),
                 onSearch = { term -> dispatch(MainIntent.SearchImages(term, language)) },
+                availableServices = availableServices,
+                selectedServiceId = selectedServiceId,
+                onServiceSelected = { serviceId ->
+                    dispatchSettings(
+                        SettingsIntent.UpdateServiceInActivePreset(
+                            com.github.ahatem.qtranslate.api.plugin.ServiceRole.IMAGE_SEARCH, serviceId
+                        )
+                    )
+                    val term = mainState.imageSearchTerm
+                    if (term.isNotBlank()) dispatch(MainIntent.SearchImages(term, language))
+                },
                 onImageOpened = onOpenImageSource
             )
         )

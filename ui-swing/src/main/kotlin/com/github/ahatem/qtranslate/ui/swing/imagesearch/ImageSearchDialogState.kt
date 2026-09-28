@@ -61,6 +61,8 @@ data class ImageSearchStrings(
     val openTooltip: String,
     val openSourceLabel: String,
     val backLabel: String,
+    val previousLabel: String = "",
+    val nextLabel: String = "",
     val pinTooltip: String,
     val unpinTooltip: String,
     val closeTooltip: String
@@ -77,6 +79,8 @@ fun imageSearchStrings(localizer: LocalizationManager, term: String) = ImageSear
     openTooltip = localizer.getString("image_search_dialog.open_tooltip"),
     openSourceLabel = localizer.getString("image_search_dialog.open_source"),
     backLabel = localizer.getString("image_search_dialog.back"),
+    previousLabel = localizer.getString("image_search_dialog.previous"),
+    nextLabel = localizer.getString("image_search_dialog.next"),
     pinTooltip = localizer.getString("common.pin"),
     unpinTooltip = localizer.getString("common.unpin"),
     closeTooltip = localizer.getString("common.close")

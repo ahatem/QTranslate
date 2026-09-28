@@ -47,7 +47,7 @@ class ImageSearchDialog(
         const val PINNED_BORDER_WIDTH = 4
     }
 
-    private val panel = ImageSearchPanel()
+    private val panel = ImageSearchPanel(iconManager)
 
     private val titleLabel = JLabel("").apply { putClientProperty("FlatLaf.styleClass", "h4") }
     private val pinButton = createButtonWithIcon(iconManager, Icons.PIN, 14)
@@ -168,6 +168,9 @@ class ImageSearchDialog(
         hasFailed = hasFailed,
         strings = strings,
         onSearch = onSearch,
+        availableServices = availableServices,
+        selectedServiceId = selectedServiceId,
+        onServiceSelected = onServiceSelected,
         onImageOpened = onImageOpened
     )
 

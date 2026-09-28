@@ -166,7 +166,7 @@ class LookupDockTest {
         var dock: LookupDock? = null
         var realImages: ImageSearchPanel? = null
         SwingUtilities.invokeAndWait {
-            realImages = ImageSearchPanel()
+            realImages = ImageSearchPanel(TestIcons.iconManager())
             dock = LookupDock(dictionary, realImages!!, TestIcons.iconManager(), {}, {})
         }
         val d = dock!!

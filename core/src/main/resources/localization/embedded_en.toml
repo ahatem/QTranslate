@@ -549,6 +549,8 @@ error_message = "Image search failed. Please try again."
 open_tooltip = "Open the source page in your browser"
 open_source = "Source page"
 back = "Back"
+previous = "Previous"
+next = "Next"
 
 [preset_selector]
 manage_tooltip  = "Manage Service Presets"
