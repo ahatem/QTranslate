@@ -193,3 +193,89 @@ jobs:
           timeout 120s java -Djava.awt.headless=true -cp "$candidate_dir/QTranslate/QTranslate.jar" \
             com.github.ahatem.qtranslate.app.ReleaseArtifactProbeKt \
             "$candidate_dir/QTranslate"
+
+  windows-candidate:
+    name: Windows app image candidate
+    runs-on: windows-latest
+    needs: release-variants
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download assembled portable candidate
+        uses: actions/download-artifact@v8
+        with:
+          name: qtranslate-portable
+          path: candidate
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Package with the release script
+        shell: pwsh
+        run: ./.github/scripts/package-windows.ps1 -Version ci -PackageVersion 1.0.0 -PortableArchive candidate/QTranslate-ci.zip -OutputDirectory build/windows-candidate
+
+      - name: Probe bundled Windows runtime
+        shell: pwsh
+        run: |
+          $root = 'build/windows-candidate/app-image/QTranslate'
+          foreach ($file in @('QTranslate.exe', 'runtime/bin/java.exe', 'app/QTranslate.jar',
+              'portable-plugin-ids.txt', 'LICENSE', 'NOTICE.md')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $root $file) -PathType Leaf)) {
+              throw "Windows candidate is missing $file"
+            }
+          }
+          foreach ($directory in @('plugins', 'languages', 'themes', 'icons', 'LICENSES', 'THIRD_PARTY_LICENSES')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $root $directory) -PathType Container)) {
+              throw "Windows candidate is missing $directory"
+            }
+          }
+          if (-not (Test-Path -LiteralPath 'build/windows-candidate/QTranslate-ci-windows-x64.zip')) {
+            throw 'Windows candidate archive is missing'
+          }
+          $env:JAVA_HOME = ''
+          & (Join-Path $root 'runtime/bin/java.exe') '-Djava.awt.headless=true' `
+            -cp (Join-Path $root 'app/QTranslate.jar') `
+            com.github.ahatem.qtranslate.app.ReleaseArtifactProbeKt $root
+          if ($LASTEXITCODE -ne 0) { throw "Bundled runtime probe failed with exit code $LASTEXITCODE" }
+
+  macos-candidate:
+    name: macOS portable candidate
+    runs-on: macos-14
+    needs: release-variants
+    timeout-minutes: 15
+
+    steps:
+      - name: Download assembled portable candidate
+        uses: actions/download-artifact@v8
+        with:
+          name: qtranslate-portable
+          path: candidate
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Probe packaged app and universal helpers
+        run: |
+          set -euo pipefail
+          candidate_dir="$(mktemp -d)"
+          unzip -q candidate/QTranslate-ci.zip -d "$candidate_dir"
+          root="$candidate_dir/QTranslate"
+          java -Djava.awt.headless=true -cp "$root/QTranslate.jar" \
+            com.github.ahatem.qtranslate.app.ReleaseArtifactProbeKt "$root"
+          plugin="$root/plugins/system-services-plugin.jar"
+          for helper in vision_ocr system_spell; do
+            binary="$candidate_dir/$helper"
+            unzip -p "$plugin" "native/macos/$helper" > "$binary"
+            test -s "$binary"
+            lipo -archs "$binary" | grep -qw arm64
+            lipo -archs "$binary" | grep -qw x86_64
+          done

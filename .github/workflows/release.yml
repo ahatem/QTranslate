@@ -140,68 +140,13 @@ jobs:
 
       - name: Assemble portable Windows app image
         shell: pwsh
-        run: |
-          $version = "${{ steps.version.outputs.version }}"
-          $packageVersion = ($version -split '-')[0]
-          $portableArchive = "build/release/QTranslate-$version.zip"
-
-          Expand-Archive -LiteralPath $portableArchive -DestinationPath portable-distribution
-          New-Item -ItemType Directory -Force package-input | Out-Null
-          Copy-Item portable-distribution/QTranslate/QTranslate.jar package-input/QTranslate.jar
-
-          # jlink only includes modules listed here. Providers loaded reflectively via
-          # ServiceLoader (JCA crypto, locale data) are invisible to static analysis, so
-          # they must be requested explicitly or they silently vanish from the runtime.
-          $modules = @(
-            'java.base', 'java.desktop', 'java.instrument', 'java.logging',
-            'java.management', 'java.naming', 'java.net.http', 'java.prefs',
-            'java.security.jgss', 'java.xml.crypto', 'jdk.charsets', 'jdk.unsupported',
-            # SunEC provider. Without it every ECDHE/ECDSA TLS handshake fails, which
-            # breaks all network services ("EC KeyPairGenerator not available").
-            'jdk.crypto.ec',
-            # Locale data for the 13 bundled languages. Without it the JDK falls back to
-            # ROOT/English number, date, and display-name formatting.
-            'jdk.localedata',
-            # ZIP FileSystem provider. Not required by the app itself, but bundled plugins
-            # are third-party code that may rely on it; the module costs ~100 KB.
-            'jdk.zipfs'
-          ) -join ','
-          jlink `
-            --add-modules $modules `
-            --strip-debug `
-            --no-header-files `
-            --no-man-pages `
-            --strip-native-commands `
-            --compress=2 `
-            --output qtranslate-runtime
-
-          jpackage `
-            --type app-image `
-            --name QTranslate `
-            --input package-input `
-            --main-jar QTranslate.jar `
-            --main-class com.github.ahatem.qtranslate.app.MainKt `
-            --app-version $packageVersion `
-            --icon ui-swing/src/main/resources/icons/app/icon.ico `
-            --runtime-image qtranslate-runtime `
-            --dest windows-package `
-            --java-options '-Dfile.encoding=UTF-8'
-
-          Copy-Item portable-distribution/QTranslate/plugins windows-package/QTranslate/plugins -Recurse
-          Copy-Item portable-distribution/QTranslate/languages windows-package/QTranslate/languages -Recurse
-          Copy-Item portable-distribution/QTranslate/themes windows-package/QTranslate/themes -Recurse
-          Copy-Item portable-distribution/QTranslate/icons windows-package/QTranslate/icons -Recurse
-          Copy-Item portable-distribution/QTranslate/LICENSE windows-package/QTranslate/LICENSE
-          Copy-Item portable-distribution/QTranslate/NOTICE.md windows-package/QTranslate/NOTICE.md
-          Copy-Item portable-distribution/QTranslate/LICENSES windows-package/QTranslate/LICENSES -Recurse
-          Copy-Item portable-distribution/QTranslate/THIRD_PARTY_LICENSES windows-package/QTranslate/THIRD_PARTY_LICENSES -Recurse
-          Compress-Archive -Path windows-package/QTranslate -DestinationPath "QTranslate-$version-windows-x64.zip"
+        run: ./.github/scripts/package-windows.ps1 -Version "${{ steps.version.outputs.version }}" -PortableArchive "build/release/QTranslate-${{ steps.version.outputs.version }}.zip" -OutputDirectory windows-candidate
 
       - name: Upload Windows package
         uses: actions/upload-artifact@v7
         with:
           name: qtranslate-windows-x64
-          path: QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip
+          path: windows-candidate/QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip
           if-no-files-found: error
 
   release:
