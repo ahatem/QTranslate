@@ -48,6 +48,12 @@ internal object Scenes {
         isInstantTranslationEnabled = false,
         selectionBehavior = SelectionBehavior.OFF,
         isGlobalHotkeysEnabled = false,
+        // Configuration.DEFAULT now leaves this blank so a fresh install detects the OS language
+        // (see Configuration.DEFAULT's own comment) -- exactly the behavior a capture machine must
+        // NOT inherit. The public gallery is English regardless of whatever locale happens to be
+        // configured on whichever machine runs the harness; every non-English scene overrides this
+        // explicitly (see arabic() below).
+        interfaceLanguage = "en-GB",
         // Deliberate presentation choice for the public screenshot gallery only -- production's
         // own default (Inter) is untouched. The fallback stays whatever the production default
         // is, so scripts Rubik cannot render still fall back the same way a real install would.
