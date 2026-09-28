@@ -118,8 +118,11 @@ class SettingsComboRendererTest {
 
     @Test
     fun `translation page combos preserve native selection`() {
+        // Was 4 before the dictionary auto-lookup source combo (Off/Translated/Source) was
+        // replaced with an explicit checkbox plus a radio group -- the on/off state no longer
+        // hides inside a combo box value.
         val panel = onEdt { TranslationPanel(newStore(), localizer) }
-        assertNativeRows(panel, expectedCombos = 4)
+        assertNativeRows(panel, expectedCombos = 3)
     }
 
     @Test

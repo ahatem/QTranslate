@@ -1,9 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.dictionary
 
 import com.formdev.flatlaf.util.UIScale
-import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
-import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 import com.github.ahatem.qtranslate.core.settings.data.Position
 import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
@@ -62,11 +60,6 @@ class QuickDictionaryDialog(
             ?: borderColor
     private val disabledFg: Color? get() = UIManager.getColor("Label.disabledForeground")
 
-    /** Held so it can be detached; also the reason this is not an inline lambda. */
-    private val themeListener = java.beans.PropertyChangeListener { event ->
-        if (event.propertyName == "lookAndFeel") SwingUtilities.invokeLater { refreshTheme() }
-    }
-
     /** The header, kept so its divider can be recoloured when the theme changes. */
     private var headerPanel: JPanel? = null
 
@@ -76,26 +69,6 @@ class QuickDictionaryDialog(
     }
     private val pinButton = createToolbarButton(iconManager, Icons.PIN, 14)
     private val closeButton = createToolbarButton(iconManager, Icons.CLOSE, 16)
-
-    // Auto-source cycling button — mirrors DictionaryPanel
-    private val activeLinkIcon: FlatSVGIcon =
-        (iconManager.getIcon(Icons.NETWORK, 13, 13) as FlatSVGIcon).applyForegroundColorFilter()
-    private val offUnlinkIcon: FlatSVGIcon =
-        (iconManager.getIcon(Icons.UNPIN, 13, 13) as FlatSVGIcon).apply {
-            colorFilter = FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") }
-        }
-    private val autoSourceButton = createToolbarButton().apply {
-        iconTextGap = 4
-        addActionListener {
-            val state = currentState ?: return@addActionListener
-            val next = when (state.autoSource) {
-                DictionaryAutoSource.OFF        -> DictionaryAutoSource.TRANSLATED
-                DictionaryAutoSource.TRANSLATED -> DictionaryAutoSource.SOURCE
-                DictionaryAutoSource.SOURCE     -> DictionaryAutoSource.OFF
-            }
-            state.onAutoSourceChanged(next)
-        }
-    }
 
     // Service picker
     private var updatingFromState = false
@@ -217,7 +190,7 @@ class QuickDictionaryDialog(
         mainPanel.add(contentArea, BorderLayout.CENTER)
 
         setupWindowBehavior()
-        UIManager.addPropertyChangeListener(themeListener)
+        popup.installTheme(::refreshTheme)
         updatePinButtonStyle(false)
     }
 
@@ -273,21 +246,6 @@ class QuickDictionaryDialog(
         loadingLabel.text = state.strings.loadingMessage
         pinButton.toolTipText = if (state.isPinned) state.strings.unpinTooltip else state.strings.pinTooltip
         closeButton.toolTipText = state.strings.closeTooltip
-
-        // Sync auto-source cycling button
-        val autoLabel = when (state.autoSource) {
-            DictionaryAutoSource.OFF        -> state.autoSourceOffLabel
-            DictionaryAutoSource.TRANSLATED -> state.autoSourceTranslatedLabel
-            DictionaryAutoSource.SOURCE     -> state.autoSourceSourceLabel
-        }
-        autoSourceButton.text = autoLabel
-        autoSourceButton.toolTipText = autoLabel
-        val autoActive = state.autoSource != DictionaryAutoSource.OFF
-        autoSourceButton.icon = if (autoActive) activeLinkIcon else offUnlinkIcon
-        autoSourceButton.foreground = if (autoActive)
-            UIManager.getColor("Component.accentColor") ?: UIManager.getColor("Button.foreground")
-        else
-            UIManager.getColor("Label.disabledForeground")
 
         hintLabel.text = when {
             state.hasFailed -> state.strings.errorMessage
@@ -385,8 +343,6 @@ class QuickDictionaryDialog(
         val rightPanel = JPanel().apply {
             isOpaque = false
             layout = BoxLayout(this, BoxLayout.X_AXIS)
-            add(autoSourceButton)
-            add(Box.createRigidArea(Dimension(4, 0)))
             add(pinButton)
             add(Box.createRigidArea(Dimension(4, 0)))
             add(closeButton)
@@ -670,7 +626,7 @@ class QuickDictionaryDialog(
             override fun windowClosing(e: WindowEvent) { currentState?.onClose?.invoke() }
             override fun windowClosed(e: WindowEvent) {
                 uninstallAwtMouseListener()
-                UIManager.removePropertyChangeListener(themeListener)
+                popup.uninstallTheme()
             }
         })
 

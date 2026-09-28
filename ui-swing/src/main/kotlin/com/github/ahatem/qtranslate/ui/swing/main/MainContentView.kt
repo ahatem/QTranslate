@@ -271,7 +271,6 @@ class MainContentView(
         val lookupLanguage: LanguageCode,
         val selectedDictionaryId: String?,
         val dictionaryCount: Int,
-        val autoSource: com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource,
         /** Part of the key so the headword's Listen control flips when playback starts or stops. */
         val isTtsPlaying: Boolean,
     )
@@ -488,7 +487,6 @@ class MainContentView(
             lookupLanguage    = resolvedLang,
             selectedDictionaryId = selectedDictId,
             dictionaryCount   = availableDicts.size,
-            autoSource        = config.dictionaryAutoSource,
             isTtsPlaying      = mainState.isTtsPlaying,
         )
         if (key == lastDictionaryKey) return
@@ -512,15 +510,6 @@ class MainContentView(
                     hasFailed             = key.hasFailed,
                     availableDictionaries = availableDicts,
                     selectedDictionaryId  = key.selectedDictionaryId,
-                    autoSource            = key.autoSource,
-                    autoSourceOffLabel        = localizer.getString("dictionary_dialog.auto_source_off"),
-                    autoSourceTranslatedLabel = localizer.getString("dictionary_dialog.auto_source_translated"),
-                    autoSourceSourceLabel     = localizer.getString("dictionary_dialog.auto_source_source"),
-                    onAutoSourceChanged   = { newSource ->
-                        dispatchSettings(
-                            SettingsIntent.ToggleSetting { it.copy(dictionaryAutoSource = newSource) }
-                        )
-                    },
                     // The headword belongs to the lookup, not to a panel, so it carries the
                     // language the lookup was made in rather than the input panel's.
                     onListen = { word ->

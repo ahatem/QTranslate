@@ -669,14 +669,6 @@ class MainAppFrame(
                                                 )
                                             }
                                         },
-                                        onAutoSourceChanged = { newSource ->
-                                            settingsStore.dispatch(
-                                                SettingsIntent.ToggleSetting {
-                                                    it.copy(dictionaryAutoSource = newSource)
-                                                }
-                                            )
-                                            settingsStore.dispatch(SettingsIntent.SaveChanges)
-                                        },
                                         onPinToggled = {
                                             mainStore.dispatch(MainIntent.ToggleQuickDictionaryPin)
                                         },
