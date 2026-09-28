@@ -4,7 +4,9 @@ Every image here is a capture of the running application — real plugins, real 
 requests, real dictionary lookups. Nothing is staged or mocked up, and nothing is an upscale:
 they are rendered at twice the size natively, so they stay sharp on high-density displays.
 
-The eight images one level up (`docs/images/screenshot-*.png`) are the subset the README uses.
+Eight of these — `hero-dark`, `quick-translate-dark`, `layout-side-by-side-dark`,
+`layout-comparison-dark`, `rtl-main`, `document-translation`, `settings-services-dark`, and
+`settings-plugins-dark` — are duplicated one level up in `docs/images/` for the README to embed.
 This folder is the full set, and is what the website gallery draws from.
 
 ## The set
