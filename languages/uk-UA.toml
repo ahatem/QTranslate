@@ -683,7 +683,7 @@ image_search_ready = "Зображення знайдено."
 images_not_found = "Зображень для «%s» не знайдено."
 image_search_timeout = "Час очікування пошуку зображень минув."
 image_search_failed = "Помилка пошуку зображень: %s"
-comparison_needs_two_translators = "Для Порівняння потрібні два перекладачі. Показано Класичний."
+comparison_needs_two_translators = "Для Порівняння потрібні два перекладачі. Показано класичний макет."
 
 [layout_compact]
 tab_input_tooltip = "Вихідний текст (%s)"
