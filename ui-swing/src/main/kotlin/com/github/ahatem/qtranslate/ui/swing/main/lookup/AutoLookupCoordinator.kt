@@ -45,6 +45,7 @@ class AutoLookupCoordinator(
             .filter { (prev, curr) ->
                 when {
                     curr == null -> false
+                    // Let loading through so an in-flight translation can dismiss an unpinned stale Quick Dictionary.
                     curr.isLoading -> true
                     prev == null -> false
                     !curr.isDictionaryAutoPopupEnabled -> false
@@ -92,6 +93,7 @@ class AutoLookupCoordinator(
                 val current = mainState.value.dictionaryWord
                 if (word.equals(current, ignoreCase = true)) return@collect
 
+                // Automatic lookup only refreshes a dictionary already visible in the main window; it never opens one.
                 if (key.panelVisible && key.mainVisible) {
                     withContext(Dispatchers.Swing) {
                         setDictionarySearchWord(word)

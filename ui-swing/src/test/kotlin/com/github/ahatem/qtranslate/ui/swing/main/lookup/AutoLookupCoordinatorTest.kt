@@ -84,6 +84,16 @@ class AutoLookupCoordinatorTest {
     }
 
     @Test
+    fun `translated snapshot is trimmed before updating the inline definition`() = check {
+        finish(translated = " hola ")
+        assertEquals(
+            MainIntent.UpdateInlineDefinition("hola", LanguageCode.ARABIC, "hello", LanguageCode.ENGLISH),
+            nextIntent()
+        )
+        assertNoMoreActions()
+    }
+
+    @Test
     fun `disabled auto lookup ignores completion but still dismisses an unpinned popup`() =
         check(Configuration.DEFAULT.copy(isDictionaryAutoPopupEnabled = false)) {
             main.value = main.value.copy(isLoading = true, isQuickDictionaryVisible = true)
@@ -99,6 +109,17 @@ class AutoLookupCoordinatorTest {
             finish()
             assertEquals(
                 MainIntent.UpdateInlineDefinition("hello", LanguageCode.FRENCH, "hola", LanguageCode.ARABIC),
+                nextIntent()
+            )
+            assertNoMoreActions()
+        }
+
+    @Test
+    fun `source snapshot is trimmed before updating the inline definition`() =
+        check(Configuration.DEFAULT.copy(dictionaryAutoSource = DictionaryAutoSource.SOURCE)) {
+            finish(input = " hello ")
+            assertEquals(
+                MainIntent.UpdateInlineDefinition("hello", LanguageCode.ENGLISH, "hola", LanguageCode.ARABIC),
                 nextIntent()
             )
             assertNoMoreActions()
