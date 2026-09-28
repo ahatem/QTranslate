@@ -39,6 +39,14 @@ object HotkeyPresets {
                 keyCode = KeyEvent.VK_I,
                 modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK
             )
+            // Ctrl+Shift+D is taken by SHOW_DICTIONARY above; without this override Modern would
+            // ship two different actions on the same accelerator (SHOW_DICTIONARY is GLOBAL,
+            // TRANSLATE_DOCUMENT is LOCAL, so the collision would only surface while the main
+            // window has focus, making it easy to miss).
+            HotkeyAction.TRANSLATE_DOCUMENT -> binding.copy(
+                keyCode = KeyEvent.VK_F,
+                modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK
+            )
             else -> binding.copy()
         }
     }
