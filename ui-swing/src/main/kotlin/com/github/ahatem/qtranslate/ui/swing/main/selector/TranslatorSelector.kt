@@ -197,7 +197,7 @@ class TranslatorSelector(
     private fun loadIcon(service: ServiceInfo): Icon? = service.iconPath?.let { iconManager.getIcon(service.id, it, ICON_SIZE, ICON_SIZE) }
 
     private fun compactButtonMargin() = Insets(
-        UIScale.scale(1), UIScale.scale(4), UIScale.scale(1), UIScale.scale(4)
+        UIScale.scale(3), UIScale.scale(4), UIScale.scale(3), UIScale.scale(4)
     )
 
     /** Share spare width between whole tabs; never shrink a label to fill an arbitrary cell. */
