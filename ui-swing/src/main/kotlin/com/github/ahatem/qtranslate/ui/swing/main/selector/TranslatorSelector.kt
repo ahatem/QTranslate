@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
+import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.*
 import java.awt.event.ComponentAdapter
@@ -27,16 +28,17 @@ class TranslatorSelector(
     private var activeServiceId: String? = null
     // Classic keeps the original QTranslate's adjacent bottom tabs, with complete labels and
     // a single adaptive overflow menu for today's larger plugin set.
-    private val serviceStrip = object : JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)) {
+    private val serviceStrip = object : JPanel(StretchTabsLayout()) {
         override fun paintChildren(g: Graphics) {
             super.paintChildren(g)
             val segments = components.sortedBy { it.x }
+            val oldColor = g.color
             g.color = UIManager.getColor("Component.borderColor") ?: Color.GRAY
             val inset = UIScale.scale(4)
             segments.drop(1).forEach { segment ->
                 g.drawLine(segment.x, inset, segment.x, height - inset - 1)
             }
-            if (segments.isNotEmpty()) g.drawLine(0, height - 1, width - 1, height - 1)
+            g.color = oldColor
         }
     }.apply { isOpaque = false }
     private var activeButton: JToggleButton? = null
@@ -48,16 +50,21 @@ class TranslatorSelector(
         toolTipText = "All services"
         addActionListener { showOverflowMenu(this) }
     }
-    private val configureActive = JButton(iconManager.getIcon(Icons.SETTINGS, 16, 16)).apply {
-        putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
-        putClientProperty(FlatClientProperties.STYLE, "arc: 0")
-        margin = compactButtonMargin()
+    private val configureActive = createButtonWithIcon(iconManager, Icons.SETTINGS, 16).apply {
         toolTipText = "Configure active translation service"
         addActionListener { activeServiceId?.let(onConfigureService) }
     }
-    private val classic = JPanel(BorderLayout()).apply {
+    private val classic = object : JPanel(BorderLayout(UIScale.scale(6), 0)) {
+        override fun paintChildren(g: Graphics) {
+            super.paintChildren(g)
+            val oldColor = g.color
+            g.color = UIManager.getColor("Component.borderColor") ?: Color.GRAY
+            g.drawLine(0, height - 1, width - 1, height - 1)
+            g.color = oldColor
+        }
+    }.apply {
         isOpaque = false
-        add(serviceStrip, BorderLayout.LINE_START)
+        add(serviceStrip, BorderLayout.CENTER)
         add(configureActive, BorderLayout.LINE_END)
         addComponentListener(object : ComponentAdapter() {
             override fun componentResized(e: ComponentEvent) = fitClassicButtons()
@@ -114,7 +121,7 @@ class TranslatorSelector(
         if (width <= 0) return
         val activeWidth = activeButton?.preferredSize?.width ?: 0
         val room = (width - classic.insets.left - classic.insets.right -
-            configureActive.preferredSize.width - activeWidth).coerceAtLeast(0)
+            configureActive.preferredSize.width - UIScale.scale(6) - activeWidth).coerceAtLeast(0)
         val overflow = remainingButtons.sumOf { it.preferredSize.width } > room
         val serviceRoom = (room - if (overflow) overflowMenu.preferredSize.width else 0).coerceAtLeast(0)
         val visibleButtons = mutableListOf<AbstractButton>()
@@ -190,6 +197,45 @@ class TranslatorSelector(
     private fun compactButtonMargin() = Insets(
         UIScale.scale(1), UIScale.scale(4), UIScale.scale(1), UIScale.scale(4)
     )
+
+    /** Share spare width between whole tabs; never shrink a label to fill an arbitrary cell. */
+    private class StretchTabsLayout : LayoutManager {
+        override fun addLayoutComponent(name: String?, comp: Component?) = Unit
+        override fun removeLayoutComponent(comp: Component?) = Unit
+
+        override fun preferredLayoutSize(parent: Container): Dimension {
+            val children = parent.components.filter { it.isVisible }
+            val insets = parent.insets
+            return Dimension(
+                children.sumOf { it.preferredSize.width } + insets.left + insets.right,
+                (children.maxOfOrNull { it.preferredSize.height } ?: 0) + insets.top + insets.bottom
+            )
+        }
+
+        override fun minimumLayoutSize(parent: Container): Dimension = preferredLayoutSize(parent)
+
+        override fun layoutContainer(parent: Container) {
+            val children = parent.components.filter { it.isVisible }
+            if (children.isEmpty()) return
+            val insets = parent.insets
+            val widths = children.map { it.preferredSize.width }.toMutableList()
+            val spare = (parent.width - insets.left - insets.right - widths.sum()).coerceAtLeast(0)
+            widths.indices.forEach { index ->
+                widths[index] += spare / widths.size + if (index < spare % widths.size) 1 else 0
+            }
+            val height = (parent.height - insets.top - insets.bottom).coerceAtLeast(0)
+            var edge = if (parent.componentOrientation.isLeftToRight) insets.left else parent.width - insets.right
+            children.forEachIndexed { index, child ->
+                if (parent.componentOrientation.isLeftToRight) {
+                    child.setBounds(edge, insets.top, widths[index], height)
+                    edge += widths[index]
+                } else {
+                    edge -= widths[index]
+                    child.setBounds(edge, insets.top, widths[index], height)
+                }
+            }
+        }
+    }
 
     private inner class ServiceRenderer : DefaultListCellRenderer() {
         override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component =

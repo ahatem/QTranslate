@@ -139,6 +139,7 @@ class TranslatorSelectorTest {
         val more = descendants(selector).filterIsInstance<JButton>().first { it.toolTipText == "All services" }
         val preceding = more.parent.components.filterIsInstance<JToggleButton>().last()
         assertEquals(preceding.x + preceding.width, more.x)
+        assertEquals(more.parent.width, more.x + more.width, "Classic tabs fill the available strip")
     }
 
     @Test
