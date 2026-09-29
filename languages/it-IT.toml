@@ -56,6 +56,7 @@ comparison_details = "Dettagli"
 comparison_primary = "Primaria"
 comparison_empty = "Pronto per il confronto"
 comparison_empty_subtitle = "Inserisci il testo qui sopra e scegli 'Traduci'. I risultati dei servizi di traduzione di %s verranno visualizzati qui."
+comparison_change_primary = "Cambia traduttore primario"
 
 [main_window_history_bar]
 backward_tooltip = "Vai indietro nella cronologia traduzioni"
@@ -110,6 +111,8 @@ auto_check_for_updates = "Controllo automatico aggiornamenti"
 check_for_updates = "Controlla aggiornamenti"
 about_qtranslate = "Info su QTranslate"
 exit = "Esci"
+keep_on_top = "Mantieni la finestra in primo piano"
+stop_keeping_on_top = "Non mantenere la finestra in primo piano"
 
 [document_translation]
 title = "Traduci documento"
@@ -251,6 +254,7 @@ fallback_font = "Font fallback:"
 fallback_hint = "La font di fallback viene usata per i caratteri che il font dell'editor non può visualizzare."
 loading_fonts = "<Caricamento font...>"
 font_preview_text = "La veloce volpe marrone salta sopra il cane pigro — 大きな茶色の狐が怠け者の犬を飛び越えた"
+automatic_fallback = "Automatico (consigliato)"
 
 [settings_services]
 presets_group = "Profilo attivo"
@@ -429,6 +433,8 @@ rewrite_style_casual = "Casuale"
 rewrite_style_concise = "Conciso"
 rewrite_style_detailed = "Dettagliato"
 rewrite_style_simplified = "Semplificato"
+dict_auto_lookup_enabled = "Cerca automaticamente le traduzioni di singole parole"
+dict_auto_lookup_source_label = "Cerca:"
 
 [settings_languages]
 defaults_group = "Lingue predefinite"
@@ -497,6 +503,7 @@ close_behavior_hint    = "Controlla cosa succede quando fai clic sul pulsante 'X
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION
 # ===================================================================
+layout_comparison_configure = "Confronto — Configura traduttori…"
 [plugin_config]
 title_format = "Configura — %s"
 required_fields_error_title = "Campi richiesti"
@@ -545,6 +552,8 @@ error_message = "Ricerca immagini non riuscita. Riprova."
 open_tooltip = "Apri la pagina sorgente nel browser"
 open_source = "Pagina sorgente"
 back = "Indietro"
+previous = "Precedente"
+next = "Successivo"
 
 [preset_selector]
 manage_tooltip  = "Gestisci profili servizio"

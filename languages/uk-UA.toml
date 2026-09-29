@@ -34,12 +34,29 @@ auto_detect = "Автовизначення"
 # ===================================================================
 # MAIN APPLICATION WINDOW
 # ===================================================================
+undo = "Скасувати"
+redo = "Повторити"
+cut = "Вирізати"
+paste = "Вставити"
+select_all = "Вибрати все"
+rename = "Перейменувати"
+delete = "Видалити"
+search = "Пошук"
 [main_window]
 status_format = "Використовується %s: %s → %s"
 no_translator = "Перекладач не вибрано"
 drop_hint = "Перетягніть зображення або документ для перекладу"
 no_service_message = "Службу перекладу не налаштовано."
 no_service_action = "Відкрити налаштування служб"
+comparison_loading = "Переклад..."
+comparison_unavailable = "Недоступна служба"
+comparison_failure = "Помилка перекладу"
+comparison_copy = "Копіювати"
+comparison_details = "Докладніше"
+comparison_primary = "Основний"
+comparison_change_primary = "Змінити основний перекладач"
+comparison_empty = "Готово до порівняння"
+comparison_empty_subtitle = "Введіть текст вище та натисніть «Перекласти». Тут з'являться результати від %s служб перекладу."
 
 [main_window_history_bar]
 backward_tooltip = "Назад в історії перекладів"
@@ -65,6 +82,11 @@ search_images = "Шукати зображення"
 set_as_input = "Встановити як джерело"
 input_hint = "Введіть текст для перекладу..."
 output_hint = "Переклад з'явиться тут…"
+undo = "@common.undo"
+redo = "@common.redo"
+cut = "@common.cut"
+paste = "@common.paste"
+select_all = "@common.select_all"
 
 
 [main_window_main_menu]
@@ -89,6 +111,9 @@ auto_check_for_updates = "Автоматично перевіряти оновл
 check_for_updates = "Перевірити оновлення"
 about_qtranslate = "Про QTranslate"
 exit = "Вихід"
+layout_preset_comparison = "Порівняння"
+keep_on_top = "Тримати вікно поверх інших"
+stop_keeping_on_top = "Не тримати вікно поверх інших"
 
 [document_translation]
 title = "Переклад документа"
@@ -177,6 +202,14 @@ history_group = "Історія"
 enable_history = "Увімкнути історію перекладів"
 clear_history_on_exit = "Очищати історію під час закриття"
 clear_history_hint = "Коли цю опцію ввімкнено, збережені переклади безповоротно видаляються під час виходу з застосунку."
+selection_behavior = "Після виділення тексту"
+selection_behavior_off = "Вимкнено"
+selection_behavior_icon = "Показати значок перекладу"
+selection_behavior_translate = "Перекласти одразу"
+selection_behavior_read = "Перекласти й озвучити"
+selection_behavior_hint = "Виберіть, що має робити QTranslate після виділення тексту мишею в іншому застосунку."
+selection_read_aloud = "Озвучити"
+selection_read_original = "Оригінальний текст"
 
 [settings_appearance]
 language_group = "Мова"
@@ -224,6 +257,7 @@ fallback_font = "Резервний шрифт:"
 fallback_hint = "Резервний шрифт використовується для символів, які не може відобразити шрифт редактора."
 loading_fonts = "<Завантаження шрифтів...>"
 font_preview_text = "Фабрикуймо гідність, лящім щастям, генії, чиста бузкова хмара йде через ліс — 大きな茶色の狐が怠け者の犬を飛び越えた"
+automatic_fallback = "Автоматично (рекомендовано)"
 
 [settings_services]
 presets_group = "Активний пресет"
@@ -247,6 +281,23 @@ rename_preset_title = "Перейменувати пресет"
 rename_preset_prompt = "Введіть нову назву:"
 delete_preset_title = "Видалити пресет"
 delete_preset_confirm = "Видалити пресет «%s»?\nЦю дію неможливо скасувати."
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+translators_group = "Перекладачі"
+translator_primary = "Основний"
+translator_make_primary = "Зробити основним"
+translator_add = "Додати перекладача"
+translator_remove = "Видалити перекладача"
+translator_move_up = "Перемістити вгору"
+translator_move_down = "Перемістити вниз"
+translator_none = "Перекладачів не вибрано."
+translator_set_ready = "Порівняння використовує всі доступні перекладачі з цього набору."
+translator_set_needs_more = "Додайте ще один доступний перекладач, щоб використовувати Порівняння."
+translator_set_disabled = "Перекладачі вимкнено, тому Порівняння недоступне."
+no_comparison_services = "Немає інших доступних перекладачів"
+unavailable_suffix = "Недоступно"
+other_services_group = "Інші служби"
+automatic = "Автоматично"
 
 [settings_plugins]
 install_plugin = "Встановити плагін..."
@@ -348,6 +399,15 @@ recorder_hint = "Натисніть комбінацію клавіш, поті�
 recorder_modifier_hint = "Тепер натисніть букву, цифру або функціональну клавішу"
 recorder_hint_confirm = "Натисніть іншу комбінацію, щоб змінити · Esc для очищення"
 recorder_invalid_key = "Цю клавішу не можна використовувати як комбінацію"
+preset_label = "Пресет гарячих клавіш"
+preset_legacy = "Класичний QTranslate"
+preset_modern = "Сучасний"
+preset_custom = "Власний"
+show_main_group = "Показати головне вікно"
+shortcut_label = "Комбінація"
+change_button = "Змінити…"
+double_ctrl_label = "Подвійний Ctrl"
+double_ctrl_description = "Двічі натисніть Ctrl, щоб показати головне вікно"
 
 
 [settings_translation]
@@ -383,6 +443,8 @@ rewrite_style_casual = "Розмовний"
 rewrite_style_concise = "Лаконічний"
 rewrite_style_detailed = "Детальний"
 rewrite_style_simplified = "Спрощений"
+dict_auto_lookup_enabled = "Автоматично шукати переклади окремих слів"
+dict_auto_lookup_source_label = "Шукати:"
 
 [settings_languages]
 defaults_group = "Мови за замовчуванням"
@@ -451,6 +513,8 @@ close_behavior_hint    = "Визначає, що відбувається під
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION
 # ===================================================================
+layout_comparison_unavailable = "Виберіть щонайменше два перекладачі, щоб використовувати Порівняння."
+layout_comparison_configure = "Порівняння — Налаштувати перекладачі…"
 [plugin_config]
 title_format = "Налаштування — %s"
 required_fields_error_title = "Обов'язкові поля"
@@ -502,6 +566,8 @@ error_message = "Не вдалося виконати пошук зображе�
 open_tooltip = "Відкрити сторінку джерела в браузері"
 open_source = "Сторінка джерела"
 back = "Назад"
+previous = "Попереднє"
+next = "Наступне"
 
 [preset_selector]
 manage_tooltip  = "Керувати пресетами служб"
@@ -540,6 +606,7 @@ label_rewrite = "Переписаний текст"
 # ===================================================================
 # NOTIFICATIONS & ERRORS
 # ===================================================================
+placeholder = "Доступно після перекладу"
 [notifications]
 language_not_supported_format = "Мова '%s' не підтримується службою %s."
 tts_not_supported_format = "Синтез мовлення не підтримується службою %s."
@@ -616,6 +683,7 @@ image_search_ready = "Зображення знайдено."
 images_not_found = "Зображень для «%s» не знайдено."
 image_search_timeout = "Час очікування пошуку зображень минув."
 image_search_failed = "Помилка пошуку зображень: %s"
+comparison_needs_two_translators = "Для Порівняння потрібні два перекладачі. Показано класичний макет."
 
 [layout_compact]
 tab_input_tooltip = "Вихідний текст (%s)"

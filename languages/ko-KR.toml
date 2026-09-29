@@ -29,6 +29,15 @@ auto_detect = "자동 감지"
 # ===================================================================
 # MAIN APPLICATION WINDOW
 # ===================================================================
+undo = "실행 취소"
+redo = "다시 실행"
+cut = "잘라내기"
+paste = "붙여넣기"
+select_all = "모두 선택"
+new = "새로 만들기…"
+rename = "이름 바꾸기"
+delete = "삭제"
+search = "검색"
 
 [main_window]
 status_format = "사용 %s: %s → %s"
@@ -36,6 +45,15 @@ no_translator = "번역기 없음"
 drop_hint = "번역할 이미지나 문서를 드롭하세요"
 no_service_message = "설정된 번역 서비스가 없습니다."
 no_service_action = "서비스 설정 열기"
+comparison_loading = "번역 중..."
+comparison_unavailable = "사용할 수 없는 서비스"
+comparison_failure = "번역 실패"
+comparison_copy = "복사"
+comparison_details = "자세히"
+comparison_primary = "기본"
+comparison_change_primary = "기본 번역기 변경"
+comparison_empty = "비교 준비 완료"
+comparison_empty_subtitle = "위에 텍스트를 입력하고 번역을 선택하세요. %s개 번역 서비스의 결과가 여기에 표시됩니다."
 
 [main_window_history_bar]
 backward_tooltip = "번역 기록에서 뒤로 이동"
@@ -61,6 +79,11 @@ search_images = "이미지 검색"
 set_as_input = "입력문으로 설정"
 input_hint = "Enter the text to translate..."
 output_hint = "The translation appears here..."
+undo = "@common.undo"
+redo = "@common.redo"
+cut = "@common.cut"
+paste = "@common.paste"
+select_all = "@common.select_all"
 
 [main_window_main_menu]
 layout_presets = "레이아웃 프리셋"
@@ -84,6 +107,9 @@ auto_check_for_updates = "업데이트 자동 확인"
 check_for_updates = "업데이트 확인"
 about_qtranslate = "QTranslate 정보"
 exit = "종료"
+layout_preset_comparison = "비교"
+keep_on_top = "창 항상 위에 유지"
+stop_keeping_on_top = "창 항상 위에 유지 중지"
 
 [document_translation]
 title = "문서 번역"
@@ -169,6 +195,14 @@ history_group = "기록"
 enable_history = "번역 기록 사용"
 clear_history_on_exit = "앱 종료 시 기록 삭제"
 clear_history_hint = "이 옵션이 활성화되면 종료 시 저장된 번역이 영구적으로 삭제됩니다."
+selection_behavior = "텍스트를 선택한 후"
+selection_behavior_off = "끄기"
+selection_behavior_icon = "번역 아이콘 표시"
+selection_behavior_translate = "즉시 번역"
+selection_behavior_read = "번역하고 읽어주기"
+selection_behavior_hint = "다른 애플리케이션에서 마우스로 텍스트를 선택한 후 QTranslate가 수행할 동작을 선택하세요."
+selection_read_aloud = "읽어주기"
+selection_read_original = "원문 텍스트"
 
 [settings_appearance]
 language_group = "언어"
@@ -216,6 +250,7 @@ fallback_font = "대체 글꼴:"
 fallback_hint = "대체 글꼴은 에디터 글꼴이 표시할 수 없는 문자에 사용됩니다."
 loading_fonts = "<글꼴 불러오는 중...>"
 font_preview_text = "다람쥐 헌 쳇바퀴에 탑승됐다 ? 커다란 갈색 여우가 게으른 개 위로 뛰어넘었다"
+automatic_fallback = "자동 (권장)"
 
 [settings_services]
 presets_group = "활성 프리셋"
@@ -238,6 +273,24 @@ rename_preset_title = "프리셋 이름 변경"
 rename_preset_prompt = "새 이름을 입력하세요:"
 delete_preset_title = "프리셋 삭제"
 delete_preset_confirm = "\"%s\" 프리셋을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다."
+new_preset_btn = "@common.new"
+rename_preset_btn = "@common.rename"
+delete_preset_btn = "@common.delete"
+translators_group = "번역기"
+translator_primary = "기본"
+translator_make_primary = "기본으로 설정"
+translator_add = "번역기 추가"
+translator_remove = "번역기 제거"
+translator_move_up = "위로 이동"
+translator_move_down = "아래로 이동"
+translator_none = "선택된 번역기가 없습니다."
+translator_set_ready = "비교에서는 이 세트의 사용 가능한 모든 번역기를 사용합니다."
+translator_set_needs_more = "비교를 사용하려면 사용 가능한 번역기를 하나 더 추가하세요."
+translator_set_disabled = "번역기가 꺼져 있어 비교를 사용할 수 없습니다."
+no_comparison_services = "사용 가능한 다른 번역기 없음"
+unavailable_suffix = "사용 불가"
+other_services_group = "기타 서비스"
+automatic = "자동"
 
 [settings_plugins]
 install_plugin = "플러그인 설치..."
@@ -332,6 +385,15 @@ recorder_hint = "키 조합을 누른 후 확인을 클릭하세요 · 취소하
 recorder_modifier_hint = "이제 문자, 숫자 또는 기능 키를 누르세요"
 recorder_hint_confirm = "변경하려면 다른 조합을 누르세요 · 지우려면 Esc"
 recorder_invalid_key = "이 키는 단축키로 사용할 수 없습니다"
+preset_label = "단축키 프리셋"
+preset_legacy = "레거시 QTranslate"
+preset_modern = "모던"
+preset_custom = "사용자 지정"
+show_main_group = "메인 창 표시"
+shortcut_label = "단축키"
+change_button = "변경…"
+double_ctrl_label = "더블 Ctrl"
+double_ctrl_description = "메인 창을 표시하려면 Ctrl을 두 번 누르세요"
 
 [settings_translation]
 behavior_group = "동작"
@@ -366,6 +428,8 @@ rewrite_style_casual = "구어체"
 rewrite_style_concise = "간결하게"
 rewrite_style_detailed = "상세하게"
 rewrite_style_simplified = "쉬운 표현으로"
+dict_auto_lookup_enabled = "단일 단어 번역을 자동으로 검색"
+dict_auto_lookup_source_label = "검색 대상:"
 
 [settings_languages]
 defaults_group = "기본 언어"
@@ -433,6 +497,8 @@ close_behavior_hint = "× 버튼을 클릭했을 때의 동작을 설정합니�
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION
 # ===================================================================
+layout_comparison_unavailable = "비교를 사용하려면 최소 두 개의 번역기를 선택하세요."
+layout_comparison_configure = "비교 — 번역기 설정…"
 
 [plugin_config]
 title_format = "설정 ? %s"
@@ -485,6 +551,8 @@ error_message = "이미지 검색에 실패했습니다. 다시 시도해 주세
 open_tooltip = "브라우저에서 출처 페이지 열기"
 open_source = "출처 페이지"
 back = "뒤로"
+previous = "이전"
+next = "다음"
 
 [preset_selector]
 manage_tooltip = "서비스 프리셋 관리"
@@ -522,6 +590,7 @@ label_rewrite = "재작성"
 # ===================================================================
 # NOTIFICATIONS & ERRORS
 # ===================================================================
+placeholder = "번역 후 사용 가능"
 
 [notifications]
 language_not_supported_format = "%s는 '%s' 언어를 지원하지 않습니다."
@@ -599,6 +668,7 @@ image_search_ready = "이미지를 찾았습니다."
 images_not_found = "\"%s\"에 대한 이미지를 찾을 수 없습니다."
 image_search_timeout = "이미지 검색 시간 초과."
 image_search_failed = "이미지 검색 실패: %s"
+comparison_needs_two_translators = "비교에는 두 개의 번역기가 필요합니다. 클래식으로 표시합니다."
 
 [layout_compact]
 tab_input_tooltip = "원문 (%s)"
