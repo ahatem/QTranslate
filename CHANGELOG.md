@@ -9,6 +9,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-09-29
+
 ### Added
 - **System Services plugin.** Offline OCR, text-to-speech, and spell checking using each platform's own capabilities — no account, API key, or network access required. Windows and macOS ship fully self-contained; on Linux, OCR needs `tesseract`, TTS needs `espeak`/`espeak-ng`, and spell checking needs `enchant` or `hunspell` installed and on `PATH`
 - **Parallel translation comparison.** Configure a primary translator and one or more secondary translators as a translator set, and see every result side by side in the new Comparison layout — useful for catching an odd phrasing or checking one engine's output against another
@@ -307,7 +309,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-[Unreleased]: https://github.com/ahatem/QTranslate/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/ahatem/QTranslate/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/ahatem/QTranslate/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/ahatem/QTranslate/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/ahatem/QTranslate/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/ahatem/QTranslate/compare/v1.2.1...v1.3.0
