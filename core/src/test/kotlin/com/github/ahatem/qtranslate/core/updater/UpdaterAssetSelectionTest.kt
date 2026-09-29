@@ -107,4 +107,19 @@ class UpdaterAssetSelectionTest {
             "Expected the release page, got ${available.info.downloadUrl}"
         )
     }
+
+    @Test
+    fun `release candidate is offered its stable release`() = runTest {
+        val result = updaterReturning(releaseJson(tag = "v9.9.9"))
+            .checkForUpdate(currentVersion = "9.9.9-rc.1")
+        val available = result.get() as UpdateCheckResult.UpdateAvailable
+        assertTrue(available.info.versionTag == "v9.9.9")
+    }
+
+    @Test
+    fun `stable installation is not offered a same-base prerelease`() = runTest {
+        val result = updaterReturning(releaseJson(tag = "v9.9.9-rc.1"))
+            .checkForUpdate(currentVersion = "9.9.9")
+        assertTrue(result.get() is UpdateCheckResult.AlreadyUpToDate)
+    }
 }

@@ -1,7 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.quicktranslate
 
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
-import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
@@ -12,13 +11,18 @@ import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorPopupButton
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.*
-import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentMover
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentResizer
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.FloatingPopupBehavior
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.InlineLoadingBar
-import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DefinitionStrip
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
+import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
+import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoard
+import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoardState
+import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderPresentation
+import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderRole
+import com.github.ahatem.qtranslate.ui.swing.main.output.ProviderStatus
+import com.github.ahatem.qtranslate.ui.swing.main.output.TranslationProviderState
 import java.awt.*
 import java.awt.event.*
 import java.util.concurrent.atomic.AtomicBoolean
@@ -69,14 +73,6 @@ class QuickTranslateDialog(
         get() = UIManager.getColor("Component.focusedBorderColor")
             ?: UIManager.getColor("Component.accentColor")
             ?: borderColor
-    private val toolbarSelectedBg: Color? get() = UIManager.getColor("Button.toolbar.selectedBackground")
-    private val toolbarSelectedFg: Color? get() = UIManager.getColor("Button.toolbar.selectedForeground")
-    private val labelFg: Color? get() = UIManager.getColor("Label.foreground")
-
-    /** A field, not an inline lambda, so it can be detached when the window goes away. */
-    private val themeListener = java.beans.PropertyChangeListener { event ->
-        if (event.propertyName == "lookAndFeel") SwingUtilities.invokeLater { refreshTheme() }
-    }
 
     /** Panels carrying a themed divider, kept so it can be redrawn in the new theme's colour. */
     private val dividedPanels = mutableListOf<Pair<JPanel, () -> javax.swing.border.Border>>()
@@ -122,30 +118,26 @@ class QuickTranslateDialog(
     private var isRenderingLanguages = false
     private val translatorComboBox = TranslatorPopupButton(iconManager, onTranslatorSelected)
 
-    private val pinButton = createButtonWithIcon(iconManager, Icons.PIN, 14)
-    private val listenButton = createButtonWithIcon(iconManager, Icons.SPEAK, 14)
-    private val copyButton = createButtonWithIcon(iconManager, Icons.COPY, 14)
-    private val closeButton = createButtonWithIcon(iconManager, Icons.CLOSE, 16)
+    private val pinButton = createToolbarButton(iconManager, Icons.PIN, 14)
+    private val listenButton = createToolbarButton(iconManager, Icons.SPEAK, 14)
+    private val copyButton = createToolbarButton(iconManager, Icons.COPY, 14)
+    private val closeButton = createToolbarButton(iconManager, Icons.CLOSE, 16)
 
-    // content
-    private val outputTextArea = AdvancedTextPane(
-        onTextChanged = {},
-        onTranslateRequest = {},
-        onListenRequest = { onListen() }
-    ).apply {
-        isEditable = false
-        border = EmptyBorder(6, 6, 6, 6)
-    }
-
+    // content: one result viewport holding the primary provider, its definition,
+    // and every comparison in a single column.
     private val loadingBar = InlineLoadingBar()
-    private val definitionStrip = DefinitionStrip()
+    private val quickBoard = CompareBoard(
+        primarySelector = translatorComboBox,
+        iconManager = iconManager
+    )
+    private val resultsView = QuickTranslateResultsView(quickBoard)
 
     private val topPanel = createTopPanel()
 
     // sizing/measuring
     private val measurePane: JTextPane by lazy {
         JTextPane().apply {
-            editorKit = outputTextArea.editorKit
+            editorKit = quickBoard.primaryProviderView.textPaneForTest().editorKit
             isEditable = false
             putClientProperty("JEditorPane.honorDisplayProperties", true)
         }
@@ -194,8 +186,7 @@ class QuickTranslateDialog(
         }
     private var wasManuallyMoved = false
     private var currentConfig: DialogConfig? = null
-
-    private var lastRenderedText: String? = null
+    private var comparisonSizingEnabled = false
 
     /** True while the popup has been asked for but is waiting for something worth showing. */
     private var pendingShow = false
@@ -224,23 +215,8 @@ class QuickTranslateDialog(
         val mainPanel = JPanel(BorderLayout())
         wrapperPanel.add(mainPanel, BorderLayout.CENTER)
 
-        val textScrollPane = JScrollPane(outputTextArea).apply {
-            // Styled rather than cleared: `borderWidth` addresses the look and feel's own border,
-            // so it is reapplied on a theme change and there is nothing to restore. Replacing the
-            // border outright would leave this style with no border to act on.
-            putClientProperty(
-                FlatClientProperties.STYLE,
-                "borderWidth: 0; focusWidth: 0; innerFocusWidth: 0; innerOutlineWidth: 0;"
-            )
-            // JViewport rejects any border but null, and never installs one of its own.
-            viewport.border = null
-
-            verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
-            horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-        }
-
-        // Header, then the hairline loading bar, then the text. The bar reserves its height even
-        // when idle, so a reload does not nudge the translation down and back up again.
+        // Header, then the hairline loading bar, then one bounded viewport containing the primary
+        // result, its definition, and comparison cards.
         mainPanel.add(
             JPanel(BorderLayout()).apply {
                 isOpaque = false
@@ -249,12 +225,10 @@ class QuickTranslateDialog(
             },
             BorderLayout.NORTH
         )
-        mainPanel.add(textScrollPane, BorderLayout.CENTER)
-        // Below the translation, above nothing: an aside, not part of the result.
-        mainPanel.add(definitionStrip, BorderLayout.SOUTH)
+        mainPanel.add(resultsView, BorderLayout.CENTER)
 
         setupWindowBehavior(topPanel)
-        UIManager.addPropertyChangeListener(themeListener)
+        popup.installTheme(::refreshTheme)
         updatePinButtonStyle(isPinned)
     }
 
@@ -267,12 +241,6 @@ class QuickTranslateDialog(
             if (state.isVisible) {
                 currentConfig = state.config
                 wasManuallyMoved = false
-
-                // ensure correct font before rendering or measuring text
-                outputTextArea.updateFontsAndRescanDocument(
-                    newPrimary = state.config.font.toFont(),
-                    newFallback = state.config.fallbackFont.toFont()
-                )
 
                 updateContent(state)
 
@@ -319,14 +287,6 @@ class QuickTranslateDialog(
             popup.noteActivity()
             toFront()
         }
-
-        // only refresh font when user changed it
-        if (!isResizing && !isDragging) {
-            outputTextArea.updateFontsAndRescanDocument(
-                newPrimary = state.config.font.toFont(),
-                newFallback = state.config.fallbackFont.toFont()
-            )
-        }
     }
 
     /** Sizes the popup for the text it is about to show, then puts it on screen. */
@@ -339,14 +299,15 @@ class QuickTranslateDialog(
         showDialog()
     }
 
-    // Full content sync
+    // Full content sync. Sibling provider completion only refreshes that provider in
+    // place; the popup size is left alone and the result viewport scrolls instead.
     private fun updateContent(state: QuickTranslateDialogState) {
         this.isPinned = state.isPinned
         // Only while something is already on screen: before that the popup is withheld and the
         // standalone loading indicator covers the wait.
         loadingBar.isLoading = state.isLoading && isVisible
-        // Only for single words; the state carries it empty otherwise, so the strip hides itself.
-        definitionStrip.render(state.definition)
+        comparisonSizingEnabled = state.comparisonsEnabled
+        renderProviders(state)
 
         // Guarded: assigning a combo's selection fires its listener, which would ask for another
         // translation on every render and loop.
@@ -403,12 +364,68 @@ class QuickTranslateDialog(
 
         listenButton.isEnabled = playing || (state.actionsState.canListen && !state.isLoading)
         copyButton.isEnabled = state.actionsState.canCopy && !state.isLoading
+    }
 
-        val textToRender = if (state.isLoading) state.strings.loadingText else state.translatedText
-        if (lastRenderedText != textToRender) {
-            lastRenderedText = textToRender
-            outputTextArea.render(textToRender, emptyList(), false)
+    private fun renderProviders(state: QuickTranslateDialogState) {
+        val selectedId = state.translatorSelectorState.selectedTranslatorId
+        val primaryStatus = when {
+            state.translatedText.isNotBlank() -> ProviderStatus.SUCCESS
+            state.isLoading -> ProviderStatus.LOADING
+            else -> ProviderStatus.PLACEHOLDER
         }
+        val primaryState = TranslationProviderState(
+            serviceId = selectedId ?: "",
+            serviceName = state.primaryProviderInfo?.name ?: state.primaryProviderName,
+            iconPath = state.primaryProviderInfo?.iconPath,
+            role = ProviderRole.PRIMARY,
+            presentation = ProviderPresentation.QUICK,
+            status = primaryStatus,
+            text = state.translatedText,
+            loadingText = state.strings.loadingText,
+            failureText = state.comparisonFailureText,
+            copyLabel = state.comparisonCopyLabel,
+            listenLabel = state.strings.listenTooltip,
+            stopLabel = state.strings.stopListeningTooltip,
+            isTtsPlaying = state.isTtsPlaying,
+            primaryLabel = state.primaryBadge,
+            placeholderTitle = state.comparisonFailureText,
+            definition = state.definition,
+            fontConfig = state.config.font,
+            fallbackFontConfig = state.config.fallbackFont,
+            selectorState = TranslatorSelectorState(
+                availableTranslators = state.translatorSelectorState.availableTranslators,
+                selectedTranslatorId = selectedId,
+                isLoading = state.isLoading
+            ),
+            onCopy = { text -> text.copyToClipboard() },
+            onListen = { onListen() },
+            onStop = { onStopListening() }
+        )
+        val secondaries = state.comparisonResults.map { result ->
+            val info = state.comparisonProviderInfos[result.serviceId]
+            TranslationProviderState(
+                serviceId = result.serviceId,
+                serviceName = info?.name ?: result.serviceName ?: state.comparisonUnavailableText,
+                iconPath = info?.iconPath,
+                role = ProviderRole.SECONDARY,
+                presentation = ProviderPresentation.QUICK,
+                status = when (result.status) {
+                    ComparisonStatus.LOADING -> ProviderStatus.LOADING
+                    ComparisonStatus.SUCCESS -> ProviderStatus.SUCCESS
+                    ComparisonStatus.FAILURE -> ProviderStatus.FAILURE
+                },
+                text = result.text,
+                errorMessage = result.errorMessage,
+                loadingText = state.comparisonLoadingText,
+                failureText = state.comparisonFailureText,
+                copyLabel = state.comparisonCopyLabel,
+                detailsLabel = state.comparisonDetailsLabel,
+                fontConfig = state.config.font,
+                fallbackFontConfig = state.config.fallbackFont,
+                onCopy = { text -> text.copyToClipboard() }
+            )
+        }
+        quickBoard.render(CompareBoardState(primary = primaryState, secondaries = secondaries))
     }
 
     private fun handlePinState(state: QuickTranslateDialogState) {
@@ -425,18 +442,11 @@ class QuickTranslateDialog(
     }
 
     private fun updatePinButtonStyle(pinned: Boolean) {
-        pinButton.putClientProperty("JButton.buttonType", "toolBarButton")
-        pinButton.putClientProperty("JButton.selected", pinned)
+        pinButton.isSelected = pinned
 
         if (pinned) {
-            pinButton.isContentAreaFilled = true
-            pinButton.background = toolbarSelectedBg
-            pinButton.foreground = toolbarSelectedFg ?: labelFg
             rootPane.border = BorderFactory.createLineBorder(accentBorderColor, PINNED_BORDER_WIDTH)
         } else {
-            pinButton.isContentAreaFilled = false
-            pinButton.background = null
-            pinButton.foreground = labelFg
             val coloredBorderWidth = 2
             val emptyBorderWidth = PINNED_BORDER_WIDTH - coloredBorderWidth
             rootPane.border = BorderFactory.createCompoundBorder(
@@ -449,7 +459,6 @@ class QuickTranslateDialog(
                 )
             )
         }
-        pinButton.repaint()
     }
 
     private fun applyTransparency() {
@@ -521,18 +530,24 @@ class QuickTranslateDialog(
         // Bounded by a readable line length first and the screen second. A share of the screen
         // alone stretches one sentence across half a wide monitor, which is hard to read for the
         // same reason a book is not printed edge to edge.
+        val primaryPane = quickBoard.primaryProviderView.textPaneComponent
         val maxWidth = PopupSizing.maxTextWidth(
-            measurePane.getFontMetrics(outputTextArea.font),
+            measurePane.getFontMetrics(primaryPane.font),
             screenBounds
         )
-        val maxHeight = PopupSizing.maxHeight(screenBounds)
+        val maxHeight = if (comparisonSizingEnabled) {
+            PopupSizing.maxComparisonHeight(screenBounds)
+        } else {
+            PopupSizing.maxHeight(screenBounds)
+        }
 
-        measurePane.font = outputTextArea.font
+        measurePane.font = primaryPane.font
         if (measurePane.text != text) measurePane.text = text
         measurePane.size = Dimension(maxWidth, Int.MAX_VALUE)
 
         val textWidth = measurePane.preferredSize.width + 40
-        val textHeight = measurePane.preferredSize.height + 30
+        val primaryTextHeight = measurePane.preferredSize.height + 30
+        val contentHeight = max(primaryTextHeight, resultsView.preferredSize.height)
 
         val borderSize = RESIZE_HANDLE_SIZE * 2
         val finalWidth = (textWidth + borderSize)
@@ -540,7 +555,7 @@ class QuickTranslateDialog(
             .coerceAtLeast(minimumSize.width)
 
         val nonTextHeight = topPanel.preferredSize.height + 20
-        val finalHeight = (textHeight + nonTextHeight + borderSize)
+        val finalHeight = (contentHeight + nonTextHeight + borderSize)
             .coerceAtMost(maxHeight)
             .coerceAtLeast(minimumSize.height)
 
@@ -624,41 +639,6 @@ class QuickTranslateDialog(
         }
         closeButton.addActionListener { onDismiss() }
 
-        listOf(pinButton, listenButton, copyButton).forEach { b ->
-            b.putClientProperty("JButton.buttonType", "toolBarButton")
-        }
-
-        closeButton.apply {
-            isFocusable = false
-            putClientProperty("JButton.buttonType", "toolBarButton")
-            addMouseListener(object : MouseAdapter() {
-                override fun mouseEntered(e: MouseEvent) {
-                    background = UIManager.getColor("InternalFrame.closeHoverBackground")
-                    foreground = UIManager.getColor("InternalFrame.closeHoverForeground")
-                    isContentAreaFilled = true
-                    isBorderPainted = false
-                }
-
-                override fun mouseExited(e: MouseEvent) {
-                    isContentAreaFilled = false
-                    foreground = null
-                }
-
-                override fun mousePressed(e: MouseEvent) {
-                    background = UIManager.getColor("InternalFrame.closePressedBackground")
-                    foreground = UIManager.getColor("InternalFrame.closePressedForeground")
-                    isContentAreaFilled = true
-                }
-
-                override fun mouseReleased(e: MouseEvent) {
-                    if (contains(e.point)) {
-                        background = UIManager.getColor("InternalFrame.closeHoverBackground")
-                        foreground = UIManager.getColor("InternalFrame.closeHoverForeground")
-                    }
-                }
-            })
-        }
-
         val separator = JPanel().apply {
             border = BorderFactory.createMatteBorder(0, 0, 0, 1, borderColor)
             dividedPanels += this to { BorderFactory.createMatteBorder(0, 0, 0, 1, borderColor) }
@@ -672,8 +652,6 @@ class QuickTranslateDialog(
             add(sourceLanguageCombo)
             add(swapButton)
             add(targetLanguageCombo)
-            add(Box.createRigidArea(Dimension(4, 0)))
-            add(translatorComboBox)
         }
 
         val rightPanel = JPanel().apply {
@@ -741,13 +719,6 @@ class QuickTranslateDialog(
                 resizeSaveTimer?.stop()
                 resizeSaveTimer = Timer(RESIZE_SAVE_DEBOUNCE_MS) {
                     onSaveSize(size.toSize())
-                    // rescan fonts/doc after resize
-                    currentConfig?.let { cfg ->
-                        outputTextArea.updateFontsAndRescanDocument(
-                            newPrimary = cfg.font.toFont(),
-                            newFallback = cfg.fallbackFont.toFont()
-                        )
-                    }
                     (it.source as Timer).stop()
                 }.apply { isRepeats = false; start() }
 
@@ -798,7 +769,7 @@ class QuickTranslateDialog(
             override fun windowClosing(e: WindowEvent) = onDismiss()
             override fun windowClosed(e: WindowEvent) {
                 uninstallAwtMouseListener()
-                UIManager.removePropertyChangeListener(themeListener)
+                popup.uninstallTheme()
             }
         })
 

@@ -57,6 +57,9 @@ object PopupSizing {
 
     fun maxHeight(screen: Rectangle): Int = (screen.height * MAX_HEIGHT_FRACTION).toInt()
 
+    /** Comparison popups need room for a feed, but still leave the desktop visible. */
+    fun maxComparisonHeight(screen: Rectangle): Int = (screen.height * 0.70).toInt()
+
     /** Scaled, because a fixed pixel floor is a different size on every display. */
     fun minWidth(): Int = UIScale.scale(MIN_WIDTH)
 

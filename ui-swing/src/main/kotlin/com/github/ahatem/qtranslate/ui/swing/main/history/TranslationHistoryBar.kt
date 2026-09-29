@@ -71,7 +71,24 @@ class TranslationHistoryBar(
 
     override fun render(state: TranslationHistoryBarState) {
         statusLabel.text = state.statusText
+        renderControls(state)
+    }
 
+    /**
+     * Hides only the redundant status sentence, keeping Back, Forward, image and
+     * document controls untouched. Used by the Comparison layout, where the
+     * language selectors and the primary provider header already show the same
+     * information.
+     */
+    fun setStatusVisible(visible: Boolean) {
+        if (statusLabel.isVisible != visible) {
+            statusLabel.isVisible = visible
+            revalidate()
+            repaint()
+        }
+    }
+
+    private fun renderControls(state: TranslationHistoryBarState) {
         backwardButton.isEnabled = !state.isLoading && state.canGoBackward
         forwardButton.isEnabled = !state.isLoading && state.canGoForward
         imageTranslateButton.isEnabled = !state.isLoading

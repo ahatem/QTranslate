@@ -51,6 +51,12 @@ class SettingsDialog(
      * it renders — not whatever was available when the dialog was constructed.
      */
     private val availableLanguages: () -> List<com.github.ahatem.qtranslate.api.language.LanguageCode> = { emptyList() },
+    /**
+     * Ids of currently usable translators, for Comparison eligibility.
+     * Evaluated lazily so [LayoutPanel] always sees the latest registry —
+     * not whatever was available when the dialog was constructed.
+     */
+    private val availableTranslatorIds: () -> List<String> = { emptyList() },
     /** Invoked just before the hotkey recorder opens; should disable global hotkeys. */
     private val pauseGlobalHotkeys:  (() -> Unit)? = null,
     /** Invoked after the recorder closes; should restore the global hotkey state. */
@@ -76,7 +82,7 @@ class SettingsDialog(
      * event thread. Blocking there to read one value would freeze the dialog opening; the
      * page is built lazily on first navigation, by which time this has long since arrived.
      */
-    @Volatile private var proxyPassword: String = ""
+    private var proxyPassword = StagedSecret()
 
 
     /** Held as a field so it can be removed again — a lambda passed inline never can be. */
@@ -251,7 +257,12 @@ class SettingsDialog(
     /** Fetches the stored proxy password so the Network page can show it when opened. */
     private fun loadProxyPassword() {
         val secrets = appSecrets ?: return
-        scope.launch { proxyPassword = secrets.get(NetworkConfig.proxyPasswordKey).orEmpty() }
+        scope.launch {
+            val value = secrets.get(NetworkConfig.proxyPasswordKey).orEmpty()
+            if (!proxyPassword.hasPendingChanges()) {
+                proxyPassword = StagedSecret(value)
+            }
+        }
     }
 
     init {
@@ -846,6 +857,15 @@ class SettingsDialog(
 
     // ── Panel management ──────────────────────────────────────────────────────
 
+    /**
+     * Jumps straight to Services & Presets.
+     *
+     * The one external navigation entry point this dialog offers, for callers outside it that
+     * have a specific reason to send the user to that page -- today, Comparison's unavailable
+     * state telling the user where to go set up a second translator.
+     */
+    fun showServicesPage() = selectPage(label("services"))
+
     /** Moves the sidebar selection to [pageLabel], which in turn shows its panel. */
     private fun selectPage(pageLabel: String) {
         for (row in 0 until tree.rowCount) {
@@ -905,7 +925,7 @@ class SettingsDialog(
             )
 
         label("services") ->
-            ServicesPanel(settingsStore, pluginManager, localizationManager, scope)
+            ServicesPanel(settingsStore, pluginManager.activeServices, localizationManager, scope)
 
         label("plugins") ->
             PluginsPanel(iconManager, pluginManager, localizationManager, scope)
@@ -920,7 +940,7 @@ class SettingsDialog(
             LanguagesPanel(settingsStore, localizationManager, availableLanguages)
 
         label("layout") ->
-            LayoutPanel(settingsStore, localizationManager)
+            LayoutPanel(settingsStore, localizationManager, availableTranslatorIds, onOpenServicesSettings = ::showServicesPage)
 
         label("popups") ->
             PopupsPanel(settingsStore, localizationManager)
@@ -929,12 +949,11 @@ class SettingsDialog(
             NetworkPanel(
                 settingsStore,
                 localizationManager,
-                proxyPassword = appSecrets?.let { secrets ->
+                proxyPassword = appSecrets?.let {
                     object : NetworkPanel.PasswordAccess {
-                        override fun read(): String = proxyPassword
+                        override fun read(): String = proxyPassword.read()
                         override fun write(value: String) {
-                            proxyPassword = value
-                            scope.launch { secrets.put(NetworkConfig.proxyPasswordKey, value) }
+                            proxyPassword.stage(value)
                         }
                     }
                 }
@@ -957,7 +976,7 @@ class SettingsDialog(
         applyButton = JButton(localizationManager.getString("common.apply")).apply {
             mnemonic = KeyEvent.VK_A
             isEnabled = false
-            addActionListener { settingsStore.dispatch(SettingsIntent.SaveChanges) }
+            addActionListener { onApply() }
         }
         val resetButton = JButton(
             localizationManager.getString("settings_dialog.reset_defaults_button")
@@ -987,7 +1006,7 @@ class SettingsDialog(
                     val baseTitle = localizationManager.getString("settings_dialog.title")
                     title = if (state.isDirty) "● $baseTitle" else baseTitle
 
-                    applyButton.isEnabled = state.isDirty && !state.isSaving
+                    updateApplyButton(state)
 
                     currentPanelName?.let { name ->
                         val panel = panelCache[name]
@@ -1004,38 +1023,89 @@ class SettingsDialog(
     // ── Actions ───────────────────────────────────────────────────────────────
 
     private fun onOk() {
-        if (!settingsStore.state.value.isDirty) {
+        if (!settingsStore.state.value.isDirty && !proxyPassword.hasPendingChanges()) {
             dispose(); return
         }
 
         okButton.isEnabled = false
         okButton.text = localizationManager.getString("settings_dialog.saving")
-        settingsStore.dispatch(SettingsIntent.SaveChanges)
+        if (settingsStore.state.value.isDirty) settingsStore.dispatch(SettingsIntent.SaveChanges)
 
         scope.launch {
-            val event = settingsStore.events
-                .filter { it is SettingsEvent.ShowMessage }
-                .first() as SettingsEvent.ShowMessage
-
+            if (settingsStore.state.value.isDirty) {
+                val event = settingsStore.events
+                    .filter { it is SettingsEvent.ShowMessage }
+                    .first() as SettingsEvent.ShowMessage
+                if (event.type == NotificationType.ERROR) {
+                    withContext(Dispatchers.Swing) {
+                        showSaveError(event.message)
+                        okButton.isEnabled = true
+                        okButton.text = localizationManager.getString("common.ok")
+                    }
+                    return@launch
+                }
+            }
+            val error = persistPendingProxyPassword()
             withContext(Dispatchers.Swing) {
-                if (event.type != NotificationType.ERROR) {
+                if (error == null) {
                     dispose()
                 } else {
+                    showSaveError(error.message ?: localizationManager.getString("settings_dialog.save_failed_title"))
                     okButton.isEnabled = true
                     okButton.text = localizationManager.getString("common.ok")
-                    JOptionPane.showMessageDialog(
-                        this@SettingsDialog,
-                        event.message,
-                        localizationManager.getString("settings_dialog.save_failed_title"),
-                        JOptionPane.ERROR_MESSAGE
-                    )
                 }
             }
         }
     }
 
+    private suspend fun persistPendingProxyPassword(): Throwable? {
+        val secrets = appSecrets ?: return null
+        return proxyPassword.persist { value -> secrets.put(NetworkConfig.proxyPasswordKey, value) }
+    }
+
+    private fun updateApplyButton(state: SettingsState = settingsStore.state.value) {
+        applyButton.isEnabled = (state.isDirty || proxyPassword.hasPendingChanges()) && !state.isSaving
+    }
+
+    private fun onApply() {
+        if (!settingsStore.state.value.isDirty && !proxyPassword.hasPendingChanges()) return
+        applyButton.isEnabled = false
+        if (settingsStore.state.value.isDirty) settingsStore.dispatch(SettingsIntent.SaveChanges)
+        scope.launch {
+            if (settingsStore.state.value.isDirty) {
+                val event = settingsStore.events
+                    .filter { it is SettingsEvent.ShowMessage }
+                    .first() as SettingsEvent.ShowMessage
+                if (event.type == NotificationType.ERROR) {
+                    withContext(Dispatchers.Swing) {
+                        showSaveError(event.message)
+                        updateApplyButton()
+                    }
+                    return@launch
+                }
+            }
+            val error = persistPendingProxyPassword()
+            withContext(Dispatchers.Swing) {
+                if (error != null) {
+                    showSaveError(error.message ?: localizationManager.getString("settings_dialog.save_failed_title"))
+                }
+                updateApplyButton()
+            }
+        }
+    }
+
+    private fun showSaveError(message: String) {
+        JOptionPane.showMessageDialog(
+            this,
+            message,
+            localizationManager.getString("settings_dialog.save_failed_title"),
+            JOptionPane.ERROR_MESSAGE
+        )
+    }
+
     private fun cancelAndClose() {
         settingsStore.dispatch(SettingsIntent.CancelChanges)
+        proxyPassword.discard()
         dispose()
     }
 

@@ -51,8 +51,10 @@ class HandleTextToSpeechUseCase(
         textSource: TextSource,
         textOverride: String?,
         languageOverride: LanguageCode? = null,
-        onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
+        onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit,
+        requestStillCurrent: () -> Boolean = { true }
     ) {
+        if (!requestStillCurrent()) return
         val textToSynthesize = textOverride ?: getTextFromSource(currentState, textSource)
         // AUTO is not a language a TTS service can speak, so it falls through to the panel's
         // language rather than being handed over as-is.
@@ -107,6 +109,10 @@ class HandleTextToSpeechUseCase(
 
         result
             .onOk { response ->
+                if (!requestStillCurrent()) {
+                    logger.debug("TTS result discarded because its request is no longer current")
+                    return@onOk
+                }
                 when (val audio = response.audio) {
                     is TTSAudio.Bytes -> {
                         logger.info("TTS successful — playing ${audio.data.size} bytes (${audio.format})")
@@ -116,6 +122,7 @@ class HandleTextToSpeechUseCase(
                     }
 
                     is TTSAudio.StreamUrl -> {
+                        if (!requestStillCurrent()) return@onOk
                         logger.info("TTS returned stream URL — downloading audio")
                         onStatusUpdate(StatusCode.DownloadingAudio, NotificationType.INFO, false)
 
@@ -125,6 +132,7 @@ class HandleTextToSpeechUseCase(
                             }.getOrNull()
                         }
 
+                        if (!requestStillCurrent()) return@onOk
                         if (bytes == null || bytes.isEmpty()) {
                             logger.error("Failed to download audio stream from ${audio.url}")
                             onStatusUpdate(StatusCode.AudioDownloadFailed, NotificationType.ERROR, true)

@@ -3,6 +3,7 @@
 package buildsrc.convention
 
 import org.gradle.api.tasks.testing.logging.TestLogEvent
+import org.gradle.language.jvm.tasks.ProcessResources
 
 plugins {
     // Apply the Kotlin JVM plugin to add support for Kotlin in JVM projects.
@@ -14,7 +15,7 @@ kotlin {
     jvmToolchain(21)
 
     compilerOptions {
-        // Target Java 11 bytecode — the output JAR runs on Java 11+.
+        // Keep the public plugin API's bytecode at Java 11; release dependencies require Java 17.
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
 }
@@ -22,6 +23,21 @@ kotlin {
 tasks.withType<JavaCompile>().configureEach {
     sourceCompatibility = "11"
     targetCompatibility = "11"
+}
+
+tasks.named<ProcessResources>("processResources") {
+    from(rootProject.file("LICENSE")) {
+        into("META-INF")
+    }
+    from(rootProject.file("NOTICE.md")) {
+        into("META-INF")
+    }
+    from(rootProject.file("LICENSES")) {
+        into("META-INF/LICENSES")
+    }
+    from(rootProject.file("THIRD_PARTY_LICENSES")) {
+        into("META-INF/THIRD_PARTY_LICENSES")
+    }
 }
 
 tasks.withType<Test>().configureEach {

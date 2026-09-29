@@ -109,39 +109,45 @@ class SettingsStore(
             SettingsIntent.CancelChanges     -> handleCancelChanges()
             SettingsIntent.ResetToDefaults   -> handleResetToDefaults()
 
-            // Quick actions — update working copy then trigger save
+            // Quick actions persist only their scoped update. A settings dialog may have a
+            // separate dirty draft that must remain uncommitted.
             is SettingsIntent.ToggleSetting  -> {
-                applyWorkingUpdate(intent.update(_state.value.workingConfiguration))
-                launchSave()
+                launchScopedSave(intent.update, intent.onSuccess)
             }
 
-            // Preset operations — delegated to PresetManager, auto-save after
+            // Preset operations update the settings draft and wait for Apply/OK.
             is SettingsIntent.SetActivePreset ->
                 presetManager.setActivePreset(_state.value.workingConfiguration, intent.presetId)
-                    .also { launchSave() }
 
             is SettingsIntent.UpdateServiceInActivePreset ->
                 presetManager.updateServiceInActivePreset(_state.value.workingConfiguration, intent)
-                    .also { launchSave() }
+
+            is SettingsIntent.AddTranslatorToActivePreset ->
+                presetManager.addTranslator(_state.value.workingConfiguration, intent)
+
+            is SettingsIntent.RemoveTranslatorFromActivePreset ->
+                presetManager.removeTranslator(_state.value.workingConfiguration, intent)
+
+            is SettingsIntent.MoveTranslatorInActivePreset ->
+                presetManager.moveTranslator(_state.value.workingConfiguration, intent)
+
+            is SettingsIntent.PromoteTranslatorToPrimary ->
+                presetManager.promoteTranslatorToPrimary(_state.value.workingConfiguration, intent)
 
             is SettingsIntent.CreatePreset ->
                 presetManager.createPreset(_state.value.workingConfiguration, intent.name)
-                    .also { launchSave() }
 
             is SettingsIntent.DeletePreset ->
                 presetManager.deletePreset(_state.value.workingConfiguration, intent.presetId)
-                    .also { launchSave() }
 
             is SettingsIntent.RenamePreset ->
                 presetManager.renamePreset(_state.value.workingConfiguration, intent.presetId, intent.newName)
-                    .also { launchSave() }
 
             is SettingsIntent.AddTranslationRule -> {
                 val updated = _state.value.workingConfiguration.copy(
                     translationRules = _state.value.workingConfiguration.translationRules + intent.rule
                 )
                 applyWorkingUpdate(updated)
-                launchSave()
             }
 
             is SettingsIntent.RemoveTranslationRule -> {
@@ -149,7 +155,6 @@ class SettingsStore(
                     translationRules = _state.value.workingConfiguration.translationRules - intent.rule
                 )
                 applyWorkingUpdate(updated)
-                launchSave()
             }
         }
     }
@@ -257,5 +262,76 @@ class SettingsStore(
                 )
             }
         }
+    }
+
+    /** Persists an external quick action without committing an unrelated settings draft. */
+    private fun launchScopedSave(
+        update: (Configuration) -> Configuration,
+        onSuccess: (Configuration) -> Unit
+    ) {
+        scope.launch {
+            saveMutex.withLock { performScopedSave(update, onSuccess, notify = true) }
+        }
+    }
+
+    /**
+     * Same persistence as [SettingsIntent.ToggleSetting], but suspends until the write
+     * completes instead of firing on [scope] and returning immediately.
+     *
+     * For a caller that must know the write finished before moving on, such as application
+     * shutdown persisting the final window bounds, rather than racing an independent
+     * [scope]-launched save.
+     *
+     * @return true if the configuration was persisted, false on failure.
+     */
+    suspend fun persistScopedUpdateAndAwait(update: (Configuration) -> Configuration): Boolean =
+        saveMutex.withLock { performScopedSave(update, onSuccess = {}, notify = false) }
+
+    private suspend fun performScopedSave(
+        update: (Configuration) -> Configuration,
+        onSuccess: (Configuration) -> Unit,
+        notify: Boolean
+    ): Boolean {
+        val current = _state.value
+        val configToSave = update(current.originalConfiguration)
+        logger.info("Saving scoped configuration update...")
+        _state.update { it.copy(isSaving = true) }
+        return settingsRepository.updateConfiguration(configToSave).fold(
+            success = {
+                _state.update { current ->
+                    val workingConfiguration = if (current.isDirty) {
+                        update(current.workingConfiguration)
+                    } else {
+                        configToSave
+                    }
+                    current.copy(
+                        originalConfiguration = configToSave,
+                        workingConfiguration = workingConfiguration,
+                        isDirty = workingConfiguration != configToSave,
+                        isSaving = false
+                    )
+                }
+                onSuccess(configToSave)
+                if (notify) {
+                    _eventChannel.send(
+                        SettingsEvent.ShowMessage("Settings saved", NotificationType.SUCCESS)
+                    )
+                }
+                true
+            },
+            failure = { error ->
+                logger.error("Failed to save configuration: ${error.message}")
+                _state.update { it.copy(isSaving = false) }
+                if (notify) {
+                    _eventChannel.send(
+                        SettingsEvent.ShowMessage(
+                            "Failed to save settings: ${error.message}",
+                            NotificationType.ERROR
+                        )
+                    )
+                }
+                false
+            }
+        )
     }
 }

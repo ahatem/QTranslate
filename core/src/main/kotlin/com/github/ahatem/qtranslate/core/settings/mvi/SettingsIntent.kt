@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.core.settings.mvi
 
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
+import com.github.ahatem.qtranslate.core.settings.data.TranslatorMove
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
 
@@ -18,13 +19,12 @@ import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
  * - [CancelChanges] — reverts to the last saved configuration and closes the dialog
  * - [ResetToDefaults] — replaces the working copy with [Configuration.DEFAULT]
  *
- * ### Quick actions (auto-save)
- * Used by toolbar toggles, menu items, and the service selector panel where
- * changes take effect immediately and are persisted without a confirmation step:
- * - [ToggleSetting] — applies an arbitrary transform and immediately saves
- * - [SetActivePreset] — switches the active preset and saves
- * - [UpdateServiceInActivePreset] — changes a service selection and saves
- * - [CreatePreset], [DeletePreset], [RenamePreset] — preset CRUD, all auto-saved
+ * ### Quick actions (scoped auto-save)
+ * Used by toolbar toggles and menu items where changes take effect immediately
+ * and are persisted without a confirmation step:
+ * - [ToggleSetting] — persists only the setting changed by the external action
+ *
+ * Settings-dialog operations remain draft-only until [SaveChanges].
  */
 sealed interface SettingsIntent : UiIntent {
 
@@ -52,10 +52,11 @@ sealed interface SettingsIntent : UiIntent {
      */
     data object ResetToDefaults : SettingsIntent
 
-    // ---- Quick actions ----
+    // ---- External quick actions ----
 
     /**
-     * Applies [update] to the current working configuration and immediately saves.
+     * Applies [update] to the last persisted configuration and immediately saves it.
+     * An unrelated dirty settings-dialog draft is preserved and is not committed.
      *
      * Use this for menu checkboxes and toolbar toggles where changes take effect instantly.
      *
@@ -66,15 +67,19 @@ sealed interface SettingsIntent : UiIntent {
      * })
      * ```
      */
-    data class ToggleSetting(val update: (Configuration) -> Configuration) : SettingsIntent
+    data class ToggleSetting(
+        /** Called after success is persisted and published as the original state, never on failure. */
+        val onSuccess: (Configuration) -> Unit = {},
+        val update: (Configuration) -> Configuration
+    ) : SettingsIntent
 
     /**
-     * Switches the active service preset to [presetId] and immediately saves.
+     * Switches the active service preset in the settings draft.
      */
     data class SetActivePreset(val presetId: String) : SettingsIntent
 
     /**
-     * Selects [serviceId] for [type] in the active preset and immediately saves.
+     * Selects [serviceId] for [type] in the active preset draft.
      * Pass `null` for [serviceId] to clear the selection (fall back to first available).
      */
     data class UpdateServiceInActivePreset(
@@ -83,13 +88,43 @@ sealed interface SettingsIntent : UiIntent {
     ) : SettingsIntent
 
     /**
-     * Creates a new preset named [name] with default Google services pre-selected,
-     * makes it active, and immediately saves.
+     * Adds [serviceId] to the active preset's translator set: it becomes Primary when the set
+     * has none, otherwise the last comparison translator. Existing members are left alone.
+     */
+    data class AddTranslatorToActivePreset(val serviceId: String) : SettingsIntent
+
+    /**
+     * Removes [serviceId] from the active preset's translator set. Removing the Primary promotes
+     * the first remaining member; removing the last member leaves no Primary.
+     */
+    data class RemoveTranslatorFromActivePreset(val serviceId: String) : SettingsIntent
+
+    /** Moves the comparison translator [serviceId] one step within the active preset's set. */
+    data class MoveTranslatorInActivePreset(
+        val serviceId: String,
+        val direction: TranslatorMove
+    ) : SettingsIntent
+
+    /**
+     * Promotes [serviceId] to Primary for the parallel comparison board.
+     *
+     * Unlike [UpdateServiceInActivePreset], the translator set is preserved:
+     * the old Primary takes the promoted member's comparison slot. Use this
+     * from every surface that changes the primary out of a multi-translator
+     * selection (Comparison header, Quick Translate); plain selection keeps
+     * its existing single-service semantics.
+     */
+    data class PromoteTranslatorToPrimary(
+        val serviceId: String
+    ) : SettingsIntent
+
+    /**
+     * Creates a new preset named [name] with default Google services pre-selected and makes it active.
      */
     data class CreatePreset(val name: String) : SettingsIntent
 
     /**
-     * Deletes the preset identified by [presetId] and immediately saves.
+     * Deletes the preset identified by [presetId].
      * Cannot delete the last remaining preset — dispatching this intent when only
      * one preset exists sends [SettingsEvent.ShowMessage] with an error.
      * If the deleted preset was active, the first remaining preset becomes active.
@@ -97,13 +132,13 @@ sealed interface SettingsIntent : UiIntent {
     data class DeletePreset(val presetId: String) : SettingsIntent
 
     /**
-     * Renames the preset identified by [presetId] to [newName] and immediately saves.
+     * Renames the preset identified by [presetId] to [newName].
      */
     data class RenamePreset(val presetId: String, val newName: String) : SettingsIntent
 
-    /** Adds a new translation rule and immediately saves. */
+    /** Adds a new translation rule to the settings draft. */
     data class AddTranslationRule(val rule: TranslationRule) : SettingsIntent
 
-    /** Removes an existing translation rule and immediately saves. */
+    /** Removes an existing translation rule from the settings draft. */
     data class RemoveTranslationRule(val rule: TranslationRule) : SettingsIntent
 }

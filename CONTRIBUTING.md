@@ -13,6 +13,7 @@ Thank you for taking the time to contribute. This document covers everything you
 - [Commit Messages](#commit-messages)
 - [Opening a Pull Request](#opening-a-pull-request)
 - [Architecture Overview](#architecture-overview)
+- [Licensing](#licensing)
 - [Tests](#tests)
 
 ---
@@ -43,8 +44,11 @@ Be respectful. Disagreements about code are fine; personal attacks are not. We a
 - Gradle (the wrapper is included — use `./gradlew`)
 
 Kotlin and every other dependency come from the wrapper and the version catalog in
-`gradle/libs.versions.toml`; nothing needs installing separately. The built JAR targets Java 11
-bytecode, so users can run it on a Java 11 runtime.
+`gradle/libs.versions.toml`; nothing needs installing separately. Project classes are compiled to
+Java 11 bytecode, mainly so the `:api` module stays usable by plugins built against an older
+runtime — but the complete application, the portable ZIP, and the app-only JAR all require
+**Java 17 or later** to run, because of bundled dependencies. The Windows package bundles its own
+runtime, so it needs no separate Java install at all.
 
 **Steps**
 
@@ -173,6 +177,16 @@ QTranslate follows Clean Architecture with MVI for the UI layer. The full archit
   HTTP, JSON and language-mapping helpers. Never on `:core` or `:ui-swing`.
 
 UI components must be "dumb" — they render state and dispatch intents, nothing more.
+
+---
+
+## Licensing
+
+Contributions to QTranslate are submitted under the [Mozilla Public License 2.0](LICENSE), unless a file or directory clearly states different terms. By contributing, you confirm that you have the right to submit the work under those terms.
+
+Keep third-party code and assets out of a pull request unless their source, copyright notice, and license are included. Do not copy material from a project that has no license.
+
+An independently developed plugin in separate files may use a license chosen by its author. Files copied from or based on MPL-covered QTranslate files remain subject to the MPL.
 
 ---
 

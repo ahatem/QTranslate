@@ -3,31 +3,60 @@ package com.github.ahatem.qtranslate.app
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
+import com.github.ahatem.qtranslate.core.settings.system.WindowsStartupRegistration
 import com.github.ahatem.qtranslate.core.shared.notification.AppNotification
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationCode
-import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.ui.swing.main.MainAppFrame
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 import com.github.michaelbull.result.fold
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
+import java.awt.SystemTray
 import java.io.File
 import javax.swing.SwingUtilities
+import kotlin.system.exitProcess
 
-fun main() = runBlocking {
+fun main(args: Array<String>) = runBlocking {
+
+    if (args.firstOrNull() == "--release-probe") {
+        require(args.size == 2) { "Expected packaged distribution directory" }
+        runReleaseArtifactProbe(arrayOf(args[1]))
+        return@runBlocking
+    }
 
     var frame: MainAppFrame? = null
+    // Set when a second launch's FOCUS request arrives before `frame` exists (possible during
+    // the brief window between acquiring the instance lock and the frame being constructed on
+    // the EDT). Both this flag and `frame` are only ever read or written from within
+    // `invokeLater` blocks, so they are effectively EDT-confined despite FOCUS itself arriving
+    // on SingleInstanceGuard's accept thread.
+    var pendingFocusRequest = false
+
+    // A login launch registered by WindowsStartupRegistration carries `--startup`; a manual
+    // launch never does — even with `launchOnSystemStartup` enabled — so the setting alone
+    // must never decide visibility (#226).
+    val launchedFromSystemStartup = WindowsStartupRegistration.isStartupLaunch(args)
+    // Hidden only when the window can actually be restored: without a tray the process would
+    // be invisible with no recovery path, so fall back to a visible window.
+    val startHidden = WindowsStartupRegistration.shouldStartHidden(
+        launchedFromStartup = launchedFromSystemStartup,
+        traySupported = SystemTray.isSupported()
+    )
 
     if (!SingleInstanceGuard.tryLock(onFocusRequested = {
             SwingUtilities.invokeLater {
-                frame?.apply {
-                    isVisible = true
-                    toFront()
-                    requestFocus()
-                }
+                // Same canonical presentation as the tray and global hotkey (#216). A request
+                // this early, before the frame is built, is remembered instead of dropped, and
+                // consumed once the frame is assigned below.
+                val current = frame
+                if (current != null) current.showAndFocus() else pendingFocusRequest = true
             }
         })) {
         return@runBlocking
@@ -53,6 +82,9 @@ fun main() = runBlocking {
 
     logger.info("QTranslate ${AppConstants.APP_VERSION} starting...")
     logger.info("App data directory: ${appData.absolutePath}")
+    if (startHidden) {
+        logger.info("Launched from Windows startup — starting hidden in the system tray")
+    }
 
     val json         = Json { ignoreUnknownKeys = true; isLenient = true }
     val settingsRepo = SettingsRepository(appData, json, logFactory.getLogger("SettingsRepository"))
@@ -75,6 +107,46 @@ fun main() = runBlocking {
         initialConfig = initialConfig
     )
     AppUiSetup.apply(initialConfig, deps.themeManager)
+
+    // The single owner of application exit: every real exit route funnels into this through
+    // MainAppFrame's onApplicationExit callback below.
+    val applicationShutdown = ApplicationShutdown(
+        persistWindowBounds = { size, position ->
+            deps.settingsStore.persistScopedUpdateAndAwait {
+                it.copy(mainWindowSize = size, mainWindowPosition = position)
+            }
+        },
+        shutdownMainStore      = { deps.mainStore.onShutdown() },
+        shutdownPluginManager  = { deps.pluginManager.shutdown() },
+        closeHostHttpClient    = { deps.httpClient.close() },
+        cancelAppScope         = { deps.appScope.cancel() },
+        logger                 = logFactory.getLogger("ApplicationShutdown"),
+        exit                   = { exitProcess(0) }
+    )
+
+    // The "launch on system startup" checkbox used to persist its flag without any code ever
+    // acting on it, so enabling it on Windows changed nothing (#226). This keeps the per-user
+    // startup entry in sync with the setting instead: the initial emission repairs a missing or
+    // stale entry left by an older install location, and later emissions apply OK/Apply from the
+    // settings dialog or any other save path. Best effort — a failure only logs, never blocks
+    // startup. Windows-only; other platforms keep their previous behavior exactly.
+    if (WindowsStartupRegistration.isSupported()) {
+        val startupRegistration = WindowsStartupRegistration()
+        deps.appScope.launch {
+            settingsRepo.configuration
+                .map { it.launchOnSystemStartup }
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    val synced = runCatching { startupRegistration.reconcile(enabled) }
+                        .getOrDefault(false)
+                    if (synced) {
+                        logger.debug("Windows startup entry synced (enabled=$enabled)")
+                    } else {
+                        logger.warn("Windows startup entry could not be synced (enabled=$enabled)")
+                    }
+                }
+        }
+    }
 
     // Starting with defaults when settings existed is not a detail to leave in a log file. From
     // the user's side the app looks freshly installed, and the natural response — setting
@@ -141,15 +213,24 @@ fun main() = runBlocking {
             pluginManager    = deps.pluginManager,
             notificationBus  = deps.notificationBus,
             logger           = logFactory.getLogger("MainAppFrame"),
+            initiallyHidden  = startHidden,
             appSecrets       = deps.appSecrets,
             translateString  = { text, target ->
                 deps.translateStringUseCase(text, target).fold(
                     success = { Result.success(it) },
                     failure = { Result.failure(IllegalStateException(it.message)) }
                 )
-            }
+            },
+            onApplicationExit = { size, position -> applicationShutdown.requestShutdown(size, position) }
         )
         logger.info("Main window launched")
+
+        // A FOCUS request from a second launch that arrived before this frame existed, consumed
+        // exactly once, same presentation as a normal FOCUS or the global hotkey (#216).
+        if (pendingFocusRequest) {
+            pendingFocusRequest = false
+            frame.showAndFocus()
+        }
     }
 
     logger.info("Loading plugins...")

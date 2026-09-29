@@ -1,14 +1,14 @@
 package com.github.ahatem.qtranslate.core.plugin.http
 
-import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.api.plugin.SingleAttemptHttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import io.ktor.client.*
-// Both this file's supertype and Ktor's own client are called HttpClient. Ours is now imported by
-// name, which beats the star import below, so Ktor's needs an alias to stay reachable.
+// Ktor's own client type, aliased so the one place that constructs it reads distinctly from the
+// API interface this class implements.
 import io.ktor.client.HttpClient as KtorClient
 import io.ktor.client.call.*
 import io.ktor.client.engine.HttpClientEngine
@@ -28,6 +28,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.Closeable
+import java.time.Duration
+import java.time.Instant
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.Base64
 
 /**
@@ -39,6 +43,9 @@ private val IDEMPOTENT_METHODS = setOf(
 )
 
 private const val TOO_MANY_REQUESTS = 429
+
+// Callers back off for however long this tells them, so a server's number is bounded, not believed.
+private const val MAX_RETRY_AFTER_SECONDS = 600
 
 internal class KtorHttpClient(
     private val logger: Logger,
@@ -67,7 +74,7 @@ internal class KtorHttpClient(
      * that shares an engine across clients should decide for itself when it dies.
      */
     private val ownsEngine: Boolean = true
-) : HttpClient, Closeable {
+) : SingleAttemptHttpClient, Closeable {
 
     private val client = KtorClient(engine) {
         install(ContentNegotiation) {
@@ -175,6 +182,23 @@ internal class KtorHttpClient(
         url: String,
         headers: Map<String, String>,
         queryParams: Map<String, Any?>
+    ): Result<String, ServiceError> = getShared(url, headers, queryParams, useRetryPolicy = true)
+
+    override suspend fun getOnce(
+        url: String,
+        headers: Map<String, String>,
+        queryParams: Map<String, Any?>
+    ): Result<String, ServiceError> = getShared(url, headers, queryParams, useRetryPolicy = false)
+
+    // Only the retry decision differs between these two. A caller wants a single attempt when a
+    // retry, or the delay before it, would arrive too late to be of use, and it needs the first
+    // answer rather than the last. Everything else stays shared, so the request and the error it
+    // maps to are identical on either path.
+    private suspend fun getShared(
+        url: String,
+        headers: Map<String, String>,
+        queryParams: Map<String, Any?>,
+        useRetryPolicy: Boolean
     ): Result<String, ServiceError> = withContext(Dispatchers.IO) {
         try {
             val response: HttpResponse = client.get(url) {
@@ -187,6 +211,7 @@ internal class KtorHttpClient(
                         else -> value?.let { parameter(key, it.toString()) }
                     }
                 }
+                if (!useRetryPolicy) retry { noRetry() }
             }
             handleResponse(response, url)
         } catch (e: HttpRequestTimeoutException) {
@@ -308,6 +333,26 @@ internal class KtorHttpClient(
 
     // ========== RESPONSE HANDLING ==========
 
+    private fun retryAfterSeconds(response: HttpResponse): Int? {
+        val header = response.headers[HttpHeaders.RetryAfter]?.trim() ?: return null
+        val seconds = header.toIntOrNull()?.takeIf { it >= 0 }?.toLong()
+            ?: retryAfterSecondsFromDate(header)
+            ?: return null
+        return seconds.coerceAtMost(MAX_RETRY_AFTER_SECONDS.toLong()).toInt()
+    }
+
+    /**
+     * Reads the HTTP-date form of `Retry-After` (for example `Wed, 21 Oct 2015 07:28:00 GMT`) as
+     * whole seconds from now. Null when the value is not a date or is not in the future, so a
+     * malformed header, or one whose moment has already passed, leaves the hint unset.
+     */
+    private fun retryAfterSecondsFromDate(header: String): Long? {
+        val instant = runCatching {
+            ZonedDateTime.parse(header, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant()
+        }.getOrNull() ?: return null
+        return Duration.between(Instant.now(), instant).seconds.takeIf { it > 0 }
+    }
+
     private suspend fun handleResponse(
         response: HttpResponse,
         url: String
@@ -319,7 +364,7 @@ internal class KtorHttpClient(
             )
 
             HttpStatusCode.TooManyRequests -> Err(
-                ServiceError.RateLimitError("Rate limit exceeded for $url")
+                ServiceError.RateLimitError("Rate limit exceeded for $url", retryAfterSeconds(response))
             )
 
             HttpStatusCode.PaymentRequired -> {
@@ -353,7 +398,7 @@ internal class KtorHttpClient(
             )
 
             HttpStatusCode.TooManyRequests -> Err(
-                ServiceError.RateLimitError("Rate limit exceeded for $url")
+                ServiceError.RateLimitError("Rate limit exceeded for $url", retryAfterSeconds(response))
             )
 
             else -> {

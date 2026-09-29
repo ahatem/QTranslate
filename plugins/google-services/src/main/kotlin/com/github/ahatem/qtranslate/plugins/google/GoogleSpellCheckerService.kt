@@ -13,20 +13,25 @@ import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckResponse
 import com.github.ahatem.qtranslate.api.spellchecker.SpellChecker
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
+import com.github.ahatem.qtranslate.plugins.common.getOnce
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.ahatem.qtranslate.plugins.google.common.TranslateResponse
 import com.github.michaelbull.result.*
-import com.github.michaelbull.result.coroutines.coroutineBinding
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.util.*
 
 class GoogleSpellCheckerService(
     private val pluginContext: PluginContext,
     private val httpClient: HttpClient,
     private val languageMapper: GoogleLanguageMapper,
-    private val apiConfig: ApiConfig
+    private val apiConfig: ApiConfig,
+    private val endpointHealth: GoogleEndpointHealth
 ) : SpellChecker {
 
 
@@ -37,6 +42,8 @@ class GoogleSpellCheckerService(
 
     private val parser = createJsonParser<TranslateResponse>(pluginContext)
 
+    private val requestSemaphore = Semaphore(SPELL_CHECK_MAX_CONCURRENCY)
+
     private val cache = Collections.synchronizedMap(object :
         LinkedHashMap<String, Result<SpellCheckResponse, ServiceError>>(200, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Result<SpellCheckResponse, ServiceError>>?): Boolean {
@@ -46,6 +53,7 @@ class GoogleSpellCheckerService(
 
     companion object {
         private const val TRANSLATE_PRIMARY = "https://translate.googleapis.com/translate_a/single"
+        private const val SPELL_CHECK_MAX_CONCURRENCY = 4
     }
 
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.Dynamic
@@ -113,21 +121,56 @@ class GoogleSpellCheckerService(
         sentence: String,
         language: LanguageCode
     ): Result<SpellCheckResponse, ServiceError> {
-        return coroutineBinding {
-            val langTag = languageMapper.toProviderCode(language)
-            val responseString = httpClient.get(
-                url = TRANSLATE_PRIMARY,
-                headers = apiConfig.createHeaders(),
-                queryParams = mapOf(
-                    "client" to "gtx",
-                    "dj" to 1,
-                    "sl" to langTag,
-                    "tl" to "zu",
-                    "q" to sentence,
-                    "dt" to "qc"
+        val langTag = languageMapper.toProviderCode(language)
+
+        return requestSemaphore.withPermit {
+            // The circuit permit is taken only once a request slot is free, so a sentence queued
+            // while the endpoint was healthy cannot slip past a circuit that opened in the meantime.
+            val permit = endpointHealth.tryAcquirePrimary()
+                ?: return@withPermit Err(
+                    ServiceError.ServiceUnavailableError(
+                        "Google spell check endpoint is temporarily unavailable",
+                        null
+                    )
                 )
-            ).bind()
-            parseSpellCheck(responseString, sentence).bind()
+
+            // Released on every path exactly once, including cancellation, so an abandoned probe
+            // never strands the circuit.
+            try {
+                val response = httpClient.getOnce(
+                    url = TRANSLATE_PRIMARY,
+                    headers = apiConfig.createHeaders(),
+                    queryParams = mapOf(
+                        "client" to "gtx",
+                        "dj" to 1,
+                        "sl" to langTag,
+                        "tl" to "zu",
+                        "q" to sentence,
+                        "dt" to "qc"
+                    )
+                )
+
+                response.fold(
+                    success = { body ->
+                        currentCoroutineContext().ensureActive()
+                        val parsed = parseSpellCheck(body, sentence)
+                        // Only a recognised payload heals the circuit. An unrecognised one means the
+                        // endpoint answered unusably, which is neutral: the finally releases the
+                        // permit without healing or counting a failure.
+                        if (parsed.isOk) endpointHealth.recordSuccess(permit)
+                        parsed
+                    },
+                    failure = { error ->
+                        currentCoroutineContext().ensureActive()
+                        // A non-retryable failure leaves the permit to the finally, which records
+                        // nothing on the circuit.
+                        if (error.isRetryable) endpointHealth.recordTransientFailure(permit, error)
+                        Err(error)
+                    }
+                )
+            } finally {
+                endpointHealth.releasePrimary(permit)
+            }
         }
     }
 
@@ -136,6 +179,16 @@ class GoogleSpellCheckerService(
         requestText: String
     ): Result<SpellCheckResponse, ServiceError> {
         return parser.parse(responseString).andThen { translateResponse ->
+            // A throttled or errored body decodes into an all-defaults payload under the lenient
+            // parser; treat anything without a translate or spell section as unrecognised so it is
+            // never mistaken for "no corrections" and cached.
+            if (translateResponse.sentences.isEmpty() &&
+                translateResponse.spell == null &&
+                translateResponse.sourceLanguage.isBlank()
+            ) {
+                return@andThen Err(ServiceError.InvalidResponseError("Unrecognised spell check response", null))
+            }
+
             val spell = translateResponse.spell
             val correctedText = spell?.correctedText
             val html = spell?.spellHtmlRes

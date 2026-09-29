@@ -20,21 +20,26 @@ data class ReadOnlyTextPanelState(
     val isEditable: Boolean = false
 ) : UiState
 
+/**
+ * A read-only result surface: the text in its own scroll pane with the action column beside it.
+ *
+ * The scroll pane is what makes the text wrap to the width it is given, so the panel must own it.
+ * Wrapping the panel in another scroll pane instead leaves the text pane without a viewport of its
+ * own, and it then lays itself out at the width of its longest line.
+ */
 class ReadOnlyTextPanel(
     private val textPane: AdvancedTextPane,
-    private val actionsPanel: TextActionsPanel
+    private val actionsPanel: TextActionsPanel,
 ) : JPanel(BorderLayout()), Renderable<ReadOnlyTextPanelState> {
 
     init {
-        val scrollPane = JScrollPane(textPane).apply { isFocusable = false }
-
         val actionsWrapper = JPanel(BorderLayout()).apply {
             border = BorderFactory.createEmptyBorder(0, 4, 0, 0)
             isOpaque = false
             add(actionsPanel, BorderLayout.CENTER)
         }
 
-        add(scrollPane, BorderLayout.CENTER)
+        add(JScrollPane(textPane).apply { isFocusable = false }, BorderLayout.CENTER)
         add(actionsWrapper, BorderLayout.LINE_END)
     }
 

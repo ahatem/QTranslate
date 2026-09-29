@@ -64,6 +64,45 @@ internal class PresetManager(
 
     }
 
+    fun addTranslator(current: Configuration, intent: SettingsIntent.AddTranslatorToActivePreset) {
+        if (current.activeServicePresetId == null) {
+            logger.warn("No active preset - ignoring AddTranslatorToActivePreset intent")
+            return
+        }
+        applyUpdate(current.withTranslatorAdded(intent.serviceId))
+    }
+
+    fun removeTranslator(current: Configuration, intent: SettingsIntent.RemoveTranslatorFromActivePreset) {
+        if (current.activeServicePresetId == null) {
+            logger.warn("No active preset - ignoring RemoveTranslatorFromActivePreset intent")
+            return
+        }
+        applyUpdate(current.withTranslatorRemoved(intent.serviceId))
+    }
+
+    fun moveTranslator(current: Configuration, intent: SettingsIntent.MoveTranslatorInActivePreset) {
+        if (current.activeServicePresetId == null) {
+            logger.warn("No active preset - ignoring MoveTranslatorInActivePreset intent")
+            return
+        }
+        applyUpdate(current.withTranslatorMoved(intent.serviceId, intent.direction))
+    }
+
+    fun promoteTranslatorToPrimary(
+        current: Configuration,
+        intent: SettingsIntent.PromoteTranslatorToPrimary
+    ) {
+        if (current.activeServicePresetId == null) {
+            logger.warn("No active preset — ignoring PromoteTranslatorToPrimary intent")
+            return
+        }
+
+        logger.info("Promoting translator to primary: ${intent.serviceId}")
+        applyUpdate(
+            current.withActivePreset { preset -> preset.withPromotedTranslator(intent.serviceId) }
+        )
+    }
+
     // -------------------------------------------------------------------------
     // Preset CRUD
     // -------------------------------------------------------------------------

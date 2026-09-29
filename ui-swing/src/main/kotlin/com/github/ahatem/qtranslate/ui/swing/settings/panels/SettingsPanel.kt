@@ -75,7 +75,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
     protected val gb = GridBag(this, horizontalGap = 8, verticalGap = ROW_GAP)
 
     init {
-        border = BorderFactory.createEmptyBorder(EDGE, EDGE, EDGE, EDGE)
+        border = BorderFactory.createEmptyBorder(UIScale.scale(EDGE), UIScale.scale(EDGE), UIScale.scale(EDGE), UIScale.scale(EDGE))
         gb.defaultAnchor(GridBagConstraints.LINE_START)
         gb.defaultFill(GridBagConstraints.NONE)
     }
@@ -140,16 +140,26 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      *
      * Extra top spacing is added for all sections after the first so panels read as
      * clearly separated groups.
+     *
+     * [trailing] is a control shown at the heading's trailing end, such as a section's Enabled checkbox.
      */
-    protected fun addSeparator(title: String) {
+    protected fun addSeparator(title: String, trailing: JComponent? = null) {
         currentSection = title
         val isFirst = gb.currentY == 0
+        val header = buildSeparatorRow(title, bold = true, muted = false, gap = 10)
         gb.nextRow()
             .spanLine()
             .weightX(1.0)
             .fill(GridBagConstraints.HORIZONTAL)
-            .insets(if (isFirst) 0 else SECTION_GAP, 0, 4, 0)
-            .add(buildSeparatorRow(title, bold = true, muted = false, gap = 10))
+            .insets(if (isFirst) 0 else UIScale.scale(SECTION_GAP), 0, UIScale.scale(4), 0)
+            .add(
+                if (trailing == null) header
+                else JPanel(BorderLayout(UIScale.scale(10), 0)).apply {
+                    isOpaque = false
+                    add(header, BorderLayout.CENTER)
+                    add(trailing, BorderLayout.LINE_END)
+                }
+            )
     }
 
     /**
@@ -174,7 +184,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
             .spanLine()
             .weightX(1.0)
             .fill(GridBagConstraints.HORIZONTAL)
-            .insets(SECTION_GAP - 4, 4, 2, 0)
+            .insets(UIScale.scale(SECTION_GAP - 4), UIScale.scale(4), UIScale.scale(2), 0)
             .add(label)
     }
 
@@ -271,6 +281,16 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
     }
 
     /**
+     * Registers a setting assembled outside [addCheckbox] or [addRow] with Settings search.
+     *
+     * Some controls live inside a composite widget, such as the service-role cards. They still
+     * need a searchable label even though there is no standalone row label to anchor.
+     */
+    protected fun registerSearchEntry(label: String, anchor: JComponent, hint: String = "") {
+        entries += SettingEntry(label, currentSection, hint, anchor)
+    }
+
+    /**
      * A picker with the actions that operate on it, on one row.
      *
      * Two panels solved this independently and differently — one put labelled buttons on a row of
@@ -333,7 +353,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
             .spanLine()
             .weightX(1.0)
             .fill(GridBagConstraints.HORIZONTAL)
-            .insets(0, 2, 3, 0)
+            .insets(0, UIScale.scale(2), UIScale.scale(3), 0)
             .add(hint)
 
         // Attached to the setting above rather than indexed on its own, so searching for a word
@@ -398,9 +418,12 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
          * Four numbers were chosen separately at four call sites and drifted: a section break sat
          * twenty-six pixels above its title while the rows under it sat four apart, which at 150%
          * scale is a forty-pixel hole between groups and a cramped list inside them. They are one
-         * scale now — attached, separated, sectioned — and the page reads tighter for it.
+         * scale now — attached, separated, sectioned. Nudged up slightly from the original 3/11/10
+         * (rows/section/edge): tight enough to still fit the dialog's own 860x580 minimum with
+         * room to spare, loose enough that adjacent rows and page edges no longer read as pressed
+         * against each other. Every value here is scaled at its point of use, not stored pre-scaled.
          */
-        const val ROW_GAP = 3
+        const val ROW_GAP = 4
 
         /** Space above a section title. The only gap meant to be noticed. */
         const val SECTION_GAP = 11

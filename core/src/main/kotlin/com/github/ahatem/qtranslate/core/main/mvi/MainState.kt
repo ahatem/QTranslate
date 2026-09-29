@@ -8,8 +8,12 @@ import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationProgress
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
+import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonTranslationResult
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
+
+/** The tools the main window's lookup dock can show, one at a time. */
+enum class LookupTool { DICTIONARY, IMAGES }
 
 /**
  * Complete UI state for the main translation screen.
@@ -43,6 +47,13 @@ data class MainState(
     val isLoading: Boolean = false,
     val inputText: String = "",
     val translatedText: String = "",
+    /**
+     * Whether the last translation ended in failure, so a blank [translatedText] means "it did not
+     * work" rather than "nothing has been translated yet". Cleared when a translation starts or
+     * succeeds, and when the output is reset or restored from history.
+     */
+    val translationFailed: Boolean = false,
+    val comparisonResults: List<ComparisonTranslationResult> = emptyList(),
     val extraOutputText: String = "",
     val isExtraOutputLoading: Boolean = false,
     val sourceLanguage: LanguageCode = LanguageCode.AUTO,
@@ -70,7 +81,13 @@ data class MainState(
      */
     val dictionaryLanguage: LanguageCode = LanguageCode.ENGLISH,
     val dictionaryFailed: Boolean = false,
-    val isDictionaryPanelVisible: Boolean = false,
+    /**
+     * Whether the lookup dock is open, whichever tool it shows. This is the flag that is remembered
+     * between sessions as the "show dictionary panel" setting.
+     */
+    val isLookupDockOpen: Boolean = false,
+    /** The tool the lookup dock shows while it is open. */
+    val lookupDockTool: LookupTool = LookupTool.DICTIONARY,
     val spellCheckCorrections: List<Correction> = emptyList(),
     val isQuickTranslateDialogVisible: Boolean = false,
     val isQuickTranslateDialogPinned: Boolean = false,
@@ -119,6 +136,14 @@ data class MainState(
             ?: detectedSourceLanguage
             ?: LanguageCode.ENGLISH
 
+    /** Whether the dictionary is what the open lookup dock is showing. */
+    val isDictionaryPanelVisible: Boolean
+        get() = isLookupDockOpen && lookupDockTool == LookupTool.DICTIONARY
+
+    /** Whether the images are what the open lookup dock is showing. */
+    val isImagesDockVisible: Boolean
+        get() = isLookupDockOpen && lookupDockTool == LookupTool.IMAGES
+
     /** `true` when there is a previous history entry to restore. */
     val canUndo: Boolean
         get() = historyIndex > 0
@@ -138,4 +163,20 @@ data class MainState(
      */
     fun getAvailableServicesFor(type: ServiceRole): List<ServiceInfo> =
         availableServices.filter { it.type == type }
+
+    /**
+     * Ids of the loaded, enabled translators in registry order. This is the input to the
+     * Comparison eligibility helpers, which resolve the real Primary from it.
+     */
+    val availableTranslatorIds: List<String>
+        get() = getAvailableServicesFor(ServiceRole.TRANSLATOR).map { it.id }
 }
+
+/** Opens the lookup dock on the dictionary, or closes it when the dictionary is what it shows. */
+fun MainState.withDictionaryPanelToggled(): MainState =
+    if (isDictionaryPanelVisible) copy(isLookupDockOpen = false)
+    else copy(isLookupDockOpen = true, lookupDockTool = LookupTool.DICTIONARY)
+
+/** Opens the lookup dock on [tool], or switches an open one to it. */
+fun MainState.withLookupDockOn(tool: LookupTool): MainState =
+    copy(isLookupDockOpen = true, lookupDockTool = tool)

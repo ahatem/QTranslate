@@ -89,7 +89,7 @@ class TextPaneBenchmark {
      * Isolates the cost of the direction switch from the cost of the text itself.
      *
      * Rendering Arabic into a pane already in right-to-left changes no orientation, so the
-     * difference between the first and second render is what `updateOrientation` costs.
+     * difference between the first and second render is what `applyParagraphDirections` costs.
      */
     @Test
     fun `separate the direction switch from the text`() {
@@ -112,5 +112,52 @@ class TextPaneBenchmark {
             second = measureTimeMillis { pane.render(text + " ب", emptyList(), isEditable = true) }
         }
         println("BENCH ar-switch first=${first}ms second-no-switch=${second}ms")
+    }
+
+    /**
+     * One keystroke into a large document, with and without the deferred work it schedules.
+     *
+     * The insert is timed alone, then again across a drain of the event queue, so the difference is
+     * what the pane adds afterwards — paragraph realignment and any font work it triggers.
+     */
+    @Test
+    fun `type one character into a large document`() {
+        val workloads = listOf(
+            "en-10k" to words(10_000, english),
+            "ar-10k" to words(10_000, arabic),
+            "mixed-10k" to words(5_000, english) + "\n\n" + words(5_000, arabic),
+            // Many short paragraphs, which exercise the per-keystroke paragraph pass.
+            "many-para" to (0 until 2_000).joinToString("\n") {
+                if (it % 2 == 0) "hello paragraph number $it" else "فقرة رقم $it"
+            },
+        )
+
+        for ((label, text) in workloads) {
+            lateinit var pane: AdvancedTextPane
+            SwingUtilities.invokeAndWait {
+                FlatLightLaf.setup()
+                pane = AdvancedTextPane({}, {}, {})
+                pane.size = Dimension(700, 900)
+            }
+            SwingUtilities.invokeAndWait { pane.render(text, emptyList(), isEditable = true) }
+            Thread.sleep(600)
+
+            var minInsert = Long.MAX_VALUE
+            var minInsertAndDeferred = Long.MAX_VALUE
+            repeat(10) {
+                var insert = 0L
+                SwingUtilities.invokeAndWait {
+                    insert = measureTimeMillis { pane.document.insertString(pane.document.length, "x", null) }
+                }
+                minInsert = minOf(minInsert, insert)
+
+                val start = System.nanoTime()
+                SwingUtilities.invokeAndWait { pane.document.insertString(pane.document.length, "x", null) }
+                // Queued work runs before this empty runnable, so waiting on it drains the pass.
+                SwingUtilities.invokeAndWait { }
+                minInsertAndDeferred = minOf(minInsertAndDeferred, (System.nanoTime() - start) / 1_000_000)
+            }
+            println("BENCH type $label insert=${minInsert}ms insert+deferred=${minInsertAndDeferred}ms chars=${text.length}")
+        }
     }
 }

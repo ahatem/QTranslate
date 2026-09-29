@@ -2,7 +2,6 @@ package com.github.ahatem.qtranslate.ui.swing.dictionary
 
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
-import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 import com.github.ahatem.qtranslate.core.settings.data.Position
 import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
@@ -26,11 +25,6 @@ data class QuickDictionaryDialogState(
     val selectedDictionaryId: String?,
     val config: QuickDictionaryConfig,
     val strings: QuickDictionaryStrings,
-    // Auto-source cycling (mirrors DictionaryPanel)
-    val autoSource: DictionaryAutoSource = DictionaryAutoSource.TRANSLATED,
-    val autoSourceOffLabel: String = "",
-    val autoSourceTranslatedLabel: String = "",
-    val autoSourceSourceLabel: String = "",
     /** Whether speech is playing right now; the headword's Listen control becomes a stop button. */
     val isTtsPlaying: Boolean = false,
     // callbacks
@@ -38,7 +32,6 @@ data class QuickDictionaryDialogState(
     val onListen: (word: String) -> Unit = {},
     val onStopListening: () -> Unit = {},
     val onDictionarySelected: (serviceId: String) -> Unit,
-    val onAutoSourceChanged: (DictionaryAutoSource) -> Unit = {},
     val onPinToggled: () -> Unit,
     val onClose: () -> Unit,
     val onSavePosition: (Position) -> Unit,

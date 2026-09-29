@@ -30,7 +30,7 @@ data class OutputTextState(
     val actionsState: TextActionsState,
     val isEditable: Boolean = false,
     /** Non-null only when there is no translator to translate with. */
-    val noService: NoServiceState? = null
+    val noService: NoServiceState? = null,
 ) : UiState
 
 data class ExtraOutputState(
@@ -43,6 +43,9 @@ data class ExtraOutputState(
     val isEditable: Boolean = false,
 
     val activeType: ExtraOutputType = ExtraOutputType.None,
+
+    /** Shown in place of the empty body while there is no translation for this panel to work from. */
+    val placeholderText: String? = null,
 
     val labelBackward: String = "",
     val labelSummary: String = "",

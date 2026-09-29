@@ -1,6 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
+import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import java.awt.*
 import javax.swing.*
 
@@ -9,6 +11,7 @@ data class ComponentRegistry(
     val inputPanel: JComponent,
     val languageBar: JComponent,
     val outputPanel: JComponent,
+    val compareBoard: JComponent,
     val extraOutputPanel: JComponent,
     val translatorSelector: JComponent,
     val statusBar: JComponent
@@ -20,13 +23,23 @@ sealed interface LayoutComponentRefs {
 
     data class WithSplitPanes(
         val mainSplit: JSplitPane,
-        val extraSplit: JSplitPane
+        val extraSplit: JSplitPane,
+        /**
+         * Optional layout-owned boundary above the extra panel (Comparison
+         * only). Toggled together with the panel so a hidden Extra Output
+         * leaves no stray separation behind.
+         */
+        val extraBoundary: JComponent? = null
     ) : LayoutComponentRefs {
         override fun updateExtraOutputVisibility(visible: Boolean, extraPanel: JComponent) {
             SwingUtilities.invokeLater {
                 val wasContinuous = extraSplit.isContinuousLayout
                 extraSplit.isContinuousLayout = false
                 extraPanel.isVisible = visible
+                extraBoundary?.isVisible = visible
+                // Whatever holds the panel in the split goes with it: a hidden panel inside a visible
+                // holder still claims the holder's minimum height, and leaves an empty band.
+                extraSplit.bottomComponent?.isVisible = visible
                 if (visible) {
                     extraSplit.dividerSize = UISpacing.DIVIDER_SIZE
                     extraSplit.resetToPreferredSizes()
@@ -44,25 +57,6 @@ sealed interface LayoutComponentRefs {
             updateExtraOutputVisibility(extraPanel.isVisible, extraPanel)
         }
     }
-
-    data class WithTabs(
-        val tabbedPane: JTabbedPane
-    ) : LayoutComponentRefs {
-        override fun updateExtraOutputVisibility(visible: Boolean, extraPanel: JComponent) {
-            SwingUtilities.invokeLater {
-                val extraIndex = tabbedPane.indexOfComponent(extraPanel.parent) // Find by component
-                if (visible && extraIndex == -1) {
-                    tabbedPane.addTab("Extra", LayoutBuilders.wrapContent(extraPanel))
-                } else if (!visible && extraIndex != -1) {
-                    tabbedPane.removeTabAt(extraIndex)
-                }
-            }
-        }
-
-        override fun syncExtraOutputState(extraPanel: JComponent) {
-            updateExtraOutputVisibility(extraPanel.isVisible, extraPanel)
-        }
-    }
 }
 
 data class ArrangedLayout(
@@ -70,15 +64,24 @@ data class ArrangedLayout(
     val componentRefs: LayoutComponentRefs
 )
 
-enum class LayoutType(val localizeId: String) {
-    CLASSIC("layout_preset_classic"),
-    SIDE_BY_SIDE("layout_preset_side_by_side"),
-    COMPACT("layout_preset_compact");
-
-    val id: String = name.lowercase()
+enum class LayoutType(val localizeId: String, val id: String) {
+    CLASSIC("layout_preset_classic", LayoutPresetIds.CLASSIC),
+    SIDE_BY_SIDE("layout_preset_side_by_side", LayoutPresetIds.SIDE_BY_SIDE),
+    COMPARISON("layout_preset_comparison", LayoutPresetIds.COMPARISON);
 }
 
 object LayoutBuilders {
+    fun wrapScrollable(component: JComponent): JComponent = JScrollPane(
+        component,
+        JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+        JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+    ).apply {
+        border = BorderFactory.createEmptyBorder()
+        isFocusable = false
+        verticalScrollBar.isFocusable = false
+        viewport.isOpaque = false
+    }
+
     fun createSimpleTopBar(historyBar: JComponent): JComponent {
         return JPanel(GridBagLayout()).apply {
             val gbc = GridBagConstraints().apply {
@@ -108,22 +111,17 @@ object LayoutBuilders {
         }
     }
 
-    fun wrapWithPadding(component: JComponent): JComponent {
-        return JPanel(BorderLayout()).apply {
-            border = BorderFactory.createEmptyBorder(0, UISpacing.PADDING, 0, UISpacing.PADDING)
-            add(component, BorderLayout.CENTER)
-        }
-    }
-
     fun createBottomBar(translatorSelector: JComponent, statusBar: JComponent): JComponent {
-        return JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-
-            val paddedTranslatorSelector = wrapWithPadding(translatorSelector)
-
-            add(paddedTranslatorSelector)
-            add(Box.createRigidArea(Dimension(0, UISpacing.V_GAP)))
-            add(statusBar)
+        return JPanel(BorderLayout(0, UIScale.scale(4))).apply {
+            val selectorRow = JPanel(BorderLayout()).apply {
+                border = BorderFactory.createEmptyBorder(
+                    UIScale.scale(2), UISpacing.PADDING,
+                    UIScale.scale(2), UISpacing.PADDING
+                )
+                add(translatorSelector, BorderLayout.CENTER)
+            }
+            add(selectorRow, BorderLayout.NORTH)
+            add(statusBar, BorderLayout.SOUTH)
         }
     }
 
@@ -134,44 +132,16 @@ object LayoutBuilders {
         }
     }
 
-    fun wrapContent(content: JComponent): JComponent {
-        return JPanel(BorderLayout()).apply {
-            border = BorderFactory.createEmptyBorder(0, UISpacing.H_GAP, 0, UISpacing.H_GAP)
-            add(content, BorderLayout.CENTER)
-        }
-    }
-
     fun createVerticalSplit(
         top: JComponent,
         bottom: JComponent,
         resizeWeight: Double = 0.5,
         topMinHeight: Int = UISpacing.MIN_PANEL_HEIGHT,
         bottomMinHeight: Int = UISpacing.MIN_PANEL_HEIGHT
-    ): JSplitPane {
+    ): MirroredSplitPane {
         top.minimumSize = Dimension(0, topMinHeight)
         bottom.minimumSize = Dimension(0, bottomMinHeight)
         return MirroredSplitPane(JSplitPane.VERTICAL_SPLIT, true, top, bottom).apply {
-            leadingResizeWeight = resizeWeight
-            dividerSize = UISpacing.DIVIDER_SIZE
-            clearBorder()
-        }
-    }
-
-    /**
-     * @param leading  the pane shown first in reading order — left in a left-to-right interface,
-     *                 right in a right-to-left one. [MirroredSplitPane] handles the exchange, so
-     *                 callers pass reading order and never check the direction themselves.
-     */
-    fun createHorizontalSplit(
-        leading: JComponent,
-        trailing: JComponent,
-        resizeWeight: Double = 0.5,
-        leadingMinWidth: Int = UISpacing.MIN_PANEL_WIDTH,
-        trailingMinWidth: Int = UISpacing.MIN_PANEL_WIDTH,
-    ): JSplitPane {
-        leading.minimumSize = Dimension(leadingMinWidth, 0)
-        trailing.minimumSize = Dimension(trailingMinWidth, 0)
-        return MirroredSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, leading, trailing).apply {
             leadingResizeWeight = resizeWeight
             dividerSize = UISpacing.DIVIDER_SIZE
             clearBorder()
@@ -227,10 +197,11 @@ object SideBySideLayout : LayoutStrategy {
         val topBar = LayoutBuilders.createStackedTopBar(components.historyBar, components.languageBar)
         val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
 
-        val mainSplit = LayoutBuilders.createHorizontalSplit(
-            leading = components.inputPanel, trailing = components.outputPanel,
-            resizeWeight = 0.5
-        )
+        val mainSplit = ResponsivePairSplit(
+            leading = components.inputPanel,
+            trailing = components.outputPanel,
+            isRtl = isRtl
+        ).split
         val extraSplit = LayoutBuilders.createVerticalSplit(
             top = mainSplit,
             bottom = components.extraOutputPanel,
@@ -260,18 +231,46 @@ object SideBySideLayout : LayoutStrategy {
     }
 }
 
-object CompactLayout : LayoutStrategy {
-    override val type = LayoutType.COMPACT
-    override fun arrange(components: ComponentRegistry, isRtl: Boolean): ArrangedLayout {
-        val topBar = LayoutBuilders.createStackedTopBar(components.historyBar, components.languageBar)
-        val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
+object ComparisonLayout : LayoutStrategy {
+    override val type = LayoutType.COMPARISON
 
-        val tabs = JTabbedPane().apply {
-            addTab("Input",  components.inputPanel)
-            addTab("Output", components.outputPanel)
-            // Shortcuts and tooltips are applied dynamically via LayoutManager.updateCompactShortcuts()
-            // so they always reflect the user's configured bindings.
+    override fun arrange(components: ComponentRegistry, isRtl: Boolean): ArrangedLayout {
+        val topBar = LayoutBuilders.createSimpleTopBar(components.historyBar)
+        // Comparison owns primary-service switching in the primary result header. The footer is
+        // intentionally only the status bar so provider identity and results remain the focus.
+        val bottomBar = components.statusBar
+
+        // One logical results viewport: the board owns the primary provider and every
+        // comparison below it, so results never split into disconnected scroll regions.
+        val resultsSection = JPanel(BorderLayout()).apply {
+            add(LayoutBuilders.wrapLanguageBar(components.languageBar), BorderLayout.NORTH)
+            add(LayoutBuilders.wrapScrollable(components.compareBoard), BorderLayout.CENTER)
         }
+        val mainSplit = LayoutBuilders.createVerticalSplit(
+            top = components.inputPanel,
+            bottom = resultsSection,
+            resizeWeight = 0.28,
+            topMinHeight = UISpacing.MIN_PANEL_HEIGHT,
+            bottomMinHeight = UISpacing.MIN_PANEL_HEIGHT
+        ).apply {
+            // Input takes roughly the top 28%; extra height favours the results.
+            setLeadingProportion(0.28)
+        }
+        // Layout-owned boundary between the comparison results and the derived
+        // Extra Output: a plain theme-aware separator, not a panel border and
+        // not a box around either region.
+        val extraBoundary = JSeparator(SwingConstants.HORIZONTAL)
+        val extraSection = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            add(extraBoundary, BorderLayout.NORTH)
+            add(components.extraOutputPanel, BorderLayout.CENTER)
+        }
+        val extraSplit = LayoutBuilders.createVerticalSplit(
+            top = mainSplit,
+            bottom = extraSection,
+            resizeWeight = 0.8,
+            bottomMinHeight = UISpacing.MIN_EXTRA_HEIGHT
+        )
 
         val contentPanel = JPanel(BorderLayout(0, UISpacing.V_GAP)).apply {
             border = BorderFactory.createEmptyBorder(
@@ -281,18 +280,15 @@ object CompactLayout : LayoutStrategy {
                 UISpacing.PADDING
             )
             add(topBar, BorderLayout.NORTH)
-            add(tabs, BorderLayout.CENTER)
+            add(extraSplit, BorderLayout.CENTER)
         }
-
         val root = JPanel(BorderLayout()).apply {
             add(contentPanel, BorderLayout.CENTER)
             add(bottomBar, BorderLayout.SOUTH)
         }
-
-        val refs = LayoutComponentRefs.WithTabs(tabs)
+        val refs = LayoutComponentRefs.WithSplitPanes(mainSplit, extraSplit, extraBoundary)
         refs.syncExtraOutputState(components.extraOutputPanel)
         return ArrangedLayout(root, refs)
     }
-
 }
 

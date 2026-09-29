@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon
+import com.formdev.flatlaf.util.FontUtils
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
@@ -14,6 +15,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSetInfo
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager.Companion.OS_DEFAULT_THEME_ID
 import com.github.ahatem.qtranslate.ui.swing.shared.util.WrapLayout
+import com.github.ahatem.qtranslate.ui.swing.shared.util.toFont
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -25,6 +27,7 @@ import javax.swing.*
 import javax.swing.DefaultListCellRenderer
 import javax.swing.filechooser.FileNameExtensionFilter
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 
 class AppearancePanel(
     private val store: SettingsStore,
@@ -65,10 +68,11 @@ class AppearancePanel(
     private lateinit var uiFontSize:        JSpinner
     private lateinit var editorFontCombo:   JComboBox<String>
     private lateinit var editorFontSize:    JSpinner
-    private lateinit var fallbackFontCombo: JComboBox<String>
+    private lateinit var fallbackFontCombo: JComboBox<FallbackFontOption>
     private lateinit var fontPreview:       JLabel
 
     private val loadingItem = localizationManager.getString("settings_appearance.loading_fonts")
+    private val automaticFallbackLabel = localizationManager.getString("settings_appearance.automatic_fallback")
 
     init { buildUI() }
 
@@ -150,7 +154,7 @@ class AppearancePanel(
         addRow(localizationManager.getString("settings_appearance.theme_label"), themeCombo)
 
         iconSetCombo = JComboBox(IconSet.available().toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            renderer = DisplayValueRenderer<IconSetInfo>(text = { it?.displayName.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     val chosen = selectedItem as? IconSetInfo ?: return@addActionListener
@@ -206,7 +210,7 @@ class AppearancePanel(
         uiFontSize        = JSpinner(SpinnerNumberModel(13, 8, 32, 1))
         editorFontCombo   = JComboBox(arrayOf(loadingItem)).apply { isEnabled = false }
         editorFontSize    = JSpinner(SpinnerNumberModel(15, 8, 32, 1))
-        fallbackFontCombo = JComboBox(arrayOf(loadingItem)).apply { isEnabled = false }
+        fallbackFontCombo = JComboBox(arrayOf(FallbackFontOption(loadingItem, loadingItem))).apply { isEnabled = false }
 
         addRow(localizationManager.getString("settings_appearance.ui_font"),       createFontRow(uiFontCombo,     uiFontSize))
         addRow(localizationManager.getString("settings_appearance.editor_font"),   createFontRow(editorFontCombo, editorFontSize))
@@ -228,6 +232,10 @@ class AppearancePanel(
         loadLanguageListAsync()
     }
 
+
+    internal fun uiFontComboForTest():       JComboBox<String> = uiFontCombo
+    internal fun editorFontComboForTest():   JComboBox<String> = editorFontCombo
+    internal fun fallbackFontComboForTest(): JComboBox<*>      = fallbackFontCombo
 
     private fun loadLanguageListAsync() {
         scope.launch(Dispatchers.IO) {
@@ -549,13 +557,15 @@ class AppearancePanel(
 
     private fun loadFontsAsync() {
         object : SwingWorker<Array<String>, Void>() {
+            // Every system family plus every bundled family registered for lazy loading (Inter,
+            // Rubik, Noto Naskh Arabic), each exactly once, and without loading any of them: see
+            // FontUtils.getAvailableFontFamilyNames.
             override fun doInBackground(): Array<String> =
-                GraphicsEnvironment.getLocalGraphicsEnvironment()
-                    .availableFontFamilyNames.sorted().toTypedArray()
+                FontUtils.getAvailableFontFamilyNames().sorted().toTypedArray()
 
             override fun done() {
                 val fonts = get()
-                listOf(uiFontCombo, editorFontCombo, fallbackFontCombo).forEach { combo ->
+                listOf(uiFontCombo, editorFontCombo).forEach { combo ->
                     val prev = combo.selectedItem as? String
                     combo.removeAllItems()
                     fonts.forEach { combo.addItem(it) }
@@ -563,15 +573,21 @@ class AppearancePanel(
                     combo.isEnabled = true
                 }
 
+                val fallbackOptions = listOf(FallbackFontOption(FontConfig.AUTOMATIC, automaticFallbackLabel)) +
+                    fonts.map { FallbackFontOption(it, it) }
+                fallbackFontCombo.removeAllItems()
+                fallbackOptions.forEach { fallbackFontCombo.addItem(it) }
+                fallbackFontCombo.isEnabled = true
+
                 uiFontCombo.addActionListener     { if (!isUpdatingFromState) updateUiFont() }
                 uiFontSize.addChangeListener      { if (!isUpdatingFromState) updateUiFont() }
                 editorFontCombo.addActionListener { if (!isUpdatingFromState) updateEditorFont() }
                 editorFontSize.addChangeListener  { if (!isUpdatingFromState) updateEditorFont() }
                 fallbackFontCombo.addActionListener {
                     if (!isUpdatingFromState) {
-                        val name = fallbackFontCombo.selectedItem as? String ?: return@addActionListener
+                        val option = fallbackFontCombo.selectedItem as? FallbackFontOption ?: return@addActionListener
                         applyDraft(store) { cfg ->
-                            cfg.copy(editorFallbackFontConfig = cfg.editorFallbackFontConfig.copy(name = name))
+                            cfg.copy(editorFallbackFontConfig = cfg.editorFallbackFontConfig.copy(name = option.storedName))
                         }
                         updatePreview()
                     }
@@ -581,7 +597,9 @@ class AppearancePanel(
                 withoutTrigger {
                     uiFontCombo.selectedItem       = config.uiFontConfig.name
                     editorFontCombo.selectedItem   = config.editorFontConfig.name
-                    fallbackFontCombo.selectedItem = config.editorFallbackFontConfig.name
+                    fallbackFontCombo.selectedItem =
+                        fallbackOptions.find { it.storedName == config.editorFallbackFontConfig.name }
+                            ?: fallbackOptions.first()
                     updatePreview()
                 }
             }
@@ -605,7 +623,7 @@ class AppearancePanel(
     private fun updatePreview() {
         val name = editorFontCombo.selectedItem as? String ?: return
         val size = editorFontSize.value as? Int ?: return
-        fontPreview.font = Font(name, Font.PLAIN, size)
+        fontPreview.font = FontConfig(name, size).toFont()
     }
 
     private fun createFontRow(combo: JComboBox<String>, spinner: JSpinner) =
@@ -648,6 +666,15 @@ class AppearancePanel(
         data class Entry(val id: String, val displayName: String, val isDark: Boolean) : ThemeItem() {
             override fun toString() = displayName
         }
+    }
+
+    /**
+     * One entry of the fallback-font picker: [storedName] is what gets saved to the configuration,
+     * [displayName] is what the picker shows. The two differ only for "Automatic (Recommended)",
+     * stored as [FontConfig.AUTOMATIC]; every physical family displays under its own name.
+     */
+    private data class FallbackFontOption(val storedName: String, val displayName: String) {
+        override fun toString() = displayName
     }
 
     private data class LanguageInfo(

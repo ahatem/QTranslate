@@ -1,6 +1,8 @@
 package com.github.ahatem.qtranslate.core.plugin.http
 
 import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.michaelbull.result.getError
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
@@ -8,9 +10,15 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -34,24 +42,29 @@ class KtorHttpClientRetryTest {
     private fun countingEngine(
         status: HttpStatusCode,
         calls: AtomicInteger,
-        retryAfterSeconds: Long? = null
+        retryAfterSeconds: Long? = null,
+        retryAfterHeader: String? = null
     ) = MockEngine {
         calls.incrementAndGet()
         respond(
             content = "body",
             status = status,
-            headers = retryAfterSeconds
-                ?.let { headersOf(HttpHeaders.RetryAfter, it.toString()) }
+            headers = (retryAfterHeader ?: retryAfterSeconds?.toString())
+                ?.let { headersOf(HttpHeaders.RetryAfter, it) }
                 ?: headersOf()
         )
     }
 
-    private fun clientOn(engine: MockEngine, maxRetries: Int = 2) = KtorHttpClient(
+    private fun clientOn(engine: MockEngine, maxRetries: Int = 2, enableRetry: Boolean = true) = KtorHttpClient(
         logger = silentLogger,
-        config = HttpClientConfig(enableRetry = true, maxRetries = maxRetries),
+        config = HttpClientConfig(enableRetry = enableRetry, maxRetries = maxRetries),
         engine = engine,
         ownsEngine = false
     )
+
+    /** An RFC 1123 HTTP-date [seconds] from now, the form `Retry-After` also allows. */
+    private fun httpDateFromNow(seconds: Long): String =
+        DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC).plusSeconds(seconds))
 
     @Test
     fun `a POST answered with 500 is sent exactly once`() = runTest {
@@ -156,5 +169,161 @@ class KtorHttpClientRetryTest {
             waitedMillis >= 2_500,
             "expected to wait the configured 3s before retrying, waited only ${waitedMillis}ms"
         )
+    }
+
+    @Test
+    fun `a 429 reports the server's Retry-After in seconds`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(HttpStatusCode.TooManyRequests, calls, retryAfterSeconds = 7)
+
+        val error = clientOn(engine, enableRetry = false)
+            .use { it.get("https://example.invalid/languages") }
+            .getError()
+
+        assertEquals(7, assertIs<ServiceError.RateLimitError>(error).retryAfterSeconds)
+    }
+
+    @Test
+    fun `a 429 without a Retry-After leaves the hint unset`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(HttpStatusCode.TooManyRequests, calls)
+
+        val error = clientOn(engine, enableRetry = false)
+            .use { it.get("https://example.invalid/languages") }
+            .getError()
+
+        assertNull(assertIs<ServiceError.RateLimitError>(error).retryAfterSeconds)
+    }
+
+    @Test
+    fun `a 429 whose Retry-After is an HTTP-date leaves the hint unset`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(
+            HttpStatusCode.TooManyRequests,
+            calls,
+            retryAfterHeader = "Wed, 21 Oct 2015 07:28:00 GMT"
+        )
+
+        val error = clientOn(engine, enableRetry = false)
+            .use { it.get("https://example.invalid/languages") }
+            .getError()
+
+        assertNull(assertIs<ServiceError.RateLimitError>(error).retryAfterSeconds)
+    }
+
+    @Test
+    fun `an absurd Retry-After is clamped to the bound`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(HttpStatusCode.TooManyRequests, calls, retryAfterSeconds = 86_400)
+
+        val error = clientOn(engine, enableRetry = false)
+            .use { it.get("https://example.invalid/languages") }
+            .getError()
+
+        assertEquals(600, assertIs<ServiceError.RateLimitError>(error).retryAfterSeconds)
+    }
+
+    @Test
+    fun `a negative Retry-After is treated as absent`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(HttpStatusCode.TooManyRequests, calls, retryAfterSeconds = -1)
+
+        val error = clientOn(engine, enableRetry = false)
+            .use { it.get("https://example.invalid/languages") }
+            .getError()
+
+        assertNull(assertIs<ServiceError.RateLimitError>(error).retryAfterSeconds)
+    }
+
+    @Test
+    fun `a Retry-After HTTP-date in the future is reported as seconds`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(
+            HttpStatusCode.TooManyRequests,
+            calls,
+            retryAfterHeader = httpDateFromNow(30)
+        )
+
+        val error = clientOn(engine, enableRetry = false)
+            .use { it.get("https://example.invalid/languages") }
+            .getError()
+
+        val reported = assertIs<ServiceError.RateLimitError>(error).retryAfterSeconds
+        assertNotNull(reported, "an HTTP-date in the future should be converted to seconds")
+        // The date has whole-second resolution, so the conversion may land a second either side.
+        assertTrue(reported in 28..31, "expected roughly 30s from a date 30s ahead, got $reported")
+    }
+
+    @Test
+    fun `a Retry-After HTTP-date in the past leaves the hint unset`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(
+            HttpStatusCode.TooManyRequests,
+            calls,
+            retryAfterHeader = httpDateFromNow(-3_600)
+        )
+
+        val error = clientOn(engine, enableRetry = false)
+            .use { it.get("https://example.invalid/languages") }
+            .getError()
+
+        assertNull(assertIs<ServiceError.RateLimitError>(error).retryAfterSeconds)
+    }
+
+    @Test
+    fun `a single-attempt 429 makes exactly one wire attempt even with retries enabled`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(HttpStatusCode.TooManyRequests, calls)
+
+        val error = clientOn(engine, maxRetries = 2).use {
+            it.getOnce("https://example.invalid/languages")
+        }.getError()
+
+        // The transport would otherwise send this three times and sleep in between; the caller
+        // asking for one attempt must get exactly one, so its own policy can run instead.
+        assertEquals(1, calls.get(), "getOnce must not be retried")
+        assertIs<ServiceError.RateLimitError>(error)
+    }
+
+    @Test
+    fun `a single-attempt 429 does not wait out Retry-After`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(HttpStatusCode.TooManyRequests, calls, retryAfterSeconds = 5)
+
+        // A real clock, as in the other timing tests: the send runs on Dispatchers.IO, outside the
+        // test scheduler. A retrying client would sleep the full Retry-After here, so a pass below
+        // two seconds is evidence that no such sleep happened on the single-attempt path.
+        val startedAt = System.nanoTime()
+        val error = clientOn(engine, maxRetries = 2).use {
+            it.getOnce("https://example.invalid/languages")
+        }.getError()
+        val waitedMillis = (System.nanoTime() - startedAt) / 1_000_000
+
+        assertEquals(1, calls.get(), "getOnce must not be retried")
+        assertTrue(
+            waitedMillis < 2_000,
+            "a single attempt must not sleep out Retry-After, but waited ${waitedMillis}ms"
+        )
+        assertEquals(5, assertIs<ServiceError.RateLimitError>(error).retryAfterSeconds)
+    }
+
+    @Test
+    fun `a single-attempt retryable 5xx makes exactly one wire attempt`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(HttpStatusCode.InternalServerError, calls)
+
+        clientOn(engine, maxRetries = 2).use { it.getOnce("https://example.invalid/languages") }
+
+        assertEquals(1, calls.get(), "a plain GET would make 3 attempts")
+    }
+
+    @Test
+    fun `an ordinary GET still uses the retry policy`() = runTest {
+        val calls = AtomicInteger()
+        val engine = countingEngine(HttpStatusCode.TooManyRequests, calls)
+
+        clientOn(engine, maxRetries = 2).use { it.get("https://example.invalid/languages") }
+
+        assertEquals(3, calls.get(), "the default must be untouched: 1 attempt + 2 retries")
     }
 }

@@ -18,6 +18,8 @@ sealed class StatusCode {
     object NoTranslatorActive : StatusCode()
     object PerformingBackwardTranslation : StatusCode()
     data class UnexpectedError(val summary: String) : StatusCode()
+    /** Comparison was requested but fewer than two translators are usable; Classic is shown. */
+    object ComparisonNeedsTwoTranslators : StatusCode()
 
     // ---- Text-to-Speech ----
 

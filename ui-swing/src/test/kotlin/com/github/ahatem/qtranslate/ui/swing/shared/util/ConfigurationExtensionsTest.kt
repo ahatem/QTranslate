@@ -1,12 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.util
 
-import com.formdev.flatlaf.FlatLaf
-import com.formdev.flatlaf.FlatLightLaf
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
-import java.awt.Font
-import javax.swing.UIManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -48,18 +44,16 @@ class ConfigurationExtensionsTest {
     fun `size does not depend on the font currently installed`() {
         val config = configWith(size = 13, scale = 125)
 
-        FlatLightLaf.setup()
-        val first = config.scaledUiFont.size
+        val first = withFlatLafScale(fontSize = 13) { config.scaledUiFont.size }
 
-        UIManager.put("defaultFont", Font("Dialog", Font.PLAIN, 48))
-        FlatLaf.updateUI()
-        // Guards the guard: if this ever stops holding, the assertion below proves nothing.
-        assertTrue(
-            UIScale.scale(10) > 10,
-            "UIScale is not reporting a raised factor, so this test cannot detect the regression"
-        )
-
-        val second = config.scaledUiFont.size
+        val second = withFlatLafScale(fontSize = 48) {
+            // Guards the guard: if this ever stops holding, the assertion below proves nothing.
+            assertTrue(
+                UIScale.scale(10) > 10,
+                "UIScale is not reporting a raised factor, so this test cannot detect the regression"
+            )
+            config.scaledUiFont.size
+        }
         assertEquals(first, second, "Scaling must not read the font it is about to replace")
     }
 

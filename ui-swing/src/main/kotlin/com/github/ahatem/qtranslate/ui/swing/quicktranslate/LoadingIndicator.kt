@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.quicktranslate
 
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
+import java.awt.Dialog
 import java.awt.Dimension
 import java.awt.Frame
 import java.awt.MouseInfo
@@ -28,6 +29,8 @@ class LoadingIndicator(owner: Frame) : JWindow(), Renderable<LoadingIndicatorSta
 
     init {
         isAlwaysOnTop = true
+        modalExclusionType = Dialog.ModalExclusionType.APPLICATION_EXCLUDE
+        setAutoRequestFocus(false)
         focusableWindowState = false
         type = Type.UTILITY
 

@@ -1,0 +1,158 @@
+package com.github.ahatem.qtranslate.ui.swing.shared.clipboard
+
+import com.github.ahatem.qtranslate.api.core.Logger
+import java.awt.datatransfer.DataFlavor
+import java.awt.datatransfer.StringSelection
+import java.awt.datatransfer.Transferable
+import java.awt.datatransfer.UnsupportedFlavorException
+
+/** Records the levels used by the capture flow so tests can assert what was logged. */
+internal class RecordingLogger : Logger {
+
+    val warns = mutableListOf<String>()
+    val errors = mutableListOf<String>()
+
+    override fun debug(message: String) = Unit
+    override fun info(message: String) = Unit
+    override fun warn(message: String) { warns += message }
+    override fun error(message: String, error: Throwable?) { errors += message }
+}
+
+/** Change monitor whose token only advances when a test advances it. */
+internal class FakeChangeMonitor(var current: Long = 0L) : ClipboardChangeMonitor {
+
+    override fun mark(): Long? = current
+
+    override fun hasChangedSince(token: Long): Boolean = current != token
+}
+
+/** Change monitor that can never observe the platform. */
+internal class NullChangeMonitor : ClipboardChangeMonitor {
+
+    override fun mark(): Long? = null
+
+    override fun hasChangedSince(token: Long): Boolean = false
+}
+
+/**
+ * Models Windows delayed rendering: Ctrl+C is accepted but the sequence number does not
+ * advance until the clipboard data is actually requested, which is what prompts the source
+ * application to render. [copyAccepted] is set by the copy lambda; each [SystemClipboard.readText]
+ * should set [renderRequested] (wire via [RecordingClipboard.onReadText]).
+ */
+internal class DelayedRenderingMonitor(var sequence: Long = 100L) : ClipboardChangeMonitor {
+
+    var copyAccepted = false
+    var renderRequested = false
+
+    override fun mark(): Long? = sequence
+
+    override fun hasChangedSince(token: Long): Boolean {
+        if (copyAccepted && renderRequested && sequence == token) sequence++
+        return sequence != token
+    }
+}
+
+/**
+ * In-memory clipboard that records everything ever published, like a clipboard manager would.
+ */
+internal class RecordingClipboard(text: String? = null) : SystemClipboard {
+
+    val published = mutableListOf<String>()
+    val restored = mutableListOf<ClipboardSnapshot>()
+    var contents: ClipboardSnapshot? = text?.let { ClipboardSnapshot(StringSelection(it)) }
+    var text: String? = text
+    var restoreFailure: Throwable? = null
+    val restoreFailures = ArrayDeque<Throwable>()
+    var restoreCount = 0
+    var restoreAttempts = 0
+    var snapshotFailure: Throwable? = null
+    var snapshotCalls = 0
+    /** Invoked on every [readText], so tests can model render-on-request behavior. */
+    var onReadText: (() -> Unit)? = null
+    /** When set, every subsequent [readText] call throws this instead of returning [text]. */
+    var readTextFailure: Throwable? = null
+    var signatureProvider: () -> Long? = { null }
+    /**
+     * When true, snapshots run the real production materializer over the stored transferable
+     * instead of returning it directly, so orchestration tests exercise the production
+     * snapshot boundary (including retrieval failures) without AWT.
+     */
+    var liveMaterialization: Boolean = false
+
+    override fun snapshot(): ClipboardSnapshotResult {
+        snapshotCalls++
+        snapshotFailure?.let { return ClipboardSnapshotResult.Failed(it) }
+        val current = contents ?: return ClipboardSnapshotResult.Empty
+        if (!liveMaterialization) return ClipboardSnapshotResult.Available(current)
+        return runCatching { ClipboardSnapshots.materialize(current.transferable) }
+            .getOrElse { ClipboardSnapshotResult.Failed(it) }
+    }
+
+    override fun readText(): String? {
+        onReadText?.invoke()
+        readTextFailure?.let { throw it }
+        return text
+    }
+
+    override fun signature(): Long? = signatureProvider()
+
+    override fun restore(state: ClipboardSnapshotResult) {
+        restoreAttempts++
+        restoreFailures.removeFirstOrNull()?.let { throw it }
+        restoreFailure?.let { throw it }
+        when (state) {
+            is ClipboardSnapshotResult.Available -> {
+                val snapshot = state.snapshot
+                restoreCount++
+                restored += snapshot
+                contents = snapshot
+                val value = runCatching {
+                    snapshot.transferable.getTransferData(DataFlavor.stringFlavor) as? String
+                }.getOrNull()
+                published += value ?: NON_TEXT
+                text = value
+            }
+            // Restoring empty is an explicit clear, recorded like any other publish.
+            is ClipboardSnapshotResult.Empty -> {
+                restoreCount++
+                val snapshot = ClipboardSnapshot(EmptyTransferable)
+                restored += snapshot
+                contents = snapshot
+                published += EMPTY
+                text = null
+            }
+            is ClipboardSnapshotResult.Failed ->
+                throw IllegalStateException("Cannot restore a failed clipboard snapshot")
+        }
+    }
+
+    /** Simulates another application putting [value] on the clipboard. */
+    fun simulateExternalCopy(value: String?) {
+        text = value
+        contents = value?.let { ClipboardSnapshot(StringSelection(it)) }
+    }
+
+    fun setSnapshot(snapshot: ClipboardSnapshot) {
+        contents = snapshot
+        text = null
+    }
+
+    companion object {
+        const val NON_TEXT = "<non-text>"
+        const val EMPTY = "<empty>"
+    }
+}
+
+/** Transferable backed by an explicit flavor map, for building snapshot fixtures. */
+internal class MapTransferable(
+    private val data: List<Pair<DataFlavor, Any>>,
+) : Transferable {
+
+    override fun getTransferDataFlavors(): Array<DataFlavor> = data.map { it.first }.toTypedArray()
+
+    override fun isDataFlavorSupported(flavor: DataFlavor): Boolean = data.any { it.first == flavor }
+
+    override fun getTransferData(flavor: DataFlavor): Any =
+        data.firstOrNull { it.first == flavor }?.second ?: throw UnsupportedFlavorException(flavor)
+}

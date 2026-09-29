@@ -2,7 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.main.statusbar
 
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
-import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
+import com.github.ahatem.qtranslate.ui.swing.shared.util.createToolbarButton
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.*
 import java.awt.event.MouseAdapter
@@ -38,10 +38,8 @@ class StatusBar(
         isOpaque = false
     }
 
-    private val notificationButton = createButtonWithIcon(iconManager, Icons.NOTIFICATION, 14).apply {
-        putClientProperty("JButton.buttonType", "toolBarButton")
-        isFocusable = false
-        addActionListener { onNotificationsClicked() }
+    private val notificationButton = createToolbarButton(iconManager, Icons.NOTIFICATION, 14) {
+        onNotificationsClicked()
     }
 
     init {

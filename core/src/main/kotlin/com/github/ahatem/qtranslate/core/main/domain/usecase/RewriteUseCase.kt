@@ -6,7 +6,6 @@ import com.github.ahatem.qtranslate.api.plugin.StandardOptions
 import com.github.ahatem.qtranslate.api.rewriter.RewriteRequest
 import com.github.ahatem.qtranslate.api.rewriter.Rewriter
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
-import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
@@ -23,7 +22,7 @@ class RewriteUseCase(
 
     suspend operator fun invoke(
         text: String,
-        config: Configuration,
+        rewriteStyle: String,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
     ): String {
         val rewriter = activeServiceManager.getActiveService<Rewriter>(ServiceRole.REWRITER)
@@ -41,7 +40,7 @@ class RewriteUseCase(
                     text = text,
                     // The service declares which styles it offers; the host only passes the id
                     // the user picked, so a plugin-defined style travels through unchanged.
-                    options = mapOf(StandardOptions.KEY_REWRITE_STYLE to config.rewriteStyle)
+                    options = mapOf(StandardOptions.KEY_REWRITE_STYLE to rewriteStyle)
                 )
             )
         }

@@ -2,7 +2,9 @@ package com.github.ahatem.qtranslate.core.main.mvi
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.ImageData
+import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
 import java.io.File
@@ -42,9 +44,12 @@ sealed interface MainIntent : UiIntent {
      * wanted. Asking for a full translation here threw away a result the user was reading and
      * spent another request to fetch the same text back.
      *
+     * [extraOutputRequest] is supplied by callers that have just committed or selected an Extra
+     * Output option, so the refresh does not wait for the derived settings flow to catch up.
+     *
      * Falls back to a full translation when there is nothing translated yet to derive from.
      */
-    data object RefreshExtraOutput : MainIntent
+    data class RefreshExtraOutput(val extraOutputRequest: ExtraOutputRequest? = null) : MainIntent
 
     /**
      * User cancelled an in-flight translation.
@@ -94,11 +99,11 @@ sealed interface MainIntent : UiIntent {
 
     /**
      * User clicked a spell-check suggestion to apply it.
-     * @property original   The misspelled word as it appears in [MainState.inputText].
+     * @property correction The selected correction and its range in [MainState.inputText].
      * @property suggestion The correction to substitute in.
      */
     data class ApplyCorrection(
-        val original: String,
+        val correction: Correction,
         val suggestion: String
     ) : MainIntent
 
@@ -144,7 +149,11 @@ sealed interface MainIntent : UiIntent {
      * User triggered quick translate (e.g. via global hotkey with text selected).
      * @property selectedText The text that was selected at the time of the hotkey press.
      */
-    data class ShowQuickTranslate(val selectedText: String) : MainIntent
+    data class ShowQuickTranslate(
+        val selectedText: String,
+        /** Speak this request according to the persisted selection read-source preference. */
+        val readSelectionAloud: Boolean = false
+    ) : MainIntent
 
     /** User dismissed the quick translate popup. */
     data object HideQuickTranslate : MainIntent
@@ -158,6 +167,9 @@ sealed interface MainIntent : UiIntent {
     /** User toggled the pin state of the quick translate popup. */
     data object ToggleQuickTranslateDialogPin : MainIntent
 
+    /** Re-run the currently visible Quick Translate request without closing the popup. */
+    data object RetranslateQuickTranslate : MainIntent
+
     // ---- Dictionary ----
 
     /**
@@ -169,8 +181,20 @@ sealed interface MainIntent : UiIntent {
         val language: LanguageCode = LanguageCode.ENGLISH
     ) : MainIntent
 
-    /** User toggled the inline dictionary panel open or closed. */
+    /**
+     * User toggled the dictionary in the lookup dock: opens the dock on the dictionary, or closes
+     * it when the dictionary is what it already shows.
+     */
     data object ToggleDictionaryPanel : MainIntent
+
+    /** User opened the lookup dock on [tool], or switched an open dock to it. */
+    data class OpenLookupDock(val tool: LookupTool) : MainIntent
+
+    /** User picked another tool in an open lookup dock. */
+    data class SelectLookupTool(val tool: LookupTool) : MainIntent
+
+    /** User closed the lookup dock. */
+    data object CloseLookupDock : MainIntent
 
     /**
      * User triggered the floating dictionary popup (e.g. via global hotkey or auto-lookup).

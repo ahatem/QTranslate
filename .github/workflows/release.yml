@@ -8,17 +8,76 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  windows-package:
-    name: Build Windows executable
-    runs-on: windows-latest
+  # The native helpers are Swift, so they can only be built on macOS, while the artifacts that need them
+  # are packaged on Windows and Linux. Building it once here and passing the binary on is what lets
+  # the released ZIP and plugin JARs carry a working macOS backend.
+  macos-helper:
+    name: Build macOS Vision helper
+    runs-on: macos-14
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
       - name: Set up Java 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      # Produces one universal arm64 + x86_64 binary, so it serves Apple Silicon and Intel alike.
+      - name: Build universal macOS helpers
+        run: ./gradlew :plugins:system-services:buildMacVisionHelper :plugins:system-services:buildMacSpellHelper --no-daemon
+
+      - name: Upload Vision helper
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-vision-ocr
+          path: plugins/system-services/build/generated/mac-helper-build/vision_ocr
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload spell helper
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-system-spell
+          path: plugins/system-services/build/generated/mac-spell-build/system_spell
+          if-no-files-found: error
+          retention-days: 7
+
+  windows-package:
+    name: Build Windows executable
+    runs-on: windows-latest
+    needs: macos-helper
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download macOS Vision helper
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-vision-ocr
+          path: macos-helper
+
+      - name: Download macOS spell helper
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-system-spell
+          path: macos-helper
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -33,118 +92,39 @@ jobs:
           $version = "${{ github.ref_name }}" -replace '^v', ''
           "version=$version" >> $env:GITHUB_OUTPUT
 
-      # Artifacts take their version from the tag while AppConstants.APP_VERSION is compiled in,
-      # and nothing kept the two together. The constant sat at 1.3.0 through the whole 1.4.0
-      # cycle, which would have shipped an app comparing its own version against the release it
-      # came from and telling every new user an update was waiting.
-      #
-      # Checked before anything is built, so a mismatch costs seconds rather than a published
-      # release that has to be withdrawn.
-      - name: Verify APP_VERSION matches the tag
+      - name: Verify tag and runtime version identity
         shell: pwsh
-        run: |
-          $expected = "${{ steps.version.outputs.version }}"
-          $constants = "core/src/main/kotlin/com/github/ahatem/qtranslate/core/shared/AppConstants.kt"
-          $match = Select-String -Path $constants -Pattern 'const val APP_VERSION = "([^"]+)"'
-          if (-not $match) {
-            Write-Error "Could not find APP_VERSION in $constants"
-            exit 1
-          }
-          $actual = $match.Matches[0].Groups[1].Value
-
-          # A prerelease may carry either form. Tagging v1.4.0-rc.1 with APP_VERSION at 1.4.0 is
-          # not the mistake this check exists to catch, and demanding an exact match would mean
-          # editing the constant for every candidate and again for the final tag — churn that
-          # invites the very drift being guarded against. A stale 1.3.0 still fails either way.
-          $expectedBase = ($expected -split '-')[0]
-          if ($actual -ne $expected -and $actual -ne $expectedBase) {
-            Write-Error @"
-          APP_VERSION does not match the release tag.
-            tag:          $expected
-            APP_VERSION:  $actual
-          Update $constants and push a new tag. The compiled-in version is what the
-          in-app updater compares against, so a mismatch tells every new install that an
-          update is already available.
-          "@
-            exit 1
-          }
-          Write-Host "APP_VERSION $actual matches tag $expected."
+        run: ./gradlew validateReleaseVersion "-PreleaseVersion=${{ steps.version.outputs.version }}" --no-daemon
 
       - name: Build full distribution
         shell: pwsh
         # The property must be quoted: PowerShell otherwise splits the argument at the
         # first dot, passing Gradle a bogus ".3.0" task name and failing the build.
-        run: ./gradlew assemblePortable "-PreleaseVersion=${{ steps.version.outputs.version }}" --no-daemon
+        # Stages the macOS binary the previous job built, which this runner cannot compile itself.
+        run: ./gradlew assemblePortable "-PreleaseVersion=${{ steps.version.outputs.version }}" "-PmacVisionHelper=macos-helper/vision_ocr" "-PmacSpellHelper=macos-helper/system_spell" --no-daemon
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
       - name: Assemble portable Windows app image
         shell: pwsh
-        run: |
-          $version = "${{ steps.version.outputs.version }}"
-          $packageVersion = ($version -split '-')[0]
-          $portableArchive = "build/release/QTranslate-$version.zip"
+        run: ./.github/scripts/package-windows.ps1 -Version "${{ steps.version.outputs.version }}" -PortableArchive "build/release/QTranslate-${{ steps.version.outputs.version }}.zip" -OutputDirectory windows-candidate
 
-          Expand-Archive -LiteralPath $portableArchive -DestinationPath portable-distribution
-          New-Item -ItemType Directory -Force package-input | Out-Null
-          Copy-Item portable-distribution/QTranslate/QTranslate.jar package-input/QTranslate.jar
-
-          # jlink only includes modules listed here. Providers loaded reflectively via
-          # ServiceLoader (JCA crypto, locale data) are invisible to static analysis, so
-          # they must be requested explicitly or they silently vanish from the runtime.
-          $modules = @(
-            'java.base', 'java.desktop', 'java.instrument', 'java.logging',
-            'java.management', 'java.naming', 'java.net.http', 'java.prefs',
-            'java.security.jgss', 'java.xml.crypto', 'jdk.charsets', 'jdk.unsupported',
-            # SunEC provider. Without it every ECDHE/ECDSA TLS handshake fails, which
-            # breaks all network services ("EC KeyPairGenerator not available").
-            'jdk.crypto.ec',
-            # Locale data for the 13 bundled languages. Without it the JDK falls back to
-            # ROOT/English number, date, and display-name formatting.
-            'jdk.localedata',
-            # ZIP FileSystem provider. Not required by the app itself, but bundled plugins
-            # are third-party code that may rely on it; the module costs ~100 KB.
-            'jdk.zipfs'
-          ) -join ','
-          jlink `
-            --add-modules $modules `
-            --strip-debug `
-            --no-header-files `
-            --no-man-pages `
-            --strip-native-commands `
-            --compress=2 `
-            --output qtranslate-runtime
-
-          jpackage `
-            --type app-image `
-            --name QTranslate `
-            --input package-input `
-            --main-jar QTranslate.jar `
-            --main-class com.github.ahatem.qtranslate.app.MainKt `
-            --app-version $packageVersion `
-            --icon ui-swing/src/main/resources/icons/app/icon.ico `
-            --runtime-image qtranslate-runtime `
-            --dest windows-package `
-            --java-options '-Dfile.encoding=UTF-8'
-
-          Copy-Item portable-distribution/QTranslate/plugins windows-package/QTranslate/plugins -Recurse
-          Copy-Item portable-distribution/QTranslate/languages windows-package/QTranslate/languages -Recurse
-          Copy-Item portable-distribution/QTranslate/themes windows-package/QTranslate/themes -Recurse
-          Copy-Item portable-distribution/QTranslate/icons windows-package/QTranslate/icons -Recurse
-          Copy-Item portable-distribution/QTranslate/THIRD_PARTY_LICENSES windows-package/QTranslate/THIRD_PARTY_LICENSES -Recurse
-          Compress-Archive -Path windows-package/QTranslate -DestinationPath "QTranslate-$version-windows-x64.zip"
+      - name: Verify bundled runtime and packaged launcher
+        shell: pwsh
+        run: ./.github/scripts/verify-windows-package.ps1 -Version "${{ steps.version.outputs.version }}" -PackageDirectory windows-candidate
 
       - name: Upload Windows package
         uses: actions/upload-artifact@v7
         with:
           name: qtranslate-windows-x64
-          path: QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip
+          path: windows-candidate/QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip
           if-no-files-found: error
 
   release:
     name: Build & Publish Release
     runs-on: ubuntu-latest
-    needs: windows-package
+    needs: [windows-package]
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -153,7 +133,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Java 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -165,8 +145,21 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
+      - name: Download macOS Vision helper
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-vision-ocr
+          path: macos-helper
+
+      - name: Download macOS spell helper
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-system-spell
+          path: macos-helper
+
+      # The individual plugin JARs are published from this job, so they need the macOS helper too.
       - name: Build release variants
-        run: ./gradlew assembleReleaseVariants "-PreleaseVersion=${{ steps.version.outputs.version }}" --no-daemon
+        run: ./gradlew assembleReleaseVariants "-PreleaseVersion=${{ steps.version.outputs.version }}" "-PmacVisionHelper=macos-helper/vision_ocr" "-PmacSpellHelper=macos-helper/system_spell" --no-daemon
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
@@ -180,6 +173,9 @@ jobs:
         run: |
           cd build/release
           sha256sum "QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip" >> SHA256SUMS.txt
+
+      - name: Verify release inventory and checksums before publishing
+        run: ./gradlew verifyReleaseArtifacts "-PreleaseVersion=${{ steps.version.outputs.version }}" -PrequireWindowsArtifact=true -PrequireMacHelpers=true --no-daemon
 
       - name: Generate changelog
         id: changelog
@@ -236,8 +232,8 @@ jobs:
             | Download | Who it is for | Java needed |
             |---|---|---|
             | **[⬇ Windows (.exe)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip)** | **Start here on Windows.** Extract and run `QTranslate.exe`. | No — runtime included |
-            | **[⬇ Portable (all platforms)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/QTranslate-${{ steps.version.outputs.version }}.zip)** | macOS, Linux, or Windows without an installer. Extract and run `QTranslate.jar`. | Java 11+ |
-            | **[⬇ App only (.jar)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/QTranslate-App-${{ steps.version.outputs.version }}.jar)** | No plugins. For custom setups and plugin development. | Java 11+ |
+            | **[⬇ Portable (all platforms)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/QTranslate-${{ steps.version.outputs.version }}.zip)** | macOS, Linux, or Windows without an installer. Extract and run `QTranslate.jar`. | Java 17+ |
+            | **[⬇ App only (.jar)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/QTranslate-App-${{ steps.version.outputs.version }}.jar)** | No plugins. For custom setups and plugin development. | Java 17+ |
 
             The portable ZIP already contains every bundled plugin. The individual
             plugin JARs in the assets below are only needed to add or update a single

@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
@@ -10,6 +11,7 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.util.ServiceOptionChoice
 import com.github.ahatem.qtranslate.ui.swing.shared.util.choices
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 import java.awt.*
 import javax.swing.*
 
@@ -33,18 +35,10 @@ class TranslationPanel(
     private val localizationManager: LocalizationManager
 ) : SettingsPanel() {
 
-    private val dictAutoSources by lazy {
-        listOf(
-            DictionaryAutoSourceInfo(DictionaryAutoSource.OFF, localizationManager.getString("settings_translation.dict_auto_source_off")),
-            DictionaryAutoSourceInfo(DictionaryAutoSource.TRANSLATED, localizationManager.getString("settings_translation.dict_auto_source_translated")),
-            DictionaryAutoSourceInfo(DictionaryAutoSource.SOURCE, localizationManager.getString("settings_translation.dict_auto_source_source")),
-        )
-    }
-
-    private lateinit var dictAutoSourceCombo: JComboBox<DictionaryAutoSourceInfo>
+    private lateinit var dictAutoLookupCheck: JCheckBox
+    private lateinit var dictAutoUseTranslated: JRadioButton
+    private lateinit var dictAutoUseSource: JRadioButton
     private lateinit var dictAutoPopupCheck: JCheckBox
-
-    private data class DictionaryAutoSourceInfo(val source: DictionaryAutoSource, val displayName: String)
 
     /**
      * The standard vocabularies, not the active service's.
@@ -115,7 +109,7 @@ class TranslationPanel(
         addSeparator(localizationManager.getString("settings_translation.extra_output_group"))
 
         typeCombo = JComboBox<ExtraOutputTypeInfo>(types.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
+            renderer = DisplayValueRenderer<ExtraOutputTypeInfo>(text = { it?.displayName.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     val type = (selectedItem as? ExtraOutputTypeInfo)?.type ?: return@addActionListener
@@ -128,7 +122,7 @@ class TranslationPanel(
 
         // Summary length — only visible when type = Summarize
         summaryLengthCombo = JComboBox<ServiceOptionChoice>(summaryLengths.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.label ?: "") }
+            renderer = DisplayValueRenderer<ServiceOptionChoice>(text = { it?.label.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     val length = (selectedItem as? ServiceOptionChoice)?.id ?: return@addActionListener
@@ -147,7 +141,7 @@ class TranslationPanel(
 
         // Rewrite style — only visible when type = Rewrite
         rewriteStyleCombo = JComboBox<ServiceOptionChoice>(rewriteStyles.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.label ?: "") }
+            renderer = DisplayValueRenderer<ServiceOptionChoice>(text = { it?.label.orEmpty() })
             addActionListener {
                 if (!isUpdatingFromState) {
                     val style = (selectedItem as? ServiceOptionChoice)?.id ?: return@addActionListener
@@ -193,25 +187,65 @@ class TranslationPanel(
         // Moved here from Languages. It decides what happens after a translation, which is
         // behaviour; its localization keys were already `settings_translation.*`, so it had
         // drifted away from where it was written to belong.
+        //
+        // The on/off switch and the source choice used to be one three-way dropdown (Off /
+        // Translated / Source), which hid "off" as a value alongside two real choices rather than
+        // as its own state. A checkbox plus a radio group that only matters while it's checked says
+        // the same thing more directly. This still writes the same three-value
+        // Configuration.dictionaryAutoSource field -- no new field, no migration -- the checkbox
+        // reads/writes `!= OFF`, and turning it back on restores whichever radio was last shown
+        // rather than resetting to a fixed choice, the same as reselecting a non-Off dropdown entry
+        // used to.
         addSeparator(localizationManager.getString("settings_languages.dict_auto_lookup_group"))
         addHint(localizationManager.getString("settings_languages.dict_auto_lookup_hint"))
 
-        dictAutoSourceCombo = JComboBox<DictionaryAutoSourceInfo>(dictAutoSources.toTypedArray()).apply {
-            setRenderer { _, value, _, _, _ -> JLabel(value?.displayName ?: "") }
-            addActionListener {
-                if (!isUpdatingFromState) {
-                    val src = (selectedItem as? DictionaryAutoSourceInfo)?.source ?: return@addActionListener
-                    applyDraft(store) { it.copy(dictionaryAutoSource = src) }
+        dictAutoLookupCheck = addCheckbox(
+            text = localizationManager.getString("settings_translation.dict_auto_lookup_enabled"),
+            selected = true,
+            onChange = { enabled ->
+                applyDraft(store) {
+                    it.copy(
+                        dictionaryAutoSource = if (enabled) {
+                            if (dictAutoUseSource.isSelected) DictionaryAutoSource.SOURCE else DictionaryAutoSource.TRANSLATED
+                        } else {
+                            DictionaryAutoSource.OFF
+                        }
+                    )
                 }
             }
-        }
-        addRow(localizationManager.getString("settings_languages.dict_auto_lookup_source"), dictAutoSourceCombo)
-
-        dictAutoPopupCheck = addCheckbox(
-            text = localizationManager.getString("settings_languages.dict_auto_popup_enabled"),
-            selected = true,
-            onChange = { enabled -> applyDraft(store) { it.copy(isDictionaryAutoPopupEnabled = enabled) } }
         )
+
+        dictAutoUseTranslated = JRadioButton(localizationManager.getString("settings_translation.dict_auto_source_translated")).apply {
+            addActionListener {
+                if (isSelected && !isUpdatingFromState)
+                    applyDraft(store) { it.copy(dictionaryAutoSource = DictionaryAutoSource.TRANSLATED) }
+            }
+        }
+        dictAutoUseSource = JRadioButton(localizationManager.getString("settings_translation.dict_auto_source_source")).apply {
+            addActionListener {
+                if (isSelected && !isUpdatingFromState)
+                    applyDraft(store) { it.copy(dictionaryAutoSource = DictionaryAutoSource.SOURCE) }
+            }
+        }
+        ButtonGroup().apply { add(dictAutoUseTranslated); add(dictAutoUseSource) }
+
+        val dictAutoSourceRow = JPanel().apply {
+            layout   = BoxLayout(this, BoxLayout.Y_AXIS)
+            isOpaque = false
+            add(dictAutoUseTranslated)
+            add(Box.createVerticalStrut(4))
+            add(dictAutoUseSource)
+        }
+        addRow(localizationManager.getString("settings_translation.dict_auto_lookup_source_label"), dictAutoSourceRow)
+
+        // Visually subordinate to the checkbox above it -- it only matters when auto-lookup is on,
+        // and indenting says so without another line of copy.
+        dictAutoPopupCheck = JCheckBox(localizationManager.getString("settings_languages.dict_auto_popup_enabled")).apply {
+            addActionListener { if (!isUpdatingFromState) applyDraft(store) { it.copy(isDictionaryAutoPopupEnabled = isSelected) } }
+        }
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+            .insets(0, UIScale.scale(20), 0, 0).add(dictAutoPopupCheck)
+        registerSearchEntry(localizationManager.getString("settings_languages.dict_auto_popup_enabled"), dictAutoPopupCheck)
 
         finishLayout()
     }
@@ -241,9 +275,20 @@ class TranslationPanel(
             summaryLengthRow.isVisible      = c.extraOutputType == ExtraOutputType.Summarize
             rewriteStyleRow.isVisible       = c.extraOutputType == ExtraOutputType.Rewrite
 
-            dictAutoSourceCombo.selectedItem = dictAutoSources.find { it.source == c.dictionaryAutoSource }
-            dictAutoPopupCheck.isSelected    = c.isDictionaryAutoPopupEnabled
-            dictAutoPopupCheck.isEnabled     = c.dictionaryAutoSource != DictionaryAutoSource.OFF
+            val autoLookupEnabled = c.dictionaryAutoSource != DictionaryAutoSource.OFF
+            dictAutoLookupCheck.isSelected = autoLookupEnabled
+            // Only move the radios when there's a real choice to show -- OFF carries no source of
+            // its own, so leave whichever one was last selected in place (dimmed) rather than
+            // forcing a choice back onto the user the moment they uncheck the box above.
+            when (c.dictionaryAutoSource) {
+                DictionaryAutoSource.TRANSLATED -> dictAutoUseTranslated.isSelected = true
+                DictionaryAutoSource.SOURCE     -> dictAutoUseSource.isSelected     = true
+                DictionaryAutoSource.OFF        -> Unit
+            }
+            dictAutoUseTranslated.isEnabled = autoLookupEnabled
+            dictAutoUseSource.isEnabled     = autoLookupEnabled
+            dictAutoPopupCheck.isSelected   = c.isDictionaryAutoPopupEnabled
+            dictAutoPopupCheck.isEnabled    = autoLookupEnabled
         }
     }
 

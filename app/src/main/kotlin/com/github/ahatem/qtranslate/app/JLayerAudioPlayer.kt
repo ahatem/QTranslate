@@ -8,110 +8,179 @@ import javazoom.jl.player.Player
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
+import javax.sound.sampled.AudioFormat.Encoding
+import javax.sound.sampled.AudioInputStream
+import javax.sound.sampled.AudioSystem
+import javax.sound.sampled.DataLine
+import javax.sound.sampled.SourceDataLine
 
-/**
- * [com.github.ahatem.qtranslate.core.audio.AudioPlayer] implementation backed by the JLayer MP3 decoding library.
- *
- * ### Format support
- * JLayer only decodes MP3. Attempting to play [com.github.ahatem.qtranslate.api.tts.AudioFormat.WAV] or [com.github.ahatem.qtranslate.api.tts.AudioFormat.OGG]
- * is a no-op with a warning log — it will not throw or produce garbage output.
- *
- * ### Concurrency model
- * Each [play] call cancels any in-flight playback job and starts a new one immediately.
- * There is no queue — the most recently requested audio always wins.
- * [isPlaying] is updated atomically around the playback lifecycle.
- *
- * @property scope Coroutine scope for background playback. The caller owns this scope
- *   and is responsible for its lifecycle. [close] will cancel it.
- * @property logger Logger for playback errors and format warnings.
- */
-class JLayerAudioPlayer(
-    private val scope: CoroutineScope,
-    private val logger: Logger
+/** One blocking output operation. Closing it interrupts playback. */
+internal interface AudioOutput {
+    fun play(shouldContinue: () -> Boolean)
+    fun close()
+}
+
+internal fun interface AudioOutputFactory {
+    fun create(format: AudioFormat, bytes: ByteArray): AudioOutput
+}
+
+internal object SystemAudioOutputFactory : AudioOutputFactory {
+    override fun create(format: AudioFormat, bytes: ByteArray): AudioOutput = when (format) {
+        AudioFormat.MP3 -> Mp3Output(bytes)
+        AudioFormat.WAV -> WavOutput(bytes)
+        else -> error("Unsupported audio format: $format")
+    }
+
+    private class Mp3Output(bytes: ByteArray) : AudioOutput {
+        private val player = Player(ByteArrayInputStream(bytes))
+        override fun play(shouldContinue: () -> Boolean) { if (shouldContinue()) player.play() }
+        override fun close() = player.close()
+    }
+
+    private class WavOutput(bytes: ByteArray) : AudioOutput {
+        private val stream: AudioInputStream = AudioSystem.getAudioInputStream(ByteArrayInputStream(bytes))
+        private val line: SourceDataLine
+
+        init {
+            try {
+                val format = stream.format
+                require(format.encoding == Encoding.PCM_SIGNED || format.encoding == Encoding.PCM_UNSIGNED) {
+                    "Only PCM WAV is supported"
+                }
+                line = AudioSystem.getLine(DataLine.Info(SourceDataLine::class.java, format)) as SourceDataLine
+                line.open(format)
+            } catch (exception: Exception) {
+                stream.close()
+                throw exception
+            }
+        }
+
+        override fun play(shouldContinue: () -> Boolean) {
+            line.start()
+            val buffer = ByteArray(8192)
+            while (shouldContinue()) {
+                val count = stream.read(buffer)
+                if (count < 0) break
+                var offset = 0
+                while (offset < count && shouldContinue()) {
+                    offset += line.write(buffer, offset, count - offset)
+                }
+            }
+            if (shouldContinue()) line.drain()
+        }
+
+        override fun close() {
+            try { line.stop(); line.flush() } finally {
+                try { line.close() } finally { stream.close() }
+            }
+        }
+    }
+}
+
+/** Plays MP3 with JLayer and PCM WAV with Java Sound. */
+class JLayerAudioPlayer internal constructor(
+    parentScope: CoroutineScope,
+    private val logger: Logger,
+    private val outputFactory: AudioOutputFactory,
 ) : AudioPlayer {
+    constructor(scope: CoroutineScope, logger: Logger) : this(scope, logger, SystemAudioOutputFactory)
+
+    /**
+     * A child of [parentScope]'s job, not [parentScope] itself: [close] must be able to stop
+     * this player's own work without cancelling a scope owned and shared elsewhere (the root
+     * application scope, in production).
+     */
+    private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext.job))
+
+    private val lock = Any()
+    private var generation = 0L
+    private var playbackJob: Job? = null
+    private var currentOutput: AudioOutput? = null
 
     private val _isPlaying = MutableStateFlow(false)
     override val isPlaying: StateFlow<Boolean> = _isPlaying
 
-    // The currently running playback job. Cancelled on each new play() call
-    // and on stop()/close(). Guarded by @Volatile for visibility across threads.
-    @Volatile private var playbackJob: Job? = null
-
-    // The JLayer Player instance for the current playback. Closed when
-    // the playback job is cancelled or finishes naturally.
-    @Volatile private var currentPlayer: Player? = null
-
-    // -------------------------------------------------------------------------
-    // Public API
-    // -------------------------------------------------------------------------
-
     override fun play(audio: TTSAudio.Bytes) {
-        if (audio.format != AudioFormat.MP3) {
-            logger.warn(
-                "JLayerAudioPlayer only supports MP3. " +
-                        "Received ${audio.format} — ignoring playback request."
-            )
+        if (audio.format != AudioFormat.MP3 && audio.format != AudioFormat.WAV) {
+            logger.warn("Audio player only supports MP3 and WAV. Received " + audio.format)
             return
         }
-
-        // Cancel the current playback job immediately — new audio always wins.
-        // stopInternal() is called inside the new job's finally block via the
-        // previous job's cancellation, so we don't double-close here.
-        playbackJob?.cancel()
-
-        playbackJob = scope.launch {
-            _isPlaying.value = true
+        val token = synchronized(lock) {
+            generation++
+            playbackJob?.cancel()
+            closeCurrent()
+            generation
+        }
+        val job = scope.launch {
             try {
-                val player = Player(ByteArrayInputStream(audio.data))
-                currentPlayer = player
                 withContext(Dispatchers.IO) {
-                    player.play()
+                    val output = outputFactory.create(audio.format, audio.data)
+                    if (!register(token, output)) {
+                        output.close()
+                        return@withContext
+                    }
+                    output.play { shouldContinue(token) }
                 }
-            } catch (e: Exception) {
-                logger.error("Error during audio playback", e)
+            } catch (exception: Exception) {
+                if (currentCoroutineContext().isActive && isCurrent(token)) {
+                    logger.error("Error during audio playback", exception)
+                }
             } finally {
-                // Always clear state, regardless of how playback ended —
-                // normal completion, exception, or coroutine cancellation.
-                stopInternal()
+                synchronized(lock) {
+                    if (generation == token) {
+                        closeCurrent()
+                        playbackJob = null
+                    }
+                }
             }
+        }
+        synchronized(lock) {
+            if (generation == token) playbackJob = job else job.cancel()
         }
     }
 
     override fun stop() {
-        playbackJob?.cancel()
-        stopInternal()
+        synchronized(lock) {
+            generation++
+            playbackJob?.cancel()
+            playbackJob = null
+            closeCurrent()
+        }
     }
 
     override fun close() {
-        // Stop playback first — scope.cancel() after, not before.
-        // Calling stop() after scope.cancel() would launch a coroutine on a
-        // cancelled scope and never execute.
-        stopInternal()
+        stop()
         scope.cancel()
     }
 
-    // -------------------------------------------------------------------------
-    // Internal
-    // -------------------------------------------------------------------------
+    private fun shouldContinue(token: Long): Boolean =
+        !Thread.currentThread().isInterrupted && isCurrent(token)
 
-    /**
-     * Closes the current JLayer [javazoom.jl.player.Player] and resets playback state.
-     * Safe to call from any context — does not launch coroutines.
-     * Idempotent: safe to call multiple times.
-     */
-    private fun stopInternal() {
+    private fun register(token: Long, output: AudioOutput): Boolean = synchronized(lock) {
+        if (generation != token) false else {
+            currentOutput = output
+            _isPlaying.value = true
+            true
+        }
+    }
+
+    private fun isCurrent(token: Long): Boolean = synchronized(lock) { generation == token }
+
+    private fun closeCurrent() {
         _isPlaying.value = false
-        currentPlayer?.let { player ->
-            currentPlayer = null
-            runCatching { player.close() }.onFailure { e ->
-                logger.error("Error closing JLayer player", e)
-            }
+        currentOutput?.let { output ->
+            currentOutput = null
+            runCatching { output.close() }.onFailure { logger.error("Error closing audio output", it) }
         }
     }
 }

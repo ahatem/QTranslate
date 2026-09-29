@@ -2,7 +2,9 @@ package com.github.ahatem.qtranslate.core.settings.data
 
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -130,5 +132,123 @@ class ConfigMigratorTest {
             .forEach { id ->
                 assertEquals(3, id.split(':').size, "default selection '$id' is not a composed service id")
             }
+    }
+
+    @Test
+    fun `selection behavior enum uses stable names`() {
+        val json = Json {}
+        SelectionBehavior.entries.forEach { behavior ->
+            val encoded = json.encodeToString(SelectionBehavior.serializer(), behavior)
+            assertEquals(behavior.name, encoded.trim('"'))
+            assertEquals(behavior, json.decodeFromString(SelectionBehavior.serializer(), encoded))
+        }
+    }
+
+    @Test
+    fun `selection read source defaults to translation and round trips`() {
+        val json = Json {}
+        assertEquals(SelectionReadSource.TRANSLATION, Configuration.DEFAULT.selectionReadSource)
+
+        val oldCurrentConfig = json.decodeFromString<Configuration>("{\"configVersion\":7}")
+        assertEquals(SelectionReadSource.TRANSLATION, oldCurrentConfig.selectionReadSource)
+
+        val sourceConfig = Configuration.DEFAULT.copy(selectionReadSource = SelectionReadSource.SOURCE)
+        val encoded = json.encodeToString(Configuration.serializer(), sourceConfig)
+        assertTrue("selectionReadSource" in encoded)
+        assertEquals(
+            SelectionReadSource.SOURCE,
+            json.decodeFromString<Configuration>(encoded).selectionReadSource
+        )
+    }
+
+    @Test
+    fun `selection read source enum has only product choices`() {
+        assertEquals(setOf(SelectionReadSource.SOURCE, SelectionReadSource.TRANSLATION), SelectionReadSource.entries.toSet())
+    }
+
+    @Test
+    fun `every enabled selection behavior needs capture while off does not`() {
+        assertFalse(SelectionBehavior.OFF.selectionCaptureEnabled)
+        SelectionBehavior.entries
+            .filter { it != SelectionBehavior.OFF }
+            .forEach { assertTrue(it.selectionCaptureEnabled) }
+    }
+
+    @Test
+    fun `v6 legacy false migrates to off and clears the legacy field`() {
+        val decoded = Json {}.decodeFromString<Configuration>(
+            "{\"configVersion\":6,\"isSelectionIconEnabled\":false}"
+        )
+        val migrated = ConfigMigrator.migrate(decoded, logger)
+
+        assertEquals(ConfigMigrator.CURRENT_VERSION, migrated.configVersion)
+        assertEquals(SelectionBehavior.OFF, migrated.selectionBehavior)
+        assertEquals(null, migrated.legacySelectionIconEnabled)
+    }
+
+    @Test
+    fun `v6 legacy true migrates to show icon`() {
+        val decoded = Json {}.decodeFromString<Configuration>(
+            "{\"configVersion\":6,\"isSelectionIconEnabled\":true}"
+        )
+        assertEquals(
+            SelectionBehavior.SHOW_ICON,
+            ConfigMigrator.migrate(decoded, logger).selectionBehavior
+        )
+    }
+
+    @Test
+    fun `current configuration migration is idempotent and does not revive legacy state`() {
+        val migrated = ConfigMigrator.migrate(
+            Json {}.decodeFromString<Configuration>(
+                "{\"configVersion\":6,\"isSelectionIconEnabled\":true}"
+            ),
+            logger
+        )
+        val encoded = Json {}.encodeToString(Configuration.serializer(), migrated)
+
+        assertEquals(migrated, ConfigMigrator.migrate(migrated, logger))
+        assertFalse("isSelectionIconEnabled" in encoded)
+        assertEquals(SelectionBehavior.OFF, Configuration.DEFAULT.selectionBehavior)
+    }
+
+    // -------------------------------------------------------------------------
+    // Font defaults — P10-C2
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `a configuration with no stored font keys resolves to the current defaults`() {
+        // What an installation with no font opinion of its own looks like on disk: the keys are
+        // simply absent, exactly as an install that has never touched Appearance would write them.
+        val decoded = Json {}.decodeFromString<Configuration>("{\"configVersion\":7}")
+        assertEquals(FontConfig("Inter", 13), decoded.uiFontConfig)
+        assertEquals(FontConfig("Inter", 15), decoded.editorFontConfig)
+        assertEquals(FontConfig(FontConfig.AUTOMATIC, 15), decoded.editorFallbackFontConfig)
+    }
+
+    @Test
+    fun `a configuration with explicit legacy font values keeps them`() {
+        val decoded = Json {}.decodeFromString<Configuration>(
+            "{\"configVersion\":7," +
+                "\"uiFontConfig\":{\"name\":\"Rubik\",\"size\":13}," +
+                "\"editorFontConfig\":{\"name\":\"Rubik\",\"size\":15}," +
+                "\"editorFallbackFontConfig\":{\"name\":\"Noto Naskh Arabic\",\"size\":15}}"
+        )
+        assertEquals(FontConfig("Rubik", 13), decoded.uiFontConfig)
+        assertEquals(FontConfig("Rubik", 15), decoded.editorFontConfig)
+        assertEquals(FontConfig("Noto Naskh Arabic", 15), decoded.editorFallbackFontConfig)
+    }
+
+    @Test
+    fun `default font configuration is not written to disk, so an untouched install keeps following future defaults`() {
+        // This, together with the two tests above, is the entire compatibility policy: whether a
+        // stored configuration carries an opinion on fonts is decided by whether the key exists,
+        // and the two tests above show that decision is preserved through decode. This test protects
+        // the half that makes it true — an untouched default is never written, so it is free to mean
+        // whatever the current build's default means, on every future upgrade.
+        val encoded = Json {}.encodeToString(Configuration.serializer(), Configuration.DEFAULT)
+        assertFalse("uiFontConfig" in encoded)
+        assertFalse("editorFontConfig" in encoded)
+        assertFalse("editorFallbackFontConfig" in encoded)
     }
 }

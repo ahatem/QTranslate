@@ -22,10 +22,15 @@ dependencies {
     implementation(libs.jsvg)
     implementation(libs.miglayout)
 
-    implementation(libs.jnativehook)
-    implementation(libs.jkeymaster)
+    implementation(libs.jna)
+    implementation(libs.qinput)
 
     implementation(libs.commonmark)
 
     testImplementation(kotlin("test"))
+    testImplementation(libs.kotlinxCoroutinesTest)
+    // Test-only: production code never references FlatInterFont from this module — AppUiSetup in
+    // :app is the only runtime caller — but the font-resolution tests want a real bundled family
+    // to prove toFont() loads it lazily.
+    testImplementation(libs.flatlaf.fonts.inter)
 }
