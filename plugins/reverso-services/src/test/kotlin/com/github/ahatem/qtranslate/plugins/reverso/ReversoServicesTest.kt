@@ -111,6 +111,26 @@ class ReversoServicesTest {
     }
 
     @Test
+    fun `dictionary follows the requested pair beyond the English French default`() = runBlocking {
+        val http = RecordingHttpClient(Ok(WORD_RESPONSE))
+        val service = ReversoDictionaryService(client(http))
+
+        service.lookupBilingual(BilingualDictionaryRequest(
+            word = "riso",
+            sourceLanguage = LanguageCode.ITALIAN,
+            targetLanguage = LanguageCode.ENGLISH
+        )).fold(success = {}, failure = { fail(it.message) })
+        assertEquals("it-en", Json.decodeFromString<ReversoWordRequest>(http.lastBody).direction)
+
+        service.lookupBilingual(BilingualDictionaryRequest(
+            word = "rice",
+            sourceLanguage = LanguageCode.ENGLISH,
+            targetLanguage = LanguageCode.ITALIAN
+        )).fold(success = {}, failure = { fail(it.message) })
+        assertEquals("en-it", Json.decodeFromString<ReversoWordRequest>(http.lastBody).direction)
+    }
+
+    @Test
     fun `provider failure has a clear free service message`() = runBlocking {
         val http = RecordingHttpClient(Ok(
             """{"error":true,"success":false,"message":"Too many requests"}"""

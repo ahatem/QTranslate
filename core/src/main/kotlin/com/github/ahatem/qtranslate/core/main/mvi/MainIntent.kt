@@ -175,10 +175,14 @@ sealed interface MainIntent : UiIntent {
     /**
      * User requested a dictionary lookup for [word].
      * @property language The language of [word]. Defaults to English.
+     * @property targetLanguage The other side of the translation pair [word] belongs to, when the
+     *   caller knows it. Bilingual dictionaries are asked across the pair; callers without one
+     *   leave it null and the store uses the window's current target language.
      */
     data class LookupWord(
         val word: String,
-        val language: LanguageCode = LanguageCode.ENGLISH
+        val language: LanguageCode = LanguageCode.ENGLISH,
+        val targetLanguage: LanguageCode? = null
     ) : MainIntent
 
     /**

@@ -169,7 +169,44 @@ class AutoLookupCoordinatorTest {
                 nextIntent()
             )
             assertEquals("hola" to true, withTimeout(5_000) { dockWords.receive() })
-            assertEquals(MainIntent.LookupWord("hola", LanguageCode.ARABIC), nextIntent())
+            assertEquals(MainIntent.LookupWord("hola", LanguageCode.ARABIC, LanguageCode.ENGLISH), nextIntent())
+            assertNoMoreActions()
+        }
+
+    @Test
+    fun `translated auto lookup carries the source language as the pair`() =
+        check(initial = MainState(
+            isLookupDockOpen = true,
+            sourceLanguage = LanguageCode.ITALIAN,
+            targetLanguage = LanguageCode.ENGLISH
+        )) {
+            finish(input = "riso", translated = "rice")
+            assertEquals(
+                MainIntent.UpdateInlineDefinition("rice", LanguageCode.ENGLISH, "riso", LanguageCode.ITALIAN),
+                nextIntent()
+            )
+            assertEquals("rice" to true, withTimeout(5_000) { dockWords.receive() })
+            assertEquals(MainIntent.LookupWord("rice", LanguageCode.ENGLISH, LanguageCode.ITALIAN), nextIntent())
+            assertNoMoreActions()
+        }
+
+    @Test
+    fun `source auto lookup carries the target language as the pair`() =
+        check(
+            config = Configuration.DEFAULT.copy(dictionaryAutoSource = DictionaryAutoSource.SOURCE),
+            initial = MainState(
+                isLookupDockOpen = true,
+                sourceLanguage = LanguageCode.ITALIAN,
+                targetLanguage = LanguageCode.ENGLISH
+            )
+        ) {
+            finish(input = "riso", translated = "rice")
+            assertEquals(
+                MainIntent.UpdateInlineDefinition("riso", LanguageCode.ITALIAN, "rice", LanguageCode.ENGLISH),
+                nextIntent()
+            )
+            assertEquals("riso" to true, withTimeout(5_000) { dockWords.receive() })
+            assertEquals(MainIntent.LookupWord("riso", LanguageCode.ITALIAN, LanguageCode.ENGLISH), nextIntent())
             assertNoMoreActions()
         }
 
@@ -232,7 +269,7 @@ class AutoLookupCoordinatorTest {
             main.value = main.value.copy(isLookupDockOpen = true)
             assertTrue(nextIntent() is MainIntent.UpdateInlineDefinition)
             assertEquals("hola" to true, withTimeout(5_000) { dockWords.receive() })
-            assertEquals(MainIntent.LookupWord("hola", LanguageCode.ARABIC), nextIntent())
+            assertEquals(MainIntent.LookupWord("hola", LanguageCode.ARABIC, LanguageCode.ENGLISH), nextIntent())
             assertNoMoreActions()
         }
 
