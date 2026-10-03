@@ -476,10 +476,11 @@ class KeyboardPanel(
             verticalAlignment = CENTER
 
             // Multi-platform mono font selection
-            font = createMonoFont(
+            val monoFont = createMonoFont(
                 size = this@KeyboardPanel.font.size - 1,
                 style = if (muted) Font.ITALIC else Font.PLAIN
             )
+            font = keyChipFont(label, monoFont, this@KeyboardPanel.font)
 
             foreground = if (muted) {
                 UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
