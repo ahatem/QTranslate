@@ -312,12 +312,6 @@ class MainAppFrame(
         }
     }
 
-    /** Returns true when [screenPoint] is inside any visible top-level Swing window we own. */
-    private fun isQTranslateWindowAt(screenPoint: Point): Boolean =
-        Window.getWindows().any { window ->
-            window.isShowing && window.bounds.contains(screenPoint)
-        }
-
     /** Returns true when the active Swing window belongs to this process. */
     private fun isQTranslateWindowActive(): Boolean {
         val activeWindow = KeyboardFocusManager.getCurrentKeyboardFocusManager().activeWindow
@@ -381,7 +375,7 @@ class MainAppFrame(
                 dismissPopupsPressedOutside(location)
             }
         },
-        shouldTrackSelectionAt = { location -> !isQTranslateWindowAt(location) }
+        shouldTrackSelectionAt = { SelectionBehaviorRouter.shouldTrackSelection(isQTranslateWindowActive()) }
     )
 
     internal var pasteInjector: PasteInjector =

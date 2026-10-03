@@ -11,6 +11,9 @@ internal enum class SelectionAction {
 }
 
 internal object SelectionBehaviorRouter {
+    /** Background window bounds do not identify the application receiving a selection. */
+    fun shouldTrackSelection(qTranslateWindowActive: Boolean): Boolean = !qTranslateWindowActive
+
     fun decide(behavior: SelectionBehavior, qTranslateWindowActive: Boolean): SelectionAction {
         if (qTranslateWindowActive) return SelectionAction.NONE
         return when (behavior) {
