@@ -19,7 +19,11 @@ import java.awt.RenderingHints
 import java.awt.event.ActionEvent
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
+import java.awt.event.FocusAdapter
+import java.awt.event.FocusEvent
 import java.awt.event.InputEvent
+import java.awt.event.InputMethodEvent
+import java.awt.event.InputMethodListener
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -138,6 +142,9 @@ class AdvancedTextPane(
     private var lastRenderedCorrections: List<Correction> = emptyList()
     private var lastEmittedText: String? = null
 
+    // Replacing the document during composition collapses Swing's tracked IME positions.
+    private var isComposingText = false
+
     private val documentListener = object : DocumentListener {
         override fun insertUpdate(e: DocumentEvent?) { e?.let { onUserTextChange(it.offset, it.length) } }
         override fun removeUpdate(e: DocumentEvent?) { e?.let { onUserTextChange(it.offset, it.length) } }
@@ -173,6 +180,31 @@ class AdvancedTextPane(
         fallbackListener = FontFallbackDocumentListener(this)
         document.addDocumentListener(fallbackListener)
 
+        // Component notifies listeners before JTextComponent applies the event to its document.
+        addInputMethodListener(object : InputMethodListener {
+            override fun inputMethodTextChanged(e: InputMethodEvent) {
+                val text = e.text
+                val composedLength = if (text == null) 0
+                    else text.endIndex - text.beginIndex - e.committedCharacterCount
+                isComposingText = composedLength > 0
+            }
+
+            override fun caretPositionChanged(e: InputMethodEvent) = Unit
+        })
+
+        addFocusListener(object : FocusAdapter() {
+            override fun focusLost(e: FocusEvent) {
+                if (isComposingText) {
+                    // Cancel any surviving provisional range through Swing's normal IME path.
+                    // A real commit before focus loss has already cleared the flag.
+                    dispatchEvent(InputMethodEvent(
+                        this@AdvancedTextPane, InputMethodEvent.INPUT_METHOD_TEXT_CHANGED,
+                        null, 0, null, null,
+                    ))
+                }
+            }
+        })
+
         addComponentListener(object : ComponentAdapter() {
             override fun componentResized(e: ComponentEvent?) {
                 putClientProperty("repaintManager.doubleBufferingEnabled", true)
@@ -199,7 +231,7 @@ class AdvancedTextPane(
         runOnEdt {
             if (this.isEditable != isEditable) this.isEditable = isEditable
 
-            if (lastRenderedText != text) {
+            if (lastRenderedText != text && !isComposingText) {
                 // Only the user-edit callback is detached, so a programmatic render is not echoed
                 // back through the state flow as typing. The font-fallback listener stays attached
                 // so the new text is scanned for characters the primary font cannot draw.
@@ -224,6 +256,9 @@ class AdvancedTextPane(
     }
 
     private fun onUserTextChange(offset: Int, length: Int) {
+        // Provisional text must not reach translation/history or return as a stale state echo.
+        if (isComposingText) return
+
         val currentText = text
         if (currentText != lastEmittedText) {
             lastEmittedText  = currentText
