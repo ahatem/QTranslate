@@ -1,6 +1,8 @@
 package com.github.ahatem.qtranslate.core.main.domain.usecase
 
 import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.api.dictionary.BilingualDictionary
+import com.github.ahatem.qtranslate.api.dictionary.BilingualDictionaryRequest
 import com.github.ahatem.qtranslate.api.dictionary.Dictionary
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
 import com.github.ahatem.qtranslate.api.language.LanguageCode
@@ -48,34 +50,36 @@ class FetchInlineDefinitionUseCase(
             return
         }
 
-        val candidates = listOf(word to language, alternateWord to alternateLanguage)
-            .filter { (candidate, _) -> candidate.isNotBlank() }
-            .distinctBy { (candidate, lang) -> candidate.lowercase() to lang.tag }
+        val candidates = listOf(
+            Candidate(word, language, alternateLanguage),
+            Candidate(alternateWord, alternateLanguage, language)
+        )
+            .filter { it.word.isNotBlank() }
+            .distinctBy { it.word.lowercase() to it.language.tag }
 
         job = scope.launch {
             // Tried in turn, first hit wins. The translated word is asked about first because it
             // is what the reader is looking at; the source word is the fallback because it is
             // usually English, which is the language dictionaries actually cover.
-            for ((candidate, candidateLanguage) in candidates) {
-                val summary = summarise(dictionary, candidate, candidateLanguage) ?: continue
-                logger.debug("Inline definition ready for '$candidate' (${candidateLanguage.tag})")
+            for (candidate in candidates) {
+                val summary = summarise(dictionary, candidate) ?: continue
+                logger.debug("Inline definition ready for '${candidate.word}' (${candidate.language.tag})")
                 updateState { copy(inlineDefinition = summary) }
                 return@launch
             }
-            logger.debug("No inline definition for ${candidates.joinToString { it.first }}")
+            logger.debug("No inline definition for ${candidates.joinToString { it.word }}")
         }
     }
 
     private suspend fun summarise(
         dictionary: Dictionary,
-        word: String,
-        language: LanguageCode
+        candidate: Candidate
     ): String? {
         val response = runCatching {
             // Shorter than a normal lookup's patience. This is a detail beside the translation;
             // if it has not arrived by now the reader has already moved on.
             withTimeoutOrNull(TIMEOUT_MS) {
-                dictionary.lookup(DictionaryRequest(word, language)).get()
+                lookup(dictionary, candidate).get()
             }
         }.getOrNull() ?: return null
 
@@ -88,6 +92,41 @@ class FetchInlineDefinitionUseCase(
         val partOfSpeech = entry.partOfSpeech.trim()
         val body = withinBudget(meanings)
         return if (partOfSpeech.isEmpty()) body else "$partOfSpeech — $body"
+    }
+
+    /**
+     * Points a bilingual dictionary at the other side of the pair.
+     *
+     * The word is one side of a translation and the definition should face the other: the
+     * translated English word of an Italian → English translation is looked up English →
+     * Italian, not in whatever direction the service defaults to. Dictionaries without the
+     * bilingual capability keep the plain request they have always had.
+     */
+    private suspend fun lookup(dictionary: Dictionary, candidate: Candidate) =
+        if (dictionary is BilingualDictionary && candidate.hasPair) {
+            dictionary.lookupBilingual(
+                BilingualDictionaryRequest(candidate.word, candidate.language, candidate.counterpartLanguage)
+            )
+        } else {
+            dictionary.lookup(DictionaryRequest(candidate.word, candidate.language))
+        }
+
+    /**
+     * One word worth defining and the language its definition should face.
+     *
+     * [counterpartLanguage] is the other side of the translation [word] belongs to — what a
+     * bilingual dictionary translates toward.
+     */
+    private data class Candidate(
+        val word: String,
+        val language: LanguageCode,
+        val counterpartLanguage: LanguageCode
+    ) {
+        /** A bilingual request needs two specific, different languages. */
+        val hasPair: Boolean
+            get() = language != LanguageCode.AUTO &&
+                counterpartLanguage != LanguageCode.AUTO &&
+                counterpartLanguage != language
     }
 
     /**

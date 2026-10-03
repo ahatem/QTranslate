@@ -760,7 +760,9 @@ class MainStore(
         lookupWordUseCase(
             word = intent.word,
             language = intent.language,
-            targetLanguage = _state.value.targetLanguage,
+            // Auto lookup says which side of the pair the word is not; a manual search does not,
+            // and keeps asking in the window's translation direction.
+            targetLanguage = intent.targetLanguage ?: _state.value.targetLanguage,
             updateState = { transform -> _state.update(transform) },
             onStatusUpdate = ::updateStatusBar
         )

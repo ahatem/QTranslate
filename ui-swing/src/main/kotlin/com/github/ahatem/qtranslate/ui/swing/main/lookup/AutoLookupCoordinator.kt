@@ -98,7 +98,8 @@ class AutoLookupCoordinator(
                     withContext(Dispatchers.Swing) {
                         setDictionarySearchWord(word)
                     }
-                    dispatch(MainIntent.LookupWord(word, lang))
+                    // The word is one side of the pair; the dictionary is pointed at the other.
+                    dispatch(MainIntent.LookupWord(word, lang, alternateLang))
                 }
             }
     }
