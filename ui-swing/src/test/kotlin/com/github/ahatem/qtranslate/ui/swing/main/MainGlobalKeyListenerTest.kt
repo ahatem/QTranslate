@@ -534,6 +534,55 @@ class MainGlobalKeyListenerTest {
         assertEquals(0, harness.selections)
     }
 
+    private fun TestScope.assertForegroundSelectionTracking(qTranslateWindowActive: Boolean, expected: Int) {
+        val harness = Harness(
+            scope = this,
+            selectionGestureAllowedAt = { SelectionBehaviorRouter.shouldTrackSelection(qTranslateWindowActive) },
+            captureFactory = successCapture("word")
+        )
+        harness.set(InputRuntimeState(selectionCaptureEnabled = true))
+        harness.listener.initialize()
+
+        // Both points overlap where a QTranslate window could be behind the foreground app.
+        val backgroundBounds = java.awt.Rectangle(0, 0, 800, 600)
+        val start = Point(100, 100)
+        val end = Point(150, 150)
+        assertTrue(backgroundBounds.contains(start) && backgroundBounds.contains(end))
+        harness.backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.LEFT, true, start))
+        harness.backend.emit(GlobalInputEvent.MouseMove(end))
+        harness.backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.LEFT, false, end))
+        advanceUntilIdle()
+
+        assertEquals(listOf(start), harness.presses)
+        assertEquals(expected, harness.selections)
+        harness.listener.shutdown()
+    }
+
+    @Test
+    fun `external app active tracks selection over a background QTranslate window`() = runTest {
+        assertForegroundSelectionTracking(qTranslateWindowActive = false, expected = 1)
+    }
+
+    @Test
+    fun `QTranslate main window active ignores selection`() = runTest {
+        assertForegroundSelectionTracking(qTranslateWindowActive = true, expected = 0)
+    }
+
+    @Test
+    fun `QTranslate child settings window active ignores selection`() = runTest {
+        assertForegroundSelectionTracking(qTranslateWindowActive = true, expected = 0)
+    }
+
+    @Test
+    fun `QTranslate hidden with external app active tracks selection`() = runTest {
+        assertForegroundSelectionTracking(qTranslateWindowActive = false, expected = 1)
+    }
+
+    @Test
+    fun `QTranslate minimized with external app active tracks selection`() = runTest {
+        assertForegroundSelectionTracking(qTranslateWindowActive = false, expected = 1)
+    }
+
     @Test
     fun `disallowed press cannot leak into the next allowed gesture`() = runTest {
         val harness = Harness(
