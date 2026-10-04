@@ -509,6 +509,10 @@ close_behavior_ask     = "Tanyakan setiap kali"
 close_behavior_minimize = "Minimalkan ke baki sistem"
 close_behavior_exit    = "Keluar dari aplikasi"
 close_behavior_hint    = "Mengatur tindakan saat Anda mengklik tombol ×. Anda juga dapat mengaturnya dari dialog penutupan."
+minimize_button = "Tombol Minimalkan:"
+minimize_behavior_hide = "Sembunyikan ke baki sistem"
+minimize_behavior_taskbar = "Minimalkan ke taskbar"
+minimize_behavior_hint = "Mengatur tindakan saat Anda mengklik tombol minimalkan (–). Terpisah dari pengaturan tombol × di atas."
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION

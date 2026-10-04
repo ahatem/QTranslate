@@ -502,6 +502,10 @@ close_behavior_ask     = "Her seferinde sor"
 close_behavior_minimize = "Sistem tepsisine küçült"
 close_behavior_exit    = "Uygulamadan çık"
 close_behavior_hint = "× düğmesine tıkladığınızda ne olacağını denetler. Bunu, kapatma ileti öğesinden de ayarlayabilirsiniz."
+minimize_button = "Küçültme Düğmesi:"
+minimize_behavior_hide = "Tepsiye gizle"
+minimize_behavior_taskbar = "Görev çubuğuna küçült"
+minimize_behavior_hint = "Küçültme (–) düğmesine tıkladığınızda ne olacağını denetler. Yukarıdaki × (kapat) ayarından bağımsızdır."
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION

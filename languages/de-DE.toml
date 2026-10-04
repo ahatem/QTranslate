@@ -504,6 +504,10 @@ close_behavior_ask     = "Jedes Mal fragen"
 close_behavior_minimize = "In den Infobereich minimieren"
 close_behavior_exit    = "Anwendung beenden"
 close_behavior_hint    = "Steuert, was beim Klick auf × passiert. Kann auch im Schließen-Dialog eingestellt werden."
+minimize_button = "Minimieren-Schaltfläche:"
+minimize_behavior_hide = "In den Infobereich ausblenden"
+minimize_behavior_taskbar = "In der Taskleiste minimieren"
+minimize_behavior_hint = "Steuert, was beim Klick auf die Schaltfläche Minimieren (–) passiert. Unabhängig von der Schließen-Einstellung oben."
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION

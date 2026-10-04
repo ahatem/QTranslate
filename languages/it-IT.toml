@@ -499,6 +499,10 @@ close_behavior_ask     = "Chiedi ogni volta cosa fare"
 close_behavior_minimize = "Minimizza nella barra di notifica"
 close_behavior_exit    = "Esci dall'applicazione"
 close_behavior_hint    = "Controlla cosa succede quando fai clic sul pulsante 'X'. Puoi anche impostarlo dalla finestra di dialogo di chiusura stessa."
+minimize_button = "Pulsante 'Riduci a icona':"
+minimize_behavior_hide = "Nascondi nella barra di notifica"
+minimize_behavior_taskbar = "Riduci a icona nella barra delle applicazioni"
+minimize_behavior_hint = "Controlla cosa succede quando fai clic sul pulsante di riduzione a icona (–). Indipendente dall'impostazione del pulsante 'X' qui sopra."
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION

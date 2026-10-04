@@ -504,6 +504,10 @@ close_behavior_ask     = "اسأل في كل مرة"
 close_behavior_minimize = "تصغير إلى صينية النظام"
 close_behavior_exit    = "الخروج من التطبيق"
 close_behavior_hint    = "يتحكم في ما يحدث عند النقر فوق الزر ×. يمكنك أيضًا تعيين ذلك من حوار الإغلاق نفسه."
+minimize_button = "زر التصغير:"
+minimize_behavior_hide = "إخفاء إلى صينية النظام"
+minimize_behavior_taskbar = "تصغير إلى شريط المهام"
+minimize_behavior_hint = "يتحكم في ما يحدث عند النقر فوق زر التصغير (–). مستقل عن إعداد زر الإغلاق أعلاه."
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION

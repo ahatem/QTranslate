@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.CloseButtonBehavior
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
+import com.github.ahatem.qtranslate.core.settings.data.MinimizeButtonBehavior
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
 import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
@@ -14,7 +15,7 @@ import javax.swing.JCheckBox
 import javax.swing.JComboBox
 
 /**
- * The main window: how it is arranged, what it shows, and what its close button does.
+ * The main window: how it is arranged, what it shows, and what its title-bar buttons do.
  *
  * Split from the former Window & Layout page, which also held the floating popups. The two
  * were only ever neighbours: chrome is arranged once and left alone, while popup behaviour is
@@ -51,6 +52,7 @@ class LayoutPanel(
     private lateinit var statusCheck: JCheckBox
     private lateinit var dictionaryPanelCheck: JCheckBox
     private lateinit var closeButtonCombo: JComboBox<CloseButtonBehaviorInfo>
+    private lateinit var minimizeButtonCombo: JComboBox<MinimizeButtonBehaviorInfo>
 
     init {
         buildUI()
@@ -215,6 +217,28 @@ class LayoutPanel(
         addRow(localizationManager.getString("settings_window.close_button"), closeButtonCombo)
         addHint(localizationManager.getString("settings_window.close_behavior_hint"))
 
+        val minimizeOptions = listOf(
+            MinimizeButtonBehaviorInfo(
+                MinimizeButtonBehavior.HIDE_TO_TRAY,
+                localizationManager.getString("settings_window.minimize_behavior_hide")
+            ),
+            MinimizeButtonBehaviorInfo(
+                MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR,
+                localizationManager.getString("settings_window.minimize_behavior_taskbar")
+            )
+        )
+        minimizeButtonCombo = JComboBox(minimizeOptions.toTypedArray()).apply {
+            renderer = DisplayValueRenderer<MinimizeButtonBehaviorInfo>(text = { it?.displayName.orEmpty() })
+            addActionListener {
+                if (!isUpdatingFromState) {
+                    val selected = selectedItem as? MinimizeButtonBehaviorInfo ?: return@addActionListener
+                    applyDraft(store) { it.copy(minimizeButtonBehavior = selected.behavior) }
+                }
+            }
+        }
+        addRow(localizationManager.getString("settings_window.minimize_button"), minimizeButtonCombo)
+        addHint(localizationManager.getString("settings_window.minimize_behavior_hint"))
+
         finishLayout()
     }
 
@@ -259,6 +283,9 @@ class LayoutPanel(
             closeButtonCombo.selectedItem = (0 until closeButtonCombo.itemCount)
                 .map { closeButtonCombo.getItemAt(it) }
                 .find { it.behavior == c.closeButtonBehavior }
+            minimizeButtonCombo.selectedItem = (0 until minimizeButtonCombo.itemCount)
+                .map { minimizeButtonCombo.getItemAt(it) }
+                .find { it.behavior == c.minimizeButtonBehavior }
         }
     }
 
@@ -266,4 +293,5 @@ class LayoutPanel(
     private data class ServiceSelectorStyleInfo(val value: ServiceSelectorStyle, val displayName: String)
     private data class ServiceSelectorAppearanceInfo(val value: ServiceSelectorAppearance, val displayName: String)
     private data class CloseButtonBehaviorInfo(val behavior: CloseButtonBehavior, val displayName: String)
+    private data class MinimizeButtonBehaviorInfo(val behavior: MinimizeButtonBehavior, val displayName: String)
 }

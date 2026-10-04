@@ -500,6 +500,10 @@ close_behavior_ask     = "Ask every time"
 close_behavior_minimize = "Minimise to tray"
 close_behavior_exit    = "Exit the application"
 close_behavior_hint    = "Controls what happens when you click the × button. You can also set this from the close dialog itself."
+minimize_button = "Minimise button:"
+minimize_behavior_hide = "Hide to tray"
+minimize_behavior_taskbar = "Minimise to taskbar"
+minimize_behavior_hint = "Controls what happens when you click the minimise (–) button. Independent of the × (close) setting above."
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION

@@ -116,6 +116,19 @@ enum class CloseButtonBehavior {
     EXIT
 }
 
+/**
+ * What the main window's native Minimize button does. Separate from [CloseButtonBehavior]
+ * because the two buttons are independent user actions. The default keeps the historic
+ * hide-to-tray behavior.
+ */
+@Serializable
+enum class MinimizeButtonBehavior {
+    /** Hide the window to the tray. */
+    HIDE_TO_TRAY,
+    /** Let the window minimize to the taskbar. */
+    MINIMIZE_TO_TASKBAR
+}
+
 @Serializable
 enum class ServiceSelectorStyle { CLASSIC, ENHANCED }
 
@@ -216,6 +229,9 @@ data class Configuration(
 
     // ---- Close button behavior ----
     val closeButtonBehavior: CloseButtonBehavior = CloseButtonBehavior.ASK,
+
+    // ---- Minimize button behavior ----
+    val minimizeButtonBehavior: MinimizeButtonBehavior = MinimizeButtonBehavior.HIDE_TO_TRAY,
 
     // ---- History ----
     val isHistoryEnabled: Boolean = true,
@@ -344,6 +360,7 @@ data class Configuration(
                 isRemoveLineBreaksEnabled    = false,
                 pinnedLanguages              = emptyList(),
                 closeButtonBehavior          = CloseButtonBehavior.ASK,
+                minimizeButtonBehavior       = MinimizeButtonBehavior.HIDE_TO_TRAY,
                 isHistoryEnabled             = true,
                 clearHistoryOnExit           = false,
                 uiScale                      = 100,
