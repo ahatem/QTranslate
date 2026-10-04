@@ -7,10 +7,15 @@ import javax.swing.JOptionPane
 /**
  * Asks which of two populated data directories to use, before anything is read from either.
  *
- * This runs before the logger exists and before any repository is constructed, so neither directory
- * has been touched. Both are shown in full because the user cannot tell them apart from their
- * names, and neither is merged, moved or deleted whichever way the question is answered — the other
- * directory is left exactly as it is, so answering differently later costs nothing but a restart.
+ * Runs before the logger exists and before any repository is constructed, so neither directory has
+ * been touched. Both are shown in full because the user cannot tell them apart by name.
+ *
+ * Whichever way it is answered, nothing is merged, moved or deleted — the directory not chosen is
+ * left exactly as it is, so changing the decision later costs a restart and one deleted marker file.
+ *
+ * **Closing the dialog chooses the OS-standard location**, the same as the first button, so a
+ * dismissed dialog still starts and still settles the question instead of reappearing on every
+ * launch.
  */
 class LegacyDataConflictPrompt : LegacyDataConflictResolver {
 
@@ -22,7 +27,8 @@ class LegacyDataConflictPrompt : LegacyDataConflictResolver {
                 "QTranslate found existing user data in two locations and cannot ask which to use:\n" +
                         "  beside the application: ${legacyPortableRoot.absolutePath}\n" +
                         "  user data location:  ${installedRoot.absolutePath}\n" +
-                        "Using the user data location. Neither directory was changed."
+                        "Using the user data location and recording that choice. " +
+                        "Neither directory was changed."
             )
             return installedRoot
         }
@@ -33,16 +39,20 @@ class LegacyDataConflictPrompt : LegacyDataConflictResolver {
                     "keep using.\n\n" +
                     "Beside the application:\n${legacyPortableRoot.absolutePath}\n\n" +
                     "User data location:\n${installedRoot.absolutePath}\n\n" +
-                    "Neither location will be changed or deleted. The one you do not choose is left " +
-                    "where it is.",
+                    "Your choice is remembered, so this will not be asked again. Neither location " +
+                    "will be changed or deleted — the one you do not choose is left where it is.",
             "Choose where QTranslate should store your data",
             JOptionPane.DEFAULT_OPTION,
             JOptionPane.QUESTION_MESSAGE,
             null,
-            arrayOf("Use the user data location", "Keep using the data beside the application"),
+            arrayOf(
+                "Use the user data location",
+                "Keep using the data beside the application"
+            ),
             null
         )
-        // Closing the dialog is treated as declining to guess at the legacy directory.
+        // Closing the dialog is not a decision to keep the legacy data; it falls back to the default
+        // rather than guessing at the older location.
         return if (choice == 1) legacyPortableRoot else installedRoot
     }
 }

@@ -188,8 +188,9 @@ class ThemeManager(
     /**
      * Themes found on disk, from the user's own folder first and the installation's after it.
      *
-     * Scanned in that order and de-duplicated by id, so a user's file replaces a shipped one of
-     * the same name instead of appearing twice in the list.
+     * De-duplicated by id keeping the first found, and [customThemeDirectories] is in precedence
+     * order with the user's own folder first, so a user's file wins over a shipped one of the same
+     * name instead of appearing twice in the list.
      */
     fun discoverExternalThemes(): List<Theme> {
         val byId = LinkedHashMap<String, Theme>()
@@ -197,7 +198,7 @@ class ThemeManager(
             if (!directory.isDirectory) return@forEach
             directory
                 .listFiles { f -> f.isFile && f.extension == "json" && f.name.contains("theme", ignoreCase = true) }
-                ?.forEach { file -> loadExternalTheme(file)?.let { byId[it.id] = it } }
+                ?.forEach { file -> loadExternalTheme(file)?.let { byId.putIfAbsent(it.id, it) } }
         }
         return byId.values.toList()
     }

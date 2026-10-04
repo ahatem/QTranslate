@@ -50,6 +50,36 @@ class PluginRootsTest {
         return jar
     }
 
+    private fun pluginManifest(id: String) = PluginManifest(
+        id = id,
+        name = "Test",
+        version = "1.0.0",
+        author = "t",
+        description = "d",
+        minApiVersion = "1.0.0"
+    )
+
+    /** A plugin state as discovery reports it for a JAR in the distribution's own folder. */
+    private fun bundledPlugin(): PluginState {
+        val dir = File(sandbox, "install/plugins").apply { mkdirs() }
+        return PluginState(
+            manifest = pluginManifest("bundled"),
+            status = PluginStatus.ENABLED,
+            jarPath = writePluginJar(dir, "bundled-plugin.jar", "bundled").absolutePath,
+            bundled = true
+        )
+    }
+
+    private fun userPlugin(): PluginState {
+        val dir = File(sandbox, "user/plugins").apply { mkdirs() }
+        return PluginState(
+            manifest = pluginManifest("extra"),
+            status = PluginStatus.ENABLED,
+            jarPath = writePluginJar(dir, "extra-plugin.jar", "extra").absolutePath,
+            bundled = false
+        )
+    }
+
     private fun scan(directory: File): List<com.github.ahatem.qtranslate.core.plugin.registry.PluginError.LoadFailure> {
         val loader = PluginLoader(silentLogger)
         loader.loadPluginsFromDirectory(directory)
@@ -96,6 +126,35 @@ class PluginRootsTest {
     }
 
     // ── Which folder a JAR may be removed from ───────────────────────────────
+
+    @Test
+    fun `a bundled plugin is not offered for uninstall but stays controllable`() {
+        // The rule under test: a bundled plugin can be turned on and off, but must not be offered an
+        // uninstall the host cannot honour. Deleting its JAR would leave an installed copy without a
+        // component; ignoring the request would bring it back on the next launch.
+        val bundled = bundledPlugin()
+        val userPlugin = userPlugin()
+
+        assertTrue(bundled.bundled, "A plugin loaded from the bundled folder must be marked bundled")
+        assertFalse(bundled.uninstallable, "A bundled plugin must not be uninstallable")
+        assertFalse(userPlugin.bundled)
+        assertTrue(userPlugin.uninstallable, "A user-installed plugin must remain uninstallable")
+    }
+
+    @Test
+    fun `portable mode leaves every plugin uninstallable`() {
+        // Portable distributions have one folder, so there is nothing bundled to protect and the
+        // existing one-folder behaviour is unchanged.
+        val plugins = File(sandbox, "portable/plugins").apply { mkdirs() }
+        val state = PluginState(
+            manifest = pluginManifest("bundled"),
+            status = PluginStatus.ENABLED,
+            jarPath = writePluginJar(plugins, "bundled-plugin.jar", "bundled").absolutePath
+        )
+
+        assertFalse(state.bundled, "With a single folder there is no bundled/user distinction")
+        assertTrue(state.uninstallable)
+    }
 
     @Test
     fun `a JAR in the user's own folder is removable`() {

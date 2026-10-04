@@ -358,7 +358,150 @@ class AppDataLayoutTest {
         assertFalse(layout.adoptedLegacyPortableData)
     }
 
-    // ── Distribution root ────────────────────────────────────────────────────
+    // ── Conflict stability ───────────────────────────────────────────────────
+
+    @Test
+    fun `choosing portable in a conflict is stable and is not asked again`() {
+        writeMutableState(distributionRoot)
+        writeMutableState(installedRoot)
+        var asked = false
+
+        val first = resolve(
+            windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path),
+            LegacyDataConflictResolver { legacy, _ -> asked = true; legacy }
+        )
+        assertTrue(asked)
+        assertEquals(AppDataMode.PORTABLE, first.mode)
+
+        // Second launch: the marker written by the first settles it without asking.
+        asked = false
+        val second = resolve(
+            windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path),
+            LegacyDataConflictResolver { _, _ -> asked = true; error("must not be asked again") }
+        )
+
+        assertFalse(asked, "The portable choice must not be asked again")
+        assertEquals(AppDataMode.PORTABLE, second.mode)
+        assertEquals(distributionRoot.canonicalFile, second.userDataRoot.canonicalFile)
+    }
+
+    @Test
+    fun `choosing installed in a conflict is stable and is not asked again`() {
+        writeMutableState(distributionRoot)
+        writeMutableState(installedRoot)
+        var asked = false
+
+        val first = resolve(
+            windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path),
+            LegacyDataConflictResolver { _, installed -> asked = true; installed }
+        )
+        assertTrue(asked)
+        assertEquals(AppDataMode.INSTALLED, first.mode)
+
+        // The decision is recorded in the user's own data directory, which is writable even when the
+        // installation directory is not, so the question does not come back on the next launch.
+        assertTrue(
+            File(installedRoot, AppDataLayout.MODE_DECISION_FILE).isFile,
+            "The installed choice must be recorded so it is not asked again"
+        )
+
+        asked = false
+        val second = resolve(
+            windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path),
+            LegacyDataConflictResolver { _, _ -> asked = true; error("must not be asked again") }
+        )
+
+        assertFalse(asked, "The installed choice must not be asked again")
+        assertEquals(AppDataMode.INSTALLED, second.mode)
+        assertEquals(installedRoot.canonicalFile, second.userDataRoot.canonicalFile)
+    }
+
+    @Test
+    fun `recording the installed choice writes nothing into the installation directory`() {
+        // Choosing the installed location must not depend on being able to write to the installation
+        // directory, which is read-only under Program Files.
+        writeMutableState(distributionRoot)
+        writeMutableState(installedRoot)
+        val before = distributionRoot.list()!!.toSet()
+
+        resolve(
+            windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path),
+            LegacyDataConflictResolver { _, installed -> installed }
+        )
+
+        assertEquals(before, distributionRoot.list()!!.toSet(), "Nothing may be written beside the application")
+        assertFalse(File(distributionRoot, AppDataLayout.PORTABLE_MARKER).exists())
+    }
+
+    @Test
+    fun `the recorded decision holds only the chosen mode and no user data`() {
+        writeMutableState(distributionRoot)
+        writeMutableState(installedRoot)
+
+        resolve(
+            windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path),
+            LegacyDataConflictResolver { _, installed -> installed }
+        )
+
+        val recorded = File(installedRoot, AppDataLayout.MODE_DECISION_FILE).readText()
+        assertEquals(LegacyConflictChoice.INSTALLED.name, recorded)
+    }
+
+    @Test
+    fun `deleting the recorded decision lets the user change their mind`() {
+        writeMutableState(distributionRoot)
+        writeMutableState(installedRoot)
+        val environment = windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path)
+
+        resolve(environment, LegacyDataConflictResolver { _, installed -> installed })
+        assertEquals(
+            AppDataMode.INSTALLED,
+            resolve(environment, LegacyDataConflictResolver { _, _ -> error("settled") }).mode
+        )
+
+        // The one file is the whole record; removing it reopens the question, and the legacy data is
+        // still sitting there untouched.
+        File(installedRoot, AppDataLayout.MODE_DECISION_FILE).delete()
+        val reopened = resolve(environment, LegacyDataConflictResolver { legacy, _ -> legacy })
+
+        assertEquals(AppDataMode.PORTABLE, reopened.mode)
+        assertTrue(File(distributionRoot, "datastore/app_settings.preferences_pb").isFile)
+    }
+
+    @Test
+    fun `closing the prompt falls back to installed and settles the question`() {
+        // Documented policy: closing is not a decision to keep the legacy data, so it takes the
+        // default and records it, rather than reappearing on every launch.
+        writeMutableState(distributionRoot)
+        writeMutableState(installedRoot)
+        val environment = windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path)
+
+        // LegacyDataConflictPrompt returns installedRoot for both a dismissal and the first button;
+        // here the resolver stands in for that dismissal.
+        val dismissed = resolve(environment, LegacyDataConflictResolver { _, installed -> installed })
+        assertEquals(AppDataMode.INSTALLED, dismissed.mode)
+
+        val second = resolve(environment, LegacyDataConflictResolver { _, _ -> error("settled by dismissal") })
+        assertEquals(AppDataMode.INSTALLED, second.mode)
+        // Neither directory was merged or removed.
+        assertTrue(File(distributionRoot, "datastore/app_settings.preferences_pb").isFile)
+        assertTrue(File(installedRoot, "datastore/app_settings.preferences_pb").isFile)
+    }
+
+    @Test
+    fun `the recorded choice is honoured even when the legacy data is gone`() {
+        writeMutableState(installedRoot)
+        val environment = windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path)
+        resolve(environment, LegacyDataConflictResolver { _, installed -> installed })
+
+        File(distributionRoot, "datastore").deleteRecursively()
+
+        val layout = resolve(environment, LegacyDataConflictResolver { _, _ -> error("must not ask") })
+        assertEquals(AppDataMode.INSTALLED, layout.mode)
+        assertEquals(installedRoot.canonicalFile, layout.userDataRoot.canonicalFile)
+    }
+
+// ── Distribution root ────────────────────────────────────────────────────
 
     @Test
     fun `a classes directory is a development run and never a portable installation`() {

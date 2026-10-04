@@ -45,12 +45,8 @@ internal class PluginInstaller(
     private val loader = PluginLoader(loggerFactory.getLogger("PluginLoader"))
 
     /**
-     * Whether [jarFile] is one the user installed rather than one the distribution shipped.
-     *
-     * Uninstall deletes a JAR only when this holds. A bundled JAR belongs to the installation and
-     * would be unrecoverable without reinstalling, so it is kept and reported instead. In a portable
-     * distribution both folders are one, so every JAR is the user's own and uninstall behaves exactly
-     * as it always has.
+     * Backstop for [PluginManager]: a bundled JAR is not user-owned and must survive an uninstall.
+     * In a portable distribution both folders are one, so every JAR is the user's own.
      */
     private fun isUserInstalled(jarFile: File): Boolean =
         PluginInstallLocation.isUserInstalled(userPluginsDirectory, jarFile)
@@ -109,13 +105,11 @@ internal class PluginInstaller(
     // -------------------------------------------------------------------------
 
     /**
-     * Fully uninstalls a plugin: disables it, wipes its sandbox, removes its JAR,
+     * Uninstalls a user-installed plugin: disables it, wipes its sandbox, removes its JAR,
      * and removes it from the disabled-IDs list in settings.
      *
-     * A bundled plugin's JAR is left in place — it is not the user's to delete, and removing it
-     * would leave an installed copy missing a component with no way to restore it short of
-     * reinstalling. Everything else about the uninstall still happens, so the plugin stops
-     * running, its data is purged, and the operator is told the JAR was kept.
+     * Only reachable for a plugin from the user's own folder — [PluginManager] refuses a bundled
+     * one before it gets here. The check below stays as a backstop rather than an assumption.
      */
     suspend fun uninstallPlugin(pluginId: String) {
         val container = registry.mutex.withLock { registry.remove(pluginId) } ?: return
@@ -131,17 +125,16 @@ internal class PluginInstaller(
         val currentDisabled = settingsRepository.loadDisabledPluginIds()
         settingsRepository.saveDisabledPluginIds(currentDisabled - pluginId)
 
-        if (isUserInstalled(container.jarFile)) {
-            runCatching { container.jarFile.delete() }.onFailure {
-                logger.error("Failed to delete JAR file: ${container.jarFile.path}", it)
-            }
-            logger.info("Plugin '$pluginId' uninstalled successfully.")
-        } else {
-            logger.info(
-                "Plugin '$pluginId' is bundled with this installation; kept its JAR at " +
-                        container.jarFile.path
-            )
+        // A JAR the distribution owns is not the user's to delete: removing it would leave an
+        // installed copy missing a component with no way to restore it.
+        if (!isUserInstalled(container.jarFile)) {
+            logger.warn("Kept plugin JAR at ${container.jarFile.path}; it is not in the user's own folder.")
+            return
         }
+        runCatching { container.jarFile.delete() }.onFailure {
+            logger.error("Failed to delete JAR file: ${container.jarFile.path}", it)
+        }
+        logger.info("Plugin '$pluginId' uninstalled successfully.")
     }
 
     // -------------------------------------------------------------------------

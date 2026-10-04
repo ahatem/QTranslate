@@ -57,9 +57,21 @@ data class PluginState(
     val instanceId: String = ServiceId.DEFAULT_INSTANCE,
 
     /** The last error encountered by this plugin, or `null` if healthy. */
-    val lastError: PluginError? = null
+    val lastError: PluginError? = null,
+
+    /**
+     * Whether this JAR was shipped with the distribution rather than installed by the user.
+     *
+     * A bundled plugin can be turned on and off but not uninstalled: removing the JAR would leave an
+     * installed copy missing a component, and ignoring the removal would bring the plugin back on
+     * the next launch. It has no replacement the user could install in its place.
+     */
+    val bundled: Boolean = false
 ) {
     val id: String get() = manifest.id
+
+    /** Whether this plugin may be uninstalled. Bundled plugins may not. */
+    val uninstallable: Boolean get() = !bundled
 
     /**
      * The id the host registers [service] under.

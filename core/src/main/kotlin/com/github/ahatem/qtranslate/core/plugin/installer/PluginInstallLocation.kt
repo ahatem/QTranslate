@@ -5,17 +5,14 @@ import java.io.File
 /**
  * Decides whether a plugin JAR is the user's to remove.
  *
- * Uninstalling a bundled plugin used to delete the file the distribution shipped, which for an
- * installed copy left a missing component with no way back short of reinstalling. Install and
- * uninstall now act only on the user's own folder, and this is the single rule both paths use.
+ * Uninstalling a bundled plugin used to delete the file the distribution shipped, leaving an
+ * installed copy missing a component with no way back short of reinstalling.
  */
 internal object PluginInstallLocation {
 
     /**
-     * Whether [jarFile] sits inside [userPluginsDirectory].
-     *
-     * Paths are normalised before comparing so that a relative path, a `..` segment or a differently
-     * spelled parent still resolves to the same location.
+     * Whether [jarFile] sits inside [userPluginsDirectory]. Paths are normalised first so a relative
+     * path or a `..` segment still resolves to the same location.
      */
     fun isUserInstalled(userPluginsDirectory: File, jarFile: File): Boolean =
         runCatching {

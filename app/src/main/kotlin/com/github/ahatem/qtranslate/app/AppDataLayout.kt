@@ -5,15 +5,12 @@ import java.io.File
 /**
  * How QTranslate decided where user data lives.
  *
- * - [INSTALLED] — a normal installation. Data goes to the OS per-user data location and does not
- *   depend on whether the install directory happens to be writable or on the process being
- *   elevated.
- * - [PORTABLE] — a distribution that declares itself portable with a `portable.flag` beside the
- *   launcher, or a pre-marker 1.5.x layout whose existing data was adopted. Data lives in the
- *   distribution root and moves with it.
- * - [CUSTOM] — a data directory supplied explicitly with `-DappData`, or a development run.
- *   Used for its location only; it is never treated as a declared portable installation and never
- *   gets a `portable.flag` written next to it.
+ * - [INSTALLED] — a normal installation. Data goes to the OS per-user location and does not depend on
+ *   whether the install directory is writable or on the process being elevated.
+ * - [PORTABLE] — a distribution declaring itself portable with a `portable.flag` beside the launcher.
+ *   Data lives in the distribution root and moves with it.
+ * - [CUSTOM] — a data directory supplied with `-DappData`, or a development run. Used for its
+ *   location only; never treated as a declared portable installation.
  */
 enum class AppDataMode { INSTALLED, PORTABLE, CUSTOM }
 
@@ -21,21 +18,15 @@ enum class AppDataMode { INSTALLED, PORTABLE, CUSTOM }
  * The two roots QTranslate works from, and the mode that chose them.
  *
  * [installationRoot] holds bundled, immutable distribution content: plugin JARs, language files,
- * theme files, icon sets. [userDataRoot] holds everything mutable: settings, history, logs, plugin
- * key/value data and secrets, the plugin registry, and user-installed plugins.
- *
- * The two are the same directory in [AppDataMode.PORTABLE] and deliberately different in
- * [AppDataMode.INSTALLED]. [installationRoot] is null only when no distribution root could be
- * determined at all, in which case only the classpath and [userDataRoot] supply resources.
+ * theme files, icon sets. [userDataRoot] holds everything mutable. The two are the same directory in
+ * [AppDataMode.PORTABLE] and deliberately different in [AppDataMode.INSTALLED] — an installed copy
+ * must never write into the directory it was installed to.
  */
 data class ResolvedAppData(
     val mode: AppDataMode,
     val installationRoot: File?,
     val userDataRoot: File,
-    /**
-     * True when an unmarked 1.5.x layout beside the application was recognised as a user's own
-     * portable data and a marker was written to make that explicit. Nothing was moved or deleted.
-     */
+    /** True when unmarked 1.5.x data beside the application was adopted and a marker written. */
     val adoptedLegacyPortableData: Boolean = false
 )
 
@@ -43,22 +34,23 @@ data class ResolvedAppData(
 class AppDataLayoutException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
- * Chooses between two data directories that both hold real user state.
- *
- * There is no correct answer the resolver can infer on its own, so the application asks. A
- * headless run has nobody to ask and supplies a deterministic choice instead.
+ * Chooses between two data directories that both hold real user state. There is no correct answer the
+ * resolver can infer, so the application asks; a headless run has nobody to ask.
  */
 fun interface LegacyDataConflictResolver {
     fun resolve(legacyPortableRoot: File, installedRoot: File): File
 }
 
+/** Which storage mode a user picked when their data existed in two places at once. */
+enum class LegacyConflictChoice { PORTABLE, INSTALLED }
+
 /**
  * Resolves the [ResolvedAppData] for this process.
  *
- * The mode is decided by an explicit override or by a marker file, never by whether a directory
- * happens to be writable. Writability was the previous rule and it was environment-dependent:
- * the same installation stored data in two different places depending on UAC elevation, and moving
- * a folder or mounting it read-only silently relocated a user's settings and history.
+ * The mode comes from an explicit override or a marker file, never from whether a directory happens
+ * to be writable. Writability was the previous rule and it was environment-dependent: the same
+ * installation stored data in two places depending on UAC elevation, and moving a folder or mounting
+ * it read-only silently relocated a user's settings and history.
  */
 object AppDataLayout {
 
@@ -72,51 +64,55 @@ object AppDataLayout {
     const val LAUNCHER_PATH_PROPERTY = "jpackage.app-path"
 
     /**
+     * Records that a user with data in two places chose the OS-standard location, so the question is
+     * not asked again on every launch.
+     *
+     * It lives in the user's own data directory rather than beside the application, because choosing
+     * the installed location must not require writing to the installation directory — which is
+     * exactly the one that is read-only under Program Files. It holds only the chosen mode: no user
+     * data and nothing secret.
+     */
+    const val MODE_DECISION_FILE = "data-location-choice"
+
+    /**
      * Directories that prove the application itself wrote there.
      *
-     * None of these ships in any distribution — not in the portable ZIP built by `assemblePortable`
-     * and not in the Windows app-image built by `package-windows.ps1` — so none can be present in
-     * a freshly extracted copy that has never been run. That is why shipped folders such as
-     * `plugins/`, `languages/`, `themes/` and `icons/` are excluded: those are present in a fresh
-     * extraction and would misreport it as somebody's existing installation.
+     * None ships in any distribution, so none can be present in a freshly extracted copy that has
+     * never been run. That is why shipped folders such as `plugins/`, `languages/`, `themes/` and
+     * `icons/` are excluded: they are present in a fresh extraction and would misreport it as
+     * somebody's existing installation.
      */
     private val MUTABLE_STATE_SENTINELS = listOf("datastore", "plugins_data", "logs")
 
     private const val APP_DIRECTORY_NAME = "QTranslate"
 
     /**
-     * Headless fallback for [LegacyDataConflictResolver]: keep the OS-standard location and leave
-     * the legacy directory untouched on disk. The release probe never reaches this because it
-     * always sets [EXPLICIT_DATA_DIR_PROPERTY].
+     * Headless fallback for [LegacyDataConflictResolver]: keep the OS-standard location and leave the
+     * legacy directory untouched. The release probe never reaches this — it always sets
+     * [EXPLICIT_DATA_DIR_PROPERTY].
      */
     val KEEP_INSTALLED_DATA = LegacyDataConflictResolver { _, installedRoot -> installedRoot }
 
     /**
      * The ambient facts the rules are applied to, injected so each rule can be tested directly.
      *
-     * [writable] is the filesystem's answer for the chosen directory. It is injected rather than read
-     * through `File.canWrite()` at the point of decision because its value must not be able to
-     * influence the mode: it is consulted only to report that a location cannot be used.
+     * [writable] is the filesystem's answer for the chosen directory, injected rather than read at
+     * the point of decision because its value must not be able to influence the mode. [developmentBuild]
+     * is decided by the code source being a directory of classes rather than a JAR or a launcher, so
+     * that no path a user or CI happens to choose can be mistaken for a development run.
      */
     internal data class Environment(
         val explicitDataDir: String? = null,
         val launcherPath: String? = null,
         val codeSource: File? = null,
-        /**
-         * Whether this is a development run, decided by the code source being a directory of compiled
-         * classes rather than a JAR or a packaged launcher.
-         *
-         * That is the signal rather than a folder name: a build directory called `build` also appears
-         * in CI paths, and in any installation path a user chooses. What actually distinguishes a
-         * development run is that nothing was packaged.
-         */
         val developmentBuild: Boolean = codeSource?.isDirectory == true,
         val osName: String = "",
         val userHome: String = "",
         val environment: (String) -> String? = { null },
         val markerExists: (File) -> Boolean = { it.isFile },
         val mutableStatePresent: (File) -> Boolean = ::hasMutableState,
-        val writable: (File) -> Boolean = { it.canWrite() }
+        val writable: (File) -> Boolean = { it.canWrite() },
+        val installedChoiceRecorded: (File) -> Boolean = { File(it, MODE_DECISION_FILE).isFile }
     )
 
     /** Resolves the layout for the running process. */
@@ -138,12 +134,10 @@ object AppDataLayout {
      *
      * 1. An explicit `-DappData` wins outright.
      * 2. A `portable.flag` beside the launcher declares the distribution portable.
-     * 3. Otherwise the data goes to the OS per-user location — except when unmarked data written
-     *    by a pre-marker 1.5.x release is found beside the application and the OS location is
-     *    empty, in which case that data is adopted and marked so the choice is stable from then on.
+     * 3. Otherwise data goes to the OS per-user location — except for unmarked data a pre-marker 1.5.x
+     *    release left beside the application, which is adopted and marked so the choice is stable.
      *
-     * A build output directory resolves before the marker is consulted, so running from
-     * `build/classes` is never mistaken for a portable installation.
+     * A development run is resolved first of all, so `build/classes` is never read as an installation.
      */
     internal fun resolve(
         environment: Environment,
@@ -167,9 +161,9 @@ object AppDataLayout {
             )
         }
 
-        if (environment.developmentBuild && distributionRoot != null) {
-            // A development run keeps writing beside its own classes, as it always has, so it never
-            // writes into the real per-user location it would then share with an installed copy.
+        if (environment.developmentBuild) {
+            // Keeps writing beside its own classes, so a developer run never writes into the real
+            // per-user location it would then share with an installed copy.
             return ResolvedAppData(
                 mode = AppDataMode.CUSTOM,
                 installationRoot = distributionRoot,
@@ -187,8 +181,18 @@ object AppDataLayout {
 
         val installedRoot = installedUserDataRoot(environment)
 
-        // Pre-marker 1.5.x stored data beside the launcher whenever it could. Recognising that data
-        // is the only way to keep it; relocating it would be the one unrecoverable outcome.
+        // Checked before the legacy branch because that is exactly where the prompt would otherwise
+        // reappear on every launch.
+        if (environment.installedChoiceRecorded(installedRoot)) {
+            return ResolvedAppData(
+                mode = AppDataMode.INSTALLED,
+                installationRoot = distributionRoot,
+                userDataRoot = prepareUserDataRoot(installedRoot, environment.writable)
+            )
+        }
+
+        // Pre-marker 1.5.x stored data beside the launcher whenever it could. Recognising it is the only
+        // way to keep it; relocating it would be the one unrecoverable outcome.
         if (!environment.mutableStatePresent(distributionRoot)) {
             return ResolvedAppData(
                 mode = AppDataMode.INSTALLED,
@@ -197,12 +201,19 @@ object AppDataLayout {
             )
         }
 
-        val chosen = if (environment.mutableStatePresent(installedRoot)) {
-            conflictResolver.resolve(distributionRoot, installedRoot)
-        } else {
-            distributionRoot
+        if (!environment.mutableStatePresent(installedRoot)) {
+            // Only one place holds data, so there is no choice to make: keep the legacy data where it
+            // is and mark the distribution so this stays true from now on.
+            writePortableMarker(distributionRoot)
+            return ResolvedAppData(
+                mode = AppDataMode.PORTABLE,
+                installationRoot = distributionRoot,
+                userDataRoot = prepareUserDataRoot(distributionRoot, environment.writable),
+                adoptedLegacyPortableData = true
+            )
         }
 
+        val chosen = conflictResolver.resolve(distributionRoot, installedRoot)
         return if (isSameDirectory(chosen, distributionRoot)) {
             writePortableMarker(distributionRoot)
             ResolvedAppData(
@@ -212,6 +223,7 @@ object AppDataLayout {
                 adoptedLegacyPortableData = true
             )
         } else {
+            recordInstalledChoice(installedRoot)
             ResolvedAppData(
                 mode = AppDataMode.INSTALLED,
                 installationRoot = distributionRoot,
@@ -220,35 +232,19 @@ object AppDataLayout {
         }
     }
 
-    /**
-     * The directory holding the bundled distribution, or null when it cannot be determined.
-     *
-     * A packaged build reports it through [LAUNCHER_PATH_PROPERTY]; a plain JAR or a classes
-     * directory reports it through the code source. A code source that is itself a directory is the
-     * classes output, and is used directly rather than through its parent — that directory *is* the
-     * run's root.
-     */
+    /** The directory holding the bundled distribution, or null when it cannot be determined. */
     private fun distributionRoot(environment: Environment): File? =
         environment.launcherPath?.trim()?.takeIf { it.isNotEmpty() }
             ?.let { File(it).parentFile }
             ?: environment.codeSource?.let { if (it.isDirectory) it else it.parentFile }
 
-    /**
-     * Whether [root] holds state this application wrote.
-     *
-     * See [MUTABLE_STATE_SENTINELS] for why the list is limited to never-shipped directories.
-     */
+    /** Whether [root] holds state this application wrote. See [MUTABLE_STATE_SENTINELS]. */
     internal fun hasMutableState(root: File): Boolean =
         MUTABLE_STATE_SENTINELS.any { name ->
             File(root, name).let { it.isDirectory && it.list()?.isNotEmpty() == true }
         }
 
-    
-
-    /**
-     * The OS per-user data location: `%APPDATA%\QTranslate`, `~/Library/Application
-     * Support/QTranslate`, or `$XDG_CONFIG_HOME/QTranslate`.
-     */
+    /** The OS per-user data location: `%APPDATA%`, `~/Library/Application Support`, or `$XDG_CONFIG_HOME`. */
     internal fun installedUserDataRoot(environment: Environment): File {
         val osName = environment.osName.lowercase()
         val base = when {
@@ -267,9 +263,9 @@ object AppDataLayout {
     /**
      * Creates [directory] if needed and proves it is usable.
      *
-     * A failure here is reported rather than worked around. Falling back to another location —
-     * least of all the installation directory — would mean starting up against a data directory the
-     * user never chose, which is the exact failure this resolver exists to remove.
+     * A failure is reported rather than worked around. Falling back to another location — least of all
+     * the installation directory — would mean starting up against a data directory the user never
+     * chose, which is the failure this resolver exists to remove.
      */
     private fun prepareUserDataRoot(directory: File, writable: (File) -> Boolean): File {
         val path = directory.absolutePath
@@ -279,9 +275,6 @@ object AppDataLayout {
                     "Choose a writable location, or clear the read-only flag, and start QTranslate again."
             )
         }
-        // Writability never selects the mode; it only reports that the location already chosen is
-        // unusable. Checking it here turns a silent divergence into a clear failure rather than
-        // letting the application quietly store data somewhere the user did not pick.
         if (!writable(directory)) {
             throw AppDataLayoutException(
                 "QTranslate's data directory is not writable:\n  $path\n" +
@@ -295,12 +288,29 @@ object AppDataLayout {
     /**
      * Writes [PORTABLE_MARKER] so an adopted legacy layout keeps resolving as portable.
      *
-     * Best effort: a distribution on read-only media cannot be written to, and re-detecting the
-     * same legacy data on the next run is harmless, so this is not worth failing startup over.
+     * Best effort: a distribution on read-only media cannot be written to, and re-detecting the same
+     * legacy data on the next run is harmless, so this is not worth failing startup over.
      */
     private fun writePortableMarker(distributionRoot: File) {
         val marker = File(distributionRoot, PORTABLE_MARKER)
         runCatching { if (!marker.exists()) marker.createNewFile() }
+    }
+
+    /**
+     * Records the OS-standard choice so the conflict is not raised again.
+     *
+     * Nothing is deleted or moved: the legacy directory beside the application is left untouched, and
+     * deleting this one file reopens the question. Best effort for the same reason as
+     * [writePortableMarker] — losing it costs a repeat question, not data.
+     */
+    private fun recordInstalledChoice(installedRoot: File) {
+        runCatching {
+            val file = File(installedRoot, MODE_DECISION_FILE)
+            if (!file.exists()) {
+                file.parentFile?.mkdirs()
+                file.writeText(LegacyConflictChoice.INSTALLED.name)
+            }
+        }
     }
 
     private fun isSameDirectory(left: File, right: File): Boolean =

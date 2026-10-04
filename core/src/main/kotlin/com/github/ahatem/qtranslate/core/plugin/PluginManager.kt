@@ -145,6 +145,14 @@ class PluginManager(
     private val _activeServices = MutableStateFlow<Map<String, Service>>(emptyMap())
     private var discoveryFailureStates: List<PluginState> = emptyList()
 
+    /**
+     * IDs whose loaded JAR came from the distribution rather than the user's own plugins folder.
+     *
+     * Empty in a portable distribution, where both are one folder and every JAR is the user's to
+     * remove.
+     */
+    private var bundledPluginIds: Set<String> = emptySet()
+
     /** Observable list of all loaded plugins with their current state. */
     val plugins: StateFlow<List<PluginState>> = _plugins.asStateFlow()
 
@@ -170,6 +178,7 @@ class PluginManager(
             val loader = PluginLoader(loggerFactory.getLogger("PluginLoader"))
 
             val discovery = discoverPlugins(loader)
+            bundledPluginIds = discovery.bundledIds
             val loadResult = discovery.result
             val discoveryErrors = discovery.failures + loadResult.failed + loadResult.skipped
             discoveryFailureStates = discoveryErrors.mapIndexed(::toFailedPluginState)
@@ -275,7 +284,27 @@ class PluginManager(
     suspend fun installPlugin(sourceJar: File): Result<Unit, String> =
         installer.installPlugin(sourceJar).also { updateFlows() }
 
+    /**
+     * Whether [pluginId] is a plugin the distribution ships, and so may not be uninstalled.
+     *
+     * The UI asks this before offering the action. A bundled plugin can still be disabled, which is
+     * the operation that actually turns it off.
+     */
+    fun isBundled(pluginId: String): Boolean = bundledPluginIds.contains(pluginId)
+
+    /**
+     * Removes a user-installed plugin.
+     *
+     * A bundled plugin is refused outright. Ignoring the request would bring it back on the next
+     * launch, and deleting its JAR would leave an installed copy without a component it cannot
+     * restore, so neither half of "uninstall until restart" is offered.
+     */
     suspend fun uninstallPlugin(pluginId: String) {
+        if (isBundled(pluginId)) {
+            logger.info("Refusing to uninstall bundled plugin '$pluginId'; disable it instead.")
+            return
+        }
+
         val discoveryFailure = discoveryFailureStates.firstOrNull { it.id == pluginId }
         if (discoveryFailure != null) {
             val jar = File(discoveryFailure.jarPath)
@@ -432,17 +461,16 @@ class PluginManager(
     /**
  * Loads plugins from the user's folder and, when it is separate, from the distribution's.
  *
- * A bundled JAR whose ID the user has since installed is dropped rather than reported as a
- * duplicate. That shadowing is the intended outcome, not a conflict: it is how a user replaces a
- * bundled plugin without the installer directory being written to. Two JARs claiming one ID
- * *within the same folder* stay ambiguous, and
- * [com.github.ahatem.qtranslate.core.plugin.registry.PluginRegistry.validateAndFilter] still
- * rejects both so the user can tell them apart.
- */
+     * A bundled JAR whose ID the user has since installed is dropped rather than reported as a
+     * duplicate: that shadowing is how a user replaces a bundled plugin without the installation
+     * directory being written to. Two JARs claiming one ID within the same folder stay ambiguous,
+     * and [PluginRegistry.validateAndFilter] still rejects both.
+     */
     private fun discoverPlugins(loader: PluginLoader): PluginDiscovery {
         val (userResults, userFailures) = loadDirectory(loader, pluginsDir)
         val bundledDir = bundledPluginsDir ?: return PluginDiscovery(
             results = userResults,
+            bundledIds = emptySet(),
             result = registry.validateAndFilter(userResults),
             failures = userFailures
         )
@@ -460,14 +488,16 @@ class PluginManager(
         val all = userResults + bundledResults
         return PluginDiscovery(
             results = all,
+            bundledIds = bundledResults.mapTo(mutableSetOf()) { it.manifest.id },
             result = registry.validateAndFilter(all),
             failures = userFailures + bundledFailures
         )
     }
 
-    /** What discovery found: the plugins to initialise, and the ones to report. */
+    /** What discovery found: the plugins to initialise, which are bundled, and the ones to report. */
     private data class PluginDiscovery(
         val results: List<LoadedPluginResult>,
+        val bundledIds: Set<String>,
         val result: PluginLoadResult,
         val failures: List<PluginError>
     )
@@ -480,7 +510,8 @@ class PluginManager(
             context = context,
             jarFile = result.jarFile,
             jarHash = result.jarHash,
-            classLoader = result.classLoader
+            classLoader = result.classLoader,
+            bundled = bundledPluginIds.contains(result.manifest.id)
         )
 
         val initialized = lifecycleHandler.initialize(container)
@@ -509,6 +540,7 @@ class PluginManager(
             jarFile = result.jarFile,
             jarHash = result.jarHash,
             classLoader = result.classLoader,
+            bundled = bundledPluginIds.contains(result.manifest.id),
             status = PluginStatus.AWAITING_VERIFICATION
         )
         registry.mutex.withLock { registry.put(container) }

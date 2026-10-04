@@ -77,9 +77,8 @@ object IconSet {
      * behaviour for anything constructing icons before the application has found its data
      * directory rather than a reason to fail.
      *
-     * The user's own folder comes first and the installation's after it, so a set a user dropped
-     * in wins over a shipped one of the same name. In a portable distribution the two are the same
-     * folder and there is nothing to choose between them.
+     * Ordered by precedence, so a set a user dropped in wins over a shipped one of the same name.
+     * In a portable distribution the two are one folder and there is nothing to choose between them.
      */
     @Volatile
     private var externalRoots: List<File> = emptyList()

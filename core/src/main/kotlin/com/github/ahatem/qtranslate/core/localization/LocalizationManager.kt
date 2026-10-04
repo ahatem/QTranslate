@@ -43,10 +43,8 @@ class LocalizationManager(
         get() = languageMetaCache[_activeLanguage.value]?.isRtl == true
 
     /**
-     * The user's own language folder, and the target for every edit, import and delete.
-     *
-     * Writing here rather than into the installation is what lets a user override a shipped
-     * translation in an installed copy without the installer directory ever being written to.
+     * The user's own language folder, and the target for every edit, import and delete — so an
+     * override of a shipped translation never writes into the installation directory.
      */
     val languagesDirectory: File = File(appDataDirectory, "languages").also { it.mkdirs() }
 
@@ -69,10 +67,8 @@ class LocalizationManager(
             .firstOrNull { it.isFile }
 
     /**
-     * Whether [code] has a file in the user's own folder, as opposed to only a bundled one.
-     *
-     * This is what makes "delete" honest: a bundled file belongs to the installation and reappears
-     * when the distribution is replaced, so it is not offered as removable.
+     * Whether [code] has a file in the user's own folder rather than only a bundled one. A bundled
+     * file reappears when the distribution is replaced, so it is not offered as removable.
      */
     fun isUserLanguage(code: String): Boolean = File(languagesDirectory, "$code.toml").isFile
 
