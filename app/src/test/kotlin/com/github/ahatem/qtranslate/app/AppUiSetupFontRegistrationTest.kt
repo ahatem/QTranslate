@@ -48,4 +48,12 @@ class AppUiSetupFontRegistrationTest {
         assertTrue("FlatInterFont.installLazy()" in body, "expected Inter to be registered lazily:\n$body")
         assertTrue("RubikSansFont.installLazy()" in body, "expected Rubik to be registered lazily:\n$body")
     }
+
+    @Test
+    fun `startup registers the portable rescue faces lazily, not eagerly`() {
+        val body = installFontsBody()
+        assertTrue("PortableFallbackFonts.installLazy()" in body, "expected a lazy registration call:\n$body")
+        assertFalse("PortableFallbackFonts.install(" in body, "an eager install would read the font files on every startup:\n$body")
+        assertFalse("installAll()" in body, "installing the whole chain on startup would do the same:\n$body")
+    }
 }

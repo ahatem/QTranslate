@@ -12,8 +12,8 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import java.awt.Component
 import java.awt.Container
 import javax.swing.JScrollPane
-import javax.swing.JTextArea
 import javax.swing.SwingUtilities
+import javax.swing.text.JTextComponent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -81,10 +81,10 @@ class QuickTranslateResultsViewTest {
         )
         QuickTranslateResultsView(board)
 
-        val primaryAreas = descendants(board.primaryProviderView).filterIsInstance<JTextArea>().map { it.text }
+        val primaryAreas = descendants(board.primaryProviderView).filterIsInstance<JTextComponent>().map { it.text }
         assertTrue(primaryAreas.contains("a definition"))
         val secondary = board.secondaryViewForTest("secondary")!!
-        assertTrue(descendants(secondary).filterIsInstance<JTextArea>().none { it.text == "a definition" })
+        assertTrue(descendants(secondary).filterIsInstance<JTextComponent>().none { it.text == "a definition" })
         assertTrue(board.orderedServiceIdsForTest().indexOf("primary") < board.orderedServiceIdsForTest().indexOf("secondary"))
     }
 
