@@ -104,7 +104,6 @@ object BingLanguageMapper : LanguageMapper {
         LanguageCode("nan"),   // Min Nan (Hokkien/Taiwanese)
 
         // Other notable variants
-        LanguageCode("haw"),   // Hawaiian
         LanguageCode("hmn"),   // Hmong
         LanguageCode("pdc"),   // Pennsylvania German
         LanguageCode("tlh"),   // Klingon
@@ -172,6 +171,10 @@ object BingLanguageMapper : LanguageMapper {
     override fun toProviderCode(code: LanguageCode): String = when (code.tag) {
         "auto" -> "auto-detect"
         "no" -> "nb" // Norwegian → Norwegian Bokmål
+        // Bing uses "pt" for Brazilian Portuguese and "pt-PT" for Portugal.
+        "pt-BR" -> "pt"
+        // Bing only takes Serbian qualified by script.
+        "sr" -> "sr-Cyrl"
         else -> code.tag
     }
 
@@ -180,6 +183,8 @@ object BingLanguageMapper : LanguageMapper {
         "nb" -> LanguageCode.NORWEGIAN
         "pt-br", "pt-BR" -> LanguageCode.PORTUGUESE_BRAZIL
         "pt-pt", "pt-PT" -> LanguageCode.PORTUGUESE_PORTUGAL
+        // QTranslate exposes one Serbian choice.
+        "sr-Cyrl", "sr-Latn" -> LanguageCode.SERBIAN
         else -> LanguageCode(providerCode)
     }
 
