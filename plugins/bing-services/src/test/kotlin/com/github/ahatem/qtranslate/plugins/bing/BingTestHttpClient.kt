@@ -18,6 +18,10 @@ internal class BingTestHttpClient(
     var translateCalls: Int = 0
         private set
 
+    /** The form the last translate call posted, so tests can assert the codes it carries. */
+    var lastTranslateForm: Map<String, String> = emptyMap()
+        private set
+
     override suspend fun get(
         url: String,
         headers: Map<String, String>,
@@ -32,6 +36,7 @@ internal class BingTestHttpClient(
         cookies: Map<String, String>
     ): Result<String, ServiceError> {
         translateCalls++
+        lastTranslateForm = formData
         return translateResult
     }
 

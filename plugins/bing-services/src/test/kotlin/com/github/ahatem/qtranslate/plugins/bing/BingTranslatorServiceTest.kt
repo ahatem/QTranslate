@@ -50,6 +50,22 @@ class BingTranslatorServiceTest {
     }
 
     @Test
+    fun `the posted target language uses a code bing accepts`() = runBlocking {
+        val codes = mapOf(
+            LanguageCode.PORTUGUESE_BRAZIL to "pt",
+            LanguageCode.PORTUGUESE_PORTUGAL to "pt-PT",
+            LanguageCode.SERBIAN to "sr-Cyrl"
+        )
+
+        codes.forEach { (language, expected) ->
+            val client = BingTestHttpClient(Ok(SUCCESS_ARRAY))
+            createService(client).translate(request.copy(targetLanguage = language))
+
+            assertEquals(expected, client.lastTranslateForm["to"], "target: $language")
+        }
+    }
+
+    @Test
     fun `a translation array is decoded as before`() = runBlocking {
         translateWith(SUCCESS_ARRAY).fold(
             success = {
