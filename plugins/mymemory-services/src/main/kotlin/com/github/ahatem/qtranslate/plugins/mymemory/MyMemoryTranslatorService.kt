@@ -117,7 +117,7 @@ internal class MyMemoryTranslatorService(
 
         private val SUPPORTED_LANGUAGES = setOf(
             LanguageCode.ENGLISH, LanguageCode.ARABIC, LanguageCode.SPANISH, LanguageCode.FRENCH,
-            LanguageCode.GERMAN, LanguageCode.ITALIAN, LanguageCode.PORTUGUESE, LanguageCode.RUSSIAN,
+            LanguageCode.GERMAN, LanguageCode.ITALIAN, LanguageCode.PORTUGUESE_BRAZIL, LanguageCode.PORTUGUESE_PORTUGAL, LanguageCode.RUSSIAN,
             LanguageCode.CHINESE_SIMPLIFIED, LanguageCode.CHINESE_TRADITIONAL, LanguageCode.JAPANESE,
             LanguageCode.KOREAN, LanguageCode.HINDI, LanguageCode.BENGALI, LanguageCode.INDONESIAN,
             LanguageCode.URDU, LanguageCode.TURKISH, LanguageCode.VIETNAMESE, LanguageCode.DUTCH,

@@ -9,6 +9,7 @@ import com.github.ahatem.qtranslate.core.document.DocumentTranslationRequest
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 import com.github.ahatem.qtranslate.core.history.HistoryRepository
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
+import com.github.ahatem.qtranslate.core.main.domain.language.LanguageSelectionCompat
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
@@ -146,7 +147,11 @@ class MainStore(
         scope.launch {
             selectActiveServiceUseCase.observe().collect { selection ->
                 _state.update { current ->
-                    val sortedLanguages = selection.availableLanguages.sortedWith(
+                    val advertised = LanguageSelectionCompat.visibleLanguages(
+                        selection.availableLanguages,
+                        listOf(current.targetLanguage, current.sourceLanguage)
+                    )
+                    val sortedLanguages = advertised.sortedWith(
                         compareBy<LanguageCode> { lc -> lc.tag != "auto" }
                             .thenBy { lc -> lc.getDisplayName() }
                     )
@@ -155,15 +160,11 @@ class MainStore(
                     // list (e.g. because pinnedLanguages hides it, or the translator doesn't
                     // support it), fall back to the saved preference then to the first available
                     // non-auto language so the user is never silently translated to the wrong language.
-                    val targetLang = when {
-                        current.targetLanguage in sortedLanguages -> current.targetLanguage
-                        else -> {
-                            val preferred = LanguageCode(settingsState.value.preferredTargetLanguage)
-                            sortedLanguages.firstOrNull { it == preferred }
-                                ?: sortedLanguages.firstOrNull { it.tag != "auto" }
-                                ?: current.targetLanguage
-                        }
-                    }
+                    val targetLang = LanguageSelectionCompat.resolveTargetLanguage(
+                        current.targetLanguage,
+                        sortedLanguages,
+                        settingsState.value.preferredTargetLanguage
+                    )
 
                     current.copy(
                         availableServices  = selection.availableServices,

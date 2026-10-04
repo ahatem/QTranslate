@@ -156,6 +156,47 @@ class DeepLTranslatorServiceTest {
         assertTrue(client.requestCount > 1)
     }
 
+    @Test
+    fun `official API sends regional target codes and collapses regional source to PT`() = runBlocking {
+        val client = ScriptedHttpClient(mutableListOf(Ok(OFFICIAL_SUCCESS)))
+        val service = createService(client, DeepLSettings(apiKey = "test-key:fx"), {})
+
+        service.translate(
+            request.copy(
+                sourceLanguage = LanguageCode.PORTUGUESE_BRAZIL,
+                targetLanguage = LanguageCode.PORTUGUESE_PORTUGAL
+            )
+        )
+
+        assertTrue(client.bodies.single().contains("\"target_lang\":\"PT-PT\""))
+        assertTrue(client.bodies.single().contains("\"source_lang\":\"PT\""))
+    }
+
+    @Test
+    fun `official API maps detected PT-BR back to Brazilian Portuguese`() = runBlocking {
+        val client = ScriptedHttpClient(mutableListOf(
+            Ok("""{"translations":[{"text":"x","detected_source_language":"PT-BR"}]}""")
+        ))
+        val service = createService(client, DeepLSettings(apiKey = "test-key:fx"), {})
+
+        val result = service.translate(request)
+
+        result.fold(
+            success = { assertEquals(LanguageCode.PORTUGUESE_BRAZIL, it.detectedLanguage) },
+            failure = { fail(it.message) }
+        )
+    }
+
+    @Test
+    fun `free web endpoint collapses regional Portuguese targets to pt`() = runBlocking {
+        val client = ScriptedHttpClient(mutableListOf(Ok(WEB_SUCCESS)))
+        val service = createService(client, DeepLSettings(), {})
+
+        service.translate(request.copy(targetLanguage = LanguageCode.PORTUGUESE_PORTUGAL))
+
+        assertTrue(client.bodies.single().contains("\"target_lang\":\"pt\""))
+    }
+
     private fun createService(
         client: HttpClient,
         settings: DeepLSettings,

@@ -39,6 +39,8 @@ public value class LanguageCode(public val tag: String) {
         public val BENGALI: LanguageCode             = LanguageCode("bn")
         public val RUSSIAN: LanguageCode             = LanguageCode("ru")
         public val PORTUGUESE: LanguageCode          = LanguageCode("pt")
+        public val PORTUGUESE_BRAZIL: LanguageCode   = LanguageCode("pt-BR")
+        public val PORTUGUESE_PORTUGAL: LanguageCode = LanguageCode("pt-PT")
         public val INDONESIAN: LanguageCode          = LanguageCode("id")
         public val URDU: LanguageCode                = LanguageCode("ur")
         public val GERMAN: LanguageCode              = LanguageCode("de")

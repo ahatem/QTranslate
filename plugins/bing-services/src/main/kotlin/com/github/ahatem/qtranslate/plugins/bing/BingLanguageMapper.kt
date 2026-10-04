@@ -20,7 +20,6 @@ object BingLanguageMapper : LanguageMapper {
         LanguageCode.ARABIC,
         LanguageCode.BENGALI,
         LanguageCode.RUSSIAN,
-        LanguageCode.PORTUGUESE,
         LanguageCode.INDONESIAN,
         LanguageCode.URDU,
         LanguageCode.GERMAN,
@@ -96,8 +95,8 @@ object BingLanguageMapper : LanguageMapper {
         LanguageCode("aym"),   // Yemeni Arabic
 
         // Portuguese variants
-        LanguageCode("pt-BR"), // Brazilian Portuguese
-        LanguageCode("pt-PT"), // European Portuguese
+        LanguageCode.PORTUGUESE_BRAZIL,
+        LanguageCode.PORTUGUESE_PORTUGAL,
 
         // Chinese variants
         LanguageCode("zh-HK"), // Cantonese (Hong Kong)
@@ -141,7 +140,7 @@ object BingLanguageMapper : LanguageMapper {
         LanguageCode.MARATHI, LanguageCode.MALAY, LanguageCode.MALTESE,
         LanguageCode.BURMESE, LanguageCode.NORWEGIAN, LanguageCode.DUTCH,
         LanguageCode.POLISH, LanguageCode("ps"), // Pashto
-        LanguageCode.PORTUGUESE, LanguageCode("pt-PT"), // Portuguese (Portugal)
+        LanguageCode.PORTUGUESE_BRAZIL, LanguageCode.PORTUGUESE_PORTUGAL,
         LanguageCode.ROMANIAN, LanguageCode.RUSSIAN, LanguageCode.SLOVAK,
         LanguageCode.SLOVENIAN, LanguageCode("sr-Cyrl"), // Serbian (Cyrillic)
         LanguageCode("su"), // Sundanese
@@ -158,7 +157,7 @@ object BingLanguageMapper : LanguageMapper {
         LanguageCode.FINNISH, LanguageCode.FRENCH, LanguageCode("fr-CA"),
         LanguageCode.GERMAN, LanguageCode.ITALIAN, LanguageCode.JAPANESE,
         LanguageCode.KOREAN, LanguageCode.NORWEGIAN, LanguageCode.POLISH,
-        LanguageCode.PORTUGUESE, LanguageCode("pt-PT"), LanguageCode.RUSSIAN,
+        LanguageCode.PORTUGUESE, LanguageCode.PORTUGUESE_PORTUGAL, LanguageCode.RUSSIAN,
         LanguageCode.SPANISH, LanguageCode.SWEDISH, LanguageCode.TURKISH,
         LanguageCode.CHINESE_TRADITIONAL, LanguageCode.CHINESE_SIMPLIFIED
     )
@@ -179,6 +178,8 @@ object BingLanguageMapper : LanguageMapper {
     override fun fromProviderCode(providerCode: String): LanguageCode = when (providerCode) {
         "auto-detect" -> LanguageCode.AUTO
         "nb" -> LanguageCode.NORWEGIAN
+        "pt-br", "pt-BR" -> LanguageCode.PORTUGUESE_BRAZIL
+        "pt-pt", "pt-PT" -> LanguageCode.PORTUGUESE_PORTUGAL
         else -> LanguageCode(providerCode)
     }
 

@@ -20,10 +20,22 @@ import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 import kotlin.test.fail
 
 class MyMemoryTranslatorServiceTest {
+    @Test
+    fun `advertises regional Portuguese and drops generic duplicate from the public list`() {
+        val languages = MyMemoryTranslatorService(TestPluginContext, RecordingHttpClient(Ok("")), ApiConfig(), 0)
+            .supportedLanguages.let { it as? com.github.ahatem.qtranslate.api.plugin.SupportedLanguages.Specific ?: error("expected Specific") }
+            .languages
+        assertTrue(LanguageCode.PORTUGUESE_BRAZIL in languages)
+        assertTrue(LanguageCode.PORTUGUESE_PORTUGAL in languages)
+        assertFalse(LanguageCode.PORTUGUESE in languages)
+    }
+
     @Test
     fun `uses official public endpoint and decodes translated text`() = runBlocking {
         val client = RecordingHttpClient(

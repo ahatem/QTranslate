@@ -88,7 +88,7 @@ internal class DeepLTranslatorService(
         val requestBody = DeepLTranslateRequest(
             text = listOf(request.text),
             targetLanguage = toDeepLCode(request.targetLanguage),
-            sourceLanguage = request.sourceLanguage.takeUnless { it == LanguageCode.AUTO }?.let(::toDeepLCode)
+            sourceLanguage = request.sourceLanguage.takeUnless { it == LanguageCode.AUTO }?.let(::toDeepLSourceCode)
         )
         val responseText = httpClient.post(
             url = "${settings.baseUrl()}/v2/translate",
@@ -206,12 +206,20 @@ internal class DeepLTranslatorService(
         if (remainingMillis > 0) delay(remainingMillis)
     }
 
+    // DeepL's API only exposes one source language for Portuguese ("pt"), regardless
+    // of region, so regional source selections collapse here. Target keeps the region.
+    private fun toDeepLSourceCode(language: LanguageCode): String = when (language) {
+        LanguageCode.PORTUGUESE_BRAZIL, LanguageCode.PORTUGUESE_PORTUGAL -> "PT"
+        else -> toDeepLCode(language)
+    }
+
     private fun toDeepLCode(language: LanguageCode): String = when (language) {
         LanguageCode.CHINESE_SIMPLIFIED -> "ZH-HANS"
         LanguageCode.CHINESE_TRADITIONAL -> "ZH-HANT"
         else -> language.tag.uppercase()
     }
 
+    // The free web endpoint has no regional Portuguese codes; both collapse to "pt".
     private fun toWebCode(language: LanguageCode): String = when (language) {
         LanguageCode.CHINESE_SIMPLIFIED, LanguageCode.CHINESE_TRADITIONAL -> "zh"
         else -> language.tag.substringBefore('-').lowercase()
@@ -221,6 +229,8 @@ internal class DeepLTranslatorService(
         "NB" -> LanguageCode.NORWEGIAN
         "ZH", "ZH-HANS" -> LanguageCode.CHINESE_SIMPLIFIED
         "ZH-HANT" -> LanguageCode.CHINESE_TRADITIONAL
+        "PT-BR" -> LanguageCode.PORTUGUESE_BRAZIL
+        "PT-PT" -> LanguageCode.PORTUGUESE_PORTUGAL
         else -> LanguageCode(code.lowercase())
     }
 
@@ -240,7 +250,8 @@ internal class DeepLTranslatorService(
             LanguageCode.HUNGARIAN, LanguageCode.INDONESIAN, LanguageCode.ITALIAN,
             LanguageCode.JAPANESE, LanguageCode.KOREAN, LanguageCode.LATVIAN,
             LanguageCode.LITHUANIAN, LanguageCode.NORWEGIAN, LanguageCode.POLISH,
-            LanguageCode.PORTUGUESE, LanguageCode.ROMANIAN, LanguageCode.RUSSIAN,
+            LanguageCode.PORTUGUESE_BRAZIL, LanguageCode.PORTUGUESE_PORTUGAL,
+            LanguageCode.ROMANIAN, LanguageCode.RUSSIAN,
             LanguageCode.SLOVAK, LanguageCode.SLOVENIAN, LanguageCode.SPANISH,
             LanguageCode.SWEDISH, LanguageCode.TURKISH, LanguageCode.UKRAINIAN
         )
