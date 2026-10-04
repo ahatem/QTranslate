@@ -31,4 +31,16 @@ class GoogleLanguageMapperTest {
         assertEquals(LanguageCode.PORTUGUESE_PORTUGAL, GoogleLanguageMapper.fromProviderCode("pt-PT"))
         assertEquals(LanguageCode.PORTUGUESE, GoogleLanguageMapper.fromProviderCode("pt"))
     }
+
+    @Test
+    fun `supported set advertises Guarani`() = runBlocking {
+        val supported = GoogleLanguageMapper.getSupportedLanguages().getOr(emptySet())
+        assertTrue(LanguageCode.GUARANI in supported)
+    }
+
+    @Test
+    fun `Guarani maps to and from its standard provider code`() {
+        assertEquals("gn", GoogleLanguageMapper.toProviderCode(LanguageCode.GUARANI))
+        assertEquals(LanguageCode.GUARANI, GoogleLanguageMapper.fromProviderCode("gn"))
+    }
 }

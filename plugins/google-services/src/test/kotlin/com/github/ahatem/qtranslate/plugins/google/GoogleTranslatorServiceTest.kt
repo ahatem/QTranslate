@@ -90,6 +90,30 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
+    fun `official API sends gn as the target for Guarani`() = runBlocking {
+        val guarani = TranslationRequest(
+            text = "Hello, how are you today?",
+            sourceLanguage = LanguageCode.ENGLISH,
+            targetLanguage = LanguageCode.GUARANI
+        )
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Ok(PRIMARY_JSON) },
+            officialHandler = { Ok(OFFICIAL_JSON) }
+        )
+        val service = createService(client, AtomicLong(0), GoogleSettings(translateApiKey = "test-key"))
+
+        service.translate(guarani).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+
+        assertEquals(1, client.officialCalls)
+        val body = PluginJson.parseToJsonElement(client.officialBodies.single()).jsonObject
+        assertEquals("en", body["source"]?.jsonPrimitive?.content)
+        assertEquals("gn", body["target"]?.jsonPrimitive?.content)
+    }
+
+    @Test
     fun `official API sends the mapped source for an explicit language`() = runBlocking {
         val explicit = TranslationRequest(
             text = "Bonjour",

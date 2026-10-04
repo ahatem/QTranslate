@@ -97,6 +97,7 @@ public value class LanguageCode(public val tag: String) {
         public val BOSNIAN: LanguageCode             = LanguageCode("bs")
         public val ESTONIAN: LanguageCode            = LanguageCode("et")
         public val GEORGIAN: LanguageCode            = LanguageCode("ka")
+        public val GUARANI: LanguageCode             = LanguageCode("gn")
         public val ICELANDIC: LanguageCode           = LanguageCode("is")
         public val IRISH: LanguageCode               = LanguageCode("ga")
         public val LATVIAN: LanguageCode             = LanguageCode("lv")

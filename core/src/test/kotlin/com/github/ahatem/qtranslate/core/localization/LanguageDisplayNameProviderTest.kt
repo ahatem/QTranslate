@@ -34,4 +34,9 @@ class LanguageDisplayNameProviderTest {
         assertTrue(frenchBr.contains("Portugais"), "expected localized language name, got '$frenchBr'")
         assertTrue(frenchBr.contains("Brésil"), "expected localized country name, got '$frenchBr'")
     }
+
+    @Test
+    fun `gn displays Guarani`() {
+        assertEquals("Guarani", LanguageCode.GUARANI.getDisplayName(Locale.ENGLISH))
+    }
 }
