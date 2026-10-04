@@ -29,7 +29,11 @@ import java.nio.file.StandardCopyOption
  * NOT already hold the mutex when calling these methods.
  */
 internal class PluginInstaller(
-    private val pluginsDir: File,
+    /**
+     * Where user-installed plugin JARs live. The only folder this installer writes to or deletes
+     * from, so an installed copy's bundled plugins are never overwritten or removed.
+     */
+    private val userPluginsDirectory: File,
     private val appDataDirectory: File,
     private val registry: PluginRegistry,
     private val lifecycleHandler: PluginLifecycleHandler,
@@ -40,6 +44,17 @@ internal class PluginInstaller(
     private val logger = loggerFactory.getLogger("PluginInstaller")
     private val loader = PluginLoader(loggerFactory.getLogger("PluginLoader"))
 
+    /**
+     * Whether [jarFile] is one the user installed rather than one the distribution shipped.
+     *
+     * Uninstall deletes a JAR only when this holds. A bundled JAR belongs to the installation and
+     * would be unrecoverable without reinstalling, so it is kept and reported instead. In a portable
+     * distribution both folders are one, so every JAR is the user's own and uninstall behaves exactly
+     * as it always has.
+     */
+    private fun isUserInstalled(jarFile: File): Boolean =
+        PluginInstallLocation.isUserInstalled(userPluginsDirectory, jarFile)
+
     // -------------------------------------------------------------------------
     // Install
     // -------------------------------------------------------------------------
@@ -49,9 +64,13 @@ internal class PluginInstaller(
      *
      * Steps:
      * 1. Validates the JAR has a parseable manifest.
-     * 2. Rejects if a plugin with the same ID is already installed.
-     * 3. Copies the JAR to the plugins directory.
+     * 2. Rejects if a plugin with the same ID is already loaded.
+     * 3. Copies the JAR into the user's own plugins folder.
      * 4. Loads, initializes, and enables the plugin.
+     *
+     * Copying to the user's folder rather than over the distribution's own is what lets an installed
+     * copy be updated without writing to the installation directory. A bundled plugin replaced this
+     * way simply shadows it; the bundled copy stays intact underneath.
      */
     suspend fun installPlugin(sourceJar: File): Result<Unit, String> {
         val manifest = loader.getManifestFromJar(sourceJar)
@@ -69,7 +88,7 @@ internal class PluginInstaller(
         }
 
         return try {
-            val destinationJar = File(pluginsDir, sourceJar.name)
+            val destinationJar = File(userPluginsDirectory, sourceJar.name)
             withContext(Dispatchers.IO) {
                 Files.copy(sourceJar.toPath(), destinationJar.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
@@ -92,6 +111,11 @@ internal class PluginInstaller(
     /**
      * Fully uninstalls a plugin: disables it, wipes its sandbox, removes its JAR,
      * and removes it from the disabled-IDs list in settings.
+     *
+     * A bundled plugin's JAR is left in place — it is not the user's to delete, and removing it
+     * would leave an installed copy missing a component with no way to restore it short of
+     * reinstalling. Everything else about the uninstall still happens, so the plugin stops
+     * running, its data is purged, and the operator is told the JAR was kept.
      */
     suspend fun uninstallPlugin(pluginId: String) {
         val container = registry.mutex.withLock { registry.remove(pluginId) } ?: return
@@ -107,11 +131,17 @@ internal class PluginInstaller(
         val currentDisabled = settingsRepository.loadDisabledPluginIds()
         settingsRepository.saveDisabledPluginIds(currentDisabled - pluginId)
 
-        runCatching { container.jarFile.delete() }.onFailure {
-            logger.error("Failed to delete JAR file: ${container.jarFile.path}", it)
+        if (isUserInstalled(container.jarFile)) {
+            runCatching { container.jarFile.delete() }.onFailure {
+                logger.error("Failed to delete JAR file: ${container.jarFile.path}", it)
+            }
+            logger.info("Plugin '$pluginId' uninstalled successfully.")
+        } else {
+            logger.info(
+                "Plugin '$pluginId' is bundled with this installation; kept its JAR at " +
+                        container.jarFile.path
+            )
         }
-
-        logger.info("Plugin '$pluginId' uninstalled successfully.")
     }
 
     // -------------------------------------------------------------------------

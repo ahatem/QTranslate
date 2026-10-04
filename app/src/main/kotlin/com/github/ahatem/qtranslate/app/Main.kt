@@ -69,7 +69,17 @@ fun main(args: Array<String>) = runBlocking {
     AppUiSetup.setSystemProperties()
     AppUiSetup.setRenderingHints()
 
-    val appData = AppDataDirectory.resolve()
+    // A data directory that cannot be created or written is reported rather than worked around. There
+    // is no logger yet, and the fallback would be the one location the user did not choose, so the
+    // message goes straight to stderr and to a dialog where there is a display for it.
+    val dataLayout = try {
+        AppDataLayout.resolveForCurrentProcess(LegacyDataConflictPrompt())
+    } catch (failure: AppDataLayoutException) {
+        System.err.println(failure.message)
+        AppDataFailureDialog.show(failure)
+        kotlin.system.exitProcess(1)
+    }
+    val appData = dataLayout.userDataRoot
 
     // Before the first logger is asked for. Logback reads its configuration lazily, on the first
     // SLF4J call, and `logback.xml` resolves the log directory from this property with a fallback
@@ -81,7 +91,15 @@ fun main(args: Array<String>) = runBlocking {
     val logger     = logFactory.getLogger("Main")
 
     logger.info("QTranslate ${AppConstants.APP_VERSION} starting...")
+    logger.info("Data mode: ${dataLayout.mode}")
+    logger.info("Installation root: ${dataLayout.installationRoot?.absolutePath ?: "(none)"}")
     logger.info("App data directory: ${appData.absolutePath}")
+    if (dataLayout.adoptedLegacyPortableData) {
+        logger.info(
+            "Existing data beside the application was kept and marked portable by writing " +
+                    "${AppDataLayout.PORTABLE_MARKER}; nothing was moved or deleted."
+        )
+    }
     if (startHidden) {
         logger.info("Launched from Windows startup — starting hidden in the system tray")
     }
@@ -101,10 +119,11 @@ fun main(args: Array<String>) = runBlocking {
     logger.info("Configuration loaded: theme=${initialConfig.themeId}, scale=${initialConfig.uiScale}")
 
     val deps = buildDependencies(
-        appData       = appData,
-        loggerFactory = logFactory,
-        settingsRepo  = settingsRepo,
-        initialConfig = initialConfig
+        appData          = appData,
+        loggerFactory    = logFactory,
+        settingsRepo     = settingsRepo,
+        initialConfig    = initialConfig,
+        installationRoot = dataLayout.installationRoot
     )
     AppUiSetup.apply(initialConfig, deps.themeManager)
 
@@ -201,7 +220,7 @@ fun main(args: Array<String>) = runBlocking {
         // Chosen before anything is drawn: icons are built once and held by the components
         // showing them, so this has to be set while there is still nothing on screen.
         // The folder the extra sets live in, beside languages and themes.
-        IconSet.installTo(deps.appDataDirectory)
+        IconSet.installTo(deps.appDataDirectory, dataLayout.installationRoot)
         IconSet.use(deps.settingsStore.state.value.workingConfiguration.iconSetId)
 
         frame = MainAppFrame(

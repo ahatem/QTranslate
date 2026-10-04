@@ -2,10 +2,12 @@ package com.github.ahatem.qtranslate.core.plugin
 
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.core.plugin.installer.PluginInstallLocation
 import com.github.ahatem.qtranslate.core.plugin.installer.PluginInstaller
 import com.github.ahatem.qtranslate.core.plugin.lifecycle.PluginLifecycleHandler
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginContainer
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginError
+import com.github.ahatem.qtranslate.core.plugin.registry.PluginLoadResult
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginRegistry
 import com.github.ahatem.qtranslate.core.plugin.settings.PluginSettingsManager
 import com.github.ahatem.qtranslate.core.plugin.settings.PluginSettingsModel
@@ -68,7 +70,11 @@ class PluginManager(
      * Resolves the [com.github.ahatem.qtranslate.api.plugin.DisplayText] plugins hand back.
      * Defaults to the fallback-only resolver so a host without localization still runs.
      */
-    private val textResolver: PluginTextResolver = PluginTextResolver.Fallback
+    private val textResolver: PluginTextResolver = PluginTextResolver.Fallback,
+    // Where the bundled distribution keeps its plugin JARs, when that differs from the user's own
+    // folder. Those JARs are read-only here: they are loaded, but install and uninstall only ever
+    // touch appDataDirectory. Null when the two are one folder, as in a portable distribution.
+    installationRoot: File? = null
 ) {
     private companion object {
         /** A check is a network round trip; long enough to succeed, short enough to give up on. */
@@ -76,7 +82,29 @@ class PluginManager(
     }
 
     private val logger = loggerFactory.getLogger("PluginManager")
+
+    /** The user's own plugin folder — the only one written to or deleted from. */
     private val pluginsDir = File(appDataDirectory, AppConstants.PLUGIN_DIRECTORY).also { it.mkdirs() }
+
+    /** The distribution's bundled plugin folder, read-only. Null when there is only one folder. */
+    private val bundledPluginsDir: File? = installationRoot
+        ?.takeIf { it != appDataDirectory }
+        ?.let { File(it, AppConstants.PLUGIN_DIRECTORY) }
+        ?.takeIf { it.isDirectory }
+
+    /**
+     * Loads a directory and returns its results alongside the failures.
+     *
+     * The failures are copied out immediately because [PluginLoader] clears its own list on the next
+     * scan, so scanning a second folder would otherwise discard the first folder's.
+     */
+    private fun loadDirectory(
+        loader: PluginLoader,
+        directory: File
+    ): Pair<List<LoadedPluginResult>, List<PluginError>> {
+        val results = loader.loadPluginsFromDirectory(directory)
+        return results to loader.loadFailures
+    }
 
     private val registry = PluginRegistry()
 
@@ -102,7 +130,7 @@ class PluginManager(
     )
 
     private val installer = PluginInstaller(
-        pluginsDir = pluginsDir,
+        userPluginsDirectory = pluginsDir,
         appDataDirectory = appDataDirectory,
         registry = registry,
         lifecycleHandler = lifecycleHandler,
@@ -135,17 +163,18 @@ class PluginManager(
     suspend fun loadAndProcessPlugins() {
         withContext(Dispatchers.IO) {
             logger.info("Starting plugin discovery from: ${pluginsDir.absolutePath}")
+            bundledPluginsDir?.let { logger.info("Bundled plugins read from: ${it.absolutePath}") }
 
             val knownFingerprints = pluginFingerprintRepository.loadFingerprints()
             val disabledPluginIds = settingsRepository.loadDisabledPluginIds()
             val loader = PluginLoader(loggerFactory.getLogger("PluginLoader"))
 
-            val rawPlugins = loader.loadPluginsFromDirectory(pluginsDir)
-            val loadResult = registry.validateAndFilter(rawPlugins)
-            val discoveryErrors = loader.loadFailures + loadResult.failed + loadResult.skipped
+            val discovery = discoverPlugins(loader)
+            val loadResult = discovery.result
+            val discoveryErrors = discovery.failures + loadResult.failed + loadResult.skipped
             discoveryFailureStates = discoveryErrors.mapIndexed(::toFailedPluginState)
 
-            logDiscoverySummary(loadResult, loader.loadFailures)
+            logDiscoverySummary(loadResult, discovery.failures)
 
             supervisorScope {
                 loadResult.successful.map { result ->
@@ -249,7 +278,15 @@ class PluginManager(
     suspend fun uninstallPlugin(pluginId: String) {
         val discoveryFailure = discoveryFailureStates.firstOrNull { it.id == pluginId }
         if (discoveryFailure != null) {
-            withContext(Dispatchers.IO) { File(discoveryFailure.jarPath).delete() }
+            val jar = File(discoveryFailure.jarPath)
+            // A JAR the distribution shipped is not the user's to remove, so removing the broken
+            // one is limited to the user's own folder exactly as the normal uninstall path is.
+            val removable = PluginInstallLocation.isUserInstalled(pluginsDir, jar)
+            if (removable) {
+                withContext(Dispatchers.IO) { jar.delete() }
+            } else {
+                logger.info("Kept bundled plugin JAR at ${jar.absolutePath}")
+            }
             discoveryFailureStates = discoveryFailureStates.filterNot { it.id == pluginId }
             updateFlows()
             return
@@ -392,6 +429,49 @@ class PluginManager(
     // Internal helpers
     // -------------------------------------------------------------------------
 
+    /**
+ * Loads plugins from the user's folder and, when it is separate, from the distribution's.
+ *
+ * A bundled JAR whose ID the user has since installed is dropped rather than reported as a
+ * duplicate. That shadowing is the intended outcome, not a conflict: it is how a user replaces a
+ * bundled plugin without the installer directory being written to. Two JARs claiming one ID
+ * *within the same folder* stay ambiguous, and
+ * [com.github.ahatem.qtranslate.core.plugin.registry.PluginRegistry.validateAndFilter] still
+ * rejects both so the user can tell them apart.
+ */
+    private fun discoverPlugins(loader: PluginLoader): PluginDiscovery {
+        val (userResults, userFailures) = loadDirectory(loader, pluginsDir)
+        val bundledDir = bundledPluginsDir ?: return PluginDiscovery(
+            results = userResults,
+            result = registry.validateAndFilter(userResults),
+            failures = userFailures
+        )
+
+        val (bundledAll, bundledFailures) = loadDirectory(loader, bundledDir)
+        val userIds = userResults.mapTo(mutableSetOf()) { it.manifest.id }
+        val bundledResults = bundledAll.filter { it.manifest.id !in userIds }
+        val shadowed = bundledAll.size - bundledResults.size
+        if (shadowed > 0) {
+            logger.info("$shadowed bundled plugin(s) superseded by a user-installed copy.")
+        }
+
+        // The user's folder is listed first so that a duplicate ID spanning the two is reported with
+        // the user's copy as the one already seen.
+        val all = userResults + bundledResults
+        return PluginDiscovery(
+            results = all,
+            result = registry.validateAndFilter(all),
+            failures = userFailures + bundledFailures
+        )
+    }
+
+    /** What discovery found: the plugins to initialise, and the ones to report. */
+    private data class PluginDiscovery(
+        val results: List<LoadedPluginResult>,
+        val result: PluginLoadResult,
+        val failures: List<PluginError>
+    )
+
     private suspend fun initializePlugin(result: LoadedPluginResult, disabledPluginIds: Set<String>) {
         val context = lifecycleHandler.createContext(result)
         val container = PluginContainer(
@@ -448,7 +528,7 @@ class PluginManager(
     }
 
     private fun logDiscoverySummary(
-        loadResult: com.github.ahatem.qtranslate.core.plugin.registry.PluginLoadResult,
+        loadResult: PluginLoadResult,
         loaderFailures: List<PluginError>
     ) {
         logger.info(
@@ -467,7 +547,15 @@ class PluginManager(
         val jarPath = when (error) {
             is PluginError.LoadFailure -> error.jarPath
             is PluginError.InvalidManifest -> error.jarPath
-            is PluginError.DuplicateId -> File(pluginsDir, error.duplicateJar).absolutePath
+            // Duplicate errors carry only JAR names, so the folder they sat in is not recoverable from the
+            // error itself. Both folders are searched, and the match inside the user's own folder
+            // wins, because only that one may be deleted by the uninstall path below.
+            is PluginError.DuplicateId ->
+                listOf(pluginsDir, bundledPluginsDir)
+                    .filterNotNull()
+                    .firstNotNullOfOrNull { dir -> File(dir, error.duplicateJar).takeIf { it.isFile } }
+                    ?.absolutePath
+                    ?: File(pluginsDir, error.duplicateJar).absolutePath
             else -> File(pluginsDir, error.pluginId).absolutePath
         }
         val displayName = File(jarPath).name.takeIf { it.isNotBlank() } ?: error.pluginId

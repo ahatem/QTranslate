@@ -279,9 +279,11 @@ class AppearancePanel(
                     displayName = display,
                     translators = meta?.translators.orEmpty(),
                     coverage = localizationManager.coverageOf(LanguageCode(code)),
-                    // Only a file in the user's own languages folder can be removed. The bundled
-                    // ones are read out of the jar and will still be there after any delete.
-                    isRemovable = File(localizationManager.languagesDirectory, "$code.toml").exists()
+                    // Only a file in the user's own languages folder can be removed. A bundled one is
+                    // read from the installation and reappears there after any delete, so offering
+                    // to delete it would only appear to succeed. Deleting the user's copy instead
+                    // falls back to the bundled translation, which is what the action promises.
+                    isRemovable = localizationManager.isUserLanguage(code)
                 )
             }
             .sortedBy { it.displayName }

@@ -21,6 +21,11 @@ foreach ($directory in @('plugins', 'languages', 'themes', 'icons', 'LICENSES', 
         throw "Windows candidate is missing $directory"
     }
 }
+# The published Windows ZIP is a portable distribution, so it must carry the marker. Without it the
+# app would store its data under %APPDATA% and a moved copy would abandon its settings and history.
+if (-not (Test-Path -LiteralPath (Join-Path $root 'portable.flag') -PathType Leaf)) {
+    throw "Windows candidate is missing portable.flag"
+}
 function Invoke-BoundedProbe([string] $executable, [string[]] $arguments) {
     $start = [System.Diagnostics.ProcessStartInfo]::new($executable)
     $start.UseShellExecute = $false

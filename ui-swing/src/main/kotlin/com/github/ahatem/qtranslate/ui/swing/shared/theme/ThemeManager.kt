@@ -9,10 +9,22 @@ import java.io.File
 
 class ThemeManager(
     appDataDirectory: File,
-    private val logger: Logger
+    private val logger: Logger,
+    // Where the bundled distribution keeps its theme files, when that differs from the user's own
+    // folder. Themes ship as loose `themes/*.theme.json` files rather than as classpath resources, so
+    // an installed copy finds them here while everything a user adds is read from appDataDirectory.
+    // Null when the two are one folder, as in a portable distribution.
+    installationRoot: File? = null
 ) {
 
-    private val customThemesDirectory = File(appDataDirectory, "themes").also { it.mkdirs() }
+    /**
+     * Theme folders to scan, user's own first. A user file wins a name collision with a shipped
+     * one; see [ThemeManager] for why the ids of the two never collide anyway.
+     */
+    private val customThemeDirectories: List<File> = listOfNotNull(
+        File(appDataDirectory, "themes").also { it.mkdirs() },
+        installationRoot?.takeIf { it != appDataDirectory }?.let { File(it, "themes") }
+    )
 
     // @formatter:off
     private val builtInThemes: List<Theme> = listOf(
@@ -173,13 +185,21 @@ class ThemeManager(
     // External theme discovery
     // ═══════════════════════════════════════════════════════════════════════════
 
+    /**
+     * Themes found on disk, from the user's own folder first and the installation's after it.
+     *
+     * Scanned in that order and de-duplicated by id, so a user's file replaces a shipped one of
+     * the same name instead of appearing twice in the list.
+     */
     fun discoverExternalThemes(): List<Theme> {
-        if (!customThemesDirectory.exists()) return emptyList()
-
-        return customThemesDirectory
-            .listFiles { f -> f.isFile && f.extension == "json" && f.name.contains("theme", ignoreCase = true) }
-            ?.mapNotNull { file -> loadExternalTheme(file) }
-            ?: emptyList()
+        val byId = LinkedHashMap<String, Theme>()
+        customThemeDirectories.forEach { directory ->
+            if (!directory.isDirectory) return@forEach
+            directory
+                .listFiles { f -> f.isFile && f.extension == "json" && f.name.contains("theme", ignoreCase = true) }
+                ?.forEach { file -> loadExternalTheme(file)?.let { byId[it.id] = it } }
+        }
+        return byId.values.toList()
     }
 
     private fun loadExternalTheme(file: File): Theme? = try {

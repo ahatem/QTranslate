@@ -91,6 +91,21 @@ tasks.register<JavaExec>("smokeTestAllPlugins") {
 val screenshotDirectory = layout.buildDirectory.dir("screenshots")
 val portablePluginInventoryFile = layout.buildDirectory.file("portable-plugin-ids.txt")
 
+// The marker file is generated rather than committed so the one that ships is always produced by
+// the same task that produces the archive it belongs to.
+val portableMarkerFile = layout.buildDirectory.file("portable.flag")
+val generatePortableMarker by tasks.registering {
+    group = "distribution"
+    description = "Writes the portable-mode marker included in portable distributions."
+    val target = portableMarkerFile
+    outputs.file(target)
+    doLast {
+        val file = target.get().asFile
+        file.parentFile.mkdirs()
+        file.writeText("")
+    }
+}
+
 // The same layout the portable bundle ships. Without `languages/` the localizer falls back to the
 // embedded English strings, so a right-to-left interface never actually loads.
 val prepareScreenshotAppData by tasks.registering(Sync::class) {
@@ -128,12 +143,18 @@ fun Zip.configurePortableBundle(plugins: List<BundledPlugin>) {
     description = "Builds the portable QTranslate distribution."
     dependsOn(appArchive)
     dependsOn("generatePortablePluginInventory")
+    dependsOn("generatePortableMarker")
     dependsOn(plugins.map { "${it.projectPath}:jar" })
     destinationDirectory.set(releaseOutputDirectory)
     archiveFileName.set("QTranslate-${releaseVersion.get()}.zip")
 
     into("QTranslate") {
         from(portablePluginInventoryFile)
+        // What makes this a portable distribution rather than merely an extractable one: with the
+        // marker present the app keeps its data here and the folder stays self-contained when moved.
+        // The Windows app-image is built from this archive but must NOT inherit it, because the same
+        // image is the installer's payload — see .github/scripts/package-windows.ps1.
+        from(generatePortableMarker)
         from(appArchiveFile) {
             rename { "QTranslate.jar" }
         }

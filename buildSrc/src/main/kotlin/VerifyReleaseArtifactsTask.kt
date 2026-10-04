@@ -73,6 +73,9 @@ abstract class VerifyReleaseArtifactsTask : DefaultTask() {
             }.toSet()) { "Portable plugin JAR inventory differs from bundled manifests" }
             listOf("QTranslate/QTranslate.jar", "QTranslate/portable-plugin-ids.txt", "QTranslate/LICENSE",
                 "QTranslate/NOTICE.md").forEach { check(it in entries) { "Portable ZIP lacks $it" } }
+            // The marker is what makes this archive portable rather than merely extractable; without
+            // it the app would store its data in the OS user location and a moved copy would abandon it.
+            check("QTranslate/portable.flag" in entries) { "Portable ZIP lacks portable.flag" }
             listOf("languages", "themes", "icons", "LICENSES", "THIRD_PARTY_LICENSES").forEach { dir ->
                 check(entries.any { it.startsWith("QTranslate/$dir/") }) { "Portable ZIP lacks $dir" }
             }

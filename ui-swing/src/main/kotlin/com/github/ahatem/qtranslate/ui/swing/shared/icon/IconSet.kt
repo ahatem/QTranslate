@@ -76,20 +76,31 @@ object IconSet {
      * Set once at startup. Until it is, only the bundled default resolves, which is the right
      * behaviour for anything constructing icons before the application has found its data
      * directory rather than a reason to fail.
+     *
+     * The user's own folder comes first and the installation's after it, so a set a user dropped
+     * in wins over a shipped one of the same name. In a portable distribution the two are the same
+     * folder and there is nothing to choose between them.
      */
     @Volatile
-    private var externalRoot: File? = null
+    private var externalRoots: List<File> = emptyList()
 
-    fun installTo(appDataDirectory: File) {
-        externalRoot = File(appDataDirectory, "icons").also { it.mkdirs() }
+    fun installTo(appDataDirectory: File, installationRoot: File? = null) {
+        externalRoots = listOfNotNull(
+            File(appDataDirectory, "icons").also { it.mkdirs() },
+            installationRoot?.takeIf { it != appDataDirectory }?.let { File(it, "icons") }
+        )
     }
 
-    /** Whether [path] exists, on the classpath or under the icons folder. */
+    /** Whether [path] exists, on the classpath or under an icons folder. */
     private fun exists(path: String): Boolean =
-        loader.getResource(path) != null || externalFile(path)?.isFile == true
+        loader.getResource(path) != null || externalFiles(path).any { it.isFile }
 
-    private fun externalFile(path: String): File? =
-        externalRoot?.let { File(it, path.removePrefix("icons/")) }
+    private fun externalFiles(path: String): List<File> {
+        val relative = path.removePrefix("icons/")
+        return externalRoots.map { File(it, relative) }
+    }
+
+    private fun externalFile(path: String): File? = externalFiles(path).firstOrNull()
 
     /**
      * Loads [path] from wherever it actually is.
@@ -102,7 +113,8 @@ object IconSet {
     fun load(path: String, width: Int, height: Int): FlatSVGIcon {
         if (loader.getResource(path) != null) return FlatSVGIcon(path, width, height, loader)
 
-        externalFile(path)?.takeIf { it.isFile }?.let { return FlatSVGIcon(it).derive(width, height) }
+        externalFiles(path).firstOrNull { it.isFile }
+            ?.let { return FlatSVGIcon(it).derive(width, height) }
 
         // Non-null on purpose. The default set is bundled and complete, so a name that resolved
         // nowhere means the path was wrong rather than the set being thin, and every call site
