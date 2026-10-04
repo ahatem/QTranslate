@@ -25,4 +25,10 @@ class LanguageCodeTest {
         assertTrue(LanguageCode.PORTUGUESE_BRAZIL.tag.matches(Regex("^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{2,8})*$")))
         assertTrue(LanguageCode.PORTUGUESE_PORTUGAL.tag.matches(Regex("^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{2,8})*$")))
     }
+
+    @Test
+    fun `Guarani uses its standard BCP-47 tag`() {
+        assertEquals("gn", LanguageCode.GUARANI.tag)
+        assertEquals(LanguageCode.GUARANI, LanguageCode("gn"))
+    }
 }
