@@ -10,7 +10,6 @@ import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.translator.TranslationResponse
 import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
-import com.github.ahatem.qtranslate.plugins.common.createJsonParser
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
 import com.github.michaelbull.result.toResultOr
@@ -36,7 +35,7 @@ class BingTranslatorService(
     override suspend fun fetchSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> =
         languageMapper.getSupportedLanguages()
 
-    private val parser = createJsonParser<List<BingTranslateResponse>>(pluginContext)
+    private val responseParser = BingResponseParser(pluginContext.logger)
 
     companion object {
         private const val TRANSLATE_URL = "https://www.bing.com/ttranslatev3"
@@ -60,7 +59,7 @@ class BingTranslatorService(
                 cookies = mapOf("MUID" to auth.muid)
             ).bind()
 
-            val responses = parser.parse(responseString).bind()
+            val responses = responseParser.parseTranslations(responseString).bind()
             val response = responses.firstOrNull {
                 it.detectedLanguage != null && it.translations != null
             }.toResultOr {
