@@ -106,6 +106,7 @@ class BingTTSService(
         "pl" to VoiceInfo("pl-PL", "Female", "pl-PL-ZofiaNeural"),
         "ps" to VoiceInfo("ps-AF", "Female", "ps-AF-LatifaNeural"),
         "pt" to VoiceInfo("pt-BR", "Female", "pt-BR-FranciscaNeural"),
+        "pt-BR" to VoiceInfo("pt-BR", "Female", "pt-BR-FranciscaNeural"),
         "pt-PT" to VoiceInfo("pt-PT", "Female", "pt-PT-FernandaNeural"),
         "ro" to VoiceInfo("ro-RO", "Male", "ro-RO-EmilNeural"),
         "ru" to VoiceInfo("ru-RU", "Female", "ru-RU-DariyaNeural"),

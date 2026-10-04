@@ -14,7 +14,8 @@ object GoogleLanguageMapper : LanguageMapper {
         LanguageCode.ENGLISH, LanguageCode.SPANISH, LanguageCode.FRENCH,
         LanguageCode.GERMAN, LanguageCode.ARABIC, LanguageCode.HINDI,
         LanguageCode.ITALIAN, LanguageCode.JAPANESE, LanguageCode.KOREAN,
-        LanguageCode.PORTUGUESE, LanguageCode.RUSSIAN,
+        LanguageCode.PORTUGUESE_BRAZIL, LanguageCode.PORTUGUESE_PORTUGAL,
+        LanguageCode.RUSSIAN,
         LanguageCode.CHINESE_SIMPLIFIED, LanguageCode.CHINESE_TRADITIONAL,
         LanguageCode.AFRIKAANS, LanguageCode.ALBANIAN, LanguageCode.AMHARIC,
         LanguageCode.ARMENIAN, LanguageCode.AZERBAIJANI, LanguageCode.BASQUE,
@@ -60,12 +61,18 @@ object GoogleLanguageMapper : LanguageMapper {
 
     override fun toProviderCode(code: LanguageCode): String {
         if (code == LanguageCode.AUTO) return "auto"
+        if (code == LanguageCode.PORTUGUESE_BRAZIL) return "pt-BR"
+        if (code == LanguageCode.PORTUGUESE_PORTUGAL) return "pt-PT"
         return standardToGoogleMap[code.tag] ?: code.tag.split('-').first()
     }
 
     override fun fromProviderCode(providerCode: String): LanguageCode {
         if (providerCode == "auto") return LanguageCode.AUTO
         if (providerCode == "iw") return LanguageCode.HEBREW
+        when (providerCode.lowercase()) {
+            "pt-br" -> return LanguageCode.PORTUGUESE_BRAZIL
+            "pt-pt" -> return LanguageCode.PORTUGUESE_PORTUGAL
+        }
         val standardTag = googleToStandardMap[providerCode] ?: providerCode
         return LanguageCode(standardTag)
     }
