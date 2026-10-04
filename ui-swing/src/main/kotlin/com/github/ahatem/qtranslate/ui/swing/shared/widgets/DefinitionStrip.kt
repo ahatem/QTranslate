@@ -1,15 +1,19 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
 import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.ui.swing.shared.fonts.FontRuns
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isRTL
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.ComponentOrientation
 import java.awt.Dimension
+import java.awt.Font
 import javax.swing.BorderFactory
 import javax.swing.JPanel
-import javax.swing.JTextArea
+import javax.swing.JTextPane
 import javax.swing.UIManager
+import javax.swing.text.SimpleAttributeSet
+import javax.swing.text.StyleConstants
 
 /**
  * A short definition shown under a translation, for single words.
@@ -27,8 +31,8 @@ import javax.swing.UIManager
  *
  * True where the strip is the only thing marking the boundary — the popup, whose content pane
  * draws nothing of its own, and where the rule is exactly right. False beneath the main window's
- * output pane, which already has a border of its own: a second line immediately below it reads as
- * a doubled rule and cuts the definition off into a band rather than attaching it to the
+ * output pane, which already has a border of its own: a second line immediately below it reads as a
+ * doubled rule and cuts the definition off into a band rather than attaching it to the
  * translation. The two placements genuinely differ, so this is a parameter rather than a single
  * choice imposed on both.
  */
@@ -36,14 +40,22 @@ class DefinitionStrip(private val showDivider: Boolean = true) : JPanel(BorderLa
 
     private val borderColor: Color get() = UIManager.getColor("Component.borderColor") ?: Color.GRAY
 
-    private val text = JTextArea().apply {
+    private val attrs = SimpleAttributeSet()
+
+    /**
+     * Styled rather than plain because a definition is a translation too, and one in a script the
+     * interface font cannot draw is unreadable for the same reason the output pane was. The pane's
+     * editor kit brings the per-run fonts; nothing else of the editor comes with it.
+     */
+    private val text = JTextPane().apply {
+        editorKit = WrappingEditorKit()
         isEditable = false
         isOpaque = false
-        lineWrap = true
-        wrapStyleWord = true
-        // Not focusable and not in the tab order: it is something to glance at, and stopping on
-        // it while tabbing between the real controls would be a nuisance.
+        // An aside to glance at, not a control to reach: it takes no focus and no tab stop, as it
+        // never did as a text area. `focusTraversalKeysEnabled` says so explicitly, because a
+        // focusable component in a focus cycle ignores its parent's setting.
         isFocusable = false
+        focusTraversalKeysEnabled = false
         putClientProperty("FlatLaf.styleClass", "small")
         foreground = UIManager.getColor("Label.disabledForeground")
     }
@@ -58,7 +70,7 @@ class DefinitionStrip(private val showDivider: Boolean = true) : JPanel(BorderLa
     /**
      * Height measured against the width this strip has actually been given.
      *
-     * A wrapping `JTextArea` reports a preferred size based on its own current width, which in
+     * A wrapping text component reports a preferred size based on its own current width, which in
      * `BorderLayout.SOUTH` is whatever it was last set to rather than what it is about to get.
      * Left alone it asks for one line and gets one line, clipping a two-line definition — or asks
      * for its full unwrapped width and is squeezed flat. Measuring at the real width avoids both.
@@ -76,6 +88,7 @@ class DefinitionStrip(private val showDivider: Boolean = true) : JPanel(BorderLa
         val wanted = definition.isNotBlank()
         if (wanted && text.text != definition) {
             text.text = definition
+            applyFallbackFonts(definition)
             // Follows the definition's own script, not the interface language. A definition of an
             // Arabic word is Arabic, and left-aligning it under a right-aligned translation reads
             // as a stray line of text rather than a note about the word above it.
@@ -91,6 +104,33 @@ class DefinitionStrip(private val showDivider: Boolean = true) : JPanel(BorderLa
             isVisible = wanted
             revalidate()
             repaint()
+        }
+    }
+
+    /**
+     * Gives every grapheme cluster a face that can draw it, through the resolver the output pane
+     * uses. The strip has no editor font of its own — it is drawn in the interface font — so it
+     * resolves against that font alone and lets the rescue faces answer for what it cannot draw.
+     */
+    private fun applyFallbackFonts(definition: String) {
+        val doc = text.styledDocument
+        val primary = text.font
+        val fonts = FontRuns.resolve(definition, primary, primary)
+        var runStart = 0
+        while (runStart < fonts.size) {
+            val font = fonts[runStart]
+            var runEnd = runStart + 1
+            while (runEnd < fonts.size && fonts[runEnd] === font) runEnd++
+            if (font != null && font !== primary) {
+                // LabelView resolves a run's font from family and size, so the ascent adjustment the
+                // output pane applies has to be a size here too.
+                val aligned = font.metricAlignedTo(primary)
+                attrs.removeAttributes(attrs)
+                StyleConstants.setFontFamily(attrs, aligned.family)
+                StyleConstants.setFontSize(attrs, aligned.size)
+                doc.setCharacterAttributes(runStart, runEnd - runStart, attrs, false)
+            }
+            runStart = runEnd
         }
     }
 

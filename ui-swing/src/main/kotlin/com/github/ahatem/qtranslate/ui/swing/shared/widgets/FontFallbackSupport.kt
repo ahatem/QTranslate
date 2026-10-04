@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
+import com.github.ahatem.qtranslate.ui.swing.shared.fonts.FontRuns
 import com.github.ahatem.qtranslate.ui.swing.shared.textpane.ShapedCarets
 import java.awt.Font
 import java.awt.font.FontRenderContext
@@ -107,8 +108,9 @@ class FontFallbackDocumentListener(
     private fun applyFontFallback(doc: StyledDocument, offset: Int, length: Int, primary: Font, fallback: Font) {
         if (length <= 0) return
         val text = doc.getText(offset, length)
-        val fonts = coverageChoice(text, primary, fallback)
+        val fonts = FontRuns.resolve(text, primary, fallback)
         val renderContext = textPane.getFontMetrics(primary).fontRenderContext
+        // Shaping may move primary runs to the configured fallback; rescue runs stay unchanged.
         ShapingAwareFallback(text, fonts, primary, fallback, fallback.metricAlignedTo(primary), renderContext).apply()
 
         var runStart = 0
@@ -116,38 +118,10 @@ class FontFallbackDocumentListener(
             val font = fonts[runStart]
             var runEnd = runStart + 1
             while (runEnd < fonts.size && fonts[runEnd] === font) runEnd++
-            // Neither font supports these code points; leave them unchanged.
+            // No font supports these code points; leave them unchanged.
             if (font != null) applyRunAttributes(offset + runStart, runEnd - runStart, font)
             runStart = runEnd
         }
-    }
-
-    /**
-     * Per character: [primary] where it can draw the grapheme cluster the character belongs to, else
-     * [fallback] where that can, else null. Decided cluster by cluster so a base letter and its marks
-     * are never drawn by two fonts, and so the text goes back to the primary as soon as the primary
-     * can draw it again.
-     */
-    private fun coverageChoice(text: String, primary: Font, fallback: Font): Array<Font?> {
-        // A char array so canDisplayUpTo can check a cluster without allocating substrings.
-        val chars = text.toCharArray()
-        val fonts = arrayOfNulls<Font>(chars.size)
-        val clusters = BreakIterator.getCharacterInstance().apply { setText(text) }
-        var start = clusters.first()
-        var end = clusters.next()
-        while (end != BreakIterator.DONE) {
-            fonts.fill(
-                when {
-                    primary.canDisplayUpTo(chars, start, end) == -1 -> primary
-                    fallback.canDisplayUpTo(chars, start, end) == -1 -> fallback
-                    else -> null
-                },
-                start, end
-            )
-            start = end
-            end = clusters.next()
-        }
-        return fonts
     }
 
     private fun applyRunAttributes(docOffset: Int, runLength: Int, font: Font) {
@@ -219,7 +193,13 @@ internal class ShapingAwareFallback(
             val font = choice[runStart]
             var runEnd = runStart + 1
             while (runEnd < end && choice[runEnd] === font) runEnd++
-            val drawnWith = if (font === fallback) alignedFallback else primary
+            // A rescue face is laid out as itself: measuring it as the primary would report soundness
+            // for a layout that is never drawn.
+            val drawnWith = when {
+                font === fallback -> alignedFallback
+                font == null      -> primary
+                else             -> font.metricAlignedTo(primary)
+            }
             attributed.addAttribute(TextAttribute.FONT, drawnWith, runStart - start, runEnd - start)
             runStart = runEnd
         }

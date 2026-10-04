@@ -23,3 +23,5 @@ Bundled libraries, fonts, icons, themes, and other third-party material keep the
 Provider names, logos, and other brand assets belong to their respective owners. Their inclusion identifies supported services and does not imply endorsement.
 
 Bundled theme provenance and license mappings are recorded in [THIRD_PARTY_LICENSES/Themes.md](THIRD_PARTY_LICENSES/Themes.md).
+
+Bundled font provenance and license mappings are recorded in [THIRD_PARTY_LICENSES/Fonts.md](THIRD_PARTY_LICENSES/Fonts.md).

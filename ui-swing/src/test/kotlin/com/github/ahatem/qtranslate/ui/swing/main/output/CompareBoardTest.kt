@@ -14,6 +14,7 @@ import java.awt.Container
 import javax.swing.JButton
 import javax.swing.JLabel
 import javax.swing.SwingUtilities
+import javax.swing.text.JTextComponent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -417,10 +418,10 @@ class CompareBoardTest {
             )
         )
         val primaryLabels = descendants(board.primaryProviderView)
-            .filterIsInstance<javax.swing.JTextArea>().map { it.text }
+            .filterIsInstance<JTextComponent>().map { it.text }
         assertTrue(primaryLabels.contains("a short definition"))
         val secondaryText = descendants(board.secondaryViewForTest("one")!!)
-            .filterIsInstance<javax.swing.JTextArea>().map { it.text }
+            .filterIsInstance<JTextComponent>().map { it.text }
         assertTrue(secondaryText.none { it == "a short definition" })
     }
 

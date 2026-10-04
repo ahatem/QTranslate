@@ -5,6 +5,7 @@ import com.formdev.flatlaf.fonts.inter.FlatInterFont
 import com.formdev.flatlaf.util.FontUtils
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.ui.swing.shared.fonts.NotoNaskhArabicFont
+import com.github.ahatem.qtranslate.ui.swing.shared.fonts.PortableFallbackFonts
 import com.github.ahatem.qtranslate.ui.swing.shared.fonts.RubikSansFont
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledUiFont
@@ -39,14 +40,15 @@ object AppUiSetup {
 
     /**
      * Registers every bundled face for lazy loading — Inter (the default), Rubik and Noto Naskh
-     * Arabic (both retained as explicit choices; see their own classes) — and points FlatLaf at
-     * Inter for the interface.
+     * Arabic (both retained as explicit choices; see their own classes), and the portable script
+     * rescue faces — and points FlatLaf at Inter for the interface.
      *
      * Lazy registration is a map entry: each face's actual file is read only the first time
      * something asks for it by name, whether that is FlatLaf resolving the interface font below or
      * [com.github.ahatem.qtranslate.ui.swing.shared.util.toFont] resolving a saved editor or
      * fallback font. A fresh installation asks for "Inter" and "SansSerif" only, so Rubik and Noto
-     * cost nothing here unless a configuration actually names them.
+     * cost nothing here unless a configuration actually names them. The rescue faces are asked for
+     * only by a translation in a script none of those can draw.
      *
      * Inter's "Light" weight is deliberately not requested: the interface has no use of FlatLaf's
      * "light" typography style class (only "h2", which is semibold, and "h4", which is bold), and
@@ -57,6 +59,7 @@ object AppUiSetup {
         FlatInterFont.installLazy()
         RubikSansFont.installLazy()
         NotoNaskhArabicFont.installLazy()
+        PortableFallbackFonts.installLazy()
 
         FlatLaf.setPreferredFontFamily(FlatInterFont.FAMILY)
         FlatLaf.setPreferredSemiboldFontFamily(FlatInterFont.FAMILY_SEMIBOLD)
