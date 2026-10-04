@@ -499,6 +499,10 @@ close_behavior_ask = "Minden alkalommal rákérdez"
 close_behavior_minimize = "Minimalizálás a tálcára"
 close_behavior_exit = "Kilépés az alkalmazásból"
 close_behavior_hint = "Ez szabályozza, mi történik, amikor az X bezárás gombra kattint. Ezt a bezárás párbeszédablakából is beállíthatja."
+minimize_button = "Minimalizálás gomb:"
+minimize_behavior_hide = "Elrejtés az értesítési területre"
+minimize_behavior_taskbar = "Minimalizálás a tálcára"
+minimize_behavior_hint = "Ez szabályozza, mi történik, amikor a minimalizálás (–) gombra kattint. Független a fenti × (bezárás) beállítástól."
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION

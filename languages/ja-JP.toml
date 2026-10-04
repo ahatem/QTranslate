@@ -504,6 +504,10 @@ close_behavior_ask     = "毎回確認する"
 close_behavior_minimize = "トレイに最小化"
 close_behavior_exit    = "アプリケーションを終了"
 close_behavior_hint    = "× ボタンをクリックしたときの動作を制御します。終了ダイアログからも設定可能です。"
+minimize_button = "最小化ボタン："
+minimize_behavior_hide = "トレイに隠す"
+minimize_behavior_taskbar = "タスクバーに最小化"
+minimize_behavior_hint = "最小化（–）ボタンをクリックしたときの動作を制御します。上の ×（閉じる）の設定とは独立しています。"
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION

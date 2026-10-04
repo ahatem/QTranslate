@@ -504,6 +504,10 @@ close_behavior_ask     = "Demander à chaque fois"
 close_behavior_minimize = "Réduire dans la zone de notification"
 close_behavior_exit    = "Quitter l'application"
 close_behavior_hint    = "Définit le comportement lorsque vous cliquez sur ×. Vous pouvez aussi configurer cela depuis la boîte de dialogue de fermeture."
+minimize_button = "Bouton de réduction :"
+minimize_behavior_hide = "Masquer dans la zone de notification"
+minimize_behavior_taskbar = "Réduire dans la barre des tâches"
+minimize_behavior_hint = "Définit le comportement lorsque vous cliquez sur le bouton de réduction (–). Indépendant du réglage de fermeture (×) ci-dessus."
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION

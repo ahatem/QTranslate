@@ -494,6 +494,10 @@ close_behavior_ask = "매번 확인"
 close_behavior_minimize = "트레이로 최소화"
 close_behavior_exit = "애플리케이션 종료"
 close_behavior_hint = "× 버튼을 클릭했을 때의 동작을 설정합니다. 닫기 대화상자에서 직접 설정할 수도 있습니다."
+minimize_button = "최소화 버튼:"
+minimize_behavior_hide = "트레이로 숨기기"
+minimize_behavior_taskbar = "작업 표시줄로 최소화"
+minimize_behavior_hint = "최소화(–) 버튼을 클릭했을 때의 동작을 설정합니다. 위의 ×(닫기) 설정과는 독립적입니다."
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION
 # ===================================================================

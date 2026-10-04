@@ -504,6 +504,10 @@ close_behavior_ask     = "Preguntar siempre"
 close_behavior_minimize = "Minimizar a la bandeja"
 close_behavior_exit    = "Salir de la aplicación"
 close_behavior_hint    = "Controla qué sucede al pulsar el botón ×. También puede ajustarlo desde el diálogo de cierre."
+minimize_button = "Botón de Minimizar:"
+minimize_behavior_hide = "Ocultar a la bandeja"
+minimize_behavior_taskbar = "Minimizar a la barra de tareas"
+minimize_behavior_hint = "Controla qué sucede al pulsar el botón de minimizar (–). Independiente del ajuste del botón × de arriba."
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION

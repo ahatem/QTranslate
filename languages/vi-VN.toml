@@ -507,6 +507,10 @@ close_behavior_ask     = "Hỏi mỗi lần"
 close_behavior_minimize = "Thu nhỏ xuống khay hệ thống"
 close_behavior_exit    = "Thoát ứng dụng"
 close_behavior_hint    = "Kiểm soát điều gì xảy ra khi bạn nhấp vào nút ×. Bạn cũng có thể thiết lập điều này ngay từ hộp thoại đóng."
+minimize_button = "Nút Thu nhỏ:"
+minimize_behavior_hide = "Ẩn xuống khay hệ thống"
+minimize_behavior_taskbar = "Thu nhỏ xuống thanh tác vụ"
+minimize_behavior_hint = "Kiểm soát điều gì xảy ra khi bạn nhấp vào nút thu nhỏ (–). Độc lập với cài đặt nút × ở trên."
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION

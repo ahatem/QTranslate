@@ -504,6 +504,10 @@ close_behavior_ask     = "Спрашивать каждый раз"
 close_behavior_minimize = "Сворачивать в трей"
 close_behavior_exit    = "Выходить из приложения"
 close_behavior_hint    = "Определяет действие при нажатии на кнопку ×. Можно также настроить в самом диалоге закрытия."
+minimize_button = "Кнопка сворачивания:"
+minimize_behavior_hide = "Скрывать в трей"
+minimize_behavior_taskbar = "Сворачивать на панель задач"
+minimize_behavior_hint = "Определяет действие при нажатии на кнопку сворачивания (–). Не зависит от настройки кнопки × выше."
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION

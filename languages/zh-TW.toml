@@ -509,6 +509,10 @@ close_behavior_ask     = "每次詢問"
 close_behavior_minimize = "最小化到系統匣"
 close_behavior_exit    = "結束應用程式"
 close_behavior_hint    = "控制點擊 × 按鈕時的行為。您也可以在關閉對話方塊中進行設定。"
+minimize_button = "最小化按鈕："
+minimize_behavior_hide = "隱藏到系統匣"
+minimize_behavior_taskbar = "最小化到工作列"
+minimize_behavior_hint = "控制點擊最小化（–）按鈕時的行為。與上方的 ×（關閉）設定相互獨立。"
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION

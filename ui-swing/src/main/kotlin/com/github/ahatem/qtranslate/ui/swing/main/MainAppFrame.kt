@@ -1303,12 +1303,26 @@ class MainAppFrame(
 
             override fun windowIconified(e: WindowEvent?) {
                 saveWindowBounds()
-                isVisible = false
+                // Hidden iconify events belong to intentional hide flows such as screen capture.
+                when (
+                    MinimizeButtonPolicy.decide(
+                        settingsStore.state.value.originalConfiguration.minimizeButtonBehavior,
+                        isVisible
+                    )
+                ) {
+                    MinimizeButtonAction.HIDE_TO_TRAY -> isVisible = false
+                    MinimizeButtonAction.MINIMIZE_TO_TASKBAR -> Unit
+                    MinimizeButtonAction.IGNORE -> Unit
+                }
             }
 
             override fun windowDeiconified(e: WindowEvent?) {
-                isVisible = true
-                toFront()
+                // The OS raises and activates the frame on taskbar restore; only a still-hidden
+                // frame needs forcing back into view.
+                if (!isVisible) {
+                    isVisible = true
+                    toFront()
+                }
                 mainContentView.requestFocusOnInput()
             }
 
