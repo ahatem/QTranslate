@@ -29,6 +29,8 @@ internal data class PluginContainer(
     var services: List<Service> = emptyList(),
     var declaredServices: List<Service> = emptyList(),
     var lastError: PluginError? = null,
+    /** Whether this JAR came from the distribution rather than the user's own plugins folder. */
+    val bundled: Boolean = false,
     /**
      * Which copy of this plugin this is. Every plugin has exactly one until the user creates
      * more, but identifiers carry it from the start so their shape never changes.
@@ -100,7 +102,8 @@ internal class PluginRegistry {
                 jarPath = c.jarFile.absolutePath,
                 services = c.declaredServices,
                 instanceId = c.instanceId,
-                lastError = c.lastError
+                lastError = c.lastError,
+                bundled = c.bundled
             )
         }
 

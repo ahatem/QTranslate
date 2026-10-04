@@ -11,9 +11,16 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 class LocalizationManager(
+    // The user's own data folder: everything mutable, and where every edit is written.
     private val appDataDirectory: File,
     private val parser: LanguageTomlParser,
-    private val logger: Logger
+    private val logger: Logger,
+    // Where the bundled distribution keeps its language files, when that differs from the user's own
+    // folder. Translations ship as loose `languages/*.toml` files rather than as classpath resources,
+    // so an installed copy reads them from here, while editing, importing and deleting all target
+    // appDataDirectory alone — a user's copy overrides a shipped translation and the installation is
+    // never written to. Null when the two are one folder, as in a portable distribution.
+    installationRoot: File? = null
 ) {
     // ConcurrentHashMap: written from Dispatchers.IO, read from EDT — no Mutex needed
     // for reads since we only ever replace whole values (no partial updates).
@@ -35,14 +42,45 @@ class LocalizationManager(
     val isRtl: Boolean
         get() = languageMetaCache[_activeLanguage.value]?.isRtl == true
 
+    /**
+     * The user's own language folder, and the target for every edit, import and delete — so an
+     * override of a shipped translation never writes into the installation directory.
+     */
     val languagesDirectory: File = File(appDataDirectory, "languages").also { it.mkdirs() }
 
+    /** Folders holding language files, the user's own first so their copy wins. */
+    private val languageDirectories: List<File> = listOfNotNull(
+        languagesDirectory,
+        installationRoot?.takeIf { it != appDataDirectory }?.let { File(it, "languages") }
+    )
+
+    /**
+     * The file backing [code], or null when no folder has one.
+     *
+     * English is deliberately not looked up: it ships inside the JAR as [embeddedFallback] and has
+     * no file on disk.
+     */
+    private fun languageFile(code: LanguageCode): File? =
+        languageDirectories
+            .asSequence()
+            .map { File(it, "${code.tag}.toml") }
+            .firstOrNull { it.isFile }
+
+    /**
+     * Whether [code] has a file in the user's own folder rather than only a bundled one. A bundled
+     * file reappears when the distribution is replaced, so it is not offered as removable.
+     */
+    fun isUserLanguage(code: String): Boolean = File(languagesDirectory, "$code.toml").isFile
+
     val availableLanguages: List<String>
-        get() = languagesDirectory
-            .listFiles { _, name -> name.endsWith(".toml") }
-            ?.map { it.nameWithoutExtension }
-            ?.sorted()
-            ?: emptyList()
+        get() = languageDirectories
+            .flatMap { directory ->
+                directory.listFiles { _, name -> name.endsWith(".toml") }
+                    ?.map { it.nameWithoutExtension }
+                    .orEmpty()
+            }
+            .distinct()
+            .sorted()
 
     init {
         embeddedFallback = loadEmbeddedFallback()
@@ -84,8 +122,7 @@ class LocalizationManager(
             languageMetaCache[code]?.let { return@withContext it }
 
             runCatching {
-                val file = File(languagesDirectory, "${code.tag}.toml")
-                if (!file.exists()) return@withContext null
+                val file = languageFile(code) ?: return@withContext null
                 val parsed = parser.parse(file.readText())
                 parsed.meta?.also { languageMetaCache[code] = it }
             }.getOrNull()
@@ -109,8 +146,8 @@ class LocalizationManager(
                 if (code == LanguageCode.ENGLISH) {
                     return@getOrPut TranslationCoverage(embeddedFallback.size, embeddedFallback.size)
                 }
-                val file = File(languagesDirectory, "${code.tag}.toml")
-                if (!file.exists()) return@getOrPut TranslationCoverage(0, embeddedFallback.size)
+                val file = languageFile(code)
+                    ?: return@getOrPut TranslationCoverage(0, embeddedFallback.size)
 
                 val translated = runCatching { parser.parse(file.readText()).entries }
                     .getOrDefault(emptyMap())
@@ -180,8 +217,8 @@ class LocalizationManager(
         }
 
         runCatching {
-            val file = File(languagesDirectory, "${code.tag}.toml")
-            if (!file.exists()) {
+            val file = languageFile(code)
+            if (file == null) {
                 logger.warn("Language file not found for '$code', skipping")
                 return
             }

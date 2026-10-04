@@ -60,7 +60,25 @@ foreach ($name in @('LICENSE', 'NOTICE.md', 'portable-plugin-ids.txt')) {
     Copy-Item -LiteralPath (Join-Path $distribution $name) -Destination (Join-Path $image $name)
 }
 
+# The portable archive carries portable.flag, because that archive is a portable distribution. This
+# image must not: it is the same payload an installer will lay down under Program Files or
+# %LOCALAPPDATA%\Programs, where data belongs in the OS per-user location and writing into the
+# installation directory is exactly what must not happen. So the marker is asserted absent here, the
+# image is verified as-is, and only then is a portable copy made and marked for the ZIP.
+$markerName = 'portable.flag'
+if (Test-Path -LiteralPath (Join-Path $image $markerName)) {
+    throw "The Windows app image must not contain $markerName; it is the installer payload"
+}
+Write-Host "Canonical app image carries no $markerName (installed semantics)"
+
+$portableRoot = Join-Path $output 'portable-staging'
+New-Item -ItemType Directory -Path $portableRoot | Out-Null
+# Named QTranslate so the archive extracts into the same folder name as every other release asset.
+$portableImage = Join-Path $portableRoot 'QTranslate'
+Copy-Item -LiteralPath $image -Destination $portableImage -Recurse
+New-Item -ItemType File -Path (Join-Path $portableImage $markerName) | Out-Null
+
 $zip = Join-Path $output "QTranslate-$Version-windows-x64.zip"
-Compress-Archive -LiteralPath $image -DestinationPath $zip
-Write-Host "Windows app image: $image"
-Write-Host "Windows archive: $zip"
+Compress-Archive -LiteralPath $portableImage -DestinationPath $zip
+Write-Host "Windows app image: $image (installed semantics, marker-free)"
+Write-Host "Windows archive: $zip (portable copy, $markerName present)"

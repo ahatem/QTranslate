@@ -112,7 +112,13 @@ suspend fun buildDependencies(
     appData: File,
     loggerFactory: LoggerFactory,
     settingsRepo: SettingsRepository,
-    initialConfig: Configuration
+    initialConfig: Configuration,
+    /**
+     * Where the bundled distribution keeps its plugins, languages, themes and icons, when that is
+     * not the same folder as [appData]. Null in a portable distribution and in development runs,
+     * where the two coincide.
+     */
+    installationRoot: File? = null
 ): AppDependencies {
 
     // ---- 1. Coroutine scope ----
@@ -140,7 +146,8 @@ suspend fun buildDependencies(
     val localizationManager = LocalizationManager(
         appDataDirectory = appData,
         parser           = LanguageTomlParser(logger = loggerFactory.getLogger("LanguageTomlParser")),
-        logger           = loggerFactory.getLogger("LocalizationManager")
+        logger           = loggerFactory.getLogger("LocalizationManager"),
+        installationRoot = installationRoot
     )
 
     // One instance, shared: the settings dialog writes the proxy password and the plugin
@@ -177,7 +184,8 @@ suspend fun buildDependencies(
                 parser = LanguageTomlParser(logger = loggerFactory.getLogger("PluginLocalization")),
                 logger = loggerFactory.getLogger("PluginLocalization")
             )
-        )
+        ),
+        installationRoot            = installationRoot
     )
 
     // ---- 6. Domain services ----
@@ -202,7 +210,8 @@ suspend fun buildDependencies(
 
     val themeManager = ThemeManager(
         appDataDirectory = appData,
-        logger           = loggerFactory.getLogger("ThemeManager")
+        logger           = loggerFactory.getLogger("ThemeManager"),
+        installationRoot = installationRoot
     )
 
     val iconManager = IconManager(pluginManager)

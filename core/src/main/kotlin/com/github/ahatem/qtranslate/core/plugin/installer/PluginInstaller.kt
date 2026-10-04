@@ -29,7 +29,11 @@ import java.nio.file.StandardCopyOption
  * NOT already hold the mutex when calling these methods.
  */
 internal class PluginInstaller(
-    private val pluginsDir: File,
+    /**
+     * Where user-installed plugin JARs live. The only folder this installer writes to or deletes
+     * from, so an installed copy's bundled plugins are never overwritten or removed.
+     */
+    private val userPluginsDirectory: File,
     private val appDataDirectory: File,
     private val registry: PluginRegistry,
     private val lifecycleHandler: PluginLifecycleHandler,
@@ -40,6 +44,13 @@ internal class PluginInstaller(
     private val logger = loggerFactory.getLogger("PluginInstaller")
     private val loader = PluginLoader(loggerFactory.getLogger("PluginLoader"))
 
+    /**
+     * Backstop for [PluginManager]: a bundled JAR is not user-owned and must survive an uninstall.
+     * In a portable distribution both folders are one, so every JAR is the user's own.
+     */
+    private fun isUserInstalled(jarFile: File): Boolean =
+        PluginInstallLocation.isUserInstalled(userPluginsDirectory, jarFile)
+
     // -------------------------------------------------------------------------
     // Install
     // -------------------------------------------------------------------------
@@ -49,9 +60,13 @@ internal class PluginInstaller(
      *
      * Steps:
      * 1. Validates the JAR has a parseable manifest.
-     * 2. Rejects if a plugin with the same ID is already installed.
-     * 3. Copies the JAR to the plugins directory.
+     * 2. Rejects if a plugin with the same ID is already loaded.
+     * 3. Copies the JAR into the user's own plugins folder.
      * 4. Loads, initializes, and enables the plugin.
+     *
+     * Copying to the user's folder rather than over the distribution's own is what lets an installed
+     * copy be updated without writing to the installation directory. A bundled plugin replaced this
+     * way simply shadows it; the bundled copy stays intact underneath.
      */
     suspend fun installPlugin(sourceJar: File): Result<Unit, String> {
         val manifest = loader.getManifestFromJar(sourceJar)
@@ -69,7 +84,7 @@ internal class PluginInstaller(
         }
 
         return try {
-            val destinationJar = File(pluginsDir, sourceJar.name)
+            val destinationJar = File(userPluginsDirectory, sourceJar.name)
             withContext(Dispatchers.IO) {
                 Files.copy(sourceJar.toPath(), destinationJar.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
@@ -90,8 +105,11 @@ internal class PluginInstaller(
     // -------------------------------------------------------------------------
 
     /**
-     * Fully uninstalls a plugin: disables it, wipes its sandbox, removes its JAR,
+     * Uninstalls a user-installed plugin: disables it, wipes its sandbox, removes its JAR,
      * and removes it from the disabled-IDs list in settings.
+     *
+     * Only reachable for a plugin from the user's own folder — [PluginManager] refuses a bundled
+     * one before it gets here. The check below stays as a backstop rather than an assumption.
      */
     suspend fun uninstallPlugin(pluginId: String) {
         val container = registry.mutex.withLock { registry.remove(pluginId) } ?: return
@@ -107,10 +125,15 @@ internal class PluginInstaller(
         val currentDisabled = settingsRepository.loadDisabledPluginIds()
         settingsRepository.saveDisabledPluginIds(currentDisabled - pluginId)
 
+        // A JAR the distribution owns is not the user's to delete: removing it would leave an
+        // installed copy missing a component with no way to restore it.
+        if (!isUserInstalled(container.jarFile)) {
+            logger.warn("Kept plugin JAR at ${container.jarFile.path}; it is not in the user's own folder.")
+            return
+        }
         runCatching { container.jarFile.delete() }.onFailure {
             logger.error("Failed to delete JAR file: ${container.jarFile.path}", it)
         }
-
         logger.info("Plugin '$pluginId' uninstalled successfully.")
     }
 
