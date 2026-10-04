@@ -1,0 +1,8 @@
+# QTranslate Windows Installer UpgradeCode.
+#
+# This UUID is the product's stable Windows upgrade identity. Changing it
+# breaks in-place Windows upgrades: a different value makes every future MSI
+# install side-by-side with the old one instead of replacing it.
+#
+# Never regenerate it - not per build, not per release, not per major version.
+f24ece94-97ee-45d5-9a98-c48d6152901c

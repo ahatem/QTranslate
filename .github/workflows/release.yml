@@ -58,7 +58,7 @@ jobs:
     name: Build Windows executable
     runs-on: windows-latest
     needs: macos-helper
-    timeout-minutes: 40
+    timeout-minutes: 55
 
     steps:
       - name: Checkout
@@ -84,6 +84,15 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
+
+      # The runner image ships WiX 3.14, which jpackage needs for --type msi, but does not
+      # put its bin directory on PATH, and jpackage discovers candle.exe/light.exe via PATH.
+      - name: Add WiX to PATH
+        shell: pwsh
+        run: |
+          $wixBin = Join-Path $env:WIX 'bin'
+          if (-not (Test-Path -LiteralPath (Join-Path $wixBin 'light.exe') -PathType Leaf)) { throw "WiX toolset not found at $wixBin" }
+          Add-Content $env:GITHUB_PATH $wixBin
 
       - name: Extract version
         id: version
@@ -113,11 +122,24 @@ jobs:
         shell: pwsh
         run: ./.github/scripts/verify-windows-package.ps1 -Version "${{ steps.version.outputs.version }}" -PackageDirectory windows-candidate
 
+      - name: Verify Windows installer lifecycle
+        shell: pwsh
+        run: ./.github/scripts/verify-windows-installer.ps1 -Version "${{ steps.version.outputs.version }}" -PackageDirectory windows-candidate
+
       - name: Upload Windows package
         uses: actions/upload-artifact@v7
         with:
           name: qtranslate-windows-x64
           path: windows-candidate/QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip
+          if-no-files-found: error
+
+      # The unsigned MSI stays an internal Actions artifact on tag builds too. It is not added
+      # to the GitHub Release: public installer publication waits for Authenticode signing (D3).
+      - name: Upload Windows MSI candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: qtranslate-windows-msi-candidate
+          path: windows-candidate/QTranslate-${{ steps.version.outputs.version }}-windows-x64.msi
           if-no-files-found: error
 
   release:

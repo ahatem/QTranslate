@@ -6,6 +6,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'windows-installer-common.ps1')
 $archive = (Resolve-Path -LiteralPath $PortableArchive).Path
 $output = [System.IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $output) {
@@ -70,6 +71,32 @@ if (Test-Path -LiteralPath (Join-Path $image $markerName)) {
     throw "The Windows app image must not contain $markerName; it is the installer payload"
 }
 Write-Host "Canonical app image carries no $markerName (installed semantics)"
+
+# The MSI is built from the marker-free canonical image above, never from the portable staging
+# copy below: an installed QTranslate must keep user data in the OS per-user location, which the
+# portable marker would disable.
+$PackageVersion = ConvertTo-MsiProductVersion $PackageVersion
+$msiStaging = Join-Path $output 'msi-staging'
+New-Item -ItemType Directory -Path $msiStaging | Out-Null
+# jpackage hands the license file to the WiX license dialog, which only renders RTF.
+$licenseRtf = Join-Path $msiStaging 'LICENSE.rtf'
+$licenseText = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..\..\LICENSE')) `
+    -replace '\\', '\\' -replace '\{', '\{' -replace '\}', '\}' -replace "`r?`n", '\par '
+Set-Content -LiteralPath $licenseRtf -Value "{\rtf1\ansi\deff0 $licenseText}" -NoNewline -Encoding ascii
+& jpackage --type msi --app-image $image --name QTranslate --app-version $PackageVersion `
+    --dest $msiStaging --vendor 'QTranslate contributors' `
+    --description 'Select text in any application, press Ctrl+Q, and understand it without leaving what you are doing.' `
+    --about-url 'https://github.com/ahatem/QTranslate' `
+    --win-help-url 'https://github.com/ahatem/QTranslate/issues' `
+    --license-file $licenseRtf `
+    --win-menu --win-menu-group QTranslate --win-per-user-install `
+    --win-upgrade-uuid (Get-WindowsUpgradeUuid)
+if ($LASTEXITCODE -ne 0) { throw "jpackage MSI build failed with exit code $LASTEXITCODE" }
+$builtMsi = @(Get-ChildItem -LiteralPath $msiStaging -Filter 'QTranslate-*.msi')
+if ($builtMsi.Count -ne 1) { throw "Expected exactly one MSI in $msiStaging, found $($builtMsi.Count)" }
+$msi = Join-Path $output "QTranslate-$Version-windows-x64.msi"
+Move-Item -LiteralPath $builtMsi[0].FullName -Destination $msi
+Write-Host "Windows installer: $msi (MSI ProductVersion $PackageVersion, per-user)"
 
 $portableRoot = Join-Path $output 'portable-staging'
 New-Item -ItemType Directory -Path $portableRoot | Out-Null

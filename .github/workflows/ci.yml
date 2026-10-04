@@ -199,7 +199,7 @@ jobs:
     name: Windows app image candidate
     runs-on: windows-latest
     needs: release-variants
-    timeout-minutes: 25
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -217,6 +217,15 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # The runner image ships WiX 3.14, which jpackage needs for --type msi, but does not
+      # put its bin directory on PATH, and jpackage discovers candle.exe/light.exe via PATH.
+      - name: Add WiX to PATH
+        shell: pwsh
+        run: |
+          $wixBin = Join-Path $env:WIX 'bin'
+          if (-not (Test-Path -LiteralPath (Join-Path $wixBin 'light.exe') -PathType Leaf)) { throw "WiX toolset not found at $wixBin" }
+          Add-Content $env:GITHUB_PATH $wixBin
+
       - name: Package with the release script
         shell: pwsh
         run: |
@@ -230,11 +239,30 @@ jobs:
         shell: pwsh
         run: ./.github/scripts/verify-windows-package.ps1 -Version $env:version -PackageDirectory build/windows-candidate
 
+      - name: Test Windows Installer version mapping
+        shell: pwsh
+        run: ./.github/scripts/test-windows-installer-version.ps1
+
+      # Real installer lifecycle: silent install, installed-mode probe, in-place upgrade against
+      # a synthetic higher version, uninstall - with user data verified byte-for-byte throughout.
+      - name: Verify Windows installer lifecycle
+        shell: pwsh
+        run: ./.github/scripts/verify-windows-installer.ps1 -Version $env:version -PackageDirectory build/windows-candidate
+
       - name: Upload Windows candidate
         uses: actions/upload-artifact@v7
         with:
           name: qtranslate-windows-candidate
           path: build/windows-candidate/QTranslate-${{ env.version }}-windows-x64.zip
+          if-no-files-found: error
+
+      # The unsigned MSI is an internal CI candidate for inspection only. It is deliberately not
+      # a GitHub Release asset: it becomes public once Authenticode signing lands (D3).
+      - name: Upload Windows MSI candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: qtranslate-windows-msi-candidate
+          path: build/windows-candidate/QTranslate-${{ env.version }}-windows-x64.msi
           if-no-files-found: error
 
   release-inventory:
