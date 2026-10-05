@@ -8,6 +8,7 @@ import java.awt.Dimension
 import java.awt.Frame
 import javax.swing.*
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ServiceInfoRenderer
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.SkipMarkedFocusPolicy
 
 class DictionaryDialog(owner: Frame, iconManager: IconManager) : JDialog(null as Frame?, false) {
 
@@ -72,6 +73,9 @@ class DictionaryDialog(owner: Frame, iconManager: IconManager) : JDialog(null as
             add(buttonPanel, BorderLayout.SOUTH)
         }
 
+        // Selectable entry text is focusable but not a Tab stop.
+        focusTraversalPolicy = SkipMarkedFocusPolicy()
+
         searchField.addActionListener { triggerLookup() }
         lookupButton.addActionListener { triggerLookup() }
         closeButton.addActionListener { isVisible = false }
@@ -130,6 +134,8 @@ class DictionaryDialog(owner: Frame, iconManager: IconManager) : JDialog(null as
             else -> "hint"
         }
         (cardPanel.layout as java.awt.CardLayout).show(cardPanel, card)
+
+        resultView.contextMenuLabels = newState.contextMenuLabels
 
         if (newState.entries.isNotEmpty()) {
             resultView.render(

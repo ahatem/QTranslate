@@ -16,6 +16,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentResizer
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.FloatingPopupBehavior
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.InlineLoadingBar
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.SkipMarkedFocusPolicy
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoard
 import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoardState
@@ -399,7 +400,8 @@ class QuickTranslateDialog(
             ),
             onCopy = { text -> text.copyToClipboard() },
             onListen = { onListen() },
-            onStop = { onStopListening() }
+            onStop = { onStopListening() },
+            definitionMenuLabels = state.strings.contextMenuLabels
         )
         val secondaries = state.comparisonResults.map { result ->
             val info = state.comparisonProviderInfos[result.serviceId]
@@ -696,6 +698,9 @@ class QuickTranslateDialog(
 
 
     private fun setupWindowBehavior(topPanel: JPanel) {
+        // Selectable definition text is focusable but not a Tab stop.
+        focusTraversalPolicy = SkipMarkedFocusPolicy()
+
         val dragInsets = Insets(RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE)
 
         ComponentMover.builder()

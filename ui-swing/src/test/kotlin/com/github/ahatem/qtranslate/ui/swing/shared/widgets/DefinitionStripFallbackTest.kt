@@ -96,15 +96,16 @@ class DefinitionStripFallbackTest {
     }
 
     @Test
-    fun `the strip stays an aside - not editable, not focusable, out of the tab order`() {
+    fun `the strip stays an aside - not editable, and out of the tab order`() {
         val strip = render(samples.getValue("Thai"))
         val text = textComponent(strip)
 
         assertFalse(text.isEditable, "a definition is not written into")
-        // The text component itself, not only the strip: a focusable component stays in the window's
-        // focus cycle whatever its parent says.
-        assertFalse(text.isFocusable, "the definition takes no focus")
-        assertFalse(text.focusTraversalKeysEnabled, "and no tab stop")
+        assertTrue(text.isFocusable, "a click leaves the caret here so the keyboard can copy")
+        assertTrue(
+            text.skipsFocusTraversal(),
+            "while Tab walks past it: a reader does not tab to a definition"
+        )
     }
 
     @Test

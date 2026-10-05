@@ -56,6 +56,7 @@ import com.github.ahatem.qtranslate.ui.swing.settings.panels.DynamicPluginSettin
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.*
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.SkipMarkedFocusPolicy
 import com.github.ahatem.qtranslate.ui.swing.snippingtool.SnippingToolDialog
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -529,8 +530,9 @@ class MainAppFrame(
             // the window actually ended up with.
             restorePosition(config.mainWindowPosition)
 
-            // Enforce Input → Output → Extra (→ Input) Tab cycle across all layouts.
-            focusTraversalPolicy = TextPaneCycleFocusPolicy(mainContentView)
+            // Enforce Input → Output → Extra (→ Input) Tab cycle across all layouts, and keep
+            // selectable read-only text out of it so Tab from a definition lands on the next pane.
+            focusTraversalPolicy = SkipMarkedFocusPolicy(TextPaneCycleFocusPolicy(mainContentView))
 
             setupWindowListeners()
             setupMenuBar()

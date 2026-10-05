@@ -11,6 +11,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentResizer
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.FloatingPopupBehavior
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.InlineLoadingBar
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.SkipMarkedFocusPolicy
 import java.awt.*
 import java.awt.event.*
 import javax.swing.*
@@ -296,6 +297,8 @@ class QuickDictionaryDialog(
         }
         (cardPanel.layout as CardLayout).show(cardPanel, card)
 
+        resultView.contextMenuLabels = state.strings.contextMenuLabels
+
         if (state.entries.isNotEmpty()) {
             resultView.render(
                 entries = state.entries,
@@ -358,6 +361,9 @@ class QuickDictionaryDialog(
     }
 
     private fun createSearchPanel(): JPanel {
+        // Selectable entry text is focusable but not a Tab stop.
+        focusTraversalPolicy = SkipMarkedFocusPolicy()
+
         searchField.addActionListener { triggerLookup() }
         lookupButton.addActionListener { triggerLookup() }
 
