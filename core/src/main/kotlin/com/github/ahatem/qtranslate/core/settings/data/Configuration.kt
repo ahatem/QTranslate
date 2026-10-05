@@ -104,6 +104,19 @@ val SelectionBehavior.selectionCaptureEnabled: Boolean
     get() = this != SelectionBehavior.OFF
 
 /**
+ * Which finished translations are copied to the clipboard without being asked.
+ *
+ * [ALL] means every explicit, single-result translation. Derived and ambient translation is
+ * excluded in every mode.
+ */
+@Serializable
+enum class AutoCopyTranslation {
+    OFF,
+    QUICK_TRANSLATE_ONLY,
+    ALL
+}
+
+/**
  * What happens when the user clicks the window's close (X) button.
  */
 @Serializable
@@ -183,6 +196,8 @@ data class Configuration(
      */
     val interfaceLanguage: String = "",
     val isInstantTranslationEnabled: Boolean = false,
+    /** Off by default for backward-compatible clipboard behavior. */
+    val autoCopyTranslation: AutoCopyTranslation = AutoCopyTranslation.OFF,
     val isSpellCheckingEnabled: Boolean = true,
     val extraOutputType: ExtraOutputType = ExtraOutputType.None,
     val extraOutputSource: ExtraOutputSource = ExtraOutputSource.Output,
@@ -352,6 +367,7 @@ data class Configuration(
                 // an explicit "en" would skip that detection on every fresh install.
                 interfaceLanguage            = "",
                 isInstantTranslationEnabled  = false,
+                autoCopyTranslation         = AutoCopyTranslation.OFF,
                 isSpellCheckingEnabled       = true,
                 extraOutputType              = ExtraOutputType.None,
                 extraOutputSource            = ExtraOutputSource.Output,

@@ -209,7 +209,7 @@ class MainStore(
                     if (settingsState.value.isInstantTranslationEnabled
                         && text.length >= AppConstants.INSTANT_TRANSLATE_MIN_CHARS
                     ) {
-                        translateText(comparisonPolicy = ComparisonPolicy.DISABLED)
+                        translateText(TranslationOrigin.INSTANT, comparisonPolicy = ComparisonPolicy.DISABLED)
                     }
                 }
         }
@@ -387,7 +387,7 @@ class MainStore(
             MainIntent.RetranslateQuickTranslate -> {
                 translateTextUseCase.cancel()
                 clearComparisonState()
-                scope.launch { translateText(comparisonPolicy = quickComparisonPolicy()) }
+                scope.launch { translateText(TranslationOrigin.QUICK, comparisonPolicy = quickComparisonPolicy()) }
             }
 
             MainIntent.UndoTranslation -> handleUndo()
@@ -409,7 +409,7 @@ class MainStore(
             is MainIntent.Translate -> {
                 translateTextUseCase.cancel()
                 clearComparisonState()
-                scope.launch { translateText(intent.text, comparisonPolicy = mainComparisonPolicy()) }
+                scope.launch { translateText(TranslationOrigin.MAIN, intent.text, comparisonPolicy = mainComparisonPolicy()) }
             }
 
             is MainIntent.RefreshExtraOutput -> scope.launch {
@@ -608,7 +608,7 @@ class MainStore(
         // Write extracted text into input then translate — same path as manual typing.
         clearComparisonState()
         _state.update { it.copy(inputText = extractedText) }
-        translateText(comparisonPolicy = ComparisonPolicy.DISABLED)
+        translateText(TranslationOrigin.OCR, comparisonPolicy = ComparisonPolicy.DISABLED)
     }
 
     /**
@@ -694,7 +694,7 @@ class MainStore(
         }
 
         // Let TranslateTextUseCase own isLoading — it sets it at the start of the job.
-        val completion = translateText(comparisonPolicy = quickComparisonPolicy())
+        val completion = translateText(TranslationOrigin.QUICK, comparisonPolicy = quickComparisonPolicy())
         if (readSource != SelectionReadSource.TRANSLATION ||
             !SelectionTranslationReadGuard.shouldRead(
                 readRequested = intent.readSelectionAloud,
@@ -724,12 +724,20 @@ class MainStore(
         )
     }
 
+    /**
+     * Runs one translation and hands a covered result to the UI as [MainEvent.CopyToClipboard].
+     *
+     * The decision reads the completion rather than the state, because a Quick result and a
+     * main-window result land in the same field. The completion is returned unchanged; callers
+     * need it to prove a result is theirs.
+     */
     private suspend fun translateText(
+        origin: TranslationOrigin,
         textOverride: String? = null,
         extraOutputRequest: ExtraOutputRequest? = null,
         comparisonPolicy: ComparisonPolicy = ComparisonPolicy.DISABLED,
-    ) =
-        translateTextUseCase(
+    ): TranslationCompletion? {
+        val completion = translateTextUseCase(
             getState    = { _state.value },
             updateState = { transform -> _state.update(transform) },
             onStatusUpdate = ::updateStatusBar,
@@ -737,6 +745,19 @@ class MainStore(
             extraOutputRequest = extraOutputRequest,
             comparisonPolicy = comparisonPolicy,
         )
+
+        val textToCopy = AutoCopyGuard.textToCopy(
+            setting = settingsState.value.autoCopyTranslation,
+            origin = origin,
+            completion = completion,
+            translationStillCurrent = completion?.let { translateTextUseCase.isCurrent(it.requestId) } == true
+        )
+        if (textToCopy != null) {
+            _eventChannel.send(MainEvent.CopyToClipboard(textToCopy))
+        }
+
+        return completion
+    }
 
     /**
      * Recomputes the extra panel alone, falling back to a full translation when there is no
@@ -751,6 +772,7 @@ class MainStore(
         )
         if (!refreshed) {
             translateText(
+                TranslationOrigin.INTERNAL,
                 extraOutputRequest = extraOutputRequest,
                 comparisonPolicy = ComparisonPolicy.DISABLED
             )

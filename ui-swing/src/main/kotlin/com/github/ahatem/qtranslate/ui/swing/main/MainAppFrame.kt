@@ -844,10 +844,13 @@ class MainAppFrame(
                             releaseUrl = event.releaseUrl
                         ))
                     }
-                    is MainEvent.CopyToClipboard -> {
+                    is MainEvent.CopyToClipboard -> withContext(Dispatchers.Swing) {
+                        // Clipboard contention must not turn a successful translation into a failure.
                         runCatching {
                             Toolkit.getDefaultToolkit().systemClipboard
                                 .setContents(StringSelection(event.text), null)
+                        }.onFailure { error ->
+                            logger.warn("Failed to copy text to the clipboard: ${error.message}")
                         }
                     }
                     is MainEvent.DocumentTranslationCompleted -> withContext(Dispatchers.Swing) {
