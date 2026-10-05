@@ -31,8 +31,7 @@ sealed interface MainEvent : UiEvent {
     ) : MainEvent
 
     /**
-     * Instructs the UI to copy [text] to the system clipboard.
-     * Emitted after [MainIntent.OcrAndCopyText] successfully extracts text.
+     * Instructs the UI to copy [text] to the system clipboard. The UI owns the clipboard.
      */
     data class CopyToClipboard(val text: String) : MainEvent
 

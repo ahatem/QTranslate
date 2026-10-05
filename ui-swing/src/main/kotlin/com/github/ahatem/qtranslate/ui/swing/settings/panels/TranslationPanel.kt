@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.core.settings.data.AutoCopyTranslation
 import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
 import com.github.ahatem.qtranslate.api.plugin.StandardOptions
@@ -61,12 +62,21 @@ class TranslationPanel(
         )
     }
 
+    private val autoCopyModes by lazy {
+        listOf(
+            AutoCopyTranslationInfo(AutoCopyTranslation.OFF,                localizationManager.getString("settings_translation.auto_copy_off")),
+            AutoCopyTranslationInfo(AutoCopyTranslation.QUICK_TRANSLATE_ONLY, localizationManager.getString("settings_translation.auto_copy_quick")),
+            AutoCopyTranslationInfo(AutoCopyTranslation.ALL,                localizationManager.getString("settings_translation.auto_copy_all")),
+        )
+    }
+
     private lateinit var instantCheck:        JCheckBox
     private lateinit var spellCheck:          JCheckBox
     private lateinit var removeLineBreaksCheck: JCheckBox
     private lateinit var typeCombo:           JComboBox<ExtraOutputTypeInfo>
     private lateinit var useTranslated:       JRadioButton
     private lateinit var useInput:            JRadioButton
+    private lateinit var autoCopyCombo:       JComboBox<AutoCopyTranslationInfo>
 
     // Conditional setting rows — shown only for the relevant extra output type
     private lateinit var summaryLengthRow:    JPanel
@@ -91,6 +101,18 @@ class TranslationPanel(
             onChange = { enabled -> applyDraft(store) { it.copy(isInstantTranslationEnabled = enabled) } }
         )
         addHint(localizationManager.getString("settings_translation.instant_hint"))
+
+        autoCopyCombo = JComboBox<AutoCopyTranslationInfo>(autoCopyModes.toTypedArray()).apply {
+            renderer = DisplayValueRenderer<AutoCopyTranslationInfo>(text = { it?.displayName.orEmpty() })
+            addActionListener {
+                if (!isUpdatingFromState) {
+                    val mode = (selectedItem as? AutoCopyTranslationInfo)?.mode ?: return@addActionListener
+                    applyDraft(store) { it.copy(autoCopyTranslation = mode) }
+                }
+            }
+        }
+        addRow(localizationManager.getString("settings_translation.auto_copy_translation"), autoCopyCombo)
+        addHint(localizationManager.getString("settings_translation.auto_copy_hint"))
 
         spellCheck = addCheckbox(
             text     = localizationManager.getString("settings_translation.spell_check_input"),
@@ -258,6 +280,7 @@ class TranslationPanel(
         val c = state.workingConfiguration
         withoutTrigger {
             instantCheck.isSelected        = c.isInstantTranslationEnabled
+            autoCopyCombo.selectedItem     = autoCopyModes.find { it.mode == c.autoCopyTranslation }
             spellCheck.isSelected          = c.isSpellCheckingEnabled
             removeLineBreaksCheck.isSelected = c.isRemoveLineBreaksEnabled
             typeCombo.selectedItem         = types.find { it.type == c.extraOutputType }
@@ -297,6 +320,8 @@ class TranslationPanel(
     // -------------------------------------------------------------------------
 
     private data class ExtraOutputTypeInfo(val type: ExtraOutputType, val displayName: String)
+
+    private data class AutoCopyTranslationInfo(val mode: AutoCopyTranslation, val displayName: String)
 }
 
 // ---------------------------------------------------------------------------
