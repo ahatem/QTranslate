@@ -95,5 +95,7 @@ data class DialogStrings(
     val pinTooltip: String,
     val unpinTooltip: String,
     val swapTooltip: String = "",
-    val loadingText: String
+    val loadingText: String,
+    /** Labels for the definition strip's Copy / Select All menu, from `common.copy` / `common.select_all`. */
+    val contextMenuLabels: ((String) -> String)? = null
 )

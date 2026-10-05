@@ -62,5 +62,7 @@ data class QuickDictionaryStrings(
     val unpinTooltip: String,
     val closeTooltip: String,
     val listenTooltip: String = "",
-    val stopListeningTooltip: String = ""
+    val stopListeningTooltip: String = "",
+    /** Resolves Copy / Select All for the definition and example menus; null leaves them untranslated. */
+    val contextMenuLabels: ((String) -> String)? = null
 )

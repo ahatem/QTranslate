@@ -6,6 +6,9 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.github.ahatem.qtranslate.ui.swing.shared.util.createToolbarButton
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ContextMenuLabels
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.SelectionContextMenu
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.skipFocusTraversal
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
 import java.awt.*
 import javax.swing.*
@@ -52,6 +55,22 @@ class DictionaryResultView(private val iconManager: IconManager) : JScrollPane()
     private var lastEntries: List<DictionaryEntry> = emptyList()
     private var lastSynonymsLabel: String = ""
 
+    /** Every selection menu currently on screen, dropped and rebuilt with the entry list. */
+    private val selectionMenus = mutableListOf<SelectionContextMenu>()
+
+    /**
+     * Localized labels for the selection menus, resolved from `common.copy` / `common.select_all`.
+     *
+     * A property rather than a render() argument because render() runs on every state emission and
+     * rebuilds nothing when the entries are unchanged, so a label change has to reach the
+     * components already on screen.
+     */
+    var contextMenuLabels: ContextMenuLabels? = null
+        set(value) {
+            field = value
+            selectionMenus.forEach { it.labels = value }
+        }
+
     init {
         setViewportView(content)
         clearBorder()
@@ -81,6 +100,9 @@ class DictionaryResultView(private val iconManager: IconManager) : JScrollPane()
         lastSynonymsLabel = synonymsLabel
         content.removeAll()
         listenButton = null
+        // The text components these menus belong to are about to be dropped, and so are their
+        // menus: keeping them would apply a later label change to components nobody can see.
+        selectionMenus.clear()
 
         if (entries.isEmpty()) {
             content.revalidate()
@@ -250,17 +272,28 @@ class DictionaryResultView(private val iconManager: IconManager) : JScrollPane()
         }
     }
 
+    /**
+     * A definition or an example: read-only selectable text, copyable on its own.
+     *
+     * It may take mouse focus so the keyboard copy shortcut reaches its own selection, but is
+     * excluded from normal focus traversal, which leaves the window's tab order as it was.
+     */
     private fun wrappingArea(text: String, muted: Boolean = false, italic: Boolean = false): JTextArea {
         return JTextArea(text).apply {
             lineWrap = true
             wrapStyleWord = true
             isEditable = false
             isOpaque = false
-            isFocusable = false
+            isFocusable = true
+            skipFocusTraversal()
             clearBorder()
             background = null
             if (muted) foreground = UIManager.getColor("Label.disabledForeground")
             if (italic) font = font.deriveFont(Font.ITALIC)
+            SelectionContextMenu(this).also {
+                it.labels = contextMenuLabels
+                selectionMenus += it
+            }
         }
     }
 

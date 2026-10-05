@@ -46,19 +46,23 @@ class DefinitionStrip(private val showDivider: Boolean = true) : JPanel(BorderLa
      * Styled rather than plain because a definition is a translation too, and one in a script the
      * interface font cannot draw is unreadable for the same reason the output pane was. The pane's
      * editor kit brings the per-run fonts; nothing else of the editor comes with it.
+     *
+     * Read-only selectable text. It may take mouse focus so the keyboard copy shortcut reaches its
+     * own selection, but is excluded from normal focus traversal: a reader does not tab to a
+     * definition.
      */
     private val text = JTextPane().apply {
         editorKit = WrappingEditorKit()
         isEditable = false
         isOpaque = false
-        // An aside to glance at, not a control to reach: it takes no focus and no tab stop, as it
-        // never did as a text area. `focusTraversalKeysEnabled` says so explicitly, because a
-        // focusable component in a focus cycle ignores its parent's setting.
-        isFocusable = false
-        focusTraversalKeysEnabled = false
+        isFocusable = true
+        skipFocusTraversal()
         putClientProperty("FlatLaf.styleClass", "small")
         foreground = UIManager.getColor("Label.disabledForeground")
     }
+
+    /** Copy and Select All over this pane alone, never the translation it sits under. */
+    private val selectionMenu = SelectionContextMenu(text)
 
     init {
         isOpaque = false
@@ -66,6 +70,19 @@ class DefinitionStrip(private val showDivider: Boolean = true) : JPanel(BorderLa
         applyBorder()
         add(text, BorderLayout.CENTER)
     }
+
+    /**
+     * Localized labels for the selection menu, resolved from `common.copy` / `common.select_all`.
+     * Optional: a caller with no localizer still gets a working menu with untranslated labels.
+     */
+    var contextMenuLabels: ContextMenuLabels?
+        get() = selectionMenu.labels
+        set(value) {
+            selectionMenu.labels = value
+        }
+
+    /** The strip's text component, exposed so a host can inspect what it is about to show. */
+    val textComponent: JTextPane get() = text
 
     /**
      * Height measured against the width this strip has actually been given.

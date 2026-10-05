@@ -31,6 +31,7 @@ internal fun buildDictionaryDialogState(
         synonymsLabel         = localizer.getString("dictionary_dialog.synonyms_label"),
         listenTooltip         = localizer.getString("common.listen"),
         stopListeningTooltip  = localizer.getString("common.stop"),
+        contextMenuLabels     = { key -> localizer.getString("common.$key") },
         isLoading             = mainState.isDictionaryLoading,
         isTtsPlaying          = mainState.isTtsPlaying,
         entries               = mainState.dictionaryEntries,
@@ -95,7 +96,10 @@ internal fun buildQuickDictionaryDialogState(
             unpinTooltip     = localizer.getString("common.unpin"),
             closeTooltip     = localizer.getString("common.close"),
             listenTooltip    = localizer.getString("common.listen"),
-            stopListeningTooltip = localizer.getString("common.stop")
+            stopListeningTooltip = localizer.getString("common.stop"),
+            // Reused rather than redefined: Copy and Select All say the same thing in a dictionary
+            // entry as they do beside a translation.
+            contextMenuLabels = { key -> localizer.getString("common.$key") }
         ),
         isTtsPlaying = mainState.isTtsPlaying,
         onLookup = onLookup,

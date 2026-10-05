@@ -392,7 +392,10 @@ class MainContentView(
             },
             getContextMenuLabel = { key ->
                 localizer.getString("main_window_editor_context_menu.$key")
-            }
+            },
+            // The strip's menu answers to common.copy / common.select_all, so a dictionary entry
+            // and a definition strip say the same thing in the same words.
+            definitionMenuLabels = { key -> localizer.getString("common.$key") }
         )
         val providerInfos = mainState.availableServices.associateBy { it.id }
         val secondaries = mainState.comparisonResults.map { result ->

@@ -95,7 +95,15 @@ data class TranslationProviderState(
     val onFindInDictionary: ((String) -> Unit)? = null,
     val onSearchImages: ((String) -> Unit)? = null,
     val onSetAsInput: ((String) -> Unit)? = null,
-    val getContextMenuLabel: ((String) -> String)? = null
+    val getContextMenuLabel: ((String) -> String)? = null,
+    /**
+     * Labels for the definition strip's own Copy / Select All menu.
+     *
+     * Separate from [getContextMenuLabel] because that one addresses the output pane's keys, and
+     * this menu answers to `common.copy` / `common.select_all` — the same strings a dictionary
+     * entry uses, rather than a third set defined for one strip.
+     */
+    val definitionMenuLabels: ((String) -> String)? = null
 )
 
 /**
@@ -301,6 +309,7 @@ class TranslationProviderView(
     }
 
     private var getContextMenuLabelRef: ((String) -> String) = { it }
+    private var definitionMenuLabelsRef: ((String) -> String)? = null
     private var findInDictionaryLabelRef = ""
     private var searchImagesLabelRef = ""
     private var setAsInputLabelRef = ""
@@ -321,6 +330,10 @@ class TranslationProviderView(
         onSearchImagesRef = state.onSearchImages
         onSetAsInputRef = state.onSetAsInput
         state.getContextMenuLabel?.let { getContextMenuLabelRef = it }
+        definitionMenuLabelsRef = state.definitionMenuLabels
+        // Assigned rather than compared: a state with no labels must put the strip's menu back to
+        // the shared widget's own text rather than leaving the previous language on it.
+        definitionStrip.contextMenuLabels = definitionMenuLabelsRef
         findInDictionaryLabelRef = state.findInDictionaryLabel
         searchImagesLabelRef = state.searchImagesLabel
         setAsInputLabelRef = state.setAsInputLabel

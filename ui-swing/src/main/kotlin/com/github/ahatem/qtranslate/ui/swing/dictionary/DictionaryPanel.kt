@@ -165,6 +165,8 @@ class DictionaryPanel(
         }
         (cardPanel.layout as CardLayout).show(cardPanel, card)
 
+        resultView.contextMenuLabels = state.contextMenuLabels
+
         if (state.entries.isNotEmpty()) {
             resultView.render(
                 entries = state.entries,

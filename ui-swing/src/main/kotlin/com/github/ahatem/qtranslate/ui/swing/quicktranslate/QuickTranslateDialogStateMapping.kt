@@ -60,7 +60,10 @@ internal fun buildQuickTranslateDialogState(
             pinTooltip = localizer.getString("common.pin"),
             unpinTooltip = localizer.getString("common.unpin"),
             swapTooltip = localizer.getString("main_window_language_bar.swap_languages_tooltip"),
-            loadingText = localizer.getString("common.loading")
+            loadingText = localizer.getString("common.loading"),
+            // The definition's own menu answers to the shared strings, so the popup's definition
+            // reads the same as the main window's and a dictionary entry's.
+            contextMenuLabels = { key -> localizer.getString("common.$key") }
         ),
         comparisonResults = mainState.comparisonResults,
         comparisonLoadingText = localizer.getString("main_window.comparison_loading"),

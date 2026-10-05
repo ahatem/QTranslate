@@ -81,6 +81,7 @@ class OutputTextPanel(
         textPane.getContextMenuLabel = { key ->
             localizationManager.getString("main_window_editor_context_menu.$key")
         }
+        definitionStrip.contextMenuLabels = { key -> localizationManager.getString("common.$key") }
         if (onFindInDictionary != null || onSearchImages != null || onSetAsInput != null) {
             textPane.onBeforeContextMenuPopup = { menu, clickPosition ->
                 if (onFindInDictionary != null || onSearchImages != null) addFindInDictionaryItem(menu, clickPosition)

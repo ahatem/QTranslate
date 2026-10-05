@@ -12,6 +12,8 @@ data class DictionaryPanelState(
     val synonymsLabel: String,
     val listenTooltip: String = "",
     val stopListeningTooltip: String = "",
+    /** Resolves Copy / Select All for the definition and example menus; null leaves them untranslated. */
+    val contextMenuLabels: ((String) -> String)? = null,
     val isLoading: Boolean,
     /** Whether speech is playing right now; the headword's Listen control becomes a stop button. */
     val isTtsPlaying: Boolean = false,
