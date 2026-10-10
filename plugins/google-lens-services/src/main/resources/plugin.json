@@ -1,0 +1,9 @@
+{
+  "id": "google-lens-services",
+  "name": "Google Lens OCR",
+  "version": "1.0.0",
+  "author": "01xKeven",
+  "description": "Provides free OCR image text recognition using Google Lens.",
+  "minApiVersion": "2.0.0",
+  "icon": "assets/lens-icon.svg"
+}
