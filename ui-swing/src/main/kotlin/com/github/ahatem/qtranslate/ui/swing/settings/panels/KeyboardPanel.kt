@@ -36,6 +36,10 @@ class KeyboardPanel(
     private lateinit var resetButton: JButton
     private lateinit var presetCombo: JComboBox<HotkeyPresetKind>
 
+    private lateinit var ocrTable: JTable
+    private lateinit var ocrEditButton: JButton
+    private lateinit var ocrClearButton: JButton
+
     private val actionOrder = listOf(
         HotkeyAction.SHOW_QUICK_TRANSLATE,
         HotkeyAction.LISTEN_TO_TEXT,
@@ -48,6 +52,15 @@ class KeyboardPanel(
         HotkeyAction.FOCUS_INPUT,
         HotkeyAction.FOCUS_OUTPUT,
         HotkeyAction.FOCUS_EXTRA_OUTPUT
+    )
+
+    private val ocrActionOrder = listOf(
+        HotkeyAction.OCR_TRANSLATE,
+        HotkeyAction.OCR_COPY_TEXT,
+        HotkeyAction.OCR_COPY_IMAGE,
+        HotkeyAction.OCR_SAVE_IMAGE,
+        HotkeyAction.OCR_RECROP,
+        HotkeyAction.OCR_CANCEL
     )
 
     private val nonEditableActions    = emptySet<HotkeyAction>()
@@ -233,6 +246,84 @@ class KeyboardPanel(
                 add(resetButton)
             })
 
+        // ── OCR Snipping Tool Hotkeys ────────────────────────────────────────
+        addSeparator(localizationManager.getString("settings_hotkeys.ocr_group"))
+        addHint(localizationManager.getString("settings_hotkeys.ocr_group_hint"))
+
+        val ocrModel = object : DefaultTableModel(
+            arrayOf(
+                localizationManager.getString("settings_hotkeys.column_action"),
+                localizationManager.getString("settings_hotkeys.column_hotkey")
+            ), 0
+        ) {
+            override fun isCellEditable(row: Int, column: Int) = false
+            override fun getColumnClass(col: Int) = String::class.java
+        }
+
+        ocrActionOrder.forEach { action ->
+            ocrModel.addRow(arrayOf<Any>(actionDisplayName(action), ""))
+        }
+
+        ocrTable = JTable(ocrModel).apply {
+            fillsViewportHeight = true
+            rowHeight           = UIScale.scale(ROW_HEIGHT)
+            autoResizeMode      = JTable.AUTO_RESIZE_ALL_COLUMNS
+            setShowGrid(false)
+            intercellSpacing    = Dimension(0, 0)
+            setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
+            putClientProperty("FlatLaf.style", "showCellFocusIndicator: false")
+
+            columnModel.getColumn(0).apply {
+                preferredWidth = UIScale.scale(ACTION_PREFERRED_WIDTH)
+                minWidth       = UIScale.scale(ACTION_MIN_WIDTH)
+            }
+            columnModel.getColumn(1).apply {
+                preferredWidth = UIScale.scale(HOTKEY_PREFERRED_WIDTH)
+                minWidth       = UIScale.scale(HOTKEY_MIN_WIDTH)
+                cellRenderer   = HotkeyColumnRenderer()
+            }
+
+            addMouseListener(object : MouseAdapter() {
+                override fun mouseClicked(e: MouseEvent) {
+                    val row = rowAtPoint(e.point)
+                    val col = columnAtPoint(e.point)
+                    if (row < 0) return
+                    if (col == 1 && e.clickCount == 2) {
+                        setRowSelectionInterval(row, row)
+                        onEditOcrSelected()
+                    }
+                }
+            })
+
+            selectionModel.addListSelectionListener { updateOcrButtonStates() }
+        }
+
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+            .insets(UIScale.scale(4), 0, 0, 0)
+            .add(JScrollPane(ocrTable).apply {
+                border = themeAwareBorder()
+                preferredSize = Dimension(
+                    UIScale.scale(TABLE_PREFERRED_WIDTH),
+                    ocrTable.rowHeight * ocrActionOrder.size + ocrTable.tableHeader.preferredSize.height + UIScale.scale(4)
+                )
+            })
+
+        ocrEditButton = JButton(localizationManager.getString("settings_hotkeys.edit_button"))
+        ocrClearButton = JButton(localizationManager.getString("settings_hotkeys.clear_button"))
+        ocrEditButton.isEnabled = false
+        ocrClearButton.isEnabled = false
+
+        ocrEditButton.addActionListener { onEditOcrSelected() }
+        ocrClearButton.addActionListener { onClearOcrSelected() }
+
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+            .insets(UIScale.scale(6), 0, 0, 0)
+            .add(JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(4), 0)).apply {
+                isOpaque = false
+                add(ocrEditButton)
+                add(ocrClearButton)
+            })
+
         finishLayout()
     }
 
@@ -344,6 +435,35 @@ class KeyboardPanel(
         clearButton.isEnabled = isEditable && enabled
     }
 
+    private fun onEditOcrSelected() {
+        val row = ocrTable.selectedRow.takeIf { it >= 0 } ?: return
+        val action = ocrActionOrder[row]
+        val current = store.state.value.workingConfiguration.hotkeys.find { it.action == action }
+
+        val result = HotkeyRecorderDialog.show(
+            owner = SwingUtilities.getWindowAncestor(this),
+            action = action,
+            current = current,
+            localizer = localizationManager,
+            pauseGlobalHotkeys = pauseGlobalHotkeys,
+            resumeGlobalHotkeys = resumeGlobalHotkeys,
+        ) ?: return
+
+        saveBinding(result.copy(scope = HotkeyScope.LOCAL))
+    }
+
+    private fun onClearOcrSelected() {
+        val row = ocrTable.selectedRow.takeIf { it >= 0 } ?: return
+        val action = ocrActionOrder[row]
+        saveBinding(HotkeyBinding(action = action, keyCode = 0, modifiers = 0, scope = HotkeyScope.LOCAL))
+    }
+
+    private fun updateOcrButtonStates() {
+        val row = ocrTable.selectedRow
+        val hasSelection = row >= 0
+        ocrEditButton.isEnabled = hasSelection
+        ocrClearButton.isEnabled = hasSelection
+    }
 
     override fun render(state: SettingsState) {
         val c = state.workingConfiguration
@@ -364,9 +484,16 @@ class KeyboardPanel(
                 model.setValueAt(scopeLabel(binding?.scope ?: HotkeyScope.GLOBAL), row, COL_SCOPE)
             }
 
+            val ocrModel = ocrTable.model as DefaultTableModel
+            ocrActionOrder.forEachIndexed { row, action ->
+                val binding = c.hotkeys.find { it.action == action }
+                ocrModel.setValueAt(binding, row, 1)
+            }
+
             table.isEnabled = c.isGlobalHotkeysEnabled
             doubleCtrlCheck.isEnabled = c.isGlobalHotkeysEnabled
             updateButtonStates()
+            updateOcrButtonStates()
         }
     }
 
@@ -390,6 +517,12 @@ class KeyboardPanel(
         HotkeyAction.OPEN_SETTINGS            -> localizationManager.getString("settings_hotkeys.action_open_settings")
         HotkeyAction.SHOW_HISTORY             -> localizationManager.getString("settings_hotkeys.action_show_history")
         HotkeyAction.TRANSLATE_DOCUMENT       -> localizationManager.getString("settings_hotkeys.action_translate_document")
+        HotkeyAction.OCR_TRANSLATE            -> localizationManager.getString("settings_hotkeys.action_ocr_translate")
+        HotkeyAction.OCR_COPY_TEXT            -> localizationManager.getString("settings_hotkeys.action_ocr_copy_text")
+        HotkeyAction.OCR_COPY_IMAGE           -> localizationManager.getString("settings_hotkeys.action_ocr_copy_image")
+        HotkeyAction.OCR_SAVE_IMAGE           -> localizationManager.getString("settings_hotkeys.action_ocr_save_image")
+        HotkeyAction.OCR_RECROP               -> localizationManager.getString("settings_hotkeys.action_ocr_recrop")
+        HotkeyAction.OCR_CANCEL               -> localizationManager.getString("settings_hotkeys.action_ocr_cancel")
     }
 
     private fun scopeLabel(scope: HotkeyScope): String = when (scope) {

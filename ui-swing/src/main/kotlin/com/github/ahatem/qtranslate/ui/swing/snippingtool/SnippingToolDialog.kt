@@ -1,8 +1,12 @@
 package com.github.ahatem.qtranslate.ui.swing.snippingtool
 
 import com.github.ahatem.qtranslate.api.ocr.ImageData
+import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
+import com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination
+import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.util.getVirtualScreenBounds
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toImageData
 import java.awt.*
@@ -19,8 +23,10 @@ import javax.swing.*
 import javax.swing.filechooser.FileNameExtensionFilter
 
 class SnippingToolDialog(
-    owner: Frame,
-    private val mainStore: MainStore
+    private val owner: Frame,
+    private val mainStore: MainStore,
+    private val settingsStore: SettingsStore,
+    private val localizer: LocalizationManager? = null
 ) : JDialog(owner, "", true) {
 
     private val panel: ScreenCapturePanel
@@ -42,6 +48,31 @@ class SnippingToolDialog(
             panel.render(stateWithButtons)
             controller.updateState(stateWithButtons)
         }
+
+        val hotkeys = settingsStore.state.value.workingConfiguration.hotkeys
+
+        fun shortcutFor(action: HotkeyAction): String? =
+            hotkeys.find { it.action == action && it.isEnabled }
+                ?.toDisplayString()
+                ?.takeIf { it.isNotEmpty() }
+
+        val buttonLabels = ScreenCapturePanel.ButtonLabels(
+            translate = localizer?.getString("settings_hotkeys.action_ocr_translate")?.takeIf { !it.startsWith("settings_hotkeys.") } ?: "Translate",
+            copyText  = localizer?.getString("settings_hotkeys.action_ocr_copy_text")?.takeIf { !it.startsWith("settings_hotkeys.") } ?: "Copy Text",
+            copyImage = localizer?.getString("settings_hotkeys.action_ocr_copy_image")?.takeIf { !it.startsWith("settings_hotkeys.") } ?: "Copy Image",
+            saveImage = localizer?.getString("settings_hotkeys.action_ocr_save_image")?.takeIf { !it.startsWith("settings_hotkeys.") } ?: "Save Image",
+            recrop    = localizer?.getString("settings_hotkeys.action_ocr_recrop")?.takeIf { !it.startsWith("settings_hotkeys.") } ?: "Re-crop",
+            cancel    = localizer?.getString("settings_hotkeys.action_ocr_cancel")?.takeIf { !it.startsWith("settings_hotkeys.") } ?: "Cancel"
+        )
+
+        val buttonTooltips = ScreenCapturePanel.ButtonTooltips(
+            translate = shortcutFor(HotkeyAction.OCR_TRANSLATE),
+            copyText  = shortcutFor(HotkeyAction.OCR_COPY_TEXT),
+            copyImage = shortcutFor(HotkeyAction.OCR_COPY_IMAGE),
+            saveImage = shortcutFor(HotkeyAction.OCR_SAVE_IMAGE),
+            recrop    = shortcutFor(HotkeyAction.OCR_RECROP),
+            cancel    = shortcutFor(HotkeyAction.OCR_CANCEL)
+        )
 
         panel = ScreenCapturePanel(
             onTranslate = { capturedImage ->
@@ -65,7 +96,9 @@ class SnippingToolDialog(
             },
             onCancel = {
                 dispose()
-            }
+            },
+            buttonLabels = buttonLabels,
+            buttonTooltips = buttonTooltips
         )
 
         panel.attachController(controller)
@@ -79,12 +112,14 @@ class SnippingToolDialog(
     }
 
     private fun dispatchOcrAndTranslate(image: ImageData) {
-        mainStore.dispatch(MainIntent.OcrAndTranslateImage(image))
-        (owner as? JFrame)?.let {
-            it.isVisible = true
-            it.state = JFrame.NORMAL
-            it.toFront()
+        val dest = settingsStore.state.value.workingConfiguration.ocrTranslationDestination
+        val openInQuickTranslate = dest == OcrTranslationDestination.POPUP
+        if (!openInQuickTranslate) {
+            owner.isVisible = true
+            owner.state = Frame.NORMAL
+            owner.toFront()
         }
+        mainStore.dispatch(MainIntent.OcrAndTranslateImage(image, openInQuickTranslate = openInQuickTranslate))
         dispose()
     }
 
@@ -124,11 +159,53 @@ class SnippingToolDialog(
     }
 
     private fun setupListeners() {
+        // Esc always closes the snipping tool as a fallback
         rootPane.registerKeyboardAction(
             { dispose() },
             KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
             JComponent.WHEN_IN_FOCUSED_WINDOW
         )
+
+        val hotkeys = settingsStore.state.value.workingConfiguration.hotkeys
+
+        fun registerAction(action: HotkeyAction, block: () -> Unit) {
+            val binding = hotkeys.find { it.action == action && it.isEnabled } ?: return
+            val keyStroke = binding.toKeyStroke() ?: return
+            rootPane.registerKeyboardAction(
+                { block() },
+                keyStroke,
+                JComponent.WHEN_IN_FOCUSED_WINDOW
+            )
+        }
+
+        registerAction(HotkeyAction.OCR_TRANSLATE) {
+            panel.getSelectedImage()?.let {
+                dispatchOcrAndTranslate(it.toImageData("png"))
+            }
+        }
+        registerAction(HotkeyAction.OCR_COPY_TEXT) {
+            panel.getSelectedImage()?.let {
+                dispatchOcrAndCopyText(it.toImageData("png"))
+            }
+        }
+        registerAction(HotkeyAction.OCR_COPY_IMAGE) {
+            panel.getSelectedImage()?.let {
+                copyImageToClipboard(it)
+                dispose()
+            }
+        }
+        registerAction(HotkeyAction.OCR_SAVE_IMAGE) {
+            panel.getSelectedImage()?.let {
+                saveImageToFile(it)
+                dispose()
+            }
+        }
+        registerAction(HotkeyAction.OCR_RECROP) {
+            controller.resetToIdle()
+        }
+        registerAction(HotkeyAction.OCR_CANCEL) {
+            dispose()
+        }
 
         panel.addMouseListener(object : MouseAdapter() {
             override fun mousePressed(e: MouseEvent) {

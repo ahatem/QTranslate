@@ -597,18 +597,31 @@ class MainStore(
     }
 
     private suspend fun handleOcrAndTranslate(intent: MainIntent.OcrAndTranslateImage) {
-        val extractedText = ocrAndTranslateUseCase(
+        val rawText = ocrAndTranslateUseCase(
             image = intent.image,
             currentState = _state.value,
             onStatusUpdate = ::updateStatusBar
         )
 
-        if (extractedText.isBlank()) return
+        if (rawText.isBlank()) return
 
-        // Write extracted text into input then translate — same path as manual typing.
-        clearComparisonState()
-        _state.update { it.copy(inputText = extractedText) }
-        translateText(TranslationOrigin.OCR, comparisonPolicy = ComparisonPolicy.DISABLED)
+        val extractedText = if (settingsState.value.isRemoveOcrLineBreaksEnabled) {
+            cleanLineBreaks(rawText)
+        } else {
+            rawText
+        }
+
+        if (intent.openInQuickTranslate) {
+            val generation = quickTranslateGenerations.incrementAndGet()
+            translateTextUseCase.cancel()
+            clearComparisonState()
+            handleShowQuickTranslate(MainIntent.ShowQuickTranslate(extractedText), generation)
+        } else {
+            // Write extracted text into input then translate — same path as manual typing.
+            clearComparisonState()
+            _state.update { it.copy(inputText = extractedText) }
+            translateText(TranslationOrigin.OCR, comparisonPolicy = ComparisonPolicy.DISABLED)
+        }
     }
 
     /**
@@ -617,15 +630,25 @@ class MainStore(
      * Does NOT translate — the user chose "Copy Text", not "Translate".
      */
     private suspend fun handleOcrAndCopyText(intent: MainIntent.OcrAndCopyText) {
-        val extractedText = ocrAndTranslateUseCase(
+        val rawText = ocrAndTranslateUseCase(
             image = intent.image,
             currentState = _state.value,
             onStatusUpdate = ::updateStatusBar
         )
-        if (extractedText.isBlank()) return
+        if (rawText.isBlank()) return
+
+        val extractedText = if (settingsState.value.isRemoveOcrLineBreaksEnabled) {
+            cleanLineBreaks(rawText)
+        } else {
+            rawText
+        }
+
         _eventChannel.send(MainEvent.CopyToClipboard(extractedText))
         updateStatusBar(StatusCode.OcrTextCopied, NotificationType.INFO, true)
     }
+
+    private fun cleanLineBreaks(text: String): String =
+        text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace(Regex("\\s{2,}"), " ").trim()
 
     private suspend fun handleShowQuickTranslate(
         intent: MainIntent.ShowQuickTranslate,

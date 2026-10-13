@@ -606,7 +606,14 @@ class MainGlobalKeyListener(
             HotkeyAction.SWAP_LANGUAGES,
             HotkeyAction.OPEN_SETTINGS,
             HotkeyAction.SHOW_HISTORY,
-            HotkeyAction.TRANSLATE_DOCUMENT -> Unit
+            HotkeyAction.TRANSLATE_DOCUMENT,
+            // Snipping tool only, handled by SnippingToolDialog's InputMap.
+            HotkeyAction.OCR_TRANSLATE,
+            HotkeyAction.OCR_COPY_TEXT,
+            HotkeyAction.OCR_COPY_IMAGE,
+            HotkeyAction.OCR_SAVE_IMAGE,
+            HotkeyAction.OCR_RECROP,
+            HotkeyAction.OCR_CANCEL -> Unit
         }
     }
 

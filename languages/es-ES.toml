@@ -373,6 +373,14 @@ action_swap_languages = "Intercambiar idiomas"
 action_open_settings = "Abrir ajustes"
 action_show_history = "Mostrar historial"
 action_translate_document = "Traducir documento"
+action_ocr_translate = "Traducir"
+action_ocr_copy_text = "Copiar texto"
+action_ocr_copy_image = "Copiar imagen"
+action_ocr_save_image = "Guardar imagen"
+action_ocr_recrop = "Recortar de nuevo"
+action_ocr_cancel = "Cancelar"
+ocr_group = "Atajos de la herramienta OCR"
+ocr_group_hint = "Atajos activos solo durante el recorte de pantalla. Doble clic o seleccionar y editar."
 scope_toggle_hint = "Haga clic para cambiar entre Global y Local"
 
 
@@ -406,6 +414,17 @@ double_ctrl_description = "Pulse Ctrl dos veces para mostrar la ventana principa
 
 
 [settings_translation]
+ocr_destination = "Destino de traducción OCR:"
+ocr_destination_popup = "Ventana emergente"
+ocr_destination_main = "Ventana principal"
+ocr_destination_hint = "Elige si la traducción de OCR se muestra en la ventana emergente flotante o en la ventana principal."
+remove_ocr_line_breaks = "Eliminar saltos de línea en el texto OCR"
+remove_ocr_line_breaks_hint = "Une las líneas de texto reconocidas por el OCR en un solo texto continuo."
+auto_copy_translation = "Copiar traducción automáticamente"
+auto_copy_off = "Desactivado"
+auto_copy_quick = "Solo ventana emergente"
+auto_copy_all = "Todas las traducciones"
+auto_copy_hint = "Copia los resultados de las traducciones terminadas al portapapeles. Las traducciones instantáneas no se copian."
 behavior_group = "Comportamiento"
 instant_translation = "Traducción instantánea (traducir mientras escribe)"
 instant_hint = "Inicia la traducción automáticamente cuando deja de escribir."

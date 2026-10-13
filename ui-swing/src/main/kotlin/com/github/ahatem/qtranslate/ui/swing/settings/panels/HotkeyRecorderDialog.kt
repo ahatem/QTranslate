@@ -77,6 +77,12 @@ internal object HotkeyRecorderDialog {
             HotkeyAction.OPEN_SETTINGS            -> localizer.getString("settings_hotkeys.action_open_settings")
             HotkeyAction.SHOW_HISTORY             -> localizer.getString("settings_hotkeys.action_show_history")
             HotkeyAction.TRANSLATE_DOCUMENT       -> localizer.getString("settings_hotkeys.action_translate_document")
+            HotkeyAction.OCR_TRANSLATE            -> localizer.getString("settings_hotkeys.action_ocr_translate")
+            HotkeyAction.OCR_COPY_TEXT            -> localizer.getString("settings_hotkeys.action_ocr_copy_text")
+            HotkeyAction.OCR_COPY_IMAGE           -> localizer.getString("settings_hotkeys.action_ocr_copy_image")
+            HotkeyAction.OCR_SAVE_IMAGE           -> localizer.getString("settings_hotkeys.action_ocr_save_image")
+            HotkeyAction.OCR_RECROP               -> localizer.getString("settings_hotkeys.action_ocr_recrop")
+            HotkeyAction.OCR_CANCEL               -> localizer.getString("settings_hotkeys.action_ocr_cancel")
         }
 
         // ── colours ──────────────────────────────────────────────────────────
