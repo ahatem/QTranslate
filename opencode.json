@@ -1,0 +1,26 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permissions": [
+    { "action": "shell", "resource": "*", "effect": "ask" },
+    { "action": "shell", "resource": "git status *", "effect": "allow" },
+    { "action": "shell", "resource": "git log *", "effect": "allow" },
+    { "action": "shell", "resource": "git diff *", "effect": "allow" },
+    { "action": "shell", "resource": "git branch *", "effect": "allow" },
+    { "action": "shell", "resource": "grep *", "effect": "allow" },
+
+    { "action": "shell", "resource": "git push *", "effect": "deny" },
+    { "action": "shell", "resource": "git -C * push *", "effect": "deny" },
+    { "action": "shell", "resource": "git -c * push *", "effect": "deny" },
+    { "action": "shell", "resource": "git --* push *", "effect": "deny" },
+
+    { "action": "shell", "resource": "git reset --hard *", "effect": "deny" },
+    { "action": "shell", "resource": "git -C * reset --hard *", "effect": "deny" },
+    { "action": "shell", "resource": "git -c * reset --hard *", "effect": "deny" },
+    { "action": "shell", "resource": "git --* reset --hard *", "effect": "deny" },
+
+    { "action": "shell", "resource": "git clean -f*", "effect": "deny" },
+    { "action": "shell", "resource": "git -C * clean -f*", "effect": "deny" },
+    { "action": "shell", "resource": "git -c * clean -f*", "effect": "deny" },
+    { "action": "shell", "resource": "git --* clean -f*", "effect": "deny" }
+  ]
+}

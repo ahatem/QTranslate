@@ -78,3 +78,6 @@ logs/
 # =============================================================================
 # Add local IDE or tool config files that should not be committed
 local.properties
+
+# Per-user AI agent overrides (shared agent config in .commandcode/ is committed)
+.commandcode/settings.local.json

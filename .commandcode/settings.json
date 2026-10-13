@@ -1,0 +1,44 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(.\\gradlew.bat:*)",
+      "Shell(gradlew.bat:*)",
+      "Shell(./gradlew:*)",
+      "Shell(gradlew:*)"
+    ],
+    "deny": [
+      "Shell(git push:*)",
+      "Shell(git * push:*)"
+    ],
+    "defaultMode": "default"
+  },
+  "attribution": {
+    "commit": ""
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .commandcode/hooks/guard-shell.mjs",
+            "timeout": 5,
+            "failClosed": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .commandcode/hooks/stop-preflight.mjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
