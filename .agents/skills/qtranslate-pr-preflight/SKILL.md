@@ -23,6 +23,10 @@ lineage (off `develop`, one concern), issue linkage (`Closes #NNN`).
   generated files touched.
 - Docs: README/wiki/CHANGELOG updated only if behavior changed; UI changes
   carry before/after screenshots; PR template filled truthfully.
+- OpenSpec: if this branch carried an OpenSpec change, the behavior in the
+  spec matches the implementation and its tests (`spec ↔ code ↔ tests` agree),
+  and the change is archived with `openspec-archive-change` here — on the
+  substantive branch, not in a later cleanup PR. Skip when no change exists.
 - Commits: Conventional Commits, imperative ≤72 chars, no AI/model/vendor
   attribution or trailers, no unrelated files.
 

@@ -1,0 +1,50 @@
+schema: spec-driven
+
+# Project context (optional)
+# Add only constraints that should guide OpenSpec artifacts and workflows.
+# Include constraints an agent cannot infer by reading the code.
+# Keep general project documentation and discoverable codebase facts out.
+# Example:
+#   context: |
+#     Designs and tasks must cover Windows, macOS, and Linux
+#     Write all artifacts in Spanish
+
+# QTranslate-specific constraints that specs must respect. Kept short on
+# purpose: discoverable codebase facts belong in AGENTS.md, not here.
+context: |
+  QTranslate is a Kotlin/Gradle Swing desktop app (Clean Architecture + MVI)
+  shipping on Windows, macOS, and Linux (X11 and Wayland).
+
+  Every spec that changes runtime behavior must state its platform impact.
+  Platform-specific behavior that was reasoned about but not executed must be
+  labelled as reasoned-only, never presented as verified.
+
+  These are R3 and must be called out explicitly in proposals and specs:
+  settings/config persistence and migration, global input and native boundary
+  work, the updater/installer, public plugin API (`:api`), and anything that
+  touches credentials or user text.
+
+  Product specs must never require committing user text, translation content,
+  API keys, tokens, or raw provider response bodies.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

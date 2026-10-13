@@ -38,11 +38,26 @@ Read before acting, as relevant (do not paste them into context wholesale):
 - `SECURITY.md` — vulnerability scope and private reporting channel
 - `wiki/Architecture.md` — module rules and layer diagram
 - `wiki/Releasing.md` — release process; `wiki/Creating-a-Plugin.md` — plugin guide
-- `docs/ai/WORKFLOW.md` — standard agentic workflow
+- `docs/ai/WORKFLOW.md` — canonical process definition
 
-Load on demand, not by default: `docs/ai/README.md` and
-`docs/ai/MODEL_ROUTING.md` matter only for AI tooling, agent-maintenance, or
-model-selection work.
+Load on demand, not by default: `docs/ai/DEVELOPMENT_PLAYBOOK.md` (human-facing
+recipe), `docs/ai/README.md`, and `docs/ai/MODEL_ROUTING.md` matter only for AI
+tooling, agent-maintenance, or model-selection work. `WORKFLOW.md` is
+authoritative; the playbook summarizes it and never overrides it.
+
+## Spec-driven behavior changes (OpenSpec)
+
+OpenSpec (`openspec/`, CLI `openspec`) records **agreed product behavior**.
+Exactly when it is required — and when it is not — is defined once in
+[`docs/ai/WORKFLOW.md`](docs/ai/WORKFLOW.md#when-openspec-is-required); follow
+that rather than restating it. Keep the two artifacts separate:
+
+- **OpenSpec** answers *what behavior did we agree to build or change?*
+- **`qtranslate-plan-change`** answers *how does this repository implement it
+  safely?*
+
+Never decide product behavior silently in code: if implementation reveals a
+decision, stop and update the spec first.
 
 ## Before editing
 

@@ -15,9 +15,14 @@ Maintainer guide to the agentic development environment. Product rules live in
 - **`.agents/skills/`** — the single canonical skill library (Agent Skills
   standard: `<name>/SKILL.md` + optional `references/`, `scripts/`,
   `assets/`). Discovered automatically by OpenCode **and** Command Code —
-  no per-vendor copies. For Claude Code, `CLAUDE.md` is the supported
-  integration; skill discovery there is deferred until it is verified
-  end-to-end, so do not add `.claude/skills` mirrors.
+  no per-vendor copies. Holds the QTranslate skills plus the vendor-neutral
+  `openspec-*` skills installed by `openspec init --tools agents`
+  (`propose`, `explore`, `apply-change`, `update-change`, `sync-specs`,
+  `archive-change`). It also holds `.openspec-target`, a CLI marker recording
+  which integration target was installed — **do not delete it**, or
+  `openspec update`/re-init detection breaks. For Claude Code, `CLAUDE.md` is
+  the supported integration; skill discovery there is deferred until it is
+  verified end-to-end, so do not add `.claude/skills` mirrors.
 - **`.opencode/agents/`** — OpenCode-native read-only auditors
   (`mode: subagent`, `edit: deny`, git/grep-only bash).
 - **`.commandcode/agents/`** — Command Code-native auditors (read-only tool
@@ -30,11 +35,33 @@ Maintainer guide to the agentic development environment. Product rules live in
   (`permissions` allow/ask/deny rules): shell asks by default, read-only Git
   inspection and `grep` pre-approved, Git push and the destructive
   `reset --hard` / `clean -f` forms denied. No model pins.
-- **`docs/ai/WORKFLOW.md`** — intake → risk → plan → implement → verify →
-  audit → preflight, plus worktree/parallel rules.
+- **`docs/ai/WORKFLOW.md`** — **canonical** process definition: intake → risk →
+  requirements → OpenSpec → plan → implement → verify → audit → preflight,
+  plus worktree/parallel rules.
+- **`docs/ai/DEVELOPMENT_PLAYBOOK.md`** — human-facing quick recipe. Summarizes
+  and links to `WORKFLOW.md`; never a second source of truth.
 - **`docs/ai/MODEL_ROUTING.md`** — non-canonical, dated model-selection lanes
   and evaluation rubric. Load it only for AI-tooling, routing, or
   agent-maintenance work; it is deliberately not default reading.
+
+## OpenSpec (spec-driven behavior)
+
+`openspec/` holds agreed **product behavior**; the CLI is `openspec`
+(v1.14.1). Installed with the vendor-neutral shared-agents integration, so the
+`openspec-*` skills live in the same `.agents/skills/` directory the other
+tools already discover — no per-vendor copies.
+
+| | OpenSpec | `qtranslate-plan-change` |
+|---|---|---|
+| Question | what behavior do we agree to build? | how does this repo implement it safely? |
+| Lives in | `openspec/specs/`, `openspec/changes/` | the plan / task list |
+
+When OpenSpec is required, and what it must stay separate from, is defined in
+[`WORKFLOW.md`](WORKFLOW.md#when-openspec-is-required).
+
+Project constraints for generated artifacts live in `openspec/config.yaml`
+(`context:`) — keep that short, and put discoverable codebase facts in
+`AGENTS.md` instead.
 
 ## How strong the shell policy actually is
 
@@ -76,7 +103,7 @@ guard — will not load at all. That is a single consistent rule, not a path bug
 
 | Tool | Looks at |
 |---|---|
-| OpenCode | `AGENTS.md` (walk-up), `.agents/skills/`, `.opencode/agents/`, `opencode.json` |
+| OpenCode | `AGENTS.md` (walk-up), `.agents/skills/` (incl. `openspec-*`), `.opencode/agents/`, `opencode.json` |
 | Command Code | `AGENTS.md` (memory), `.agents/skills/` (+ `.commandcode/skills/` wins on conflict), `.commandcode/agents/`, `.commandcode/settings.json` |
 | Claude Code | `CLAUDE.md` → `AGENTS.md`; skills deferred (see above) |
 
@@ -111,8 +138,11 @@ It must pass before the bootstrap changes are committed.
 ## Daily use
 
 - Trivial (typo, locale string): read the file, edit, `git diff --check`, done.
-- Normal bug/feature: `qtranslate-repo-intake` → `qtranslate-plan-change` (R1+
-  or unclear) → implement → `qtranslate-verify-change` → `qtranslate-review-diff`.
+- Normal bug/feature: follow [`WORKFLOW.md`](WORKFLOW.md) — it is canonical.
+  Short version: `qtranslate-repo-intake` → `qtranslate-diagnose-bug` for bugs,
+  add `qtranslate-requirements-interview` + OpenSpec for substantial new
+  behavior → `qtranslate-plan-change` → implement → `qtranslate-verify-change` →
+  `qtranslate-review-diff` → `qtranslate-pr-preflight`.
 - CI red: `qtranslate-ci-diagnosis` before touching code.
 - Settings/native/packaging/API/security: corresponding skill + R3 workflow +
   two auditors + `qtranslate-pr-preflight`. Never push; the user decides.
