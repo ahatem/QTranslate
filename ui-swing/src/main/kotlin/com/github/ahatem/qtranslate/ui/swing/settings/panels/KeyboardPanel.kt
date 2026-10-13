@@ -36,6 +36,12 @@ class KeyboardPanel(
     private lateinit var resetButton: JButton
     private lateinit var presetCombo: JComboBox<HotkeyPresetKind>
 
+    /**
+     * Every action listed here gets a row, and therefore can be rebound from this panel.
+     *
+     * SHOW_MAIN_WINDOW is deliberately absent: it has its own row above the table with Edit/Clear
+     * buttons and the Double Ctrl option, so a second row for it would edit the same binding twice.
+     */
     private val actionOrder = listOf(
         HotkeyAction.SHOW_QUICK_TRANSLATE,
         HotkeyAction.LISTEN_TO_TEXT,
@@ -47,7 +53,15 @@ class KeyboardPanel(
         HotkeyAction.TRANSLATE,
         HotkeyAction.FOCUS_INPUT,
         HotkeyAction.FOCUS_OUTPUT,
-        HotkeyAction.FOCUS_EXTRA_OUTPUT
+        HotkeyAction.FOCUS_EXTRA_OUTPUT,
+        // The window-local actions added in #159. They were bound, migrated and localized, but
+        // never listed here, so they worked on their defaults while being unconfigurable.
+        HotkeyAction.COPY_TRANSLATION,
+        HotkeyAction.CLEAR_INPUT,
+        HotkeyAction.SWAP_LANGUAGES,
+        HotkeyAction.OPEN_SETTINGS,
+        HotkeyAction.SHOW_HISTORY,
+        HotkeyAction.TRANSLATE_DOCUMENT
     )
 
     private val nonEditableActions    = emptySet<HotkeyAction>()
@@ -206,7 +220,8 @@ class KeyboardPanel(
             .insets(UIScale.scale(4), 0, 0, 0)
             .add(JScrollPane(table).apply {
                 border = themeAwareBorder()
-                // Every row and the header, so nothing is hidden behind a scrollbar by default.
+                // Every row and the header, so the table opens showing all of its actions and only
+                // grows a scrollbar once the panel no longer fits beside them.
                 preferredSize = Dimension(
                     UIScale.scale(TABLE_PREFERRED_WIDTH),
                     table.rowHeight * actionOrder.size + table.tableHeader.preferredSize.height + UIScale.scale(4)
