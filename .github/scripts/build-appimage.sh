@@ -174,7 +174,6 @@ if [[ ! -x "$runtime/bin/java" ]]; then
     exit 1
 fi
 echo "Bundled runtime: $("$runtime/bin/java" -version 2>&1 | head -1)"
-echo "Bundled runtime: $("$runtime/bin/java" -version 2>&1 | head -1)"
 
 # ---------------------------------------------------------------------------------------------
 # 3. Launcher, desktop entry, icon and AppStream metadata.
@@ -287,7 +286,9 @@ resolve_appimagetool() {
         return
     fi
     local downloaded="$output/appimagetool-$arch.AppImage"
-    echo "Downloading appimagetool ($arch continuous build)"
+    # Progress goes to stderr: this function's stdout is the tool path the caller captures, and a
+    # stray line there becomes part of the command name.
+    echo "Downloading appimagetool ($arch continuous build)" >&2
     curl -fsSL --retry 3 -o "$downloaded" \
         "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-$arch.AppImage"
     chmod +x "$downloaded"
