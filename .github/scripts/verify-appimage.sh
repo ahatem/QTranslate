@@ -80,12 +80,13 @@ fi
 echo "AppImage: $size_bytes bytes"
 
 # ---------------------------------------------------------------------------------------------
-# 2. Unpack it. --appimage-extract needs no FUSE; unsquashfs is the fallback for a runner whose
-#    runtime cannot start at all.
+# ---------------------------------------------------------------------------------------------
+# 2. Unpack it with the AppImage runtime, which needs no FUSE -- a container runner will not have
+#    any, and that is exactly the environment this job runs in.
 # ---------------------------------------------------------------------------------------------
 
-# The runtime unpacks the payload itself and needs no FUSE, which a container runner will not have.
-# It writes squashfs-root into the current directory, hence the subshell.
+# The runtime unpacks the payload itself and writes squashfs-root into the current directory,
+# hence the subshell.
 if ! (cd "$extract_dir" && "$image" --appimage-extract >/dev/null 2>&1) || [[ ! -d "$extract_dir/squashfs-root" ]]; then
     fail "could not unpack the AppImage: --appimage-extract produced no squashfs-root in $extract_dir"
 fi
