@@ -25,6 +25,16 @@ abstract class VerifyReleaseArtifactsTask : DefaultTask() {
     @get:Input
     abstract val requireMacHelpers: Property<Boolean>
 
+    /**
+     * Whether the Linux AppImage assembled by `.github/scripts/build-appimage.sh` must be present.
+     *
+     * Like the Windows ZIP it is packaged outside Gradle, so it is checked as an inventory entry with
+     * a matching checksum rather than as a metadata variant: the metadata hashes are written by a
+     * Gradle task that has already run by the time the AppImage exists.
+     */
+    @get:Input
+    abstract val requireLinuxAppImage: Property<Boolean>
+
     @TaskAction
     fun verify() {
         val root = releaseDirectory.get().asFile
@@ -102,6 +112,7 @@ abstract class VerifyReleaseArtifactsTask : DefaultTask() {
             add(app); add(portable); add("release-metadata.json"); add("SIZE_REPORT.md")
             expectedPlugins.forEach { add(it["file"] as String) }
             if (requireWindows.get()) add("QTranslate-$version-windows-x64.zip")
+            if (requireLinuxAppImage.get()) add("QTranslate-$version-linux-x86_64.AppImage")
         }
         val checksums = root.resolve("SHA256SUMS.txt").readLines().filter(String::isNotBlank).map { line ->
             val match = Regex("([0-9a-f]{64})  (.+)").matchEntire(line) ?: error("Malformed SHA256SUMS entry: $line")
