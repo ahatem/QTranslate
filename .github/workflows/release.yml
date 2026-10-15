@@ -195,9 +195,10 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      # squashfs-tools builds the AppImage payload; the rest are the native headers the build needs.
+      # squashfs-tools builds the AppImage payload; desktop-file-utils gives the verifier a real
+      # desktop-entry parser (it is otherwise skipped); the rest are the native headers the build needs.
       - name: Install Linux build tools
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev pkg-config squashfs-tools
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev pkg-config squashfs-tools desktop-file-utils
 
       - name: Extract version
         id: version

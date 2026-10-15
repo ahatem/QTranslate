@@ -296,8 +296,10 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Install squashfs tools
-        run: sudo apt-get update && sudo apt-get install -y squashfs-tools
+      # squashfs-tools unpacks the payload for the verifier, and desktop-file-utils gives it a real
+      # desktop-entry parser; without it that check is skipped.
+      - name: Install AppImage tools
+        run: sudo apt-get update && sudo apt-get install -y squashfs-tools desktop-file-utils
 
       - name: Package with the release script
         run: |
