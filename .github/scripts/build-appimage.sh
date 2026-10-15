@@ -43,15 +43,25 @@ jdk.unsupported,jdk.crypto.ec,jdk.localedata,jdk.zipfs"
 # correct in a taskbar, an application menu and a software centre alike.
 readonly ICON_SIZES=(16 24 32 48 64 128 256 512)
 
+# What readelf reports as the ELF machine for each supported --arch value. The bundled runtime is
+# checked against this, because an AppImage named -linux-aarch64 that carries an x86-64 java is a
+# packaging accident that only surfaces on the user's machine.
+declare -A ELF_MACHINE_FOR_ARCH=(
+    [x86_64]="Advanced Micro Devices X86-64"
+    [aarch64]="AArch64"
+)
+
 usage() {
     cat <<'USAGE'
 Usage:
   build-appimage.sh --version <ver> --portable-archive <zip> --output-directory <dir>
 
 Options:
-  --arch x86_64        Architecture tag for the runtime and the output name.
-  --appimagetool PATH  Path to an appimagetool binary or AppImage. Defaults to $APPIMAGETOOL,
-                       then an `appimagetool` on PATH, then a download of the continuous build.
+  --arch x86_64          Architecture tag for the runtime and the output name (x86_64, aarch64).
+  --appimagetool PATH    Path to an appimagetool binary or AppImage. Defaults to $APPIMAGETOOL,
+                         then an `appimagetool` on PATH, then a download of the continuous build.
+  --runtime-jdk HOME     Build the bundled runtime from this JDK's jmods instead of the JDK on PATH.
+                         For cross-architecture builds; CI builds each architecture natively.
 USAGE
     exit 2
 }
@@ -61,6 +71,7 @@ portable_archive=""
 output_directory=""
 arch="x86_64"
 appimagetool_path="${APPIMAGETOOL:-}"
+runtime_jdk=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -69,6 +80,7 @@ while [[ $# -gt 0 ]]; do
         --output-directory) output_directory="${2:-}"; shift 2 ;;
         --arch) arch="${2:-}"; shift 2 ;;
         --appimagetool) appimagetool_path="${2:-}"; shift 2 ;;
+        --runtime-jdk) runtime_jdk="${2:-}"; shift 2 ;;
         -h|--help) usage ;;
         *) echo "Unknown argument: $1" >&2; usage ;;
     esac
@@ -80,6 +92,48 @@ for required in version portable_archive output_directory; do
         usage
     fi
 done
+
+if [[ ! -v "ELF_MACHINE_FOR_ARCH[$arch]" ]]; then
+    echo "Unsupported --arch '$arch'; expected one of: ${!ELF_MACHINE_FOR_ARCH[*]}" >&2
+    exit 2
+fi
+
+if ! command -v jlink >/dev/null 2>&1; then
+    echo "jlink not found on PATH; a JDK 21 or newer is needed to build the bundled runtime" >&2
+    exit 1
+fi
+
+# readelf prints a machine name per ELF binary. It is how the script proves the runtime it bundled
+# matches --arch, and how it notices a cross-build.
+elf_machine() {
+    readelf -h "$1" 2>/dev/null | sed -n 's/^ *Machine:[[:space:]]*//p'
+}
+
+# The leading number of a JDK version string: 21.0.12.1 -> 21.
+feature_of() {
+    sed -n 's/^\([0-9]\{1,\}\).*/\1/p' <<<"$1"
+}
+
+host_machine="$(elf_machine "$(command -v jlink)")"
+
+if [[ -n "$runtime_jdk" ]]; then
+    runtime_jdk="$(readlink -f "$runtime_jdk")"
+    if [[ ! -x "$runtime_jdk/bin/java" || ! -d "$runtime_jdk/jmods" ]]; then
+        echo "--runtime-jdk must point at a JDK with a jmods directory: $runtime_jdk" >&2
+        exit 1
+    fi
+    source_machine="$(elf_machine "$runtime_jdk/bin/java")"
+else
+    source_machine="$host_machine"
+fi
+
+# jlink itself runs on the host but links the target's jmods, so a foreign JDK yields a foreign
+# runtime image. That is what makes an aarch64 AppImage buildable on an x86 host for examination;
+# CI still builds each architecture on its own runner.
+cross_build="no"
+if [[ "$source_machine" != "$host_machine" ]]; then
+    cross_build="yes"
+fi
 
 if [[ ! -f "$portable_archive" ]]; then
     echo "Portable archive not found: $portable_archive" >&2
@@ -138,13 +192,37 @@ cp -a "$distribution" "$appdir/$DISTRIBUTION_SUBDIR"
 
 readonly runtime="$appdir/$RUNTIME_SUBDIR"
 
+jlink_args=(--add-modules "$JLINK_MODULES" --no-header-files --no-man-pages)
+jlink_command=(jlink)
+if [[ -n "$runtime_jdk" ]]; then
+    if "$runtime_jdk/bin/jlink" --version >/dev/null 2>&1; then
+        # Native to this host, so its own jlink runs and already defaults to its own jmods.
+        jlink_command=("$runtime_jdk/bin/jlink")
+    else
+        # jlink refuses jmods from another feature release -- it checks the build signature inside
+        # java.base -- so a cross-build needs a host jlink of the same release as the target JDK,
+        # differing only in architecture.
+        target_feature="$(feature_of "$(sed -n 's/^JAVA_VERSION="\([^"]*\)".*/\1/p' "$runtime_jdk/release" | head -1)")"
+        host_feature="$(feature_of "$(jlink --version 2>/dev/null | head -1)")"
+        if [[ "$target_feature" != "$host_feature" ]]; then
+            echo "Cross-building a $arch runtime from JDK $target_feature needs a host jlink of the same feature release; the one on PATH is $host_feature" >&2
+            exit 1
+        fi
+        jlink_args+=(--module-path "$runtime_jdk/jmods")
+    fi
+fi
+if [[ "$cross_build" == "yes" ]]; then
+    # --strip-debug shells out to objcopy, which cannot parse a foreign-architecture .so. jlink
+    # reports that as a warning and still emits the image, so the option is simply left off: an
+    # unstripped cross-built runtime is a little larger, and CI never takes this path.
+    echo "Cross-building the $arch runtime: --strip-debug is skipped, objcopy cannot read foreign-architecture libraries"
+else
+    jlink_args+=(--strip-debug)
+fi
+
 build_runtime_image() {
     local compression="$1"
-    jlink \
-        --add-modules "$JLINK_MODULES" \
-        --strip-debug --no-header-files --no-man-pages \
-        --compress="$compression" \
-        --output "$runtime" 2>&1
+    "${jlink_command[@]}" "${jlink_args[@]}" --compress="$compression" --output "$runtime" 2>&1
 }
 
 # The spelling of the deflate mode has moved twice: JDK 21 accepts `zip`, later JDKs renamed it to
@@ -173,7 +251,17 @@ if [[ ! -x "$runtime/bin/java" ]]; then
     echo "jlink produced no runtime at $runtime" >&2
     exit 1
 fi
-echo "Bundled runtime: $("$runtime/bin/java" -version 2>&1 | head -1)"
+
+# The AppImage name promises an architecture; the runtime inside has to keep that promise.
+runtime_machine="$(elf_machine "$runtime/bin/java")"
+if [[ "$runtime_machine" != *"${ELF_MACHINE_FOR_ARCH[$arch]}"* ]]; then
+    echo "The bundled runtime is '$runtime_machine' but --arch is $arch (expected '${ELF_MACHINE_FOR_ARCH[$arch]}')" >&2
+    exit 1
+fi
+echo "Bundled runtime architecture: $runtime_machine"
+if [[ "$cross_build" == "no" ]]; then
+    echo "Bundled runtime: $("$runtime/bin/java" -version 2>&1 | head -1)"
+fi
 
 # ---------------------------------------------------------------------------------------------
 # 3. Launcher, desktop entry, icon and AppStream metadata.

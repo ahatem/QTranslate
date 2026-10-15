@@ -146,11 +146,26 @@ jobs:
   # runtime, so no system Java is needed. It is assembled from the same portable bundle, and the macOS
   # helpers are staged here for the same reason the Windows job stages them -- the system-services
   # plugin JAR inside the AppImage has to be the one the release publishes.
+  # The Linux counterpart of the Windows app image: one executable file that carries its own trimmed
+  # runtime, so no system Java is needed. It is assembled from the same portable bundle, and the macOS
+  # helpers are staged here for the same reason the Windows job stages them -- the system-services
+  # plugin JAR inside the AppImage has to be the one the release publishes.
+  #
+  # Each architecture is built on its own runner, so the runtime jlink produces is native to the
+  # architecture the file name promises.
   linux-appimage:
-    name: Build Linux AppImage
-    runs-on: ubuntu-latest
+    name: Build Linux AppImage (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     needs: macos-helper
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout
@@ -194,16 +209,16 @@ jobs:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
       - name: Assemble AppImage
-        run: ./.github/scripts/build-appimage.sh --version "${{ steps.version.outputs.version }}" --portable-archive "build/release/QTranslate-${{ steps.version.outputs.version }}.zip" --output-directory appimage-candidate
+        run: ./.github/scripts/build-appimage.sh --version "${{ steps.version.outputs.version }}" --arch "${{ matrix.arch }}" --portable-archive "build/release/QTranslate-${{ steps.version.outputs.version }}.zip" --output-directory appimage-candidate
 
       - name: Verify AppImage layout and packaged plugins
-        run: ./.github/scripts/verify-appimage.sh --version "${{ steps.version.outputs.version }}" --appimage "appimage-candidate/QTranslate-${{ steps.version.outputs.version }}-linux-x86_64.AppImage"
+        run: ./.github/scripts/verify-appimage.sh --version "${{ steps.version.outputs.version }}" --arch "${{ matrix.arch }}" --appimage "appimage-candidate/QTranslate-${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}.AppImage"
 
       - name: Upload AppImage
         uses: actions/upload-artifact@v7
         with:
-          name: qtranslate-linux-appimage
-          path: appimage-candidate/QTranslate-${{ steps.version.outputs.version }}-linux-x86_64.AppImage
+          name: qtranslate-linux-appimage-${{ matrix.arch }}
+          path: appimage-candidate/QTranslate-${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}.AppImage
           if-no-files-found: error
 
   release:
@@ -255,22 +270,29 @@ jobs:
           name: qtranslate-windows-x64
           path: build/release
 
-      - name: Download Linux AppImage
+      - name: Download Linux AppImage (x86_64)
         uses: actions/download-artifact@v8
         with:
-          name: qtranslate-linux-appimage
+          name: qtranslate-linux-appimage-x86_64
           path: build/release
 
-      # Both platform artifacts are packaged outside Gradle, so their checksums join the manifest
-      # here, and verifyReleaseArtifacts then proves the inventory is exactly complete.
+      - name: Download Linux AppImage (ARM64)
+        uses: actions/download-artifact@v8
+        with:
+          name: qtranslate-linux-appimage-aarch64
+          path: build/release
+
+      # Platform artifacts are packaged outside Gradle, so their checksums join the manifest here,
+      # and verifyReleaseArtifacts then proves the inventory is exactly complete.
       - name: Add platform artifact checksums
         run: |
           cd build/release
           sha256sum "QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip" >> SHA256SUMS.txt
           sha256sum "QTranslate-${{ steps.version.outputs.version }}-linux-x86_64.AppImage" >> SHA256SUMS.txt
+          sha256sum "QTranslate-${{ steps.version.outputs.version }}-linux-aarch64.AppImage" >> SHA256SUMS.txt
 
       - name: Verify release inventory and checksums before publishing
-        run: ./gradlew verifyReleaseArtifacts "-PreleaseVersion=${{ steps.version.outputs.version }}" -PrequireWindowsArtifact=true -PrequireLinuxAppImage=true -PrequireMacHelpers=true --no-daemon
+        run: ./gradlew verifyReleaseArtifacts "-PreleaseVersion=${{ steps.version.outputs.version }}" -PrequireWindowsArtifact=true "-PlinuxAppImageArches=x86_64,aarch64" -PrequireMacHelpers=true --no-daemon
 
       - name: Generate changelog
         id: changelog
@@ -327,7 +349,8 @@ jobs:
             | Download | Who it is for | Java needed |
             |---|---|---|
             | **[⬇ Windows (.exe)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip)** | **Start here on Windows.** Extract and run `QTranslate.exe`. | No — runtime included |
-            | **[⬇ Linux (AppImage)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/QTranslate-${{ steps.version.outputs.version }}-linux-x86_64.AppImage)** | **Start here on Linux.** `chmod +x` the download and run it. | No — runtime included |
+            | **[⬇ Linux AppImage (x86_64)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/QTranslate-${{ steps.version.outputs.version }}-linux-x86_64.AppImage)** | **Start here on Linux.** `chmod +x` the download and run it. | No — runtime included |
+            | **[⬇ Linux AppImage (ARM64)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/QTranslate-${{ steps.version.outputs.version }}-linux-aarch64.AppImage)** | Raspberry Pi 4/5, Arm laptops and other 64-bit Arm Linux machines. | No — runtime included |
             | **[⬇ Portable (all platforms)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/QTranslate-${{ steps.version.outputs.version }}.zip)** | macOS, or any platform where you want the files in the open. Extract and run `QTranslate.jar`. | Java 17+ |
             | **[⬇ App only (.jar)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/QTranslate-App-${{ steps.version.outputs.version }}.jar)** | No plugins. For custom setups and plugin development. | Java 17+ |
 
@@ -348,6 +371,7 @@ jobs:
             build/release/QTranslate-${{ steps.version.outputs.version }}.zip
             build/release/QTranslate-${{ steps.version.outputs.version }}-windows-x64.zip
             build/release/QTranslate-${{ steps.version.outputs.version }}-linux-x86_64.AppImage
+            build/release/QTranslate-${{ steps.version.outputs.version }}-linux-aarch64.AppImage
             build/release/plugins/*.jar
             build/release/release-metadata.json
             build/release/SIZE_REPORT.md

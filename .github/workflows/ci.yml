@@ -266,10 +266,18 @@ jobs:
           if-no-files-found: error
 
   appimage-candidate:
-    name: Linux AppImage candidate
-    runs-on: ubuntu-latest
+    name: Linux AppImage candidate (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     needs: release-variants
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout
@@ -297,16 +305,16 @@ jobs:
           test "${#archive[@]}" -eq 1
           version="${archive[0]#candidate/QTranslate-}"; version="${version%.zip}"
           echo "version=$version" >> "$GITHUB_ENV"
-          ./.github/scripts/build-appimage.sh --version "$version" --portable-archive "${archive[0]}" --output-directory build/appimage-candidate
+          ./.github/scripts/build-appimage.sh --version "$version" --arch "${{ matrix.arch }}" --portable-archive "${archive[0]}" --output-directory build/appimage-candidate
 
       - name: Verify AppImage layout and packaged plugins
-        run: ./.github/scripts/verify-appimage.sh --version "${{ env.version }}" --appimage "build/appimage-candidate/QTranslate-${{ env.version }}-linux-x86_64.AppImage"
+        run: ./.github/scripts/verify-appimage.sh --version "${{ env.version }}" --arch "${{ matrix.arch }}" --appimage "build/appimage-candidate/QTranslate-${{ env.version }}-linux-${{ matrix.arch }}.AppImage"
 
       - name: Upload AppImage candidate
         uses: actions/upload-artifact@v7
         with:
-          name: qtranslate-linux-appimage-candidate
-          path: build/appimage-candidate/QTranslate-${{ env.version }}-linux-x86_64.AppImage
+          name: qtranslate-linux-appimage-candidate-${{ matrix.arch }}
+          path: build/appimage-candidate/QTranslate-${{ env.version }}-linux-${{ matrix.arch }}.AppImage
           if-no-files-found: error
 
   release-inventory:
@@ -339,15 +347,20 @@ jobs:
           path: build/release
       - uses: actions/download-artifact@v8
         with:
-          name: qtranslate-linux-appimage-candidate
+          name: qtranslate-linux-appimage-candidate-x86_64
+          path: build/release
+      - uses: actions/download-artifact@v8
+        with:
+          name: qtranslate-linux-appimage-candidate-aarch64
           path: build/release
       - name: Verify exact artifacts and checksums
         run: |
           cd build/release
           sha256sum QTranslate-*-windows-x64.zip >> SHA256SUMS.txt
           sha256sum QTranslate-*-linux-x86_64.AppImage >> SHA256SUMS.txt
+          sha256sum QTranslate-*-linux-aarch64.AppImage >> SHA256SUMS.txt
           cd ../..
-          ./gradlew verifyReleaseArtifacts -PrequireWindowsArtifact=true -PrequireLinuxAppImage=true -PrequireMacHelpers=true --no-daemon
+          ./gradlew verifyReleaseArtifacts -PrequireWindowsArtifact=true "-PlinuxAppImageArches=x86_64,aarch64" -PrequireMacHelpers=true --no-daemon
 
   macos-candidate:
     name: macOS portable candidate

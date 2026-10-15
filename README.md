@@ -32,7 +32,7 @@ Free and open source · Windows, macOS, Linux · Plugins for local and cloud ser
 | Platform | Get this from the [latest release](https://github.com/ahatem/QTranslate/releases/latest) | Run |
 |---|---|---|
 | Windows | `QTranslate-<version>-windows-x64.zip` | Extract and open `QTranslate.exe`. Java is included. |
-| Linux | `QTranslate-<version>-linux-x86_64.AppImage` | `chmod +x` the file and run it. Java is included. |
+| Linux | `QTranslate-<version>-linux-x86_64.AppImage` (or `-linux-aarch64.AppImage` on Arm) | `chmod +x` the file and run it. Java is included. |
 | macOS | `QTranslate-<version>.zip` | Install Java 17+, extract, and open `QTranslate.jar`. |
 
 The ZIP packages include the bundled plugins, languages, themes, and icon sets. The standalone app JAR is for an existing or manually assembled setup. [Installation details](#installation) · [First shortcuts](#quick-start)
@@ -195,7 +195,8 @@ All downloads live on the [**latest release page**](https://github.com/ahatem/QT
 | Your platform | Download | Java required |
 |---|---|---|
 | **Windows** | `QTranslate-<version>-windows-x64.zip` | **No** — Java is included |
-| **Linux** | `QTranslate-<version>-linux-x86_64.AppImage` | **No** — Java is included |
+| **Linux (x86_64)** | `QTranslate-<version>-linux-x86_64.AppImage` | **No** — Java is included |
+| **Linux (ARM64)** | `QTranslate-<version>-linux-aarch64.AppImage` | **No** — Java is included |
 | **macOS** | `QTranslate-<version>.zip` | Java 17+ |
 | **Any (app only, no plugins)** | `QTranslate-App-<version>.jar` | Java 17+ |
 
@@ -211,8 +212,10 @@ No Java installation needed — the package ships its own trimmed runtime.
 
 ### Linux
 
-1. Download `QTranslate-<version>-linux-x86_64.AppImage`
-2. Make it executable: `chmod +x QTranslate-<version>-linux-x86_64.AppImage`
+1. Download the AppImage for your CPU: `QTranslate-<version>-linux-x86_64.AppImage` on ordinary
+   desktop hardware, `QTranslate-<version>-linux-aarch64.AppImage` on Raspberry Pi 4/5, Arm laptops
+   and other 64-bit Arm machines
+2. Make it executable: `chmod +x QTranslate-<version>-linux-*.AppImage`
 3. Run it
 
 The AppImage carries its own trimmed runtime, so nothing else has to be installed. It is a single
