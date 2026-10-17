@@ -72,7 +72,7 @@ internal object ShapedText {
     }
 
     /** The font-fallback pass runs on a timer; waits until it has stopped rewriting runs. */
-    private fun awaitFontRuns(pane: AdvancedTextPane, timeoutMs: Long = 5000) {
+    fun awaitFontRuns(pane: AdvancedTextPane, timeoutMs: Long = 5000) {
         val deadline = System.currentTimeMillis() + timeoutMs
         var last: String? = null
         var stable = 0

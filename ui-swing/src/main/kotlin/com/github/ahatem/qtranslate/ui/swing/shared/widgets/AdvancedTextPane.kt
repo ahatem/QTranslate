@@ -292,8 +292,8 @@ class AdvancedTextPane(
 
     override fun paintComponent(g: Graphics) {
         // Painted on a copy. Rendering hints set on the Graphics Swing handed us outlive this
-        // method and change how sibling components are drawn afterwards; AdvancedCaret already
-        // saves and restores for the same reason, and this half of the file did not.
+        // method and change how sibling components are drawn afterwards, and this half of the file
+        // did not save and restore them.
         val g2 = g.create() as Graphics2D
         try {
             // Antialiasing only. `FRACTIONALMETRICS` is deliberately left exactly as Swing handed it

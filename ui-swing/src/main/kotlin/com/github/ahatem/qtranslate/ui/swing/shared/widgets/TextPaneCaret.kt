@@ -1,29 +1,31 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
-import com.formdev.flatlaf.util.UIScale
-import java.awt.BasicStroke
-import java.awt.Color
+import com.github.ahatem.qtranslate.ui.swing.shared.textpane.CaretGeometry
 import java.awt.Graphics
 import java.awt.Graphics2D
-import java.awt.RenderingHints
 import javax.swing.text.BadLocationException
 import javax.swing.text.DefaultCaret
-import javax.swing.text.Position
-import kotlin.math.roundToInt
 
 /**
- * A wider, vertically inset caret for comfortable reading.
+ * The caret, drawn as a rectangle on the display's pixel grid and sized to the text it sits in.
  *
- * Only the appearance is custom. Blinking is left to [DefaultCaret], which starts and stops its
- * flasher with focus and editability; a second timer would run regardless of focus and compete
- * with it for visibility.
+ * Only the appearance is custom. Blinking, focus and selection all stay with [DefaultCaret], which
+ * already starts and stops its flasher with focus and editability; a second timer would run
+ * regardless of focus and compete with it for visibility.
  *
- * Dimensions are in logical pixels and scaled for the display.
+ * Where the caret goes remains Swing's decision and not this class's. The position comes from the
+ * text UI at the caret's own bias, so it lands on exactly the boundary the editor answers
+ * hit-testing with, including inside ligatures, combining marks and bidirectional text.
+ *
+ * The rectangle stays inside the row the text UI reported. That is the area Swing repaints when the
+ * caret blinks and moves, so anything painted outside it would survive as a trail, and the superclass
+ * sizes that area without knowing how wide this caret is.
+ *
+ * See [CaretGeometry] for why the rectangle is resolved in device pixels.
  */
 class AdvancedCaret(
-    private val caretWidth: kotlin.Float = 3f,
+    private val nominalWidth: Int = CaretGeometry.NOMINAL_WIDTH,
     blinkRate: Int = 600,
-    private val verticalInset: kotlin.Float = 3f
 ) : DefaultCaret() {
 
     init { setBlinkRate(blinkRate) }
@@ -33,27 +35,38 @@ class AdvancedCaret(
         val comp = component ?: return
         val g2 = g as? Graphics2D ?: return
 
-        val oldStroke = g2.stroke
-        val oldColor  = g2.color
-        val oldHints  = g2.renderingHints
-
-        try {
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF)
-            g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_OFF)
-            g2.stroke = BasicStroke(UIScale.scale(caretWidth))
-            g2.color  = comp.caretColor
-
-            val inset = UIScale.scale(verticalInset)
-            val viewRect = comp.ui.modelToView2D(comp, dot, Position.Bias.Forward) ?: return
-            val x      = viewRect.x.roundToInt()
-            val yStart = (viewRect.y + inset).roundToInt()
-            val yEnd   = (viewRect.y + viewRect.height - inset).roundToInt()
-            g2.drawLine(x, yStart, x, yEnd)
+        // The caret's own bias rather than a hardcoded Forward. Where two graphemes meet, Forward and
+        // Backward resolve to different boundaries, and the caret has to sit on the one the caret
+        // itself reports, because that is the one a click is answered against.
+        val row = try {
+            comp.ui.modelToView2D(comp, dot, dotBias) ?: return
         } catch (_: BadLocationException) {
+            return
+        }
+        if (row.width == 0.0 && row.height == 0.0) return
+
+        val oldColor = g2.color
+        val oldTransform = g2.transform
+        try {
+            g2.color = comp.caretColor
+
+            // The component's own font, which is the document's primary font, so the caret keeps one
+            // height for the whole document rather than one per font run.
+            val metrics = comp.getFontMetrics(comp.font)
+            val placement = CaretGeometry.place(
+                rowX = row.x,
+                rowY = row.y,
+                rowHeight = row.height,
+                ascent = metrics.ascent,
+                descent = metrics.descent,
+                transform = oldTransform,
+                nominalWidth = nominalWidth,
+            )
+            g2.transform = CaretGeometry.transformFor(placement)
+            g2.fillRect(placement.x, placement.y, placement.width, placement.height)
         } finally {
-            g2.stroke = oldStroke
-            g2.color  = oldColor
-            g2.setRenderingHints(oldHints)
+            g2.transform = oldTransform
+            g2.color = oldColor
         }
     }
 }
