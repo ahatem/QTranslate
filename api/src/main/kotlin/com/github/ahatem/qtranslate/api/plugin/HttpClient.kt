@@ -1,6 +1,8 @@
 package com.github.ahatem.qtranslate.api.plugin
 
+import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
+
 
 /**
  * Makes HTTP requests on a plugin's behalf.
@@ -88,4 +90,18 @@ public interface HttpClient {
         queryParams: Map<String, Any?> = emptyMap(),
         cookies: Map<String, String> = emptyMap()
     ): Result<ByteArray, ServiceError>
+
+    /**
+     * Performs a POST request with raw bytes and returns the response body as raw bytes.
+     *
+     * Used for binary protocols such as Protobuf, audio uploads or octet-stream payloads.
+     */
+    public suspend fun postBytes(
+        url: String,
+        headers: Map<String, String> = emptyMap(),
+        body: ByteArray? = null,
+        queryParams: Map<String, Any?> = emptyMap()
+    ): Result<ByteArray, ServiceError> =
+        Err(ServiceError.UnknownError("postBytes not supported by this transport"))
 }
+

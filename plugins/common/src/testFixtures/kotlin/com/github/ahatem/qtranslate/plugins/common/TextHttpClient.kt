@@ -39,7 +39,15 @@ abstract class TextHttpClient : HttpClient {
         cookies: Map<String, String>
     ): Result<ByteArray, ServiceError> = notArranged("postFormBytes", url)
 
+    override suspend fun postBytes(
+        url: String,
+        headers: Map<String, String>,
+        body: ByteArray?,
+        queryParams: Map<String, Any?>
+    ): Result<ByteArray, ServiceError> = notArranged("postBytes", url)
+
     private fun notArranged(call: String, url: String): Nothing =
+
         error("${this::class.simpleName} received an unarranged $call for $url")
 }
 

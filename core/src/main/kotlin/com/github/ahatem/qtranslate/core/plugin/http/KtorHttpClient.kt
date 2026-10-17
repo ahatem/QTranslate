@@ -331,6 +331,35 @@ internal class KtorHttpClient(
         }
     }
 
+    override suspend fun postBytes(
+        url: String,
+        headers: Map<String, String>,
+        body: ByteArray?,
+        queryParams: Map<String, Any?>
+    ): Result<ByteArray, ServiceError> = withContext(Dispatchers.IO) {
+        try {
+            val response: HttpResponse = client.post(url) {
+                applyHostTimeout(url)
+                headers.forEach { (key, value) -> header(key, value) }
+                queryParams.forEach { (key, value) ->
+                    value?.let { parameter(key, it.toString()) }
+                }
+                if (body != null) {
+                    val contentType = headers["Content-Type"] ?: "application/octet-stream"
+                    contentType(ContentType.parse(contentType))
+                    setBody(body)
+                }
+            }
+            handleResponseBytes(response, url)
+        } catch (e: HttpRequestTimeoutException) {
+            logger.error("POST bytes request timeout for $url", e)
+            Err(ServiceError.TimeoutError("Request timed out: $url", e))
+        } catch (e: Exception) {
+            logger.error("POST bytes request failed for $url", e)
+            Err(ServiceError.NetworkError("Network error: ${e.message}", e))
+        }
+    }
+
     // ========== RESPONSE HANDLING ==========
 
     private fun retryAfterSeconds(response: HttpResponse): Int? {
