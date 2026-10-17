@@ -296,8 +296,14 @@ class AdvancedTextPane(
         // saves and restores for the same reason, and this half of the file did not.
         val g2 = g.create() as Graphics2D
         try {
+            // Antialiasing only. `FRACTIONALMETRICS` is deliberately left exactly as Swing handed it
+            // over, because the text UI measured this text already: the views lay a row out through
+            // the component's own `FontMetrics`, which uses integer advances. Turning the hint on here
+            // made the glyphs advance by fractional amounts instead, and the difference between the
+            // two policies accumulates along a line, so the drawn text ended up several pixels past
+            // the measured span and past the pane edge. Painting with the same policy the layout was
+            // built around keeps the two in step.
             g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
-            g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON)
             super.paintComponent(g2)
 
             // Use document.length (O(1)) instead of text.length (O(n) serialisation).
