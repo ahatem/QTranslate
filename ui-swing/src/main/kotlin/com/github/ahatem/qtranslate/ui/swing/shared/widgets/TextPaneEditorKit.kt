@@ -208,7 +208,7 @@ class WrappingEditorKit : StyledEditorKit() {
             val p0 = startOffset
             val fit = runCatching { fittingEnd(p0, pos, len) }.getOrDefault(p0)
             if (fit <= p0) return BadBreakWeight
-            val spot = LineBreakOpportunities.lastIn(document, p0, hangingEnd(fit))
+            val spot = LineBreakOpportunities.lastIn(document, p0, fit)
             return if (spot > p0) ExcellentBreakWeight else GoodBreakWeight
         }
 
@@ -227,7 +227,10 @@ class WrappingEditorKit : StyledEditorKit() {
         }
 
         private fun breakAt(p0: Int, fit: Int): View {
-            val spot = LineBreakOpportunities.lastIn(document, p0, hangingEnd(fit))
+            // Only a break at or before the last position that fits: a row's preferred span may not
+            // exceed the length it was given (#374). The JDK's own GlyphView draws the same line —
+            // a break spot inside the bounded region, else a fragment ending at the bound.
+            val spot = LineBreakOpportunities.lastIn(document, p0, fit)
             var end = if (spot > p0) spot else fit
             // Never an empty fragment: a line has to make progress, even if one cluster overflows it.
             if (end <= p0) end = clusterCutsFrom(p0, endOffset).firstOrNull() ?: endOffset
@@ -239,13 +242,6 @@ class WrappingEditorKit : StyledEditorKit() {
         private fun fittingEnd(p0: Int, pos: Float, len: Float): Int {
             val painter = unsound() ?: run { checkPainter(); glyphPainter }
             return safeBreakEnd(p0, painter.getBoundedPosition(this, p0, pos, len))
-        }
-
-        /** [fit] extended over the spaces after it, which hang past the line's end. */
-        private fun hangingEnd(fit: Int): Int {
-            var end = fit
-            while (end < endOffset && Character.getType(document.getText(end, 1)[0]) == Character.SPACE_SEPARATOR.toInt()) end++
-            return end
         }
 
         /** [proposedEnd] moved back to the nearest grapheme-cluster boundary at or below it. */
