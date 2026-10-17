@@ -39,7 +39,7 @@ class CaretGeometryTest {
         CaretGeometry.place(rowX, 6.0, rowHeight, ascent, descent, transform(scale))
 
     @Test
-    fun `the caret is two device pixels at 100% and stays proportionate as the display grows`() {
+    fun `the caret is two device pixels at 100 percent and stays proportionate as the display grows`() {
         // Three whole device pixels at 100% is what read as heavy. It also tripled through the
         // display scale, so the caret was twelve device pixels wide at 200%.
         scales.forEach { scale ->
@@ -281,7 +281,7 @@ class CaretPaintingTest {
     }
 
     @Test
-    fun `a painted caret is two device pixels at 100% and stays proportionate as the display grows`() {
+    fun `a painted caret is two device pixels at 100 percent and stays proportionate as the display grows`() {
         val pane = pane()
         scales.forEach { scale ->
             val width = painted(pane, 12, scale).width
