@@ -336,5 +336,10 @@ tasks.register<VerifyReleaseArtifactsTask>("verifyReleaseArtifacts") {
             "bundledFile" to plugin.bundledFileName)
     }))
     requireWindows.set(providers.gradleProperty("requireWindowsArtifact").map(String::toBoolean).orElse(false))
+    linuxAppImageArches.set(
+        providers.gradleProperty("linuxAppImageArches")
+            .map { value -> value.split(',').map(String::trim).filter(String::isNotBlank) }
+            .orElse(emptyList()),
+    )
     requireMacHelpers.set(providers.gradleProperty("requireMacHelpers").map(String::toBoolean).orElse(false))
 }
