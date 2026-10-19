@@ -5,13 +5,24 @@ import io.github.ahatem.qinput.AwtPortableKeys
 import kotlinx.coroutines.delay
 
 /**
- * Waits until a trigger chord is physically neutral before synthetic Copy begins.
+ * Waits until a set of physical keys reads up before a synthetic chord is injected.
  *
- * Neutral means the trigger's main key AND every modifier that could contaminate a Ctrl+C
- * observation are all physically up, read through a focus-independent synchronous query
- * (`GetAsyncKeyState` on Windows). The Copy modifier (Ctrl) itself is exempt: holding it is
- * harmless because injection preserves requested Ctrl and the target still observes Ctrl+C,
- * while a held Shift would turn the copy into Ctrl+Shift+C at the target.
+ * Neutral means the watched keys are all physically up, read through a focus-independent
+ * synchronous query (`GetAsyncKeyState` on Windows). What belongs in the watched set depends on
+ * the chord about to be injected:
+ *
+ * - a hotkey trigger chord: the trigger's main key plus every modifier that could contaminate
+ *   a Ctrl+C observation — the trigger key and Shift/Alt/Meta must all be released;
+ * - the paste chord: the paste key plus every contaminating modifier outside the chord's own
+ *   modifier family;
+ * - the Copy chord, for a capture with no trigger of its own (a mouse gesture, a Double Ctrl
+ *   sequence): the Copy key plus every contaminating modifier outside the chord's own modifier
+ *   family. A held Shift would turn the copy into Ctrl+Shift+C at the target, which is the
+ *   browser's DevTools shortcut.
+ *
+ * The Copy modifier (Ctrl) itself is exempt in the chord-derived sets: holding it is harmless
+ * because injection preserves requested Ctrl and the target still observes Ctrl+C, while a held
+ * Shift would turn the copy into Ctrl+Shift+C at the target.
  *
  * Keys are portable QInput usages, not platform virtual keys; the backend translates them.
  * The watched set is queried as one batch, so a poll costs one backend query rather than one per
@@ -19,7 +30,7 @@ import kotlinx.coroutines.delay
  *
  * The wait is bounded and exists only for the lifetime of one pending capture: there is no
  * idle polling loop. On timeout the caller fails the capture cleanly instead of injecting
- * a contaminated copy.
+ * a contaminated chord.
  */
 class TriggerNeutralizer(
     private val anyDown: (usages: List<Int>) -> Boolean,
@@ -44,8 +55,8 @@ class TriggerNeutralizer(
     }
 
     /**
-     * Waits for an explicit portable-usage set to read up. Used by paste injection, whose
-     * watched set is derived from the paste chord rather than a hotkey binding.
+     * Waits for an explicit portable-usage set to read up. Used by the paste and copy
+     * injections, whose watched set is derived from the chord rather than from a hotkey binding.
      */
     suspend fun awaitNeutralUsages(watched: List<Int>): Boolean {
         val distinct = watched.distinct()

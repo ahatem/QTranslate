@@ -22,6 +22,8 @@ internal fun interface CopyInjector {
 internal class RobotCopyInjector(
     private val logger: Logger,
     private val driverFactory: () -> RobotKeyDriver = { AwtRobotKeyDriver() },
+    /** Whether the Copy chord is Cmd+C rather than Ctrl+C. */
+    private val isMac: Boolean = QInputCopyInjector.currentPlatformIsMac(),
 ) : CopyInjector {
 
     override fun injectCopy(): Boolean {
@@ -31,7 +33,7 @@ internal class RobotCopyInjector(
             logger.warn("Copy simulation failed: could not create a Robot")
             return false
         }
-        val copyModifier = if (QInputCopyInjector.currentPlatformIsMac()) {
+        val copyModifier = if (isMac) {
             KeyEvent.VK_META
         } else {
             KeyEvent.VK_CONTROL
@@ -101,5 +103,19 @@ internal class QInputCopyInjector(
         fun copyChord(isMac: Boolean): Pair<List<Int>, Int> =
             if (isMac) listOf(QInputKey.MOD_LEFT_META) to QInputKey.C
             else listOf(QInputKey.MOD_LEFT_CONTROL) to QInputKey.C
+
+        /**
+         * Keys that must read up before the Copy chord is injected: the Copy key plus every
+         * modifier that could contaminate it, excluding the chord's own modifier family.
+         *
+         * The family is platform-dependent, and so is the contamination: on Windows and Linux
+         * the chord is Ctrl+C, so Ctrl is exempt while Shift, Alt and Meta contaminate it; on
+         * macOS the chord is Cmd+C, so Cmd is exempt while Ctrl becomes a contaminant of its
+         * own. Both sides of every contaminating modifier are watched.
+         */
+        fun copyWatchedSet(isMac: Boolean): List<Int> {
+            val (modifiers, key) = copyChord(isMac)
+            return ChordNeutralization.watchedSet(modifiers, key)
+        }
     }
 }

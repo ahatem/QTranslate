@@ -79,11 +79,7 @@ internal class QInputPasteInjector(
          */
         fun pasteWatchedSet(isMac: Boolean): List<Int> {
             val (chordMods, key) = platformPasteChord(isMac)
-            val exempt = chordMods.toSet()
-            val contaminants = QInputKey.ALL_MODIFIERS.filterNot { usage ->
-                exempt.any { QInputKey.isSameModifierFamily(it, usage) }
-            }
-            return (listOf(key) + contaminants).distinct()
+            return ChordNeutralization.watchedSet(chordMods, key)
         }
     }
 }

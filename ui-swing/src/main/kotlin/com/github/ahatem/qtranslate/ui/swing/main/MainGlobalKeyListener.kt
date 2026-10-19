@@ -71,17 +71,35 @@ class MainGlobalKeyListener(
         simulateCopy: suspend () -> Boolean,
         logger: Logger,
     ) -> SelectionCapture)? = null,
+    /** Whether the platform's Copy chord is Cmd+C rather than Ctrl+C. */
+    private val isMac: Boolean = QInputCopyInjector.currentPlatformIsMac(),
 ) {
 
     private var backend: GlobalInputBackend? = null
     private val detector = DoubleCtrlDetector()
     private val gestureTracker = SelectionGestureTracker()
-    internal var copyInjector: CopyInjector = RobotCopyInjector(logger)
+    internal var copyInjector: CopyInjector = RobotCopyInjector(logger, isMac = isMac)
     private val neutralizer = TriggerNeutralizer(
         anyDown = { usages ->
-            runCatching { backend?.anyKeyDown(usages) ?: false }.getOrDefault(true)
+            val target = backend
+            // A missing backend means the runtime is gone: nothing can be observed, so
+            // nothing can be proven neutral. Fail closed, like a failed query.
+            if (target == null) true
+            else runCatching { target.anyKeyDown(usages) }.getOrDefault(true)
         }
     )
+
+    /**
+     * The physical keys that must read up before a synthetic Copy may be injected into another
+     * application: the Copy key plus every modifier that could contaminate the chord.
+     *
+     * The chord's own modifier family is exempt, so a held Ctrl never blocks a Ctrl+C. Every
+     * other modifier does contaminate it, which is why they are all watched.
+     */
+    private val copyWatchedUsages: List<Int> = QInputCopyInjector.copyWatchedSet(isMac)
+
+    /** Whether the "no key-state query" gap has already been reported; the warning is once-only. */
+    private val copyNeutralizationUnavailableReported = AtomicBoolean(false)
     private val systemClipboard = AwtSystemClipboard()
     private val selectionCapture = selectionCaptureFactory?.invoke(
         systemClipboard,
@@ -160,7 +178,7 @@ class MainGlobalKeyListener(
             try {
                 val created = (backendFactory ?: { QInputBackend(logger) })()
                 backend = created
-                copyInjector = QInputCopyInjector({ backend }, logger)
+                copyInjector = QInputCopyInjector({ backend }, logger, isMac = isMac)
                 created.setListener { handleGlobalEvent(it) }
                 logger.info("Global input backend: ${created.backendName} ${created.capabilities}")
                 reportCapabilities(created.capabilities)
@@ -272,7 +290,10 @@ class MainGlobalKeyListener(
             logger.warn("Global input backend has no global mouse motion; selection drag detection is unavailable")
         }
         if (!caps.keyState) {
-            logger.debug("Global input backend has no key-state query; hotkey captures proceed without trigger neutralization")
+            logger.debug(
+                "Global input backend has no key-state query; hotkey captures proceed without " +
+                    "trigger neutralization and selection captures proceed without copy neutralization"
+            )
         }
     }
 
@@ -532,6 +553,53 @@ class MainGlobalKeyListener(
         routeResult(action, captureSelection())
     }
 
+    /**
+     * Waits until no physically held modifier can contaminate the synthetic Copy.
+     *
+     * The capture paths that have no trigger chord of their own — the mouse gesture and the
+     * Double Ctrl sequence — would otherwise inject the Copy while the user is still holding a
+     * modifier. A held Shift turns the intended Ctrl+C into Ctrl+Shift+C, which is the
+     * browser's DevTools shortcut: the capture would open a developer panel in the user's
+     * browser instead of copying. The same applies to Alt and Meta, and to the Copy key
+     * itself.
+     *
+     * Returns true when the Copy may be injected: either the watched keys read up, or the
+     * backend cannot answer the question at all (in which case the capture proceeds
+     * unprotected and the gap is reported once).
+     *
+     * Fails closed on a timeout: no Copy is injected at all, so a modifier that is held when
+     * the capture starts can never reach another application as a contaminated chord. (A
+     * modifier pressed in the narrow window between the last poll and the injection is not
+     * covered; the hotkey path has the same residual.)
+     *
+     * The wait needs a synchronous key-state query, which the running backend reports as
+     * [InputCapabilities.keyState]. QInput 0.2.0 provides it on Windows and X11, and on macOS
+     * only together with the Accessibility grant, because it advertises the key-state
+     * capability with the injection capability.
+     */
+    private suspend fun awaitCopyNeutral(): Boolean {
+        val target = backend
+        if (target == null) {
+            // No live backend: the runtime is gone (shut down), so nothing can be observed and
+            // no chord may be injected into whatever holds the focus now.
+            logger.debug("No live global input backend; skipping the selection copy")
+            return false
+        }
+        if (!target.capabilities.keyState) {
+            // No synchronous key-state query: neutrality cannot be proven, so the wait is
+            // skipped rather than stalling every capture into a timeout. This is a protection
+            // gap, so it is reported once instead of passing silently.
+            if (copyNeutralizationUnavailableReported.compareAndSet(false, true)) {
+                logger.warn(
+                    "Global input backend has no key-state query; selection captures proceed " +
+                        "without copy neutralization, so a held modifier can contaminate the copy"
+                )
+            }
+            return true
+        }
+        return neutralizer.awaitNeutralUsages(copyWatchedUsages)
+    }
+
     private suspend fun captureSelection(): CaptureResult {
         var outcome: CaptureResult = CaptureResult.Failed(CaptureFailure.CAPTURE_ERROR)
         selectionCapture.capture { outcome = it }
@@ -610,8 +678,26 @@ class MainGlobalKeyListener(
         }
     }
 
+    /**
+     * Captures the current selection for a path that has no trigger chord of its own: the mouse
+     * gesture and the Double Ctrl sequence.
+     *
+     * The synthetic Copy must not be contaminated by a physically held modifier, so the
+     * contaminating modifiers are waited out first ([awaitCopyNeutral]). The wait is bounded
+     * and fails closed: on a timeout no Copy is injected, so nothing reaches another
+     * application and the clipboard is never touched.
+     *
+     * These paths have no native trigger to wait on, so they always blank on anything but success.
+     */
     private suspend fun handleSelectedText(callback: (String) -> Unit) {
-        // These paths have no native trigger to wait on, so they always blank on anything but success.
+        if (!awaitCopyNeutral()) {
+            logger.warn(
+                "A contaminating key is still held, or its state cannot be read; selection " +
+                    "capture skipped without a copy (${CaptureFailure.NEUTRALIZATION_TIMEOUT})"
+            )
+            callback("")
+            return
+        }
         when (val result = captureSelection()) {
             is CaptureResult.Success -> callback(result.text)
             else -> callback("")
@@ -637,9 +723,9 @@ class MainGlobalKeyListener(
      */
     private fun simulateCopy(): Boolean = copyInjector.injectCopy()
 
-    private companion object {
+    internal companion object {
         /** Actions that capture selected text when fired from a global hotkey. */
-        val SELECTIVE_ACTIONS = setOf(
+        private val SELECTIVE_ACTIONS = setOf(
             HotkeyAction.SHOW_QUICK_TRANSLATE,
             HotkeyAction.LISTEN_TO_TEXT,
             HotkeyAction.SHOW_MAIN_WINDOW,
@@ -649,18 +735,23 @@ class MainGlobalKeyListener(
         )
 
         /** Actions whose UX tolerates genuinely empty input (dialogs the user can type into). */
-        val LENIENT_ACTIONS = setOf(
+        private val LENIENT_ACTIONS = setOf(
             HotkeyAction.SHOW_QUICK_TRANSLATE,
             HotkeyAction.SHOW_MAIN_WINDOW
         )
 
         /** [CaptureFailure] reasons that, for [LENIENT_ACTIONS] only, dispatch as empty text rather than being withheld. */
-        val INCONCLUSIVE_AS_EMPTY = setOf(
+        private val INCONCLUSIVE_AS_EMPTY = setOf(
             CaptureFailure.COPY_UNCONFIRMED,
             CaptureFailure.COPY_INJECTION_FAILED,
         )
 
-        /** Grace period after mouse release so the source app can settle its selection. */
+        /**
+         * Grace period after mouse release so the source app can settle its selection.
+         *
+         * This is a selection settle window, not a keyboard neutralization: it says nothing
+         * about which modifiers the user is still holding. That is the neutralizer's job.
+         */
         const val SELECTION_SETTLE_DELAY_MS = 80L
     }
 }

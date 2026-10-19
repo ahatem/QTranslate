@@ -10,6 +10,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.input.InputRuntimeState
 import com.github.ahatem.qtranslate.ui.swing.main.input.KeyClass
 import com.github.ahatem.qtranslate.ui.swing.main.input.MouseButtonId
 import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.CaptureFailure
 import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.ClipboardChangeMonitor
 import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.FakeChangeMonitor
 import com.github.ahatem.qtranslate.ui.swing.shared.clipboard.RecordingClipboard
@@ -71,6 +72,12 @@ class MainGlobalKeyListenerTest {
         var cycles: Int = 0,
         var translates: Int = 0,
         val selectionGestureAllowedAt: (Point) -> Boolean = { true },
+        /**
+         * The platform whose Copy chord the listener assumes. Fixed to the Windows chord by
+         * default so these tests describe one platform on any host; the macOS chord has its
+         * own cases below.
+         */
+        val isMac: Boolean = false,
         captureFactory: ((
             com.github.ahatem.qtranslate.ui.swing.shared.clipboard.SystemClipboard,
             com.github.ahatem.qtranslate.ui.swing.shared.clipboard.ClipboardChangeMonitor,
@@ -91,6 +98,7 @@ class MainGlobalKeyListenerTest {
             onTranslate = { translates++ },
             shouldTrackSelectionAt = selectionGestureAllowedAt,
             backendFactory = { backend },
+            isMac = isMac,
             selectionCaptureFactory = captureFactory
                 ?: { _, _, simulateCopy, captureLogger ->
                     // Fake clipboard observation by default: listener routing is the subject,
@@ -1971,5 +1979,352 @@ class MainGlobalKeyListenerTest {
         assertEquals(1, globalInjections.size)
         assertEquals(listOf("word"), localHarness.imageQueries)
         assertEquals(listOf("word"), globalHarness.imageQueries)
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Mouse-drag selection capture and synthetic Copy contamination (#355).
+    //
+    // The mouse path has no trigger chord of its own, so nothing used to guarantee that the
+    // modifiers the user is holding were up when the synthetic Copy was injected. A Shift
+    // still held after the drag turned the intended Ctrl+C into Ctrl+Shift+C — the browser's
+    // DevTools shortcut — so the capture opened a developer panel in the user's browser
+    // instead of copying the selection.
+    //
+    // The capture must therefore wait for the contaminating modifiers to read up, and must
+    // fail closed: no copy at all is better than a copy that reaches another application as a
+    // shortcut the user never asked for.
+    // ---------------------------------------------------------------------------------------
+
+    /** Presses, drags and releases the left button, exactly as the global mouse hook reports it. */
+    private fun Harness.dragLeftButton(from: Point = Point(0, 0), to: Point = Point(30, 30)) {
+        backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.LEFT, true, from))
+        backend.emit(GlobalInputEvent.MouseMove(to))
+        backend.emit(GlobalInputEvent.MouseButton(MouseButtonId.LEFT, false, to))
+    }
+
+    /**
+     * A capture whose clipboard the test can inspect, so a skipped capture can be shown to
+     * have left the clipboard untouched.
+     */
+    private fun observingCapture(
+        clipboard: RecordingClipboard,
+        text: String,
+    ): (
+        SystemClipboard, ClipboardChangeMonitor, suspend () -> Boolean, Logger,
+    ) -> SelectionCapture {
+        val monitor = FakeChangeMonitor()
+        return { _, _, simulateCopy, logger ->
+            SelectionCapture(clipboard, monitor, {
+                simulateCopy()
+                monitor.current++
+                clipboard.simulateExternalCopy(text)
+                true
+            }, logger)
+        }
+    }
+
+    /** A mouse-drag harness that records the virtual time of every injected Copy. */
+    private inner class DragHarness(
+        private val scope: TestScope,
+        clipboard: RecordingClipboard = RecordingClipboard("original"),
+        isMac: Boolean = false,
+        backend: FakeGlobalInputBackend = FakeGlobalInputBackend(),
+    ) {
+        val harness = Harness(
+            scope = scope,
+            backend = backend,
+            isMac = isMac,
+            captureFactory = observingCapture(clipboard, "word"),
+        )
+        val clipboard = clipboard
+        val injectedAt = mutableListOf<Long>()
+
+        init {
+            harness.set(InputRuntimeState(selectionCaptureEnabled = true))
+            harness.listener.initialize()
+            harness.listener.copyInjector = object : CopyInjector {
+                override fun injectCopy(): Boolean {
+                    injectedAt += scope.testScheduler.currentTime
+                    return true
+                }
+            }
+        }
+    }
+
+    /**
+     * 1. The regression itself: a Shift held across the drag must keep the Copy from being
+     * injected, so the target never sees the contaminated Ctrl+Shift+C.
+     */
+    @Test
+    fun `mouse drag with shift held injects no copy until shift is released`() = runTest {
+        val drag = DragHarness(this)
+
+        drag.harness.backend.keyDown[QInputKey.MOD_LEFT_SHIFT] = true
+        drag.harness.dragLeftButton()
+        advanceTimeBy(500)
+        assertTrue(drag.injectedAt.isEmpty(), "a held Shift must not receive a contaminated Ctrl+Shift+C")
+        assertEquals(0, drag.harness.selections)
+
+        drag.harness.backend.keyDown.clear()
+        advanceUntilIdle()
+        assertEquals(1, drag.injectedAt.size, "exactly one copy once the modifier is released")
+        assertEquals(1, drag.harness.selections)
+    }
+
+    /** 2. No modifier held: the capture stays as immediate as the settle delay allows. */
+    @Test
+    fun `mouse drag without a modifier captures right after the settle delay`() = runTest {
+        val drag = DragHarness(this)
+
+        drag.harness.dragLeftButton()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(MainGlobalKeyListener.SELECTION_SETTLE_DELAY_MS),
+            drag.injectedAt,
+            "the copy must follow the settle delay, with no extra wait of its own",
+        )
+        assertEquals(1, drag.harness.selections)
+    }
+
+    /**
+     * 3. A contaminating modifier that stays held beyond the bounded timeout: the capture is
+     * skipped cleanly, with no copy and no dispatch.
+     */
+    @Test
+    fun `held modifier past the timeout skips the capture`() = runTest {
+        val drag = DragHarness(this)
+
+        drag.harness.backend.keyDown[QInputKey.MOD_LEFT_SHIFT] = true
+        drag.harness.dragLeftButton()
+        advanceUntilIdle()
+
+        assertTrue(drag.injectedAt.isEmpty(), "no copy may be attempted after a neutralization timeout")
+        assertEquals(0, drag.harness.selections)
+        assertTrue(
+            drag.harness.logger.warns.any { it.contains(CaptureFailure.NEUTRALIZATION_TIMEOUT.name) },
+            "the skip must be reported with the neutralization failure reason",
+        )
+    }
+
+    /** 4. The skipped capture must not touch the clipboard: no snapshot, no restore. */
+    @Test
+    fun `a skipped capture leaves the clipboard untouched`() = runTest {
+        val clipboard = RecordingClipboard("original")
+        val drag = DragHarness(this, clipboard)
+
+        drag.harness.backend.keyDown[QInputKey.MOD_LEFT_SHIFT] = true
+        drag.harness.dragLeftButton()
+        advanceUntilIdle()
+
+        assertEquals(0, clipboard.snapshotCalls, "a skipped capture must not snapshot the clipboard")
+        assertEquals(0, clipboard.restoreCount, "a skipped capture must not restore the clipboard")
+        assertEquals(0, clipboard.restoreAttempts)
+    }
+
+    /**
+     * 5. The Copy modifier itself is exempt: a held Ctrl is harmless, because the injected
+     * chord preserves the requested Ctrl and the target still observes Ctrl+C. This is the
+     * "do not over-watch" side of the contract.
+     */
+    @Test
+    fun `held ctrl does not block the mouse capture`() = runTest {
+        val drag = DragHarness(this)
+
+        drag.harness.backend.keyDown[QInputKey.MOD_LEFT_CONTROL] = true
+        drag.harness.dragLeftButton()
+        advanceUntilIdle()
+
+        assertEquals(1, drag.injectedAt.size)
+        assertEquals(1, drag.harness.selections)
+    }
+
+    /**
+     * 5b. The exemption follows the platform's chord, not the host: on macOS the chord is
+     * Cmd+C, so Meta is exempt and a held Ctrl contaminates the chord in its own right.
+     */
+    @Test
+    fun `on mac a held ctrl blocks the mouse capture and a held meta does not`() = runTest {
+        val blocked = DragHarness(this, isMac = true)
+        blocked.harness.backend.keyDown[QInputKey.MOD_LEFT_CONTROL] = true
+        blocked.harness.dragLeftButton()
+        advanceTimeBy(500)
+        assertTrue(blocked.injectedAt.isEmpty(), "on mac a held Ctrl contaminates Cmd+C")
+        blocked.harness.backend.keyDown.clear()
+        advanceUntilIdle()
+        assertEquals(1, blocked.injectedAt.size)
+
+        val exempt = DragHarness(this, isMac = true)
+        exempt.harness.backend.keyDown[QInputKey.MOD_LEFT_META] = true
+        exempt.harness.dragLeftButton()
+        advanceUntilIdle()
+        assertEquals(1, exempt.injectedAt.size, "the chord's own modifier family stays exempt on mac")
+    }
+
+    /**
+     * A backend with no synchronous key-state query cannot prove neutrality, so the wait is
+     * skipped rather than stalling every capture into a timeout. The protection gap is
+     * reported instead of passing silently.
+     */
+    @Test
+    fun `a backend without key-state capability captures immediately and reports the gap`() = runTest {
+        val backend = FakeGlobalInputBackend(
+            capabilities = FakeGlobalInputBackend().capabilities.copy(keyState = false)
+        )
+        val drag = DragHarness(this, backend = backend)
+
+        drag.harness.backend.keyDown[QInputKey.MOD_LEFT_SHIFT] = true
+        drag.harness.dragLeftButton()
+        advanceUntilIdle()
+
+        assertEquals(1, drag.injectedAt.size, "without a key-state query the capture cannot wait")
+        assertEquals(0, backend.keyStateQueries)
+        assertTrue(drag.harness.logger.warns.any { it.contains("key-state", ignoreCase = true) })
+    }
+
+    /**
+     * A capture waiting when the runtime shuts down must not inject afterwards: the backend is
+     * gone, so nothing can be observed and no chord may reach whatever holds the focus now.
+     */
+    @Test
+    fun `a capture pending across shutdown injects nothing`() = runTest {
+        val drag = DragHarness(this)
+
+        drag.harness.backend.keyDown[QInputKey.MOD_LEFT_SHIFT] = true
+        drag.harness.dragLeftButton()
+        advanceTimeBy(500)
+        assertTrue(drag.injectedAt.isEmpty())
+
+        drag.harness.listener.shutdown()
+        advanceUntilIdle()
+
+        assertTrue(drag.injectedAt.isEmpty(), "a capture pending across shutdown must not inject")
+        assertEquals(0, drag.harness.selections)
+    }
+
+    /** 6. Every contaminating modifier blocks, on either side, exactly as the paste path does. */
+    @Test
+    fun `every contaminating modifier blocks the mouse capture on both sides`() = runTest {
+        for (held in listOf(
+            QInputKey.MOD_LEFT_SHIFT, QInputKey.MOD_RIGHT_SHIFT,
+            QInputKey.MOD_LEFT_ALT, QInputKey.MOD_RIGHT_ALT,
+            QInputKey.MOD_LEFT_META, QInputKey.MOD_RIGHT_META
+        )) {
+            val drag = DragHarness(this)
+            drag.harness.backend.keyDown[held] = true
+            drag.harness.dragLeftButton()
+            advanceTimeBy(500)
+            assertTrue(
+                drag.injectedAt.isEmpty(),
+                "a held ${Integer.toHexString(held)} must not receive a contaminated copy",
+            )
+
+            drag.harness.backend.keyDown.clear()
+            advanceUntilIdle()
+            assertEquals(1, drag.injectedAt.size, "one copy once ${Integer.toHexString(held)} is released")
+        }
+    }
+
+    /** 7. One drag, one copy: the capture is never injected twice for a single gesture. */
+    @Test
+    fun `one mouse drag injects exactly one copy`() = runTest {
+        val drag = DragHarness(this)
+
+        drag.harness.dragLeftButton()
+        advanceUntilIdle()
+
+        assertEquals(1, drag.injectedAt.size)
+        assertEquals(1, drag.harness.selections)
+    }
+
+    /** A second, separate gesture is a second capture: one copy each, never two for one. */
+    @Test
+    fun `a second mouse drag injects a second copy`() = runTest {
+        val drag = DragHarness(this)
+
+        drag.harness.dragLeftButton()
+        advanceUntilIdle()
+        drag.harness.dragLeftButton()
+        advanceUntilIdle()
+
+        assertEquals(2, drag.injectedAt.size, "one copy per gesture")
+        assertEquals(2, drag.harness.selections)
+    }
+
+    /** 8. Selection capture off: no key-state polling and no copy at all. */
+    @Test
+    fun `selection capture disabled never polls key state nor injects a copy`() = runTest {
+        val harness = Harness(scope = this, captureFactory = successCapture("word"))
+        val injectedAt = mutableListOf<Long>()
+        harness.set(InputRuntimeState(selectionCaptureEnabled = false))
+        harness.listener.initialize()
+        harness.listener.copyInjector = object : CopyInjector {
+            override fun injectCopy(): Boolean {
+                injectedAt += testScheduler.currentTime
+                return true
+            }
+        }
+
+        harness.dragLeftButton()
+        advanceUntilIdle()
+
+        assertTrue(injectedAt.isEmpty())
+        assertEquals(0, harness.selections)
+        assertEquals(0, harness.backend.keyStateQueries, "a disabled capture must not poll the key state")
+    }
+
+    /**
+     * 9. The Double Ctrl sequence has no trigger chord either, so it is neutralized the same
+     * way: a Shift held across the taps must not turn the copy into Ctrl+Shift+C.
+     */
+    @Test
+    fun `double ctrl with shift held injects no contaminated copy`() = runTest {
+        val harness = Harness(scope = this, captureFactory = successCapture("word"))
+        val injectedAt = mutableListOf<Long>()
+        harness.set(InputRuntimeState(bindings = bindings(showMainWindowBinding())))
+        harness.listener.initialize()
+        harness.listener.copyInjector = object : CopyInjector {
+            override fun injectCopy(): Boolean {
+                injectedAt += testScheduler.currentTime
+                return true
+            }
+        }
+
+        harness.backend.keyDown[QInputKey.MOD_LEFT_SHIFT] = true
+        harness.backend.emit(ctrlKey(true, 1000L))
+        harness.backend.emit(ctrlKey(false, 1000L))
+        harness.backend.emit(ctrlKey(true, 1100L))
+        harness.backend.emit(ctrlKey(false, 1100L))
+        advanceTimeBy(500)
+        assertTrue(injectedAt.isEmpty(), "a held Shift must not receive a contaminated Ctrl+Shift+C")
+
+        harness.backend.keyDown.clear()
+        advanceUntilIdle()
+        assertEquals(1, injectedAt.size, "exactly one copy once the modifier is released")
+        assertEquals(1, harness.shows)
+    }
+
+    /**
+     * 10. The hotkey path keeps its own contract: the trigger chord is what it waits for, and
+     * the copy follows exactly as before.
+     */
+    @Test
+    fun `hotkey selection capture is unchanged by the copy neutralization`() = runTest {
+        val harness = Harness(scope = this, captureFactory = successCapture("word"))
+        val injectedAt = mutableListOf<Long>()
+        harness.set(InputRuntimeState(bindings = imagesBinding()))
+        harness.listener.initialize()
+        harness.listener.copyInjector = object : CopyInjector {
+            override fun injectCopy(): Boolean {
+                injectedAt += testScheduler.currentTime
+                return true
+            }
+        }
+
+        harness.emitHotkey(HotkeyAction.SHOW_IMAGES)
+        advanceUntilIdle()
+
+        assertEquals(1, injectedAt.size)
+        assertEquals(listOf("word"), harness.imageQueries)
     }
 }

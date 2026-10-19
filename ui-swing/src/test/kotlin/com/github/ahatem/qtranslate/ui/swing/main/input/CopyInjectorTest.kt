@@ -248,4 +248,34 @@ class CopyInjectorTest {
         assertEquals(fallback.result, injector.injectCopy())
         assertEquals(1, fallback.calls)
     }
+
+    /**
+     * The watched set of the Copy chord: the Copy key plus every modifier that could
+     * contaminate it, with the chord's own modifier family exempt.
+     *
+     * The exemption is platform-dependent, and so is the contamination: the chord is Ctrl+C
+     * on Windows and Linux (so Ctrl is exempt and Shift/Alt/Meta contaminate it) and Cmd+C on
+     * macOS (so Cmd is exempt and Ctrl contaminates it instead).
+     */
+    @Test
+    fun `copy watched set exempts the chord modifier family and watches both sides`() {
+        val windows = QInputCopyInjector.copyWatchedSet(isMac = false)
+        assertTrue(QInputKey.C in windows)
+        for (usage in listOf(
+            QInputKey.MOD_LEFT_SHIFT, QInputKey.MOD_RIGHT_SHIFT,
+            QInputKey.MOD_LEFT_ALT, QInputKey.MOD_RIGHT_ALT,
+            QInputKey.MOD_LEFT_META, QInputKey.MOD_RIGHT_META
+        )) {
+            assertTrue(usage in windows, "windows copy must watch ${Integer.toHexString(usage)}")
+        }
+        assertTrue(QInputKey.MOD_LEFT_CONTROL !in windows)
+        assertTrue(QInputKey.MOD_RIGHT_CONTROL !in windows, "the right-hand Ctrl is equally harmless")
+
+        val mac = QInputCopyInjector.copyWatchedSet(isMac = true)
+        assertTrue(QInputKey.C in mac)
+        assertTrue(QInputKey.MOD_LEFT_CONTROL in mac, "a held Ctrl contaminates Cmd+C")
+        assertTrue(QInputKey.MOD_RIGHT_CONTROL in mac)
+        assertTrue(QInputKey.MOD_LEFT_META !in mac)
+        assertTrue(QInputKey.MOD_RIGHT_META !in mac)
+    }
 }
