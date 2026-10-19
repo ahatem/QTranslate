@@ -323,9 +323,7 @@ class MainStore(
             is MainIntent.UpdateInputText -> {
                 // Remove line breaks if enabled — replaces \n with space so
                 // PDF-copied text translates as complete sentences (Mohamed's request)
-                val cleaned = if (settingsState.value.isRemoveLineBreaksEnabled)
-                    intent.text.replace("\n", " ").replace("\r", "").replace("  ", " ").trim()
-                else intent.text
+                val cleaned = prepareInputText(intent.text, settingsState.value.isRemoveLineBreaksEnabled)
                 clearComparisonState()
                 _state.update { it.copy(inputText = cleaned, detectedSourceLanguage = null, spellCheckCorrections = emptyList()) }
                 // With instant translate enabled, cancel any in-flight translation immediately
@@ -633,13 +631,20 @@ class MainStore(
     ) {
         if (intent.selectedText.isBlank()) return
 
+        // #353: the "Remove line breaks from input" setting must also apply to the Quick
+        // Translate translation input. Prepared once here so the first request, the stored
+        // source, and any retranslate all share the same text the translator receives.
+        // Raw selection handling for unrelated actions (dictionary, images, TTS source read)
+        // is intentionally left untouched below.
+        val preparedText = prepareInputText(intent.selectedText, settingsState.value.isRemoveLineBreaksEnabled)
+
         if (_state.value.isQuickTranslateDialogVisible) {
             // Already open, pinned or not: replace the text and count the trigger, so the popup
             // refreshes in place and restarts its countdown. Hiding and re-showing it would
             // flicker, move it, and throw away a pin the user had set.
             _state.update {
                 it.copy(
-                    inputText = intent.selectedText,
+                    inputText = preparedText,
                     quickTranslateTriggerCount = it.quickTranslateTriggerCount + 1
                 )
             }
@@ -654,7 +659,7 @@ class MainStore(
             // instead of the marker that should have covered the wait.
             _state.update {
                 it.copy(
-                    inputText = intent.selectedText,
+                    inputText = preparedText,
                     translatedText = "",
                     translationFailed = false,
                     isLoading = true,

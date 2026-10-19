@@ -23,6 +23,17 @@ internal fun quickTranslationComparisonPolicy(comparisonEligible: Boolean): Comp
 internal fun shouldAnnounceComparisonFallback(needsFallback: Boolean, alreadyAnnounced: Boolean): Boolean =
     needsFallback && !alreadyAnnounced
 
+/**
+ * Applies the existing "Remove line breaks from input" cleanup.
+ *
+ * Single source of truth shared by normal input ([MainIntent.UpdateInputText]) and the
+ * Quick Translate translation input (#353). Preserves the exact established semantics:
+ * `\n` becomes a space, `\r` is dropped, one double-space pass, then trim.
+ */
+internal fun prepareInputText(text: String, removeLineBreaksEnabled: Boolean): String =
+    if (removeLineBreaksEnabled) text.replace("\n", " ").replace("\r", "").replace("  ", " ").trim()
+    else text
+
 /** True while the primary translation or any comparison is still running. */
 internal fun MainState.hasPrimaryOrComparisonInFlight(): Boolean =
     isLoading || comparisonResults.any { it.status == ComparisonStatus.LOADING }
