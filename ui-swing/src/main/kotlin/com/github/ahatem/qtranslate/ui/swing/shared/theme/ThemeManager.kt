@@ -294,18 +294,26 @@ class ThemeManager(
          */
         fun platformDefaultLightThemeId(): String = "custom:qtranslate_light"
 
+        /**
+         * Loaded once, on first use. Null when `advapi32` cannot be loaded, in which case the app
+         * reports light mode rather than guessing.
+         */
+        private val windowsSystemTheme: WindowsSystemTheme? by lazy { WindowsSystemTheme.create() }
+
+        /**
+         * Whether the desktop is currently in its dark appearance.
+         *
+         * Windows reads the preference in-process. This runs on the 10-second OS-default poll,
+         * where a `reg.exe` child process per poll was wasteful and matched the cadence of the
+         * "Program Close" sound reported in #323.
+         *
+         * A null [WindowsSystemTheme.isDarkMode] answer reads as light here: the OS-default theme
+         * then resolves to the branded light theme instead of leaving the window unstyled. The
+         * previous `reg.exe` implementation degraded the same way when its read threw.
+         */
         fun isSystemInDarkMode(): Boolean = try {
             when {
-                isWindowsOs() -> {
-                    // Read Windows registry
-                    val proc = ProcessBuilder(
-                        "reg", "query",
-                        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-                        "/v", "AppsUseLightTheme"
-                    )
-                        .redirectErrorStream(true).start()
-                    !proc.inputStream.bufferedReader().readText().contains("0x1")
-                }
+                isWindowsOs() -> windowsSystemTheme?.isDarkMode() ?: false
 
                 isMacOs() -> {
                     val proc = ProcessBuilder("defaults", "read", "-g", "AppleInterfaceStyle")

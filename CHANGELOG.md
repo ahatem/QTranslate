@@ -9,6 +9,9 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **Windows: the follow-the-system check no longer starts a console program.** With the **OS Default** theme selected, QTranslate ran `reg.exe` every ten seconds to read the system's light/dark preference; recurring `reg.exe` lifecycles at that cadence match the reported **Program Close** sound. The preference is now read directly from the registry, so the check costs no child process — and a fixed light or dark theme no longer checks at all
+
 ## [1.5.0] — 2026-09-29
 
 ### Added

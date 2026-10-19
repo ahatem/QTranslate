@@ -54,6 +54,7 @@ import com.github.ahatem.qtranslate.ui.swing.quicktranslate.buildQuickTranslateD
 import com.github.ahatem.qtranslate.ui.swing.settings.SettingsDialog
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.DynamicPluginSettingsDialog
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
+import com.github.ahatem.qtranslate.ui.swing.shared.theme.SystemThemeWatcher
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.*
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.SkipMarkedFocusPolicy
@@ -594,22 +595,19 @@ class MainAppFrame(
                 }
         }
 
-        // OS dark/light mode watcher — polls every 10 s; re-applies theme when "os_default" is active
+        // OS dark/light mode watcher — follows the OS only while "os_default" is selected, so a
+        // fixed theme costs no polling at all (#323).
         appScope.launch(handler) {
-            var lastDarkMode = ThemeManager.isSystemInDarkMode()
-            while (true) {
-                delay(10_000L)
-                val isDark = ThemeManager.isSystemInDarkMode()
-                if (isDark != lastDarkMode) {
-                    lastDarkMode = isDark
-                    val savedThemeId = settingsStore.state.value.originalConfiguration.themeId
-                    if (savedThemeId == ThemeManager.OS_DEFAULT_THEME_ID) {
-                        withContext(Dispatchers.Swing) {
-                            themeManager.applySystemTheme()
-                        }
+            SystemThemeWatcher().watch(
+                themeIds = settingsStore.state
+                    .map { it.originalConfiguration.themeId }
+                    .distinctUntilChanged(),
+                onSystemThemeChanged = {
+                    withContext(Dispatchers.Swing) {
+                        themeManager.applySystemTheme()
                     }
                 }
-            }
+            )
         }
 
         // Main content and QuickTranslate dialog rendering
