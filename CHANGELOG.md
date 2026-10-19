@@ -10,7 +10,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
-- **Selection capture no longer hijacks another application's shortcuts.** Holding Shift — or Alt, or the Super/Windows key — while dragging out a selection made QTranslate's synthetic Copy reach the focused application as Ctrl+Shift+C, the browser shortcut that opens the developer panel, so a Shift+drag in Google Maps or on any page popped DevTools open. The copy now waits until the held keys are released, and is skipped altogether if they stay held. The same applies to the Double Ctrl shortcut, which copies the selection too
+- **Selection capture no longer hijacks another application's shortcuts.** Holding a modifier while dragging out a selection could contaminate QTranslate's synthetic Copy chord. In particular, holding Shift on Windows turned Ctrl+C into Ctrl+Shift+C, which Chromium browsers use for DevTools / Inspect mode. Copy now waits for unrelated held modifiers to be released and is skipped if they remain held. The same protection applies to the Double Ctrl selection-capture path
 - **Windows: the follow-the-system check no longer starts a console program.** With the **OS Default** theme selected, QTranslate ran `reg.exe` every ten seconds to read the system's light/dark preference; recurring `reg.exe` lifecycles at that cadence match the reported **Program Close** sound. The preference is now read directly from the registry, so the check costs no child process — and a fixed light or dark theme no longer checks at all
 
 ## [1.5.0] — 2026-09-29
