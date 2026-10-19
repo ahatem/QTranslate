@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -190,10 +191,184 @@ class ParallelComparisonTranslationTest {
         assertEquals("comparison:B", state.comparisonResults.single().text)
     }
 
+    @Test
+    fun `a primary provider error keeps successful comparison results`() = runTest {
+        val primary = ScriptedTranslator("primary", fail = true)
+        val comparison = ScriptedTranslator("comparison")
+        val fixture = fixture(this, primary, comparison, emptyList())
+        var state = MainState(
+            inputText = "hello",
+            sourceLanguage = LanguageCode.ENGLISH,
+            targetLanguage = LanguageCode.ARABIC
+        )
+
+        fixture.useCase(
+            getState = { state },
+            updateState = { transform -> state = state.transform() },
+            onStatusUpdate = { _, _, _ -> }
+        )
+        advanceUntilIdle()
+
+        assertTrue(state.translationFailed)
+        assertTrue(state.translatedText.isEmpty())
+        val result = state.comparisonResults.single()
+        assertEquals(ComparisonStatus.SUCCESS, result.status)
+        assertEquals("comparison", result.text)
+    }
+
+    @Test
+    fun `a primary timeout keeps successful comparison results`() = runTest {
+        val primary = HangingTranslator("primary")
+        val comparison = ScriptedTranslator("comparison")
+        val fixture = fixture(this, primary, comparison, emptyList())
+        var state = MainState(
+            inputText = "hello",
+            sourceLanguage = LanguageCode.ENGLISH,
+            targetLanguage = LanguageCode.ARABIC
+        )
+
+        fixture.useCase(
+            getState = { state },
+            updateState = { transform -> state = state.transform() },
+            onStatusUpdate = { _, _, _ -> }
+        )
+        advanceUntilIdle()
+
+        assertTrue(state.translationFailed)
+        assertFalse(state.isLoading)
+        assertEquals(ComparisonStatus.SUCCESS, state.comparisonResults.single().status)
+    }
+
+    @Test
+    fun `a secondary that finishes after the primary fails still publishes`() = runTest {
+        val primary = ScriptedTranslator("primary", fail = true)
+        val comparison = GatedTranslator("comparison")
+        val fixture = gatedFixture(this, primary, comparison)
+        var state = MainState(
+            inputText = "hello",
+            sourceLanguage = LanguageCode.ENGLISH,
+            targetLanguage = LanguageCode.ARABIC
+        )
+        val update: ((MainState.() -> MainState)) -> Unit = { transform -> state = state.transform() }
+
+        launch {
+            fixture.useCase(
+                getState = { state }, updateState = update, onStatusUpdate = { _, _, _ -> },
+                comparisonPolicy = ComparisonPolicy.ENABLED
+            )
+        }
+        runCurrent()
+
+        assertTrue(state.translationFailed)
+        assertTrue(comparison.started("hello"))
+        assertEquals(ComparisonStatus.LOADING, state.comparisonResults.single().status)
+
+        comparison.release("hello")
+        runCurrent()
+
+        val result = state.comparisonResults.single()
+        assertEquals(ComparisonStatus.SUCCESS, result.status)
+        assertEquals("comparison:hello", result.text)
+    }
+
+    @Test
+    fun `a failed newer translation does not adopt comparisons from the superseded one`() = runTest {
+        val primary = TaggedTranslator("primary", failForText = "B")
+        val comparison = GatedTranslator("comparison")
+        val fixture = gatedFixture(this, primary, comparison)
+        var state = MainState(
+            inputText = "A",
+            sourceLanguage = LanguageCode.ENGLISH,
+            targetLanguage = LanguageCode.ARABIC
+        )
+        val update: ((MainState.() -> MainState)) -> Unit = { transform -> state = state.transform() }
+
+        launch {
+            fixture.useCase(
+                getState = { state }, updateState = update, onStatusUpdate = { _, _, _ -> },
+                textOverride = "A", comparisonPolicy = ComparisonPolicy.ENABLED
+            )
+        }
+        runCurrent()
+        assertEquals("primary:A", state.translatedText)
+        assertTrue(comparison.started("A"))
+
+        launch {
+            fixture.useCase(
+                getState = { state }, updateState = update, onStatusUpdate = { _, _, _ -> },
+                textOverride = "B", comparisonPolicy = ComparisonPolicy.ENABLED
+            )
+        }
+        runCurrent()
+        assertTrue(state.translationFailed)
+        assertTrue(comparison.started("B"))
+
+        comparison.release("A")
+        runCurrent()
+        assertTrue(state.comparisonResults.none { it.text.contains("A") })
+
+        comparison.release("B")
+        runCurrent()
+        assertEquals("comparison:B", state.comparisonResults.single().text)
+    }
+
+    @Test
+    fun `cancelling the translation discards comparisons that finish afterwards`() = runTest {
+        val primary = HangingTranslator("primary")
+        val comparison = GatedTranslator("comparison")
+        val fixture = gatedFixture(this, primary, comparison)
+        var state = MainState(
+            inputText = "hello",
+            sourceLanguage = LanguageCode.ENGLISH,
+            targetLanguage = LanguageCode.ARABIC
+        )
+        val update: ((MainState.() -> MainState)) -> Unit = { transform -> state = state.transform() }
+
+        launch {
+            fixture.useCase(
+                getState = { state }, updateState = update, onStatusUpdate = { _, _, _ -> },
+                comparisonPolicy = ComparisonPolicy.ENABLED
+            )
+        }
+        runCurrent()
+        assertTrue(comparison.started("hello"))
+
+        fixture.useCase.cancel()
+        comparison.release("hello")
+        runCurrent()
+
+        assertTrue(state.comparisonResults.none { it.status == ComparisonStatus.SUCCESS })
+    }
+
+    @Test
+    fun `a retry after a failed primary translation replaces the previous comparison rows`() = runTest {
+        val primary = ScriptedTranslator("primary", fail = true)
+        val comparison = ScriptedTranslator("comparison")
+        val fixture = fixture(this, primary, comparison, emptyList())
+        var state = MainState(
+            inputText = "hello",
+            sourceLanguage = LanguageCode.ENGLISH,
+            targetLanguage = LanguageCode.ARABIC
+        )
+        val update: ((MainState.() -> MainState)) -> Unit = { transform -> state = state.transform() }
+
+        fixture.useCase(getState = { state }, updateState = update, onStatusUpdate = { _, _, _ -> })
+        advanceUntilIdle()
+        assertEquals(ComparisonStatus.SUCCESS, state.comparisonResults.single().status)
+
+        primary.fail = false
+        fixture.useCase(getState = { state }, updateState = update, onStatusUpdate = { _, _, _ -> })
+        advanceUntilIdle()
+
+        assertFalse(state.translationFailed)
+        assertEquals(1, state.comparisonResults.size)
+        assertEquals(ComparisonStatus.SUCCESS, state.comparisonResults.single().status)
+    }
+
     private fun fixture(
         scope: CoroutineScope,
-        primary: ScriptedTranslator,
-        comparison: ScriptedTranslator,
+        primary: Translator,
+        comparison: Translator,
         rules: List<TranslationRule>
     ): Fixture {
         val preset = ServicePreset(
@@ -275,7 +450,8 @@ class ParallelComparisonTranslationTest {
     private class ScriptedTranslator(
         override val key: String,
         private val detectsGermanOnFirstCall: Boolean = false,
-        private val failSecondCall: Boolean = false
+        private val failSecondCall: Boolean = false,
+        var fail: Boolean = false
     ) : Translator {
         override val name = key
         override val version = "test"
@@ -284,6 +460,7 @@ class ParallelComparisonTranslationTest {
 
         override suspend fun translate(request: TranslationRequest): com.github.michaelbull.result.Result<TranslationResponse, ServiceError> {
             calls += request
+            if (fail) return Err(ServiceError.NetworkError("failed"))
             if (failSecondCall && calls.size == 2) return Err(ServiceError.NetworkError("failed"))
             return Ok(
                 TranslationResponse(
@@ -310,13 +487,29 @@ class ParallelComparisonTranslationTest {
         fun release(text: String) { pending[text]?.complete(Unit) }
     }
 
-    private class TaggedTranslator(override val key: String) : Translator {
+    private class TaggedTranslator(
+        override val key: String,
+        private val failForText: String? = null
+    ) : Translator {
         override val name = key
         override val version = "test"
         override val supportedLanguages = SupportedLanguages.All
 
         override suspend fun translate(request: TranslationRequest): com.github.michaelbull.result.Result<TranslationResponse, ServiceError> =
-            Ok(TranslationResponse("$key:${request.text}"))
+            if (request.text == failForText) Err(ServiceError.NetworkError("failed"))
+            else Ok(TranslationResponse("$key:${request.text}"))
+    }
+
+    private class HangingTranslator(override val key: String) : Translator {
+        override val name = key
+        override val version = "test"
+        override val supportedLanguages = SupportedLanguages.All
+        private val never = CompletableDeferred<Unit>()
+
+        override suspend fun translate(request: TranslationRequest): com.github.michaelbull.result.Result<TranslationResponse, ServiceError> {
+            never.await()
+            return Ok(TranslationResponse("unreachable"))
+        }
     }
 
     private object TestLoggerFactory : LoggerFactory {

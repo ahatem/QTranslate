@@ -47,6 +47,12 @@ data class TranslationCompletion(
  * If the architecture ever requires recreating use cases, move [translationJob] onto
  * the [MainStore] and pass it in as a parameter.
  *
+ * ### Comparison lifetime
+ * Comparison work belongs to one translation generation. A failed or timed-out primary
+ * keeps the comparison rows already produced and lets in-flight comparisons publish, since
+ * those results remain useful (#367). Only cancellation, a newer translation, or an
+ * explicit comparison invalidation discards them.
+ *
  * ### Translation Rules
  * When translation rules are configured, the use case resolves the correct target
  * language before translating. If the source is Auto Detect, the detected language
@@ -189,7 +195,9 @@ class TranslateTextUseCase(
 
                 if (result == null) {
                     logger.error("Translation timed out after ${AppConstants.TRANSLATION_TIMEOUT_MS}ms")
-                    clearComparisonsIfCurrent(translationGeneration, updateState)
+                    // #367: a failed primary keeps this generation's comparison rows and lets
+                    // in-flight comparisons finish; only cancellation or a newer generation
+                    // discards them (see the CancellationException path and invoke()).
                     updateState { copy(isLoading = false, isExtraOutputLoading = false, translationFailed = true) }
                     onStatusUpdate(StatusCode.TranslationTimeout, NotificationType.ERROR, true)
                     return@launch
@@ -277,7 +285,6 @@ class TranslateTextUseCase(
                     },
                     failure = { error ->
                         logger.error("Translation failed: ${error.message}", error.cause)
-                        clearComparisonsIfCurrent(translationGeneration, updateState)
                         updateState { copy(isLoading = false, isExtraOutputLoading = false, translationFailed = true) }
                         val summary = error.shortSummary()
                         onStatusUpdate(StatusCode.TranslationFailed(summary), NotificationType.ERROR, true)
@@ -290,7 +297,6 @@ class TranslateTextUseCase(
                 throw e
             } catch (e: Exception) {
                 logger.error("Unexpected error during translation", e)
-                clearComparisonsIfCurrent(translationGeneration, updateState)
                 updateState { copy(isLoading = false, isExtraOutputLoading = false, translationFailed = true) }
                 val summary = e.shortSummary()
                 onStatusUpdate(StatusCode.UnexpectedError(summary), NotificationType.ERROR, true)
@@ -333,7 +339,6 @@ class TranslateTextUseCase(
 
         if (retryResult == null) {
             logger.error("Re-translation timed out")
-            clearComparisonsIfCurrent(translationGeneration, updateState)
             updateState { copy(isLoading = false, isExtraOutputLoading = false, translationFailed = true) }
             onStatusUpdate(StatusCode.TranslationTimeout, NotificationType.ERROR, true)
             return null
@@ -377,7 +382,6 @@ class TranslateTextUseCase(
             },
             failure = { error ->
                 logger.error("Re-translation failed: ${error.message}", error.cause)
-                clearComparisonsIfCurrent(translationGeneration, updateState)
                 updateState { copy(isLoading = false, isExtraOutputLoading = false, translationFailed = true) }
                 val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.TranslationFailed(summary), NotificationType.ERROR, true)
@@ -412,6 +416,13 @@ class TranslateTextUseCase(
         )
     }
 
+    /**
+     * Discards comparison work for [generation]: clears its rows and stops its comparisons.
+     *
+     * Only cancellation uses this. A failed or timed-out primary keeps the generation's
+     * comparison rows and lets in-flight comparisons finish, because their results stay
+     * useful to the user (#367). Stale generations are always ignored.
+     */
     private fun clearComparisonsIfCurrent(
         generation: Long,
         updateState: (MainState.() -> MainState) -> Unit
