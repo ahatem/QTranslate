@@ -955,16 +955,23 @@ class MainStore(
 
     private suspend fun handleReplaceWithTranslation(selectedText: String) {
         if (selectedText.isBlank()) return
+
+        // #381: the "Remove line breaks from input" setting applies here too. Prepare the
+        // translation input with the shared policy, exactly like normal input and Quick
+        // Translate. The external selection itself is untouched: the replacement is still a
+        // paste of the translated result into the source application.
+        val preparedText = prepareInputText(selectedText, settingsState.value.isRemoveLineBreaksEnabled)
+
         // isReplacingSelection=true tells the LoadingIndicator observer to show
         // even when the main window is visible. focusableWindowState=false on
         // LoadingIndicator means it never steals focus from the source app.
         clearComparisonState()
-        _state.update { it.copy(inputText = selectedText, isReplacingSelection = true) }
+        _state.update { it.copy(inputText = preparedText, isReplacingSelection = true) }
         translateTextUseCase(
             getState       = { _state.value },
             updateState    = { transform -> _state.update(transform) },
             onStatusUpdate = ::updateStatusBar,
-            textOverride   = selectedText,
+            textOverride   = preparedText,
             comparisonPolicy = ComparisonPolicy.DISABLED
         )
         val result = _state.value.translatedText
