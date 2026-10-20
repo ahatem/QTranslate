@@ -43,4 +43,16 @@ class GoogleLanguageMapperTest {
         assertEquals("gn", GoogleLanguageMapper.toProviderCode(LanguageCode.GUARANI))
         assertEquals(LanguageCode.GUARANI, GoogleLanguageMapper.fromProviderCode("gn"))
     }
+
+    @Test
+    fun `supported set advertises Georgian`() = runBlocking {
+        val supported = GoogleLanguageMapper.getSupportedLanguages().getOr(emptySet())
+        assertTrue(LanguageCode.GEORGIAN in supported)
+    }
+
+    @Test
+    fun `Georgian maps to and from its standard provider code`() {
+        assertEquals("ka", GoogleLanguageMapper.toProviderCode(LanguageCode.GEORGIAN))
+        assertEquals(LanguageCode.GEORGIAN, GoogleLanguageMapper.fromProviderCode("ka"))
+    }
 }

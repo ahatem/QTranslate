@@ -114,6 +114,30 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
+    fun `official API sends ka as the target for Georgian`() = runBlocking {
+        val georgian = TranslationRequest(
+            text = "Hello, how are you today?",
+            sourceLanguage = LanguageCode.ENGLISH,
+            targetLanguage = LanguageCode.GEORGIAN
+        )
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Ok(PRIMARY_JSON) },
+            officialHandler = { Ok(OFFICIAL_JSON) }
+        )
+        val service = createService(client, AtomicLong(0), GoogleSettings(translateApiKey = "test-key"))
+
+        service.translate(georgian).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+
+        assertEquals(1, client.officialCalls)
+        val body = PluginJson.parseToJsonElement(client.officialBodies.single()).jsonObject
+        assertEquals("en", body["source"]?.jsonPrimitive?.content)
+        assertEquals("ka", body["target"]?.jsonPrimitive?.content)
+    }
+
+    @Test
     fun `official API sends the mapped source for an explicit language`() = runBlocking {
         val explicit = TranslationRequest(
             text = "Bonjour",

@@ -23,6 +23,13 @@ class KeyboardPanel(
     private val pauseGlobalHotkeys:  (() -> Unit)? = null,
     /** Called after the recorder dialog closes to restore the previous enabled state. */
     private val resumeGlobalHotkeys: (() -> Unit)? = null,
+    /**
+     * Records a new binding for an action.
+     *
+     * Tests substitute this so the edit path can be driven without the modal recorder dialog,
+     * which needs a display. Left null, the recorder dialog does the recording.
+     */
+    private val recorder: ((HotkeyAction, HotkeyBinding?) -> HotkeyBinding?)? = null,
 ) : SettingsPanel() {
 
     private lateinit var enableCheck: JCheckBox
@@ -255,33 +262,58 @@ class KeyboardPanel(
     private fun onEditSelected() {
         val row    = table.selectedRow.takeIf { it >= 0 } ?: return
         val action = actionOrder[row]
-        if (action in nonEditableActions) return
+        if (!isEditable(action)) return
 
-        val current = store.state.value.workingConfiguration
-            .hotkeys.find { it.action == action }
-
-        val result = HotkeyRecorderDialog.show(
-            owner               = SwingUtilities.getWindowAncestor(this),
-            action              = action,
-            current             = current,
-            localizer           = localizationManager,
-            pauseGlobalHotkeys  = pauseGlobalHotkeys,
-            resumeGlobalHotkeys = resumeGlobalHotkeys,
-        ) ?: return
+        val result = recordBinding(action, bindingFor(action)) ?: return
 
         saveBinding(result)
     }
 
+    /**
+     * Whether the binding of [action] can be changed right now.
+     *
+     * A LOCAL binding is installed on QTranslate's own InputMap and fires inside the window with
+     * no OS-level registration at all, so it stays configurable whatever the global switch says.
+     * A GLOBAL binding is one the global input backend registers system-wide, and the switch
+     * turns that registration off. Recording a key for it needs no registration, but a global
+     * shortcut is a statement about how it is registered, so the panel keeps editing it behind
+     * the switch: changing it while it is not registered would let the shortcut and its
+     * registration drift apart.
+     *
+     * The scope decides, never the switch alone — a user who runs without system-wide shortcuts
+     * must still be able to change their local ones.
+     *
+     * The scope cell of the table is deliberately not gated by this. Clicking it swaps a binding
+     * between GLOBAL and LOCAL in both directions, which is how a global shortcut is turned into
+     * a local one, and therefore how a global shortcut becomes editable at all while the switch
+     * is off.
+     */
+    private fun isEditable(action: HotkeyAction): Boolean {
+        if (action in nonEditableActions) return false
+        val configuration = store.state.value.workingConfiguration
+        if (configuration.isGlobalHotkeysEnabled) return true
+        val scope = configuration.hotkeys.find { it.action == action }?.scope ?: HotkeyScope.GLOBAL
+        return scope == HotkeyScope.LOCAL
+    }
+
+    /** Records a new binding for [action], through the recorder dialog unless a test replaced it. */
+    private fun recordBinding(action: HotkeyAction, current: HotkeyBinding?): HotkeyBinding? =
+        if (recorder != null) {
+            recorder(action, current)
+        } else {
+            HotkeyRecorderDialog.show(
+                owner               = SwingUtilities.getWindowAncestor(this),
+                action              = action,
+                current             = current,
+                localizer           = localizationManager,
+                pauseGlobalHotkeys  = pauseGlobalHotkeys,
+                resumeGlobalHotkeys = resumeGlobalHotkeys,
+            )
+        }
+
     private fun onEditShowMain() {
         val current = bindingFor(HotkeyAction.SHOW_MAIN_WINDOW) ?: return
-        val result = HotkeyRecorderDialog.show(
-            owner = SwingUtilities.getWindowAncestor(this),
-            action = HotkeyAction.SHOW_MAIN_WINDOW,
-            current = current,
-            localizer = localizationManager,
-            pauseGlobalHotkeys = pauseGlobalHotkeys,
-            resumeGlobalHotkeys = resumeGlobalHotkeys,
-        ) ?: return
+        val result = recordBinding(HotkeyAction.SHOW_MAIN_WINDOW, current) ?: return
         saveBinding(result.copy(scope = HotkeyScope.GLOBAL, isDoubleCtrlEnabled = current.isDoubleCtrlEnabled))
     }
 
@@ -296,12 +328,20 @@ class KeyboardPanel(
     private fun onClearSelected() {
         val row    = table.selectedRow.takeIf { it >= 0 } ?: return
         val action = actionOrder[row]
-        if (action in nonEditableActions) return
+        if (!isEditable(action)) return
         // Keep existing scope when clearing
-        val existing = store.state.value.workingConfiguration.hotkeys.find { it.action == action }
+        val existing = bindingFor(action)
         saveBinding(HotkeyBinding(action = action, keyCode = 0, modifiers = 0, scope = existing?.scope ?: HotkeyScope.GLOBAL))
     }
 
+    /**
+     * Swaps the scope of the binding in [row] between GLOBAL and LOCAL.
+     *
+     * Deliberately not gated by the global switch, in either direction: this cell is the
+     * documented way to turn a global shortcut into a local one, and it is the only way to make a
+     * global shortcut editable while the switch is off. A shortcut nobody can change would be a
+     * dead end, so the cell stays clickable and the scope it shows keeps telling the truth.
+     */
     private fun onToggleScope(row: Int) {
         val action = actionOrder[row]
         if (bindingFor(action) == null) return
@@ -352,11 +392,11 @@ class KeyboardPanel(
     }
 
     private fun updateButtonStates() {
-        val row        = table.selectedRow
-        val isEditable = row >= 0 && actionOrder.getOrNull(row) !in nonEditableActions
-        val enabled    = enableCheck.isSelected
-        editButton.isEnabled  = isEditable && enabled
-        clearButton.isEnabled = isEditable && enabled
+        val row      = table.selectedRow
+        val action   = actionOrder.getOrNull(row)
+        val editable = action != null && isEditable(action)
+        editButton.isEnabled  = editable
+        clearButton.isEnabled = editable
     }
 
 
@@ -379,7 +419,11 @@ class KeyboardPanel(
                 model.setValueAt(scopeLabel(binding?.scope ?: HotkeyScope.GLOBAL), row, COL_SCOPE)
             }
 
-            table.isEnabled = c.isGlobalHotkeysEnabled
+            // The table is not greyed out with the global switch: it lists every binding, and the
+            // local ones have to stay configurable with global hotkeys off. Which rows can be
+            // changed is decided per row, by the scope of the binding it carries. The scope
+            // cell is the one exception — it stays clickable in both directions, because that
+            // is how a global shortcut is turned into a local one.
             doubleCtrlCheck.isEnabled = c.isGlobalHotkeysEnabled
             updateButtonStates()
         }

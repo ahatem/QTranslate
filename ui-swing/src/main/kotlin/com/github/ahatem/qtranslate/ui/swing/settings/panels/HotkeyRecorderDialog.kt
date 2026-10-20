@@ -353,12 +353,27 @@ internal object HotkeyRecorderDialog {
 
         if (!confirmed) return null
 
-        return HotkeyBinding(
-            action    = action,
-            keyCode   = capturedKeyCode,
-            modifiers = capturedModifiers,
-            isEnabled = current?.isEnabled ?: true,
-            scope     = current?.scope ?: HotkeyScope.GLOBAL
-        )
+        return recordedBinding(action, current, capturedKeyCode, capturedModifiers)
     }
+
+    /**
+     * The binding a confirmed recording produces.
+     *
+     * The scope of the binding that was there before is kept: recording a key for an app-local
+     * action must not quietly promote it to a global one, which the global input backend would
+     * then register system-wide. An action that had no binding at all counts as global, the
+     * same way the settings table reads it.
+     */
+    internal fun recordedBinding(
+        action: HotkeyAction,
+        current: HotkeyBinding?,
+        keyCode: Int,
+        modifiers: Int,
+    ): HotkeyBinding = HotkeyBinding(
+        action    = action,
+        keyCode   = keyCode,
+        modifiers = modifiers,
+        isEnabled = current?.isEnabled ?: true,
+        scope     = current?.scope ?: HotkeyScope.GLOBAL
+    )
 }
