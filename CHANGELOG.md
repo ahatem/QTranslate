@@ -10,6 +10,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **Local hotkeys stay editable when global hotkeys are off.** With **Enable global hotkeys** unchecked, the Keyboard & Hotkeys panel greyed out the whole assignments table and its Edit and Clear buttons, so a user who never wanted system-wide shortcuts could not change their app-local ones either. The scope of a shortcut now decides what can be changed: app-local shortcuts stay configurable, and a global one can still be turned into an app-local one by clicking its scope
 - **Selection capture no longer hijacks another application's shortcuts.** Holding a modifier while dragging out a selection could contaminate QTranslate's synthetic Copy chord. In particular, holding Shift on Windows turned Ctrl+C into Ctrl+Shift+C, which Chromium browsers use for DevTools / Inspect mode. Copy now waits for unrelated held modifiers to be released and is skipped if they remain held. The same protection applies to the Double Ctrl selection-capture path
 - **Windows: the follow-the-system check no longer starts a console program.** With the **OS Default** theme selected, QTranslate ran `reg.exe` every ten seconds to read the system's light/dark preference; recurring `reg.exe` lifecycles at that cadence match the reported **Program Close** sound. The preference is now read directly from the registry, so the check costs no child process — and a fixed light or dark theme no longer checks at all
 
