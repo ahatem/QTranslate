@@ -156,21 +156,19 @@ class InstantComparisonResultsTest {
         val fixture = Fixture(this, LayoutPresetIds.COMPARISON, comparisonTranslators = listOf(comparison))
         try {
             fixture.store.dispatch(MainIntent.UpdateInputText("hello"))
-            advanceTimeBy(AppConstants.INSTANT_TRANSLATION_DEBOUNCE_MS)
-            runCurrent()
+            awaitState("the first comparison is in flight") { comparison.started("hello") }
             assertTrue(comparison.started("hello"), "the first comparison is in flight")
 
             // A newer input supersedes the in-flight comparison.
             fixture.store.dispatch(MainIntent.UpdateInputText("world"))
-            advanceTimeBy(AppConstants.INSTANT_TRANSLATION_DEBOUNCE_MS)
-            runCurrent()
+            awaitState("the second comparison is in flight") { comparison.started("world") }
             assertTrue(comparison.started("world"), "the second comparison is in flight")
 
             // The superseded provider answers late. It is deliberately non-cooperative, so it
             // really produces its answer after the newer generation took ownership: the
             // publish-side generation guard is what has to reject it.
             comparison.release("hello")
-            runCurrent()
+            awaitState("the stale answer has been produced") { comparison.answered("hello") }
             val afterStale = fixture.store.state.value.comparisonResults
             assertTrue(
                 afterStale.none { it.text == "bing:hello" },
@@ -185,13 +183,32 @@ class InstantComparisonResultsTest {
             assertEquals("", afterStale.single().text)
 
             comparison.release("world")
-            runCurrent()
+            awaitState("the fresh answer has been published") {
+                fixture.store.state.value.comparisonResults.singleOrNull()?.status == ComparisonStatus.SUCCESS
+            }
             val row = fixture.store.state.value.comparisonResults.single()
             assertEquals(ComparisonStatus.SUCCESS, row.status)
             assertEquals("bing:world", row.text)
         } finally {
             comparison.releaseAll()
             fixture.cleanUp()
+        }
+    }
+
+    /**
+     * Advances virtual time until [condition] holds.
+     *
+     * The instant translation is debounced, and the debounce restarts whenever the store emits a
+     * new state, so the number of virtual-time steps it takes to reach a comparison is not fixed:
+     * one `advanceTimeBy` of the debounce interval is not always enough. Advancing in
+     * debounce-sized steps until the expected state is actually observed keeps the test
+     * independent of that scheduling detail. The bound keeps a genuine failure from hanging.
+     */
+    private fun TestScope.awaitState(description: String, condition: () -> Boolean) {
+        repeat(MAX_AWAIT_STEPS) {
+            if (condition()) return
+            advanceTimeBy(AppConstants.INSTANT_TRANSLATION_DEBOUNCE_MS)
+            runCurrent()
         }
     }
 
@@ -299,6 +316,14 @@ class InstantComparisonResultsTest {
     }
 
     private companion object {
+        /**
+         * How many debounce-sized virtual-time steps an awaited state may take.
+         *
+         * Twenty steps of the instant-translation debounce is well under the translation
+         * timeout, and it only ever exists to turn a scheduling detail into a bounded wait.
+         */
+        const val MAX_AWAIT_STEPS = 20
+
         val SILENT_LOGGER = object : Logger {
             override fun debug(message: String) = Unit
             override fun info(message: String) = Unit
@@ -432,15 +457,22 @@ class InstantComparisonResultsTest {
         override val version = "test"
         override val supportedLanguages = SupportedLanguages.All
         private val pending = mutableMapOf<String, CompletableDeferred<Unit>>()
+        private val answered = mutableSetOf<String>()
 
         override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> {
             withContext(NonCancellable) {
                 pending.getOrPut(request.text) { CompletableDeferred() }.await()
+                // Recorded inside the non-cancellable block: the answer really was produced, even
+                // when the caller was cancelled while waiting for it.
+                answered.add(request.text)
             }
             return Ok(TranslationResponse("$key:${request.text}"))
         }
 
         fun started(text: String): Boolean = pending.containsKey(text)
+
+        /** True once the provider has produced its answer for [text]. */
+        fun answered(text: String): Boolean = text in answered
 
         fun release(text: String) {
             pending[text]?.complete(Unit)
