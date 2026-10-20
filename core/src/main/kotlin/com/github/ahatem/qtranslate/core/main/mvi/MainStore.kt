@@ -209,7 +209,11 @@ class MainStore(
                     if (settingsState.value.isInstantTranslationEnabled
                         && text.length >= AppConstants.INSTANT_TRANSLATE_MIN_CHARS
                     ) {
-                        translateText(TranslationOrigin.INSTANT, comparisonPolicy = ComparisonPolicy.DISABLED)
+                        // Instant translation happens in the main window, so it follows the main
+                        // window's Comparison policy (#326). Running it with the policy disabled
+                        // wiped the comparison rows of the layout and never put them back, which
+                        // left the Comparison board showing the primary translator alone.
+                        translateText(TranslationOrigin.INSTANT, comparisonPolicy = mainComparisonPolicy())
                     }
                 }
         }

@@ -10,6 +10,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **Instant translation no longer empties the Comparison board.** With Instant translation enabled, the Comparison layout showed the primary translator alone and the secondary translators never appeared. Instant translation always ran with the comparison disabled, so every translation it triggered wiped the comparison results and never put them back. It now follows the same comparison policy as the rest of the window, so the secondary translators are shown as well
 - **Selection capture no longer hijacks another application's shortcuts.** Holding a modifier while dragging out a selection could contaminate QTranslate's synthetic Copy chord. In particular, holding Shift on Windows turned Ctrl+C into Ctrl+Shift+C, which Chromium browsers use for DevTools / Inspect mode. Copy now waits for unrelated held modifiers to be released and is skipped if they remain held. The same protection applies to the Double Ctrl selection-capture path
 - **Windows: the follow-the-system check no longer starts a console program.** With the **OS Default** theme selected, QTranslate ran `reg.exe` every ten seconds to read the system's light/dark preference; recurring `reg.exe` lifecycles at that cadence match the reported **Program Close** sound. The preference is now read directly from the registry, so the check costs no child process — and a fixed light or dark theme no longer checks at all
 
