@@ -1,6 +1,7 @@
 import groovy.json.JsonSlurper
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
@@ -24,6 +25,17 @@ abstract class VerifyReleaseArtifactsTask : DefaultTask() {
 
     @get:Input
     abstract val requireMacHelpers: Property<Boolean>
+
+    /**
+     * Architecture tags whose Linux AppImage must be present, for example `x86_64` and `aarch64`.
+     * Empty means no AppImage belongs in this inventory at all, which is the Gradle-only path.
+     *
+     * Like the Windows ZIP the AppImage is packaged outside Gradle, so it is checked as an inventory
+     * entry with a matching checksum rather than as a metadata variant: the metadata hashes are
+     * written by a Gradle task that has already run by the time the AppImage exists.
+     */
+    @get:Input
+    abstract val linuxAppImageArches: ListProperty<String>
 
     @TaskAction
     fun verify() {
@@ -102,6 +114,7 @@ abstract class VerifyReleaseArtifactsTask : DefaultTask() {
             add(app); add(portable); add("release-metadata.json"); add("SIZE_REPORT.md")
             expectedPlugins.forEach { add(it["file"] as String) }
             if (requireWindows.get()) add("QTranslate-$version-windows-x64.zip")
+            linuxAppImageArches.get().forEach { add("QTranslate-$version-linux-$it.AppImage") }
         }
         val checksums = root.resolve("SHA256SUMS.txt").readLines().filter(String::isNotBlank).map { line ->
             val match = Regex("([0-9a-f]{64})  (.+)").matchEntire(line) ?: error("Malformed SHA256SUMS entry: $line")
