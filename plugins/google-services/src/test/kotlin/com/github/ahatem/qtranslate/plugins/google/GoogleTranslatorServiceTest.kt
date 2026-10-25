@@ -884,10 +884,13 @@ class GoogleTranslatorServiceTest {
     // connection-level failures (refused, DNS, reset) distinct from the HTTP/provider failures
     // and pin down what each means for the circuit and for recovery.
     //
-    // A refused connection is a transport exception, which the transport's retry policy never
-    // retries (it retries HTTP statuses only), so each fallback failure below is one wire attempt.
-    // The HTTP-provider case is not held to an attempt count: production retries a 5xx GET while
-    // the fake transport models only the 429 policy, so the counts would not agree.
+    // The asserted call counts hold under the fake transport's retry policy, which retries only
+    // a rate limit. Production keeps Ktor's default exception retry — `retryIf` overrides only
+    // the status condition — so production retries a refused, DNS-dead, reset, or 5xx fallback
+    // attempt up to two extra times with exponential backoff before the service sees the
+    // failure. The circuit conclusions below do not depend on the attempt count: fallback
+    // failures never feed GoogleEndpointHealth, the cooldown still runs out and admits a probe,
+    // and nothing pins to the unreachable host.
 
     private val refusedFallback: suspend (Int) -> Result<String, ServiceError> =
         { Err(ServiceError.NetworkError("Network error: Connection refused: getsockopt")) }
