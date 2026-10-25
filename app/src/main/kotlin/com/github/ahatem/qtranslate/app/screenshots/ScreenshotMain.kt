@@ -60,10 +60,18 @@ import javax.swing.text.JTextComponent
  * Each scene writes a [Configuration] and then starts the app against it, following the same order
  * as `Main.kt`: apply the configuration to the look and feel, load the interface language, build
  * the frame. Nothing is imposed on the window afterwards — no forced theme, no forced size, no
- * `pack()`. The window ends up the size and appearance the app itself chooses, which is the whole
- * point of shooting the real application. The one deliberate exception is the split panes: the
- * translation zones are balanced and the docked dictionary given its natural share before each
- * capture, so the set reads as arranged rather than default. The scenes themselves live in [Scenes].
+ * `pack()`. Scenes author their window at whatever size that layout genuinely reads best at; the
+ * window ends up the appearance the app itself chooses, which is the whole point of shooting the
+ * real application. The one deliberate exception is the split panes: the translation zones are
+ * balanced and the docked dictionary given its natural share before each capture, so the set
+ * reads as arranged rather than default. The scenes themselves live in [Scenes].
+ *
+ * ### The composite canvas
+ * The raw window paint is never the published image. [ScreenshotCompositor] lands every capture
+ * on one shared 2000×1250 canvas — warm gradient matched to the scene's theme, rounded corners,
+ * soft shadow — so the gallery is uniform while the app inside the shot stays at its own natural,
+ * flattering size. Set `QTRANSLATE_SCREENSHOT_RAW=1` to also write each uncomposited capture
+ * next to the final image; useful when tuning scene sizes.
  *
  * ### Scaling
  * The scenes set the app's own zoom, [Scenes.SCALE_PERCENT], through [Configuration.uiScale]: the
@@ -147,6 +155,9 @@ private class Shots(
 ) {
     private var frame: MainAppFrame? = null
     private var sceneScalePercent = Scenes.SCALE_PERCENT
+
+    /** Whether the scene in flight uses a dark theme — picks the composite backdrop's gradient. */
+    private var sceneIsDark = true
 
     // ── main window ───────────────────────────────────────────────────────────
 
@@ -421,7 +432,7 @@ private class Shots(
             // directly, skipping that step — the one gap that let a page swap (and, for Plugins, its
             // async plugin-list population) get rasterized mid-layout, producing a blank panel with
             // only the page title drawn.
-            paintAfterLayout("settings-$name-$suffix", dialog.rootPane)
+            write("settings-$name-$suffix", paintAfterLayout("settings-$name-$suffix", dialog.rootPane))
         }
         onUi { dialog.dispose() }
         delay(400)
@@ -449,6 +460,7 @@ private class Shots(
      */
     private suspend fun start(configuration: Configuration) {
         sceneScalePercent = configuration.uiScale
+        sceneIsDark = deps.themeManager.findThemeById(configuration.themeId).isDark
         deps.settingsStore.dispatch(SettingsIntent.ToggleSetting { configuration })
         delay(900)
 
@@ -472,8 +484,29 @@ private class Shots(
         delay(2_500)
         onUi { previous?.isVisible = false }
         delay(400)
+        applyAuthoredWindowSize(configuration)
         balanceSplits(configuration.layoutPresetId)
         delay(500)
+    }
+
+    /**
+     * Applies the scene's authored window size after startup.
+     *
+     * `pack()` sizes the window to the content's preferred size — for this layout, a wide row of
+     * service controls dominates, so the saved size would be grown back and the shot would read
+     * stretched no matter what the scene authored. Applying the size the way a user resize does —
+     * above the frame's own minimum — is what lets a scene actually present the window at the
+     * size it looks best at. The narrow shots' explicit [resizeWindow] calls stay: they re-apply
+     * the same numbers and keep that intent visible at the scene.
+     */
+    private suspend fun applyAuthoredWindowSize(configuration: Configuration) {
+        val saved = configuration.mainWindowSize ?: return
+        onUi {
+            val current = frame ?: return@onUi
+            current.minimumSize = Dimension(0, 0)
+            current.size = Dimension(saved.width, saved.height)
+        }
+        delay(800)
     }
 
     /**
@@ -648,7 +681,9 @@ private class Shots(
         delay(800)
     }
 
-    private suspend fun capture(name: String) = paintAfterLayout(name, requireFrame().rootPane)
+    private suspend fun capture(name: String) {
+        write(name, paintAfterLayout(name, requireFrame().rootPane))
+    }
 
     /**
      * Captures the window the app just opened over the frame, then closes it.
@@ -684,29 +719,44 @@ private class Shots(
             window.validate()
         }
         delay(900)
-        paintAfterLayout(name, (window as RootPaneContainer).rootPane)
+        write(name, paintAfterLayout(name, (window as RootPaneContainer).rootPane))
         onUi { window.dispose() }
         delay(400)
     }
 
-    private suspend fun paintAfterLayout(name: String, content: JComponent) {
+    private suspend fun paintAfterLayout(name: String, content: JComponent): BufferedImage {
         // Painting straight from the component tree would capture anything still queued for layout
         // half-positioned. Force the pass and let the repaint drain first.
         onUi { content.revalidate(); content.repaint() }
         delay(700)
-        paint(name, content)
+        return paint(name, content)
     }
 
-    private suspend fun paint(name: String, content: JComponent) = onUi {
-        val image = BufferedImage(content.width, content.height, BufferedImage.TYPE_INT_ARGB)
-        val g = image.createGraphics()
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-        content.paint(g)
-        g.dispose()
-        val target = File(outputDir, "$name.png")
-        ImageIO.write(image, "png", target)
-        println("wrote ${target.name}  ${image.width}x${image.height}")
+    /** Paints the live component to an image; publishing it is [write]'s job. */
+    private suspend fun paint(name: String, content: JComponent): BufferedImage {
+        var image: BufferedImage? = null
+        onUi {
+            val captured = BufferedImage(content.width, content.height, BufferedImage.TYPE_INT_ARGB)
+            val g = captured.createGraphics()
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            content.paint(g)
+            g.dispose()
+            image = captured
+        }
+        return image!!
+    }
+
+    /**
+     * Lands the raw capture on the composite canvas ([ScreenshotCompositor]) and writes the
+     * published PNG. With `QTRANSLATE_SCREENSHOT_RAW=1` the uncomposited capture is written
+     * alongside it, which is how scene sizes get tuned without squinting through the gradient.
+     */
+    private fun write(name: String, shot: BufferedImage) {
+        if (System.getenv("QTRANSLATE_SCREENSHOT_RAW") == "1") {
+            ImageIO.write(shot, "png", File(outputDir, "$name-raw.png"))
+        }
+        ScreenshotCompositor.write(name, shot, sceneIsDark, outputDir)
     }
 }
 
