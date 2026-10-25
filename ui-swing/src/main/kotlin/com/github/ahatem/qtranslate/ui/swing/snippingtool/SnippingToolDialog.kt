@@ -72,6 +72,12 @@ class SnippingToolDialog(
         panel.setBounds(0, 0, bounds.width, bounds.height)
         contentPane.add(panel, BorderLayout.CENTER)
 
+        // The Translate button is presented as the primary action, so Enter
+        // activates it (#364). Swing's default-button mechanism keeps Space on a
+        // focused secondary button and the existing Escape binding untouched, and
+        // only fires while the button is enabled (a selection exists).
+        rootPane.defaultButton = panel.translateButton
+
         setupListeners()
         panel.render(initialState)
 
