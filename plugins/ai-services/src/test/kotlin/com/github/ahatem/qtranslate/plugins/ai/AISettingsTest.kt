@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.ai
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -71,5 +72,18 @@ class AISettingsTest {
         val broken = settings("not a url at all")
         assertFalse(broken.isLocalEndpoint)
         assertNotNull(broken.missingKeyError())
+    }
+
+    /**
+     * The defaults are the configuration every new user starts from, and the ones the OpenRouter
+     * setup guides quote back at us. The endpoint is the production chat-completions base (the
+     * client appends `/chat/completions`), and the model is OpenRouter's free auto-router alias —
+     * both verified against OpenRouter's own documentation and public model list.
+     */
+    @Test
+    fun `defaults match the OpenRouter contract`() {
+        val defaults = AISettings()
+        assertEquals("https://openrouter.ai/api/v1", defaults.baseUrl)
+        assertEquals("openrouter/free", defaults.model)
     }
 }

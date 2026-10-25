@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main.selector
 
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
@@ -192,6 +193,95 @@ class TranslatorSelectorTest {
         assertEquals("Service 12", active.text)
         assertTrue(activeX > gearX, "the active slot mirrors to the right in RTL")
         assertTrue(selector.overflowMenuForTest().components.filterIsInstance<JRadioButtonMenuItem>().last().isSelected)
+    }
+
+    @Test
+    fun `selecting services keeps the classic strip in configured order`() {
+        val selector = selector()
+        val translators = services(3)
+        onEdt { selector.render(state(translators, selectedId = "service-0")) }
+        size(selector, 800)
+
+        fun stripTexts(): List<String?> =
+            descendants(selector).filterIsInstance<JToggleButton>().map { it.text }
+
+        fun selectedText(): String? =
+            descendants(selector).filterIsInstance<JToggleButton>().single { it.isSelected }.text
+
+        assertEquals(listOf("Service 1", "Service 2", "Service 3"), stripTexts())
+
+        // Last service becomes active: it must be selected in place, not moved to the front.
+        onEdt { selector.render(state(translators, selectedId = "service-2")) }
+        size(selector, 800)
+        assertEquals(listOf("Service 1", "Service 2", "Service 3"), stripTexts())
+        assertEquals("Service 3", selectedText(), "the newly selected service stays selected at its configured position")
+
+        // Middle service, then back to the first: no position may ever move.
+        onEdt { selector.render(state(translators, selectedId = "service-1")) }
+        size(selector, 800)
+        assertEquals(listOf("Service 1", "Service 2", "Service 3"), stripTexts())
+        assertEquals("Service 2", selectedText())
+        onEdt { selector.render(state(translators, selectedId = "service-0")) }
+        size(selector, 800)
+        assertEquals(listOf("Service 1", "Service 2", "Service 3"), stripTexts())
+    }
+
+    @Test
+    fun `a service selected out of order stays at its configured place when the strip overflows`() {
+        val reported = mutableListOf<String>()
+        val selector = selector { _, id -> reported += id }
+        val translators = services(12)
+        onEdt { selector.render(state(translators, selectedId = "service-0")) }
+        size(selector, 340)
+
+        onEdt { selector.render(state(translators, selectedId = "service-11")) }
+        size(selector, 340)
+
+        val visible = descendants(selector).filterIsInstance<JToggleButton>()
+        assertEquals("Service 12", visible.single { it.isSelected }.text, "the active service stays visible")
+        assertEquals("Service 1", visible.first().text, "the strip keeps configured order; the active slot does not jump to the front")
+        val configuredOrder = translators.map { it.name }
+        val visibleOrder = visible.map { it.text }
+        assertEquals(
+            visibleOrder.sortedBy { configuredOrder.indexOf(it) },
+            visibleOrder,
+            "visible services keep their configured relative order"
+        )
+        val menu = selector.overflowMenuForTest().components.filterIsInstance<JRadioButtonMenuItem>()
+        assertEquals(translators.size, menu.size)
+        assertTrue(menu.last().isSelected, "the overflow menu identifies the active service")
+        onEdt { menu.first().doClick() }
+        assertEquals(listOf("service-0"), reported)
+    }
+
+    @Test
+    fun `the overflow menu stays hidden while everything including a wide active service fits`() {
+        val selector = selector()
+        val translators = listOf(
+            service("service-0", "A rather wide active translator label"),
+            service("service-1", "B")
+        )
+        onEdt { selector.render(state(translators, selectedId = "service-0")) }
+        size(selector, 2000) // realize the strip before measuring its buttons
+
+        val buttons = descendants(selector).filterIsInstance<JToggleButton>()
+        val gear = descendants(selector).filterIsInstance<JButton>()
+            .first { it.toolTipText == "Configure active translation service" }
+        val needed = buttons.sumOf { it.preferredSize.width } + gear.preferredSize.width + UIScale.scale(6)
+
+        size(selector, needed)
+        assertTrue(
+            descendants(selector).filterIsInstance<JButton>()
+                .none { it.isVisible && it.toolTipText == "All services" },
+            "the row fits exactly, so the More menu must not appear even with a wide active slot"
+        )
+
+        size(selector, needed - 1)
+        assertTrue(
+            descendants(selector).filterIsInstance<JButton>()
+                .any { it.isVisible && it.toolTipText == "All services" },
+            "one pixel narrower and the row genuinely overflows"
+        )
     }
 
     @Test
