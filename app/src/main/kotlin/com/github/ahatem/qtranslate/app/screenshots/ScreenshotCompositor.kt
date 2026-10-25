@@ -7,7 +7,6 @@ import java.awt.RadialGradientPaint
 import java.awt.Color
 import java.awt.Font
 import java.awt.MultipleGradientPaint
-import java.awt.geom.RoundRectangle2D
 import java.awt.font.TextAttribute
 import java.awt.image.BufferedImage
 import java.awt.image.ConvolveOp
@@ -15,6 +14,7 @@ import java.awt.image.Kernel
 import java.io.File
 import java.text.AttributedString
 import javax.imageio.ImageIO
+import javax.swing.UIManager
 import kotlin.math.min
 
 /**
@@ -45,9 +45,6 @@ internal object ScreenshotCompositor {
     private const val MARGIN = 90
 
     /** Corner rounding, device pixels at the harness's 2× scale. */
-    private const val CORNER_RADIUS = 24f
-
-    /** Shadow blur radius and the downward offset that lifts the window off the backdrop. */
     private const val SHADOW_BLUR = 22
     private const val SHADOW_DROP = 10
 
@@ -58,10 +55,15 @@ internal object ScreenshotCompositor {
     private val lightTop = Color(0xF2F0EA)
     private val lightBottom = Color(0xE4E1D8)
 
-    // Grammar tones: hairlines, ticks and captions recede below the text floor, the way the
-    // identity lets non-essential graphics recede. Proof Red is the one chromatic mark.
-    private val darkGrammar = Color(0x4A4843)
-    private val lightGrammar = Color(0xBDBAB2)
+    // Graphics tones: the hairline ticks and rules are non-essential decoration, which the
+    // identity lets recede below the text floor, so they use the guide tone. The caption is
+    // readable text and uses the identity's readable grammar tone instead — 4.5:1 or better on
+    // the canvas: #7E7C77 is 4.6:1 on #101010, #6E6B65 is 4.7:1 on #F2F0EA. The Proof Red tick
+    // is a graphic mark, held at or above 3:1 (3.5:1 dark, 6.5:1 light).
+    private val darkGuide = Color(0x4A4843)
+    private val lightGuide = Color(0xBDBAB2)
+    private val darkCaption = Color(0x7E7C77)
+    private val lightCaption = Color(0x6E6B65)
     private val darkProofRed = Color(0xB04A43)
     private val lightProofRed = Color(0x913832)
 
@@ -79,7 +81,8 @@ internal object ScreenshotCompositor {
      * at 1:1 whenever it fits, never upscaled.
      */
     fun write(name: String, shot: BufferedImage, isDark: Boolean, outputDir: File) {
-        val grammar = if (isDark) darkGrammar else lightGrammar
+        val guide = if (isDark) darkGuide else lightGuide
+        val captionTone = if (isDark) darkCaption else lightCaption
         val proofRed = if (isDark) darkProofRed else lightProofRed
 
         val canvas = BufferedImage(CANVAS_WIDTH, CANVAS_HEIGHT, BufferedImage.TYPE_INT_RGB)
@@ -105,15 +108,12 @@ internal object ScreenshotCompositor {
         lightPool(g, x, y, width, height, isDark)
         g.drawImage(shadowFor(width, height), x - SHADOW_BLUR * 2,
             y - SHADOW_BLUR * 2 + SHADOW_DROP, null)
-
-        g.clip = RoundRectangle2D.Float(x.toFloat(), y.toFloat(), width.toFloat(), height.toFloat(),
-            CORNER_RADIUS, CORNER_RADIUS)
+        // The window is kept exactly as the app painted it — square corners, crisp edge.
         g.drawImage(shot, x, y, width, height, null)
-        g.clip = null
 
-        cornerTicks(g, grammar)
-        val ruleY = baselineRule(g, x, y + height, width, grammar, proofRed)
-        caption(g, name, x, ruleY, grammar)
+        cornerTicks(g, guide)
+        val ruleY = baselineRule(g, x, y + height, width, guide, proofRed)
+        caption(g, name, x, ruleY, captionTone)
 
         g.dispose()
 
@@ -176,15 +176,19 @@ internal object ScreenshotCompositor {
     }
 
     /** Small tracked micro-caption under the rule, aligned to the window like plate metadata. */
-    private fun caption(g: Graphics2D, name: String, windowX: Int, ruleY: Int, grammar: Color) {
+    private fun caption(g: Graphics2D, name: String, windowX: Int, ruleY: Int, tone: Color) {
         val text = "QTRANSLATE · ${name.uppercase().replace("-", " · ")} · 2×"
-        val font = Font(Font.MONOSPACED, Font.PLAIN, CAPTION_SIZE)
+        // The app's own interface font, not a harness constant: the plate metadata matches the
+        // product whatever face or platform a capture machine uses. Sized to micro type.
+        val uiFont: java.awt.Font? = UIManager.getFont("defaultFont") ?: UIManager.getFont("Label.font")
+        val font = if (uiFont != null) Font(uiFont.family, Font.PLAIN, CAPTION_SIZE)
+                   else Font(Font.MONOSPACED, Font.PLAIN, CAPTION_SIZE)
         val attributed = AttributedString(text, mapOf(
             TextAttribute.FONT to font,
-            TextAttribute.FOREGROUND to grammar,
+            TextAttribute.FOREGROUND to tone,
             TextAttribute.TRACKING to 0.18f
         ))
-        g.paint = grammar
+        g.paint = tone
         g.drawString(attributed.iterator, windowX.toFloat(), (ruleY + CAPTION_DROP + 8).toFloat())
     }
 
@@ -223,8 +227,7 @@ internal object ScreenshotCompositor {
         val g = plate.createGraphics()
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
         g.paint = Color(0, 0, 0, 90)
-        g.fill(RoundRectangle2D.Float(pad.toFloat(), pad.toFloat(), width.toFloat(), height.toFloat(),
-            CORNER_RADIUS, CORNER_RADIUS))
+        g.fillRect(pad, pad, width, height)
         g.dispose()
         // Separable gaussian: one horizontal pass, then one vertical. A 2-D kernel over a
         // full plate would be (2r+1)² taps per pixel for the same result.

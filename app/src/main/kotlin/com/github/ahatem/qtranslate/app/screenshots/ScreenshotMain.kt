@@ -359,8 +359,11 @@ private class Shots(
     suspend fun documentTranslation() {
         start(Scenes.classic(Scenes.LIGHT))
         invokeAppAction("TRANSLATE_DOCUMENT")
-        // The path is visible in the capture, so QTRANSLATE_SCREENSHOT_DOCS can point it at a neutral folder.
-        val sampleDir = System.getenv("QTRANSLATE_SCREENSHOT_DOCS")?.let(::File)?.also(File::mkdirs) ?: outputDir
+        // The path is visible in the capture, so QTRANSLATE_SCREENSHOT_DOCS can point it at a
+        // neutral folder; without it the default is the machine's public documents folder, which
+        // reads as a real user path without leaking the harness's own directories.
+        val sampleDir = System.getenv("QTRANSLATE_SCREENSHOT_DOCS")?.let(::File)?.also(File::mkdirs)
+            ?: File(System.getenv("PUBLIC"), "Documents")
         val sample = File(sampleDir, "Research notes.txt").apply {
             writeText("Peristalsis moves food through the digestive tract by rhythmic contraction of smooth muscle.\n")
         }
@@ -726,7 +729,16 @@ private class Shots(
         }
         delay(900)
         write(name, paintAfterLayout(name, (window as RootPaneContainer).rootPane))
-        onUi { window.dispose() }
+        onUi {
+            window.dispose()
+            // These popups carry no Swing owner, and earlier scenes' frames are only hidden — a
+            // shared-state dispatch re-shows every frame's dialog, dark ones included, and the
+            // next floating capture would otherwise pick one of those leftovers. One capture,
+            // one clean slate: everything still floating that is not this scene's frame goes.
+            Window.getWindows()
+                .filter { it !== frame && it.isVisible && it is RootPaneContainer }
+                .forEach { it.dispose() }
+        }
         delay(400)
     }
 
