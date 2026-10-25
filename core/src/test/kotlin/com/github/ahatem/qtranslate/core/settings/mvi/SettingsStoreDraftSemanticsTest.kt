@@ -23,6 +23,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -315,8 +317,32 @@ class SettingsStoreDraftSemanticsTest {
         directories += directory
         val repository = SettingsRepository(directory, Json { ignoreUnknownKeys = true }, logger)
         repository.updateConfiguration(config)
+        // The store observes the repository asynchronously. The initial state is
+        // seeded correctly, but until the collector has processed the repository's
+        // first emission the store holds an unprocessed stale value: a save that
+        // commits before that emission lands is transiently reverted by it
+        // (observed in CI as "expected [b, c, d] actual [a, b, c, d]"). Await the
+        // first synchronization with a latch on the sync debug message — no
+        // sleeps — so every test exercises draft semantics against a fully
+        // initialized store. Coupled to SettingsStore.observeRepositoryChanges'
+        // "Syncing working config from repository" debug message.
+        val firstRepositorySync = CountDownLatch(1)
+        val syncAwareLogger = object : Logger by logger {
+            override fun debug(message: String) {
+                if (message == SYNC_DEBUG_MESSAGE) firstRepositorySync.countDown()
+                logger.debug(message)
+            }
+        }
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         scopes += scope
-        return SettingsStore(repository, logger, scope, config)
+        val store = SettingsStore(repository, syncAwareLogger, scope, config)
+        check(firstRepositorySync.await(10, TimeUnit.SECONDS)) {
+            "SettingsStore did not synchronize with the repository before the test started"
+        }
+        return store
+    }
+
+    private companion object {
+        const val SYNC_DEBUG_MESSAGE = "Syncing working config from repository"
     }
 }
