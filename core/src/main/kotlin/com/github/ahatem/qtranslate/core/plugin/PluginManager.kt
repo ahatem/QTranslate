@@ -76,11 +76,6 @@ class PluginManager(
     // touch appDataDirectory. Null when the two are one folder, as in a portable distribution.
     installationRoot: File? = null
 ) {
-    private companion object {
-        /** A check is a network round trip; long enough to succeed, short enough to give up on. */
-        const val VALIDATE_TIMEOUT_MS = 15_000L
-    }
-
     private val logger = loggerFactory.getLogger("PluginManager")
 
     /** The user's own plugin folder — the only one written to or deleted from. */
@@ -350,12 +345,13 @@ class PluginManager(
      */
     suspend fun validateServices(pluginId: String): List<ServiceValidation> {
         val container = registry.mutex.withLock { registry.get(pluginId) } ?: return emptyList()
+        val timeoutMs = validateTimeoutMs(networkConfig())
 
         return withContext(Dispatchers.IO) {
             supervisorScope {
                 container.services.map { service ->
                     async {
-                        val outcome = withTimeoutOrNull(VALIDATE_TIMEOUT_MS) {
+                        val outcome = withTimeoutOrNull(timeoutMs) {
                             runCatching { service.validate() }
                                 .getOrElse { thrown ->
                                     // A check that throws is a failed check, not a crashed app.
@@ -368,7 +364,7 @@ class PluginManager(
                                 }
                         } ?: Err(
                             ServiceError.TimeoutError(
-                                "Validation did not answer within ${VALIDATE_TIMEOUT_MS / 1000}s"
+                                "Validation did not answer within ${timeoutMs / 1000}s"
                             )
                         )
 
@@ -618,4 +614,47 @@ class PluginManager(
             _activeServices.value = registry.activeServices()
         }
     }
+}
+
+/** Matches the clamp [com.github.ahatem.qtranslate.core.plugin.http.toHttpClientConfig] applies. */
+private const val MAX_VALIDATE_RETRIES = 10
+
+/** Scheduling and answer-reading time around the last attempt, on top of its request timeout. */
+private const val VALIDATE_HEADROOM_MS = 2_000L
+
+/**
+ * The floor for a service check, and the backstop for one that hangs on something that is not a
+ * request. How much higher the ceiling climbs depends on the network settings the check's own
+ * request is subject to; see [validateTimeoutMs].
+ */
+private const val VALIDATE_TIMEOUT_FLOOR_MS = 15_000L
+
+/**
+ * How long a plugin service's connection test may run before it is abandoned.
+ *
+ * A check is a real request, so it lives under the very timeouts the user set in Settings →
+ * Network — and a cap shorter than those convicts a working endpoint: the same request would be
+ * allowed to succeed in ordinary use, yet the test reports a timeout. The cap is therefore never
+ * below what one check could legitimately take: the request timeout — or a larger per-host
+ * override — times the attempts a retry policy may spend, plus the backoff between them, plus a
+ * little headroom. The backoff sum is deliberately the worst case rather than an exact mirror of
+ * the client's ladder, whose jitter makes an exact figure fiction; overestimating only delays a
+ * cap that normally has nothing to stop.
+ *
+ * The floor stays in place so a check that never issues a request — a plugin whose validate()
+ * spins on non-network work — still cannot hold the settings dialog open forever.
+ */
+internal fun validateTimeoutMs(network: NetworkConfig): Long {
+    val attemptTimeoutSeconds = maxOf(
+        network.requestTimeoutSeconds,
+        network.hostTimeoutSeconds.values.maxOrNull() ?: 0
+    ).coerceAtLeast(1)
+
+    val retries = if (network.retryEnabled) network.maxRetries.coerceIn(0, MAX_VALIDATE_RETRIES) else 0
+    var backoffMs = 0L
+    var delayMs = network.retryInitialDelaySeconds.coerceIn(1, 60) * 1_000L
+    repeat(retries) { backoffMs += delayMs; delayMs *= 2 }
+
+    val longestLegalRequestMs = attemptTimeoutSeconds * 1_000L * (retries + 1) + backoffMs
+    return maxOf(VALIDATE_TIMEOUT_FLOOR_MS, longestLegalRequestMs + VALIDATE_HEADROOM_MS)
 }
