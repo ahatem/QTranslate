@@ -697,10 +697,16 @@ private class Shots(
         val window = withTimeoutOrNull(15_000) {
             var found: Window? = null
             while (found == null) {
-                found = Window.getWindows()
+                // Earlier scenes' frames are hidden, not disposed, and they share the stores — a
+                // ShowQuickTranslate dispatch makes every one of them pop its own dialog, older
+                // (and darker) than this scene's. The capture is the window this scene's frame
+                // owns; only scenes that never open an owned window fall back to the largest.
+                val visible = Window.getWindows()
                     .filter { it !== frame && it.isVisible && it is RootPaneContainer }
                     .filter { it.width > 0 && it.height > 0 }
-                    .maxByOrNull { it.width.toLong() * it.height }
+                val owned = visible.filter { it.owner === frame }
+                found = owned.maxByOrNull { it.width.toLong() * it.height }
+                    ?: visible.maxByOrNull { it.width.toLong() * it.height }
                 if (found == null) delay(250)
             }
             found
