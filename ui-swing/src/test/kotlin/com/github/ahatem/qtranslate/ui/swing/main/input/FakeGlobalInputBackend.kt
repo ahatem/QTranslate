@@ -36,6 +36,21 @@ internal class FakeGlobalInputBackend(
      */
     val refusedUnregister = mutableSetOf<String>()
 
+    /**
+     * Accelerators owned by another application: a normal apply that tries to register one
+     * throws and leaves the previously installed set untouched, exactly as the native apply
+     * aborts at the first conflicting registration and rolls back. An accelerator already
+     * installed with the same token is not re-registered and therefore does not conflict.
+     */
+    val conflictingAccelerators = mutableSetOf<String>()
+
+    /**
+     * Accelerators installed by a failed apply whose rollback could not unwind them: physically
+     * registered but untracked. A later apply that wants one of these fails, because the
+     * platform rejects a duplicate registration of a chord it already holds.
+     */
+    private val untracked = mutableSetOf<String>()
+
     /** Accelerator to token for every registration currently installed, desired or left over. */
     private val installed = mutableMapOf<String, Long>()
 
@@ -68,6 +83,17 @@ internal class FakeGlobalInputBackend(
         val isRollback = rollbackPending
         rollbackPending = false
         if (!isRollback) {
+            // Registration-order failures first: a chord owned by another application (or an
+            // untracked residue of an earlier failed apply) refuses to register, and the native
+            // apply aborts before mutating anything, leaving the previous set installed.
+            for ((accelerator, token) in desired) {
+                val ours = installed[accelerator]
+                if (accelerator in untracked || (accelerator in conflictingAccelerators && ours != token)) {
+                    throw RuntimeException(
+                        "Failed to apply hotkeys: backend error: HotKey already registered: $accelerator (code 2)"
+                    )
+                }
+            }
             // A registration that left the desired set is released, unless the platform refuses,
             // in which case it stays installed and can still fire. This is the whole point of the
             // fake: no amount of calling applyHotkeys makes a refused registration go away until
@@ -82,14 +108,25 @@ internal class FakeGlobalInputBackend(
         }
         for ((accelerator, token) in desired) {
             // A rollback must not overwrite the speculative token: the failed attempt's token is
-            // what the OS would actually echo for the still-installed registration.
-            if (isRollback && accelerator in installed) continue
+            // what the OS would actually echo for the still-installed registration. Such a
+            // registration is also untracked: the native manager no longer knows about it, so a
+            // later apply that wants it fails to register.
+            if (isRollback && accelerator in installed) {
+                untracked += accelerator
+                continue
+            }
             installed[accelerator] = token
         }
         // Anything installed but not desired is the residue of a refused or unwound release.
         leftovers.clear()
         for ((accelerator, token) in installed) {
             if (accelerator !in desired) leftovers[accelerator] = token
+        }
+        if (isRollback) {
+            // A rollback that could not unwind leaves its residue untracked: the native manager
+            // no longer knows about these registrations, so a later apply that wants one of
+            // them fails to register it (the platform refuses a duplicate of a chord it holds).
+            untracked += leftovers.keys
         }
         applied += registrations.toList()
         emitDuringApply?.invoke(this)

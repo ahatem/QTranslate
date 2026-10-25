@@ -12,6 +12,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.input.GlobalInputEvent
 import com.github.ahatem.qtranslate.ui.swing.main.input.GlobalRegistration
 import com.github.ahatem.qtranslate.ui.swing.main.input.HotkeyRegistrationLedger
 import com.github.ahatem.qtranslate.ui.swing.main.input.HotkeyRegistrationToken
+import com.github.ahatem.qtranslate.ui.swing.main.input.PlannedRegistration
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputCapabilities
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputRequirements
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputRuntimeState
@@ -310,6 +311,11 @@ class MainGlobalKeyListener(
      * A degraded apply is accepted exactly like a clean one: retiring superseded tokens makes
      * the leftovers non-dispatchable regardless; [recordApplyOutcome] only tracks the report for
      * diagnostics.
+     *
+     * A failed apply does not reject the whole configuration: the native backend registers the
+     * set sequentially and aborts at the first refused registration (a shortcut another
+     * application already owns), rolling the entire apply back, so [isolateRejectedBindings]
+     * re-applies the plan incrementally and keeps every binding the backend accepts.
      */
     private fun reconcile() {
         val target = backend ?: return
@@ -325,17 +331,18 @@ class MainGlobalKeyListener(
                 description = planned.registration.action.name
             )
         }
-        val outcome = try {
-            target.applyHotkeys(native)
+        val outcome: ApplyResult = try {
+            target.applyHotkeys(native).also {
+                registrations.accept(plan)
+                lastApplied = native
+            }
         } catch (e: Exception) {
             logger.error("Failed to apply global hotkeys, restoring previous set", e)
             runCatching { target.applyHotkeys(lastApplied) }
                 .onFailure { logger.error("Failed to restore previous global hotkeys", it) }
-            null
-        } ?: return
-        registrations.accept(plan)
-        lastApplied = native
-        recordApplyOutcome(outcome, native.size)
+            isolateRejectedBindings(target, plan) ?: return
+        }
+        recordApplyOutcome(outcome, lastApplied.size)
         runCatching {
             target.setRawMask(
                 keyboard = requirements.keyboard,
@@ -343,6 +350,77 @@ class MainGlobalKeyListener(
                 mouseMotion = requirements.mouseMotion
             )
         }.onFailure { logger.warn("Failed to update raw input mask: ${it.message}") }
+    }
+
+    /**
+     * Re-applies a rejected plan one binding at a time and commits the accepted subset.
+     *
+     * The native backend registers the requested set sequentially and aborts the whole apply at
+     * the first refused registration (proven QInput contract: a conflict on one shortcut — for
+     * example a chord another application already owns — fails the apply and rolls it back).
+     * Without this decomposition, one conflicting binding would reject the entire configuration
+     * and leave unrelated, perfectly usable shortcuts unregistered.
+     *
+     * Each attempt applies the prefixes accepted so far plus one candidate, so the backend
+     * rolls a refused candidate back to exactly that prefix and the next candidate is judged on
+     * its own merits. Rejected bindings are named in the log so the user can rebind them; the
+     * accepted subset is committed ([HotkeyRegistrationLedger.accept] plus [lastApplied]) so
+     * dispatch stays in step with what is actually installed.
+     *
+     * Returns the last successful apply's outcome, or null when nothing could be applied (every
+     * binding refused, or the backend failing outright): the previous set then stands, exactly
+     * as the whole-set rollback path leaves it.
+     *
+     * A transient backend failure during decomposition can exclude a healthy binding; that is
+     * self-healing, because isolation only runs after a whole-set failure and the next
+     * reconciliation always attempts the whole set first.
+     *
+     * Must only be called while holding [reconcileLock], after the failed apply's rollback has
+     * been repaired with the previous set.
+     */
+    private fun isolateRejectedBindings(
+        target: GlobalInputBackend,
+        plan: List<PlannedRegistration>,
+    ): ApplyResult? {
+        val kept = ArrayList<PlannedRegistration>()
+        var outcome: ApplyResult? = null
+        for (candidate in plan) {
+            val prefix = kept.map { planned ->
+                GlobalInputBackend.HotkeyRegistration(
+                    id = planned.token.value,
+                    accelerator = planned.registration.accelerator,
+                    description = planned.registration.action.name
+                )
+            } + GlobalInputBackend.HotkeyRegistration(
+                id = candidate.token.value,
+                accelerator = candidate.registration.accelerator,
+                description = candidate.registration.action.name
+            )
+            outcome = try {
+                target.applyHotkeys(prefix)
+            } catch (e: Exception) {
+                // The backend error text is embedded verbatim: it already says whether the
+                // shortcut is owned by another application ("HotKey already registered") or
+                // the failure was transient, so the message must not editorialize a cause.
+                logger.warn(
+                    "Global hotkey ${candidate.registration.action.name} " +
+                        "(${candidate.registration.accelerator}) was not registered: ${e.message}. " +
+                        "The remaining global hotkeys stay active."
+                )
+                continue
+            }
+            kept += candidate
+        }
+        if (kept.isEmpty()) return null
+        registrations.accept(kept)
+        lastApplied = kept.map { planned ->
+            GlobalInputBackend.HotkeyRegistration(
+                id = planned.token.value,
+                accelerator = planned.registration.accelerator,
+                description = planned.registration.action.name
+            )
+        }
+        return outcome
     }
 
     /**
