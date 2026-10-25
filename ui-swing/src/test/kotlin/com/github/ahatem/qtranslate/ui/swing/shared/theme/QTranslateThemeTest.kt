@@ -24,6 +24,8 @@ class QTranslateThemeTest {
     fun `bundled Ioskeley themes load with the expected mode`() {
         assertTheme("themes/ioskeley-light.theme.json", "Ioskeley Light", false)
         assertTheme("themes/ioskeley-dark.theme.json", "Ioskeley Dark", true)
+        assertTheme("themes/ioskeley-light-proof.theme.json", "Ioskeley Light Proof", false)
+        assertTheme("themes/ioskeley-dark-proof.theme.json", "Ioskeley Dark Proof", true)
     }
 
     @Test

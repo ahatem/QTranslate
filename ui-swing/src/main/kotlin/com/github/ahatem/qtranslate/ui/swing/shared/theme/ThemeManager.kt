@@ -33,6 +33,8 @@ class ThemeManager(
         createCustomTheme("qtranslate_dark",     "QTranslate Dark",      true,  "themes/qtranslate-dark.theme.json"),
         createCustomTheme("ioskeley_dark",       "Ioskeley Dark",        true,  "themes/ioskeley-dark.theme.json"),
         createCustomTheme("ioskeley_light",      "Ioskeley Light",       false, "themes/ioskeley-light.theme.json"),
+        createCustomTheme("ioskeley_dark_proof", "Ioskeley Dark Proof",  true,  "themes/ioskeley-dark-proof.theme.json"),
+        createCustomTheme("ioskeley_light_proof", "Ioskeley Light Proof", false, "themes/ioskeley-light-proof.theme.json"),
         createCustomTheme("resharper_dark",      "ReSharper Dark",       true,  "themes/ReSharperDark.theme.json"),
         createCustomTheme("resharper_light",     "ReSharper Light",      false, "themes/ReSharperLight.theme.json"),
         createCustomTheme("xcode_dark",          "Xcode Dark",           true,  "themes/XcodeDark.theme.json"),
