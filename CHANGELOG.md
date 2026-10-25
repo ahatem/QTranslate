@@ -9,6 +9,9 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Two experimental themes, Ioskeley Dark and Ioskeley Light**, built on the Ioskeley Mono visual identity: a warm-neutral monochrome canvas where typography and state carry the hierarchy and a single accent — Proof Red — appears only as a rare structural mark. Experimental for now; they do not change the default theme or any existing selection
+
 ### Fixed
 - **One conflicting global shortcut no longer disables all the others.** The global-hotkey backend registers the configured set in order and gives up on the first shortcut another application already owns, and QTranslate treated that as a failure of the whole set: at startup this left every global shortcut unregistered, and on a change it restored the previous set, all because of one binding. Registration now retries the set one binding at a time, keeps every shortcut the backend accepts, and logs the conflicting shortcut by name so it can be rebound
 - **Classic bottom-strip service icons no longer jump to the front when used.** In the Classic selector panel, selecting a service moved it to the first position of the strip, so favorite services would not stay where the user had memorized them. The strip now always shows services in their configured order; the active service is highlighted in place and keeps its reserved visibility slot, while the Enhanced service pickers are unchanged

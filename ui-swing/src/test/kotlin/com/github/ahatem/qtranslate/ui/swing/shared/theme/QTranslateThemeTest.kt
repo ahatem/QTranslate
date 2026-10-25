@@ -21,6 +21,12 @@ class QTranslateThemeTest {
     }
 
     @Test
+    fun `bundled Ioskeley themes load with the expected mode`() {
+        assertTheme("themes/ioskeley-light.theme.json", "Ioskeley Light", false)
+        assertTheme("themes/ioskeley-dark.theme.json", "Ioskeley Dark", true)
+    }
+
+    @Test
     fun `platform defaults use QTranslate themes`() {
         assertEquals("custom:qtranslate_light", ThemeManager.platformDefaultLightThemeId())
         assertEquals("custom:qtranslate_dark", ThemeManager.platformDefaultDarkThemeId())
@@ -110,6 +116,51 @@ class QTranslateThemeTest {
         }
         listOf("#94AE62", "#E0913C", "#D06B62").forEach {
             assertContrast(it, "#0C0C0C", 4.5)
+        }
+    }
+
+    /**
+     * Ioskeley is a monochrome, typography-led identity: readable text is always neutral ink,
+     * hierarchy comes from weight and tone, and Proof Red is the only chromatic colour — reserved
+     * for small structural and active-state marks, never for readable text. The tokens are from
+     * Ioskeley's `docs/VISUAL_IDENTITY.md`; the tonal fills are its ink-over-canvas tints
+     * (the website mixes them at runtime) precomputed here.
+     */
+    @Test
+    fun `Ioskeley text stays readable and Proof Red stays a mark`() {
+        // Ioskeley Dark — warm-neutral ink on near-black; status text is neutral, red is marks only
+        assertContrast("#D8D5CE", "#101010", 7.0)   // body text on canvas
+        assertContrast("#D8D5CE", "#1C1C1B", 7.0)   // body text on editor surface
+        assertContrast("#8F8D86", "#101010", 4.5)   // muted text
+        assertContrast("#7E7C77", "#101010", 3.0)   // disabled text
+        assertContrast("#D8D5CE", "#302F2B", 4.5)   // text over a selection
+        assertContrast("#B04A43", "#101010", 3.0)   // Proof Red as a graphic mark, never text
+
+        // Ioskeley Light — ink on warm paper
+        assertContrast("#292826", "#F2F0EA", 7.0)   // body text on canvas
+        assertContrast("#292826", "#E6E4DE", 7.0)   // body text on editor surface
+        assertContrast("#4E4D49", "#F2F0EA", 4.5)   // muted text
+        assertContrast("#6E6B65", "#F2F0EA", 3.0)   // disabled text
+        assertContrast("#292826", "#E2DFD8", 4.5)   // text over a selection
+        assertContrast("#913832", "#F2F0EA", 3.0)   // Proof Red as a graphic mark, never text
+    }
+
+    /**
+     * Secondary and disabled text sit on raised tonal fills too — popups, table headers,
+     * spinner buttons — so they must hold their floors there as well, matching how the
+     * Ioskeley identity lifts grammar tones over tinted fills.
+     */
+    @Test
+    fun `Ioskeley muted and disabled text stay readable on every surface`() {
+        listOf("#101010", "#1C1C1B", "#262624").forEach { surface ->
+            assertContrast("#8F8D86", surface, 4.5)
+            assertContrast("#7E7C77", surface, 3.0)
+            assertContrast("#D8D5CE", surface, 7.0)
+        }
+        listOf("#F2F0EA", "#E6E4DE", "#DCDAD4").forEach { surface ->
+            assertContrast("#4E4D49", surface, 4.5)
+            assertContrast("#6E6B65", surface, 3.0)
+            assertContrast("#292826", surface, 7.0)
         }
     }
 
