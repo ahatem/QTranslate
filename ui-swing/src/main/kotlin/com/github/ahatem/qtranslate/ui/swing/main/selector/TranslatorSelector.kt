@@ -41,7 +41,7 @@ class TranslatorSelector(
         }
     }.apply { isOpaque = false }
     private var activeButton: JToggleButton? = null
-    private var remainingButtons: List<JToggleButton> = emptyList()
+    private var stripButtons: List<JToggleButton> = emptyList()
     private val overflowMenu = JButton("More ▾").apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
         putClientProperty(FlatClientProperties.STYLE, "arc: 0")
@@ -103,26 +103,41 @@ class TranslatorSelector(
             }.also(group::add)
         }
         activeButton = selected?.let { buttons[it.id] }
-        remainingButtons = services.filter { it.id != selected?.id }.mapNotNull { buttons[it.id] }
+        stripButtons = services.mapNotNull { buttons[it.id] }
         configureActive.isEnabled = !state.isLoading && selected != null
         overflowMenu.isEnabled = !state.isLoading
         fitClassicButtons()
     }
 
-    /** Keep the active provider and only whole buttons in the row. Every provider remains in More. */
+    /**
+     * Keep only whole buttons in the row, always in the configured service order — selecting a
+     * service must never move it (or anything else) to another position. The active provider is
+     * reserved room so it stays visible; everything beyond the row lands in the More menu.
+     * Every provider remains in More.
+     */
     private fun fitClassicButtons() {
         val width = classic.width
         if (width <= 0) return
         val activeWidth = activeButton?.preferredSize?.width ?: 0
         val room = (width - classic.insets.left - classic.insets.right -
-            configureActive.preferredSize.width - UIScale.scale(6) - activeWidth).coerceAtLeast(0)
-        val overflow = remainingButtons.sumOf { it.preferredSize.width } > room
-        val serviceRoom = (room - if (overflow) overflowMenu.preferredSize.width else 0).coerceAtLeast(0)
+            configureActive.preferredSize.width - UIScale.scale(6)).coerceAtLeast(0)
+        val overflow = stripButtons.sumOf { it.preferredSize.width } > room
+        val serviceRoom = (room - activeWidth - if (overflow) overflowMenu.preferredSize.width else 0)
+            .coerceAtLeast(0)
         val visibleButtons = mutableListOf<AbstractButton>()
-        activeButton?.let { visibleButtons.add(it) }
         var used = 0
-        for (button in remainingButtons) {
-            if (used + button.preferredSize.width > serviceRoom) break
+        var filling = true
+        for (button in stripButtons) {
+            if (button === activeButton) {
+                // The active provider keeps its configured slot and reserved room.
+                visibleButtons.add(button)
+                continue
+            }
+            if (!filling) continue
+            if (used + button.preferredSize.width > serviceRoom) {
+                filling = false
+                continue
+            }
             visibleButtons.add(button)
             used += button.preferredSize.width
         }
