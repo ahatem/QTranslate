@@ -167,6 +167,9 @@ private class Shots(
         /** Total requests per capture, so a scene with no popup at all still gives up. */
         const val MAX_ATTEMPTS = 3
 
+        /** Attempts at a settings page that painted empty before the shot is published anyway. */
+        const val PAGE_ATTEMPTS = 3
+
         /**
          * A popup is only worth capturing once it is actually a popup: a dialog that has been
          * shown but not yet packed reports a few pixels, and painting that gives a plate with a
@@ -452,28 +455,80 @@ private class Shots(
         delay(1_200)
 
         for ((row, name) in pages) {
-            onUi {
-                val tree = find<JTree>(dialog)
-                    ?: error("Settings page tree not found while capturing '$name' — dialog layout changed?")
-                tree.setSelectionRow(row)
+            var shot: BufferedImage
+            var attempt = 1
+            while (true) {
+                selectPage(dialog, row, name)
+                delay(900)
+                shot = paintAfterLayout("settings-$name-$suffix", dialog.rootPane)
+                // A page swap occasionally paints the card before its body exists, which yields a
+                // perfectly valid-looking capture of an empty panel. Nothing throws and nothing is
+                // logged, so the run used to publish it. Select the page again and repaint.
+                if (!shot.paintsEmptyPage() || attempt >= PAGE_ATTEMPTS) break
+                logger.warn("settings-$name-$suffix: painted an empty page; selecting it again")
+                attempt++
+                delay(600)
             }
-            if (name == "plugins") {
-                delay(300)
-                onUi { selectPluginRow(dialog, "DeepL Services") }
+            if (shot.paintsEmptyPage()) {
+                logger.warn("settings-$name-$suffix: still empty after $attempt attempts")
             }
-            delay(900)
-            // Every other capture path in this file goes through paintAfterLayout, which forces a
-            // revalidate/repaint and lets it settle before painting. This loop used to call paint()
-            // directly, skipping that step — the one gap that let a page swap (and, for Plugins, its
-            // async plugin-list population) get rasterized mid-layout, producing a blank panel with
-            // only the page title drawn.
-            write("settings-$name-$suffix", paintAfterLayout("settings-$name-$suffix", dialog.rootPane))
+            write("settings-$name-$suffix", shot)
         }
         onUi { dialog.dispose() }
         delay(400)
         // Selecting a theme row leaves the dialog's own preview applied; put the scene back.
         onUi { deps.themeManager.applyTheme(deps.themeManager.findThemeById(theme), animate = false) }
         delay(400)
+    }
+
+    /** Selects a settings page the way a user does, including the Plugins page's row choice. */
+    private suspend fun selectPage(dialog: SettingsDialog, row: Int, name: String) {
+        onUi {
+            val tree = find<JTree>(dialog)
+                ?: error("Settings page tree not found while capturing '$name' — dialog layout changed?")
+            tree.setSelectionRow(row)
+        }
+        if (name == "plugins") {
+            delay(300)
+            onUi { selectPluginRow(dialog, "DeepL Services") }
+        }
+    }
+
+    /**
+     * Whether a settings page painted nothing but its own background.
+     *
+     * The page cards are built on selection, and a paint that lands before the card's body is laid
+     * out gives an empty panel that still looks like a plausible capture. Real pages draw labels,
+     * fields and controls over at least 2% of the content area; an empty one leaves only borders,
+     * which measure around a third of a percent.
+     */
+    private fun BufferedImage.paintsEmptyPage(): Boolean {
+        val left = (width * 0.30).toInt()
+        val right = (width * 0.97).toInt()
+        val top = (height * 0.12).toInt()
+        val bottom = (height * 0.88).toInt()
+        val histogram = IntArray(256)
+        var sampled = 0
+        var y = top
+        while (y < bottom) {
+            var x = left
+            while (x < right) {
+                val rgb = getRGB(x, y)
+                val luma = ((rgb shr 16 and 0xFF) * 30 + (rgb shr 8 and 0xFF) * 59 + (rgb and 0xFF) * 11) / 100
+                histogram[luma]++
+                sampled++
+                x += 3
+            }
+            y += 3
+        }
+        if (sampled == 0) return true
+        var background = 0
+        for (i in histogram.indices) if (histogram[i] > histogram[background]) background = i
+        var ink = 0
+        for (i in histogram.indices) {
+            if (i < background - 24 || i > background + 24) ink += histogram[i]
+        }
+        return ink * 100 < sampled
     }
 
     suspend fun close() {
