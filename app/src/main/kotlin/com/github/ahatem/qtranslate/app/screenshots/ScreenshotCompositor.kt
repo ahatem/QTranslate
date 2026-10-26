@@ -128,7 +128,12 @@ internal object ScreenshotCompositor {
 
         cornerTicks(g, guide)
         val ruleY = baselineRule(g, x, y + height, width, guide, proofRed)
-        caption(g, name, x, ruleY, captionTone)
+        // The plate's own caption is drawn unless a consumer labels the shots itself. The website
+        // does: its tiles carry real HTML captions, and a 22 px caption on a 2000 px plate is
+        // illegible once a tile renders it at a third of that.
+        if (System.getenv("QTRANSLATE_SCREENSHOT_PLATE_LABEL") != "none") {
+            caption(g, name, x, ruleY, captionTone)
+        }
 
         g.dispose()
 

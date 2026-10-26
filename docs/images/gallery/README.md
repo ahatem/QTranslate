@@ -48,3 +48,5 @@ and 200%, plus RTL and light theme.
 Use `QTRANSLATE_SCREENSHOT_SCENES=document` to capture only the document dialog. Its file paths are
 visible in the image, so also set `QTRANSLATE_SCREENSHOT_DOCS` to a neutral folder such as
 `C:\Users\Public\Documents` first.
+Use `QTRANSLATE_SCREENSHOT_PLATE_LABEL=none` to composite without the plate caption, for consumers
+that label the shots themselves — the website does.
