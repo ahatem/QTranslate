@@ -6,6 +6,8 @@ Welcome to the QTranslate documentation wiki.
 
 ## For Users
 
+**Platform support:** the Windows package (bundled Java runtime) requires **Windows 10 or later, x64**; Windows 7/8.1 are not supported. macOS and Linux run `QTranslate.jar` with Java 17 or later.
+
 - [Installing Plugins](Installing-Plugins.md) — how to find, install, and configure plugins
 - [Hotkeys](Hotkeys.md) — global vs. app-local hotkeys, switching presets, and troubleshooting one that won't fire
 - [System Services](System-Services.md) — the bundled offline OCR/TTS/spell-check plugin, and what each platform needs
