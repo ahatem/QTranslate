@@ -572,7 +572,11 @@ private class Shots(
         }
         // The frame finishes building itself in a queued invokeLater (pack, listeners, visibility).
         delay(2_500)
-        onUi { previous?.isVisible = false }
+        // Disposed, not merely hidden. Every frame subscribes to the same stores, so a hidden one
+        // still answers a Show* dispatch by showing its own dialog — in the theme it was built
+        // under. Disposing the frame cancels its scope (MainAppFrame does that on windowClosed),
+        // which leaves the scene's own frame as the only one that can open a popup.
+        onUi { previous?.dispose() }
         delay(400)
         applyAuthoredWindowSize(configuration)
         balanceSplits(configuration.layoutPresetId)
@@ -819,10 +823,9 @@ private class Shots(
         write(name, paintAfterLayout(name, (window as RootPaneContainer).rootPane))
         onUi {
             window.dispose()
-            // These popups carry no Swing owner, and earlier scenes' frames are only hidden — a
-            // shared-state dispatch re-shows every frame's dialog, dark ones included, and the
-            // next floating capture would otherwise pick one of those leftovers. One capture,
-            // one clean slate: everything still floating that is not this scene's frame goes.
+            // These popups carry no Swing owner. Earlier frames are disposed before a scene
+            // starts, so nothing else should answer the next dispatch — but a dialog can linger
+            // through a slow close, and one capture, one clean slate keeps the next shot honest.
             closeFloatingWindows()
         }
         delay(400)
@@ -837,10 +840,9 @@ private class Shots(
     private suspend fun awaitFloatingWindow(timeoutMs: Long): Window? = withTimeoutOrNull(timeoutMs) {
         var found: Window? = null
         while (found == null) {
-            // Earlier scenes' frames are hidden, not disposed, and they share the stores — a
-            // ShowQuickTranslate dispatch makes every one of them pop its own dialog, older
-            // (and darker) than this scene's. The capture is the window this scene's frame
-            // owns; only scenes that never open an owned window fall back to the largest.
+            // Earlier frames are disposed before each scene, so in practice only this scene's
+            // frame answers the dispatch. Owned windows are still preferred, and the largest is
+            // the fallback for the popups that are deliberately ownerless.
             val visible = floatingWindows()
                 .filter { it.width >= MIN_POPUP_WIDTH && it.height >= MIN_POPUP_HEIGHT }
             val owned = visible.filter { it.owner === frame }
