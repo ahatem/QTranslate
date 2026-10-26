@@ -68,9 +68,9 @@ import javax.swing.text.JTextComponent
  *
  * ### The composite canvas
  * The raw window paint is never the published image. [ScreenshotCompositor] lands every capture
- * on one shared 2000×1250 canvas — warm gradient matched to the scene's theme, rounded corners,
- * soft shadow — so the gallery is uniform while the app inside the shot stays at its own natural,
- * flattering size. Set `QTRANSLATE_SCREENSHOT_RAW=1` to also write each uncomposited capture
+ * on one shared 2000×1250 canvas — warm gradient matched to the scene's theme, the window drawn
+ * square as the app paints it, soft shadow — so the gallery is uniform while the app inside the
+ * shot stays at its own natural, flattering size. Set `QTRANSLATE_SCREENSHOT_RAW=1` to also write each uncomposited capture
  * next to the final image; useful when tuning scene sizes.
  *
  * ### Scaling

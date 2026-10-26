@@ -15,7 +15,6 @@ import java.io.File
 import java.text.AttributedString
 import javax.imageio.ImageIO
 import javax.swing.UIManager
-import kotlin.math.min
 
 /**
  * Lands every capture on one shared publication canvas.
@@ -23,8 +22,9 @@ import kotlin.math.min
  * The window itself is never stretched to make the gallery uniform — scenes author it at whatever
  * size the layout genuinely reads best at. Uniformity is applied afterwards: the raw window paint
  * is centered on a fixed 2000×1250 (16:10) canvas over a warm gradient matched to the scene's
- * theme, with its corners rounded and a soft shadow beneath it, so the window sits on the
- * backdrop like a product shot rather than being pasted onto it.
+ * theme, drawn exactly as the app painted it — square corners, crisp edge — with a soft shadow
+ * beneath it, so the window sits on the backdrop like a product shot rather than being pasted
+ * onto it.
  *
  * The backdrop is dressed as a proofing plate, after the identity the themes themselves come
  * from: a soft pool of light behind the window gives the shot depth, hairline registration ticks
@@ -32,8 +32,8 @@ import kotlin.math.min
  * baseline tick beside a small tracked caption. Everything stays in the warm-neutral grammar
  * tones — Proof Red appears once per plate, marking the baseline, exactly as governed.
  *
- * Everything here is plain AWT: the repo carries no image libraries, and a shadow, a gradient and
- * a rounded clip do not warrant adding one.
+ * Everything here is plain AWT: the repo carries no image libraries, and a shadow and a gradient
+ * do not warrant adding one.
  */
 internal object ScreenshotCompositor {
 
@@ -44,7 +44,15 @@ internal object ScreenshotCompositor {
     /** Breathing room between the window and the canvas edge. */
     private const val MARGIN = 90
 
-    /** Corner rounding, device pixels at the harness's 2× scale. */
+    /**
+     * Room kept below the window for the plate's own dressing — the measurement rule, its Proof
+     * Red tick and the caption. Without it a tall shot is fitted to the margin and the rule ends
+     * up clamped against the canvas edge, crossing the window's bottom border and landing in its
+     * drop shadow, which is both a collision and a contrast trap.
+     */
+    private const val PLATE_BAND = 104
+
+    /** Shadow blur radius and vertical drop, device pixels at the harness's 2× scale. */
     private const val SHADOW_BLUR = 22
     private const val SHADOW_DROP = 10
 
@@ -57,13 +65,16 @@ internal object ScreenshotCompositor {
 
     // Graphics tones: the hairline ticks and rules are non-essential decoration, which the
     // identity lets recede below the text floor, so they use the guide tone. The caption is
-    // readable text and uses the identity's readable grammar tone instead — 4.5:1 or better on
-    // the canvas: #7E7C77 is 4.6:1 on #101010, #6E6B65 is 4.7:1 on #F2F0EA. The Proof Red tick
-    // is a graphic mark, held at or above 3:1 (3.5:1 dark, 6.5:1 light).
+    // readable text and uses the identity's readable grammar tone instead — held at 4.5:1 or
+    // better against the backdrop *where it is actually painted*, which is neither end of the
+    // gradient but the band just below the window, where the pool of light lifts the dark canvas
+    // to #262523 and the window's shadow pulls the paper down to #CBC8C1. #92908A measures 4.8:1
+    // on the first, #524F4B 4.9:1 on the second. The Proof Red tick is a graphic mark, held at
+    // or above 3:1 (3.5:1 dark, 6.5:1 light).
     private val darkGuide = Color(0x4A4843)
     private val lightGuide = Color(0xBDBAB2)
-    private val darkCaption = Color(0x7E7C77)
-    private val lightCaption = Color(0x6E6B65)
+    private val darkCaption = Color(0x92908A)
+    private val lightCaption = Color(0x524F4B)
     private val darkProofRed = Color(0xB04A43)
     private val lightProofRed = Color(0x913832)
 
@@ -78,7 +89,8 @@ internal object ScreenshotCompositor {
      *
      * The shot is scaled down to fit the margins when it is larger than the canvas allows —
      * the comparison board and the settings dialog are taller than a main window — and drawn
-     * at 1:1 whenever it fits, never upscaled.
+     * at 1:1 whenever it fits, never upscaled. Fitting reserves [PLATE_BAND] below the window so
+     * the plate's rule and caption keep their own space.
      */
     fun write(name: String, shot: BufferedImage, isDark: Boolean, outputDir: File) {
         val guide = if (isDark) darkGuide else lightGuide
@@ -98,12 +110,15 @@ internal object ScreenshotCompositor {
         dither(canvas)
 
         val availableWidth = CANVAS_WIDTH - 2 * MARGIN
-        val availableHeight = CANVAS_HEIGHT - 2 * MARGIN
+        // The plate band is subtracted from the fitting height, not from the whole canvas: the
+        // window is centred in the space above it, so the rule and caption always have clear
+        // backdrop of their own instead of being squeezed against the canvas edge.
+        val availableHeight = CANVAS_HEIGHT - 2 * MARGIN - PLATE_BAND
         val scale = minOf(1f, availableWidth.toFloat() / shot.width, availableHeight.toFloat() / shot.height)
         val width = (shot.width * scale).toInt()
         val height = (shot.height * scale).toInt()
         val x = (CANVAS_WIDTH - width) / 2
-        val y = (CANVAS_HEIGHT - height) / 2
+        val y = MARGIN + (availableHeight - height) / 2
 
         lightPool(g, x, y, width, height, isDark)
         g.drawImage(shadowFor(width, height), x - SHADOW_BLUR * 2,
@@ -164,10 +179,13 @@ internal object ScreenshotCompositor {
      * chromatic mark, the way the identity's baseline registration reads. The tick aligns with
      * the window's leading edge, so it marks the shot itself, not the canvas. Returns the rule's
      * y so the caption can hang from the same measurement line.
+     *
+     * No clamping: the fit already reserves [PLATE_BAND] below the window, so the rule and the
+     * caption below it always land on the canvas with room to spare.
      */
     private fun baselineRule(g: Graphics2D, windowX: Int, windowBottom: Int, windowWidth: Int,
                              grammar: Color, proofRed: Color): Int {
-        val y = minOf(windowBottom + BASELINE_RULE_DROP, CANVAS_HEIGHT - 82)
+        val y = windowBottom + BASELINE_RULE_DROP
         g.paint = grammar
         g.drawLine(windowX, y, windowX + windowWidth, y)
         g.paint = proofRed
