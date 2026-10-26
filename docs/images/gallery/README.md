@@ -26,9 +26,9 @@ smaller tour; its main images are copied to `docs/images/`.
 | `layout-comparison-dark` | Google, Bing, DeepL and Yandex results in one configured Comparison set |
 | `dictionary-quick-dark` | The floating dictionary popup for selected words |
 | `dock-images-dark`, `dock-image-viewer-dark` | Image results and the opened viewer with source credit |
-| `document-translation` | A document selected for translation |
+| `document-translation-light` | A document selected for translation |
 | `settings-services-dark`, `settings-plugins-dark` | Service presets, System Services and runtime plugin management |
-| `rtl-main` | The Arabic interface mirrored right to left |
+| `rtl-main-dark` | The Arabic interface mirrored right to left |
 
 ## Regenerating
 
@@ -50,3 +50,7 @@ visible in the image, so also set `QTRANSLATE_SCREENSHOT_DOCS` to a neutral fold
 `C:\Users\Public\Documents` first.
 Use `QTRANSLATE_SCREENSHOT_PLATE_LABEL=none` to composite without the plate caption, for consumers
 that label the shots themselves — the website does.
+
+Every scene the website publishes is captured once per theme, as `<scene>-light` and `<scene>-dark`
+with identical content; only the theme differs. The website draws whichever matches the reader's
+theme, so the two files of a pair are always kept together.

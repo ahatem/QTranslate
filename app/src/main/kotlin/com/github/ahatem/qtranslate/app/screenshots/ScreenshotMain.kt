@@ -182,25 +182,21 @@ private class Shots(
     // ── main window ───────────────────────────────────────────────────────────
 
     suspend fun mainWindow() {
-        start(Scenes.classic(Scenes.DARK))
-        translate(LanguageCode("ar"), Scenes.PERISTALSIS)
-        capture("main-dark")
-
-        start(Scenes.classic(Scenes.LIGHT))
-        translate(LanguageCode("fr"), Scenes.LIBRARY)
-        capture("main-light")
+        for ((theme, suffix) in Scenes.THEMES) {
+            start(Scenes.classic(theme))
+            translate(LanguageCode("fr"), Scenes.LIBRARY)
+            capture("main-$suffix")
+        }
     }
 
     // ── layouts ───────────────────────────────────────────────────────────────
 
     suspend fun layouts() {
-        start(Scenes.sideBySide(Scenes.DARK))
-        translate(LanguageCode("de"), Scenes.VACCINE)
-        capture("layout-side-by-side-dark")
-
-        start(Scenes.sideBySide(Scenes.LIGHT))
-        translate(LanguageCode("es"), Scenes.PITCH)
-        capture("layout-side-by-side-light")
+        for ((theme, suffix) in Scenes.THEMES) {
+            start(Scenes.sideBySide(theme))
+            translate(LanguageCode("de"), Scenes.VACCINE)
+            capture("layout-side-by-side-$suffix")
+        }
 
         // Below the breakpoint the same layout stacks its panes.
         start(Scenes.sideBySide(Scenes.DARK))
@@ -215,11 +211,13 @@ private class Shots(
         capture("layout-classic-narrow-arabic-dark")
 
         // Use the bundled named translators and give the board a taller scene of its own.
-        start(comparisonConfig(Scenes.DARK, listOf("Bing Translate", "DeepL", "Yandex Web")))
-        translate(LanguageCode("fr"), Scenes.COMPARISON)
-        awaitComparison()
-        scrollComparisonToTop()
-        capture("layout-comparison-dark")
+        for ((theme, suffix) in Scenes.THEMES) {
+            start(comparisonConfig(theme, listOf("Bing Translate", "DeepL", "Yandex Web")))
+            translate(LanguageCode("fr"), Scenes.COMPARISON)
+            awaitComparison()
+            scrollComparisonToTop()
+            capture("layout-comparison-$suffix")
+        }
 
         start(comparisonConfig(Scenes.DARK, listOf("Bing Translate", "DeepL", "Yandex Web")))
         translate(LanguageCode("fr"), Scenes.COMPARISON)
@@ -252,16 +250,13 @@ private class Shots(
         // The hero: input, backward translation and the dictionary all at once. Backward
         // translation rather than Summary or Rewrite — those are AI-only, and without an API key
         // they would render as an authentication error.
-        start(Scenes.hero(Scenes.DARK))
-        translate(LanguageCode("fr"), Scenes.PERISTALSIS_HERO)
-        openDictionary("peristalsis")
-        scrollAllToTop()
-        capture("hero-dark")
-
-        start(Scenes.hero(Scenes.LIGHT))
-        translate(LanguageCode("fr"), Scenes.PITCH)
-        openDictionary("threshold")
-        capture("hero-light")
+        for ((theme, suffix) in Scenes.THEMES) {
+            start(Scenes.hero(theme))
+            translate(LanguageCode("fr"), Scenes.PERISTALSIS_HERO)
+            openDictionary("peristalsis")
+            scrollAllToTop()
+            capture("hero-$suffix")
+        }
     }
 
     suspend fun selectorAudit() {
@@ -301,42 +296,43 @@ private class Shots(
     // ── dictionary ────────────────────────────────────────────────────────────
 
     suspend fun dictionary() {
-        start(Scenes.classic(Scenes.DARK))
-        translate(LanguageCode("fr"), Scenes.VACCINE)
-        openDictionary("vial")
-        capture("dictionary-docked-dark")
-
-        start(Scenes.classic(Scenes.LIGHT))
-        translate(LanguageCode("de"), Scenes.LIBRARY)
-        openDictionary("holiday")
-        capture("dictionary-docked-light")
+        for ((theme, suffix) in Scenes.THEMES) {
+            start(Scenes.classic(theme))
+            translate(LanguageCode("fr"), Scenes.VACCINE)
+            openDictionary("vial")
+            capture("dictionary-docked-$suffix")
+        }
 
         // The floating popup, which is what the Ctrl+D shortcut opens over other applications.
-        start(Scenes.classic(Scenes.DARK))
-        translate(LanguageCode("ar"), Scenes.PERISTALSIS)
-        deps.mainStore.dispatch(MainIntent.ShowQuickDictionary("peristalsis"))
-        delay(5_000)
-        captureFloatingWindow(
-            "dictionary-quick-dark",
-            show = { deps.mainStore.dispatch(MainIntent.ShowQuickDictionary("peristalsis")) },
-        )
-        deps.mainStore.dispatch(MainIntent.HideQuickDictionary)
-        delay(500)
+        for ((theme, suffix) in Scenes.THEMES) {
+            start(Scenes.classic(theme))
+            translate(LanguageCode("ar"), Scenes.PERISTALSIS)
+            deps.mainStore.dispatch(MainIntent.ShowQuickDictionary("peristalsis"))
+            delay(5_000)
+            captureFloatingWindow(
+                "dictionary-quick-$suffix",
+                show = { deps.mainStore.dispatch(MainIntent.ShowQuickDictionary("peristalsis")) },
+            )
+            deps.mainStore.dispatch(MainIntent.HideQuickDictionary)
+            delay(500)
+        }
     }
 
     // ── right to left ─────────────────────────────────────────────────────────
 
     suspend fun rightToLeft() {
-        start(Scenes.arabic("classic"))
-        translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
-        // The dictionary is the panel that mirrors, so this shot is also the check that it lands
-        // on the leading side rather than staying pinned to the right.
-        openDictionary("peristalsis")
-        capture("rtl-dictionary")
+        for ((theme, suffix) in Scenes.THEMES) {
+            start(Scenes.arabic("classic", theme))
+            translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
+            // The dictionary is the panel that mirrors, so this shot is also the check that it
+            // lands on the leading side rather than staying pinned to the right.
+            openDictionary("peristalsis")
+            capture("rtl-dictionary-$suffix")
 
-        start(Scenes.arabic("classic"))
-        translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
-        capture("rtl-main")
+            start(Scenes.arabic("classic", theme))
+            translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
+            capture("rtl-main-$suffix")
+        }
 
         start(Scenes.arabic("side_by_side"))
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
@@ -370,24 +366,25 @@ private class Shots(
     // ── dialogs opened through the app's own actions ──────────────────────────
 
     suspend fun history() {
-        start(Scenes.classic(Scenes.DARK))
-        // Every earlier scene left its translations behind, so the table would otherwise be the
-        // same few passages repeated down the page.
-        deps.mainStore.dispatch(MainIntent.ClearHistory)
-        delay(800)
-        // A history table with one row in it says nothing; fill it the way a session would.
-        for ((target, text) in Scenes.HISTORY_WARMUP) translate(target, text)
-        invokeAppAction("SHOW_HISTORY")
-        delay(1_500)
-        captureFloatingWindow(
-            "history",
-            size = Scenes.WINDOW,
-            show = { invokeAppAction("SHOW_HISTORY") },
-        )
+        for ((theme, suffix) in Scenes.THEMES) {
+            start(Scenes.classic(theme))
+            // Every earlier scene left its translations behind, so the table would otherwise be
+            // the same few passages repeated down the page.
+            deps.mainStore.dispatch(MainIntent.ClearHistory)
+            delay(800)
+            // A history table with one row in it says nothing; fill it the way a session would.
+            for ((target, text) in Scenes.HISTORY_WARMUP) translate(target, text)
+            invokeAppAction("SHOW_HISTORY")
+            delay(1_500)
+            captureFloatingWindow(
+                "history-$suffix",
+                size = Scenes.WINDOW,
+                show = { invokeAppAction("SHOW_HISTORY") },
+            )
+        }
     }
 
     suspend fun documentTranslation() {
-        start(Scenes.classic(Scenes.LIGHT))
         // The path is visible in the capture, so QTRANSLATE_SCREENSHOT_DOCS can point it at a
         // neutral folder; without it the default is the machine's public documents folder, which
         // reads as a real user path without leaking the harness's own directories.
@@ -396,18 +393,21 @@ private class Shots(
         val sample = File(sampleDir, "Research notes.txt").apply {
             writeText("Peristalsis moves food through the digestive tract by rhythmic contraction of smooth muscle.\n")
         }
-        // Opened through the app's own action, then handed the sample file. Kept as one lambda so
-        // a capture that finds no window can repeat exactly the same request.
-        val openSample: suspend () -> Unit = {
-            invokeAppAction("TRANSLATE_DOCUMENT")
-            onUi {
-                Window.getWindows().filterIsInstance<DocumentTranslationDialog>()
-                    .firstOrNull { it.isVisible }?.openWith(sample)
+        for ((theme, suffix) in Scenes.THEMES) {
+            start(Scenes.classic(theme))
+            // Opened through the app's own action, then handed the sample file. Kept as one lambda
+            // so a capture that finds no window can repeat exactly the same request.
+            val openSample: suspend () -> Unit = {
+                invokeAppAction("TRANSLATE_DOCUMENT")
+                onUi {
+                    Window.getWindows().filterIsInstance<DocumentTranslationDialog>()
+                        .firstOrNull { it.isVisible }?.openWith(sample)
+                }
             }
+            openSample()
+            delay(1_500)
+            captureFloatingWindow("document-translation-$suffix", show = openSample)
         }
-        openSample()
-        delay(1_500)
-        captureFloatingWindow("document-translation", show = openSample)
     }
 
     /**
@@ -572,7 +572,11 @@ private class Shots(
         }
         // The frame finishes building itself in a queued invokeLater (pack, listeners, visibility).
         delay(2_500)
-        onUi { previous?.isVisible = false }
+        // Disposed, not merely hidden. Every frame subscribes to the same stores, so a hidden one
+        // still answers a Show* dispatch by showing its own dialog — in the theme it was built
+        // under. Disposing the frame cancels its scope (MainAppFrame does that on windowClosed),
+        // which leaves the scene's own frame as the only one that can open a popup.
+        onUi { previous?.dispose() }
         delay(400)
         applyAuthoredWindowSize(configuration)
         balanceSplits(configuration.layoutPresetId)
@@ -819,10 +823,9 @@ private class Shots(
         write(name, paintAfterLayout(name, (window as RootPaneContainer).rootPane))
         onUi {
             window.dispose()
-            // These popups carry no Swing owner, and earlier scenes' frames are only hidden — a
-            // shared-state dispatch re-shows every frame's dialog, dark ones included, and the
-            // next floating capture would otherwise pick one of those leftovers. One capture,
-            // one clean slate: everything still floating that is not this scene's frame goes.
+            // These popups carry no Swing owner. Earlier frames are disposed before a scene
+            // starts, so nothing else should answer the next dispatch — but a dialog can linger
+            // through a slow close, and one capture, one clean slate keeps the next shot honest.
             closeFloatingWindows()
         }
         delay(400)
@@ -837,10 +840,9 @@ private class Shots(
     private suspend fun awaitFloatingWindow(timeoutMs: Long): Window? = withTimeoutOrNull(timeoutMs) {
         var found: Window? = null
         while (found == null) {
-            // Earlier scenes' frames are hidden, not disposed, and they share the stores — a
-            // ShowQuickTranslate dispatch makes every one of them pop its own dialog, older
-            // (and darker) than this scene's. The capture is the window this scene's frame
-            // owns; only scenes that never open an owned window fall back to the largest.
+            // Earlier frames are disposed before each scene, so in practice only this scene's
+            // frame answers the dispatch. Owned windows are still preferred, and the largest is
+            // the fallback for the popups that are deliberately ownerless.
             val visible = floatingWindows()
                 .filter { it.width >= MIN_POPUP_WIDTH && it.height >= MIN_POPUP_HEIGHT }
             val owned = visible.filter { it.owner === frame }
