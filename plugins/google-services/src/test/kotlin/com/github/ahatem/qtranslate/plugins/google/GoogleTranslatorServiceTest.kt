@@ -9,6 +9,7 @@ import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.fold
 import com.github.michaelbull.result.getError
 import kotlinx.coroutines.CompletableDeferred
@@ -873,6 +874,165 @@ class GoogleTranslatorServiceTest {
             failure = { fail(it.message) }
         )
         assertEquals(3, client.primaryCalls)
+    }
+
+    // --- Fallback reachability failures (#365) -----------------------------------------
+    //
+    // When the primary throttles, requests go to the fallback host. That host can itself be
+    // unreachable — a hosts-file sinkhole refuses the connection, DNS can fail, the socket can
+    // reset, or the endpoint can answer with a provider-level HTTP error. These tests keep the
+    // connection-level failures (refused, DNS, reset) distinct from the HTTP/provider failures
+    // and pin down what each means for the circuit and for recovery.
+    //
+    // The asserted call counts hold under the fake transport's retry policy, which retries only
+    // a rate limit. Production keeps Ktor's default exception retry — `retryIf` overrides only
+    // the status condition — so production retries a refused, DNS-dead, reset, or 5xx fallback
+    // attempt up to two extra times with exponential backoff before the service sees the
+    // failure. The circuit conclusions below do not depend on the attempt count: fallback
+    // failures never feed GoogleEndpointHealth, the cooldown still runs out and admits a probe,
+    // and nothing pins to the unreachable host.
+
+    private val refusedFallback: suspend (Int) -> Result<String, ServiceError> =
+        { Err(ServiceError.NetworkError("Network error: Connection refused: getsockopt")) }
+
+    @Test
+    fun `a refused fallback surfaces its own connection error, not the primary's`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
+            fallbackHandler = refusedFallback
+        )
+        val service = createService(client, AtomicLong(0))
+
+        val error = service.translate(request).getError()
+
+        // The error the user sees is the fallback's connection-level failure itself. It is a
+        // NetworkError, distinct from the primary's rate limit and from any provider HTTP
+        // response, and the message is not rewritten into a cause it does not have.
+        assertIs<ServiceError.NetworkError>(error)
+        assertEquals("Network error: Connection refused: getsockopt", error.message)
+        assertEquals(1, client.fallbackCalls)
+    }
+
+    @Test
+    fun `a dead fallback does not pin requests away from a recovered primary`() = runBlocking {
+        val clock = AtomicLong(0)
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                if (index == 0) Err(ServiceError.RateLimitError("rate limited")) else Ok(PRIMARY_JSON)
+            },
+            fallbackHandler = refusedFallback
+        )
+        val service = createService(client, clock)
+
+        // The throttle opens the circuit and the refused fallback fails the request.
+        assertIs<ServiceError.NetworkError>(service.translate(request).getError())
+        assertEquals(1, client.primaryCalls)
+        assertEquals(1, client.fallbackCalls)
+
+        // While the cooldown runs, requests go straight to the dead fallback. That detour is
+        // bounded by the cooldown, not a permanent pin to the unreachable host.
+        assertIs<ServiceError.NetworkError>(service.translate(request).getError())
+        assertEquals(1, client.primaryCalls)
+        assertEquals(2, client.fallbackCalls)
+
+        // After the cooldown a single probe returns to the primary, which has recovered: the
+        // request succeeds through the primary even though the fallback is still refused.
+        clock.set(2_000)
+        service.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        assertEquals(2, client.primaryCalls)
+
+        // The probe healed the circuit, so the primary serves directly again and the dead
+        // fallback is left alone.
+        service.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        assertEquals(3, client.primaryCalls)
+        assertEquals(2, client.fallbackCalls)
+    }
+
+    @Test
+    fun `DNS and reset fallback failures each surface their own connection error`() = runBlocking {
+        val clock = AtomicLong(0)
+        val fallbackErrors = listOf(
+            "Network error: UnknownHostException: clients5.google.com",
+            "Network error: Connection reset"
+        )
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
+            fallbackHandler = { index -> Err(ServiceError.NetworkError(fallbackErrors[index])) }
+        )
+        val service = createService(client, clock)
+
+        val dnsError = service.translate(request).getError()
+        assertIs<ServiceError.NetworkError>(dnsError)
+        assertEquals(fallbackErrors[0], dnsError.message)
+
+        // A connection-level fallback failure never feeds the circuit: the cooldown opened by
+        // the primary's rate limit still runs out, admits a probe, and the probe's failure is
+        // the primary's own rate limit reopening it. The next request still reaches the
+        // fallback, whose reset failure surfaces as itself.
+        clock.set(2_000)
+        val resetError = service.translate(request).getError()
+        assertIs<ServiceError.NetworkError>(resetError)
+        assertEquals(fallbackErrors[1], resetError.message)
+        assertEquals(2, client.primaryCalls)
+        assertEquals(2, client.fallbackCalls)
+    }
+
+    @Test
+    fun `a fallback provider HTTP failure is distinct from a fallback connection failure`() = runBlocking {
+        val clock = AtomicLong(0)
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                if (index == 0) Err(ServiceError.RateLimitError("rate limited")) else Ok(PRIMARY_JSON)
+            },
+            fallbackHandler = {
+                Err(ServiceError.ServiceUnavailableError("HTTP 500 for https://clients5.google.com/translate_a/t"))
+            }
+        )
+        val service = createService(client, clock)
+
+        // The fallback was reached and answered, so the failure is provider-level and surfaces
+        // as one, not as a connection error.
+        assertIs<ServiceError.ServiceUnavailableError>(service.translate(request).getError())
+
+        // The fallback's HTTP failure does not feed the circuit: after the primary's cooldown
+        // the probe heals it and translation recovers without another fallback attempt.
+        clock.set(2_000)
+        service.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        assertEquals(2, client.primaryCalls)
+        assertEquals(1, client.fallbackCalls)
+    }
+
+    @Test
+    fun `fallback connection failures do not interfere with the primary failure count`() = runBlocking {
+        val clock = AtomicLong(0)
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Err(ServiceError.TimeoutError("timed out")) },
+            fallbackHandler = refusedFallback
+        )
+        val service = createService(client, clock)
+
+        // Both endpoints fail end to end: the primary times out, the fallback is refused, and
+        // the request surfaces the fallback's connection error.
+        assertIs<ServiceError.NetworkError>(service.translate(request).getError())
+        assertIs<ServiceError.NetworkError>(service.translate(request).getError())
+        assertEquals(2, client.primaryCalls)
+        assertEquals(2, client.fallbackCalls)
+
+        // The circuit opened on the primary's second consecutive timeout, exactly as it would
+        // have with a working fallback: the fallback's failures neither accelerated nor delayed
+        // it. The third request skips the primary for the cooldown and meets the dead fallback.
+        assertIs<ServiceError.NetworkError>(service.translate(request).getError())
+        assertEquals(2, client.primaryCalls)
+        assertEquals(3, client.fallbackCalls)
     }
 
     private companion object {
