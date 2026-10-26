@@ -406,6 +406,10 @@ double_ctrl_description = "Pulse Ctrl dos veces para mostrar la ventana principa
 
 
 [settings_translation]
+ocr_destination = "Resultado de traducción OCR:"
+ocr_destination_popup = "Ventana emergente"
+ocr_destination_main = "Ventana principal"
+ocr_destination_hint = "Elige si la traducción OCR se abre en la ventana emergente flotante o en la ventana principal."
 behavior_group = "Comportamiento"
 instant_translation = "Traducción instantánea (traducir mientras escribe)"
 instant_hint = "Inicia la traducción automáticamente cuando deja de escribir."

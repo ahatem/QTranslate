@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
 import com.github.ahatem.qtranslate.api.plugin.StandardOptions
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.util.ServiceOptionChoice
@@ -62,6 +63,13 @@ class TranslationPanel(
         )
     }
 
+    private val ocrDestOptions by lazy {
+        listOf(
+            OcrDestInfo(OcrTranslationDestination.POPUP, localizationManager.getString("settings_translation.ocr_destination_popup")),
+            OcrDestInfo(OcrTranslationDestination.MAIN_WINDOW, localizationManager.getString("settings_translation.ocr_destination_main"))
+        )
+    }
+
     private val autoCopyModes by lazy {
         listOf(
             AutoCopyTranslationInfo(AutoCopyTranslation.OFF,                localizationManager.getString("settings_translation.auto_copy_off")),
@@ -73,6 +81,7 @@ class TranslationPanel(
     private lateinit var instantCheck:        JCheckBox
     private lateinit var spellCheck:          JCheckBox
     private lateinit var removeLineBreaksCheck: JCheckBox
+    private lateinit var ocrDestCombo:         JComboBox<OcrDestInfo>
     private lateinit var typeCombo:           JComboBox<ExtraOutputTypeInfo>
     private lateinit var useTranslated:       JRadioButton
     private lateinit var useInput:            JRadioButton
@@ -126,6 +135,18 @@ class TranslationPanel(
             onChange = { enabled -> applyDraft(store) { it.copy(isRemoveLineBreaksEnabled = enabled) } }
         )
         addHint(localizationManager.getString("settings_translation.remove_line_breaks_hint"))
+
+        ocrDestCombo = JComboBox<OcrDestInfo>(ocrDestOptions.toTypedArray()).apply {
+            renderer = DisplayValueRenderer<OcrDestInfo>(text = { it?.displayName.orEmpty() })
+            addActionListener {
+                if (!isUpdatingFromState) {
+                    val dest = (selectedItem as? OcrDestInfo)?.dest ?: return@addActionListener
+                    applyDraft(store) { it.copy(ocrTranslationDestination = dest) }
+                }
+            }
+        }
+        addRow(localizationManager.getString("settings_translation.ocr_destination"), ocrDestCombo)
+        addHint(localizationManager.getString("settings_translation.ocr_destination_hint"))
 
         // ---- Extra Output ----
         addSeparator(localizationManager.getString("settings_translation.extra_output_group"))
@@ -283,6 +304,7 @@ class TranslationPanel(
             autoCopyCombo.selectedItem     = autoCopyModes.find { it.mode == c.autoCopyTranslation }
             spellCheck.isSelected          = c.isSpellCheckingEnabled
             removeLineBreaksCheck.isSelected = c.isRemoveLineBreaksEnabled
+            ocrDestCombo.selectedItem      = ocrDestOptions.find { it.dest == c.ocrTranslationDestination }
             typeCombo.selectedItem         = types.find { it.type == c.extraOutputType }
 
             when (c.extraOutputSource) {
@@ -322,6 +344,8 @@ class TranslationPanel(
     private data class ExtraOutputTypeInfo(val type: ExtraOutputType, val displayName: String)
 
     private data class AutoCopyTranslationInfo(val mode: AutoCopyTranslation, val displayName: String)
+
+    private data class OcrDestInfo(val dest: OcrTranslationDestination, val displayName: String)
 }
 
 // ---------------------------------------------------------------------------

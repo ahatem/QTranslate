@@ -607,10 +607,17 @@ class MainStore(
 
         if (extractedText.isBlank()) return
 
-        // Write extracted text into input then translate — same path as manual typing.
-        clearComparisonState()
-        _state.update { it.copy(inputText = extractedText) }
-        translateText(TranslationOrigin.OCR, comparisonPolicy = ComparisonPolicy.DISABLED)
+        if (intent.openInQuickTranslate) {
+            val generation = quickTranslateGenerations.incrementAndGet()
+            translateTextUseCase.cancel()
+            clearComparisonState()
+            handleShowQuickTranslate(MainIntent.ShowQuickTranslate(extractedText), generation)
+        } else {
+            // Write extracted text into input then translate — same path as manual typing.
+            clearComparisonState()
+            _state.update { it.copy(inputText = extractedText) }
+            translateText(TranslationOrigin.OCR, comparisonPolicy = ComparisonPolicy.DISABLED)
+        }
     }
 
     /**

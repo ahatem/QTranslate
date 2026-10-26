@@ -73,7 +73,10 @@ sealed interface MainIntent : UiIntent {
     data object StopTTS : MainIntent
 
     /** User requested OCR on an image followed by translation of the detected text. */
-    data class OcrAndTranslateImage(val image: ImageData) : MainIntent
+    data class OcrAndTranslateImage(
+        val image: ImageData,
+        val openInQuickTranslate: Boolean = false
+    ) : MainIntent
 
     /**
      * User requested OCR on an image to extract text and copy it to the clipboard —

@@ -3,6 +3,8 @@ package com.github.ahatem.qtranslate.ui.swing.snippingtool
 import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
+import com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination
+import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.util.getVirtualScreenBounds
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toImageData
 import java.awt.*
@@ -19,8 +21,9 @@ import javax.swing.*
 import javax.swing.filechooser.FileNameExtensionFilter
 
 class SnippingToolDialog(
-    owner: Frame,
-    private val mainStore: MainStore
+    private val owner: Frame,
+    private val mainStore: MainStore,
+    private val settingsStore: SettingsStore
 ) : JDialog(owner, "", true) {
 
     private val panel: ScreenCapturePanel
@@ -79,12 +82,14 @@ class SnippingToolDialog(
     }
 
     private fun dispatchOcrAndTranslate(image: ImageData) {
-        mainStore.dispatch(MainIntent.OcrAndTranslateImage(image))
-        (owner as? JFrame)?.let {
-            it.isVisible = true
-            it.state = JFrame.NORMAL
-            it.toFront()
+        val dest = settingsStore.state.value.workingConfiguration.ocrTranslationDestination
+        val openInQuickTranslate = dest == OcrTranslationDestination.POPUP
+        if (!openInQuickTranslate) {
+            owner.isVisible = true
+            owner.state = Frame.NORMAL
+            owner.toFront()
         }
+        mainStore.dispatch(MainIntent.OcrAndTranslateImage(image, openInQuickTranslate = openInQuickTranslate))
         dispose()
     }
 
