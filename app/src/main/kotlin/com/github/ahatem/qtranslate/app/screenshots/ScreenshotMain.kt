@@ -159,6 +159,23 @@ private class Shots(
     /** Whether the scene in flight uses a dark theme — picks the composite backdrop's gradient. */
     private var sceneIsDark = true
 
+    private companion object {
+        /** How long one request for a floating window is given before the scene asks again. */
+        const val FIRST_WAIT_MS = 15_000L
+        const val RETRY_WAIT_MS = 10_000L
+
+        /** Total requests per capture, so a scene with no popup at all still gives up. */
+        const val MAX_ATTEMPTS = 3
+
+        /**
+         * A popup is only worth capturing once it is actually a popup: a dialog that has been
+         * shown but not yet packed reports a few pixels, and painting that gives a plate with a
+         * speck on it. Device pixels, so the floor clears every real popup in the set.
+         */
+        const val MIN_POPUP_WIDTH = 200
+        const val MIN_POPUP_HEIGHT = 100
+    }
+
     // ── main window ───────────────────────────────────────────────────────────
 
     suspend fun mainWindow() {
@@ -296,7 +313,10 @@ private class Shots(
         translate(LanguageCode("ar"), Scenes.PERISTALSIS)
         deps.mainStore.dispatch(MainIntent.ShowQuickDictionary("peristalsis"))
         delay(5_000)
-        captureFloatingWindow("dictionary-quick-dark")
+        captureFloatingWindow(
+            "dictionary-quick-dark",
+            show = { deps.mainStore.dispatch(MainIntent.ShowQuickDictionary("peristalsis")) },
+        )
         deps.mainStore.dispatch(MainIntent.HideQuickDictionary)
         delay(500)
     }
@@ -335,7 +355,10 @@ private class Shots(
             delay(400)
             deps.mainStore.dispatch(MainIntent.ShowQuickTranslate(Scenes.SELECTION))
             delay(6_000)
-            captureFloatingWindow("quick-translate-${theme.second}")
+            captureFloatingWindow(
+                "quick-translate-${theme.second}",
+                show = { deps.mainStore.dispatch(MainIntent.ShowQuickTranslate(Scenes.SELECTION)) },
+            )
             deps.mainStore.dispatch(MainIntent.HideQuickTranslate)
             delay(500)
         }
@@ -353,12 +376,15 @@ private class Shots(
         for ((target, text) in Scenes.HISTORY_WARMUP) translate(target, text)
         invokeAppAction("SHOW_HISTORY")
         delay(1_500)
-        captureFloatingWindow("history", size = Scenes.WINDOW)
+        captureFloatingWindow(
+            "history",
+            size = Scenes.WINDOW,
+            show = { invokeAppAction("SHOW_HISTORY") },
+        )
     }
 
     suspend fun documentTranslation() {
         start(Scenes.classic(Scenes.LIGHT))
-        invokeAppAction("TRANSLATE_DOCUMENT")
         // The path is visible in the capture, so QTRANSLATE_SCREENSHOT_DOCS can point it at a
         // neutral folder; without it the default is the machine's public documents folder, which
         // reads as a real user path without leaking the harness's own directories.
@@ -367,12 +393,18 @@ private class Shots(
         val sample = File(sampleDir, "Research notes.txt").apply {
             writeText("Peristalsis moves food through the digestive tract by rhythmic contraction of smooth muscle.\n")
         }
-        onUi {
-            Window.getWindows().filterIsInstance<DocumentTranslationDialog>()
-                .firstOrNull { it.isVisible }?.openWith(sample)
+        // Opened through the app's own action, then handed the sample file. Kept as one lambda so
+        // a capture that finds no window can repeat exactly the same request.
+        val openSample: suspend () -> Unit = {
+            invokeAppAction("TRANSLATE_DOCUMENT")
+            onUi {
+                Window.getWindows().filterIsInstance<DocumentTranslationDialog>()
+                    .firstOrNull { it.isVisible }?.openWith(sample)
+            }
         }
+        openSample()
         delay(1_500)
-        captureFloatingWindow("document-translation")
+        captureFloatingWindow("document-translation", show = openSample)
     }
 
     /**
@@ -693,26 +725,27 @@ private class Shots(
      *
      * Swing keeps zero-sized helper windows around for heavyweight popups and tooltips and reports
      * them as visible, so the largest one is taken rather than the first.
+     *
+     * The request that opens the popup is not always answered: the first dispatch a scene sends
+     * after building its frame sometimes produces no window at all, on every theme. A skipped
+     * capture silently leaves the previous image in place, so scenes that can ask again pass
+     * [show] and the capture retries instead of giving up on the first miss. Windows too small to
+     * be the popup are ignored as well: a dialog that has been shown but not yet packed reports a
+     * few pixels, and painting that gives a plate with a speck on it.
      */
-    private suspend fun captureFloatingWindow(name: String, size: Pair<Int, Int>? = null) {
-        // Polled rather than checked once: a popup that waits on a translation can take a moment
-        // longer than the scene allowed, and a single look would silently drop the shot.
-        val window = withTimeoutOrNull(15_000) {
-            var found: Window? = null
-            while (found == null) {
-                // Earlier scenes' frames are hidden, not disposed, and they share the stores — a
-                // ShowQuickTranslate dispatch makes every one of them pop its own dialog, older
-                // (and darker) than this scene's. The capture is the window this scene's frame
-                // owns; only scenes that never open an owned window fall back to the largest.
-                val visible = Window.getWindows()
-                    .filter { it !== frame && it.isVisible && it is RootPaneContainer }
-                    .filter { it.width > 0 && it.height > 0 }
-                val owned = visible.filter { it.owner === frame }
-                found = owned.maxByOrNull { it.width.toLong() * it.height }
-                    ?: visible.maxByOrNull { it.width.toLong() * it.height }
-                if (found == null) delay(250)
-            }
-            found
+    private suspend fun captureFloatingWindow(
+        name: String,
+        size: Pair<Int, Int>? = null,
+        show: (suspend () -> Unit)? = null,
+    ) {
+        var window = awaitFloatingWindow(FIRST_WAIT_MS)
+        var attempt = 1
+        while (window == null && show != null && attempt < MAX_ATTEMPTS) {
+            logger.warn("$name: no window became visible; repeating the request")
+            onUi { closeFloatingWindows() }
+            show()
+            attempt++
+            window = awaitFloatingWindow(RETRY_WAIT_MS)
         }
 
         if (window == null) {
@@ -727,7 +760,7 @@ private class Shots(
             window.setLocation(40, 40)
             window.validate()
         }
-        delay(900)
+        delay(1_200)
         write(name, paintAfterLayout(name, (window as RootPaneContainer).rootPane))
         onUi {
             window.dispose()
@@ -735,11 +768,41 @@ private class Shots(
             // shared-state dispatch re-shows every frame's dialog, dark ones included, and the
             // next floating capture would otherwise pick one of those leftovers. One capture,
             // one clean slate: everything still floating that is not this scene's frame goes.
-            Window.getWindows()
-                .filter { it !== frame && it.isVisible && it is RootPaneContainer }
-                .forEach { it.dispose() }
+            closeFloatingWindows()
         }
         delay(400)
+    }
+
+    /**
+     * Polls for the floating window the scene just opened.
+     *
+     * Polled rather than checked once: a popup that waits on a translation can take a moment
+     * longer than the scene allowed, and a single look would silently drop the shot.
+     */
+    private suspend fun awaitFloatingWindow(timeoutMs: Long): Window? = withTimeoutOrNull(timeoutMs) {
+        var found: Window? = null
+        while (found == null) {
+            // Earlier scenes' frames are hidden, not disposed, and they share the stores — a
+            // ShowQuickTranslate dispatch makes every one of them pop its own dialog, older
+            // (and darker) than this scene's. The capture is the window this scene's frame
+            // owns; only scenes that never open an owned window fall back to the largest.
+            val visible = floatingWindows()
+                .filter { it.width >= MIN_POPUP_WIDTH && it.height >= MIN_POPUP_HEIGHT }
+            val owned = visible.filter { it.owner === frame }
+            found = owned.maxByOrNull { it.width.toLong() * it.height }
+                ?: visible.maxByOrNull { it.width.toLong() * it.height }
+            if (found == null) delay(250)
+        }
+        found
+    }
+
+    /** Everything currently floating that this scene's frame does not account for. */
+    private fun floatingWindows(): List<Window> =
+        Window.getWindows().filter { it !== frame && it.isVisible && it is RootPaneContainer }
+
+    /** One capture, one clean slate: every leftover popup is closed before the next scene runs. */
+    private fun closeFloatingWindows() {
+        floatingWindows().forEach { it.dispose() }
     }
 
     private suspend fun paintAfterLayout(name: String, content: JComponent): BufferedImage {
