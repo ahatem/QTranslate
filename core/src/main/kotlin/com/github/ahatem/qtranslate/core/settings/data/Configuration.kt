@@ -218,6 +218,7 @@ data class Configuration(
      * Mohamed's request.
      */
     val isRemoveLineBreaksEnabled: Boolean = false,
+    val isRemoveOcrLineBreaksEnabled: Boolean = false,
     val translationRules: List<TranslationRule> = emptyList(),
 
     // ---- Language Preferences ----
@@ -374,6 +375,7 @@ data class Configuration(
                 summaryLength                = StandardOptions.SUMMARY_LENGTH.defaultValue,
                 rewriteStyle                 = StandardOptions.REWRITE_STYLE.defaultValue,
                 isRemoveLineBreaksEnabled    = false,
+                isRemoveOcrLineBreaksEnabled = false,
                 pinnedLanguages              = emptyList(),
                 closeButtonBehavior          = CloseButtonBehavior.ASK,
                 minimizeButtonBehavior       = MinimizeButtonBehavior.HIDE_TO_TRAY,

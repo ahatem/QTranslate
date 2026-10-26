@@ -73,6 +73,7 @@ class TranslationPanel(
     private lateinit var instantCheck:        JCheckBox
     private lateinit var spellCheck:          JCheckBox
     private lateinit var removeLineBreaksCheck: JCheckBox
+    private lateinit var removeOcrLineBreaksCheck: JCheckBox
     private lateinit var typeCombo:           JComboBox<ExtraOutputTypeInfo>
     private lateinit var useTranslated:       JRadioButton
     private lateinit var useInput:            JRadioButton
@@ -126,6 +127,13 @@ class TranslationPanel(
             onChange = { enabled -> applyDraft(store) { it.copy(isRemoveLineBreaksEnabled = enabled) } }
         )
         addHint(localizationManager.getString("settings_translation.remove_line_breaks_hint"))
+
+        removeOcrLineBreaksCheck = addCheckbox(
+            text     = localizationManager.getString("settings_translation.remove_ocr_line_breaks"),
+            selected = false,
+            onChange = { enabled -> applyDraft(store) { it.copy(isRemoveOcrLineBreaksEnabled = enabled) } }
+        )
+        addHint(localizationManager.getString("settings_translation.remove_ocr_line_breaks_hint"))
 
         // ---- Extra Output ----
         addSeparator(localizationManager.getString("settings_translation.extra_output_group"))
@@ -283,6 +291,7 @@ class TranslationPanel(
             autoCopyCombo.selectedItem     = autoCopyModes.find { it.mode == c.autoCopyTranslation }
             spellCheck.isSelected          = c.isSpellCheckingEnabled
             removeLineBreaksCheck.isSelected = c.isRemoveLineBreaksEnabled
+            removeOcrLineBreaksCheck.isSelected = c.isRemoveOcrLineBreaksEnabled
             typeCombo.selectedItem         = types.find { it.type == c.extraOutputType }
 
             when (c.extraOutputSource) {

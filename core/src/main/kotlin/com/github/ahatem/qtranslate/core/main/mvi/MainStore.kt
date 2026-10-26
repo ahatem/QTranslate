@@ -607,9 +607,11 @@ class MainStore(
 
         if (extractedText.isBlank()) return
 
+        val preparedText = prepareInputText(extractedText, settingsState.value.isRemoveOcrLineBreaksEnabled)
+
         // Write extracted text into input then translate — same path as manual typing.
         clearComparisonState()
-        _state.update { it.copy(inputText = extractedText) }
+        _state.update { it.copy(inputText = preparedText) }
         translateText(TranslationOrigin.OCR, comparisonPolicy = ComparisonPolicy.DISABLED)
     }
 
@@ -625,7 +627,8 @@ class MainStore(
             onStatusUpdate = ::updateStatusBar
         )
         if (extractedText.isBlank()) return
-        _eventChannel.send(MainEvent.CopyToClipboard(extractedText))
+        val preparedText = prepareInputText(extractedText, settingsState.value.isRemoveOcrLineBreaksEnabled)
+        _eventChannel.send(MainEvent.CopyToClipboard(preparedText))
         updateStatusBar(StatusCode.OcrTextCopied, NotificationType.INFO, true)
     }
 
