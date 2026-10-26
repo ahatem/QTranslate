@@ -28,6 +28,15 @@ class ScreenCapturePanel(
     )
 
     private var currentState: ScreenCaptureState? = null
+
+    /**
+     * The primary Translate action of the capture toolbar. Exposed so the owning
+     * dialog can install it as the root pane's default button (#364). It is
+     * disabled while no valid selection exists, so Enter can only trigger a real
+     * capture.
+     */
+    val translateButton: JButton = createTranslateButton()
+
     private val buttonsPanel: JPanel
 
     val currentStatePublic: ScreenCaptureState?
@@ -51,6 +60,13 @@ class ScreenCapturePanel(
     fun render(state: ScreenCaptureState) {
         this.currentState = state
         cursor = Cursor.getPredefinedCursor(state.mouseAction.cursor)
+
+        // The toolbar (and the Translate action with it) only makes sense once a
+        // real region is selected; keep the primary action disabled before that so
+        // the dialog's default button cannot fire an empty capture (#364). The
+        // validity rule mirrors ScreenCaptureController.mouseReleased.
+        val selection = state.selection
+        translateButton.isEnabled = selection != null && selection.width > 0 && selection.height > 0
 
         if (state.showButtons && state.buttonsPosition != null) {
             buttonsPanel.location = state.buttonsPosition
@@ -170,15 +186,17 @@ class ScreenCapturePanel(
     // Button panel
     // ─────────────────────────────────────────────────────────────────────────
 
+    private fun createTranslateButton(): JButton = JButton(buttonLabels.translate).apply {
+        // "default" = filled accent button — primary action
+        putClientProperty(FlatClientProperties.BUTTON_TYPE, "default")
+        cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        toolTipText = "OCR and translate the captured region"
+        addActionListener { getSelectedImage()?.let(onTranslate) }
+        alignmentY = Component.CENTER_ALIGNMENT
+    }
+
     private fun createButtonsPanel(): JPanel {
-        val translateBtn = JButton(buttonLabels.translate).apply {
-            // "default" = filled accent button — primary action
-            putClientProperty(FlatClientProperties.BUTTON_TYPE, "default")
-            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-            toolTipText = "OCR and translate the captured region"
-            addActionListener { getSelectedImage()?.let(onTranslate) }
-            alignmentY = Component.CENTER_ALIGNMENT
-        }
+        val translateBtn = translateButton
         val copyTextBtn  = flatBtn(buttonLabels.copyText,  "Recognize text and copy to clipboard")  { getSelectedImage()?.let(onCopyText)  }
         val copyImageBtn = flatBtn(buttonLabels.copyImage, "Copy image to clipboard")                 { getSelectedImage()?.let(onCopyImage) }
         val saveImageBtn = flatBtn(buttonLabels.saveImage, "Save captured image as PNG")              { getSelectedImage()?.let(onSaveImage) }
