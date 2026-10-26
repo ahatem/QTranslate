@@ -67,6 +67,7 @@ body:
     id: os
     attributes:
       label: Operating system
+      description: The Windows packages support Windows 10 or later (x64). "Windows (other)" covers anything else, but note older Windows versions are outside the supported platform floor.
       options:
         - Windows 11
         - Windows 10

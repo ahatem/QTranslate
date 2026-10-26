@@ -70,7 +70,12 @@ internal class BingResponseParser(private val logger: Logger) {
     private fun isProviderError(body: JsonObject): Boolean =
         STATUS_CODE in body || ERROR_MESSAGE in body
 
-    /** The status is the dependable part; errorMessage is often empty. */
+    /**
+     * The status is the dependable part; errorMessage is often empty. A 401 or 403 is reported as
+     * an authentication failure rather than a malformed response: it is the shape an expired or
+     * invalid session token takes under an HTTP 200, and the translator keys its one bounded
+     * refresh-and-retry on exactly this error type.
+     */
     private fun rejection(body: JsonObject): ServiceError {
         val status = body.stringField(STATUS_CODE)
         val detail = body.stringField(ERROR_MESSAGE)?.let(::summarise)
@@ -83,7 +88,11 @@ internal class BingResponseParser(private val logger: Logger) {
             detail != null -> "$REJECTED: $detail"
             else -> "$REJECTED."
         }
-        return ServiceError.InvalidResponseError(message)
+        return if (status in AUTH_STATUSES) {
+            ServiceError.AuthenticationError(message)
+        } else {
+            ServiceError.InvalidResponseError(message)
+        }
     }
 
     private fun unexpected(): ServiceError {
@@ -105,6 +114,7 @@ internal class BingResponseParser(private val logger: Logger) {
         const val UNKNOWN_STATUS = "unknown"
         const val STATUS_CODE = "statusCode"
         const val ERROR_MESSAGE = "errorMessage"
+        val AUTH_STATUSES = setOf("401", "403")
         const val MAX_DETAIL = 200
         val WHITESPACE = Regex("\\s+")
     }

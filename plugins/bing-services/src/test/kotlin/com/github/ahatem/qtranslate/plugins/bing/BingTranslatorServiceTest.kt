@@ -77,6 +77,25 @@ class BingTranslatorServiceTest {
     }
 
     @Test
+    fun `an error object with an auth status is an authentication failure`() {
+        listOf("401", "403").forEach { status ->
+            val error = errorFrom("""{"statusCode":"$status","errorMessage":""}""")
+
+            assertIs<ServiceError.AuthenticationError>(error, "status: $status")
+            assertContains(error.message, status)
+            assertContains(error.message, REJECTED)
+        }
+    }
+
+    @Test
+    fun `a numeric auth status is still an authentication failure`() {
+        val error = errorFrom("""{"statusCode":401,"errorMessage":""}""")
+
+        assertIs<ServiceError.AuthenticationError>(error)
+        assertContains(error.message, "401")
+    }
+
+    @Test
     fun `an error object carrying a provider message reports both`() {
         val error = errorFrom(
             """{"statusCode":"400","errorMessage":"Invalid request. Invalid from language."}"""
