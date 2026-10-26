@@ -31,7 +31,7 @@ Free and open source · Windows, macOS, Linux · Plugins for local and cloud ser
 
 | Platform | Get this from the [latest release](https://github.com/ahatem/QTranslate/releases/latest) | Run |
 |---|---|---|
-| Windows | `QTranslate-<version>-windows-x64.zip` | Extract and open `QTranslate.exe`. Java is included. |
+| Windows 10 or later, x64 | `QTranslate-<version>-windows-x64.zip` | Extract and open `QTranslate.exe`. Java is included. |
 | macOS or Linux | `QTranslate-<version>.zip` | Install Java 17+, extract, and open `QTranslate.jar`. |
 
 The ZIP packages include the bundled plugins, languages, themes, and icon sets. The standalone app JAR is for an existing or manually assembled setup. [Installation details](#installation) · [First shortcuts](#quick-start)
@@ -205,7 +205,7 @@ The Windows and portable ZIP packages contain all bundled plugins, languages, th
 2. Extract to a writable folder
 3. Run `QTranslate.exe`
 
-No Java installation needed — the package ships its own trimmed runtime.
+No Java installation needed — the package ships its own trimmed runtime. That runtime requires **Windows 10 or later (x64)**; older Windows versions such as Windows 7 or 8.1 are not supported, and the macOS/Linux packages need Java 17+, whose Windows support also starts at Windows 10.
 
 ### macOS and Linux
 
