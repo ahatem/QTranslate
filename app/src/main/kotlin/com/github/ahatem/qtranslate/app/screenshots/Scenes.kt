@@ -26,6 +26,13 @@ internal object Scenes {
     const val LIGHT = "custom:qtranslate_light"
 
     /**
+     * The theme and filename suffix of every paired capture. A scene that appears on the website
+     * is always captured once per entry here, with the same content, so the two files differ by
+     * the theme alone and the site can pick the matching one.
+     */
+    val THEMES = listOf(DARK to "dark", LIGHT to "light")
+
+    /**
      * The native zoom every scene is captured at, applied through the app itself — fonts, icons,
      * insets and window all scale from [Configuration.uiScale], using FlatLaf's own derivation
      * rather than a forced JVM-wide scale. 2 at 200% doubles the output like a 200% display does,
@@ -172,7 +179,8 @@ internal object Scenes {
      * The bundled file is `ar-SA.toml`; a bare "ar" finds nothing and silently falls back to the
      * embedded English strings, leaving the window left-to-right.
      */
-    fun arabic(layout: String, size: Pair<Int, Int> = WINDOW): Configuration = BASE.copy(
+    fun arabic(layout: String, theme: String = DARK, size: Pair<Int, Int> = WINDOW): Configuration = BASE.copy(
+        themeId = theme,
         layoutPresetId = layout,
         interfaceLanguage = "ar-SA",
         mainWindowSize = windowSize(size)

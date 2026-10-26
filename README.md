@@ -87,7 +87,7 @@ For longer work, open the main window to translate text or a document, compare p
 <sub>Find visual context beside the text, with source and licence visible</sub>
 </td>
 <td align="center" width="50%">
-<img src="docs/images/document-translation.png" alt="Document translation" width="340"><br>
+<img src="docs/images/document-translation-light.png" alt="Document translation" width="340"><br>
 <sub>Translate DOCX, PDF, text and subtitles with progress you can follow</sub>
 </td>
 </tr>
@@ -97,7 +97,7 @@ For longer work, open the main window to translate text or a document, compare p
 <sub>Choose engines, build a Comparison set, and keep presets for different work</sub>
 </td>
 <td align="center" width="50%">
-<img src="docs/images/rtl-main.png" alt="RTL layout — Arabic" width="340"><br>
+<img src="docs/images/rtl-main-dark.png" alt="RTL layout — Arabic" width="340"><br>
 <sub>Use Arabic and other RTL languages in a mirrored interface</sub>
 </td>
 </tr>
