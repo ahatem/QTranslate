@@ -4,6 +4,14 @@ These are selected captures of the running application with bundled plugins and 
 inputs. Translation, dictionary and image results come from the actual providers. The harness
 renders at 200% through the app's own UI scale for sharp images on high-density displays.
 
+Every capture is published on one uniform composite canvas (2000×1250, a 16:10 frame): the
+harness paints the live window at whatever size that scene's layout reads best at, then centers
+it on a warm gradient matched to the scene's theme, the window drawn square as the app paints it,
+a soft shadow, a pool of light behind the window, and Ioskeley-style plate dressing — corner
+registration ticks, a measurement rule with one Proof Red baseline tick, and a small tracked
+caption. The app inside the shot is never stretched to make the images uniform; set
+`QTRANSLATE_SCREENSHOT_RAW=1` to also write the raw uncomposited captures when tuning scene sizes.
+
 The capture harness produces additional candidates for visual review. This folder contains the
 public set: each image should demonstrate a different part of the product. The README embeds a
 smaller tour; its main images are copied to `docs/images/`.
@@ -40,3 +48,5 @@ and 200%, plus RTL and light theme.
 Use `QTRANSLATE_SCREENSHOT_SCENES=document` to capture only the document dialog. Its file paths are
 visible in the image, so also set `QTRANSLATE_SCREENSHOT_DOCS` to a neutral folder such as
 `C:\Users\Public\Documents` first.
+Use `QTRANSLATE_SCREENSHOT_PLATE_LABEL=none` to composite without the plate caption, for consumers
+that label the shots themselves — the website does.

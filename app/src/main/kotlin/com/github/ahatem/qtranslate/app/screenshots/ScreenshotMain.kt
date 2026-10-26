@@ -60,10 +60,18 @@ import javax.swing.text.JTextComponent
  * Each scene writes a [Configuration] and then starts the app against it, following the same order
  * as `Main.kt`: apply the configuration to the look and feel, load the interface language, build
  * the frame. Nothing is imposed on the window afterwards — no forced theme, no forced size, no
- * `pack()`. The window ends up the size and appearance the app itself chooses, which is the whole
- * point of shooting the real application. The one deliberate exception is the split panes: the
- * translation zones are balanced and the docked dictionary given its natural share before each
- * capture, so the set reads as arranged rather than default. The scenes themselves live in [Scenes].
+ * `pack()`. Scenes author their window at whatever size that layout genuinely reads best at; the
+ * window ends up the appearance the app itself chooses, which is the whole point of shooting the
+ * real application. The one deliberate exception is the split panes: the translation zones are
+ * balanced and the docked dictionary given its natural share before each capture, so the set
+ * reads as arranged rather than default. The scenes themselves live in [Scenes].
+ *
+ * ### The composite canvas
+ * The raw window paint is never the published image. [ScreenshotCompositor] lands every capture
+ * on one shared 2000×1250 canvas — warm gradient matched to the scene's theme, the window drawn
+ * square as the app paints it, soft shadow — so the gallery is uniform while the app inside the
+ * shot stays at its own natural, flattering size. Set `QTRANSLATE_SCREENSHOT_RAW=1` to also write each uncomposited capture
+ * next to the final image; useful when tuning scene sizes.
  *
  * ### Scaling
  * The scenes set the app's own zoom, [Scenes.SCALE_PERCENT], through [Configuration.uiScale]: the
@@ -147,6 +155,29 @@ private class Shots(
 ) {
     private var frame: MainAppFrame? = null
     private var sceneScalePercent = Scenes.SCALE_PERCENT
+
+    /** Whether the scene in flight uses a dark theme — picks the composite backdrop's gradient. */
+    private var sceneIsDark = true
+
+    private companion object {
+        /** How long one request for a floating window is given before the scene asks again. */
+        const val FIRST_WAIT_MS = 15_000L
+        const val RETRY_WAIT_MS = 10_000L
+
+        /** Total requests per capture, so a scene with no popup at all still gives up. */
+        const val MAX_ATTEMPTS = 3
+
+        /** Attempts at a settings page that painted empty before the shot is published anyway. */
+        const val PAGE_ATTEMPTS = 3
+
+        /**
+         * A popup is only worth capturing once it is actually a popup: a dialog that has been
+         * shown but not yet packed reports a few pixels, and painting that gives a plate with a
+         * speck on it. Device pixels, so the floor clears every real popup in the set.
+         */
+        const val MIN_POPUP_WIDTH = 200
+        const val MIN_POPUP_HEIGHT = 100
+    }
 
     // ── main window ───────────────────────────────────────────────────────────
 
@@ -285,7 +316,10 @@ private class Shots(
         translate(LanguageCode("ar"), Scenes.PERISTALSIS)
         deps.mainStore.dispatch(MainIntent.ShowQuickDictionary("peristalsis"))
         delay(5_000)
-        captureFloatingWindow("dictionary-quick-dark")
+        captureFloatingWindow(
+            "dictionary-quick-dark",
+            show = { deps.mainStore.dispatch(MainIntent.ShowQuickDictionary("peristalsis")) },
+        )
         deps.mainStore.dispatch(MainIntent.HideQuickDictionary)
         delay(500)
     }
@@ -324,7 +358,10 @@ private class Shots(
             delay(400)
             deps.mainStore.dispatch(MainIntent.ShowQuickTranslate(Scenes.SELECTION))
             delay(6_000)
-            captureFloatingWindow("quick-translate-${theme.second}")
+            captureFloatingWindow(
+                "quick-translate-${theme.second}",
+                show = { deps.mainStore.dispatch(MainIntent.ShowQuickTranslate(Scenes.SELECTION)) },
+            )
             deps.mainStore.dispatch(MainIntent.HideQuickTranslate)
             delay(500)
         }
@@ -342,23 +379,35 @@ private class Shots(
         for ((target, text) in Scenes.HISTORY_WARMUP) translate(target, text)
         invokeAppAction("SHOW_HISTORY")
         delay(1_500)
-        captureFloatingWindow("history", size = Scenes.WINDOW)
+        captureFloatingWindow(
+            "history",
+            size = Scenes.WINDOW,
+            show = { invokeAppAction("SHOW_HISTORY") },
+        )
     }
 
     suspend fun documentTranslation() {
         start(Scenes.classic(Scenes.LIGHT))
-        invokeAppAction("TRANSLATE_DOCUMENT")
-        // The path is visible in the capture, so QTRANSLATE_SCREENSHOT_DOCS can point it at a neutral folder.
-        val sampleDir = System.getenv("QTRANSLATE_SCREENSHOT_DOCS")?.let(::File)?.also(File::mkdirs) ?: outputDir
+        // The path is visible in the capture, so QTRANSLATE_SCREENSHOT_DOCS can point it at a
+        // neutral folder; without it the default is the machine's public documents folder, which
+        // reads as a real user path without leaking the harness's own directories.
+        val sampleDir = System.getenv("QTRANSLATE_SCREENSHOT_DOCS")?.let(::File)?.also(File::mkdirs)
+            ?: File(System.getenv("PUBLIC"), "Documents")
         val sample = File(sampleDir, "Research notes.txt").apply {
             writeText("Peristalsis moves food through the digestive tract by rhythmic contraction of smooth muscle.\n")
         }
-        onUi {
-            Window.getWindows().filterIsInstance<DocumentTranslationDialog>()
-                .firstOrNull { it.isVisible }?.openWith(sample)
+        // Opened through the app's own action, then handed the sample file. Kept as one lambda so
+        // a capture that finds no window can repeat exactly the same request.
+        val openSample: suspend () -> Unit = {
+            invokeAppAction("TRANSLATE_DOCUMENT")
+            onUi {
+                Window.getWindows().filterIsInstance<DocumentTranslationDialog>()
+                    .firstOrNull { it.isVisible }?.openWith(sample)
+            }
         }
+        openSample()
         delay(1_500)
-        captureFloatingWindow("document-translation")
+        captureFloatingWindow("document-translation", show = openSample)
     }
 
     /**
@@ -406,28 +455,80 @@ private class Shots(
         delay(1_200)
 
         for ((row, name) in pages) {
-            onUi {
-                val tree = find<JTree>(dialog)
-                    ?: error("Settings page tree not found while capturing '$name' — dialog layout changed?")
-                tree.setSelectionRow(row)
+            var shot: BufferedImage
+            var attempt = 1
+            while (true) {
+                selectPage(dialog, row, name)
+                delay(900)
+                shot = paintAfterLayout("settings-$name-$suffix", dialog.rootPane)
+                // A page swap occasionally paints the card before its body exists, which yields a
+                // perfectly valid-looking capture of an empty panel. Nothing throws and nothing is
+                // logged, so the run used to publish it. Select the page again and repaint.
+                if (!shot.paintsEmptyPage() || attempt >= PAGE_ATTEMPTS) break
+                logger.warn("settings-$name-$suffix: painted an empty page; selecting it again")
+                attempt++
+                delay(600)
             }
-            if (name == "plugins") {
-                delay(300)
-                onUi { selectPluginRow(dialog, "DeepL Services") }
+            if (shot.paintsEmptyPage()) {
+                logger.warn("settings-$name-$suffix: still empty after $attempt attempts")
             }
-            delay(900)
-            // Every other capture path in this file goes through paintAfterLayout, which forces a
-            // revalidate/repaint and lets it settle before painting. This loop used to call paint()
-            // directly, skipping that step — the one gap that let a page swap (and, for Plugins, its
-            // async plugin-list population) get rasterized mid-layout, producing a blank panel with
-            // only the page title drawn.
-            paintAfterLayout("settings-$name-$suffix", dialog.rootPane)
+            write("settings-$name-$suffix", shot)
         }
         onUi { dialog.dispose() }
         delay(400)
         // Selecting a theme row leaves the dialog's own preview applied; put the scene back.
         onUi { deps.themeManager.applyTheme(deps.themeManager.findThemeById(theme), animate = false) }
         delay(400)
+    }
+
+    /** Selects a settings page the way a user does, including the Plugins page's row choice. */
+    private suspend fun selectPage(dialog: SettingsDialog, row: Int, name: String) {
+        onUi {
+            val tree = find<JTree>(dialog)
+                ?: error("Settings page tree not found while capturing '$name' — dialog layout changed?")
+            tree.setSelectionRow(row)
+        }
+        if (name == "plugins") {
+            delay(300)
+            onUi { selectPluginRow(dialog, "DeepL Services") }
+        }
+    }
+
+    /**
+     * Whether a settings page painted nothing but its own background.
+     *
+     * The page cards are built on selection, and a paint that lands before the card's body is laid
+     * out gives an empty panel that still looks like a plausible capture. Real pages draw labels,
+     * fields and controls over at least 2% of the content area; an empty one leaves only borders,
+     * which measure around a third of a percent.
+     */
+    private fun BufferedImage.paintsEmptyPage(): Boolean {
+        val left = (width * 0.30).toInt()
+        val right = (width * 0.97).toInt()
+        val top = (height * 0.12).toInt()
+        val bottom = (height * 0.88).toInt()
+        val histogram = IntArray(256)
+        var sampled = 0
+        var y = top
+        while (y < bottom) {
+            var x = left
+            while (x < right) {
+                val rgb = getRGB(x, y)
+                val luma = ((rgb shr 16 and 0xFF) * 30 + (rgb shr 8 and 0xFF) * 59 + (rgb and 0xFF) * 11) / 100
+                histogram[luma]++
+                sampled++
+                x += 3
+            }
+            y += 3
+        }
+        if (sampled == 0) return true
+        var background = 0
+        for (i in histogram.indices) if (histogram[i] > histogram[background]) background = i
+        var ink = 0
+        for (i in histogram.indices) {
+            if (i < background - 24 || i > background + 24) ink += histogram[i]
+        }
+        return ink * 100 < sampled
     }
 
     suspend fun close() {
@@ -449,6 +550,7 @@ private class Shots(
      */
     private suspend fun start(configuration: Configuration) {
         sceneScalePercent = configuration.uiScale
+        sceneIsDark = deps.themeManager.findThemeById(configuration.themeId).isDark
         deps.settingsStore.dispatch(SettingsIntent.ToggleSetting { configuration })
         delay(900)
 
@@ -472,8 +574,29 @@ private class Shots(
         delay(2_500)
         onUi { previous?.isVisible = false }
         delay(400)
+        applyAuthoredWindowSize(configuration)
         balanceSplits(configuration.layoutPresetId)
         delay(500)
+    }
+
+    /**
+     * Applies the scene's authored window size after startup.
+     *
+     * `pack()` sizes the window to the content's preferred size — for this layout, a wide row of
+     * service controls dominates, so the saved size would be grown back and the shot would read
+     * stretched no matter what the scene authored. Applying the size the way a user resize does —
+     * above the frame's own minimum — is what lets a scene actually present the window at the
+     * size it looks best at. The narrow shots' explicit [resizeWindow] calls stay: they re-apply
+     * the same numbers and keep that intent visible at the scene.
+     */
+    private suspend fun applyAuthoredWindowSize(configuration: Configuration) {
+        val saved = configuration.mainWindowSize ?: return
+        onUi {
+            val current = frame ?: return@onUi
+            current.minimumSize = Dimension(0, 0)
+            current.size = Dimension(saved.width, saved.height)
+        }
+        delay(800)
     }
 
     /**
@@ -648,27 +771,36 @@ private class Shots(
         delay(800)
     }
 
-    private suspend fun capture(name: String) = paintAfterLayout(name, requireFrame().rootPane)
+    private suspend fun capture(name: String) {
+        write(name, paintAfterLayout(name, requireFrame().rootPane))
+    }
 
     /**
      * Captures the window the app just opened over the frame, then closes it.
      *
      * Swing keeps zero-sized helper windows around for heavyweight popups and tooltips and reports
      * them as visible, so the largest one is taken rather than the first.
+     *
+     * The request that opens the popup is not always answered: the first dispatch a scene sends
+     * after building its frame sometimes produces no window at all, on every theme. A skipped
+     * capture silently leaves the previous image in place, so scenes that can ask again pass
+     * [show] and the capture retries instead of giving up on the first miss. Windows too small to
+     * be the popup are ignored as well: a dialog that has been shown but not yet packed reports a
+     * few pixels, and painting that gives a plate with a speck on it.
      */
-    private suspend fun captureFloatingWindow(name: String, size: Pair<Int, Int>? = null) {
-        // Polled rather than checked once: a popup that waits on a translation can take a moment
-        // longer than the scene allowed, and a single look would silently drop the shot.
-        val window = withTimeoutOrNull(15_000) {
-            var found: Window? = null
-            while (found == null) {
-                found = Window.getWindows()
-                    .filter { it !== frame && it.isVisible && it is RootPaneContainer }
-                    .filter { it.width > 0 && it.height > 0 }
-                    .maxByOrNull { it.width.toLong() * it.height }
-                if (found == null) delay(250)
-            }
-            found
+    private suspend fun captureFloatingWindow(
+        name: String,
+        size: Pair<Int, Int>? = null,
+        show: (suspend () -> Unit)? = null,
+    ) {
+        var window = awaitFloatingWindow(FIRST_WAIT_MS)
+        var attempt = 1
+        while (window == null && show != null && attempt < MAX_ATTEMPTS) {
+            logger.warn("$name: no window became visible; repeating the request")
+            onUi { closeFloatingWindows() }
+            show()
+            attempt++
+            window = awaitFloatingWindow(RETRY_WAIT_MS)
         }
 
         if (window == null) {
@@ -683,30 +815,84 @@ private class Shots(
             window.setLocation(40, 40)
             window.validate()
         }
-        delay(900)
-        paintAfterLayout(name, (window as RootPaneContainer).rootPane)
-        onUi { window.dispose() }
+        delay(1_200)
+        write(name, paintAfterLayout(name, (window as RootPaneContainer).rootPane))
+        onUi {
+            window.dispose()
+            // These popups carry no Swing owner, and earlier scenes' frames are only hidden — a
+            // shared-state dispatch re-shows every frame's dialog, dark ones included, and the
+            // next floating capture would otherwise pick one of those leftovers. One capture,
+            // one clean slate: everything still floating that is not this scene's frame goes.
+            closeFloatingWindows()
+        }
         delay(400)
     }
 
-    private suspend fun paintAfterLayout(name: String, content: JComponent) {
+    /**
+     * Polls for the floating window the scene just opened.
+     *
+     * Polled rather than checked once: a popup that waits on a translation can take a moment
+     * longer than the scene allowed, and a single look would silently drop the shot.
+     */
+    private suspend fun awaitFloatingWindow(timeoutMs: Long): Window? = withTimeoutOrNull(timeoutMs) {
+        var found: Window? = null
+        while (found == null) {
+            // Earlier scenes' frames are hidden, not disposed, and they share the stores — a
+            // ShowQuickTranslate dispatch makes every one of them pop its own dialog, older
+            // (and darker) than this scene's. The capture is the window this scene's frame
+            // owns; only scenes that never open an owned window fall back to the largest.
+            val visible = floatingWindows()
+                .filter { it.width >= MIN_POPUP_WIDTH && it.height >= MIN_POPUP_HEIGHT }
+            val owned = visible.filter { it.owner === frame }
+            found = owned.maxByOrNull { it.width.toLong() * it.height }
+                ?: visible.maxByOrNull { it.width.toLong() * it.height }
+            if (found == null) delay(250)
+        }
+        found
+    }
+
+    /** Everything currently floating that this scene's frame does not account for. */
+    private fun floatingWindows(): List<Window> =
+        Window.getWindows().filter { it !== frame && it.isVisible && it is RootPaneContainer }
+
+    /** One capture, one clean slate: every leftover popup is closed before the next scene runs. */
+    private fun closeFloatingWindows() {
+        floatingWindows().forEach { it.dispose() }
+    }
+
+    private suspend fun paintAfterLayout(name: String, content: JComponent): BufferedImage {
         // Painting straight from the component tree would capture anything still queued for layout
         // half-positioned. Force the pass and let the repaint drain first.
         onUi { content.revalidate(); content.repaint() }
         delay(700)
-        paint(name, content)
+        return paint(name, content)
     }
 
-    private suspend fun paint(name: String, content: JComponent) = onUi {
-        val image = BufferedImage(content.width, content.height, BufferedImage.TYPE_INT_ARGB)
-        val g = image.createGraphics()
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-        content.paint(g)
-        g.dispose()
-        val target = File(outputDir, "$name.png")
-        ImageIO.write(image, "png", target)
-        println("wrote ${target.name}  ${image.width}x${image.height}")
+    /** Paints the live component to an image; publishing it is [write]'s job. */
+    private suspend fun paint(name: String, content: JComponent): BufferedImage {
+        var image: BufferedImage? = null
+        onUi {
+            val captured = BufferedImage(content.width, content.height, BufferedImage.TYPE_INT_ARGB)
+            val g = captured.createGraphics()
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            content.paint(g)
+            g.dispose()
+            image = captured
+        }
+        return image!!
+    }
+
+    /**
+     * Lands the raw capture on the composite canvas ([ScreenshotCompositor]) and writes the
+     * published PNG. With `QTRANSLATE_SCREENSHOT_RAW=1` the uncomposited capture is written
+     * alongside it, which is how scene sizes get tuned without squinting through the gradient.
+     */
+    private fun write(name: String, shot: BufferedImage) {
+        if (System.getenv("QTRANSLATE_SCREENSHOT_RAW") == "1") {
+            ImageIO.write(shot, "png", File(outputDir, "$name-raw.png"))
+        }
+        ScreenshotCompositor.write(name, shot, sceneIsDark, outputDir)
     }
 }
 

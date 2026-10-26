@@ -14,11 +14,11 @@ import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
  * website shows all of these, the README picks a handful.
  *
  * ### Window size
- * Given in density-independent pixels and scaled to the display. Every main-window scene shares
- * the same [WINDOW] size so the gallery reads as one set: side by side on a page, a per-scene
- * jumble of sizes is the difference between a collection of screenshots and a tour of the app.
- * The size is wide enough for a docked dictionary, and the scenes' prose is long enough to wrap
- * and fill the panes that would otherwise look empty.
+ * Given in density-independent pixels and scaled to the display. Each size is chosen for the
+ * layout it shows: a scene's window is authored at whatever width and height that arrangement
+ * genuinely reads best at, not stretched to make the gallery uniform — uniformity is the
+ * composite canvas's job (see [ScreenshotCompositor]). The prose is long enough to wrap and
+ * fill the panes that would otherwise look empty.
  */
 internal object Scenes {
 
@@ -65,11 +65,13 @@ internal object Scenes {
 // ── size ─────────────────────────────────────────────────────────────────
 
     /**
-     * The size every main-window scene, and the settings dialog drawn beside its owner, is
-     * authored at. Density-independent at 100%; [windowSize] maps it to the device pixels the
-     * configured [SCALE_PERCENT] zoom needs.
+     * The size main-window scenes, and the settings dialog drawn beside their owner, are
+     * authored at. Tuned for the classic and side-by-side layouts: wide enough for a docked
+     * dictionary, narrow enough that inputs keep a natural measure instead of stretching.
+     * Density-independent at 100%; [windowSize] maps it to the device pixels the configured
+     * [SCALE_PERCENT] zoom needs.
      */
-    val WINDOW = 920 to 520
+    val WINDOW = 780 to 540
 
     /** A taller frame gives the Comparison board room for several readable results. */
     val COMPARISON_WINDOW = 760 to 700

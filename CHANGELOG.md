@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Two experimental themes, Ioskeley Dark and Ioskeley Light**, built on the Ioskeley Mono visual identity: a warm-neutral monochrome canvas where typography and state carry the hierarchy and a single accent — Proof Red — appears only as a rare structural mark. Experimental for now; they do not change the default theme or any existing selection
+- **Ioskeley Dark Proof and Ioskeley Light Proof**, variants of the Ioskeley themes in which Proof Red also marks the focused state: focused fields, the focused default button and focused check boxes and radio buttons carry a red border instead of an ink one. Everything else is identical to the base Ioskeley themes, so the two intensities can be compared directly in the theme picker
+
 ### Fixed
 - **Enter runs Translate in the screen-capture dialog.** The capture overlay draws its Translate button as the primary action, but pressing Enter did nothing — the only route was Tab to the button first. Translate is now the dialog's default button, so Enter OCRs and translates the selected region immediately; while no valid selection exists the action stays disabled, and Escape, Space on a focused button, and the secondary actions behave exactly as before
 - **One conflicting global shortcut no longer disables all the others.** The global-hotkey backend registers the configured set in order and gives up on the first shortcut another application already owns, and QTranslate treated that as a failure of the whole set: at startup this left every global shortcut unregistered, and on a change it restored the previous set, all because of one binding. Registration now retries the set one binding at a time, keeps every shortcut the backend accepts, and logs the conflicting shortcut by name so it can be rebound
