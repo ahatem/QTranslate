@@ -401,6 +401,20 @@ recorder_hint_confirm = "Press another combination to change · Esc to clear"
 recorder_invalid_key = "This key cannot be used as a shortcut"
 
 
+action_ocr_translate = "Translate"
+action_ocr_copy_text = "Copy text"
+action_ocr_copy_image = "Copy image"
+action_ocr_save_image = "Save image"
+action_ocr_recrop = "Re-crop"
+action_ocr_cancel = "Cancel"
+ocr_group = "OCR Snipping Tool Shortcuts"
+ocr_group_hint = "Shortcuts active only while the screen capture tool is open. Double-click or select and edit."
+modifier_ctrl = "Ctrl"
+modifier_alt = "Alt"
+modifier_shift = "Shift"
+modifier_meta = "⌘"
+
+
 [settings_translation]
 behavior_group = "Behavior"
 instant_translation = "Instant translation (translate as you type)"

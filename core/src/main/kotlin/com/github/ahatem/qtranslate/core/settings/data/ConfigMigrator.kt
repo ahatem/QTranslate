@@ -24,7 +24,7 @@ object ConfigMigrator {
      * would skip every migration it needs. A configuration this build creates from scratch is
      * stamped with this value instead.
      */
-    internal const val CURRENT_VERSION = 7
+    internal const val CURRENT_VERSION = 8
 
     /** The old defaults, frozen: this is what "the user never changed it" looked like. */
     private const val LEGACY_POPUP_IDLE_SECONDS = 3
@@ -166,6 +166,18 @@ object ConfigMigrator {
                         if (enabled) SelectionBehavior.SHOW_ICON else SelectionBehavior.OFF
                     } ?: config.selectionBehavior,
                     legacySelectionIconEnabled = null
+                )
+            }
+            7 -> {
+                // v7 → v8: scoped OCR hotkey actions were added (OCR_TRANSLATE, OCR_COPY_TEXT,
+                // OCR_COPY_IMAGE, OCR_SAVE_IMAGE, OCR_RECROP, OCR_CANCEL).
+                // Patching missing hotkey defaults so existing users receive these actions in their config.
+                logger.info("ConfigMigrator: migrating v7 → v8 — patching missing hotkey defaults")
+                val existingActions = config.hotkeys.map { it.action }.toSet()
+                val missingDefaults = HotkeyBinding.DEFAULTS.filter { it.action !in existingActions }
+                config.copy(
+                    configVersion = 8,
+                    hotkeys = config.hotkeys + missingDefaults
                 )
             }
             else -> {

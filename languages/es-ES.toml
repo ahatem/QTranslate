@@ -405,6 +405,20 @@ double_ctrl_label = "Doble Ctrl"
 double_ctrl_description = "Pulse Ctrl dos veces para mostrar la ventana principal"
 
 
+action_ocr_translate = "Traducir"
+action_ocr_copy_text = "Copiar texto"
+action_ocr_copy_image = "Copiar imagen"
+action_ocr_save_image = "Guardar imagen"
+action_ocr_recrop = "Recortar de nuevo"
+action_ocr_cancel = "Cancelar"
+ocr_group = "Atajos de la herramienta OCR"
+ocr_group_hint = "Atajos activos solo durante el recorte de pantalla. Doble clic o seleccionar y editar."
+modifier_ctrl = "Ctrl"
+modifier_alt = "Alt"
+modifier_shift = "Mayús"
+modifier_meta = "⌘"
+
+
 [settings_translation]
 behavior_group = "Comportamiento"
 instant_translation = "Traducción instantánea (traducir mientras escribe)"

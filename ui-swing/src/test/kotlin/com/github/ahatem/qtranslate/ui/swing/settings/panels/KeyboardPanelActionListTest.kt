@@ -84,6 +84,28 @@ class KeyboardPanelActionListTest {
 
     private fun JTable.labels(): List<String> = column(COL_ACTION).map { it.toString() }
 
+    private fun renderedOcrTable(): JTable {
+        val settings = store()
+        val panel = onEdt { KeyboardPanel(settings, localizer) }
+        onEdt { panel.render(settings.state.value) }
+        return panel.ocrTableForTest()
+    }
+
+    @Test
+    fun `every scoped OCR action is listed in the OCR table`() {
+        val listed = renderedOcrTable().actions()
+        listOf(
+            HotkeyAction.OCR_TRANSLATE,
+            HotkeyAction.OCR_COPY_TEXT,
+            HotkeyAction.OCR_COPY_IMAGE,
+            HotkeyAction.OCR_SAVE_IMAGE,
+            HotkeyAction.OCR_RECROP,
+            HotkeyAction.OCR_CANCEL
+        ).forEach { action ->
+            assertTrue(action in listed, "$action needs a row in the OCR hotkey table")
+        }
+    }
+
     @Test
     fun `the six window-local actions added in 159 are listed`() {
         val listed = renderedTable().actions()
@@ -124,10 +146,19 @@ class KeyboardPanelActionListTest {
             HotkeyAction.TRANSLATE_DOCUMENT
         )
 
+        val ocrActions = listOf(
+            HotkeyAction.OCR_TRANSLATE,
+            HotkeyAction.OCR_COPY_TEXT,
+            HotkeyAction.OCR_COPY_IMAGE,
+            HotkeyAction.OCR_SAVE_IMAGE,
+            HotkeyAction.OCR_RECROP,
+            HotkeyAction.OCR_CANCEL
+        )
+
         assertEquals(bindableInOrder, renderedTable().actions(), "row order is what a row index maps back to")
         assertEquals(
             HotkeyAction.entries.toSet(),
-            bindableInOrder.toSet() + HotkeyAction.SHOW_MAIN_WINDOW,
+            bindableInOrder.toSet() + HotkeyAction.SHOW_MAIN_WINDOW + ocrActions.toSet(),
             "the list covers every bindable action, so none can be added without a row"
         )
     }

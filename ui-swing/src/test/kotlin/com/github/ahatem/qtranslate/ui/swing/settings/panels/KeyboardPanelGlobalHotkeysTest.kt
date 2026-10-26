@@ -94,9 +94,9 @@ class KeyboardPanelGlobalHotkeysTest {
      */
     private fun editAndClear(panel: KeyboardPanel): Pair<JButton, JButton> {
         val edit = descendants(panel).filterIsInstance<JButton>()
-            .single { it.text == localizer.getString("settings_hotkeys.edit_button") }
+            .first { it.text == localizer.getString("settings_hotkeys.edit_button") }
         val clear = (edit.parent as Container).components.filterIsInstance<JButton>()
-            .single { it.text == localizer.getString("settings_hotkeys.clear_button") }
+            .first { it.text == localizer.getString("settings_hotkeys.clear_button") }
         return edit to clear
     }
 
@@ -114,9 +114,8 @@ class KeyboardPanelGlobalHotkeysTest {
     private fun showMainWindowButtons(panel: KeyboardPanel): Pair<JButton, JButton> {
         val change = descendants(panel).filterIsInstance<JButton>()
             .single { it.text == localizer.getString("settings_hotkeys.change_button") }
-        val clear = descendants(panel).filterIsInstance<JButton>()
-            .filter { it.text == localizer.getString("settings_hotkeys.clear_button") }
-            .single { it !== editAndClear(panel).second }
+        val clear = (change.parent as Container).components.filterIsInstance<JButton>()
+            .single { it.text == localizer.getString("settings_hotkeys.clear_button") }
         return change to clear
     }
 
@@ -219,11 +218,21 @@ class KeyboardPanelGlobalHotkeysTest {
         val table = panel.tableForTest()
         val (edit, clear) = editAndClear(panel)
 
-        HotkeyAction.entries.filter { it != HotkeyAction.SHOW_MAIN_WINDOW }.forEach { action ->
-            select(table, action)
-            assertTrue(edit.isEnabled, "$action is editable while global hotkeys are on")
-            assertTrue(clear.isEnabled, "$action can be cleared while global hotkeys are on")
-        }
+        val ocrActions = setOf(
+            HotkeyAction.OCR_TRANSLATE,
+            HotkeyAction.OCR_COPY_TEXT,
+            HotkeyAction.OCR_COPY_IMAGE,
+            HotkeyAction.OCR_SAVE_IMAGE,
+            HotkeyAction.OCR_RECROP,
+            HotkeyAction.OCR_CANCEL
+        )
+        HotkeyAction.entries
+            .filter { it != HotkeyAction.SHOW_MAIN_WINDOW && it !in ocrActions }
+            .forEach { action ->
+                select(table, action)
+                assertTrue(edit.isEnabled, "$action is editable while global hotkeys are on")
+                assertTrue(clear.isEnabled, "$action can be cleared while global hotkeys are on")
+            }
     }
 
     @Test

@@ -4,6 +4,17 @@ import kotlinx.serialization.Serializable
 import javax.swing.KeyStroke
 
 /**
+ * Labels used to format modifiers for display.
+ * Provided by the UI layer to support localized modifier names.
+ */
+data class ModifierLabels(
+    val ctrl: String = "Ctrl",
+    val alt: String = "Alt",
+    val shift: String = "Shift",
+    val meta: String = "⌘"
+)
+
+/**
  * Stable identifiers for every bindable action.
  * Never rename these — they are persisted in the config file.
  */
@@ -26,7 +37,15 @@ enum class HotkeyAction {
     SWAP_LANGUAGES,            // swap source and target languages (default: Ctrl+Shift+S, LOCAL)
     OPEN_SETTINGS,             // open the settings dialog (default: Ctrl+Comma, LOCAL)
     SHOW_HISTORY,              // open the translation history dialog (default: Ctrl+Shift+H, LOCAL)
-    TRANSLATE_DOCUMENT         // open the document translation dialog (default: Ctrl+Shift+D, LOCAL)
+    TRANSLATE_DOCUMENT,        // open the document translation dialog (default: Ctrl+Shift+D, LOCAL)
+
+    // OCR snipping tool actions — active only during screen capture
+    OCR_TRANSLATE,
+    OCR_COPY_TEXT,
+    OCR_COPY_IMAGE,
+    OCR_SAVE_IMAGE,
+    OCR_RECROP,
+    OCR_CANCEL
 }
 
 /**
@@ -73,6 +92,20 @@ data class HotkeyBinding(
     fun toKeyStroke(): KeyStroke? =
         if (hasBinding) KeyStroke.getKeyStroke(keyCode, modifiers) else null
 
+    fun toTokens(labels: ModifierLabels = ModifierLabels()): List<String> {
+        if (!hasBinding) return emptyList()
+        return buildList {
+            if (modifiers and java.awt.event.InputEvent.CTRL_DOWN_MASK != 0) add(labels.ctrl)
+            if (modifiers and java.awt.event.InputEvent.ALT_DOWN_MASK != 0) add(labels.alt)
+            if (modifiers and java.awt.event.InputEvent.SHIFT_DOWN_MASK != 0) add(labels.shift)
+            if (modifiers and java.awt.event.InputEvent.META_DOWN_MASK != 0) add(labels.meta)
+            add(java.awt.event.KeyEvent.getKeyText(keyCode))
+        }
+    }
+
+    fun toDisplayString(labels: ModifierLabels = ModifierLabels()): String =
+        toTokens(labels).joinToString("+")
+
     companion object {
         val DEFAULTS: List<HotkeyBinding> = listOf(
             // SHOW_MAIN_WINDOW: double-Ctrl via raw key events — no KeyStroke, always GLOBAL
@@ -98,6 +131,14 @@ data class HotkeyBinding(
             HotkeyBinding(HotkeyAction.OPEN_SETTINGS,            keyCode = java.awt.event.KeyEvent.VK_COMMA,            modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.LOCAL),
             HotkeyBinding(HotkeyAction.SHOW_HISTORY,             keyCode = java.awt.event.KeyEvent.VK_H,                modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.LOCAL),
             HotkeyBinding(HotkeyAction.TRANSLATE_DOCUMENT,       keyCode = java.awt.event.KeyEvent.VK_D,                modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.LOCAL),
+
+            // OCR snipping tool actions — unassigned by default, active only during screen capture
+            HotkeyBinding(HotkeyAction.OCR_TRANSLATE,            keyCode = 0,                                          modifiers = 0,                                         scope = HotkeyScope.LOCAL),
+            HotkeyBinding(HotkeyAction.OCR_COPY_TEXT,            keyCode = 0,                                          modifiers = 0,                                         scope = HotkeyScope.LOCAL),
+            HotkeyBinding(HotkeyAction.OCR_COPY_IMAGE,           keyCode = 0,                                          modifiers = 0,                                         scope = HotkeyScope.LOCAL),
+            HotkeyBinding(HotkeyAction.OCR_SAVE_IMAGE,           keyCode = 0,                                          modifiers = 0,                                         scope = HotkeyScope.LOCAL),
+            HotkeyBinding(HotkeyAction.OCR_RECROP,               keyCode = 0,                                          modifiers = 0,                                         scope = HotkeyScope.LOCAL),
+            HotkeyBinding(HotkeyAction.OCR_CANCEL,               keyCode = 0,                                          modifiers = 0,                                         scope = HotkeyScope.LOCAL),
         )
     }
 }

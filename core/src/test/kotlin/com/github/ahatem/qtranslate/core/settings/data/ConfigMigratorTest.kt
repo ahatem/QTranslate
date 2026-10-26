@@ -251,4 +251,25 @@ class ConfigMigratorTest {
         assertFalse("editorFontConfig" in encoded)
         assertFalse("editorFallbackFontConfig" in encoded)
     }
+    @Test
+    fun `v7 to v8 migration patches missing scoped OCR hotkeys`() {
+        val v7Config = Configuration.DEFAULT.copy(
+            configVersion = 7,
+            hotkeys = HotkeyBinding.DEFAULTS.filterNot { it.action.name.startsWith("OCR_") }
+        )
+        val migrated = ConfigMigrator.migrate(v7Config, logger)
+
+        assertEquals(8, migrated.configVersion)
+        val migratedActions = migrated.hotkeys.map { it.action }.toSet()
+        listOf(
+            HotkeyAction.OCR_TRANSLATE,
+            HotkeyAction.OCR_COPY_TEXT,
+            HotkeyAction.OCR_COPY_IMAGE,
+            HotkeyAction.OCR_SAVE_IMAGE,
+            HotkeyAction.OCR_RECROP,
+            HotkeyAction.OCR_CANCEL
+        ).forEach { ocrAction ->
+            assertTrue(ocrAction in migratedActions, "v7 -> v8 migration must add $ocrAction")
+        }
+    }
 }
