@@ -219,8 +219,13 @@ class MainGlobalKeyListenerTest {
         assertEquals(2, harness.logger.warns.count { it.startsWith("Skipping") })
     }
 
+    /**
+     * A persistently failing backend preserves the previous working set. A transient single
+     * failure is healed by the per-binding isolation (see the transient test below); only a
+     * backend that refuses every apply may leave the previous set standing.
+     */
     @Test
-    fun `backend failure preserves the previous working set`() = runTest {
+    fun `persistent backend failure preserves the previous working set`() = runTest {
         val harness = harness()
         harness.set(
             InputRuntimeState(
@@ -230,6 +235,47 @@ class MainGlobalKeyListenerTest {
         harness.listener.initialize()
         advanceUntilIdle()
         assertEquals(1, harness.backend.lastApplied().size)
+        val token = harness.listener.acceptedTokenFor(HotkeyAction.SHOW_QUICK_TRANSLATE)
+
+        // The whole-set apply, the restore, and every per-binding isolation attempt fail.
+        harness.backend.failOnApply = RuntimeException("backend down")
+        harness.set(
+            harness.applied.copy(
+                bindings = bindings(global(HotkeyAction.SHOW_QUICK_TRANSLATE, KeyEvent.VK_D, InputEvent.CTRL_DOWN_MASK))
+            )
+        )
+        advanceUntilIdle()
+
+        // Nothing was applied and the previous set stands: the old token stays accepted and
+        // the existing shortcut keeps working.
+        assertEquals(1, harness.backend.applied.size)
+        assertEquals(listOf("control+KeyQ"), harness.backend.lastApplied().map { it.accelerator })
+        assertEquals(
+            token,
+            harness.listener.acceptedTokenFor(HotkeyAction.SHOW_QUICK_TRANSLATE),
+            "a persistently failing apply must not accept the new plan"
+        )
+        harness.emitHotkey(HotkeyAction.SHOW_QUICK_TRANSLATE)
+        advanceUntilIdle()
+        assertEquals(1, harness.quickQueries.size)
+    }
+
+    /**
+     * A transient whole-set failure is not fatal: the per-binding isolation retries the plan
+     * and, when the backend cooperates again, the requested set is applied and accepted. The
+     * accepted set must always match what is actually installed, so a healed apply promotes the
+     * new plan instead of silently keeping the old one.
+     */
+    @Test
+    fun `transient apply failure heals through per-binding isolation`() = runTest {
+        val harness = harness()
+        harness.set(
+            InputRuntimeState(
+                bindings = bindings(global(HotkeyAction.SHOW_QUICK_TRANSLATE, KeyEvent.VK_Q, InputEvent.CTRL_DOWN_MASK))
+            )
+        )
+        harness.listener.initialize()
+        advanceUntilIdle()
 
         harness.backend.failNextApplies = 1
         harness.set(
@@ -239,10 +285,97 @@ class MainGlobalKeyListenerTest {
         )
         advanceUntilIdle()
 
-        // The failing update threw, then the previous set was written back: two writes,
-        // the last one restoring the working set instead of leaving zero hotkeys.
-        assertEquals(2, harness.backend.applied.size)
-        assertEquals(listOf("control+KeyQ"), harness.backend.lastApplied().map { it.accelerator })
+        assertEquals(listOf("control+KeyD"), harness.backend.lastApplied().map { it.accelerator })
+        assertEquals(null, harness.listener.acceptedTokenFor(HotkeyAction.SHOW_QUICK_TRANSLATE))
+        assertEquals(
+            harness.backend.lastApplied().single().id,
+            harness.listener.acceptedTokenFor(HotkeyAction.SHOW_DICTIONARY),
+            "the healed apply must accept the plan that is actually installed"
+        )
+    }
+
+    /**
+     * Issue #385: one conflicting global binding must not reject the whole configuration. The
+     * native backend aborts the apply at the first refused registration and rolls the entire
+     * set back, so at startup a single shortcut owned by another application used to leave
+     * every global hotkey unregistered.
+     */
+    @Test
+    fun `one conflicting global hotkey does not reject the whole set`() = runTest {
+        val harness = imageHarness()
+        harness.backend.conflictingAccelerators += "control+shift+KeyQ"
+        harness.set(
+            InputRuntimeState(
+                bindings = bindings(
+                    // Owned by another application: registration is refused.
+                    global(HotkeyAction.SHOW_IMAGES, KeyEvent.VK_Q, InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK),
+                    global(HotkeyAction.SHOW_DICTIONARY, KeyEvent.VK_D, InputEvent.CTRL_DOWN_MASK),
+                    global(HotkeyAction.OPEN_OCR, KeyEvent.VK_I, InputEvent.CTRL_DOWN_MASK)
+                )
+            )
+        )
+        harness.listener.initialize()
+        advanceUntilIdle()
+
+        // The conflicting binding is excluded; the unrelated ones are applied and dispatch.
+        assertEquals(
+            listOf("control+KeyD", "control+KeyI"),
+            harness.backend.lastApplied().map { it.accelerator }
+        )
+        assertEquals(null, harness.listener.acceptedTokenFor(HotkeyAction.SHOW_IMAGES))
+
+        harness.emitHotkey(HotkeyAction.SHOW_DICTIONARY)
+        advanceUntilIdle()
+        assertEquals(listOf("word"), harness.dictionaryQueries, "an unrelated global hotkey must keep working")
+
+        // The conflict is named so the user can rebind it.
+        assertTrue(
+            harness.logger.warns.any { it.contains("SHOW_IMAGES") && it.contains("control+shift+KeyQ") },
+            "the conflicting binding must be reported by action and accelerator"
+        )
+    }
+
+    /** Same isolation on an update: the unchanged registration keeps its token, only the conflict drops. */
+    @Test
+    fun `conflicting hotkey in an update keeps the working registrations`() = runTest {
+        val harness = imageHarness()
+        harness.set(
+            InputRuntimeState(
+                bindings = bindings(
+                    global(HotkeyAction.SHOW_IMAGES, KeyEvent.VK_Q, InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK)
+                )
+            )
+        )
+        harness.listener.initialize()
+        advanceUntilIdle()
+        val token = harness.listener.acceptedTokenFor(HotkeyAction.SHOW_IMAGES)
+
+        harness.backend.conflictingAccelerators += "control+KeyD"
+        harness.set(
+            InputRuntimeState(
+                bindings = bindings(
+                    global(HotkeyAction.SHOW_IMAGES, KeyEvent.VK_Q, InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK),
+                    global(HotkeyAction.SHOW_DICTIONARY, KeyEvent.VK_D, InputEvent.CTRL_DOWN_MASK),
+                    global(HotkeyAction.OPEN_OCR, KeyEvent.VK_I, InputEvent.CTRL_DOWN_MASK)
+                )
+            )
+        )
+        advanceUntilIdle()
+
+        // The unchanged registration keeps its exact token; only the conflict is dropped.
+        assertEquals(token, harness.listener.acceptedTokenFor(HotkeyAction.SHOW_IMAGES))
+        assertEquals(null, harness.listener.acceptedTokenFor(HotkeyAction.SHOW_DICTIONARY))
+        assertEquals(
+            setOf("control+shift+KeyQ", "control+KeyI"),
+            harness.backend.lastApplied().map { it.accelerator }.toSet()
+        )
+        harness.emitHotkey(HotkeyAction.SHOW_IMAGES)
+        advanceUntilIdle()
+        assertEquals(listOf("word"), harness.imageQueries, "the kept registration must still dispatch")
+        assertTrue(
+            harness.logger.warns.any { it.contains("SHOW_DICTIONARY") && it.contains("control+KeyD") },
+            "the conflicting binding must be reported by action and accelerator"
+        )
     }
 
     @Test
@@ -1553,7 +1686,7 @@ class MainGlobalKeyListenerTest {
         assertEquals(null, harness.listener.acceptedTokenFor(HotkeyAction.SHOW_IMAGES))
     }
 
-    /** A failed apply promotes nothing: the previous tokens stay valid and usable. */
+    /** A persistently failing apply promotes nothing: the previous tokens stay valid and usable. */
     @Test
     fun `failed apply keeps the previous tokens accepted`() = runTest {
         val harness = imageHarness()
@@ -1562,8 +1695,8 @@ class MainGlobalKeyListenerTest {
         advanceUntilIdle()
         val token = harness.listener.acceptedTokenFor(HotkeyAction.SHOW_IMAGES)
 
-        // The next apply fails, so nothing about the accepted set may change.
-        harness.backend.failNextApplies = 1
+        // Every apply fails, so nothing about the accepted set may change.
+        harness.backend.failOnApply = RuntimeException("backend down")
         harness.set(
             InputRuntimeState(
                 bindings = bindings(
