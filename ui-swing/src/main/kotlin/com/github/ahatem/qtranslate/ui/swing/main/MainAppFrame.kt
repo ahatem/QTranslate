@@ -617,22 +617,16 @@ class MainAppFrame(
                 .collect { (mainState, settingsState) ->
                     withContext(Dispatchers.Swing) {
                         try {
-                            // Filter available languages by pinned list (Yan's request).
-                            // If pinnedLanguages is empty, show all languages.
-                            val filteredState = run {
-                                val pinned = settingsState.workingConfiguration.pinnedLanguages
-                                if (pinned.isEmpty()) mainState
-                                else mainState.copy(
-                                    availableLanguages = mainState.availableLanguages.filter {
-                                        it.tag == "auto" || it.tag in pinned
-                                    }
-                                )
-                            }
+                            // Filter available languages by pinned list (Yan's request), for the
+                            // main window and the quick translate popup alike.
+                            val filteredState = mainState.withPinnedLanguages(
+                                settingsState.workingConfiguration.pinnedLanguages
+                            )
                             mainContentView.render(filteredState, settingsState)
 
                             if (mainState.isQuickTranslateDialogVisible || quickTranslateDialog.isVisible) {
                                 val dialogState = buildQuickTranslateDialogState(
-                                    mainState,
+                                    filteredState,
                                     settingsState.workingConfiguration,
                                     localizer
                                 )
