@@ -148,6 +148,14 @@ The store processes the intent, updates state, and emits a new state snapshot. `
 
 Blocking calls (`Files.copy`, JDBC, synchronous HTTP) must always be wrapped in `withContext(Dispatchers.IO)`.
 
+### Virtualised conversation transcript (`TranscriptListView`)
+
+In the Conversation window (`ui-swing/.../conversation/`), the transcript is rendered by `TranscriptListView` (implementing `TranscriptSurface` and Swing's `Scrollable`) rather than a single monolithic `JTextPane`:
+
+- **`CardHeightIndex`** — a pure Kotlin prefix-sum index (no Swing dependencies) that caches `(width, contentVersion) -> height` per `segmentId`, computes `topOf(id)` and `totalHeight` in $O(1)$, binary-searches `cardAt(y)` and `visibleRange(clipY, clipHeight, overscan)` in $O(\log N)$, and computes exact scroll anchor offsets (`computeAnchoredScrollY`) when cards are inserted or resized above the user's reading anchor.
+- **`TranscriptCardStamp`** — a single reusable stamp renderer backed by `CellRendererPane` and an off-hierarchy `JTextPane` that measures and paints individual `CardModel` instances at a given width without allocating component trees per card.
+- **`TranscriptListView`** — virtualises `paintComponent` so only cards within `visibleRange(clip.y, clip.height, overscan = 2)` are painted, and routes hit testing, word hover, single-card text selection, copy (`Ctrl+C`), and search highlights through card-local coordinates.
+
 ---
 
 ## Error handling

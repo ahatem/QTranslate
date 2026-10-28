@@ -103,6 +103,7 @@ internal class PluginSettingsSchemaBuilder(
             defaultValue   = annotation.defaultValue,
             validation     = annotation.validation,
             options        = annotation.options,
+            editable       = annotation.editable,
             group          = annotation.group,
             showIf         = showIf,
             minValue       = annotation.minValue.takeUnless { it.isNaN() },
@@ -153,12 +154,21 @@ internal class PluginSettingsSchemaBuilder(
     private fun readActions(settingsClass: Class<*>): List<PluginActionSchema> =
         settingsClass.declaredMethods.mapNotNull { method ->
             val ann = method.getAnnotation(PluginAction::class.java) ?: return@mapNotNull null
+            val showIf = if (ann.showIf.isBlank()) null else {
+                val parts = ann.showIf.split("=", limit = 2)
+                if (parts.size == 2) ShowIfRule(parts[0].trim(), parts[1].trim())
+                else {
+                    logger.warn("Invalid showIf format on action '${method.name}': '${ann.showIf}'. Expected 'propertyName=value'.")
+                    null
+                }
+            }
             PluginActionSchema(
                 methodName = method.name,
                 label      = ann.label,
                 tooltip    = ann.tooltip,
                 order      = ann.order,
-                group      = ann.group
+                group      = ann.group,
+                showIf     = showIf
             )
         }
 

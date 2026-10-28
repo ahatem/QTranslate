@@ -49,6 +49,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.serialization.json.Json
 import java.io.File
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
+import com.github.ahatem.qtranslate.core.conversation.ConversationFeature
 
 /**
  * All wired-up application dependencies, produced by [buildDependencies]
@@ -81,7 +82,9 @@ class AppDependencies(
      * plugin's lifecycle owns and closes. This one is owned by the application root: closed
      * exactly once, by application shutdown.
      */
-    val httpClient: HttpClient
+    val httpClient: HttpClient,
+    /** Conversation Sessions: call recording, live transcript and hover translation. */
+    val conversationFeature: ConversationFeature
 )
 
 /**
@@ -326,6 +329,13 @@ suspend fun buildDependencies(
         themeManager        = themeManager,
         localizationManager = localizationManager,
         notificationBus     = notificationBus,
-        httpClient          = httpClient
+        httpClient          = httpClient,
+        conversationFeature = ConversationFeature(
+            scope                = appScope,
+            activeServiceManager = activeServiceManager,
+            translateString      = translateStringUseCase,
+            appData              = appData,
+            loggerFactory        = loggerFactory
+        )
     )
 }

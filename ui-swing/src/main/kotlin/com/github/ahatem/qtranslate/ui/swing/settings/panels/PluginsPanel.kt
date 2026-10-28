@@ -774,6 +774,7 @@ class PluginsPanel(
             ServiceRole.REWRITER -> Icons.EDIT
             // No service declares this yet; the generic icon is a placeholder until one does.
             ServiceRole.IMAGE_SEARCH -> Icons.SEARCH
+            ServiceRole.SPEECH_RECOGNIZER, ServiceRole.LIVE_SPEECH_RECOGNIZER -> Icons.SPEAK
         },
         15
     )
@@ -873,6 +874,12 @@ class PluginsPanel(
                         settingsInstance    = instance,
                         onSave = { map ->
                             scope.launch { pluginManager.applySettingsFromMap(plugin.manifest.id, map) }
+                        },
+                        // Same rule as the Services page: only for plugins that need setting up,
+                        // and applied first so the test uses what is on screen.
+                        onTestConnection = if (plugin.services.none { it.metadata.requiresConfiguration }) null else { values ->
+                            pluginManager.applySettingsFromMap(plugin.manifest.id, values)
+                            pluginManager.validateServices(plugin.manifest.id)
                         }
                     ).isVisible = true
                 } else {
@@ -921,4 +928,6 @@ fun ServiceRole.readableName(localizationManager: LocalizationManager): String =
         ServiceRole.SUMMARIZER    -> localizationManager.getString("settings_services.summarizer").removeSuffix(":")
         ServiceRole.REWRITER      -> localizationManager.getString("settings_services.rewriter").removeSuffix(":")
         ServiceRole.IMAGE_SEARCH  -> localizationManager.getString("settings_services.image_search").removeSuffix(":")
+        ServiceRole.SPEECH_RECOGNIZER -> localizationManager.getString("settings_services.speech_recognizer").removeSuffix(":")
+        ServiceRole.LIVE_SPEECH_RECOGNIZER -> localizationManager.getString("settings_services.live_speech_recognizer").removeSuffix(":")
     }
