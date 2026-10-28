@@ -35,7 +35,9 @@ class ApplicationShutdown(
     private val closeHostHttpClient: () -> Unit,
     private val cancelAppScope: () -> Unit,
     private val logger: Logger,
-    private val exit: () -> Unit
+    private val exit: () -> Unit,
+    /** Finishes a conversation recording in progress, so it is saved rather than cut off. */
+    private val stopRecording: () -> Unit = {}
 ) {
     private val shutdownScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val started = AtomicBoolean(false)
@@ -54,6 +56,9 @@ class ApplicationShutdown(
         shutdownScope.launch {
             runCatching { persistWindowBounds(windowSize, windowPosition) }
                 .onFailure { logger.error("Failed to persist final window bounds", it) }
+
+            runCatching { stopRecording() }
+                .onFailure { logger.error("Failed to stop the conversation recording", it) }
 
             runCatching { shutdownMainStore() }
                 .onFailure { logger.error("Main store shutdown failed", it) }

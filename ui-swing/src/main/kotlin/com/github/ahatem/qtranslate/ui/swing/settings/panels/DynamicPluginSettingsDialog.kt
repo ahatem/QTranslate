@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -74,6 +75,9 @@ class DynamicPluginSettingsDialog(
     )
 
     private val components = mutableMapOf<String, SettingComponent>()
+    private val actionStrips = mutableMapOf<String, JPanel>()
+    private val actionButtons = mutableMapOf<PluginActionSchema, JButton>()
+    private val actionStripAnchorField = mutableMapOf<String, String>()
 
     /** A field rather than an inline lambda, so [dispose] can detach it again. */
     private val themeListener = java.beans.PropertyChangeListener { event ->
@@ -172,18 +176,25 @@ class DynamicPluginSettingsDialog(
             addToPanel(panel, buildGroupHeader(group))
         }
 
-        // Action button strip (standalone @PluginAction buttons)
-        if (group.actions.isNotEmpty()) {
-            addToPanel(panel, buildActionStrip(group.actions), topInset = if (group.title.isNotBlank()) 4 else 0)
+        val actionStrip = if (group.actions.isNotEmpty()) buildActionStrip(group.actions).also { actionStrips[group.key] = it } else null
+        val minActionOrder = group.actions.minOfOrNull { it.order } ?: Int.MAX_VALUE
+        val anchorField = group.fields.lastOrNull { it.order <= minActionOrder } ?: group.fields.firstOrNull()
+        if (anchorField != null) {
+            actionStripAnchorField[group.key] = anchorField.propertyName
         }
+        var actionAdded = false
 
         // Fields — detect consecutive "compact" pairs for side-by-side layout
         val fields = group.fields
         var i = 0
         while (i < fields.size) {
             val current = fields[i]
-            val next = fields.getOrNull(i + 1)
+            if (actionStrip != null && !actionAdded && minActionOrder <= current.order) {
+                addToPanel(panel, actionStrip, topInset = 6)
+                actionAdded = true
+            }
 
+            val next = fields.getOrNull(i + 1)
             if (isCompact(current) && next != null && isCompact(next)) {
                 // Place two compact fields side-by-side
                 addToPanel(panel, buildSideBySideRow(current, next))
@@ -192,6 +203,10 @@ class DynamicPluginSettingsDialog(
                 addToPanel(panel, buildFieldBlock(current))
                 i++
             }
+        }
+
+        if (actionStrip != null && !actionAdded) {
+            addToPanel(panel, actionStrip, topInset = 8)
         }
     }
 
@@ -293,20 +308,85 @@ class DynamicPluginSettingsDialog(
                 if (action.tooltip.isNotBlank()) toolTipText = action.tooltip
                 addActionListener { invokeAction(action, this) }
             }
+            actionButtons[action] = btn
             strip.add(btn)
         }
         return strip
     }
 
+    private fun createWorkingCopy(instance: PluginSettings.Configurable): PluginSettings.Configurable {
+        var copy = runCatching {
+            val ctor = instance::class.java.getDeclaredConstructor().apply { isAccessible = true }
+            ctor.newInstance()
+        }.onFailure { e ->
+            System.err.println("DynamicPluginSettingsDialog: constructor createWorkingCopy failed: ${e.message}")
+        }.getOrNull()
+
+        if (copy == null) {
+            copy = runCatching {
+                val copyDefault = instance::class.java.methods.firstOrNull { it.name == "copy\$default" }?.apply { isAccessible = true }
+                if (copyDefault != null) {
+                    val paramCount = copyDefault.parameterCount
+                    val args = arrayOfNulls<Any>(paramCount)
+                    args[0] = instance
+                    args[paramCount - 2] = -1
+                    copyDefault.invoke(null, *args) as? PluginSettings.Configurable
+                } else null
+            }.onFailure { e ->
+                System.err.println("DynamicPluginSettingsDialog: copy\$default createWorkingCopy failed: ${e.message}")
+            }.getOrNull()
+        }
+
+        val target = copy ?: return instance
+
+        // Copy all fields (including transient like modelManager) from instance to target
+        var clazz: Class<*>? = instance::class.java
+        while (clazz != null && clazz != Any::class.java) {
+            for (field in clazz.declaredFields) {
+                if (java.lang.reflect.Modifier.isStatic(field.modifiers)) continue
+                runCatching {
+                    field.isAccessible = true
+                    field.set(target, field.get(instance))
+                }.onFailure { e ->
+                    System.err.println("DynamicPluginSettingsDialog: failed to copy field '${field.name}': ${e.message}")
+                }
+            }
+            clazz = clazz.superclass
+        }
+
+        // Apply on-screen component values to target
+        components.forEach { (propName, comp) ->
+            runCatching {
+                var c: Class<*>? = target::class.java
+                while (c != null && c != Any::class.java) {
+                    try {
+                        val field = c.getDeclaredField(propName)
+                        field.isAccessible = true
+                        field.set(target, comp.getValue())
+                        break
+                    } catch (e: NoSuchFieldException) {
+                        c = c.superclass
+                    }
+                }
+            }.onFailure { e ->
+                System.err.println("DynamicPluginSettingsDialog: failed to apply on-screen value for '$propName': ${e.message}")
+            }
+        }
+
+        return target
+    }
+
     private fun invokeAction(action: PluginActionSchema, sourceButton: JButton) {
         val instance = settingsInstance ?: return
+        val target = createWorkingCopy(instance)
+
         sourceButton.isEnabled = false
         object : SwingWorker<String?, Unit>() {
             override fun doInBackground(): String? = runCatching {
-                val method = instance::class.java.getDeclaredMethod(action.methodName).apply {
+                val method = target::class.java.getDeclaredMethod(action.methodName).apply {
                     isAccessible = true
                 }
-                method.invoke(instance) as? String
+                method.invoke(target) as? String
             }.getOrElse { e ->
                 "Error: ${e.cause?.message ?: e.message}"
             }
@@ -320,6 +400,7 @@ class DynamicPluginSettingsDialog(
                         result, action.label, JOptionPane.INFORMATION_MESSAGE
                     )
                 }
+                updateVisibility()
             }
         }.execute()
     }
@@ -502,6 +583,28 @@ class DynamicPluginSettingsDialog(
 
             is DropdownSetting -> {
                 val cb = JComboBox(setting.options.toTypedArray()).apply {
+                    isEditable = setting.isEditable
+                    val instance = settingsInstance
+                    if (instance != null) {
+                        val rendererMethod = runCatching {
+                            instance::class.java.getDeclaredMethod(setting.propertyName + "DisplayLabel", String::class.java)
+                        }.getOrNull()
+                        if (rendererMethod != null) {
+                            rendererMethod.isAccessible = true
+                            renderer = DisplayValueRenderer<String>(
+                                text = { option ->
+                                    if (option == null) "" else {
+                                        runCatching { rendererMethod.invoke(instance, option) as? String }
+                                            .onFailure { e ->
+                                                System.err.println("DynamicPluginSettingsDialog: displayLabel for '${setting.propertyName}' failed: ${e.message}")
+                                            }
+                                            .getOrNull() ?: option
+                                    }
+                                }
+                            )
+                        }
+                    }
+
                     selectedItem = setting.currentValue
                     preferredSize = null
                     maximumSize = Dimension(Int.MAX_VALUE, preferredSize?.height ?: 28)
@@ -511,7 +614,21 @@ class DynamicPluginSettingsDialog(
                 cb.addItemListener { e ->
                     if (e.stateChange == ItemEvent.SELECTED) onAnyFieldChanged()
                 }
-                SettingComponent(placeholder, cb) { cb.selectedItem?.toString() ?: "" }
+                if (setting.isEditable) {
+                    val editorComp = cb.editor.editorComponent as? JTextComponent
+                    editorComp?.document?.addDocumentListener(object : DocumentListener {
+                        override fun insertUpdate(e: DocumentEvent?) = onAnyFieldChanged()
+                        override fun removeUpdate(e: DocumentEvent?) = onAnyFieldChanged()
+                        override fun changedUpdate(e: DocumentEvent?) = onAnyFieldChanged()
+                    })
+                }
+                SettingComponent(placeholder, cb) {
+                    if (cb.isEditable) {
+                        (cb.editor.editorComponent as? JTextComponent)?.text ?: cb.selectedItem?.toString() ?: ""
+                    } else {
+                        cb.selectedItem?.toString() ?: ""
+                    }
+                }
             }
 
             is FilePathSetting, is DirectoryPathSetting -> {
@@ -588,9 +705,92 @@ class DynamicPluginSettingsDialog(
         val currentValues = components.mapValues { it.value.getValue() }
         settingsModel.schema.forEach { setting ->
             val rule = setting.showIf ?: return@forEach
-            val visible = currentValues[rule.propertyName] == rule.requiredValue
+            val currentVal = currentValues[rule.propertyName]
+            val controllingFieldVisible = components[rule.propertyName]?.fieldBlock?.isVisible ?: true
+            val visible = controllingFieldVisible && if (rule.requiredValue.startsWith("!")) {
+                currentVal != rule.requiredValue.removePrefix("!")
+            } else {
+                rule.requiredValue.split(',').map { it.trim() }.contains(currentVal)
+            }
             components[setting.propertyName]?.fieldBlock?.isVisible = visible
         }
+
+        // Action strips visibility: follows the visibility of the field preceding them in the group
+        actionStrips.forEach { (groupKey, strip) ->
+            val anchorProp = actionStripAnchorField[groupKey]
+            val visible = if (anchorProp != null) {
+                components[anchorProp]?.fieldBlock?.isVisible ?: true
+            } else {
+                true
+            }
+            strip.isVisible = visible
+        }
+
+        // Per-action button visibility based on action.showIf and dynamic predicate
+        val instance = settingsInstance
+        val actionInstance = if (instance != null) createWorkingCopy(instance) else null
+        actionButtons.forEach { (action, btn) ->
+            val rule = action.showIf
+            val ruleVisible = if (rule != null) {
+                val currentVal = currentValues[rule.propertyName]
+                if (rule.requiredValue.startsWith("!")) {
+                    currentVal != rule.requiredValue.removePrefix("!")
+                } else {
+                    rule.requiredValue.split(',').map { it.trim() }.contains(currentVal)
+                }
+            } else true
+
+            val predicateVisible = if (actionInstance != null) {
+                val predicateMethod = runCatching {
+                    actionInstance::class.java.getDeclaredMethod(action.methodName + "Visible")
+                }.getOrNull()
+                if (predicateMethod != null) {
+                    predicateMethod.isAccessible = true
+                    runCatching { predicateMethod.invoke(actionInstance) as? Boolean }
+                        .onFailure { e ->
+                            System.err.println("DynamicPluginSettingsDialog: predicate '${action.methodName}Visible' failed: ${e.message}")
+                        }
+                        .getOrNull() ?: true
+                } else true
+            } else true
+
+            val predicateEnabled = if (actionInstance != null) {
+                val enabledMethod = runCatching {
+                    actionInstance::class.java.getDeclaredMethod(action.methodName + "Enabled")
+                }.getOrNull()
+                if (enabledMethod != null) {
+                    enabledMethod.isAccessible = true
+                    runCatching { enabledMethod.invoke(actionInstance) as? Boolean }
+                        .onFailure { e ->
+                            System.err.println("DynamicPluginSettingsDialog: predicate '${action.methodName}Enabled' failed: ${e.message}")
+                        }
+                        .getOrNull() ?: true
+                } else null
+            } else null
+
+            if (actionInstance != null) {
+                val labelMethod = runCatching {
+                    actionInstance::class.java.getDeclaredMethod(action.methodName + "Label")
+                }.getOrNull()
+                if (labelMethod != null) {
+                    labelMethod.isAccessible = true
+                    val customLabel = runCatching { labelMethod.invoke(actionInstance) as? String }
+                        .onFailure { e ->
+                            System.err.println("DynamicPluginSettingsDialog: label '${action.methodName}Label' failed: ${e.message}")
+                        }
+                        .getOrNull()
+                    if (customLabel != null) {
+                        btn.text = customLabel
+                    }
+                }
+            }
+
+            btn.isVisible = ruleVisible && predicateVisible
+            if (predicateEnabled != null) {
+                btn.isEnabled = predicateEnabled
+            }
+        }
+
         // Force layout update
         components.values.firstOrNull()?.fieldBlock?.parent?.let { parent ->
             parent.revalidate()
@@ -820,6 +1020,12 @@ class DynamicPluginSettingsDialog(
         onSave(values)
         dispose()
     }
+
+    fun getActionButton(actionMethodName: String): JButton? =
+        actionButtons.entries.firstOrNull { it.key.methodName == actionMethodName }?.value
+
+    fun getComponent(propertyName: String): JComponent? =
+        components[propertyName]?.component
 
     private fun applyErrorHighlight(comp: JComponent?) {
         val target = firstInputComponent(comp) ?: return

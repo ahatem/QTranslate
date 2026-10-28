@@ -866,6 +866,8 @@ class SettingsDialog(
      */
     fun showServicesPage() = selectPage(label("services"))
 
+    fun showPluginsPage() = selectPage(label("plugins"))
+
     /** Moves the sidebar selection to [pageLabel], which in turn shows its panel. */
     private fun selectPage(pageLabel: String) {
         for (row in 0 until tree.rowCount) {

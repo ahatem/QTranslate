@@ -140,7 +140,8 @@ fun main(args: Array<String>) = runBlocking {
         closeHostHttpClient    = { deps.httpClient.close() },
         cancelAppScope         = { deps.appScope.cancel() },
         logger                 = logFactory.getLogger("ApplicationShutdown"),
-        exit                   = { exitProcess(0) }
+        exit                   = { exitProcess(0) },
+        stopRecording          = { deps.conversationFeature.recorder.shutdown() }
     )
 
     // The "launch on system startup" checkbox used to persist its flag without any code ever
@@ -240,7 +241,8 @@ fun main(args: Array<String>) = runBlocking {
                     failure = { Result.failure(IllegalStateException(it.message)) }
                 )
             },
-            onApplicationExit = { size, position -> applicationShutdown.requestShutdown(size, position) }
+            onApplicationExit = { size, position -> applicationShutdown.requestShutdown(size, position) },
+            conversationFeature = deps.conversationFeature
         )
         logger.info("Main window launched")
 

@@ -24,7 +24,9 @@ data class TrayMenuStrings(
     val selectionBehaviorRead: String,
     val settings: String,
     val toggleHotkeys: String,
-    val exit: String
+    val exit: String,
+    /** Empty hides the item, for a frame built without the conversation feature. */
+    val conversations: String = ""
 )
 
 data class TrayMenuActions(
@@ -37,7 +39,8 @@ data class TrayMenuActions(
     val onSelectionBehaviorChanged: (SelectionBehavior) -> Unit,
     val onShowSettings: () -> Unit,
     val onToggleHotkeys: (Boolean) -> Unit,
-    val onExitApplication: () -> Unit
+    val onExitApplication: () -> Unit,
+    val onShowConversations: () -> Unit = {}
 )
 
 class TrayMenuPopup(
@@ -68,6 +71,12 @@ class TrayMenuPopup(
         add(JMenuItem(strings.translateDocument).apply {
             addActionListener { actions.onTranslateDocument() }
         })
+
+        if (strings.conversations.isNotEmpty()) {
+            add(JMenuItem(strings.conversations).apply {
+                addActionListener { actions.onShowConversations() }
+            })
+        }
 
         add(JMenuItem(strings.history).apply {
             addActionListener { actions.onShowHistory() }

@@ -48,6 +48,8 @@ data class MenuStrings(
     val showLanguageBar: String,
     val showServicesPanel: String,
     val showStatusBar: String,
+    /** Empty hides the item, for a frame built without the conversation feature. */
+    val conversations: String = "",
 )
 
 data class MenuActions(
@@ -73,7 +75,8 @@ data class MenuActions(
     val onToggleLanguageBar: (Boolean) -> Unit,
     val onToggleServicesPanel: (Boolean) -> Unit,
     val onToggleStatusBar: (Boolean) -> Unit,
-    val onOpenServicesSettings: () -> Unit = {}
+    val onOpenServicesSettings: () -> Unit = {},
+    val onShowConversations: () -> Unit = {}
 )
 
 class LayoutPresetsMenu(
@@ -204,6 +207,11 @@ class MainMenuPopup(
         add(JMenuItem(strings.translateDocument).apply {
             addActionListener { actions.onTranslateDocument() }
         })
+        if (strings.conversations.isNotEmpty()) {
+            add(JMenuItem(strings.conversations).apply {
+                addActionListener { actions.onShowConversations() }
+            })
+        }
         add(JMenuItem(strings.history).apply {
             addActionListener { actions.onShowHistory() }
         })
