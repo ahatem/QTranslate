@@ -84,4 +84,22 @@ class ApplicationShutdownTest {
             recorder.order
         )
     }
+    @Test fun `shutdown awaits persistence before cancelling scope and exiting`() {
+        val recorder = Recorder()
+        val exited = CountDownLatch(1)
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val application = shutdown(recorder, exited, persistWindowBounds = { _, _ ->
+            recorder.record("bounds")
+            entered.countDown()
+            check(release.await(5, TimeUnit.SECONDS))
+        })
+        application.requestShutdown(Size(800, 600), Position(10, 20))
+        assertTrue(entered.await(5, TimeUnit.SECONDS))
+        assertEquals(listOf("bounds"), recorder.order)
+        release.countDown()
+        assertTrue(exited.await(5, TimeUnit.SECONDS))
+        assertEquals(listOf("bounds", "mainStore", "pluginManager", "httpClient", "appScope", "exit"), recorder.order)
+    }
+
 }

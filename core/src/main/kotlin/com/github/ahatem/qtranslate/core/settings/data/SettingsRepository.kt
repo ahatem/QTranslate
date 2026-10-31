@@ -7,6 +7,10 @@ import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -42,18 +46,19 @@ data class ConfigRecovery(val backupFile: File?, val reason: String)
 class SettingsRepository(
     private val appDataDirectory: File,
     private val json: Json,
-    private val logger: Logger
+    private val logger: Logger,
+    dataStore: DataStore<Preferences>? = null,
+    val storageScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) {
+    private val dataStore: DataStore<Preferences> = dataStore ?: PreferenceDataStoreFactory.create(
+        scope = CoroutineScope(storageScope.coroutineContext + Dispatchers.IO),
+        produceFile = { File(appDataDirectory, "datastore/${AppConstants.DATASTORE_FILE}") }
+    )
+
     private object Keys {
         val CONFIG_JSON = stringPreferencesKey("configuration_json")
         val DISABLED_PLUGIN_IDS = stringSetPreferencesKey("disabled_plugin_ids")
     }
-
-    private val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
-        produceFile = {
-            File(appDataDirectory, "datastore/${AppConstants.DATASTORE_FILE}")
-        }
-    )
 
     // -------------------------------------------------------------------------
     // Configuration
@@ -66,11 +71,13 @@ class SettingsRepository(
      * [updateConfiguration] succeeds. Falls back to [Configuration.DEFAULT] on
      * deserialization errors or I/O failures rather than terminating the flow.
      */
-    val configuration: Flow<Configuration> = dataStore.data
+    val configuration: Flow<Configuration> = this.dataStore.data
         .map { preferences ->
             preferences[Keys.CONFIG_JSON]?.let { stored ->
                 try {
                     ConfigMigrator.migrate(this.json.decodeFromString<Configuration>(stored), logger).withoutRetiredLayout()
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     // Any failure, not only SerializationException: a migration step throwing
                     // something else used to escape this catch and be swallowed by the flow's
@@ -175,6 +182,8 @@ class SettingsRepository(
             configuration.first().also {
                 logger.info("Initial configuration loaded successfully")
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             logger.error("Failed to load initial configuration, using default", e)
             Configuration.DEFAULT
@@ -199,6 +208,8 @@ class SettingsRepository(
         } catch (e: IOException) {
             logger.error("Failed to write configuration to disk", e)
             Err(SettingsError.IOError(e.message ?: "Disk write failed"))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             logger.error("Unexpected error saving configuration", e)
             Err(SettingsError.UnknownError(e.message ?: "Unknown error"))
@@ -215,6 +226,8 @@ class SettingsRepository(
     suspend fun loadDisabledPluginIds(): Set<String> =
         try {
             dataStore.data.map { it[Keys.DISABLED_PLUGIN_IDS] ?: emptySet() }.first()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             logger.error("Failed to load disabled plugin IDs", e)
             emptySet()
@@ -225,13 +238,26 @@ class SettingsRepository(
      * Replaces any previously stored set.
      */
     suspend fun saveDisabledPluginIds(ids: Set<String>) {
+        updateDisabledPluginIds { ids }
+    }
+
+    /** Atomically transforms the stored disabled plugin IDs. */
+    suspend fun updateDisabledPluginIds(transform: (Set<String>) -> Set<String>): Result<Unit, SettingsError> =
         try {
-            dataStore.edit { it[Keys.DISABLED_PLUGIN_IDS] = ids }
-            logger.debug("Saved ${ids.size} disabled plugin ID(s)")
+            dataStore.edit { preferences ->
+                preferences[Keys.DISABLED_PLUGIN_IDS] = transform(preferences[Keys.DISABLED_PLUGIN_IDS] ?: emptySet()).toSet()
+            }
+            Ok(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            logger.error("Failed to save disabled plugin IDs", e)
+            Err(SettingsError.IOError(e.message ?: "Disk write failed"))
         } catch (e: Exception) {
             logger.error("Failed to save disabled plugin IDs", e)
+            Err(SettingsError.UnknownError(e.message ?: "Unknown error"))
         }
-    }
+
 }
 
 // -------------------------------------------------------------------------

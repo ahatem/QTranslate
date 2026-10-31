@@ -5,11 +5,10 @@ import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.icons.FlatSearchIcon
 import com.formdev.flatlaf.util.UIScale
+import com.github.michaelbull.result.fold
 import com.github.ahatem.qtranslate.api.language.LanguageCode
-import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
-import com.github.ahatem.qtranslate.core.settings.mvi.SettingsEvent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
@@ -20,8 +19,6 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import com.github.ahatem.qtranslate.core.plugin.storage.AppSecretStore
 import com.github.ahatem.qtranslate.core.settings.data.NetworkConfig
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.swing.Swing
 import java.awt.*
 import java.awt.event.KeyEvent
@@ -1029,21 +1026,16 @@ class SettingsDialog(
 
         okButton.isEnabled = false
         okButton.text = localizationManager.getString("settings_dialog.saving")
-        if (settingsStore.state.value.isDirty) settingsStore.dispatch(SettingsIntent.SaveChanges)
 
         scope.launch {
-            if (settingsStore.state.value.isDirty) {
-                val event = settingsStore.events
-                    .filter { it is SettingsEvent.ShowMessage }
-                    .first() as SettingsEvent.ShowMessage
-                if (event.type == NotificationType.ERROR) {
-                    withContext(Dispatchers.Swing) {
-                        showSaveError(event.message)
-                        okButton.isEnabled = true
-                        okButton.text = localizationManager.getString("common.ok")
-                    }
-                    return@launch
+            val saveError = settingsStore.saveDraftAndAwait().fold(success = { null }, failure = { it })
+            if (saveError != null) {
+                withContext(Dispatchers.Swing) {
+                    showSaveError(saveError.message)
+                    okButton.isEnabled = true
+                    okButton.text = localizationManager.getString("common.ok")
                 }
+                return@launch
             }
             val error = persistPendingProxyPassword()
             withContext(Dispatchers.Swing) {
@@ -1070,19 +1062,14 @@ class SettingsDialog(
     private fun onApply() {
         if (!settingsStore.state.value.isDirty && !proxyPassword.hasPendingChanges()) return
         applyButton.isEnabled = false
-        if (settingsStore.state.value.isDirty) settingsStore.dispatch(SettingsIntent.SaveChanges)
         scope.launch {
-            if (settingsStore.state.value.isDirty) {
-                val event = settingsStore.events
-                    .filter { it is SettingsEvent.ShowMessage }
-                    .first() as SettingsEvent.ShowMessage
-                if (event.type == NotificationType.ERROR) {
-                    withContext(Dispatchers.Swing) {
-                        showSaveError(event.message)
-                        updateApplyButton()
-                    }
-                    return@launch
+            val saveError = settingsStore.saveDraftAndAwait().fold(success = { null }, failure = { it })
+            if (saveError != null) {
+                withContext(Dispatchers.Swing) {
+                    showSaveError(saveError.message)
+                    updateApplyButton()
                 }
+                return@launch
             }
             val error = persistPendingProxyPassword()
             withContext(Dispatchers.Swing) {

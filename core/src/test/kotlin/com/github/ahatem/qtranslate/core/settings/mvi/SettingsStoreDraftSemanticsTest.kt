@@ -16,6 +16,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
@@ -45,7 +48,7 @@ class SettingsStoreDraftSemanticsTest {
 
     @AfterTest
     fun cleanUp() {
-        scopes.forEach { it.coroutineContext.cancel() }
+        runBlocking { scopes.forEach { it.coroutineContext[Job]!!.cancelAndJoin() } }
         directories.forEach { it.deleteRecursively() }
     }
 
@@ -315,7 +318,9 @@ class SettingsStoreDraftSemanticsTest {
     private suspend fun store(config: Configuration): SettingsStore {
         val directory = Files.createTempDirectory("qtranslate-settings-draft").toFile()
         directories += directory
-        val repository = SettingsRepository(directory, Json { ignoreUnknownKeys = true }, logger)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        scopes += scope
+        val repository = SettingsRepository(directory, Json { ignoreUnknownKeys = true }, logger, storageScope = scope)
         repository.updateConfiguration(config)
         // The store observes the repository asynchronously. The initial state is
         // seeded correctly, but until the collector has processed the repository's
@@ -333,8 +338,6 @@ class SettingsStoreDraftSemanticsTest {
                 logger.debug(message)
             }
         }
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        scopes += scope
         val store = SettingsStore(repository, syncAwareLogger, scope, config)
         check(firstRepositorySync.await(10, TimeUnit.SECONDS)) {
             "SettingsStore did not synchronize with the repository before the test started"

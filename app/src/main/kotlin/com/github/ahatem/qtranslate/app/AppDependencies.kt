@@ -41,7 +41,6 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -123,9 +122,9 @@ suspend fun buildDependencies(
 
     // ---- 1. Coroutine scope ----
 
-    val appScope = CoroutineScope(
-        SupervisorJob() + Dispatchers.Default + CoroutineName("AppScope")
-    )
+    // The settings repository is created before initial configuration is loaded. Reuse
+    // its owned job so every DataStore is stopped with the application graph.
+    val appScope = CoroutineScope(settingsRepo.storageScope.coroutineContext + Dispatchers.Default + CoroutineName("AppScope"))
 
     // ---- 2. Shared HTTP client ----
     // One HttpClient = one connection pool for the host app.
@@ -152,7 +151,7 @@ suspend fun buildDependencies(
 
     // One instance, shared: the settings dialog writes the proxy password and the plugin
     // manager reads it back when building each plugin's client.
-    val keyValueStore = PluginKeyValueStore(appData)
+    val keyValueStore = PluginKeyValueStore(appData, appScope)
     val appSecrets = AppSecretStore(keyValueStore)
 
     // ---- 4. Settings store + reactive config ----
@@ -173,7 +172,7 @@ suspend fun buildDependencies(
     val pluginManager = PluginManager(
         appDataDirectory            = appData,
         settingsRepository          = settingsRepo,
-        pluginFingerprintRepository = PluginFingerprintRepository(appData, Json { ignoreUnknownKeys = true; isLenient = true }),
+        pluginFingerprintRepository = PluginFingerprintRepository(appData, Json { ignoreUnknownKeys = true; isLenient = true }, appScope),
         pluginKeyValueStore         = keyValueStore,
         loggerFactory               = loggerFactory,
         notificationBus             = notificationBus,
@@ -193,7 +192,8 @@ suspend fun buildDependencies(
     val historyRepo = HistoryRepository(
         appDataDirectory = appData,
         logger           = loggerFactory.getLogger("HistoryRepository"),
-        json             = Json { ignoreUnknownKeys = true; isLenient = true }
+        json             = Json { ignoreUnknownKeys = true; isLenient = true },
+        storageScope     = appScope
     )
 
     val audioPlayer = JLayerAudioPlayer(

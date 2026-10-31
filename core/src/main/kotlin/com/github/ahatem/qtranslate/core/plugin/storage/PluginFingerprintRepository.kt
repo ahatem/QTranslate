@@ -5,6 +5,9 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
@@ -35,13 +38,15 @@ data class PluginFingerprint(
  */
 class PluginFingerprintRepository(
     appDataDirectory: File,
-    private val json: Json
+    private val json: Json,
+    val storageScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) {
     private object Keys {
         val REGISTRY_JSON = stringPreferencesKey("known_plugins_registry_json")
     }
 
     private val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
+        scope = CoroutineScope(storageScope.coroutineContext + Dispatchers.IO),
         produceFile = { File(appDataDirectory, "datastore/plugin_registry.preferences_pb") }
     )
 

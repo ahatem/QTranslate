@@ -33,7 +33,7 @@ class ApplicationShutdown(
     private val shutdownMainStore: suspend () -> Unit,
     private val shutdownPluginManager: suspend () -> Unit,
     private val closeHostHttpClient: () -> Unit,
-    private val cancelAppScope: () -> Unit,
+    private val cancelAppScope: suspend () -> Unit,
     private val logger: Logger,
     private val exit: () -> Unit
 ) {

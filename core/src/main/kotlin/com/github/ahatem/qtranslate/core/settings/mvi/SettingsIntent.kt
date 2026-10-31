@@ -37,6 +37,9 @@ sealed interface SettingsIntent : UiIntent {
      */
     data class UpdateDraft(val newConfiguration: Configuration) : SettingsIntent
 
+    /** Applies a pure transformation to the latest working configuration. It may be retried. */
+    data class TransformDraft(val transform: (Configuration) -> Configuration) : SettingsIntent
+
     /** Persists the current working configuration. On success, working becomes the new original. */
     data object SaveChanges : SettingsIntent
 

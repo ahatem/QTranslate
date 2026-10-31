@@ -170,7 +170,8 @@ class AppearancePanel(
             selected = false,
             onChange = { synced ->
                 themeCombo.isEnabled = !synced
-                applyDraft(store) { it.copy(themeId = if (synced) OS_DEFAULT_THEME_ID else (themeCombo.selectedItem as? ThemeItem.Entry)?.id ?: it.themeId) }
+                val selectedThemeId = (themeCombo.selectedItem as? ThemeItem.Entry)?.id
+                applyDraft(store) { it.copy(themeId = if (synced) OS_DEFAULT_THEME_ID else selectedThemeId ?: it.themeId) }
             }
         )
 
@@ -187,7 +188,8 @@ class AppearancePanel(
             (editor as? JSpinner.NumberEditor)?.textField?.columns = 4
             addChangeListener {
                 if (!isUpdatingFromState) {
-                    applyDraft(store) { it.copy(uiScale = value as Int) }
+                    val scale = value as Int
+                    applyDraft(store) { it.copy(uiScale = scale) }
                 }
             }
         }
