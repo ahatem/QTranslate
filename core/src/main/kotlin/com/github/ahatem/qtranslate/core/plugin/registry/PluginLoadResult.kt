@@ -61,9 +61,9 @@ sealed class PluginError(
  * The aggregated result of a full plugin discovery pass over the plugins directory.
  * Returned by [com.github.ahatem.qtranslate.core.plugin.registry.PluginRegistry.validateAndFilter].
  */
-data class PluginLoadResult(
+internal data class PluginLoadResult(
     /** Plugins that passed all validation checks and are ready for initialization. */
-    val successful: List<com.github.ahatem.qtranslate.core.plugin.LoadedPluginResult>,
+    val successful: List<com.github.ahatem.qtranslate.core.plugin.PluginAssessment>,
 
     /** Plugins that failed a hard validation check (blank ID, JAR unreadable, etc.). */
     val failed: List<PluginError>,

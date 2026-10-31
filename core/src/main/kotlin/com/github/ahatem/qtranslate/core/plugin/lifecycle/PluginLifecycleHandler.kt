@@ -14,6 +14,7 @@ import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import java.net.URLClassLoader
 
 /**
  * Handles the coroutine-based lifecycle operations for individual plugins:
@@ -280,6 +281,9 @@ internal class PluginLifecycleHandler(
 
         } catch (e: Throwable) {
             logger.error("Unexpected exception shutting down plugin '${container.id}'", e)
+        } finally {
+            runCatching { (container.classLoader as? URLClassLoader)?.close() }
+            container.snapshotFile?.let { it.setWritable(true); it.delete() }
         }
     }
 }

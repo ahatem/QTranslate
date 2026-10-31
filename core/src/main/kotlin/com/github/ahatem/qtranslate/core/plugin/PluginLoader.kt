@@ -8,123 +8,118 @@ import com.github.ahatem.qtranslate.core.shared.util.Hashing
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.net.URLClassLoader
-import java.util.*
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.util.jar.JarFile
 
-/**
- * Handles scanning, loading, and inspecting plugin JAR files from the filesystem.
- *
- * `PluginLoader` is a pure I/O component — it reads JARs and produces [LoadedPluginResult]s.
- * It does not touch the in-memory registry, initialize plugins, or manage state.
- * All of that is the responsibility of [PluginManager] and its collaborators.
- */
+/** Inspects plugin artifacts without loading provider classes until the host approves them. */
 class PluginLoader(
-    private val logger: Logger
+    private val logger: Logger,
+    private val cacheDirectory: File = Files.createTempDirectory("qtranslate-plugin-snapshots").toFile()
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val _loadFailures = mutableListOf<PluginError.LoadFailure>()
+    val loadFailures: List<PluginError.LoadFailure> get() = synchronized(_loadFailures) { _loadFailures.toList() }
 
-    /** Failures from the most recent directory scan, retained for UI reporting. */
-    val loadFailures: List<PluginError.LoadFailure>
-        get() = _loadFailures.toList()
-
-    /**
-     * Scans [directory] for JAR files, loads each one, and returns the results sorted by
-     * manifest ID alphabetically — stable and deterministic across all platforms and runs.
-     *
-     * Why not sort by version? Two plugins at the same version (e.g. both "1.0.0") would
-     * have undefined relative order, and updating one plugin could reorder unrelated ones.
-     *
-     * Why sort JARs by name first? [File.listFiles] returns entries in OS-defined order
-     * (hash-table order on Linux ext4, creation order on NTFS, etc.) which is not stable
-     * between runs. Sorting filenames before loading ensures consistent processing order.
-     */
-    fun loadPluginsFromDirectory(directory: File): List<LoadedPluginResult> {
-        _loadFailures.clear()
-        if (!directory.isDirectory) {
-            logger.warn("Plugin directory does not exist or is not a directory: ${directory.absolutePath}")
-            return emptyList()
-        }
-        return directory.listFiles { f -> f.extension == "jar" }
-            .orEmpty()
+    /** Copies each JAR into the private cache, then reads only inert ZIP entries. */
+    internal fun assessDirectory(directory: File): List<PluginAssessment> {
+        synchronized(_loadFailures) { _loadFailures.clear() }
+        if (!directory.isDirectory) return emptyList()
+        return directory.listFiles { f -> f.extension == "jar" }.orEmpty()
             .sortedBy { it.name }
-            .mapNotNull { loadPluginFromFile(it) }
+            .mapNotNull(::assessFile)
             .sortedBy { it.manifest.id }
     }
 
-    /**
-     * Loads and inspects a single plugin JAR file.
-     *
-     * Steps:
-     * 1. Creates a [URLClassLoader] for the JAR.
-     * 2. Discovers the [Plugin] implementation via [ServiceLoader].
-     * 3. Reads and parses `plugin.json` from the JAR's resources.
-     * 4. Verifies API compatibility via [ApiVersion.isCompatible].
-     * 5. Computes a SHA-256 hash of the JAR for integrity tracking.
-     *
-     * @return A [LoadedPluginResult] on success, or `null` if any step fails.
-     */
-    fun loadPluginFromFile(jarFile: File): LoadedPluginResult? {
-        val classLoader = runCatching {
-            URLClassLoader(arrayOf(jarFile.toURI().toURL()), javaClass.classLoader)
-        }.getOrElse { error ->
-            recordFailure(jarFile, "Failed to open plugin JAR: ${error.message}", error)
-            return null
-        }
-
+    internal fun assessFile(jarFile: File): PluginAssessment? {
+        var snapshot: File? = null
         return try {
-            val plugin = ServiceLoader.load(Plugin::class.java, classLoader).firstOrNull()
-                ?: throw IllegalStateException("No Plugin implementation found via ServiceLoader in ${jarFile.name}. " +
-                        "Ensure META-INF/services/com.github.ahatem.qtranslate.api.plugin.Plugin is present.")
-
-            val manifest = getManifestFromJar(jarFile, classLoader)
-                ?: throw IllegalStateException("plugin.json is missing or could not be parsed in ${jarFile.name}")
-
-        // Delegate to ApiVersion — this checks both MAJOR and MINOR, not just MAJOR.
-            when (val compat = ApiVersion.isCompatible(manifest.minApiVersion)) {
-                is ApiVersion.CompatibilityResult.Compatible -> {
-                    logger.debug("Plugin '${manifest.id}' API version ${manifest.minApiVersion} is compatible.")
-                }
-                is ApiVersion.CompatibilityResult.Incompatible -> {
-                    recordFailure(
-                        jarFile,
-                        "Plugin '${manifest.id}' v${manifest.version} is incompatible: ${compat.reason}",
-                        null,
-                        manifest.id
-                    )
-                    classLoader.close()
-                    return null
-                }
+            cacheDirectory.mkdirs()
+            snapshot = Files.createTempFile(cacheDirectory.toPath(), "plugin-", ".jar").toFile()
+            Files.copy(jarFile.toPath(), snapshot.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            val manifest: PluginManifest
+            val provider: String
+            JarFile(snapshot).use { jar ->
+                provider = jar.getJarEntry("META-INF/services/${Plugin::class.java.name}")?.let { entry ->
+                    jar.getInputStream(entry).bufferedReader(Charsets.UTF_8).use { stream ->
+                        stream.lineSequence().map { it.substringBefore('#').trim() }.firstOrNull { it.isNotEmpty() }
+                    }
+                } ?: error("Plugin implementation descriptor is missing")
+                require(provider.matches(Regex("[A-Za-z_$][A-Za-z0-9_$.]*"))) { "Invalid Plugin implementation descriptor" }
+                manifest = jar.getJarEntry("plugin.json")?.let { entry ->
+                    jar.getInputStream(entry).bufferedReader(Charsets.UTF_8).use { json.decodeFromString<PluginManifest>(it.readText()) }
+                } ?: error("plugin.json is missing")
             }
-
-            val hash = Hashing.sha256(jarFile)
-            LoadedPluginResult(plugin, manifest, jarFile, hash, classLoader)
-        } catch (error: Throwable) {
-            runCatching { classLoader.close() }
-            recordFailure(jarFile, "Failed to load plugin: ${error.message}", error)
+            require(manifest.id.isNotBlank()) { "Plugin ID cannot be blank" }
+            when (val compatibility = ApiVersion.isCompatible(manifest.minApiVersion)) {
+                is ApiVersion.CompatibilityResult.Compatible -> Unit
+                is ApiVersion.CompatibilityResult.Incompatible -> error("Incompatible plugin API: ${compatibility.reason}")
+            }
+            check(snapshot.setReadOnly()) { "Could not make plugin snapshot read-only" }
+            PluginAssessment(manifest, jarFile, snapshot, Hashing.sha256(snapshot), provider)
+        } catch (error: Exception) {
+            snapshot?.let { it.setWritable(true); it.delete() }
+            recordFailure(jarFile, "Failed to inspect plugin: ${error.message}", error)
             null
         }
     }
 
-    private fun recordFailure(
-        jarFile: File,
-        message: String,
-        cause: Throwable?,
-        pluginId: String = jarFile.nameWithoutExtension
-    ) {
-        _loadFailures += PluginError.LoadFailure(pluginId, message, cause, jarFile.absolutePath)
-        logger.error("PLUGIN FAILED  ${jarFile.name}: $message", cause)
+    /** Constructs a provider only from the previously assessed, approved snapshot. */
+    internal fun loadApproved(assessment: PluginAssessment): LoadedPluginResult? {
+        var loader: URLClassLoader? = null
+        return try {
+            require(Hashing.sha256(assessment.snapshotFile) == assessment.jarHash) { "Plugin snapshot changed" }
+            val classLoader = object : URLClassLoader(arrayOf(assessment.snapshotFile.toURI().toURL()), javaClass.classLoader) {
+                override fun loadClass(name: String, resolve: Boolean): Class<*> {
+                    if (name != assessment.providerClassName) return super.loadClass(name, resolve)
+                    synchronized(getClassLoadingLock(name)) {
+                        val resolved = findLoadedClass(name) ?: runCatching { findClass(name) }.getOrNull()
+                            ?: super.loadClass(name, false)
+                        if (resolve) resolveClass(resolved)
+                        return resolved
+                    }
+                }
+            }
+            loader = classLoader
+            val providerClass = Class.forName(assessment.providerClassName, false, classLoader)
+            require(Plugin::class.java.isAssignableFrom(providerClass)) { "Provider does not implement Plugin" }
+            require(providerClass.protectionDomain.codeSource?.location?.toURI() == assessment.snapshotFile.toURI()) {
+                "Provider class did not originate in the approved JAR"
+            }
+            val plugin = providerClass.getDeclaredConstructor().newInstance() as Plugin<*>
+            LoadedPluginResult(plugin, assessment.manifest, assessment.jarFile, assessment.jarHash, classLoader, assessment.snapshotFile)
+        } catch (error: Throwable) {
+            runCatching { loader?.close() }
+            recordFailure(assessment.jarFile, "Failed to load approved plugin: ${error.message}", error, assessment.manifest.id)
+            null
+        }
     }
 
-    /**
-     * Reads and parses `plugin.json` from a JAR without fully loading the plugin.
-     * Useful for manifest-only inspection (e.g. during install validation).
-     */
+    /** Compatibility helper for existing direct callers; direct invocation explicitly approves the file. */
+    fun loadPluginFromFile(jarFile: File): LoadedPluginResult? = assessFile(jarFile)?.let { assessment ->
+        loadApproved(assessment).also { if (it == null) assessment.discard() }
+    }
+
+    /** Compatibility helper for callers that explicitly request executable providers. */
+    fun loadPluginsFromDirectory(directory: File): List<LoadedPluginResult> =
+        assessDirectory(directory).mapNotNull { assessment ->
+            loadApproved(assessment).also { if (it == null) assessment.discard() }
+        }
+
+    /** Reads the manifest as a ZIP entry; this never asks a class loader for resources. */
     fun getManifestFromJar(jarFile: File, classLoader: ClassLoader? = null): PluginManifest? =
         runCatching {
-            val loader = classLoader
-                ?: URLClassLoader(arrayOf(jarFile.toURI().toURL()), javaClass.classLoader)
-            loader.getResourceAsStream("plugin.json")?.use { stream ->
-                stream.reader(Charsets.UTF_8).use { json.decodeFromString<PluginManifest>(it.readText()) }
+            JarFile(jarFile).use { jar ->
+                jar.getJarEntry("plugin.json")?.let { entry ->
+                    jar.getInputStream(entry).bufferedReader(Charsets.UTF_8).use { json.decodeFromString<PluginManifest>(it.readText()) }
+                }
             }
         }.getOrNull()
+
+    private fun recordFailure(jarFile: File, message: String, cause: Throwable?, pluginId: String = jarFile.nameWithoutExtension) {
+        synchronized(_loadFailures) {
+            _loadFailures += PluginError.LoadFailure(pluginId, message, cause, jarFile.absolutePath)
+        }
+        logger.error("PLUGIN FAILED ${jarFile.name}: $message", cause)
+    }
 }

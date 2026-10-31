@@ -11,12 +11,12 @@ import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.getError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 
 /**
  * Handles plugin installation, uninstallation, and JAR-replacement resolution.
@@ -42,7 +42,7 @@ internal class PluginInstaller(
     loggerFactory: LoggerFactory
 ) {
     private val logger = loggerFactory.getLogger("PluginInstaller")
-    private val loader = PluginLoader(loggerFactory.getLogger("PluginLoader"))
+    private val loader = PluginLoader(loggerFactory.getLogger("PluginLoader"), File(appDataDirectory, "plugin-snapshots"))
 
     /**
      * Backstop for [PluginManager]: a bundled JAR is not user-owned and must survive an uninstall.
@@ -69,14 +69,16 @@ internal class PluginInstaller(
      * way simply shadows it; the bundled copy stays intact underneath.
      */
     suspend fun installPlugin(sourceJar: File): Result<Unit, String> {
-        val manifest = loader.getManifestFromJar(sourceJar)
-            ?: return Err("The selected file is not a valid QTranslate plugin (no plugin.json found).")
+        val assessment = withContext(Dispatchers.IO) { loader.assessFile(sourceJar) }
+            ?: return Err("The selected file is not a valid QTranslate plugin.")
+        val manifest = assessment.manifest
 
         // Check for duplicate ID before touching the filesystem.
         // Read the registry under the mutex, then return early outside it —
         // withLock is not reentrant and we must not hold it across I/O.
         val alreadyInstalled = registry.mutex.withLock { registry.contains(manifest.id) }
         if (alreadyInstalled) {
+            assessment.discard()
             return Err(
                 "A plugin with ID '${manifest.id}' is already installed. " +
                         "Uninstall it first, or use the Update function."
@@ -85,16 +87,24 @@ internal class PluginInstaller(
 
         return try {
             val destinationJar = File(userPluginsDirectory, sourceJar.name)
+            if (destinationJar.exists()) {
+                assessment.discard()
+                return Err("A plugin JAR with this filename is already installed.")
+            }
             withContext(Dispatchers.IO) {
-                Files.copy(sourceJar.toPath(), destinationJar.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                Files.copy(assessment.snapshotFile.toPath(), destinationJar.toPath())
             }
 
-            val result = loader.loadPluginFromFile(destinationJar)
-                ?: return Err("The plugin JAR was copied but could not be loaded. Check the logs for details.")
+            val result = loader.loadApproved(assessment.copy(jarFile = destinationJar))
+                ?: run {
+                    assessment.discard()
+                    return Err("The plugin JAR was copied but could not be loaded. Check the logs for details.")
+                }
 
             initializeAndEnable(result)
             Ok(Unit)
         } catch (e: Exception) {
+            assessment.discard()
             logger.error("Failed to install plugin from ${sourceJar.path}", e)
             Err("An error occurred during installation: ${e.message}")
         }
@@ -112,17 +122,30 @@ internal class PluginInstaller(
      * one before it gets here. The check below stays as a backstop rather than an assumption.
      */
     suspend fun uninstallPlugin(pluginId: String) {
+        val pending = registry.mutex.withLock { registry.removePending(pluginId) }
+        if (pending != null) {
+            pending.assessment.discard()
+            purgePluginSandbox(pluginId)
+            settingsRepository.updateDisabledPluginIds { it - pluginId }.getError()?.let {
+                logger.error("Failed to remove disabled state for plugin '$pluginId'")
+            }
+            if (isUserInstalled(pending.assessment.jarFile)) pending.assessment.jarFile.delete()
+            return
+        }
         val container = registry.mutex.withLock { registry.remove(pluginId) } ?: return
         logger.info("Uninstalling plugin '$pluginId'...")
 
         if (container.status == PluginStatus.ENABLED) {
             lifecycleHandler.disable(container)
         }
+        lifecycleHandler.shutdown(container)
         // Its bundle would otherwise stay cached and keep answering for a plugin that is gone.
         lifecycleHandler.forgetLocalization(pluginId)
         purgePluginSandbox(pluginId)
 
-        settingsRepository.updateDisabledPluginIds { it - pluginId }
+        settingsRepository.updateDisabledPluginIds { it - pluginId }.getError()?.let {
+            logger.error("Failed to remove disabled state for plugin '$pluginId'")
+        }
 
         // A JAR the distribution owns is not the user's to delete: removing it would leave an
         // installed copy missing a component with no way to restore it.
@@ -145,20 +168,11 @@ internal class PluginInstaller(
      * Keeps existing plugin data and re-initializes the plugin.
      */
     suspend fun resolveAsUpdate(pluginId: String) {
-        val container = registry.mutex.withLock {
-            registry.get(pluginId)?.takeIf { it.status == PluginStatus.AWAITING_VERIFICATION }
-        } ?: return
+        val pending = registry.mutex.withLock { registry.getPending(pluginId) } ?: return
 
         logger.info("User confirmed UPDATE for plugin '$pluginId'. Keeping existing data.")
-        container.status = PluginStatus.DISABLED
-
-        val result = LoadedPluginResult(
-            plugin = container.plugin,
-            manifest = container.manifest,
-            jarFile = container.jarFile,
-            jarHash = container.jarHash,
-            classLoader = container.classLoader
-        )
+        val result = loader.loadApproved(pending.assessment) ?: return
+        registry.mutex.withLock { if (registry.getPending(pluginId) === pending) registry.removePending(pluginId) }
         initializeAndEnable(result)
     }
 
@@ -167,21 +181,12 @@ internal class PluginInstaller(
      * Wipes all plugin data before re-initializing.
      */
     suspend fun resolveAsCleanInstall(pluginId: String) {
-        val container = registry.mutex.withLock {
-            registry.get(pluginId)?.takeIf { it.status == PluginStatus.AWAITING_VERIFICATION }
-        } ?: return
+        val pending = registry.mutex.withLock { registry.getPending(pluginId) } ?: return
 
         logger.warn("User confirmed CLEAN RE-INSTALL for '$pluginId'. Wiping all plugin data.")
         purgePluginSandbox(pluginId)
-
-        container.status = PluginStatus.DISABLED
-        val result = LoadedPluginResult(
-            plugin = container.plugin,
-            manifest = container.manifest,
-            jarFile = container.jarFile,
-            jarHash = container.jarHash,
-            classLoader = container.classLoader
-        )
+        val result = loader.loadApproved(pending.assessment) ?: return
+        registry.mutex.withLock { if (registry.getPending(pluginId) === pending) registry.removePending(pluginId) }
         initializeAndEnable(result)
     }
 
@@ -201,7 +206,8 @@ internal class PluginInstaller(
             context = context,
             jarFile = result.jarFile,
             jarHash = result.jarHash,
-            classLoader = result.classLoader
+            classLoader = result.classLoader,
+            snapshotFile = result.snapshotFile
         )
 
         val initialized = lifecycleHandler.initialize(container)

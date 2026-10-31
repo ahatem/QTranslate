@@ -96,8 +96,8 @@ class PluginManager(
     private fun loadDirectory(
         loader: PluginLoader,
         directory: File
-    ): Pair<List<LoadedPluginResult>, List<PluginError>> {
-        val results = loader.loadPluginsFromDirectory(directory)
+    ): Pair<List<PluginAssessment>, List<PluginError>> {
+        val results = loader.assessDirectory(directory)
         return results to loader.loadFailures
     }
 
@@ -170,15 +170,12 @@ class PluginManager(
 
             val knownFingerprints = pluginFingerprintRepository.loadFingerprints()
             val disabledPluginIds = settingsRepository.loadDisabledPluginIds()
-            val loader = PluginLoader(loggerFactory.getLogger("PluginLoader"))
+            val loader = PluginLoader(loggerFactory.getLogger("PluginLoader"), File(appDataDirectory, "plugin-snapshots"))
 
             val discovery = discoverPlugins(loader)
             bundledPluginIds = discovery.bundledIds
             val loadResult = discovery.result
-            val discoveryErrors = discovery.failures + loadResult.failed + loadResult.skipped
-            discoveryFailureStates = discoveryErrors.mapIndexed(::toFailedPluginState)
-
-            logDiscoverySummary(loadResult, discovery.failures)
+            val assessedFailureCount = loader.loadFailures.size
 
             supervisorScope {
                 loadResult.successful.map { result ->
@@ -187,16 +184,22 @@ class PluginManager(
                         if (savedHash != null && result.jarHash != savedHash) {
                             handleReplacedPlugin(result)
                         } else {
-                            initializePlugin(result, disabledPluginIds)
+                            initializePlugin(loader, result, disabledPluginIds)
                         }
                     }
                 }.joinAll()
             }
 
-            val allPlugins = registry.mutex.withLock { registry.getAll() }
+            val activationFailures = loader.loadFailures.drop(assessedFailureCount)
+            val discoveryErrors = discovery.failures + loadResult.failed + loadResult.skipped + activationFailures
+            discoveryFailureStates = discoveryErrors.mapIndexed(::toFailedPluginState)
+            logDiscoverySummary(loadResult, discovery.failures + activationFailures)
+
+            val allPlugins = registry.mutex.withLock { registry.getAll().toList() }
+            val pendingPlugins = registry.mutex.withLock { registry.getAllPending().toList() }
             val enabled = allPlugins.count { it.status == PluginStatus.ENABLED }
             logger.info(
-                "Plugin loading complete: ${allPlugins.size} total, $enabled enabled."
+                "Plugin loading complete: ${allPlugins.size + pendingPlugins.size} total, $enabled enabled."
             )
 
             // Surface load failures and JAR-change warnings to the UI via NotificationBus.
@@ -213,7 +216,7 @@ class PluginManager(
             }
 
             // Plugins that loaded but are paused pending user confirmation
-            allPlugins.filter { it.status == PluginStatus.AWAITING_VERIFICATION }.forEach { container ->
+            pendingPlugins.forEach { container ->
                 notificationBus.post(
                     AppNotification(
                         type           = com.github.ahatem.qtranslate.api.plugin.NotificationType.WARNING,
@@ -224,7 +227,7 @@ class PluginManager(
             }
 
             // First-run / no plugins: guide the user
-            if (allPlugins.isEmpty()) {
+            if (allPlugins.isEmpty() && pendingPlugins.isEmpty()) {
                 notificationBus.post(
                     AppNotification(
                         type = com.github.ahatem.qtranslate.api.plugin.NotificationType.WARNING,
@@ -254,7 +257,11 @@ class PluginManager(
 
         lifecycleHandler.enable(container)
 
-        settingsRepository.updateDisabledPluginIds { it - pluginId }
+        if (container.status == PluginStatus.ENABLED) {
+            settingsRepository.updateDisabledPluginIds { it - pluginId }.getError()?.let {
+                logger.error("Failed to persist enabled state for plugin '$pluginId'")
+            }
+        }
 
         updateFlows()
     }
@@ -265,7 +272,9 @@ class PluginManager(
 
         lifecycleHandler.disable(container)
 
-        settingsRepository.updateDisabledPluginIds { it + pluginId }
+        settingsRepository.updateDisabledPluginIds { it + pluginId }.getError()?.let {
+            logger.error("Failed to persist disabled state for plugin '$pluginId'")
+        }
 
         updateFlows()
     }
@@ -433,6 +442,8 @@ class PluginManager(
             lifecycleHandler.shutdown(container)
         }
 
+        registry.mutex.withLock { registry.getAllPending().toList() }.forEach { it.assessment.discard() }
+
         registry.mutex.withLock { registry.clear() }
         discoveryFailureStates = emptyList()
         updateFlows()
@@ -472,6 +483,7 @@ class PluginManager(
         val (bundledAll, bundledFailures) = loadDirectory(loader, bundledDir)
         val userIds = userResults.mapTo(mutableSetOf()) { it.manifest.id }
         val bundledResults = bundledAll.filter { it.manifest.id !in userIds }
+        bundledAll.filter { it.manifest.id in userIds }.forEach { it.discard() }
         val shadowed = bundledAll.size - bundledResults.size
         if (shadowed > 0) {
             logger.info("$shadowed bundled plugin(s) superseded by a user-installed copy.")
@@ -490,13 +502,14 @@ class PluginManager(
 
     /** What discovery found: the plugins to initialise, which are bundled, and the ones to report. */
     private data class PluginDiscovery(
-        val results: List<LoadedPluginResult>,
+        val results: List<PluginAssessment>,
         val bundledIds: Set<String>,
         val result: PluginLoadResult,
         val failures: List<PluginError>
     )
 
-    private suspend fun initializePlugin(result: LoadedPluginResult, disabledPluginIds: Set<String>) {
+    private suspend fun initializePlugin(loader: PluginLoader, assessment: PluginAssessment, disabledPluginIds: Set<String>) {
+        val result = loader.loadApproved(assessment) ?: run { assessment.discard(); return }
         val context = lifecycleHandler.createContext(result)
         val container = PluginContainer(
             plugin = result.plugin,
@@ -505,6 +518,7 @@ class PluginManager(
             jarFile = result.jarFile,
             jarHash = result.jarHash,
             classLoader = result.classLoader,
+            snapshotFile = result.snapshotFile,
             bundled = bundledPluginIds.contains(result.manifest.id)
         )
 
@@ -521,23 +535,14 @@ class PluginManager(
         }
     }
 
-    private suspend fun handleReplacedPlugin(result: LoadedPluginResult) {
+    private suspend fun handleReplacedPlugin(result: PluginAssessment) {
         logger.warn(
             "Plugin '${result.manifest.id}' JAR has changed since last run. " +
                     "Pausing until user confirms the change."
         )
-        val context = lifecycleHandler.createContext(result)
-        val container = PluginContainer(
-            plugin = result.plugin,
-            manifest = result.manifest,
-            context = context,
-            jarFile = result.jarFile,
-            jarHash = result.jarHash,
-            classLoader = result.classLoader,
-            bundled = bundledPluginIds.contains(result.manifest.id),
-            status = PluginStatus.AWAITING_VERIFICATION
-        )
-        registry.mutex.withLock { registry.put(container) }
+        registry.mutex.withLock {
+            registry.putPending(PluginRegistry.PendingPlugin(result, bundledPluginIds.contains(result.manifest.id)))
+        }
     }
 
     private suspend fun saveRegistryOnShutdown() {
