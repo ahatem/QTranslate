@@ -410,8 +410,8 @@ class InstantComparisonResultsTest {
             ocrAndTranslateUseCase = OcrAndTranslateUseCase(manager, SILENT_FACTORY),
             summarizeUseCase = SummarizeUseCase(manager, SILENT_FACTORY),
             rewriteUseCase = RewriteUseCase(manager, SILENT_FACTORY),
-            lookupWordUseCase = LookupWordUseCase(scope, manager, SILENT_FACTORY),
-            searchImagesUseCase = SearchImagesUseCase(scope, manager, SILENT_FACTORY),
+            lookupWordUseCase = LookupWordUseCase(manager, SILENT_FACTORY),
+            searchImagesUseCase = SearchImagesUseCase(manager, SILENT_FACTORY),
             fetchInlineDefinitionUseCase = FetchInlineDefinitionUseCase(scope, manager, SILENT_FACTORY),
             documentTranslationUseCase = DocumentTranslationUseCase(manager, SILENT_FACTORY),
         )

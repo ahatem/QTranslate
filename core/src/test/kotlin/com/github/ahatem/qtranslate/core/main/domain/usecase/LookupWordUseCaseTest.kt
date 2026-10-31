@@ -73,9 +73,7 @@ class LookupWordUseCaseTest {
         language: LanguageCode,
         targetLanguage: LanguageCode?
     ) {
-        val state = MutableStateFlow(MainState())
         val useCase = LookupWordUseCase(
-            scope = CoroutineScope(Dispatchers.Default),
             activeServiceManager = ActiveServiceManager(
                 activeServices = MutableStateFlow(mapOf("fake:default:dictionary" to dictionary)),
                 configuration = MutableStateFlow(Configuration.DEFAULT)
@@ -83,18 +81,8 @@ class LookupWordUseCaseTest {
             loggerFactory = SilentLoggerFactory
         )
 
-        useCase(
-            word = word,
-            language = language,
-            targetLanguage = targetLanguage,
-            updateState = { transform -> state.value = state.value.transform() },
-            onStatusUpdate = { _, _, _ -> }
-        )
-
-        withTimeout(5_000) {
-            while (state.value.dictionaryEntries.isEmpty() && !state.value.dictionaryFailed) delay(5)
-        }
-        assertTrue(state.value.dictionaryEntries.isNotEmpty(), "the lookup never produced entries")
+        val outcome = useCase(DictionaryLookupRequest(word, language, targetLanguage)) { }
+        assertTrue(outcome.entries.orEmpty().isNotEmpty(), "the lookup never produced entries")
     }
 
     private open class RecordingDictionary : Dictionary {

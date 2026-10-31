@@ -99,8 +99,8 @@ internal class QuickTranslateLineBreaksFixture(
         ocrAndTranslateUseCase = OcrAndTranslateUseCase(manager, Silent353Factory),
         summarizeUseCase = SummarizeUseCase(manager, Silent353Factory),
         rewriteUseCase = RewriteUseCase(manager, Silent353Factory),
-        lookupWordUseCase = LookupWordUseCase(scope, manager, Silent353Factory),
-        searchImagesUseCase = SearchImagesUseCase(scope, manager, Silent353Factory),
+        lookupWordUseCase = LookupWordUseCase(manager, Silent353Factory),
+        searchImagesUseCase = SearchImagesUseCase(manager, Silent353Factory),
         fetchInlineDefinitionUseCase = FetchInlineDefinitionUseCase(scope, manager, Silent353Factory),
         documentTranslationUseCase = DocumentTranslationUseCase(manager, Silent353Factory),
     )

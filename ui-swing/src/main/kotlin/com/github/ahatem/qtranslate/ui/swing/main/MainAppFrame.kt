@@ -110,7 +110,7 @@ class MainAppFrame(
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("MainAppFrame"))
 
-    private var trayIcon: TrayIcon? = null
+    private val trayBinding = TrayIconBinding(logger)
 
     private val aboutDialog by lazy { InfoDialog(this) }
     private val updateDialog by lazy { UpdateDialog(this) }
@@ -1186,51 +1186,27 @@ class MainAppFrame(
     }
 
     private fun setupTrayMenu() {
-        if (!SystemTray.isSupported()) return
-
-        val tray = SystemTray.getSystemTray()
-        val iconsList = applicationIcons
-
-        if (iconsList.isEmpty()) {
-            logger.error("Failed to load any tray icons")
-            return
-        }
-
-        val multiResImage = java.awt.image.BaseMultiResolutionImage(*iconsList.toTypedArray())
-
-        trayIcon = TrayIcon(multiResImage, "QTranslate").apply {
-            isImageAutoSize = true
-            toolTip = "QTranslate"
-
-            addMouseListener(object : MouseAdapter() {
-                override fun mouseReleased(e: MouseEvent) {
-                    if (e.isPopupTrigger) {
-                        val menu = createTrayPopupMenu()
-                        val dummy = JFrame().apply {
-                            isUndecorated = true
-                            isVisible = true
-                            setLocation(e.xOnScreen, e.yOnScreen)
-                        }
-                        menu.show(dummy, 0, 0)
-                        dummy.dispose()
-                        menu.setLocation(e.xOnScreen, e.yOnScreen - menu.height)
+        trayBinding.install(applicationIcons, object : MouseAdapter() {
+            override fun mouseReleased(e: MouseEvent) {
+                if (e.isPopupTrigger) {
+                    val menu = createTrayPopupMenu()
+                    val dummy = JFrame().apply {
+                        isUndecorated = true
+                        isVisible = true
+                        setLocation(e.xOnScreen, e.yOnScreen)
                     }
+                    menu.show(dummy, 0, 0)
+                    dummy.dispose()
+                    menu.setLocation(e.xOnScreen, e.yOnScreen - menu.height)
                 }
+            }
 
-                override fun mouseClicked(e: MouseEvent) {
-                    if (e.button == MouseEvent.BUTTON1 && e.clickCount == 1) {
-                        runOnUi { showAndFocus() }
-                    }
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.button == MouseEvent.BUTTON1 && e.clickCount == 1) {
+                    runOnUi { showAndFocus() }
                 }
-            })
-        }
-
-        try {
-            tray.add(trayIcon!!)
-        } catch (e: AWTException) {
-            logger.error("Failed to add tray icon", e)
-            trayIcon = null
-        }
+            }
+        })
     }
 
     private fun createTrayPopupMenu(): JPopupMenu {
@@ -1341,8 +1317,7 @@ class MainAppFrame(
             override fun windowClosed(e: WindowEvent?) {
                 globalKeyListener.shutdown()
                 selectionTranslateButton.dispose()
-                trayIcon?.let { SystemTray.getSystemTray().remove(it) }
-                trayIcon = null
+                trayBinding.dispose()
                 appScope.cancel()
                 onApplicationExit(Size(width, height), Position(x, y))
             }
