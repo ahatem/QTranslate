@@ -20,7 +20,7 @@ QTranslate is structured around Clean Architecture with an MVI (Model-View-Inten
 └─────────────────┬───────────────────────────┘
                   │
 ┌─────────────────▼───────────────────────────┐
-│                  :api                       │  ← interfaces only
+│                  :api                       │  ← plugin contracts and values
 └─────────────────────────────────────────────┘
          ▲
          │  plugins depend only on :api
@@ -31,7 +31,7 @@ QTranslate is structured around Clean Architecture with an MVI (Model-View-Inten
 └─────────────────────────────────────────────┘
 ```
 
-**Dependency rule:** lower layers never import from upper layers. `:core` has no Swing imports. `:api` imports only what its own interfaces need (coroutines for suspend functions, kotlin-result for `Result`). Plugins only import `:api`.
+**Dependency rule:** lower layers never import from upper layers. `:core` has no Swing components or windows; hotkey value types and document text/image measurement are legitimate existing responsibilities. `:api` contains capability contracts, shared values/errors and pure compatibility semantics. Providers depend on `:api` and `:plugins:common`, never host implementation modules.
 
 ---
 

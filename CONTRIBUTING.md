@@ -38,6 +38,9 @@ Be respectful. Disagreements about code are fine; personal attacks are not. We a
 
 ## Development Setup
 
+Follow the [development workflow](docs/Development.md) for planning, diagnosis,
+verification and review. It applies to human and automated contributions.
+
 **Requirements**
 - JDK 17 or later to build (we recommend [Temurin](https://adoptium.net)). Gradle's toolchain
   provisions JDK 21 for compilation, and CI builds on 17.
@@ -169,14 +172,14 @@ A maintainer will review within a few days. We may request changes — this is n
 
 QTranslate follows Clean Architecture with MVI for the UI layer. The full architecture guide is in [wiki/Architecture.md](wiki/Architecture.md). The key rules:
 
-- **`:api`** — interfaces and data types only. No implementations. Plugins depend on this.
-- **`:core`** — business logic, use cases, stores, repositories. No Swing imports.
+- **`:api`** — interfaces and data types only. Pure contract-level compatibility logic is allowed. Plugins depend on this.
+- **`:core`** — business logic, use cases, stores, repositories. No Swing components/windows; established hotkey and document-measurement value types are allowed.
 - **`:ui-swing`** — Swing UI components. Implements `Renderable<State>`, dispatches `Intent`s.
-- **`:app`** — composition root. Wires everything together. As thin as possible.
+- **`:app`** — composition root. Wires everything together. Owns startup, shutdown and application integration such as data layout.
 - **`:plugins/*`** — plugin implementations. Depend on `:api`, and on `:plugins:common` for shared
   HTTP, JSON and language-mapping helpers. Never on `:core` or `:ui-swing`.
 
-UI components must be "dumb" — they render state and dispatch intents, nothing more.
+UI components render state and dispatch actions; Swing owns toolkit focus, layout and window mechanics. Application behavior belongs to core features.
 
 ---
 

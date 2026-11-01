@@ -6,7 +6,7 @@ depend on them. Read-only caution by default.
 - Diagnose before touching: identify the exact failed workflow/job/step, read
   the log, find the first meaningful failure, classify it (product regression,
   test regression, infra, flaky/external, platform-only, packaging). See
-  `qtranslate-ci-diagnosis`. Never rewrite a workflow to make red green.
+  [failure workflow](../docs/Development.md#diagnose-bugs-and-failed-checks). Never rewrite a workflow to make red green.
 - Least privilege: keep `permissions:` blocks minimal; pin third-party actions
   to full SHAs per repo policy; no `curl | sh` install steps.
 - Do not expand matrices or add jobs for one-off debugging. `ci.yml` skips
