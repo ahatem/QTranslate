@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.core.main.domain.usecase
 
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
@@ -92,6 +93,10 @@ class ExtraOutputLifecycleTest {
         assertFalse(state.extraOutputFailed)
         assertNull(state.extraOutputFailure)
         assertTrue(state.history.isEmpty())
+        assertTrue(
+            fixture.summarizer.cancelledSignal.isCompleted,
+            "turning the panel off must cancel the provider call, not just suppress its result"
+        )
     }
 
     @Test
@@ -142,6 +147,10 @@ class ExtraOutputLifecycleTest {
 
         assertEquals("", state.extraOutputText)
         assertFalse(state.extraOutputFailed)
+        assertTrue(
+            fixture.summarizer.cancelledSignal.isCompleted,
+            "cancel must reach the live provider call"
+        )
     }
 
     @Test
@@ -213,6 +222,10 @@ class ExtraOutputLifecycleTest {
 
         assertEquals("rewrite", state.extraOutputText)
         assertFalse(state.extraOutputFailed)
+        assertTrue(
+            fixture.summarizer.cancelledSignal.isCompleted,
+            "a mode change must cancel the inline provider call it supersedes"
+        )
     }
 
     @Test
@@ -301,6 +314,55 @@ class ExtraOutputLifecycleTest {
         assertTrue(state.extraOutputFailed)
         assertEquals(ExtraOutputFailure.NoTranslator, state.extraOutputFailure)
         assertFalse(state.isExtraOutputLoading)
+    }
+
+    @Test
+    fun `a successful backward translation ends the temporary status`() = runTest {
+        val fixture = fixture(this)
+        var state = translatedState()
+        val statuses = mutableListOf<Triple<StatusCode, NotificationType, Boolean>>()
+        val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
+
+        fixture.useCase.refreshExtraOutput(
+            extraOutputRequest = request(ExtraOutputType.BackwardTranslate),
+            getState = { state },
+            updateState = update,
+            onStatusUpdate = { code, type, temporary -> statuses += Triple(code, type, temporary) },
+        )
+        advanceUntilIdle()
+
+        assertEquals("backward", state.extraOutputText)
+        assertEquals(StatusCode.PerformingBackwardTranslation, statuses.first().first)
+        assertEquals(
+            Triple(StatusCode.BackwardTranslationComplete, NotificationType.SUCCESS, true),
+            statuses.last(),
+            "the temporary progress status must be replaced by a temporary completion"
+        )
+    }
+
+    @Test
+    fun `a throwing inline provider fails only the secondary output`() = runTest {
+        val fixture = fixture(this)
+        fixture.summarizer.throws = true
+        var state = MainState(
+            inputText = "hello",
+            sourceLanguage = LanguageCode.ENGLISH,
+            targetLanguage = LanguageCode.ARABIC,
+        )
+        val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
+
+        fixture.useCase(
+            getState = { state },
+            updateState = update,
+            onStatusUpdate = { _, _, _ -> },
+            extraOutputRequest = request(ExtraOutputType.Summarize),
+        )
+        advanceUntilIdle()
+
+        assertEquals("backward", state.translatedText, "the primary translation still succeeded")
+        assertFalse(state.translationFailed)
+        assertTrue(state.extraOutputFailed)
+        assertEquals(ExtraOutputFailure.Unexpected, state.extraOutputFailure)
     }
 
     @Test
@@ -466,6 +528,7 @@ class ExtraOutputLifecycleTest {
         val started = CompletableDeferred<Unit>()
         val cancelledSignal = CompletableDeferred<Unit>()
         var release: CompletableDeferred<Unit>? = null
+        var throws: Boolean = false
         var result: Result<SummarizeResponse, ServiceError> = Ok(SummarizeResponse("summary"))
 
         override suspend fun summarize(request: SummarizeRequest): Result<SummarizeResponse, ServiceError> {
@@ -477,6 +540,7 @@ class ExtraOutputLifecycleTest {
                 cancelledSignal.complete(Unit)
                 throw cancellation
             }
+            if (throws) throw IllegalStateException("provider exploded")
             return result
         }
     }

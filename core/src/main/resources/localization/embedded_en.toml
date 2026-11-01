@@ -627,6 +627,7 @@ translation_failed = "Translation failed: %s"
 no_translator_active = "No translator service is active."
 performing_backward_translation = "Performing backward translation..."
 backward_translation_timeout = "Backward translation timed out. Please try again."
+backward_translation_complete = "Backward translation complete."
 backward_translation_failed = "Backward translation failed: %s"
 unexpected_error = "Unexpected error: %s"
 # Text-to-Speech

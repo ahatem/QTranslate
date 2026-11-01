@@ -920,6 +920,9 @@ class MainStore(
                     translatedText         = "",
                     translationFailed      = false,
                     extraOutputText        = "",
+                    extraOutputFailed      = false,
+                    extraOutputFailure     = null,
+                    isExtraOutputLoading   = false,
                     detectedSourceLanguage = null,
                     spellCheckCorrections  = emptyList(),
                     historyIndex           = newIndex
@@ -937,6 +940,9 @@ class MainStore(
                     historyIndex           = newIndex,
                     isLoading              = false,
                     extraOutputText        = snapshot.extraOutputText,
+                    extraOutputFailed      = false,
+                    extraOutputFailure     = null,
+                    isExtraOutputLoading   = false,
                     detectedSourceLanguage = snapshot.detectedSourceLanguage?.let { tag -> LanguageCode(tag) },
                     spellCheckCorrections  = emptyList()
                 )

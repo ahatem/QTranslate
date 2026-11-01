@@ -561,13 +561,15 @@ class TranslateTextUseCase(
         // Switching the panel off owns the result immediately. Whatever is in flight is already
         // stale, so neither its answer nor its cleanup may write into the cleared panel.
         if (request.type == ExtraOutputType.None) {
-            updateState {
-                copy(
-                    extraOutputText = "",
-                    extraOutputFailed = false,
-                    extraOutputFailure = null,
-                    isExtraOutputLoading = false
-                )
+            extraOutputWork.withCurrent(claim.generation) {
+                updateState {
+                    copy(
+                        extraOutputText = "",
+                        extraOutputFailed = false,
+                        extraOutputFailure = null,
+                        isExtraOutputLoading = false
+                    )
+                }
             }
             return true
         }
@@ -575,8 +577,10 @@ class TranslateTextUseCase(
         // Nothing translated yet, so there is no result to derive from. Summarising the input
         // would still need the input, and backward translation needs the output either way.
         if (state.translatedText.isBlank()) {
-            updateState {
-                copy(isExtraOutputLoading = false, extraOutputFailed = false, extraOutputFailure = null)
+            extraOutputWork.withCurrent(claim.generation) {
+                updateState {
+                    copy(isExtraOutputLoading = false, extraOutputFailed = false, extraOutputFailure = null)
+                }
             }
             return false
         }
@@ -585,13 +589,15 @@ class TranslateTextUseCase(
             ?: run {
                 logger.warn("No translator service available")
                 onStatusUpdate(StatusCode.NoTranslatorActive, NotificationType.ERROR, true)
-                updateState {
-                    copy(
-                        extraOutputText = "",
-                        extraOutputFailed = true,
-                        extraOutputFailure = ExtraOutputFailure.NoTranslator,
-                        isExtraOutputLoading = false
-                    )
+                extraOutputWork.withCurrent(claim.generation) {
+                    updateState {
+                        copy(
+                            extraOutputText = "",
+                            extraOutputFailed = true,
+                            extraOutputFailure = ExtraOutputFailure.NoTranslator,
+                            isExtraOutputLoading = false
+                        )
+                    }
                 }
                 return true
             }
@@ -648,7 +654,7 @@ class TranslateTextUseCase(
         token: Long,
         updateState: (MainState.() -> MainState) -> Unit,
         persistFailureHistory: Boolean = false
-    ) {
+    ): Boolean {
         var patched: List<HistorySnapshot>? = null
         val published = extraOutputWork.withCurrent(token) {
             when (outcome) {
@@ -682,6 +688,7 @@ class TranslateTextUseCase(
         if (published == true && patched != null && settingsState.value.isHistoryEnabled) {
             persistHistory(patched!!)
         }
+        return published == true
     }
 
     /**
@@ -697,8 +704,9 @@ class TranslateTextUseCase(
      * Runs inside the caller's `translationJob`, so a new translation cancels an in-flight
      * extra-output request and a stale result can never overwrite a newer translation.
      *
-     * History is saved only after the extra output lands, so the persisted snapshot still
-     * contains it.
+     * The primary snapshot is persisted independently of the secondary outcome: a successful
+     * secondary patches it before saving, while a failed or superseded one still saves the
+     * primary translation.
      *
      * @param ruleTarget Set only on the rule-driven path, where the target language changed
      *   as a result of the detected source language.
@@ -744,25 +752,55 @@ class TranslateTextUseCase(
             return
         }
 
-        val outcome = try {
-            handleExtraOutput(
-                request           = request,
-                inputText         = inputText,
-                targetText        = translatedText,
-                sourceForBackward = sourceForBackward,
-                targetForBackward = targetForBackward,
-                translator        = translator,
-                onStatusUpdate    = onStatusUpdate
-            )
-        } catch (cancellation: CancellationException) {
-            // Cancelling a translation while its extra output was still in flight left the panel
-            // spinning for an answer that had been abandoned, and only another translation cleared
-            // it. The flag belongs to the request, so it is lowered with the request.
-            updateState { copy(isExtraOutputLoading = false) }
-            throw cancellation
+        // The secondary request is a real child job registered with the owner, not anonymous
+        // work inside the translation job: switching mode or undoing must cancel the provider
+        // call itself, not merely suppress its result.
+        val outcome = coroutineScope {
+            val extraJob = async(start = CoroutineStart.LAZY) {
+                try {
+                    handleExtraOutput(
+                        request           = request,
+                        inputText         = inputText,
+                        targetText        = translatedText,
+                        sourceForBackward = sourceForBackward,
+                        targetForBackward = targetForBackward,
+                        translator        = translator,
+                        onStatusUpdate    = onStatusUpdate
+                    )
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (error: Exception) {
+                    // A provider that throws is a failed secondary output, not a failed
+                    // primary translation.
+                    ExtraOutputResult.Failure(ExtraOutputFailure.Unexpected)
+                }
+            }
+            if (!extraOutputWork.register(claim, extraJob)) {
+                extraJob.cancel(CancellationException("Extra output superseded"))
+                return@coroutineScope null
+            }
+            extraJob.start()
+            try {
+                extraJob.await()
+            } catch (cancellation: CancellationException) {
+                // Only a supersede/cancel of the secondary job is swallowed; the translation
+                // job being cancelled must still propagate.
+                currentCoroutineContext().ensureActive()
+                null
+            }
         }
 
-        publishExtraOutput(
+        if (outcome == null) {
+            // Superseded while running: lower only our own spinner and keep the primary
+            // history, which is independent of the secondary result.
+            extraOutputWork.withCurrent(claim.generation) {
+                updateState { copy(isExtraOutputLoading = false) }
+            }
+            if (settingsState.value.isHistoryEnabled) persistHistory(history)
+            return
+        }
+
+        val published = publishExtraOutput(
             outcome = outcome,
             history = history,
             request = request,
@@ -770,6 +808,10 @@ class TranslateTextUseCase(
             updateState = updateState,
             persistFailureHistory = true
         )
+        if (!published && settingsState.value.isHistoryEnabled) {
+            // A newer claim owns the panel, but the primary snapshot still belongs in history.
+            persistHistory(history)
+        }
     }
 
     // History is best effort: its repository records failure, while translation stays successful.
@@ -842,8 +884,9 @@ class TranslateTextUseCase(
             result.fold(
                 success = { response ->
                     logger.debug("Backward translation successful")
-                    // The primary translation already announced its own completion; the
-                    // secondary request has no separate success status.
+                    // The primary translation announced its own completion; this one replaces
+                    // the temporary "performing" status with a temporary completion of its own.
+                    onStatusUpdate(StatusCode.BackwardTranslationComplete, NotificationType.SUCCESS, true)
                     ExtraOutputResult.Success(response.translatedText)
                 },
                 failure = { error ->
