@@ -1,9 +1,9 @@
-package com.github.ahatem.qtranslate.core.main.domain.usecase
+package com.github.ahatem.qtranslate.core.workspace.translation
 
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
-import com.github.ahatem.qtranslate.core.main.mvi.AutoCopyGuard
+import com.github.ahatem.qtranslate.core.workspace.translation.AutoCopyGuard
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
-import com.github.ahatem.qtranslate.core.main.mvi.TranslationOrigin
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslationOrigin
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.shared.StatusCode

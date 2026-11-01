@@ -12,11 +12,11 @@ import com.github.ahatem.qtranslate.core.main.domain.usecase.SwapLanguagesUseCas
 import com.github.ahatem.qtranslate.core.workspace.lookup.LookupWordUseCase
 import com.github.ahatem.qtranslate.core.workspace.lookup.SearchImagesUseCase
 import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.RewriteUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.SummarizeUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.RewriteUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.SummarizeUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateStringUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateTextUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.ParallelComparisonUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslateTextUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.ParallelComparisonUseCase
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.plugin.text.LocalizedPluginTextResolver

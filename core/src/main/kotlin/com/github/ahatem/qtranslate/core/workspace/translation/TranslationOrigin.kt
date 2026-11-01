@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.core.main.mvi
+package com.github.ahatem.qtranslate.core.workspace.translation
 
 /**
  * Identifies the user flow that started a translation.

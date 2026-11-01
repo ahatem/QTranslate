@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.core.main.domain.usecase
+package com.github.ahatem.qtranslate.core.workspace.translation
 
 /**
  * Why a secondary output could not be produced.

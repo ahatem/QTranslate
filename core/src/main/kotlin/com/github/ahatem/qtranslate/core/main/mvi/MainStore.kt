@@ -14,6 +14,13 @@ import com.github.ahatem.qtranslate.core.history.restoredHistoryIndex
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.domain.language.LanguageSelectionCompat
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
+import com.github.ahatem.qtranslate.core.workspace.translation.ComparisonPolicy
+import com.github.ahatem.qtranslate.core.workspace.translation.RewriteUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.SummarizeUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslateTextUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslationCompletion
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslationCoordinator
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslationOrigin
 import com.github.ahatem.qtranslate.core.workspace.lookup.DictionaryLookupRequest
 import com.github.ahatem.qtranslate.core.workspace.lookup.DictionaryLookupSession
 import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase

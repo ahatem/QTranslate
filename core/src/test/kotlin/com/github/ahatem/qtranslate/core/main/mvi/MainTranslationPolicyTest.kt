@@ -1,7 +1,7 @@
 package com.github.ahatem.qtranslate.core.main.mvi
 
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
-import com.github.ahatem.qtranslate.core.main.domain.usecase.ComparisonPolicy
+import com.github.ahatem.qtranslate.core.workspace.translation.ComparisonPolicy
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset

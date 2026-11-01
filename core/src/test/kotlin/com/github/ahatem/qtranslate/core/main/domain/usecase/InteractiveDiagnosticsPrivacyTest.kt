@@ -1,5 +1,10 @@
 package com.github.ahatem.qtranslate.core.main.domain.usecase
 
+import com.github.ahatem.qtranslate.core.workspace.translation.ParallelComparisonUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.ParallelComparisonRequest
+import com.github.ahatem.qtranslate.core.workspace.translation.SummarizeUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.RewriteUseCase
+
 import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase
 
 import com.github.ahatem.qtranslate.api.dictionary.Definition

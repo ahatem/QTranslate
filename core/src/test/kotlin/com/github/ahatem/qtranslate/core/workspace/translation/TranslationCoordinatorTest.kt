@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.core.main.domain.usecase
+package com.github.ahatem.qtranslate.core.workspace.translation
 
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
@@ -9,7 +9,7 @@ import com.github.ahatem.qtranslate.api.translator.TranslationResponse
 import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.core.history.HistoryRepository
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
-import com.github.ahatem.qtranslate.core.main.mvi.TranslationOrigin
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslationOrigin
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.AutoCopyTranslation
 import com.github.ahatem.qtranslate.core.settings.data.Configuration

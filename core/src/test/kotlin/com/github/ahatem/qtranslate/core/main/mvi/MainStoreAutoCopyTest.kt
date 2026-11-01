@@ -27,12 +27,12 @@ import com.github.ahatem.qtranslate.core.main.domain.usecase.HandleTextToSpeechU
 import com.github.ahatem.qtranslate.core.workspace.lookup.LookupWordUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.OcrAndTranslateUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.PerformSpellCheckUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.RewriteUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.RewriteUseCase
 import com.github.ahatem.qtranslate.core.workspace.lookup.SearchImagesUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SelectActiveServiceUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.SummarizeUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.SummarizeUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SwapLanguagesUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateTextUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslateTextUseCase
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.AutoCopyTranslation
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
