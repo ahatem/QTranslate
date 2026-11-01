@@ -241,7 +241,7 @@ class MainStore(
                                 comparisonResults = emptyList(),
                                 extraOutputText = "",
                                 extraOutputFailed = false,
-                                extraOutputError = null,
+                                extraOutputFailure = null,
                                 detectedSourceLanguage = null,
                                 isLoading = false
                             )
@@ -478,7 +478,7 @@ class MainStore(
                         isLoading = false,
                         isExtraOutputLoading = false,
                         extraOutputFailed = false,
-                        extraOutputError = null
+                        extraOutputFailure = null
                     )
                 }
                 scope.launch {
@@ -891,7 +891,7 @@ class MainStore(
                 isLoading              = false,
                 extraOutputText        = snapshot.extraOutputText,
                 extraOutputFailed      = false,
-                extraOutputError       = null,
+                extraOutputFailure    = null,
                 isExtraOutputLoading   = false,
                 detectedSourceLanguage = snapshot.detectedSourceLanguage?.let { tag -> LanguageCode(tag) },
                 spellCheckCorrections  = emptyList()
@@ -960,7 +960,7 @@ class MainStore(
                 isLoading              = false,
                 extraOutputText        = snapshot.extraOutputText,
                 extraOutputFailed      = false,
-                extraOutputError       = null,
+                extraOutputFailure    = null,
                 isExtraOutputLoading   = false,
                 detectedSourceLanguage = snapshot.detectedSourceLanguage?.let { tag -> LanguageCode(tag) },
                 spellCheckCorrections  = emptyList()
@@ -978,7 +978,7 @@ class MainStore(
             it.copy(
                 isExtraOutputLoading = false,
                 extraOutputFailed = false,
-                extraOutputError = null
+                extraOutputFailure = null
             )
         }
     }

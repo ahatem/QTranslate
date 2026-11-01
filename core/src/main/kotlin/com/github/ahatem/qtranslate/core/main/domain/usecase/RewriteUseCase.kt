@@ -29,7 +29,7 @@ class RewriteUseCase(
         if (rewriter == null) {
             logger.warn("No rewriter service available")
             onStatusUpdate(StatusCode.NoRewriterActive, NotificationType.WARNING, true)
-            return ExtraOutputResult.Failure("No rewriter service is active.")
+            return ExtraOutputResult.Failure(ExtraOutputFailure.NoRewriter)
         }
 
         onStatusUpdate(StatusCode.Rewriting, NotificationType.INFO, false)
@@ -48,7 +48,7 @@ class RewriteUseCase(
         if (result == null) {
             logger.error("Rewrite timed out")
             onStatusUpdate(StatusCode.RewriteTimeout, NotificationType.ERROR, true)
-            return ExtraOutputResult.Failure("Rewrite timed out.")
+            return ExtraOutputResult.Failure(ExtraOutputFailure.Timeout)
         }
 
         return result.fold(
@@ -61,7 +61,7 @@ class RewriteUseCase(
                 logger.error("Rewrite failed: ${error::class.simpleName}")
                 val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.RewriteFailed(summary), NotificationType.ERROR, true)
-                ExtraOutputResult.Failure(summary)
+                ExtraOutputResult.Failure(ExtraOutputFailure.Provider(summary))
             }
         )
     }

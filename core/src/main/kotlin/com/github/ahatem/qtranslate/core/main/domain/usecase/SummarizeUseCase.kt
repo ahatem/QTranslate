@@ -29,7 +29,7 @@ class SummarizeUseCase(
         if (summarizer == null) {
             logger.warn("No summarizer service available")
             onStatusUpdate(StatusCode.NoSummarizerActive, NotificationType.WARNING, true)
-            return ExtraOutputResult.Failure("No summarizer service is active.")
+            return ExtraOutputResult.Failure(ExtraOutputFailure.NoSummarizer)
         }
 
         onStatusUpdate(StatusCode.Summarizing, NotificationType.INFO, false)
@@ -48,7 +48,7 @@ class SummarizeUseCase(
         if (result == null) {
             logger.error("Summarize timed out")
             onStatusUpdate(StatusCode.SummarizeTimeout, NotificationType.ERROR, true)
-            return ExtraOutputResult.Failure("Summarization timed out.")
+            return ExtraOutputResult.Failure(ExtraOutputFailure.Timeout)
         }
 
         return result.fold(
@@ -61,7 +61,7 @@ class SummarizeUseCase(
                 logger.error("Summarize failed: ${error::class.simpleName}")
                 val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.SummarizeFailed(summary), NotificationType.ERROR, true)
-                ExtraOutputResult.Failure(summary)
+                ExtraOutputResult.Failure(ExtraOutputFailure.Provider(summary))
             }
         )
     }

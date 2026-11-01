@@ -749,7 +749,7 @@ class MainContentView(
                 // here instead of becoming text.
                 placeholderText = when {
                     mainState.extraOutputFailed ->
-                        mainState.extraOutputError.orEmpty().ifBlank { null }
+                        mainState.extraOutputFailure?.let(::extraOutputFailureText)
                     else ->
                         localizer.getString("extra_output.placeholder")
                             .takeIf { mainState.translatedText.isBlank() }
@@ -916,6 +916,27 @@ class MainContentView(
             openDictionary(initialWord)
         }
     }
+
+    /** Resolves a typed secondary-output failure into the user's language. */
+    private fun extraOutputFailureText(failure: com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure): String =
+        when (failure) {
+            com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure.NoTranslator ->
+                localizer.getString("extra_output.error_no_translator")
+            com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure.NoSummarizer ->
+                localizer.getString("extra_output.error_no_summarizer")
+            com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure.NoRewriter ->
+                localizer.getString("extra_output.error_no_rewriter")
+            com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure.Timeout ->
+                localizer.getString("extra_output.error_timeout")
+            com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure.InvalidTarget ->
+                localizer.getString("extra_output.error_invalid_target")
+            is com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure.Provider ->
+                failure.summary?.takeIf { it.isNotBlank() }
+                    ?.let { localizer.getString("extra_output.error_provider", it) }
+                    ?: localizer.getString("extra_output.error_unknown")
+            com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure.Unexpected ->
+                localizer.getString("extra_output.error_unknown")
+        }
 
     private fun showImagesForWord(word: String, language: LanguageCode = currentLookupLanguage) =
         openImages(word, language)

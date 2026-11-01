@@ -75,9 +75,7 @@ class TranslateTextUseCase(
 ) {
     private val logger: Logger = loggerFactory.getLogger("TranslateTextUseCase")
     private var translationJob: Job? = null
-    private var extraOutputJob: Job? = null
-    private val extraOutputGenerations = AtomicLong()
-    private val extraOutputLock = Any()
+    private val extraOutputWork = ExtraOutputWorkOwner()
     private val requestIds = AtomicLong()
     @Volatile private var currentRequestId: Long = 0L
     private val translationGenerations = AtomicLong()
@@ -88,9 +86,7 @@ class TranslateTextUseCase(
         invalidateComparisons()
         translationJob?.cancel(CancellationException("Input cleared"))
         translationJob = null
-        claimExtraOutput()
-        extraOutputJob?.cancel(CancellationException("Input cleared"))
-        extraOutputJob = null
+        retireExtraOutput("Input cleared")
     }
 
     /** Invalidates comparison work without changing existing primary request id semantics. */
@@ -114,9 +110,7 @@ class TranslateTextUseCase(
         val capturedExtraOutput = extraOutputRequest ?: ExtraOutputRequest.from(settingsState.value)
         // A new translation owns the secondary panel too: work derived from the previous result
         // must not land after this request started.
-        claimExtraOutput()
-        extraOutputJob?.cancel(CancellationException("New translation requested"))
-        extraOutputJob = null
+        retireExtraOutput("New translation requested")
         val requestId = requestIds.incrementAndGet()
         currentRequestId = requestId
         val translationGeneration = translationGenerations.incrementAndGet()
@@ -156,7 +150,7 @@ class TranslateTextUseCase(
                         translatedText         = "",
                         extraOutputText        = "",
                         extraOutputFailed      = false,
-                        extraOutputError       = null,
+                        extraOutputFailure    = null,
                         isExtraOutputLoading   = false,
                         translationFailed      = false
                     )
@@ -521,14 +515,19 @@ class TranslateTextUseCase(
     // Extra output
     // -------------------------------------------------------------------------
 
-    /** Claims the secondary panel; every writer holds its own generation. */
-    private fun claimExtraOutput(): Long = synchronized(extraOutputLock) { extraOutputGenerations.incrementAndGet() }
+    /**
+     * Claims the secondary panel and detaches the operation it supersedes. The caller cancels
+     * the returned previous job outside the ownership lock.
+     */
+    private fun retireExtraOutput(reason: String): ExtraOutputWorkOwner.Claim {
+        val claim = extraOutputWork.claim()
+        claim.previousJob?.cancel(CancellationException(reason))
+        return claim
+    }
 
     /** Retires in-flight secondary work when the primary result it derives from is replaced. */
     fun cancelExtraOutput() {
-        claimExtraOutput()
-        extraOutputJob?.cancel(CancellationException("Extra output invalidated"))
-        extraOutputJob = null
+        retireExtraOutput("Extra output invalidated")
     }
 
     /**
@@ -557,9 +556,7 @@ class TranslateTextUseCase(
     ): Boolean {
         val state = getState()
         val request = extraOutputRequest ?: ExtraOutputRequest.from(settingsState.value)
-        val generation = claimExtraOutput()
-        extraOutputJob?.cancel(CancellationException("Extra output type changed"))
-        extraOutputJob = null
+        val claim = retireExtraOutput("Extra output type changed")
 
         // Switching the panel off owns the result immediately. Whatever is in flight is already
         // stale, so neither its answer nor its cleanup may write into the cleared panel.
@@ -568,7 +565,7 @@ class TranslateTextUseCase(
                 copy(
                     extraOutputText = "",
                     extraOutputFailed = false,
-                    extraOutputError = null,
+                    extraOutputFailure = null,
                     isExtraOutputLoading = false
                 )
             }
@@ -579,7 +576,7 @@ class TranslateTextUseCase(
         // would still need the input, and backward translation needs the output either way.
         if (state.translatedText.isBlank()) {
             updateState {
-                copy(isExtraOutputLoading = false, extraOutputFailed = false, extraOutputError = null)
+                copy(isExtraOutputLoading = false, extraOutputFailed = false, extraOutputFailure = null)
             }
             return false
         }
@@ -592,21 +589,22 @@ class TranslateTextUseCase(
                     copy(
                         extraOutputText = "",
                         extraOutputFailed = true,
-                        extraOutputError = "No translator service is active.",
+                        extraOutputFailure = ExtraOutputFailure.NoTranslator,
                         isExtraOutputLoading = false
                     )
                 }
                 return true
             }
 
-        // Cancels any extra-output request still in flight, so switching type twice quickly
-        // cannot land the first answer under the second choice.
+        // The slot and its generation move together: a claim superseded while this job is being
+        // built can neither install itself over the newer job nor leave a provider request
+        // running after its result stopped being publishable.
         val job = scope.launch(start = CoroutineStart.LAZY) {
             updateState {
                 copy(
                     extraOutputText = "",
                     extraOutputFailed = false,
-                    extraOutputError = null,
+                    extraOutputFailure = null,
                     isExtraOutputLoading = true
                 )
             }
@@ -623,11 +621,16 @@ class TranslateTextUseCase(
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (error: Exception) {
-                ExtraOutputResult.Failure(error.shortSummary())
+                ExtraOutputResult.Failure(ExtraOutputFailure.Unexpected)
             }
-            publishExtraOutput(outcome, state.history, request, generation, updateState)
+            publishExtraOutput(outcome, state.history, request, claim.generation, updateState)
         }
-        extraOutputJob = job
+        if (!extraOutputWork.register(claim, job)) {
+            // A newer request already owns the panel: never start a provider call whose result
+            // could only be discarded.
+            job.cancel(CancellationException("Extra output superseded"))
+            return true
+        }
         job.start()
         return true
     }
@@ -642,23 +645,23 @@ class TranslateTextUseCase(
         outcome: ExtraOutputResult,
         history: List<HistorySnapshot>,
         request: ExtraOutputRequest,
-        generation: Long,
+        token: Long,
         updateState: (MainState.() -> MainState) -> Unit,
         persistFailureHistory: Boolean = false
     ) {
-        val patched: List<HistorySnapshot>?
-        synchronized(extraOutputLock) {
-            if (generation != extraOutputGenerations.get()) return
+        var patched: List<HistorySnapshot>? = null
+        val published = extraOutputWork.withCurrent(token) {
             when (outcome) {
                 is ExtraOutputResult.Success -> {
-                    patched = patchExtraOutput(history, outcome.text, request.type.name)
+                    val newHistory = patchExtraOutput(history, outcome.text, request.type.name)
+                    patched = newHistory
                     updateState {
                         copy(
                             extraOutputText      = outcome.text,
                             extraOutputFailed    = false,
-                            extraOutputError     = null,
+                            extraOutputFailure   = null,
                             isExtraOutputLoading = false,
-                            history              = patched
+                            history              = newHistory
                         )
                     }
                 }
@@ -668,14 +671,17 @@ class TranslateTextUseCase(
                         copy(
                             extraOutputText      = "",
                             extraOutputFailed    = true,
-                            extraOutputError     = outcome.message,
+                            extraOutputFailure   = outcome.reason,
                             isExtraOutputLoading = false
                         )
                     }
                 }
             }
+            true
         }
-        if (patched != null && settingsState.value.isHistoryEnabled) persistHistory(patched)
+        if (published == true && patched != null && settingsState.value.isHistoryEnabled) {
+            persistHistory(patched!!)
+        }
     }
 
     /**
@@ -713,9 +719,9 @@ class TranslateTextUseCase(
     ) {
         val request = extraOutputRequest ?: ExtraOutputRequest.from(settingsState.value)
         val expectsExtraOutput = request.type != ExtraOutputType.None
-        val generation = claimExtraOutput()
-        extraOutputJob?.cancel(CancellationException("New translation requested"))
-        extraOutputJob = null
+        // Inline secondary work is owned by the translation job that runs it; the token still
+        // retires standalone refreshes and gates publication against a newer claim.
+        val claim = retireExtraOutput("New translation requested")
 
         updateState {
             copy(
@@ -728,7 +734,7 @@ class TranslateTextUseCase(
                 historyIndex           = historyIndex,
                 extraOutputText        = "",
                 extraOutputFailed      = false,
-                extraOutputError       = null,
+                extraOutputFailure     = null,
                 isExtraOutputLoading   = expectsExtraOutput
             )
         }
@@ -760,7 +766,7 @@ class TranslateTextUseCase(
             outcome = outcome,
             history = history,
             request = request,
-            generation = generation,
+            token = claim.generation,
             updateState = updateState,
             persistFailureHistory = true
         )
@@ -817,7 +823,7 @@ class TranslateTextUseCase(
     ): ExtraOutputResult {
         if (targetLanguage == LanguageCode.AUTO) {
             logger.warn("Cannot perform backward translation — target language is AUTO")
-            return ExtraOutputResult.Failure("Cannot translate back to Auto-Detect.")
+            return ExtraOutputResult.Failure(ExtraOutputFailure.InvalidTarget)
         }
 
         onStatusUpdate(StatusCode.PerformingBackwardTranslation, NotificationType.INFO, false)
@@ -828,19 +834,23 @@ class TranslateTextUseCase(
 
         return if (result == null) {
             logger.error("Backward translation timed out")
-            onStatusUpdate(StatusCode.TranslationComplete, NotificationType.SUCCESS, true)
-            ExtraOutputResult.Failure("Backward translation timed out.")
+            // A failure must not be announced as a success just because the primary
+            // translation succeeded earlier.
+            onStatusUpdate(StatusCode.BackwardTranslationTimeout, NotificationType.ERROR, true)
+            ExtraOutputResult.Failure(ExtraOutputFailure.Timeout)
         } else {
             result.fold(
                 success = { response ->
                     logger.debug("Backward translation successful")
-                    onStatusUpdate(StatusCode.TranslationComplete, NotificationType.SUCCESS, true)
+                    // The primary translation already announced its own completion; the
+                    // secondary request has no separate success status.
                     ExtraOutputResult.Success(response.translatedText)
                 },
                 failure = { error ->
                     logger.error("Backward translation failed: ${error::class.simpleName}")
-                    onStatusUpdate(StatusCode.TranslationComplete, NotificationType.SUCCESS, true)
-                    ExtraOutputResult.Failure("Backward translation failed: ${error.shortSummary()}")
+                    val summary = error.shortSummary()
+                    onStatusUpdate(StatusCode.BackwardTranslationFailed(summary), NotificationType.ERROR, true)
+                    ExtraOutputResult.Failure(ExtraOutputFailure.Provider(summary))
                 }
             )
         }

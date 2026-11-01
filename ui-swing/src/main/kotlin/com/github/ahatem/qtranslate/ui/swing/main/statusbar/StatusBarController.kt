@@ -121,6 +121,8 @@ internal class StatusBarController(
         StatusCode.NoTranslatorActive           -> localizer.getString("status_bar.no_translator_active")
         StatusCode.ComparisonNeedsTwoTranslators -> localizer.getString("status_bar.comparison_needs_two_translators")
         StatusCode.PerformingBackwardTranslation -> localizer.getString("status_bar.performing_backward_translation")
+        StatusCode.BackwardTranslationTimeout   -> localizer.getString("status_bar.backward_translation_timeout")
+        is StatusCode.BackwardTranslationFailed -> localizer.getString("status_bar.backward_translation_failed", code.summary)
         is StatusCode.UnexpectedError           -> localizer.getString("status_bar.unexpected_error", code.summary)
         StatusCode.NoTextToSpeak                -> localizer.getString("status_bar.no_text_to_speak")
         StatusCode.CannotDetermineLanguage      -> localizer.getString("status_bar.cannot_determine_language")

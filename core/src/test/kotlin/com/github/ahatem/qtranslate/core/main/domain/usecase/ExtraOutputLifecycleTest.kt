@@ -22,14 +22,23 @@ import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.core.shared.AppConstants
+import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -81,7 +90,7 @@ class ExtraOutputLifecycleTest {
         assertEquals("", state.extraOutputText)
         assertFalse(state.isExtraOutputLoading)
         assertFalse(state.extraOutputFailed)
-        assertNull(state.extraOutputError)
+        assertNull(state.extraOutputFailure)
         assertTrue(state.history.isEmpty())
     }
 
@@ -168,7 +177,7 @@ class ExtraOutputLifecycleTest {
 
         assertEquals("", state.extraOutputText, "turning the panel off owns the answer")
         assertFalse(state.extraOutputFailed)
-        assertNull(state.extraOutputError)
+        assertNull(state.extraOutputFailure)
     }
 
     @Test
@@ -223,7 +232,7 @@ class ExtraOutputLifecycleTest {
 
         assertEquals("", state.extraOutputText, "the error text must not be copied or spoken")
         assertTrue(state.extraOutputFailed)
-        assertEquals("provider exploded", state.extraOutputError)
+        assertEquals(ExtraOutputFailure.Provider("provider exploded"), state.extraOutputFailure)
         assertFalse(state.isExtraOutputLoading)
         assertTrue(state.history.isEmpty(), "a failed secondary output is not history content")
     }
@@ -245,7 +254,7 @@ class ExtraOutputLifecycleTest {
 
         assertEquals("", state.extraOutputText)
         assertFalse(state.extraOutputFailed)
-        assertNull(state.extraOutputError)
+        assertNull(state.extraOutputFailure)
     }
 
     @Test
@@ -255,7 +264,7 @@ class ExtraOutputLifecycleTest {
             inputText = "input",
             translatedText = "",
             extraOutputFailed = true,
-            extraOutputError = "old failure",
+            extraOutputFailure = ExtraOutputFailure.Provider("old failure"),
             isExtraOutputLoading = true,
         )
         val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
@@ -271,7 +280,7 @@ class ExtraOutputLifecycleTest {
         assertFalse(refreshed)
         assertFalse(state.isExtraOutputLoading)
         assertFalse(state.extraOutputFailed)
-        assertNull(state.extraOutputError)
+        assertNull(state.extraOutputFailure)
         assertTrue(fixture.summarizer.calls.isEmpty())
     }
 
@@ -290,8 +299,101 @@ class ExtraOutputLifecycleTest {
         advanceUntilIdle()
 
         assertTrue(state.extraOutputFailed)
-        assertEquals("No translator service is active.", state.extraOutputError)
+        assertEquals(ExtraOutputFailure.NoTranslator, state.extraOutputFailure)
         assertFalse(state.isExtraOutputLoading)
+    }
+
+    @Test
+    fun `a backward failure is typed and reported as an error status`() = runTest {
+        val fixture = fixture(this)
+        fixture.translator.result = Err(ServiceError.InvalidResponseError("provider exploded"))
+        var state = translatedState()
+        val statuses = mutableListOf<StatusCode>()
+        val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
+
+        fixture.useCase.refreshExtraOutput(
+            extraOutputRequest = request(ExtraOutputType.BackwardTranslate),
+            getState = { state },
+            updateState = update,
+            onStatusUpdate = { code, _, _ -> statuses += code },
+        )
+        advanceUntilIdle()
+
+        assertEquals(ExtraOutputFailure.Provider("provider exploded"), state.extraOutputFailure)
+        assertTrue(state.extraOutputFailed)
+        assertEquals(StatusCode.BackwardTranslationFailed("provider exploded"), statuses.last())
+        assertTrue(
+            statuses.none { it == StatusCode.TranslationComplete },
+            "a failed secondary request must not announce success"
+        )
+    }
+
+    @Test
+    fun `a backward timeout is typed and never announced as success`() = runTest {
+        val fixture = fixture(this)
+        fixture.translator.hold = CompletableDeferred()
+        var state = translatedState()
+        val statuses = mutableListOf<StatusCode>()
+        val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
+
+        fixture.useCase.refreshExtraOutput(
+            extraOutputRequest = request(ExtraOutputType.BackwardTranslate),
+            getState = { state },
+            updateState = update,
+            onStatusUpdate = { code, _, _ -> statuses += code },
+        )
+        runCurrent()
+        advanceTimeBy(AppConstants.TRANSLATION_TIMEOUT_MS + 1)
+        runCurrent()
+
+        assertEquals(ExtraOutputFailure.Timeout, state.extraOutputFailure)
+        assertTrue(state.extraOutputFailed)
+        assertEquals(StatusCode.BackwardTranslationTimeout, statuses.last())
+        assertTrue(
+            statuses.none { it == StatusCode.TranslationComplete },
+            "a timed-out secondary request must not announce success"
+        )
+    }
+
+    @Test
+    fun `a superseding refresh cancels the provider call it replaces`() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        try {
+            val fixture = fixture(scope)
+            fixture.summarizer.release = CompletableDeferred()
+            var state = translatedState()
+            val rewritten = CompletableDeferred<Unit>()
+            val update: (MainState.() -> MainState) -> Unit = { transform ->
+                state = state.transform()
+                if (state.extraOutputText == "rewrite") rewritten.complete(Unit)
+            }
+
+            fixture.useCase.refreshExtraOutput(
+                extraOutputRequest = request(ExtraOutputType.Summarize),
+                getState = { state },
+                updateState = update,
+                onStatusUpdate = { _, _, _ -> },
+            )
+            withTimeout(5_000) { fixture.summarizer.started.await() }
+
+            // The newer request must take over the slot *and* cancel the request it supersedes,
+            // not merely prevent its result from publishing.
+            fixture.useCase.refreshExtraOutput(
+                extraOutputRequest = request(ExtraOutputType.Rewrite),
+                getState = { state },
+                updateState = update,
+                onStatusUpdate = { _, _, _ -> },
+            )
+
+            withTimeout(5_000) { fixture.summarizer.cancelledSignal.await() }
+            withTimeout(5_000) { rewritten.await() }
+
+            assertEquals("rewrite", state.extraOutputText)
+            assertFalse(state.extraOutputFailed)
+            assertEquals(1, fixture.summarizer.calls.size)
+        } finally {
+            scope.cancel()
+        }
     }
 
     private fun request(type: ExtraOutputType) =
@@ -349,21 +451,32 @@ class ExtraOutputLifecycleTest {
 
     private class RecordingTranslator : RecordingService("translator"), Translator {
         val calls = mutableListOf<TranslationRequest>()
+        var result: Result<TranslationResponse, ServiceError>? = null
+        var hold: CompletableDeferred<Unit>? = null
 
-        override suspend fun translate(request: TranslationRequest) =
-            Ok(TranslationResponse("backward")).also { calls += request }
+        override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> {
+            calls += request
+            hold?.await()
+            return result ?: Ok(TranslationResponse("backward"))
+        }
     }
 
     private class RecordingSummarizer : RecordingService("summarizer"), Summarizer {
         val calls = mutableListOf<SummarizeRequest>()
         val started = CompletableDeferred<Unit>()
+        val cancelledSignal = CompletableDeferred<Unit>()
         var release: CompletableDeferred<Unit>? = null
         var result: Result<SummarizeResponse, ServiceError> = Ok(SummarizeResponse("summary"))
 
         override suspend fun summarize(request: SummarizeRequest): Result<SummarizeResponse, ServiceError> {
             calls += request
             started.complete(Unit)
-            release?.await()
+            try {
+                release?.await()
+            } catch (cancellation: CancellationException) {
+                cancelledSignal.complete(Unit)
+                throw cancellation
+            }
             return result
         }
     }

@@ -17,6 +17,8 @@ sealed class StatusCode {
     data class TranslationFailed(val summary: String) : StatusCode()
     object NoTranslatorActive : StatusCode()
     object PerformingBackwardTranslation : StatusCode()
+    object BackwardTranslationTimeout : StatusCode()
+    data class BackwardTranslationFailed(val summary: String) : StatusCode()
     data class UnexpectedError(val summary: String) : StatusCode()
     /** Comparison was requested but fewer than two translators are usable; Classic is shown. */
     object ComparisonNeedsTwoTranslators : StatusCode()
