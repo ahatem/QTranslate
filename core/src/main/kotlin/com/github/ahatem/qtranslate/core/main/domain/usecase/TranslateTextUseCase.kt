@@ -22,7 +22,6 @@ import com.github.michaelbull.result.fold
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
 import com.github.ahatem.qtranslate.core.shared.util.shortSummary
-import java.util.concurrent.atomic.AtomicLong
 
 enum class ComparisonPolicy {
     ENABLED,
@@ -38,14 +37,12 @@ data class TranslationCompletion(
  * Translates the current input text and updates the [MainState] with the result.
  *
  * ### Job ownership
- * This use case holds a [translationJob] reference to cancel in-flight translations
- * when a new one is requested. **This use case must be a singleton within the
- * [com.github.ahatem.qtranslate.core.main.mvi.MainStore]** — if it is ever recreated,
- * the previous [translationJob] reference is lost and cannot be cancelled, potentially
- * leaving a stale coroutine running that writes to the old state.
- *
- * If the architecture ever requires recreating use cases, move [translationJob] onto
- * the [MainStore] and pass it in as a parameter.
+ * [TranslationRequestOwner] keeps request identity, comparison generation, and the current
+ * job in one ownership transition. A caller that claims request A can never cancel or replace
+ * request B's job: its install is refused once B owns the identity, and the job it superseded
+ * is detached and cancelled by the claim itself. **This use case must be a singleton within
+ * the [com.github.ahatem.qtranslate.core.main.mvi.MainStore]**, because the owner is the only
+ * reference to the live job.
  *
  * ### Comparison lifetime
  * Comparison work belongs to one translation generation. A failed or timed-out primary
@@ -74,29 +71,38 @@ class TranslateTextUseCase(
     private val parallelComparisonUseCase: ParallelComparisonUseCase? = null
 ) {
     private val logger: Logger = loggerFactory.getLogger("TranslateTextUseCase")
-    private var translationJob: Job? = null
+    private val requestOwner = TranslationRequestOwner()
     private val extraOutputWork = ExtraOutputWorkOwner()
-    private val requestIds = AtomicLong()
-    @Volatile private var currentRequestId: Long = 0L
-    private val translationGenerations = AtomicLong()
-    @Volatile private var currentTranslationGeneration: Long = 0L
 
     fun cancel() {
-        currentRequestId = requestIds.incrementAndGet()
-        invalidateComparisons()
-        translationJob?.cancel(CancellationException("Input cleared"))
-        translationJob = null
+        val canceled = requestOwner.cancel()
+        // Outside the ownership lock: comparison ownership is a different subsystem.
+        parallelComparisonUseCase?.invalidate(canceled.generation)
+        canceled.previousJob?.cancel(CancellationException("Input cleared"))
         retireExtraOutput("Input cleared")
     }
 
     /** Invalidates comparison work without changing existing primary request id semantics. */
     fun invalidateComparisons() {
-        currentTranslationGeneration = translationGenerations.incrementAndGet()
-        parallelComparisonUseCase?.invalidate(currentTranslationGeneration)
+        val generation = requestOwner.invalidateGeneration()
+        // Outside the ownership lock: comparison ownership is a different subsystem.
+        parallelComparisonUseCase?.invalidate(generation)
     }
 
     /** True only while [requestId] still owns the current translation result. */
-    fun isCurrent(requestId: Long): Boolean = currentRequestId == requestId
+    fun isCurrent(requestId: Long): Boolean = requestOwner.isCurrent(requestId)
+
+    /**
+     * Gates publication on still owning the request. Only the in-memory state write happens
+     * under the lock — never a call into another subsystem — so translation and comparison
+     * ownership can never be acquired in opposite orders.
+     */
+    private fun ownedUpdate(
+        requestId: Long,
+        updateState: (MainState.() -> MainState) -> Unit
+    ): (MainState.() -> MainState) -> Unit = { transform ->
+        requestOwner.withCurrentRequest(requestId) { updateState(transform) }
+    }
 
     suspend operator fun invoke(
         getState: () -> MainState,
@@ -107,19 +113,23 @@ class TranslateTextUseCase(
         comparisonPolicy: ComparisonPolicy = ComparisonPolicy.ENABLED,
     ): TranslationCompletion? {
         val inputState = getState()
-        val capturedExtraOutput = extraOutputRequest ?: ExtraOutputRequest.from(settingsState.value)
+        val configuration = settingsState.value
+        val capturedExtraOutput = extraOutputRequest ?: ExtraOutputRequest.from(configuration)
         // A new translation owns the secondary panel too: work derived from the previous result
         // must not land after this request started. The token is kept for every panel write this
         // request may still perform; once a newer claim wins it, those writes are skipped.
         val extraClaim = retireExtraOutput("New translation requested")
-        val requestId = requestIds.incrementAndGet()
-        currentRequestId = requestId
-        val translationGeneration = translationGenerations.incrementAndGet()
-        currentTranslationGeneration = translationGeneration
+        // Identity, generation and the job slot move in one ownership transition. A stale
+        // caller can therefore never cancel or replace a newer request's job.
+        val claim = requestOwner.claim()
+        claim.previousJob?.cancel(CancellationException("New translation requested"))
+        val requestId = claim.requestId
+        val translationGeneration = claim.generation
+        // Outside the ownership lock: comparison ownership is a different subsystem.
         parallelComparisonUseCase?.begin(translationGeneration)
-        updateState { copy(comparisonResults = emptyList()) }
-        translationJob?.cancel(CancellationException("New translation requested"))
-        val configuredComparisonIds = settingsState.value.getActivePreset()
+        val publish = ownedUpdate(requestId, updateState)
+        publish { copy(comparisonResults = emptyList()) }
+        val configuredComparisonIds = configuration.getActivePreset()
             ?.comparisonTranslatorIds.orEmpty()
 
         val textToTranslate = textOverride ?: inputState.inputText
@@ -148,7 +158,7 @@ class TranslateTextUseCase(
                 // Primary startup fields belong to this request. The panel reset belongs to the
                 // secondary token claimed above: a standalone refresh that took the panel while
                 // this translation was suspended keeps its state.
-                updateState {
+                publish {
                     copy(
                         isLoading              = true,
                         translatedText         = "",
@@ -166,8 +176,8 @@ class TranslateTextUseCase(
                     }
                 }
 
-                val currentState = getState()
-                val rules        = settingsState.value.translationRules
+                val currentState = inputState
+                val rules        = configuration.translationRules
                 val isAutoDetect = currentState.sourceLanguage == LanguageCode.AUTO
 
                 // When source is explicitly set, we already know the language — apply
@@ -190,13 +200,13 @@ class TranslateTextUseCase(
                         primaryTranslatorId = translatorId,
                         configuredTranslatorIds = configuredComparisonIds,
                         generation = translationGeneration,
-                        updateState = updateState
+                        updateState = publish
                     )
                 }
 
                 // Update UI immediately if rule changed the target before translating
                 if (preResolvedTarget != null && preResolvedTarget != currentState.targetLanguage) {
-                    updateState { copy(targetLanguage = preResolvedTarget) }
+                    publish { copy(targetLanguage = preResolvedTarget) }
                 }
 
                 val request = TranslationRequest(
@@ -219,7 +229,7 @@ class TranslateTextUseCase(
                     // #367: a failed primary keeps this generation's comparison rows and lets
                     // in-flight comparisons finish; only cancellation or a newer generation
                     // discards them (see the CancellationException path and invoke()).
-                    publishPrimaryFailure(extraClaim.generation, updateState)
+                    publishPrimaryFailure(extraClaim.generation, publish, updateState)
                     onStatusUpdate(StatusCode.TranslationTimeout, NotificationType.ERROR, true)
                     return@launch
                 }
@@ -255,13 +265,16 @@ class TranslateTextUseCase(
                                     currentState     = currentState,
                                     translator       = translator,
                                     translatorId     = translatorId,
-                                    updateState      = updateState,
+                                    updateState      = publish,
+                                    panelUpdateState = updateState,
                                     onStatusUpdate   = onStatusUpdate,
                                     extraOutputRequest = capturedExtraOutput,
                                     comparisonPolicy = comparisonPolicy,
                                     translationGeneration = translationGeneration,
                                     configuredComparisonIds = configuredComparisonIds,
                                     inputText = textToTranslate,
+                                    historyEnabled = configuration.isHistoryEnabled,
+                                    canPersist = { isCurrent(requestId) },
                                     extraOutputToken = extraClaim.generation,
                                 )
                                 if (retranslated != null) {
@@ -282,14 +295,15 @@ class TranslateTextUseCase(
                                 primaryTranslatorId = translatorId,
                                 configuredTranslatorIds = configuredComparisonIds,
                                 generation = translationGeneration,
-                                updateState = updateState
+                                updateState = publish
                             )
                         }
                         onStatusUpdate(StatusCode.TranslationComplete, NotificationType.SUCCESS, true)
 
                         val (newHistory, newHistoryIndex) = buildHistory(
-                            currentState, textToTranslate, response.translatedText, translatorId,
-                            detectedSourceLanguage = detectedLanguage?.tag
+                            currentState.copy(targetLanguage = initialTarget), textToTranslate, response.translatedText, translatorId,
+                            detectedSourceLanguage = detectedLanguage?.tag,
+                            historyEnabled = configuration.isHistoryEnabled
                         )
 
                         // Publish the primary translation before requesting extra output —
@@ -303,16 +317,22 @@ class TranslateTextUseCase(
                             sourceForBackward = detectedLanguage ?: currentState.sourceLanguage,
                             targetForBackward = initialTarget,
                             translator        = translator,
-                            updateState       = updateState,
+                            // Primary publication is identity-gated like every other write:
+                            // a superseded request cannot paint over the newer result. Panel
+                            // writes use the raw update and are gated by the extra-output token.
+                            updateState       = publish,
+                            panelUpdateState  = updateState,
                             onStatusUpdate    = onStatusUpdate,
                             extraOutputRequest = capturedExtraOutput,
                             inputText = textToTranslate,
+                            historyEnabled = configuration.isHistoryEnabled,
+                            canPersist = { isCurrent(requestId) },
                         )
                         completion = TranslationCompletion(requestId, response.translatedText)
                     },
                     failure = { error ->
                         logger.error("Translation failed: ${error::class.simpleName}")
-                        publishPrimaryFailure(extraClaim.generation, updateState)
+                        publishPrimaryFailure(extraClaim.generation, publish, updateState)
                         val summary = error.shortSummary()
                         onStatusUpdate(StatusCode.TranslationFailed(summary), NotificationType.ERROR, true)
                     }
@@ -320,19 +340,24 @@ class TranslateTextUseCase(
 
             } catch (e: CancellationException) {
                 logger.debug("Translation cancelled")
-                clearComparisonsIfCurrent(translationGeneration, updateState)
+                clearComparisonsIfCurrent(translationGeneration, publish)
                 throw e
             } catch (e: Exception) {
                 logger.error("Unexpected error during translation: ${e::class.simpleName}")
-                publishPrimaryFailure(extraClaim.generation, updateState)
+                publishPrimaryFailure(extraClaim.generation, publish, updateState)
                 val summary = e.shortSummary()
                 onStatusUpdate(StatusCode.UnexpectedError(summary), NotificationType.ERROR, true)
             }
         }
-        translationJob = job
-        job.start()
+        if (requestOwner.install(claim, job)) {
+            job.start()
+        } else {
+            // Superseded while this request was being constructed: it must never start, so a
+            // provider call cannot outlive the request that owns it.
+            job.cancel(CancellationException("Translation superseded"))
+        }
         job.join()
-        return completion?.takeIf { it.requestId == currentRequestId }
+        return completion?.takeIf { requestOwner.isCurrent(it.requestId) }
     }
 
     /**
@@ -348,12 +373,15 @@ class TranslateTextUseCase(
         translator: Translator,
         translatorId: String,
         updateState: (MainState.() -> MainState) -> Unit,
+        panelUpdateState: (MainState.() -> MainState) -> Unit,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit,
         extraOutputRequest: ExtraOutputRequest?,
         comparisonPolicy: ComparisonPolicy,
         translationGeneration: Long,
         configuredComparisonIds: List<String>,
         inputText: String,
+        historyEnabled: Boolean,
+        canPersist: () -> Boolean,
         extraOutputToken: Long,
     ): String? {
         val retryRequest = TranslationRequest(
@@ -368,7 +396,7 @@ class TranslateTextUseCase(
 
         if (retryResult == null) {
             logger.error("Re-translation timed out")
-            publishPrimaryFailure(extraOutputToken, updateState)
+            publishPrimaryFailure(extraOutputToken, updateState, panelUpdateState)
             onStatusUpdate(StatusCode.TranslationTimeout, NotificationType.ERROR, true)
             return null
         }
@@ -393,8 +421,9 @@ class TranslateTextUseCase(
                 onStatusUpdate(StatusCode.TranslationComplete, NotificationType.SUCCESS, true)
 
                 val (newHistory, newHistoryIndex) = buildHistory(
-                    currentState, textToTranslate, retryResponse.translatedText, translatorId,
-                    detectedSourceLanguage = detectedLanguage.tag
+                    currentState.copy(targetLanguage = ruleTarget), textToTranslate, retryResponse.translatedText, translatorId,
+                    detectedSourceLanguage = detectedLanguage.tag,
+                    historyEnabled = historyEnabled
                 )
 
                 publishPrimaryThenExtraOutput(
@@ -406,16 +435,19 @@ class TranslateTextUseCase(
                     targetForBackward = ruleTarget,
                     translator        = translator,
                     updateState       = updateState,
+                    panelUpdateState  = panelUpdateState,
                     onStatusUpdate    = onStatusUpdate,
                     extraOutputRequest = extraOutputRequest,
                     ruleTarget        = ruleTarget,
-                    inputText         = textToTranslate
+                    inputText         = textToTranslate,
+                    historyEnabled    = historyEnabled,
+                    canPersist        = canPersist
                 )
                 retryResponse.translatedText
             },
             failure = { error ->
                 logger.error("Re-translation failed: ${error::class.simpleName}")
-                publishPrimaryFailure(extraOutputToken, updateState)
+                publishPrimaryFailure(extraOutputToken, updateState, panelUpdateState)
                 val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.TranslationFailed(summary), NotificationType.ERROR, true)
                 null
@@ -429,16 +461,18 @@ class TranslateTextUseCase(
      * The primary failure fields belong to the translation request; [MainState.isExtraOutputLoading]
      * belongs to [extraOutputWork]. A standalone refresh that claimed the panel since this
      * translation started now owns that spinner, so the failure lowers it only while the
-     * translation's token is still current. The two writes are sequential: no request-owned
-     * publication runs while the extra-output lock is held.
+     * translation's token is still current. [updateState] is the request-gated primary
+     * publication and [panelUpdateState] is the raw panel write; the two updates are sequential,
+     * so the request lock is released before the extra-output lock is acquired.
      */
     private fun publishPrimaryFailure(
         extraOutputToken: Long,
-        updateState: (MainState.() -> MainState) -> Unit
+        updateState: (MainState.() -> MainState) -> Unit,
+        panelUpdateState: (MainState.() -> MainState) -> Unit
     ) {
         updateState { copy(isLoading = false, translationFailed = true) }
         extraOutputWork.withCurrent(extraOutputToken) {
-            updateState { copy(isExtraOutputLoading = false) }
+            panelUpdateState { copy(isExtraOutputLoading = false) }
         }
     }
 
@@ -461,7 +495,7 @@ class TranslateTextUseCase(
             ),
             generation = generation,
             updateState = { results ->
-                if (currentTranslationGeneration == generation) {
+                requestOwner.withCurrentGeneration(generation) {
                     updateState { copy(comparisonResults = results) }
                 }
             }
@@ -479,7 +513,7 @@ class TranslateTextUseCase(
         generation: Long,
         updateState: (MainState.() -> MainState) -> Unit
     ) {
-        if (currentTranslationGeneration != generation) return
+        if (requestOwner.withCurrentGeneration(generation) { true } != true) return
         parallelComparisonUseCase?.invalidate(generation)
         updateState { copy(comparisonResults = emptyList()) }
     }
@@ -504,9 +538,10 @@ class TranslateTextUseCase(
         inputText: String,
         translatedText: String,
         translatorId: String,
-        detectedSourceLanguage: String? = null
+        detectedSourceLanguage: String? = null,
+        historyEnabled: Boolean
     ): Pair<List<HistorySnapshot>, Int> {
-        if (!settingsState.value.isHistoryEnabled) {
+        if (!historyEnabled) {
             return currentState.history to currentState.historyIndex
         }
 
@@ -689,13 +724,16 @@ class TranslateTextUseCase(
         request: ExtraOutputRequest,
         token: Long,
         updateState: (MainState.() -> MainState) -> Unit,
-        persistFailureHistory: Boolean = false
+        persistFailureHistory: Boolean = false,
+        historyEnabled: Boolean = settingsState.value.isHistoryEnabled
     ): Boolean {
         var patched: List<HistorySnapshot>? = null
         val published = extraOutputWork.withCurrent(token) {
             when (outcome) {
                 is ExtraOutputResult.Success -> {
-                    val newHistory = patchExtraOutput(history, outcome.text, request.type.name)
+                    val newHistory = if (historyEnabled) {
+                        patchExtraOutput(history, outcome.text, request.type.name)
+                    } else null
                     patched = newHistory
                     updateState {
                         copy(
@@ -703,7 +741,7 @@ class TranslateTextUseCase(
                             extraOutputFailed    = false,
                             extraOutputFailure   = null,
                             isExtraOutputLoading = false,
-                            history              = newHistory
+                            history              = newHistory ?: history
                         )
                     }
                 }
@@ -721,9 +759,7 @@ class TranslateTextUseCase(
             }
             true
         }
-        if (published == true && patched != null && settingsState.value.isHistoryEnabled) {
-            persistHistory(patched!!)
-        }
+        if (published == true && patched != null && historyEnabled) persistHistory(patched!!)
         return published == true
     }
 
@@ -737,7 +773,7 @@ class TranslateTextUseCase(
      * request, letting the extra panel show its own progress while the translation is already
      * readable.
      *
-     * Runs inside the caller's `translationJob`, so a new translation cancels an in-flight
+     * Runs inside the caller's translation job, so a new translation cancels an in-flight
      * extra-output request and a stale result can never overwrite a newer translation.
      *
      * The primary snapshot is persisted independently of the secondary outcome: a successful
@@ -757,10 +793,13 @@ class TranslateTextUseCase(
         targetForBackward: LanguageCode,
         translator: Translator,
         updateState: (MainState.() -> MainState) -> Unit,
+        panelUpdateState: (MainState.() -> MainState) -> Unit,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit,
         extraOutputRequest: ExtraOutputRequest? = null,
         ruleTarget: LanguageCode? = null,
-        inputText: String
+        inputText: String,
+        historyEnabled: Boolean,
+        canPersist: () -> Boolean = { true }
     ) {
         val request = extraOutputRequest ?: ExtraOutputRequest.from(settingsState.value)
         val expectsExtraOutput = request.type != ExtraOutputType.None
@@ -786,7 +825,7 @@ class TranslateTextUseCase(
         // publication. A standalone refresh that claimed the panel while the primary result was
         // being written keeps its state.
         val ownsPanel = extraOutputWork.withCurrent(claim.generation) {
-            updateState {
+            panelUpdateState {
                 copy(
                     extraOutputText      = "",
                     extraOutputFailed    = false,
@@ -797,7 +836,7 @@ class TranslateTextUseCase(
         } != null
 
         if (!expectsExtraOutput || !ownsPanel) {
-            if (settingsState.value.isHistoryEnabled) persistHistory(history)
+            if (historyEnabled && canPersist()) persistHistory(history)
             return
         }
 
@@ -843,7 +882,7 @@ class TranslateTextUseCase(
             // Superseded while running: lower only our own spinner and keep the primary
             // history, which is independent of the secondary result.
             extraOutputWork.withCurrent(claim.generation) {
-                updateState { copy(isExtraOutputLoading = false) }
+                panelUpdateState { copy(isExtraOutputLoading = false) }
             }
             if (settingsState.value.isHistoryEnabled) persistHistory(history)
             return
@@ -854,8 +893,9 @@ class TranslateTextUseCase(
             history = history,
             request = request,
             token = claim.generation,
-            updateState = updateState,
-            persistFailureHistory = true
+            updateState = panelUpdateState,
+            persistFailureHistory = true,
+            historyEnabled = historyEnabled
         )
         if (!published && settingsState.value.isHistoryEnabled) {
             // A newer claim owns the panel, but the primary snapshot still belongs in history.

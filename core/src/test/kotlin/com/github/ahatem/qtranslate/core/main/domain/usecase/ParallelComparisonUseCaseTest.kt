@@ -2,6 +2,8 @@ package com.github.ahatem.qtranslate.core.main.domain.usecase
 
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.plugin.Service
+import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
@@ -15,16 +17,32 @@ import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.launch
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -172,6 +190,57 @@ class ParallelComparisonUseCaseTest {
         assertTrue(!newer.cancelled)
         assertEquals(listOf("newer"), state.map { it.serviceId })
         assertEquals(ComparisonStatus.SUCCESS, state.single().status)
+    }
+
+    @Test
+    fun `stale start cannot publish loading rows after invalidation`() = runBlocking {
+        val live = ControlledTranslator("live")
+        val services = MutableStateFlow<Map<String, Service>>(mapOf("live" to live))
+        val resolutionEntered = CountDownLatch(1)
+        val resolutionRelease = CountDownLatch(1)
+
+        // Resolving services happens after start() has claimed the generation but before it
+        // publishes its initial rows. Parking that read forces the exact interleaving: the
+        // generation is invalidated and the comparison state cleared while start is in flight.
+        val gatedServices = object : StateFlow<Map<String, Service>> {
+            override val value: Map<String, Service>
+                get() {
+                    resolutionEntered.countDown()
+                    resolutionRelease.await()
+                    return services.value
+                }
+
+            override val replayCache: List<Map<String, Service>>
+                get() = services.replayCache
+
+            override suspend fun collect(collector: FlowCollector<Map<String, Service>>): Nothing =
+                services.collect(collector)
+        }
+
+        val manager = ActiveServiceManager(gatedServices, MutableStateFlow(Configuration.DEFAULT))
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val useCase = ParallelComparisonUseCase(scope, manager, TestLoggerFactory)
+            val state = AtomicReference<List<ComparisonTranslationResult>>(emptyList())
+
+            val start = scope.launch {
+                useCase.start(request(listOf("live")), 1) { state.set(it) }
+            }
+            assertTrue(resolutionEntered.await(5, TimeUnit.SECONDS))
+
+            useCase.invalidate(1)
+            state.set(emptyList())
+            resolutionRelease.countDown()
+            start.join()
+
+            assertTrue(
+                state.get().isEmpty(),
+                "a stale start must not resurrect LOADING rows after the state was cleared"
+            )
+        } finally {
+            resolutionRelease.countDown()
+            scope.cancel()
+        }
     }
 
     private fun request(ids: List<String>) = ParallelComparisonRequest(
