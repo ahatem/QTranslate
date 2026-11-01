@@ -38,9 +38,12 @@ internal class ExtraOutputWorkOwner {
      * Installs [candidate] as the current operation, but only while [claim] still owns the
      * generation. A stale claim is refused, so it can never displace the live job.
      */
-    fun register(claim: Claim, candidate: Job): Boolean {
+    fun register(claim: Claim, candidate: Job): Boolean = register(claim.generation, candidate)
+
+    /** As [register], for a caller that carries only the token it was granted. */
+    fun register(token: Long, candidate: Job): Boolean {
         synchronized(lock) {
-            if (claim.generation != generation) return false
+            if (token != generation) return false
             job = candidate
             return true
         }

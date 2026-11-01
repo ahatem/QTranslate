@@ -327,6 +327,7 @@ class TranslateTextUseCase(
                             inputText = textToTranslate,
                             historyEnabled = configuration.isHistoryEnabled,
                             canPersist = { isCurrent(requestId) },
+                            extraOutputToken = extraClaim.generation,
                         )
                         completion = TranslationCompletion(requestId, response.translatedText)
                     },
@@ -441,7 +442,8 @@ class TranslateTextUseCase(
                     ruleTarget        = ruleTarget,
                     inputText         = textToTranslate,
                     historyEnabled    = historyEnabled,
-                    canPersist        = canPersist
+                    canPersist        = canPersist,
+                    extraOutputToken  = extraOutputToken
                 )
                 retryResponse.translatedText
             },
@@ -778,8 +780,8 @@ class TranslateTextUseCase(
      *
      * The primary snapshot is persisted independently of the secondary outcome: a successful
      * secondary patches it before saving, while a failed or superseded one still saves the
-     * primary translation. Panel state is reset only while this translation's secondary token
-     * still owns it.
+     * primary translation. Primary fields are gated by request identity; panel fields are gated
+     * only by the secondary token, and the two writes are never combined into one snapshot.
      *
      * @param ruleTarget Set only on the rule-driven path, where the target language changed
      *   as a result of the detected source language.
@@ -799,16 +801,17 @@ class TranslateTextUseCase(
         ruleTarget: LanguageCode? = null,
         inputText: String,
         historyEnabled: Boolean,
-        canPersist: () -> Boolean = { true }
+        canPersist: () -> Boolean = { true },
+        extraOutputToken: Long
     ) {
         val request = extraOutputRequest ?: ExtraOutputRequest.from(settingsState.value)
         val expectsExtraOutput = request.type != ExtraOutputType.None
-        // Inline secondary work is owned by the translation job that runs it; the token still
-        // retires standalone refreshes and gates publication against a newer claim.
-        val claim = retireExtraOutput("New translation requested")
+        // The token was claimed when this translation started, so a superseded job cannot
+        // retire a newer request's secondary panel. It only publishes when still current.
+        val token = extraOutputToken
 
         // Primary fields are independent of the panel, so publish them without touching the
-        // secondary state.
+        // secondary state. `updateState` is the request-gated primary publication.
         updateState {
             copy(
                 isLoading              = false,
@@ -824,7 +827,7 @@ class TranslateTextUseCase(
         // The panel reset is a secondary-panel mutation and must hold the same token as its
         // publication. A standalone refresh that claimed the panel while the primary result was
         // being written keeps its state.
-        val ownsPanel = extraOutputWork.withCurrent(claim.generation) {
+        val ownsPanel = extraOutputWork.withCurrent(token) {
             panelUpdateState {
                 copy(
                     extraOutputText      = "",
@@ -863,7 +866,7 @@ class TranslateTextUseCase(
                     ExtraOutputResult.Failure(ExtraOutputFailure.Unexpected)
                 }
             }
-            if (!extraOutputWork.register(claim, extraJob)) {
+            if (!extraOutputWork.register(token, extraJob)) {
                 extraJob.cancel(CancellationException("Extra output superseded"))
                 return@coroutineScope null
             }
@@ -881,10 +884,10 @@ class TranslateTextUseCase(
         if (outcome == null) {
             // Superseded while running: lower only our own spinner and keep the primary
             // history, which is independent of the secondary result.
-            extraOutputWork.withCurrent(claim.generation) {
+            extraOutputWork.withCurrent(token) {
                 panelUpdateState { copy(isExtraOutputLoading = false) }
             }
-            if (settingsState.value.isHistoryEnabled) persistHistory(history)
+            if (historyEnabled && canPersist()) persistHistory(history)
             return
         }
 
@@ -892,7 +895,7 @@ class TranslateTextUseCase(
             outcome = outcome,
             history = history,
             request = request,
-            token = claim.generation,
+            token = token,
             updateState = panelUpdateState,
             persistFailureHistory = true,
             historyEnabled = historyEnabled
