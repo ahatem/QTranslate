@@ -60,12 +60,6 @@ class SettingsRepository(
         val DISABLED_PLUGIN_IDS = stringSetPreferencesKey("disabled_plugin_ids")
     }
 
-    private val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
-        produceFile = {
-            File(appDataDirectory, "datastore/${AppConstants.DATASTORE_FILE}")
-        }
-    )
-
     // -------------------------------------------------------------------------
     // Configuration
     // -------------------------------------------------------------------------
