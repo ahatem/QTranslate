@@ -487,19 +487,19 @@ class MainAppFrame(
                 PopupDismissalPolicy.Popup(
                     visibleInState = state.isQuickTranslateDialogVisible,
                     pinned = state.isQuickTranslateDialogPinned,
-                    window = { PopupDismissalPolicy.WindowSnapshot(quickTranslateDialog.isVisible, quickTranslateDialog.bounds) },
+                    window = { PopupDismissalPolicy.WindowSnapshot(quickTranslateDialog.isVisible) { quickTranslateDialog.bounds } },
                     hideIntent = MainIntent.HideQuickTranslate,
                 ),
                 PopupDismissalPolicy.Popup(
                     visibleInState = state.isQuickDictionaryVisible,
                     pinned = state.isQuickDictionaryPinned,
-                    window = { PopupDismissalPolicy.WindowSnapshot(quickDictionaryDialog.isVisible, quickDictionaryDialog.bounds) },
+                    window = { PopupDismissalPolicy.WindowSnapshot(quickDictionaryDialog.isVisible) { quickDictionaryDialog.bounds } },
                     hideIntent = MainIntent.HideQuickDictionary,
                 ),
                 PopupDismissalPolicy.Popup(
                     visibleInState = state.isImageSearchVisible,
                     pinned = state.isImageSearchPinned,
-                    window = { PopupDismissalPolicy.WindowSnapshot(imageSearchDialog.isVisible, imageSearchDialog.bounds) },
+                    window = { PopupDismissalPolicy.WindowSnapshot(imageSearchDialog.isVisible) { imageSearchDialog.bounds } },
                     hideIntent = MainIntent.HideImageSearch,
                 ),
             ),
@@ -1372,6 +1372,10 @@ class MainAppFrame(
      * applies it.
      */
     private fun restorePosition(saved: Position?) {
+        if (saved == null) {
+            setLocationRelativeTo(null)
+            return
+        }
         when (val placement = windowPosition.restorePlacement(saved, width, height, connectedScreenBounds())) {
             is WindowRestorePlacement.At -> setLocation(placement.position.x, placement.position.y)
             WindowRestorePlacement.Centered -> setLocationRelativeTo(null)

@@ -26,12 +26,13 @@ class PopupDismissalPolicyTest {
         bounds: Rectangle = Rectangle(0, 0, 400, 300),
         hideIntent: MainIntent = MainIntent.HideQuickTranslate,
         windowReads: MutableList<String> = mutableListOf(),
+        boundsReads: MutableList<String> = mutableListOf(),
     ): PopupDismissalPolicy.Popup = PopupDismissalPolicy.Popup(
         visibleInState = visibleInState,
         pinned = pinned,
         window = {
             windowReads += "read"
-            PopupDismissalPolicy.WindowSnapshot(windowVisible, bounds)
+            PopupDismissalPolicy.WindowSnapshot(windowVisible) { boundsReads += "bounds"; bounds }
         },
         hideIntent = hideIntent,
     )
@@ -50,6 +51,13 @@ class PopupDismissalPolicyTest {
             emptyList<MainIntent>(),
             PopupDismissalPolicy.dismissals(true, inside, listOf(popup())),
         )
+    }
+
+    @Test
+    fun `a hidden window is not measured`() {
+        val boundsReads = mutableListOf<String>()
+        PopupDismissalPolicy.dismissals(true, outside, listOf(popup(windowVisible = false, boundsReads = boundsReads)))
+        assertTrue(boundsReads.isEmpty(), "a hidden window must not be asked for its bounds")
     }
 
     @Test

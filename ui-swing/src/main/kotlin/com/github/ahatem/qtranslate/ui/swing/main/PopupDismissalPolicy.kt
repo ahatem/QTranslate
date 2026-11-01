@@ -20,7 +20,7 @@ import java.awt.Rectangle
 internal object PopupDismissalPolicy {
 
     /** A live read of one popup's window, taken only when it is needed. */
-    data class WindowSnapshot(val visible: Boolean, val bounds: Rectangle)
+    data class WindowSnapshot(val visible: Boolean, val bounds: () -> Rectangle)
 
     /**
      * One dismissible popup.
@@ -54,7 +54,7 @@ internal object PopupDismissalPolicy {
             popup.visibleInState &&
                 !popup.pinned &&
                 popup.window().let { snapshot ->
-                    snapshot.visible && !snapshot.bounds.contains(screenPoint)
+                    snapshot.visible && !snapshot.bounds().contains(screenPoint)
                 }
         }.map { it.hideIntent }
     }

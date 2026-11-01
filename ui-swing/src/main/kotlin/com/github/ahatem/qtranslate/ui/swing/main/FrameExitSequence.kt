@@ -31,7 +31,12 @@ internal class FrameExitSequence(
     private val captureBounds: () -> Pair<Size, Position>,
     private val onApplicationExit: (Size, Position) -> Unit,
 ) {
+    private var exited = false
+
+    /** Runs the teardown once; a duplicate `windowClosed` must not repeat the handoff. */
     fun exit() {
+        if (exited) return
+        exited = true
         shutdownGlobalInput()
         disposeSelectionButton()
         disposeTray()

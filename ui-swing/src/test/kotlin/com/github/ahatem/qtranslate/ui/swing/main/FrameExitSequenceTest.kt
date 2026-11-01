@@ -55,7 +55,7 @@ class FrameExitSequenceTest {
     }
 
     @Test
-    fun `one exit runs each local teardown step exactly once`() {
+    fun `a duplicate exit does not repeat the teardown`() {
         var hotkeys = 0
         var button = 0
         var tray = 0
@@ -63,14 +63,16 @@ class FrameExitSequenceTest {
         var bounds = 0
         var reports = 0
 
-        FrameExitSequence(
+        val sequence = FrameExitSequence(
             shutdownGlobalInput = { hotkeys++ },
             disposeSelectionButton = { button++ },
             disposeTray = { tray++ },
             cancelFrameScope = { scope++ },
             captureBounds = { bounds++; Size(1, 1) to Position(0, 0) },
             onApplicationExit = { _, _ -> reports++ },
-        ).exit()
+        )
+        sequence.exit()
+        sequence.exit()
 
         assertEquals(1, hotkeys, "the global input backend shuts down once")
         assertEquals(1, button, "the selection button is disposed once")
