@@ -174,7 +174,14 @@ internal class PluginLifecycleHandler(
             onSuccess = { result ->
                 result.fold(
                     success = {
-                        val declared = container.plugin.getServices()
+                        // getServices is documented as fast, but it is still plugin code: bound
+                        // it like the callback itself so a blocking implementation cannot wedge
+                        // the transition past shutdown's settle bound.
+                        val declared = withTimeoutOrNull(ENABLE_TIMEOUT_MS) { container.plugin.getServices() }
+                            ?: run {
+                                logger.error("Plugin '${container.id}' getServices timed out")
+                                emptyList()
+                            }
 
                         // A service with no key, or implementing no service interface, can never be
                         // reached by the user. Dropping it here keeps the plugin's other services
@@ -260,10 +267,23 @@ internal class PluginLifecycleHandler(
     // -------------------------------------------------------------------------
 
     /**
-     * Calls `Plugin.onDisable()` (if enabled) then `Plugin.shutdown()` for final cleanup.
-     * Used only during application shutdown — does not update flows or registry state.
+     * Calls `Plugin.onDisable()` (if enabled) then `Plugin.shutdown()` for final cleanup,
+     * then releases the class loader and the assessed snapshot.
+     *
+     * Used during application shutdown and uninstall — does not update flows or registry state.
+     *
+     * Exactly once per container, via [PluginContainer.shutdownComplete] claimed atomically on
+     * entry: the per-plugin slot normally guarantees it, and the atomic claim also covers a
+     * straggler that outlived shutdown's settle bound and is finalized by both the shutdown loop
+     * and its own completion. The claim is taken before any callback, so the concurrent loser
+     * returns immediately instead of running half a teardown.
      */
     suspend fun shutdown(container: PluginContainer) {
+        if (!container.shutdownComplete.compareAndSet(false, true)) {
+            logger.debug("Plugin '${container.id}' already finalized; skipping duplicate shutdown")
+            return
+        }
+
         try {
             if (container.status == PluginStatus.ENABLED) {
                 withTimeoutOrNull(10_000) {
@@ -283,7 +303,12 @@ internal class PluginLifecycleHandler(
             logger.error("Unexpected exception shutting down plugin '${container.id}'", e)
         } finally {
             runCatching { (container.classLoader as? URLClassLoader)?.close() }
-            container.snapshotFile?.let { it.setWritable(true); it.delete() }
+            container.snapshotFile?.let { snapshot ->
+                snapshot.setWritable(true)
+                if (!snapshot.delete()) {
+                    logger.warn("Could not remove plugin snapshot ${snapshot.absolutePath}")
+                }
+            }
         }
     }
 }

@@ -137,10 +137,17 @@ internal class ScopedPluginContext(
     }
 
     /**
-     * Creates a fresh [CoroutineScope] for the next enable cycle.
+     * Cancels the previous cycle's scope and creates a fresh one for the next enable.
      * Called by the core before invoking `Plugin.onEnable()`.
+     *
+     * The predecessor is cancelled, not merely replaced: a replace-only swap would orphan
+     * whatever the plugin launched during the previous cycle, duplicating its background work
+     * for the rest of the process. The disable path has already cancelled the scope it handed
+     * the plugin, so this cancel is normally a no-op — it is the fence for a cycle that never
+     * saw a disable (a timed-out enable, say).
      */
     internal fun resetScope() {
+        _scope.cancel("Plugin '$pluginId' scope replaced")
         _scope = createFreshScope()
     }
 

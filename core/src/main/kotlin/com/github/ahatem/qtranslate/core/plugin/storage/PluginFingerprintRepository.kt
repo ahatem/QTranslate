@@ -32,9 +32,10 @@ data class PluginFingerprint(
  * paused in [com.github.ahatem.qtranslate.core.plugin.PluginStatus.AWAITING_VERIFICATION]
  * until the user confirms the change.
  *
- * On shutdown, fingerprints are saved for all plugins that ended in a healthy state
- * (i.e. not [com.github.ahatem.qtranslate.core.plugin.PluginStatus.FAILED] or
- * [com.github.ahatem.qtranslate.core.plugin.PluginStatus.AWAITING_VERIFICATION]).
+ * On shutdown, fingerprints are saved for every loaded plugin (including failed ones, so a
+ * broken plugin does not fall back to first-run trust) and, for plugins paused in
+ * [com.github.ahatem.qtranslate.core.plugin.PluginStatus.AWAITING_VERIFICATION], the hash the
+ * user last approved — keeping the mismatch detectable across restarts.
  */
 class PluginFingerprintRepository(
     appDataDirectory: File,

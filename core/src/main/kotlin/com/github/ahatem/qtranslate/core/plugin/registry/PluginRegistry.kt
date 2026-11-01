@@ -8,6 +8,8 @@ import com.github.ahatem.qtranslate.core.plugin.PluginManifest
 import com.github.ahatem.qtranslate.core.plugin.PluginStatus
 import kotlinx.coroutines.sync.Mutex
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * The mutable runtime record for a single loaded plugin.
@@ -16,7 +18,10 @@ import java.io.File
  * The UI always receives immutable [com.github.ahatem.qtranslate.core.plugin.PluginState]
  * snapshots produced by [PluginRegistry.snapshot].
  *
- * All mutations must be performed while holding [PluginRegistry]'s mutex.
+ * Map membership is guarded by [PluginRegistry]'s mutex; the mutable fields below are written
+ * only from inside a per-plugin transition (serialized by
+ * [com.github.ahatem.qtranslate.core.plugin.lifecycle.PluginTransitionOwner]) and are volatile,
+ * so the flow snapshot reads and the non-suspending service lookup see whole values.
  */
 internal data class PluginContainer(
     val plugin: Plugin<*>,
@@ -26,17 +31,29 @@ internal data class PluginContainer(
     val jarHash: String,
     val classLoader: ClassLoader,
     val snapshotFile: File? = null,
-    var status: PluginStatus = PluginStatus.DISABLED,
-    var services: List<Service> = emptyList(),
-    var declaredServices: List<Service> = emptyList(),
-    var lastError: PluginError? = null,
+    @Volatile var status: PluginStatus = PluginStatus.DISABLED,
+    @Volatile var services: List<Service> = emptyList(),
+    @Volatile var declaredServices: List<Service> = emptyList(),
+    @Volatile var lastError: PluginError? = null,
     /** Whether this JAR came from the distribution rather than the user's own plugins folder. */
     val bundled: Boolean = false,
     /**
      * Which copy of this plugin this is. Every plugin has exactly one until the user creates
      * more, but identifiers carry it from the start so their shape never changes.
      */
-    val instanceId: String = ServiceId.DEFAULT_INSTANCE
+    val instanceId: String = ServiceId.DEFAULT_INSTANCE,
+    /**
+     * Set once [com.github.ahatem.qtranslate.core.plugin.lifecycle.PluginLifecycleHandler.shutdown]
+     * has finalized this container. Transitions are serialized per plugin, so the check and the
+     * set cannot race; the flag is the fence that keeps a second teardown — from a racing
+     * uninstall and application shutdown, say — from firing the plugin's final callbacks twice.
+     */
+    /**
+     * Set atomically on entry to finalization; see the handler's shutdown for the contract.
+     * Atomic, not a plain flag: application shutdown may finalize a straggler whose transition
+     * outlived the settle bound at the same time the straggler's own completion tries to.
+     */
+    val shutdownComplete: AtomicBoolean = AtomicBoolean(false)
 ) {
     val id: String get() = manifest.id
 
@@ -48,7 +65,9 @@ internal data class PluginContainer(
  * Thread-safe in-memory registry of all loaded [PluginContainer]s.
  *
  * This is the single source of truth for which plugins are loaded and what
- * state they are in. All reads and writes go through the [mutex].
+ * state they are in. Map reads and writes go through the [mutex]; the one exception is
+ * [findByServiceId], which is safe unguarded because the maps are concurrent and container
+ * service lists are volatile.
  *
  * Responsibilities:
  * - Storing and retrieving [PluginContainer]s by plugin ID
@@ -59,11 +78,27 @@ internal data class PluginContainer(
 internal class PluginRegistry {
 
     val mutex = Mutex()
-    private val containers = mutableMapOf<String, PluginContainer>()
-    private val pending = mutableMapOf<String, PendingPlugin>()
+
+    /**
+     * Concurrent so the single-map service lookup ([findByServiceId]) is safe for the one
+     * non-suspending reader ([com.github.ahatem.qtranslate.core.plugin.PluginManager.getPluginClassLoaderForService],
+     * called while rendering icons on the EDT). Compound reads and writes still go through
+     * [mutex]: the map's weak consistency is not enough for atomic multi-map snapshots.
+     */
+    private val containers = ConcurrentHashMap<String, PluginContainer>()
+    private val pending = ConcurrentHashMap<String, PendingPlugin>()
 
     /** A changed JAR awaiting consent; no provider or context is present. */
-    data class PendingPlugin(val assessment: PluginAssessment, val bundled: Boolean) {
+    data class PendingPlugin(
+        val assessment: PluginAssessment,
+        val bundled: Boolean,
+        /**
+         * The hash the user last approved for this plugin id. Persisted verbatim on shutdown so
+         * the mismatch that paused this plugin is still detected after a restart — dropping it
+         * would turn a detected modification into a first-run trust-on-first-use load.
+         */
+        val previousHash: String
+    ) {
         val id: String get() = assessment.manifest.id
     }
 
@@ -81,6 +116,12 @@ internal class PluginRegistry {
 
     fun contains(pluginId: String): Boolean = containers.containsKey(pluginId) || pending.containsKey(pluginId)
 
+    /**
+     * The container providing [serviceId], or null.
+     *
+     * Safe without [mutex]: [containers] is a concurrent map and each container's service list
+     * is volatile, so this read never tears and never trips a concurrent-modification check.
+     */
     fun findByServiceId(serviceId: String): PluginContainer? =
         containers.values.find { c -> c.services.any { c.serviceIdOf(it) == serviceId } }
 

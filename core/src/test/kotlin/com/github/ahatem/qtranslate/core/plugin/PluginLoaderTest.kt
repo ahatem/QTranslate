@@ -229,7 +229,7 @@ class PluginLoaderTest {
         try {
             val jar = directory.resolve("broken-plugin.jar")
             JarOutputStream(jar.outputStream()).use { }
-            val loader = PluginLoader(NoOpLogger)
+            val loader = PluginLoader(NoOpLogger, directory.resolve("cache"))
 
             val plugins = loader.loadPluginsFromDirectory(directory)
 

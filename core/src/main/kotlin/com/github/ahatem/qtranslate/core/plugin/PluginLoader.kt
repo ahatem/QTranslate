@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.Plugin
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginError
 import com.github.ahatem.qtranslate.core.shared.util.Hashing
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.net.URLClassLoader
@@ -15,7 +16,12 @@ import java.util.jar.JarFile
 /** Inspects plugin artifacts without loading provider classes until the host approves them. */
 class PluginLoader(
     private val logger: Logger,
-    private val cacheDirectory: File = Files.createTempDirectory("qtranslate-plugin-snapshots").toFile()
+    /**
+     * Application-owned directory the assessed snapshots are copied into. Always the app data
+     * layout's plugin-snapshot cache in production — never the shared temp directory, which is
+     * world-readable on multi-user systems.
+     */
+    private val cacheDirectory: File
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val _loadFailures = mutableListOf<PluginError.LoadFailure>()
@@ -57,7 +63,13 @@ class PluginLoader(
             }
             check(snapshot.setReadOnly()) { "Could not make plugin snapshot read-only" }
             PluginAssessment(manifest, jarFile, snapshot, Hashing.sha256(snapshot), provider)
-        } catch (error: Exception) {
+        } catch (error: CancellationException) {
+            snapshot?.let { it.setWritable(true); it.delete() }
+            throw error
+        } catch (error: Throwable) {
+            // Assessment fails closed, never crashes discovery: a malformed archive can raise
+            // errors that are not Exception (java.util.zip.ZipError), and any of them only means
+            // "this JAR is not approved", which is a reported failure, not a process exit.
             snapshot?.let { it.setWritable(true); it.delete() }
             recordFailure(jarFile, "Failed to inspect plugin: ${error.message}", error)
             null
@@ -95,13 +107,22 @@ class PluginLoader(
         }
     }
 
-    /** Compatibility helper for existing direct callers; direct invocation explicitly approves the file. */
-    fun loadPluginFromFile(jarFile: File): LoadedPluginResult? = assessFile(jarFile)?.let { assessment ->
+    /**
+     * Module-internal convenience that assesses and immediately approves a single file.
+     *
+     * This is an explicit approval of [jarFile]'s bytes: it skips the fingerprint comparison
+     * [com.github.ahatem.qtranslate.core.plugin.PluginManager] applies at discovery, so it is
+     * internal — production paths must go through assess + approval, never through here.
+     */
+    internal fun loadPluginFromFile(jarFile: File): LoadedPluginResult? = assessFile(jarFile)?.let { assessment ->
         loadApproved(assessment).also { if (it == null) assessment.discard() }
     }
 
-    /** Compatibility helper for callers that explicitly request executable providers. */
-    fun loadPluginsFromDirectory(directory: File): List<LoadedPluginResult> =
+    /**
+     * Module-internal convenience that assesses and immediately approves every JAR in
+     * [directory]. Same explicit-approval caveat as [loadPluginFromFile].
+     */
+    internal fun loadPluginsFromDirectory(directory: File): List<LoadedPluginResult> =
         assessDirectory(directory).mapNotNull { assessment ->
             loadApproved(assessment).also { if (it == null) assessment.discard() }
         }

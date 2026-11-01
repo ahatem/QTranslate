@@ -57,6 +57,9 @@ class PluginKeyValueStore(
     }
 
     suspend fun deleteAllData(pluginId: String) {
+        // Keep the cached DataStore: dropping it would leave its scope alive while a recreated
+        // instance opens the same file (androidx rejects two active DataStores per file), which
+        // is exactly what an uninstall followed by a reinstall of the same plugin does.
         getDataStore(pluginId).edit { it.clear() }
     }
 }
