@@ -3,7 +3,6 @@ package com.github.ahatem.qtranslate.core.main.domain.usecase
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.Service
-import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
@@ -21,17 +20,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.FlowCollector
-import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -40,12 +34,11 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ParallelComparisonUseCaseTest {

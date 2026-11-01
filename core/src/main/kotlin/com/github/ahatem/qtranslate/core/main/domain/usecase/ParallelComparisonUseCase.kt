@@ -74,7 +74,7 @@ class ParallelComparisonUseCase(
         comparisonJob = null
     }
 
-    fun start(
+    suspend fun start(
         request: ParallelComparisonRequest,
         generation: Long,
         updateState: (List<ComparisonTranslationResult>) -> Unit

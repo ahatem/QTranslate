@@ -476,7 +476,7 @@ class TranslateTextUseCase(
         }
     }
 
-    private fun startComparisons(
+    private suspend fun startComparisons(
         text: String,
         sourceLanguage: LanguageCode,
         targetLanguage: LanguageCode,
