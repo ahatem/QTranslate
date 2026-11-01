@@ -72,6 +72,18 @@ git remote add upstream https://github.com/ahatem/qtranslate.git
 
 Open the project in IntelliJ IDEA — it will detect the Gradle build automatically.
 
+**Dependency locks**
+
+Resolved dependency versions are locked in committed `gradle.lockfile` files — one per module,
+plus `buildSrc/gradle.lockfile` for the build logic and release-guard test classpath. A normal
+build fails when resolved versions drift from the locks, so a dependency change is always visible
+in review. After an approved version bump in `gradle/libs.versions.toml`, regenerate the locks
+with `./gradlew --write-locks :<module>:dependencies` for every module (and
+`./gradlew -p buildSrc test --write-locks` for the build logic) and commit the result. Plugin
+marker versions (the shadow and serialization plugins, the foojay toolchain resolver) are pinned
+in the version catalog and settings instead of locked, because Gradle resolves plugins outside
+project configurations; the Kotlin Gradle plugin itself is locked through buildSrc.
+
 ---
 
 ## Branch Strategy

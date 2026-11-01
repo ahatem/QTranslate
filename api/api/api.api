@@ -1,0 +1,1275 @@
+public final class com/github/ahatem/qtranslate/api/core/ApiVersion {
+	public static final field INSTANCE Lcom/github/ahatem/qtranslate/api/core/ApiVersion;
+	public static final field MAJOR I
+	public static final field MINOR I
+	public static final field PATCH I
+	public static final field VERSION Ljava/lang/String;
+	public final fun isCompatible (Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/core/ApiVersion$CompatibilityResult;
+}
+
+public abstract class com/github/ahatem/qtranslate/api/core/ApiVersion$CompatibilityResult {
+	public abstract fun getPluginVersion ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/core/ApiVersion$CompatibilityResult$Compatible : com/github/ahatem/qtranslate/api/core/ApiVersion$CompatibilityResult {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/core/ApiVersion$CompatibilityResult$Compatible;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/core/ApiVersion$CompatibilityResult$Compatible;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/core/ApiVersion$CompatibilityResult$Compatible;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getPluginVersion ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/core/ApiVersion$CompatibilityResult$Incompatible : com/github/ahatem/qtranslate/api/core/ApiVersion$CompatibilityResult {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/core/ApiVersion$CompatibilityResult$Incompatible;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/core/ApiVersion$CompatibilityResult$Incompatible;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/core/ApiVersion$CompatibilityResult$Incompatible;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getPluginVersion ()Ljava/lang/String;
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/core/Logger {
+	public abstract fun debug (Ljava/lang/String;)V
+	public abstract fun error (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public static synthetic fun error$default (Lcom/github/ahatem/qtranslate/api/core/Logger;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)V
+	public abstract fun info (Ljava/lang/String;)V
+	public abstract fun warn (Ljava/lang/String;)V
+}
+
+public final class com/github/ahatem/qtranslate/api/core/Logger$DefaultImpls {
+	public static synthetic fun error$default (Lcom/github/ahatem/qtranslate/api/core/Logger;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)V
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/dictionary/BilingualDictionary : com/github/ahatem/qtranslate/api/dictionary/Dictionary {
+	public abstract fun lookupBilingual-T3BZVFY (Lcom/github/ahatem/qtranslate/api/dictionary/BilingualDictionaryRequest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/dictionary/BilingualDictionary$DefaultImpls {
+	public static fun fetchSupportedLanguages-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/dictionary/BilingualDictionary;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun getIconPath (Lcom/github/ahatem/qtranslate/api/dictionary/BilingualDictionary;)Ljava/lang/String;
+	public static fun getMetadata (Lcom/github/ahatem/qtranslate/api/dictionary/BilingualDictionary;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public static fun getOptions (Lcom/github/ahatem/qtranslate/api/dictionary/BilingualDictionary;)Ljava/util/List;
+	public static fun validate-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/dictionary/BilingualDictionary;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/dictionary/BilingualDictionaryRequest {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2-i4UJbm8 ()Ljava/lang/String;
+	public final fun component3-i4UJbm8 ()Ljava/lang/String;
+	public final fun copy-Ig8MUdQ (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/dictionary/BilingualDictionaryRequest;
+	public static synthetic fun copy-Ig8MUdQ$default (Lcom/github/ahatem/qtranslate/api/dictionary/BilingualDictionaryRequest;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/dictionary/BilingualDictionaryRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSourceLanguage-i4UJbm8 ()Ljava/lang/String;
+	public final fun getTargetLanguage-i4UJbm8 ()Ljava/lang/String;
+	public final fun getWord ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/dictionary/Definition {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/dictionary/Definition;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/dictionary/Definition;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/dictionary/Definition;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExample ()Ljava/lang/String;
+	public final fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/dictionary/Dictionary : com/github/ahatem/qtranslate/api/plugin/Service {
+	public abstract fun lookup-T3BZVFY (Lcom/github/ahatem/qtranslate/api/dictionary/DictionaryRequest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/dictionary/Dictionary$DefaultImpls {
+	public static fun fetchSupportedLanguages-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/dictionary/Dictionary;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun getIconPath (Lcom/github/ahatem/qtranslate/api/dictionary/Dictionary;)Ljava/lang/String;
+	public static fun getMetadata (Lcom/github/ahatem/qtranslate/api/dictionary/Dictionary;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public static fun getOptions (Lcom/github/ahatem/qtranslate/api/dictionary/Dictionary;)Ljava/util/List;
+	public static fun validate-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/dictionary/Dictionary;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/dictionary/DictionaryEntry {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/util/List;
+	public final fun component4 ()Ljava/util/List;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/dictionary/DictionaryEntry;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/dictionary/DictionaryEntry;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/dictionary/DictionaryEntry;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDefinitions ()Ljava/util/List;
+	public final fun getPartOfSpeech ()Ljava/lang/String;
+	public final fun getPhonetic ()Ljava/lang/String;
+	public final fun getSynonyms ()Ljava/util/List;
+	public final fun getWord ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/dictionary/DictionaryRequest {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2-i4UJbm8 ()Ljava/lang/String;
+	public final fun copy-s7fdtNs (Ljava/lang/String;Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/dictionary/DictionaryRequest;
+	public static synthetic fun copy-s7fdtNs$default (Lcom/github/ahatem/qtranslate/api/dictionary/DictionaryRequest;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/dictionary/DictionaryRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLanguage-i4UJbm8 ()Ljava/lang/String;
+	public final fun getWord ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/dictionary/DictionaryResponse {
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lcom/github/ahatem/qtranslate/api/dictionary/DictionaryResponse;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/dictionary/DictionaryResponse;Ljava/util/List;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/dictionary/DictionaryResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEntries ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/imagesearch/ImageResult {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/imagesearch/ImageResult;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/imagesearch/ImageResult;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/imagesearch/ImageResult;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAttribution ()Ljava/lang/String;
+	public final fun getFullUrl ()Ljava/lang/String;
+	public final fun getLicense ()Ljava/lang/String;
+	public final fun getSourceUrl ()Ljava/lang/String;
+	public final fun getThumbnailUrl ()Ljava/lang/String;
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/imagesearch/ImageSearch : com/github/ahatem/qtranslate/api/plugin/Service {
+	public abstract fun searchImages-T3BZVFY (Lcom/github/ahatem/qtranslate/api/imagesearch/ImageSearchRequest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/imagesearch/ImageSearch$DefaultImpls {
+	public static fun fetchSupportedLanguages-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/imagesearch/ImageSearch;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun getIconPath (Lcom/github/ahatem/qtranslate/api/imagesearch/ImageSearch;)Ljava/lang/String;
+	public static fun getMetadata (Lcom/github/ahatem/qtranslate/api/imagesearch/ImageSearch;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public static fun getOptions (Lcom/github/ahatem/qtranslate/api/imagesearch/ImageSearch;)Ljava/util/List;
+	public static fun validate-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/imagesearch/ImageSearch;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/imagesearch/ImageSearchRequest {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILjava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILjava/util/Map;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2-i4UJbm8 ()Ljava/lang/String;
+	public final fun component3 ()I
+	public final fun component4 ()Ljava/util/Map;
+	public final fun copy-TuEJWrU (Ljava/lang/String;Ljava/lang/String;ILjava/util/Map;)Lcom/github/ahatem/qtranslate/api/imagesearch/ImageSearchRequest;
+	public static synthetic fun copy-TuEJWrU$default (Lcom/github/ahatem/qtranslate/api/imagesearch/ImageSearchRequest;Ljava/lang/String;Ljava/lang/String;ILjava/util/Map;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/imagesearch/ImageSearchRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLanguage-i4UJbm8 ()Ljava/lang/String;
+	public final fun getMaxResults ()I
+	public final fun getOptions ()Ljava/util/Map;
+	public final fun getQuery ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/imagesearch/ImageSearchResponse {
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lcom/github/ahatem/qtranslate/api/imagesearch/ImageSearchResponse;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/imagesearch/ImageSearchResponse;Ljava/util/List;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/imagesearch/ImageSearchResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getResults ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/language/LanguageCode {
+	public static final field Companion Lcom/github/ahatem/qtranslate/api/language/LanguageCode$Companion;
+	public static final synthetic fun box-impl (Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/language/LanguageCode;
+	public static fun constructor-impl (Ljava/lang/String;)Ljava/lang/String;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/lang/String;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun getTag ()Ljava/lang/String;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/lang/String;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/lang/String;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/language/LanguageCode$Companion {
+	public final fun getAFRIKAANS-i4UJbm8 ()Ljava/lang/String;
+	public final fun getALBANIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getAMHARIC-i4UJbm8 ()Ljava/lang/String;
+	public final fun getARABIC-i4UJbm8 ()Ljava/lang/String;
+	public final fun getARMENIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getAUTO-i4UJbm8 ()Ljava/lang/String;
+	public final fun getAZERBAIJANI-i4UJbm8 ()Ljava/lang/String;
+	public final fun getBASQUE-i4UJbm8 ()Ljava/lang/String;
+	public final fun getBELARUSIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getBENGALI-i4UJbm8 ()Ljava/lang/String;
+	public final fun getBOSNIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getBULGARIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getBURMESE-i4UJbm8 ()Ljava/lang/String;
+	public final fun getCATALAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getCHINESE_SIMPLIFIED-i4UJbm8 ()Ljava/lang/String;
+	public final fun getCHINESE_TRADITIONAL-i4UJbm8 ()Ljava/lang/String;
+	public final fun getCROATIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getCZECH-i4UJbm8 ()Ljava/lang/String;
+	public final fun getDANISH-i4UJbm8 ()Ljava/lang/String;
+	public final fun getDUTCH-i4UJbm8 ()Ljava/lang/String;
+	public final fun getENGLISH-i4UJbm8 ()Ljava/lang/String;
+	public final fun getESTONIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getFARSI-i4UJbm8 ()Ljava/lang/String;
+	public final fun getFINNISH-i4UJbm8 ()Ljava/lang/String;
+	public final fun getFRENCH-i4UJbm8 ()Ljava/lang/String;
+	public final fun getGEORGIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getGERMAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getGREEK-i4UJbm8 ()Ljava/lang/String;
+	public final fun getGUARANI-i4UJbm8 ()Ljava/lang/String;
+	public final fun getGUJARATI-i4UJbm8 ()Ljava/lang/String;
+	public final fun getHAUSA-i4UJbm8 ()Ljava/lang/String;
+	public final fun getHEBREW-i4UJbm8 ()Ljava/lang/String;
+	public final fun getHINDI-i4UJbm8 ()Ljava/lang/String;
+	public final fun getHUNGARIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getICELANDIC-i4UJbm8 ()Ljava/lang/String;
+	public final fun getINDONESIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getIRISH-i4UJbm8 ()Ljava/lang/String;
+	public final fun getITALIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getJAPANESE-i4UJbm8 ()Ljava/lang/String;
+	public final fun getJAVANESE-i4UJbm8 ()Ljava/lang/String;
+	public final fun getKHMER-i4UJbm8 ()Ljava/lang/String;
+	public final fun getKOREAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getLAO-i4UJbm8 ()Ljava/lang/String;
+	public final fun getLATVIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getLITHUANIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getMACEDONIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getMALAY-i4UJbm8 ()Ljava/lang/String;
+	public final fun getMALTESE-i4UJbm8 ()Ljava/lang/String;
+	public final fun getMARATHI-i4UJbm8 ()Ljava/lang/String;
+	public final fun getMONGOLIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getNEPALI-i4UJbm8 ()Ljava/lang/String;
+	public final fun getNORWEGIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getPOLISH-i4UJbm8 ()Ljava/lang/String;
+	public final fun getPORTUGUESE-i4UJbm8 ()Ljava/lang/String;
+	public final fun getPORTUGUESE_BRAZIL-i4UJbm8 ()Ljava/lang/String;
+	public final fun getPORTUGUESE_PORTUGAL-i4UJbm8 ()Ljava/lang/String;
+	public final fun getROMANIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getRUSSIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getSERBIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getSINHALA-i4UJbm8 ()Ljava/lang/String;
+	public final fun getSLOVAK-i4UJbm8 ()Ljava/lang/String;
+	public final fun getSLOVENIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getSOMALI-i4UJbm8 ()Ljava/lang/String;
+	public final fun getSPANISH-i4UJbm8 ()Ljava/lang/String;
+	public final fun getSWAHILI-i4UJbm8 ()Ljava/lang/String;
+	public final fun getSWEDISH-i4UJbm8 ()Ljava/lang/String;
+	public final fun getTAMIL-i4UJbm8 ()Ljava/lang/String;
+	public final fun getTELUGU-i4UJbm8 ()Ljava/lang/String;
+	public final fun getTHAI-i4UJbm8 ()Ljava/lang/String;
+	public final fun getTURKISH-i4UJbm8 ()Ljava/lang/String;
+	public final fun getUKRAINIAN-i4UJbm8 ()Ljava/lang/String;
+	public final fun getURDU-i4UJbm8 ()Ljava/lang/String;
+	public final fun getVIETNAMESE-i4UJbm8 ()Ljava/lang/String;
+	public final fun getWELSH-i4UJbm8 ()Ljava/lang/String;
+	public final fun getYORUBA-i4UJbm8 ()Ljava/lang/String;
+	public final fun getZULU-i4UJbm8 ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/ocr/ImageData {
+	public fun <init> ([BLjava/lang/String;II)V
+	public final fun component1 ()[B
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun copy ([BLjava/lang/String;II)Lcom/github/ahatem/qtranslate/api/ocr/ImageData;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/ocr/ImageData;[BLjava/lang/String;IIILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/ocr/ImageData;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBytes ()[B
+	public final fun getFormat ()Ljava/lang/String;
+	public final fun getHeight ()I
+	public final fun getWidth ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/ocr/OCR : com/github/ahatem/qtranslate/api/plugin/Service {
+	public abstract fun extractText-T3BZVFY (Lcom/github/ahatem/qtranslate/api/ocr/OCRRequest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/ocr/OCR$DefaultImpls {
+	public static fun fetchSupportedLanguages-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/ocr/OCR;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun getIconPath (Lcom/github/ahatem/qtranslate/api/ocr/OCR;)Ljava/lang/String;
+	public static fun getMetadata (Lcom/github/ahatem/qtranslate/api/ocr/OCR;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public static fun getOptions (Lcom/github/ahatem/qtranslate/api/ocr/OCR;)Ljava/util/List;
+	public static fun validate-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/ocr/OCR;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/ocr/OCRRequest {
+	public synthetic fun <init> (Lcom/github/ahatem/qtranslate/api/ocr/ImageData;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lcom/github/ahatem/qtranslate/api/ocr/ImageData;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/github/ahatem/qtranslate/api/ocr/ImageData;
+	public final fun component2-i4UJbm8 ()Ljava/lang/String;
+	public final fun copy-s7fdtNs (Lcom/github/ahatem/qtranslate/api/ocr/ImageData;Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/ocr/OCRRequest;
+	public static synthetic fun copy-s7fdtNs$default (Lcom/github/ahatem/qtranslate/api/ocr/OCRRequest;Lcom/github/ahatem/qtranslate/api/ocr/ImageData;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/ocr/OCRRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getImage ()Lcom/github/ahatem/qtranslate/api/ocr/ImageData;
+	public final fun getLanguage-i4UJbm8 ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/ocr/OCRResponse {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Float;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Float;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Float;
+	public final fun component3-hgNBXZM ()Ljava/lang/String;
+	public final fun copy-6BQ0gv0 (Ljava/lang/String;Ljava/lang/Float;Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/ocr/OCRResponse;
+	public static synthetic fun copy-6BQ0gv0$default (Lcom/github/ahatem/qtranslate/api/ocr/OCRResponse;Ljava/lang/String;Ljava/lang/Float;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/ocr/OCRResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getConfidence ()Ljava/lang/Float;
+	public final fun getDetectedLanguage-hgNBXZM ()Ljava/lang/String;
+	public final fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/DisplayText {
+	public static final field Companion Lcom/github/ahatem/qtranslate/api/plugin/DisplayText$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getArgs ()Ljava/util/List;
+	public final fun getFallback ()Ljava/lang/String;
+	public final fun getKey ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/DisplayText$Companion {
+	public final fun literal (Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/plugin/HttpClient {
+	public abstract fun get-MJidatI (Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun get-MJidatI$default (Lcom/github/ahatem/qtranslate/api/plugin/HttpClient;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun getBytes-MJidatI (Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun getBytes-MJidatI$default (Lcom/github/ahatem/qtranslate/api/plugin/HttpClient;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun post-iWd_AH8 (Ljava/lang/String;Ljava/util/Map;Ljava/lang/String;Ljava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun post-iWd_AH8$default (Lcom/github/ahatem/qtranslate/api/plugin/HttpClient;Ljava/lang/String;Ljava/util/Map;Ljava/lang/String;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public fun postBytes-iWd_AH8 (Ljava/lang/String;Ljava/util/Map;[BLjava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun postBytes-iWd_AH8$default (Lcom/github/ahatem/qtranslate/api/plugin/HttpClient;Ljava/lang/String;Ljava/util/Map;[BLjava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun postForm-aonOjB4 (Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun postForm-aonOjB4$default (Lcom/github/ahatem/qtranslate/api/plugin/HttpClient;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun postFormBytes-aonOjB4 (Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun postFormBytes-aonOjB4$default (Lcom/github/ahatem/qtranslate/api/plugin/HttpClient;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/HttpClient$DefaultImpls {
+	public static synthetic fun get-MJidatI$default (Lcom/github/ahatem/qtranslate/api/plugin/HttpClient;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun getBytes-MJidatI$default (Lcom/github/ahatem/qtranslate/api/plugin/HttpClient;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun post-iWd_AH8$default (Lcom/github/ahatem/qtranslate/api/plugin/HttpClient;Ljava/lang/String;Ljava/util/Map;Ljava/lang/String;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static fun postBytes-iWd_AH8 (Lcom/github/ahatem/qtranslate/api/plugin/HttpClient;Ljava/lang/String;Ljava/util/Map;[BLjava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun postBytes-iWd_AH8$default (Lcom/github/ahatem/qtranslate/api/plugin/HttpClient;Ljava/lang/String;Ljava/util/Map;[BLjava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun postForm-aonOjB4$default (Lcom/github/ahatem/qtranslate/api/plugin/HttpClient;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun postFormBytes-aonOjB4$default (Lcom/github/ahatem/qtranslate/api/plugin/HttpClient;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/NotificationType : java/lang/Enum {
+	public static final field ERROR Lcom/github/ahatem/qtranslate/api/plugin/NotificationType;
+	public static final field INFO Lcom/github/ahatem/qtranslate/api/plugin/NotificationType;
+	public static final field SUCCESS Lcom/github/ahatem/qtranslate/api/plugin/NotificationType;
+	public static final field WARNING Lcom/github/ahatem/qtranslate/api/plugin/NotificationType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/plugin/NotificationType;
+	public static fun values ()[Lcom/github/ahatem/qtranslate/api/plugin/NotificationType;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/plugin/Plugin {
+	public abstract fun getServices ()Ljava/util/List;
+	public abstract fun getSettings ()Lcom/github/ahatem/qtranslate/api/plugin/PluginSettings;
+	public fun getSupportsMultipleInstances ()Z
+	public abstract fun initialize-T3BZVFY (Lcom/github/ahatem/qtranslate/api/plugin/PluginContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun onDisable (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun onEnable-Zyo9ksc (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun onSettingsChanged-T3BZVFY (Lcom/github/ahatem/qtranslate/api/plugin/PluginSettings;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun shutdown (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/Plugin$DefaultImpls {
+	public static fun getSupportsMultipleInstances (Lcom/github/ahatem/qtranslate/api/plugin/Plugin;)Z
+	public static fun onDisable (Lcom/github/ahatem/qtranslate/api/plugin/Plugin;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun onEnable-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/plugin/Plugin;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun onSettingsChanged-T3BZVFY (Lcom/github/ahatem/qtranslate/api/plugin/Plugin;Lcom/github/ahatem/qtranslate/api/plugin/PluginSettings;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun shutdown (Lcom/github/ahatem/qtranslate/api/plugin/Plugin;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/plugin/PluginContext {
+	public abstract fun getHttp ()Lcom/github/ahatem/qtranslate/api/plugin/HttpClient;
+	public abstract fun getLogger ()Lcom/github/ahatem/qtranslate/api/core/Logger;
+	public abstract fun getPluginDataDirectory ()Ljava/io/File;
+	public abstract fun getScope ()Lkotlinx/coroutines/CoroutineScope;
+	public abstract fun getSecrets ()Lcom/github/ahatem/qtranslate/api/plugin/SecretStore;
+	public abstract fun getSettings ()Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;
+	public abstract fun notify (Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Lcom/github/ahatem/qtranslate/api/plugin/NotificationType;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun notify$default (Lcom/github/ahatem/qtranslate/api/plugin/PluginContext;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Lcom/github/ahatem/qtranslate/api/plugin/NotificationType;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/PluginContext$DefaultImpls {
+	public static synthetic fun notify$default (Lcom/github/ahatem/qtranslate/api/plugin/PluginContext;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Lcom/github/ahatem/qtranslate/api/plugin/NotificationType;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public abstract class com/github/ahatem/qtranslate/api/plugin/PluginSettings {
+}
+
+public abstract class com/github/ahatem/qtranslate/api/plugin/PluginSettings$Configurable : com/github/ahatem/qtranslate/api/plugin/PluginSettings {
+	public fun <init> ()V
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/PluginSettings$None : com/github/ahatem/qtranslate/api/plugin/PluginSettings {
+	public static final field INSTANCE Lcom/github/ahatem/qtranslate/api/plugin/PluginSettings$None;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/RateLimit {
+	public fun <init> (IILcom/github/ahatem/qtranslate/api/plugin/DisplayText;)V
+	public synthetic fun <init> (IILcom/github/ahatem/qtranslate/api/plugin/DisplayText;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;
+	public final fun copy (IILcom/github/ahatem/qtranslate/api/plugin/DisplayText;)Lcom/github/ahatem/qtranslate/api/plugin/RateLimit;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/RateLimit;IILcom/github/ahatem/qtranslate/api/plugin/DisplayText;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/RateLimit;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getNote ()Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;
+	public final fun getPerSeconds ()I
+	public final fun getRequests ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/plugin/SecretStore {
+	public abstract fun contains (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun get (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun put (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun remove (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/plugin/Service {
+	public fun fetchSupportedLanguages-Zyo9ksc (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getIconPath ()Ljava/lang/String;
+	public abstract fun getKey ()Ljava/lang/String;
+	public fun getMetadata ()Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public abstract fun getName ()Ljava/lang/String;
+	public fun getOptions ()Ljava/util/List;
+	public abstract fun getSupportedLanguages ()Lcom/github/ahatem/qtranslate/api/plugin/SupportedLanguages;
+	public abstract fun getVersion ()Ljava/lang/String;
+	public fun validate-Zyo9ksc (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/Service$DefaultImpls {
+	public static fun fetchSupportedLanguages-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/plugin/Service;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun getIconPath (Lcom/github/ahatem/qtranslate/api/plugin/Service;)Ljava/lang/String;
+	public static fun getMetadata (Lcom/github/ahatem/qtranslate/api/plugin/Service;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public static fun getOptions (Lcom/github/ahatem/qtranslate/api/plugin/Service;)Ljava/util/List;
+	public static fun validate-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/plugin/Service;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract class com/github/ahatem/qtranslate/api/plugin/ServiceError {
+	public abstract fun getCause ()Ljava/lang/Throwable;
+	public abstract fun getMessage ()Ljava/lang/String;
+	public abstract fun isRetryable ()Z
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceError$AuthenticationError : com/github/ahatem/qtranslate/api/plugin/ServiceError {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Throwable;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Throwable;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$AuthenticationError;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$AuthenticationError;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$AuthenticationError;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCause ()Ljava/lang/Throwable;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun isRetryable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceError$ConfigurationError : com/github/ahatem/qtranslate/api/plugin/ServiceError {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Throwable;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Throwable;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$ConfigurationError;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$ConfigurationError;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$ConfigurationError;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCause ()Ljava/lang/Throwable;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun isRetryable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceError$InvalidInputError : com/github/ahatem/qtranslate/api/plugin/ServiceError {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Throwable;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Throwable;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$InvalidInputError;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$InvalidInputError;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$InvalidInputError;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCause ()Ljava/lang/Throwable;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun isRetryable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceError$InvalidResponseError : com/github/ahatem/qtranslate/api/plugin/ServiceError {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Throwable;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Throwable;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$InvalidResponseError;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$InvalidResponseError;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$InvalidResponseError;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCause ()Ljava/lang/Throwable;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun isRetryable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceError$NetworkError : com/github/ahatem/qtranslate/api/plugin/ServiceError {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Throwable;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Throwable;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$NetworkError;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$NetworkError;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$NetworkError;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCause ()Ljava/lang/Throwable;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun isRetryable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceError$RateLimitError : com/github/ahatem/qtranslate/api/plugin/ServiceError {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Integer;
+	public final fun component3 ()Ljava/lang/Throwable;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Throwable;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$RateLimitError;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$RateLimitError;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Throwable;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$RateLimitError;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCause ()Ljava/lang/Throwable;
+	public fun getMessage ()Ljava/lang/String;
+	public final fun getRetryAfterSeconds ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun isRetryable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceError$ServiceUnavailableError : com/github/ahatem/qtranslate/api/plugin/ServiceError {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Throwable;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Throwable;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$ServiceUnavailableError;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$ServiceUnavailableError;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$ServiceUnavailableError;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCause ()Ljava/lang/Throwable;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun isRetryable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceError$TimeoutError : com/github/ahatem/qtranslate/api/plugin/ServiceError {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Throwable;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Throwable;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$TimeoutError;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$TimeoutError;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$TimeoutError;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCause ()Ljava/lang/Throwable;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun isRetryable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceError$UnknownError : com/github/ahatem/qtranslate/api/plugin/ServiceError {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Throwable;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Throwable;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$UnknownError;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$UnknownError;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$UnknownError;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCause ()Ljava/lang/Throwable;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun isRetryable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceError$UnsupportedLanguageError : com/github/ahatem/qtranslate/api/plugin/ServiceError {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-i4UJbm8 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/Throwable;
+	public final fun copy-TePVFMw (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$UnsupportedLanguageError;
+	public static synthetic fun copy-TePVFMw$default (Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$UnsupportedLanguageError;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$UnsupportedLanguageError;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCause ()Ljava/lang/Throwable;
+	public final fun getLanguage-i4UJbm8 ()Ljava/lang/String;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun isRetryable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceError$ValidationError : com/github/ahatem/qtranslate/api/plugin/ServiceError {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Throwable;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Throwable;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$ValidationError;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$ValidationError;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceError$ValidationError;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCause ()Ljava/lang/Throwable;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun isRetryable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceMetadata {
+	public fun <init> ()V
+	public fun <init> (ZLjava/lang/Boolean;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Lcom/github/ahatem/qtranslate/api/plugin/RateLimit;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;)V
+	public synthetic fun <init> (ZLjava/lang/Boolean;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Lcom/github/ahatem/qtranslate/api/plugin/RateLimit;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Ljava/lang/Boolean;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;
+	public final fun component5 ()Lcom/github/ahatem/qtranslate/api/plugin/RateLimit;
+	public final fun component6 ()Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;
+	public final fun copy (ZLjava/lang/Boolean;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Lcom/github/ahatem/qtranslate/api/plugin/RateLimit;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;ZLjava/lang/Boolean;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Lcom/github/ahatem/qtranslate/api/plugin/RateLimit;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAttribution ()Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;
+	public final fun getHomepage ()Ljava/lang/String;
+	public final fun getNotes ()Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;
+	public final fun getRateLimit ()Lcom/github/ahatem/qtranslate/api/plugin/RateLimit;
+	public final fun getRequiresConfiguration ()Z
+	public fun hashCode ()I
+	public final fun isFree ()Ljava/lang/Boolean;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceOption {
+	public fun <init> (Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Ljava/util/List;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;)V
+	public synthetic fun <init> (Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Ljava/util/List;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;
+	public final fun component3 ()Ljava/util/List;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;
+	public final fun copy (Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Ljava/util/List;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceOption;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/ServiceOption;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;Ljava/util/List;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceOption;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDefaultValue ()Ljava/lang/String;
+	public final fun getKey ()Ljava/lang/String;
+	public final fun getLabel ()Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;
+	public final fun getRole ()Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;
+	public final fun getValues ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceOptionKt {
+	public static final fun optionOrDefault (Ljava/util/Map;Lcom/github/ahatem/qtranslate/api/plugin/ServiceOption;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceOptionValue {
+	public fun <init> (Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;
+	public final fun copy (Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceOptionValue;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/ServiceOptionValue;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceOptionValue;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()Ljava/lang/String;
+	public final fun getLabel ()Lcom/github/ahatem/qtranslate/api/plugin/DisplayText;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceRole : java/lang/Enum {
+	public static final field Companion Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole$Companion;
+	public static final field DICTIONARY Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;
+	public static final field IMAGE_SEARCH Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;
+	public static final field OCR Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;
+	public static final field REWRITER Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;
+	public static final field SPELL_CHECKER Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;
+	public static final field SUMMARIZER Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;
+	public static final field TRANSLATOR Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;
+	public static final field TTS Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;
+	public final fun getContract ()Lkotlin/reflect/KClass;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun isHeldBy (Lcom/github/ahatem/qtranslate/api/plugin/Service;)Z
+	public static fun valueOf (Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;
+	public static fun values ()[Lcom/github/ahatem/qtranslate/api/plugin/ServiceRole;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/ServiceRole$Companion {
+	public final fun of (Lcom/github/ahatem/qtranslate/api/plugin/Service;)Ljava/util/Set;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/plugin/SettingsStore {
+	public abstract fun getBoolean (Ljava/lang/String;ZLjava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun getBoolean$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;ZLjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun getDouble (Ljava/lang/String;DLjava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun getDouble$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;DLjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun getInt (Ljava/lang/String;ILjava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun getInt$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;ILjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun getLong (Ljava/lang/String;JLjava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun getLong$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;JLjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun getString (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun getString$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun put (Ljava/lang/String;DLjava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun put (Ljava/lang/String;ILjava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun put (Ljava/lang/String;JLjava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun put (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun put (Ljava/lang/String;ZLjava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun put$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;DLjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun put$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;ILjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun put$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;JLjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun put$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun put$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;ZLjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun remove (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun remove$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/SettingsStore$DefaultImpls {
+	public static synthetic fun getBoolean$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;ZLjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun getDouble$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;DLjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun getInt$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;ILjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun getLong$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;JLjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun getString$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun put$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;DLjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun put$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;ILjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun put$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;JLjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun put$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun put$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;ZLjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun remove$default (Lcom/github/ahatem/qtranslate/api/plugin/SettingsStore;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/plugin/SingleAttemptHttpClient : com/github/ahatem/qtranslate/api/plugin/HttpClient {
+	public abstract fun getOnce-MJidatI (Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun getOnce-MJidatI$default (Lcom/github/ahatem/qtranslate/api/plugin/SingleAttemptHttpClient;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/SingleAttemptHttpClient$DefaultImpls {
+	public static synthetic fun getOnce-MJidatI$default (Lcom/github/ahatem/qtranslate/api/plugin/SingleAttemptHttpClient;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static fun postBytes-iWd_AH8 (Lcom/github/ahatem/qtranslate/api/plugin/SingleAttemptHttpClient;Ljava/lang/String;Ljava/util/Map;[BLjava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/StandardOptions {
+	public static final field INSTANCE Lcom/github/ahatem/qtranslate/api/plugin/StandardOptions;
+	public static final field KEY_REWRITE_STYLE Ljava/lang/String;
+	public static final field KEY_SUMMARY_LENGTH Ljava/lang/String;
+	public final fun getREWRITE_STYLE ()Lcom/github/ahatem/qtranslate/api/plugin/ServiceOption;
+	public final fun getSUMMARY_LENGTH ()Lcom/github/ahatem/qtranslate/api/plugin/ServiceOption;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/plugin/SupportedLanguages {
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/SupportedLanguages$All : com/github/ahatem/qtranslate/api/plugin/SupportedLanguages {
+	public static final field INSTANCE Lcom/github/ahatem/qtranslate/api/plugin/SupportedLanguages$All;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/SupportedLanguages$Dynamic : com/github/ahatem/qtranslate/api/plugin/SupportedLanguages {
+	public static final field INSTANCE Lcom/github/ahatem/qtranslate/api/plugin/SupportedLanguages$Dynamic;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/plugin/SupportedLanguages$Specific : com/github/ahatem/qtranslate/api/plugin/SupportedLanguages {
+	public fun <init> (Ljava/util/Set;)V
+	public final fun component1 ()Ljava/util/Set;
+	public final fun copy (Ljava/util/Set;)Lcom/github/ahatem/qtranslate/api/plugin/SupportedLanguages$Specific;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/plugin/SupportedLanguages$Specific;Ljava/util/Set;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/plugin/SupportedLanguages$Specific;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLanguages ()Ljava/util/Set;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/rewriter/RewriteRequest {
+	public fun <init> (Ljava/lang/String;Ljava/util/Map;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/util/Map;
+	public final fun copy (Ljava/lang/String;Ljava/util/Map;)Lcom/github/ahatem/qtranslate/api/rewriter/RewriteRequest;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/rewriter/RewriteRequest;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/rewriter/RewriteRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getOptions ()Ljava/util/Map;
+	public final fun getStyle ()Ljava/lang/String;
+	public final fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/rewriter/RewriteResponse {
+	public fun <init> (Ljava/lang/String;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Ljava/util/List;)Lcom/github/ahatem/qtranslate/api/rewriter/RewriteResponse;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/rewriter/RewriteResponse;Ljava/lang/String;Ljava/util/List;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/rewriter/RewriteResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAlternatives ()Ljava/util/List;
+	public final fun getRewrittenText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/rewriter/Rewriter : com/github/ahatem/qtranslate/api/plugin/Service {
+	public abstract fun rewrite-T3BZVFY (Lcom/github/ahatem/qtranslate/api/rewriter/RewriteRequest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/rewriter/Rewriter$DefaultImpls {
+	public static fun fetchSupportedLanguages-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/rewriter/Rewriter;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun getIconPath (Lcom/github/ahatem/qtranslate/api/rewriter/Rewriter;)Ljava/lang/String;
+	public static fun getMetadata (Lcom/github/ahatem/qtranslate/api/rewriter/Rewriter;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public static fun getOptions (Lcom/github/ahatem/qtranslate/api/rewriter/Rewriter;)Ljava/util/List;
+	public static fun validate-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/rewriter/Rewriter;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface annotation class com/github/ahatem/qtranslate/api/settings/PluginAction : java/lang/annotation/Annotation {
+	public abstract fun group ()Ljava/lang/String;
+	public abstract fun label ()Ljava/lang/String;
+	public abstract fun order ()I
+	public abstract fun tooltip ()Ljava/lang/String;
+}
+
+public abstract interface annotation class com/github/ahatem/qtranslate/api/settings/Setting : java/lang/annotation/Annotation {
+	public abstract fun actionLabel ()Ljava/lang/String;
+	public abstract fun actionMethod ()Ljava/lang/String;
+	public abstract fun allowMultiple ()Z
+	public abstract fun defaultValue ()Ljava/lang/String;
+	public abstract fun description ()Ljava/lang/String;
+	public abstract fun fileExtensions ()Ljava/lang/String;
+	public abstract fun group ()Ljava/lang/String;
+	public abstract fun isRequired ()Z
+	public abstract fun label ()Ljava/lang/String;
+	public abstract fun maxLength ()I
+	public abstract fun maxValue ()D
+	public abstract fun minValue ()D
+	public abstract fun options ()Ljava/lang/String;
+	public abstract fun order ()I
+	public abstract fun rows ()I
+	public abstract fun showIf ()Ljava/lang/String;
+	public abstract fun step ()D
+	public abstract fun type ()Lcom/github/ahatem/qtranslate/api/settings/SettingType;
+	public abstract fun validation ()Ljava/lang/String;
+}
+
+public abstract interface annotation class com/github/ahatem/qtranslate/api/settings/SettingGroup : java/lang/annotation/Annotation {
+	public abstract fun collapsible ()Z
+	public abstract fun defaultCollapsed ()Z
+	public abstract fun description ()Ljava/lang/String;
+	public abstract fun key ()Ljava/lang/String;
+	public abstract fun order ()I
+	public abstract fun title ()Ljava/lang/String;
+}
+
+public abstract interface annotation class com/github/ahatem/qtranslate/api/settings/SettingGroups : java/lang/annotation/Annotation {
+	public abstract fun groups ()[Lcom/github/ahatem/qtranslate/api/settings/SettingGroup;
+}
+
+public final class com/github/ahatem/qtranslate/api/settings/SettingType : java/lang/Enum {
+	public static final field BOOLEAN Lcom/github/ahatem/qtranslate/api/settings/SettingType;
+	public static final field CUSTOM_PANEL Lcom/github/ahatem/qtranslate/api/settings/SettingType;
+	public static final field DIRECTORY_PATH Lcom/github/ahatem/qtranslate/api/settings/SettingType;
+	public static final field DROPDOWN Lcom/github/ahatem/qtranslate/api/settings/SettingType;
+	public static final field FILE_PATH Lcom/github/ahatem/qtranslate/api/settings/SettingType;
+	public static final field NUMBER Lcom/github/ahatem/qtranslate/api/settings/SettingType;
+	public static final field PASSWORD Lcom/github/ahatem/qtranslate/api/settings/SettingType;
+	public static final field SLIDER Lcom/github/ahatem/qtranslate/api/settings/SettingType;
+	public static final field TEXT Lcom/github/ahatem/qtranslate/api/settings/SettingType;
+	public static final field TEXTAREA Lcom/github/ahatem/qtranslate/api/settings/SettingType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/settings/SettingType;
+	public static fun values ()[Lcom/github/ahatem/qtranslate/api/settings/SettingType;
+}
+
+public final class com/github/ahatem/qtranslate/api/spellchecker/Correction {
+	public fun <init> (Ljava/lang/String;IILjava/util/List;Lcom/github/ahatem/qtranslate/api/spellchecker/CorrectionType;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;IILjava/util/List;Lcom/github/ahatem/qtranslate/api/spellchecker/CorrectionType;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()Ljava/util/List;
+	public final fun component5 ()Lcom/github/ahatem/qtranslate/api/spellchecker/CorrectionType;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;IILjava/util/List;Lcom/github/ahatem/qtranslate/api/spellchecker/CorrectionType;Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/spellchecker/Correction;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/spellchecker/Correction;Ljava/lang/String;IILjava/util/List;Lcom/github/ahatem/qtranslate/api/spellchecker/CorrectionType;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/spellchecker/Correction;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEndIndex ()I
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun getOriginal ()Ljava/lang/String;
+	public final fun getStartIndex ()I
+	public final fun getSuggestions ()Ljava/util/List;
+	public final fun getType ()Lcom/github/ahatem/qtranslate/api/spellchecker/CorrectionType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/spellchecker/CorrectionType : java/lang/Enum {
+	public static final field GRAMMAR Lcom/github/ahatem/qtranslate/api/spellchecker/CorrectionType;
+	public static final field PUNCTUATION Lcom/github/ahatem/qtranslate/api/spellchecker/CorrectionType;
+	public static final field SPELLING Lcom/github/ahatem/qtranslate/api/spellchecker/CorrectionType;
+	public static final field STYLE Lcom/github/ahatem/qtranslate/api/spellchecker/CorrectionType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/spellchecker/CorrectionType;
+	public static fun values ()[Lcom/github/ahatem/qtranslate/api/spellchecker/CorrectionType;
+}
+
+public final class com/github/ahatem/qtranslate/api/spellchecker/SpellCheckRequest {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2-i4UJbm8 ()Ljava/lang/String;
+	public final fun copy-s7fdtNs (Ljava/lang/String;Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/spellchecker/SpellCheckRequest;
+	public static synthetic fun copy-s7fdtNs$default (Lcom/github/ahatem/qtranslate/api/spellchecker/SpellCheckRequest;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/spellchecker/SpellCheckRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLanguage-i4UJbm8 ()Ljava/lang/String;
+	public final fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/spellchecker/SpellCheckResponse {
+	public fun <init> (Ljava/lang/String;Ljava/util/List;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Ljava/util/List;)Lcom/github/ahatem/qtranslate/api/spellchecker/SpellCheckResponse;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/spellchecker/SpellCheckResponse;Ljava/lang/String;Ljava/util/List;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/spellchecker/SpellCheckResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCorrectedText ()Ljava/lang/String;
+	public final fun getCorrections ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/spellchecker/SpellChecker : com/github/ahatem/qtranslate/api/plugin/Service {
+	public abstract fun check-T3BZVFY (Lcom/github/ahatem/qtranslate/api/spellchecker/SpellCheckRequest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/spellchecker/SpellChecker$DefaultImpls {
+	public static fun fetchSupportedLanguages-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/spellchecker/SpellChecker;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun getIconPath (Lcom/github/ahatem/qtranslate/api/spellchecker/SpellChecker;)Ljava/lang/String;
+	public static fun getMetadata (Lcom/github/ahatem/qtranslate/api/spellchecker/SpellChecker;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public static fun getOptions (Lcom/github/ahatem/qtranslate/api/spellchecker/SpellChecker;)Ljava/util/List;
+	public static fun validate-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/spellchecker/SpellChecker;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/summarizer/SummarizeRequest {
+	public fun <init> (Ljava/lang/String;Ljava/util/Map;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/util/Map;
+	public final fun copy (Ljava/lang/String;Ljava/util/Map;)Lcom/github/ahatem/qtranslate/api/summarizer/SummarizeRequest;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/summarizer/SummarizeRequest;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/summarizer/SummarizeRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLength ()Ljava/lang/String;
+	public final fun getOptions ()Ljava/util/Map;
+	public final fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/summarizer/SummarizeResponse {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/summarizer/SummarizeResponse;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/summarizer/SummarizeResponse;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/summarizer/SummarizeResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSummary ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/summarizer/Summarizer : com/github/ahatem/qtranslate/api/plugin/Service {
+	public abstract fun summarize-T3BZVFY (Lcom/github/ahatem/qtranslate/api/summarizer/SummarizeRequest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/summarizer/Summarizer$DefaultImpls {
+	public static fun fetchSupportedLanguages-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/summarizer/Summarizer;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun getIconPath (Lcom/github/ahatem/qtranslate/api/summarizer/Summarizer;)Ljava/lang/String;
+	public static fun getMetadata (Lcom/github/ahatem/qtranslate/api/summarizer/Summarizer;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public static fun getOptions (Lcom/github/ahatem/qtranslate/api/summarizer/Summarizer;)Ljava/util/List;
+	public static fun validate-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/summarizer/Summarizer;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/translator/BatchTranslationRequest {
+	public synthetic fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun component2-i4UJbm8 ()Ljava/lang/String;
+	public final fun component3-i4UJbm8 ()Ljava/lang/String;
+	public final fun copy-Ig8MUdQ (Ljava/util/List;Ljava/lang/String;Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/translator/BatchTranslationRequest;
+	public static synthetic fun copy-Ig8MUdQ$default (Lcom/github/ahatem/qtranslate/api/translator/BatchTranslationRequest;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/translator/BatchTranslationRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSourceLanguage-i4UJbm8 ()Ljava/lang/String;
+	public final fun getTargetLanguage-i4UJbm8 ()Ljava/lang/String;
+	public final fun getTexts ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/translator/BatchTranslationResponse {
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lcom/github/ahatem/qtranslate/api/translator/BatchTranslationResponse;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/translator/BatchTranslationResponse;Ljava/util/List;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/translator/BatchTranslationResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getTranslations ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/translator/BatchTranslator : com/github/ahatem/qtranslate/api/translator/Translator {
+	public fun getMaxBatchCharacters ()I
+	public fun getMaxBatchSize ()I
+	public abstract fun translateBatch-T3BZVFY (Lcom/github/ahatem/qtranslate/api/translator/BatchTranslationRequest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/translator/BatchTranslator$DefaultImpls {
+	public static fun fetchSupportedLanguages-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/translator/BatchTranslator;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun getIconPath (Lcom/github/ahatem/qtranslate/api/translator/BatchTranslator;)Ljava/lang/String;
+	public static fun getMaxBatchCharacters (Lcom/github/ahatem/qtranslate/api/translator/BatchTranslator;)I
+	public static fun getMaxBatchSize (Lcom/github/ahatem/qtranslate/api/translator/BatchTranslator;)I
+	public static fun getMetadata (Lcom/github/ahatem/qtranslate/api/translator/BatchTranslator;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public static fun getOptions (Lcom/github/ahatem/qtranslate/api/translator/BatchTranslator;)Ljava/util/List;
+	public static fun validate-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/translator/BatchTranslator;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/translator/TranslationRequest {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2-i4UJbm8 ()Ljava/lang/String;
+	public final fun component3-i4UJbm8 ()Ljava/lang/String;
+	public final fun copy-Ig8MUdQ (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/translator/TranslationRequest;
+	public static synthetic fun copy-Ig8MUdQ$default (Lcom/github/ahatem/qtranslate/api/translator/TranslationRequest;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/translator/TranslationRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSourceLanguage-i4UJbm8 ()Ljava/lang/String;
+	public final fun getTargetLanguage-i4UJbm8 ()Ljava/lang/String;
+	public final fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/translator/TranslationResponse {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2-hgNBXZM ()Ljava/lang/String;
+	public final fun component3 ()Ljava/util/List;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun copy-D1OMb5A (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/translator/TranslationResponse;
+	public static synthetic fun copy-D1OMb5A$default (Lcom/github/ahatem/qtranslate/api/translator/TranslationResponse;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/translator/TranslationResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAlternatives ()Ljava/util/List;
+	public final fun getDetectedLanguage-hgNBXZM ()Ljava/lang/String;
+	public final fun getTranslatedText ()Ljava/lang/String;
+	public final fun getTransliteration ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/translator/Translator : com/github/ahatem/qtranslate/api/plugin/Service {
+	public abstract fun translate-T3BZVFY (Lcom/github/ahatem/qtranslate/api/translator/TranslationRequest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/translator/Translator$DefaultImpls {
+	public static fun fetchSupportedLanguages-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/translator/Translator;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun getIconPath (Lcom/github/ahatem/qtranslate/api/translator/Translator;)Ljava/lang/String;
+	public static fun getMetadata (Lcom/github/ahatem/qtranslate/api/translator/Translator;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public static fun getOptions (Lcom/github/ahatem/qtranslate/api/translator/Translator;)Ljava/util/List;
+	public static fun validate-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/translator/Translator;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/tts/AudioFormat : java/lang/Enum {
+	public static final field MP3 Lcom/github/ahatem/qtranslate/api/tts/AudioFormat;
+	public static final field OGG Lcom/github/ahatem/qtranslate/api/tts/AudioFormat;
+	public static final field WAV Lcom/github/ahatem/qtranslate/api/tts/AudioFormat;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/tts/AudioFormat;
+	public static fun values ()[Lcom/github/ahatem/qtranslate/api/tts/AudioFormat;
+}
+
+public final class com/github/ahatem/qtranslate/api/tts/Gender : java/lang/Enum {
+	public static final field FEMALE Lcom/github/ahatem/qtranslate/api/tts/Gender;
+	public static final field MALE Lcom/github/ahatem/qtranslate/api/tts/Gender;
+	public static final field NEUTRAL Lcom/github/ahatem/qtranslate/api/tts/Gender;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/tts/Gender;
+	public static fun values ()[Lcom/github/ahatem/qtranslate/api/tts/Gender;
+}
+
+public abstract class com/github/ahatem/qtranslate/api/tts/TTSAudio {
+	public abstract fun getFormat ()Lcom/github/ahatem/qtranslate/api/tts/AudioFormat;
+}
+
+public final class com/github/ahatem/qtranslate/api/tts/TTSAudio$Bytes : com/github/ahatem/qtranslate/api/tts/TTSAudio {
+	public fun <init> ([BLcom/github/ahatem/qtranslate/api/tts/AudioFormat;)V
+	public final fun component1 ()[B
+	public final fun component2 ()Lcom/github/ahatem/qtranslate/api/tts/AudioFormat;
+	public final fun copy ([BLcom/github/ahatem/qtranslate/api/tts/AudioFormat;)Lcom/github/ahatem/qtranslate/api/tts/TTSAudio$Bytes;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/tts/TTSAudio$Bytes;[BLcom/github/ahatem/qtranslate/api/tts/AudioFormat;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/tts/TTSAudio$Bytes;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getData ()[B
+	public fun getFormat ()Lcom/github/ahatem/qtranslate/api/tts/AudioFormat;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/tts/TTSAudio$StreamUrl : com/github/ahatem/qtranslate/api/tts/TTSAudio {
+	public fun <init> (Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/tts/AudioFormat;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lcom/github/ahatem/qtranslate/api/tts/AudioFormat;
+	public final fun copy (Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/tts/AudioFormat;)Lcom/github/ahatem/qtranslate/api/tts/TTSAudio$StreamUrl;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/tts/TTSAudio$StreamUrl;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/tts/AudioFormat;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/tts/TTSAudio$StreamUrl;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getFormat ()Lcom/github/ahatem/qtranslate/api/tts/AudioFormat;
+	public final fun getUrl ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/tts/TTSRequest {
+	public abstract fun getSpeed ()F
+	public abstract fun getText ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/tts/TTSRequest$ByLanguage : com/github/ahatem/qtranslate/api/tts/TTSRequest {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;FILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;FLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2-i4UJbm8 ()Ljava/lang/String;
+	public final fun component3 ()F
+	public final fun copy-oxybCIg (Ljava/lang/String;Ljava/lang/String;F)Lcom/github/ahatem/qtranslate/api/tts/TTSRequest$ByLanguage;
+	public static synthetic fun copy-oxybCIg$default (Lcom/github/ahatem/qtranslate/api/tts/TTSRequest$ByLanguage;Ljava/lang/String;Ljava/lang/String;FILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/tts/TTSRequest$ByLanguage;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLanguage-i4UJbm8 ()Ljava/lang/String;
+	public fun getSpeed ()F
+	public fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/tts/TTSRequest$ByVoice : com/github/ahatem/qtranslate/api/tts/TTSRequest {
+	public fun <init> (Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/tts/Voice;F)V
+	public synthetic fun <init> (Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/tts/Voice;FILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lcom/github/ahatem/qtranslate/api/tts/Voice;
+	public final fun component3 ()F
+	public final fun copy (Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/tts/Voice;F)Lcom/github/ahatem/qtranslate/api/tts/TTSRequest$ByVoice;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/tts/TTSRequest$ByVoice;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/tts/Voice;FILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/tts/TTSRequest$ByVoice;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getSpeed ()F
+	public fun getText ()Ljava/lang/String;
+	public final fun getVoice ()Lcom/github/ahatem/qtranslate/api/tts/Voice;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/tts/TTSResponse {
+	public fun <init> (Lcom/github/ahatem/qtranslate/api/tts/TTSAudio;)V
+	public final fun component1 ()Lcom/github/ahatem/qtranslate/api/tts/TTSAudio;
+	public final fun copy (Lcom/github/ahatem/qtranslate/api/tts/TTSAudio;)Lcom/github/ahatem/qtranslate/api/tts/TTSResponse;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/tts/TTSResponse;Lcom/github/ahatem/qtranslate/api/tts/TTSAudio;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/tts/TTSResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAudio ()Lcom/github/ahatem/qtranslate/api/tts/TTSAudio;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/tts/TextToSpeech : com/github/ahatem/qtranslate/api/plugin/Service {
+	public abstract fun synthesize-T3BZVFY (Lcom/github/ahatem/qtranslate/api/tts/TTSRequest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/tts/TextToSpeech$DefaultImpls {
+	public static fun fetchSupportedLanguages-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/tts/TextToSpeech;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun getIconPath (Lcom/github/ahatem/qtranslate/api/tts/TextToSpeech;)Ljava/lang/String;
+	public static fun getMetadata (Lcom/github/ahatem/qtranslate/api/tts/TextToSpeech;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public static fun getOptions (Lcom/github/ahatem/qtranslate/api/tts/TextToSpeech;)Ljava/util/List;
+	public static fun validate-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/tts/TextToSpeech;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/tts/Voice {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/tts/Gender;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/tts/Gender;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3-i4UJbm8 ()Ljava/lang/String;
+	public final fun component4 ()Lcom/github/ahatem/qtranslate/api/tts/Gender;
+	public final fun copy-1TFEQuU (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/tts/Gender;)Lcom/github/ahatem/qtranslate/api/tts/Voice;
+	public static synthetic fun copy-1TFEQuU$default (Lcom/github/ahatem/qtranslate/api/tts/Voice;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/github/ahatem/qtranslate/api/tts/Gender;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/tts/Voice;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getGender ()Lcom/github/ahatem/qtranslate/api/tts/Gender;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getLanguage-i4UJbm8 ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/tts/VoiceSupport {
+	public abstract fun getVoices ()Ljava/util/List;
+}
+

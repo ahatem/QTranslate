@@ -7,6 +7,19 @@ plugins {
     base
 }
 
+// Dependency locking: committed `<module>/gradle.lockfile` files make any resolved-version
+// drift fail a normal build. Regenerate per changed module with
+// `./gradlew :<module>:dependencies --write-locks` after an approved version-catalog change.
+// Exclusions (documented rather than locked): plugin markers resolved from the settings/TOML
+// declarations (shadow, serialization, foojay resolver) are pinned there already and are outside
+// project configurations, so dependency locking cannot cover them; the build logic classpath is
+// locked separately inside buildSrc.
+subprojects {
+    dependencyLocking {
+        lockAllConfigurations()
+    }
+}
+
 data class BundledPlugin(
     val projectPath: String,
     val thinArchiveFile: Provider<RegularFile>,
@@ -337,4 +350,62 @@ tasks.register<VerifyReleaseArtifactsTask>("verifyReleaseArtifacts") {
     }))
     requireWindows.set(providers.gradleProperty("requireWindowsArtifact").map(String::toBoolean).orElse(false))
     requireMacHelpers.set(providers.gradleProperty("requireMacHelpers").map(String::toBoolean).orElse(false))
+}
+
+// Module ownership guard (AGENTS.md "Ownership"). Every declared project dependency — including
+// test and test-fixtures configurations — is checked against the allowed edges of its owning
+// module. The scan reads the project model without resolving anything, so it runs before any
+// compilation and cannot be bypassed by a resolution failure elsewhere.
+subprojects.forEach { evaluationDependsOn(it.path) }
+
+val allowedProjectEdges: Map<String, Set<String>> = mapOf(
+    ":api" to emptySet(),
+    ":core" to setOf(":api"),
+    ":ui-swing" to setOf(":api", ":core"),
+    ":app" to setOf(":api", ":core", ":ui-swing", ":plugins:common"),
+    ":plugins:common" to setOf(":api"),
+)
+
+fun projectAllowedEdges(owner: Project): Set<String> =
+    allowedProjectEdges[owner.path]
+        ?: if (owner.path.startsWith(":plugins:")) setOf(":api", ":plugins:common") else emptySet()
+
+val verifiedProjectEdges = sortedSetOf<String>()
+val forbiddenProjectEdges = sortedSetOf<String>()
+subprojects.forEach { owner ->
+    val allowed = projectAllowedEdges(owner)
+    // The java-test-fixtures plugin injects project self-edges into the owning project (the fixtures
+    // compilation seeing the main API, and the project's own tests consuming its fixtures). Those are
+    // tooling artifacts rather than developer-declared ownership decisions, so they are not violations.
+    val fixturesInjectedSelfEdges = owner.plugins.hasPlugin("java-test-fixtures")
+    fun checkEdge(dependencyPath: String, configurationName: String) {
+        val edge = "${owner.path} -> $dependencyPath ($configurationName)"
+        verifiedProjectEdges.add(edge)
+        val fixturesSelfEdge = fixturesInjectedSelfEdges && dependencyPath == owner.path
+        if (!fixturesSelfEdge && dependencyPath !in allowed) {
+            forbiddenProjectEdges.add(edge)
+        }
+    }
+    owner.configurations.forEach { configuration ->
+        configuration.dependencies.filterIsInstance<org.gradle.api.artifacts.ProjectDependency>()
+            .forEach { checkEdge(it.path, configuration.name) }
+        // An edge can also be declared as a constraint; its module still names a project.
+        configuration.dependencyConstraints.forEach { constraint ->
+            val module = constraint.module
+            subprojects.firstOrNull { it.name == module.name && it.group == module.group }
+                ?.let { checkEdge(it.path, configuration.name) }
+        }
+    }
+}
+
+val checkModuleBoundaries = tasks.register<CheckModuleBoundariesTask>("checkModuleBoundaries") {
+    group = "verification"
+    description = "Checks declared project dependencies against the AGENTS.md module ownership rules."
+    forbiddenEdges.set(forbiddenProjectEdges)
+    verifiedEdges.set(verifiedProjectEdges)
+    reportFile.set(layout.buildDirectory.file("reports/module-boundaries/EDGES.txt"))
+}
+
+tasks.named("check") {
+    dependsOn(checkModuleBoundaries)
 }
