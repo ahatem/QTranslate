@@ -71,7 +71,6 @@ import javax.imageio.ImageIO
 import javax.swing.*
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.connectedScreenBounds
-import com.github.ahatem.qtranslate.ui.swing.shared.util.isPositionReachable
 import java.util.Locale
 
 class MainAppFrame(
@@ -111,6 +110,15 @@ class MainAppFrame(
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("MainAppFrame"))
 
     private val trayBinding = TrayIconBinding(logger)
+
+    /**
+     * Owns the window's saved bounds: what is written to settings on close/iconify, and
+     * where the window may be placed on restore. See [WindowPositionBinding].
+     */
+    private val windowPosition = WindowPositionBinding(
+        dispatchSettings = { settingsStore.dispatch(it) },
+        logger = logger,
+    )
 
     private val aboutDialog by lazy { InfoDialog(this) }
     private val updateDialog by lazy { UpdateDialog(this) }
@@ -431,6 +439,29 @@ class MainAppFrame(
     )
 
     /**
+     * Routes file drops to what the app does with them. The wiring that installs the same
+     * routing on every surface stays with [setupDropTarget]; the decision lives here.
+     */
+    private val contentDropRouter = ContentDropRouter(
+        dispatch = { mainStore.dispatch(it) },
+        openDocument = { file -> documentTranslationDialog.openWith(file) },
+    )
+
+    /**
+     * The ordered local teardown every exit route converges on through `windowClosed`.
+     * See [FrameExitSequence] for why the steps run in this order and why the bounds are
+     * captured only after them.
+     */
+    private val frameExit = FrameExitSequence(
+        shutdownGlobalInput = { globalKeyListener.shutdown() },
+        disposeSelectionButton = { selectionTranslateButton.dispose() },
+        disposeTray = { trayBinding.dispose() },
+        cancelFrameScope = { appScope.cancel() },
+        captureBounds = { Size(width, height) to Position(x, y) },
+        onApplicationExit = onApplicationExit,
+    )
+
+    /**
      * True while a child owns Escape for its own dismissal, so the main-window
      * hide binding stays out of the way. Covers lightweight popups/menus in this
      * window (same focused window) and visible owned dialogs.
@@ -444,35 +475,36 @@ class MainAppFrame(
     /**
      * Closes any floating popup the user has just clicked away from.
      *
-     * Driven by the native hook rather than by an AWT listener. The click that dismisses a popup
-     * almost always lands in another application — the document being read — and AWT never sees
-     * those: it only delivers events destined for this program's own windows. An AWT-based
-     * version of this appeared to work when clicking on QTranslate itself and did nothing at all
-     * in the case that matters.
-     *
-     * Pinned popups are left alone, which is the point of pinning.
+     * Driven by the native hook rather than by an AWT listener — see
+     * [PopupDismissalPolicy] for why, and for what counts as "outside".
      */
     private fun dismissPopupsPressedOutside(screenPoint: java.awt.Point) {
-        if (!settingsStore.state.value.workingConfiguration.closePopupsOnClickOutside) return
         val state = mainStore.state.value
-
-        fun pressedOutside(dialog: java.awt.Window) = dialog.isVisible && !dialog.bounds.contains(screenPoint)
-
-        if (state.isQuickTranslateDialogVisible && !state.isQuickTranslateDialogPinned &&
-            pressedOutside(quickTranslateDialog)
-        ) {
-            mainStore.dispatch(MainIntent.HideQuickTranslate)
-        }
-        if (state.isQuickDictionaryVisible && !state.isQuickDictionaryPinned &&
-            pressedOutside(quickDictionaryDialog)
-        ) {
-            mainStore.dispatch(MainIntent.HideQuickDictionary)
-        }
-        if (state.isImageSearchVisible && !state.isImageSearchPinned &&
-            pressedOutside(imageSearchDialog)
-        ) {
-            mainStore.dispatch(MainIntent.HideImageSearch)
-        }
+        val dismissals = PopupDismissalPolicy.dismissals(
+            closePopupsOnClickOutside = settingsStore.state.value.workingConfiguration.closePopupsOnClickOutside,
+            screenPoint = screenPoint,
+            popups = listOf(
+                PopupDismissalPolicy.Popup(
+                    visibleInState = state.isQuickTranslateDialogVisible,
+                    pinned = state.isQuickTranslateDialogPinned,
+                    window = { PopupDismissalPolicy.WindowSnapshot(quickTranslateDialog.isVisible, quickTranslateDialog.bounds) },
+                    hideIntent = MainIntent.HideQuickTranslate,
+                ),
+                PopupDismissalPolicy.Popup(
+                    visibleInState = state.isQuickDictionaryVisible,
+                    pinned = state.isQuickDictionaryPinned,
+                    window = { PopupDismissalPolicy.WindowSnapshot(quickDictionaryDialog.isVisible, quickDictionaryDialog.bounds) },
+                    hideIntent = MainIntent.HideQuickDictionary,
+                ),
+                PopupDismissalPolicy.Popup(
+                    visibleInState = state.isImageSearchVisible,
+                    pinned = state.isImageSearchPinned,
+                    window = { PopupDismissalPolicy.WindowSnapshot(imageSearchDialog.isVisible, imageSearchDialog.bounds) },
+                    hideIntent = MainIntent.HideImageSearch,
+                ),
+            ),
+        )
+        dismissals.forEach { mainStore.dispatch(it) }
     }
 
     private val statusBarController: StatusBarController = StatusBarController(
@@ -1315,11 +1347,7 @@ class MainAppFrame(
              * shutdown finishes off the EDT the frame may already be disposed.
              */
             override fun windowClosed(e: WindowEvent?) {
-                globalKeyListener.shutdown()
-                selectionTranslateButton.dispose()
-                trayBinding.dispose()
-                appScope.cancel()
-                onApplicationExit(Size(width, height), Position(x, y))
+                frameExit.exit()
             }
         })
         // Global hotkeys must work even when the frame starts hidden in the tray (#226):
@@ -1332,14 +1360,7 @@ class MainAppFrame(
     private fun saveWindowBounds() {
         val s = size
         val p = location
-        settingsStore.dispatch(
-            SettingsIntent.ToggleSetting {
-                it.copy(
-                    mainWindowSize = Size(s.width, s.height),
-                    mainWindowPosition = Position(p.x, p.y)
-                )
-            }
-        )
+        windowPosition.persistBounds(s.width, s.height, p.x, p.y)
     }
 
     /**
@@ -1347,18 +1368,13 @@ class MainAppFrame(
      *
      * A position saved on a display that is no longer attached restores a window that is running
      * and focusable and entirely invisible, which is indistinguishable from the application having
-     * failed to start.
+     * failed to start. [WindowPositionBinding] makes the reachability decision; this only
+     * applies it.
      */
     private fun restorePosition(saved: Position?) {
-        if (saved == null) {
-            setLocationRelativeTo(null)
-            return
-        }
-        if (isPositionReachable(Rectangle(saved.x, saved.y, width, height), connectedScreenBounds())) {
-            setLocation(saved.x, saved.y)
-        } else {
-            logger.info("Saved window position (${saved.x}, ${saved.y}) is off every connected display; centring instead")
-            setLocationRelativeTo(null)
+        when (val placement = windowPosition.restorePlacement(saved, width, height, connectedScreenBounds())) {
+            is WindowRestorePlacement.At -> setLocation(placement.position.x, placement.position.y)
+            WindowRestorePlacement.Centered -> setLocationRelativeTo(null)
         }
     }
 
@@ -1372,10 +1388,20 @@ class MainAppFrame(
      *   the dialog never appears again.
      */
     private fun handleCloseButton() {
-        when (settingsStore.state.value.originalConfiguration.closeButtonBehavior) {
-            CloseButtonBehavior.MINIMIZE_TO_TRAY -> isVisible = false
-            CloseButtonBehavior.EXIT -> dispose()
-            CloseButtonBehavior.ASK -> showCloseDialog()
+        applyCloseAction(
+            CloseButtonPolicy.decide(settingsStore.state.value.originalConfiguration.closeButtonBehavior)
+        )
+    }
+
+    /**
+     * Applies one close decision. [CloseButtonAction.EXIT] disposes the frame, which fires
+     * `windowClosed` exactly once and converges on [frameExit].
+     */
+    private fun applyCloseAction(action: CloseButtonAction) {
+        when (action) {
+            CloseButtonAction.HIDE_TO_TRAY -> isVisible = false
+            CloseButtonAction.EXIT -> dispose()
+            CloseButtonAction.ASK -> showCloseDialog()
         }
     }
 
@@ -1459,19 +1485,12 @@ class MainAppFrame(
         dialog.setLocationRelativeTo(this)
         dialog.isVisible = true
 
-        when (result) {
-            CloseButtonBehavior.MINIMIZE_TO_TRAY -> {
-                if (rememberCheck.isSelected) saveClosePreference(CloseButtonBehavior.MINIMIZE_TO_TRAY)
-                isVisible = false
+        when (val outcome = CloseDialogPolicy.outcome(result, rememberCheck.isSelected)) {
+            CloseDialogOutcome.Dismiss -> Unit
+            is CloseDialogOutcome.Apply -> {
+                if (outcome.rememberChoice) saveClosePreference(outcome.behavior)
+                applyCloseAction(CloseButtonPolicy.decide(outcome.behavior))
             }
-
-            CloseButtonBehavior.EXIT -> {
-                if (rememberCheck.isSelected) saveClosePreference(CloseButtonBehavior.EXIT)
-                dispose()
-            }
-
-            CloseButtonBehavior.ASK -> {}
-            null -> {}
         }
     }
 
@@ -1559,15 +1578,7 @@ class MainAppFrame(
      * pointer and inserts there.
      */
     private fun setupDropTarget() {
-        val onContent: (DroppedContent) -> Unit = { content ->
-            when (content) {
-                is DroppedContent.Picture ->
-                    mainStore.dispatch(MainIntent.OcrAndTranslateImage(content.image.toImageData("png")))
-                is DroppedContent.Document ->
-                    SwingUtilities.invokeLater { documentTranslationDialog.openWith(content.file) }
-                DroppedContent.None -> Unit
-            }
-        }
+        val onContent: (DroppedContent) -> Unit = { content -> contentDropRouter.route(content) }
         val onDragOver = { dragOverlay.keepShowing() }
         val onDropped = { dragOverlay.hide() }
 
