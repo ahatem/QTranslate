@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.core.document.DocumentTranslationException
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationRequest
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 import com.github.ahatem.qtranslate.core.history.HistoryRepository
+import com.github.michaelbull.result.fold
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.domain.language.LanguageSelectionCompat
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
@@ -953,8 +954,11 @@ class MainStore(
     }
 
     private suspend fun handleClearHistory() {
-        historyRepository.clearHistory()
-        _state.update { it.copy(history = emptyList(), historyIndex = 0) }
+        historyRepository.clearHistory().fold(
+            success = { _state.update { it.copy(history = emptyList(), historyIndex = 0) } },
+            // The repository already records the failure; retain the visible history for retry.
+            failure = { }
+        )
     }
 
     private suspend fun handleReplaceWithTranslation(selectedText: String) {
@@ -1007,7 +1011,8 @@ class MainStore(
         translateTextUseCase.cancel()
         cancelDocumentTranslation()
         if (settingsState.value.clearHistoryOnExit) {
-            historyRepository.clearHistory()
+            // A failure is recorded by the repository; shutdown must still release resources.
+            historyRepository.clearHistory().fold(success = { }, failure = { })
         }
         handleTextToSpeechUseCase.shutdown()
     }

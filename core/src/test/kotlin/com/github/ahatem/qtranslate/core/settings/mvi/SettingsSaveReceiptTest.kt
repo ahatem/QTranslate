@@ -13,6 +13,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -105,4 +106,74 @@ class SettingsSaveReceiptTest {
             assertEquals(Configuration.DEFAULT.uiScale + 2, store.state.value.workingConfiguration.uiScale)
         } finally { scope.cancel() }
     }
+    @Test fun `shutdown drains queued accepted save before returning`() = runTest {
+        val data = GateStore()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val store = SettingsStore(SettingsRepository(File("."), Json, logger, data), logger, scope, Configuration.DEFAULT)
+            store.dispatch(SettingsIntent.TransformDraft { it.copy(uiScale = 125) })
+            val first = store.submitDraftSave()
+            data.entered.await()
+            store.dispatch(SettingsIntent.TransformDraft { it.copy(uiScale = 150) })
+            val second = store.submitDraftSave()
+            val drain = async(Dispatchers.Default) { store.drainAcceptedSaves() }
+            runCurrent()
+            assertFalse(drain.isCompleted)
+            data.release.complete(Unit)
+            assertEquals(Ok(Unit), first.await())
+            assertEquals(Ok(Unit), second.await())
+            assertTrue(drain.await())
+            assertEquals(150, store.state.value.originalConfiguration.uiScale)
+            assertFailsWith<IllegalStateException> { store.submitDraftSave() }
+        } finally { scope.cancel() }
+    }
+
+    @Test fun `accepted completion survives cancelled waiter and is drained`() = runTest {
+        val data = GateStore()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val store = SettingsStore(SettingsRepository(File("."), Json, logger, data), logger, scope, Configuration.DEFAULT)
+            store.dispatch(SettingsIntent.TransformDraft { it.copy(uiScale = 125) })
+            val completed = CompletableDeferred<Unit>()
+            val receipt = store.submitDraftSave { completed.complete(Unit) }
+            val waiter = launch { receipt.await() }
+            data.entered.await()
+            waiter.cancelAndJoin()
+            val drain = async(Dispatchers.Default) { store.drainAcceptedSaves() }
+            data.release.complete(Unit)
+            assertTrue(drain.await())
+            assertTrue(completed.isCompleted)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun `failed configuration does not run completion`() = runTest {
+        val data = GateStore().apply { fail = true; release.complete(Unit) }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val store = SettingsStore(SettingsRepository(File("."), Json, logger, data), logger, scope, Configuration.DEFAULT)
+            store.dispatch(SettingsIntent.TransformDraft { it.copy(uiScale = 125) })
+            var completed = false
+            assertEquals(Err(SettingsError.IOError("failure")), store.submitDraftSave { completed = true }.await())
+            assertFalse(completed)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun `queued save keeps accepted snapshot even if draft is cancelled`() = runTest {
+        val data = GateStore()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val store = SettingsStore(SettingsRepository(File("."), Json, logger, data), logger, scope, Configuration.DEFAULT)
+            store.dispatch(SettingsIntent.TransformDraft { it.copy(uiScale = 125) })
+            val first = store.submitDraftSave()
+            data.entered.await()
+            store.dispatch(SettingsIntent.TransformDraft { it.copy(uiScale = 150) })
+            val second = store.submitDraftSave()
+            store.dispatch(SettingsIntent.CancelChanges)
+            data.release.complete(Unit)
+            assertEquals(Ok(Unit), first.await())
+            assertEquals(Ok(Unit), second.await())
+            assertEquals(150, store.state.value.originalConfiguration.uiScale)
+        } finally { scope.cancel() }
+    }
+
 }

@@ -254,8 +254,7 @@ class PluginManager(
 
         lifecycleHandler.enable(container)
 
-        val currentDisabled = settingsRepository.loadDisabledPluginIds()
-        settingsRepository.saveDisabledPluginIds(currentDisabled - pluginId)
+        settingsRepository.updateDisabledPluginIds { it - pluginId }
 
         updateFlows()
     }
@@ -266,8 +265,7 @@ class PluginManager(
 
         lifecycleHandler.disable(container)
 
-        val currentDisabled = settingsRepository.loadDisabledPluginIds()
-        settingsRepository.saveDisabledPluginIds(currentDisabled + pluginId)
+        settingsRepository.updateDisabledPluginIds { it + pluginId }
 
         updateFlows()
     }

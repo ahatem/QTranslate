@@ -122,8 +122,7 @@ internal class PluginInstaller(
         lifecycleHandler.forgetLocalization(pluginId)
         purgePluginSandbox(pluginId)
 
-        val currentDisabled = settingsRepository.loadDisabledPluginIds()
-        settingsRepository.saveDisabledPluginIds(currentDisabled - pluginId)
+        settingsRepository.updateDisabledPluginIds { it - pluginId }
 
         // A JAR the distribution owns is not the user's to delete: removing it would leave an
         // installed copy missing a component with no way to restore it.

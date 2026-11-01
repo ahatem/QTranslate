@@ -11,12 +11,18 @@ import com.github.michaelbull.result.Ok
 import com.github.ahatem.qtranslate.core.shared.arch.Store
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * MVI store managing application configuration and settings.
@@ -54,6 +60,34 @@ class SettingsStore(
     // Serializes save operations — prevents two concurrent save coroutines from
     // both seeing isSaving=false and racing to write conflicting configurations.
     private val saveMutex = Mutex()
+    private val committedRevision = AtomicLong()
+    private val acceptedLock = Any()
+    private val accepted = mutableSetOf<Job>()
+    private var closing = false
+    private var lastAccepted: Job? = null
+
+    private fun <T> accept(block: suspend () -> T): Deferred<T> = synchronized(acceptedLock) {
+        check(!closing) { "Settings persistence is shutting down" }
+        val previous = lastAccepted
+        val job = scope.async(start = CoroutineStart.LAZY) {
+            previous?.join()
+            block()
+        }
+        lastAccepted = job
+        accepted.add(job)
+        job.invokeOnCompletion { synchronized(acceptedLock) { accepted.remove(job) } }
+        job.start()
+        job
+    }
+
+    /** Stop accepting saves and wait for accepted operations before cancelling storage. */
+    suspend fun drainAcceptedSaves(timeoutMillis: Long = 10_000): Boolean {
+        val pending = synchronized(acceptedLock) {
+            closing = true
+            accepted.toList()
+        }
+        return withTimeoutOrNull(timeoutMillis) { pending.joinAll(); true } ?: false
+    }
 
     private val presetManager = PresetManager(
         applyUpdate = { transform -> applyWorkingUpdate(transform) },
@@ -91,6 +125,9 @@ class SettingsStore(
             settingsRepository.configuration
                 .distinctUntilChanged()
                 .collect { persisted ->
+                    val observedRevision = committedRevision.get()
+                    saveMutex.withLock {
+                    if (observedRevision != committedRevision.get()) return@withLock
                     _state.update { current ->
                         current.copy(
                             originalConfiguration = persisted,
@@ -104,6 +141,7 @@ class SettingsStore(
                             isDirty = if (!current.isDirty) false
                             else current.workingConfiguration != persisted
                         )
+                    }
                     }
                 }
         }
@@ -223,44 +261,52 @@ class SettingsStore(
      * the latest changes).
      */
     private fun launchSave() {
+        val receipt = submitDraftSave()
         scope.launch {
-            saveDraftAndAwait().fold(
+            receipt.await().fold(
                 success = { _eventChannel.send(SettingsEvent.ShowMessage("Settings saved", NotificationType.SUCCESS)) },
                 failure = { error -> _eventChannel.send(SettingsEvent.ShowMessage("Failed to save settings: ${error.message}", NotificationType.ERROR)) }
             )
         }
     }
 
-    /** Accepts a save in the application scope and awaits this request's result. */
-    suspend fun saveDraftAndAwait(): Result<Unit, SettingsError> = scope.async {
+    /** Accepts the complete save sequence in the application scope, independent of its waiter. */
+    fun submitDraftSave(afterCommit: suspend () -> Unit = {}): Deferred<Result<Unit, SettingsError>> {
+        val snapshot = _state.value
+        return accept {
         saveMutex.withLock {
-            val current = _state.value
-            if (!current.isDirty) return@withLock Ok(Unit)
-            val configToSave = current.workingConfiguration
-            _state.update { it.copy(isSaving = true) }
-            settingsRepository.updateConfiguration(configToSave).also { result ->
-                result.fold(
-                    success = {
-                        _state.update { it.copy(originalConfiguration = configToSave,
-                            isDirty = it.workingConfiguration != configToSave, isSaving = false) }
-                    },
-                    failure = {
-                        logger.error("Failed to save configuration")
-                        _state.update { it.copy(isSaving = false) }
-                    }
-                )
+            val result = if (!snapshot.isDirty) Ok(Unit) else {
+                val configToSave = snapshot.workingConfiguration
+                _state.update { it.copy(isSaving = true) }
+                settingsRepository.updateConfiguration(configToSave).also { saved ->
+                    saved.fold(
+                        success = {
+                            committedRevision.incrementAndGet()
+                            _state.update { it.copy(originalConfiguration = configToSave,
+                                isDirty = it.workingConfiguration != configToSave, isSaving = false) }
+                        },
+                        failure = {
+                            logger.error("Failed to save configuration")
+                            _state.update { it.copy(isSaving = false) }
+                        }
+                    )
+                }
             }
+            result.fold(success = { afterCommit() }, failure = {})
+            result
         }
-    }.await()
+        }
+    }
+
+    /** Waits for the result of this accepted request. */
+    suspend fun saveDraftAndAwait(): Result<Unit, SettingsError> = submitDraftSave().await()
 
     /** Persists an external quick action without committing an unrelated settings draft. */
     private fun launchScopedSave(
         update: (Configuration) -> Configuration,
         onSuccess: (Configuration) -> Unit
     ) {
-        scope.launch {
-            saveMutex.withLock { performScopedSave(update, onSuccess, notify = true) }
-        }
+        accept { saveMutex.withLock { performScopedSave(update, onSuccess, notify = true) } }
     }
 
     /**
@@ -287,6 +333,7 @@ class SettingsStore(
         _state.update { it.copy(isSaving = true) }
         return settingsRepository.updateConfiguration(configToSave).fold(
             success = {
+                committedRevision.incrementAndGet()
                 _state.update { current ->
                     val workingConfiguration = if (current.isDirty) {
                         update(current.workingConfiguration)
@@ -302,9 +349,9 @@ class SettingsStore(
                 }
                 onSuccess(configToSave)
                 if (notify) {
-                    _eventChannel.send(
+                    scope.launch { _eventChannel.send(
                         SettingsEvent.ShowMessage("Settings saved", NotificationType.SUCCESS)
-                    )
+                    ) }
                 }
                 true
             },
@@ -312,12 +359,12 @@ class SettingsStore(
                 logger.error("Failed to save configuration")
                 _state.update { it.copy(isSaving = false) }
                 if (notify) {
-                    _eventChannel.send(
+                    scope.launch { _eventChannel.send(
                         SettingsEvent.ShowMessage(
                             "Failed to save settings: ${error.message}",
                             NotificationType.ERROR
                         )
-                    )
+                    ) }
                 }
                 false
             }

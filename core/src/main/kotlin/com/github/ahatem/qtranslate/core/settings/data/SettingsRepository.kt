@@ -87,6 +87,7 @@ class SettingsRepository(
             } ?: Configuration.DEFAULT   // No stored config at all: a fresh install, not a failure.
         }
         .catch { e ->
+            if (e is CancellationException) throw e
             // The store itself is unreadable — a truncated or corrupted file, rather than JSON
             // this version cannot parse. There is no configuration string to keep, so the raw
             // file is copied instead: it is still the user's data, and a corrupt protobuf is

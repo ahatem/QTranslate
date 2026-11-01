@@ -137,9 +137,10 @@ fun main(args: Array<String>) = runBlocking {
     // MainAppFrame's onApplicationExit callback below.
     val applicationShutdown = ApplicationShutdown(
         persistWindowBounds = { size, position ->
-            deps.settingsStore.persistScopedUpdateAndAwait {
+            check(deps.settingsStore.drainAcceptedSaves()) { "Timed out waiting for accepted settings saves" }
+            check(deps.settingsStore.persistScopedUpdateAndAwait {
                 it.copy(mainWindowSize = size, mainWindowPosition = position)
-            }
+            }) { "Failed to persist final window bounds" }
         },
         shutdownMainStore      = { deps.mainStore.onShutdown() },
         shutdownPluginManager  = { deps.pluginManager.shutdown() },

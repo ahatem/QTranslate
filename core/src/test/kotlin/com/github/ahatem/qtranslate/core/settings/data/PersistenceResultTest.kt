@@ -27,6 +27,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.test.assertFailsWith
 
 class PersistenceResultTest {
@@ -79,6 +80,29 @@ class PersistenceResultTest {
         job.cancelAndJoin()
         assertFalse(completed)
         assertNull(repo.lastRecovery)
+    }
+
+    @Test fun `cancelling suspended repository writes propagates cancellation`() = runBlocking {
+        suspend fun verify(write: suspend (DataStore<Preferences>) -> Unit) {
+            val entered = CompletableDeferred<Unit>()
+            val store = object : DataStore<Preferences> {
+                override val data: Flow<Preferences> = MutableStateFlow(emptyPreferences())
+                override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences {
+                    entered.complete(Unit)
+                    awaitCancellation()
+                }
+            }
+            var completed = false
+            val job = launch { write(store); completed = true }
+            entered.await()
+            job.cancelAndJoin()
+            assertFalse(completed)
+            assertTrue(job.isCancelled)
+        }
+        verify { SettingsRepository(File("."), json, logger, it).updateConfiguration(Configuration.DEFAULT) }
+        verify { SettingsRepository(File("."), json, logger, it).updateDisabledPluginIds { ids -> ids + "plugin" } }
+        verify { HistoryRepository(File("."), logger, json, it).saveHistory(emptyList()) }
+        verify { HistoryRepository(File("."), logger, json, it).clearHistory() }
     }
 
     @Test fun `cancellation propagates through reads and writes`() = runBlocking {

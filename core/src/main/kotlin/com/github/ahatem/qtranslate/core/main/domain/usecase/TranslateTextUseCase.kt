@@ -562,7 +562,7 @@ class TranslateTextUseCase(
                         history              = patched
                     )
                 }
-                if (settingsState.value.isHistoryEnabled) historyRepository.saveHistory(patched)
+                if (settingsState.value.isHistoryEnabled) persistHistory(patched)
             } finally {
                 // Switching type twice quickly cancels the first request. Without this the panel
                 // would keep the spinner of a request whose answer is never coming.
@@ -622,7 +622,7 @@ class TranslateTextUseCase(
         }
 
         if (!expectsExtraOutput) {
-            if (settingsState.value.isHistoryEnabled) historyRepository.saveHistory(history)
+            if (settingsState.value.isHistoryEnabled) persistHistory(history)
             return
         }
 
@@ -653,7 +653,12 @@ class TranslateTextUseCase(
             )
         }
 
-        if (settingsState.value.isHistoryEnabled) historyRepository.saveHistory(finalHistory)
+        if (settingsState.value.isHistoryEnabled) persistHistory(finalHistory)
+    }
+
+    // History is best effort: its repository records failure, while translation stays successful.
+    private suspend fun persistHistory(history: List<com.github.ahatem.qtranslate.core.history.HistorySnapshot>) {
+        historyRepository.saveHistory(history).fold(success = { }, failure = { })
     }
 
     private suspend fun handleExtraOutput(

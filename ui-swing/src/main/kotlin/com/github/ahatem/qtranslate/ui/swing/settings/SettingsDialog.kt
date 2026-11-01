@@ -79,7 +79,8 @@ class SettingsDialog(
      * event thread. Blocking there to read one value would freeze the dialog opening; the
      * page is built lazily on first navigation, by which time this has long since arrived.
      */
-    private var proxyPassword = StagedSecret()
+    private val proxyPassword = StagedSecret()
+    private var savePending = false
 
 
     /** Held as a field so it can be removed again — a lambda passed inline never can be. */
@@ -256,9 +257,7 @@ class SettingsDialog(
         val secrets = appSecrets ?: return
         scope.launch {
             val value = secrets.get(NetworkConfig.proxyPasswordKey).orEmpty()
-            if (!proxyPassword.hasPendingChanges()) {
-                proxyPassword = StagedSecret(value)
-            }
+            proxyPassword.initialize(value)
         }
     }
 
@@ -1019,64 +1018,57 @@ class SettingsDialog(
 
     // ── Actions ───────────────────────────────────────────────────────────────
 
-    private fun onOk() {
-        if (!settingsStore.state.value.isDirty && !proxyPassword.hasPendingChanges()) {
-            dispose(); return
-        }
-
-        okButton.isEnabled = false
-        okButton.text = localizationManager.getString("settings_dialog.saving")
-
-        scope.launch {
-            val saveError = settingsStore.saveDraftAndAwait().fold(success = { null }, failure = { it })
-            if (saveError != null) {
-                withContext(Dispatchers.Swing) {
-                    showSaveError(saveError.message)
-                    okButton.isEnabled = true
-                    okButton.text = localizationManager.getString("common.ok")
-                }
-                return@launch
-            }
-            val error = persistPendingProxyPassword()
-            withContext(Dispatchers.Swing) {
-                if (error == null) {
-                    dispose()
-                } else {
-                    showSaveError(error.message ?: localizationManager.getString("settings_dialog.save_failed_title"))
-                    okButton.isEnabled = true
-                    okButton.text = localizationManager.getString("common.ok")
-                }
-            }
-        }
-    }
-
-    private suspend fun persistPendingProxyPassword(): Throwable? {
-        val secrets = appSecrets ?: return null
-        return proxyPassword.persist { value -> secrets.put(NetworkConfig.proxyPasswordKey, value) }
-    }
+    private fun onOk() = saveAndMaybeClose(close = true)
 
     private fun updateApplyButton(state: SettingsState = settingsStore.state.value) {
-        applyButton.isEnabled = (state.isDirty || proxyPassword.hasPendingChanges()) && !state.isSaving
+        applyButton.isEnabled = (state.isDirty || proxyPassword.hasPendingChanges()) && !state.isSaving && !savePending
     }
 
-    private fun onApply() {
-        if (!settingsStore.state.value.isDirty && !proxyPassword.hasPendingChanges()) return
-        applyButton.isEnabled = false
+    private fun onApply() = saveAndMaybeClose(close = false)
+
+    private fun saveAndMaybeClose(close: Boolean) {
+        if (savePending) return
+        if (!settingsStore.state.value.isDirty && !proxyPassword.hasPendingChanges()) {
+            if (close) dispose()
+            return
+        }
+        savePending = true
+        okButton.isEnabled = false
+        okButton.text = localizationManager.getString("settings_dialog.saving")
+        updateApplyButton()
+        val secret = proxyPassword.snapshot()
+        val receipt = settingsStore.submitDraftSave {
+            val secrets = appSecrets
+            if (secrets != null) {
+                proxyPassword.persistSnapshot(secret) { value ->
+                    secrets.put(NetworkConfig.proxyPasswordKey, value)
+                }?.let { throw it }
+            }
+        }
         scope.launch {
-            val saveError = settingsStore.saveDraftAndAwait().fold(success = { null }, failure = { it })
-            if (saveError != null) {
+            try {
+                val error = receipt.await().fold(success = { null }, failure = { it.message })
                 withContext(Dispatchers.Swing) {
-                    showSaveError(saveError.message)
+                    savePending = false
+                    okButton.isEnabled = true
+                    okButton.text = localizationManager.getString("common.ok")
+                    if (error != null) showSaveError(error)
+                    else if (close && !settingsStore.state.value.isDirty && !proxyPassword.hasPendingChanges()) {
+                        dispose()
+                        return@withContext
+                    }
                     updateApplyButton()
                 }
-                return@launch
-            }
-            val error = persistPendingProxyPassword()
-            withContext(Dispatchers.Swing) {
-                if (error != null) {
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                withContext(Dispatchers.Swing) {
+                    savePending = false
+                    okButton.isEnabled = true
+                    okButton.text = localizationManager.getString("common.ok")
                     showSaveError(error.message ?: localizationManager.getString("settings_dialog.save_failed_title"))
+                    updateApplyButton()
                 }
-                updateApplyButton()
             }
         }
     }
