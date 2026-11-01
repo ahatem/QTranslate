@@ -1,7 +1,11 @@
 package com.github.ahatem.qtranslate.core.plugin.lifecycle
 
 import com.github.ahatem.qtranslate.api.core.Logger
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -31,9 +35,13 @@ import java.util.concurrent.ConcurrentHashMap
  *   caller whose coroutine is cancelled (the settings dialog closing mid-transition) cannot
  *   abandon a half-finished teardown. Plugin callbacks themselves remain bounded by the
  *   timeouts in [PluginLifecycleHandler].
- * - **Shutdown settles, then rejects.** [shutdown] closes the gate and waits out every in-flight
- *   transition (it acquires each slot), so accepted work finishes before teardown begins; every
- *   transition requested afterwards is rejected with `null` rather than silently started.
+ * - **Shutdown rejects, then settles within one global bound.** [shutdown] closes the gate, then
+ *   waits concurrently for every in-flight transition against a single deadline, so N stuck
+ *   plugins cost one settle bound rather than N. A slot that cannot be settled is reported to
+ *   the caller instead of being torn down from the outside: its accepted transition owns the
+ *   instance until its callback returns, and finalizes it through [onLateTransition] at that
+ *   point. Application shutdown therefore never calls `onDisable()`/`shutdown()` while an
+ *   accepted callback on the same instance is still running.
  *
  * The same shape as the global-input reconcile lock in `MainGlobalKeyListener`: the whole
  * transition is the critical section, and the state check lives inside it.
@@ -41,12 +49,19 @@ import java.util.concurrent.ConcurrentHashMap
 internal class PluginTransitionOwner(
     private val logger: Logger,
     /**
-     * How long shutdown waits for one in-flight transition before declaring it a straggler.
+     * How long shutdown waits for in-flight transitions before declaring them stragglers.
      * Above the worst case a legal transition can take — initialize 30s plus two bounded
      * service getters plus enable 15s — so only a genuinely stuck plugin takes the straggler
-     * path. Injectable so a test can exercise that path without waiting the real bound.
+     * path. It is a budget for the whole shutdown, not per slot: every slot is settled
+     * concurrently. Injectable so a test can exercise that path without waiting the real bound.
      */
-    private val settleTimeoutMs: Long = DEFAULT_SETTLE_TIMEOUT_MS
+    private val settleTimeoutMs: Long = DEFAULT_SETTLE_TIMEOUT_MS,
+    /**
+     * Called before the slot is released when an accepted transition completes after shutdown
+     * began. It runs inside the slot, after the transition's own callbacks, so teardown of a
+     * straggler can never overlap the callback that outlived the settle bound.
+     */
+    private val onLateTransition: suspend (pluginId: String) -> Unit = {}
 ) {
 
     internal companion object {
@@ -80,35 +95,65 @@ internal class PluginTransitionOwner(
         val slot = slots.computeIfAbsent(pluginId) { Slot() }
         slot.mutex.withLock {
             if (shuttingDown || slot.rejected) return null
-            return withContext(NonCancellable) { block() }
+            return withContext(NonCancellable) {
+                try {
+                    block()
+                } finally {
+                    // Only a transition that completed after the gate closed needs the late
+                    // finalizer; the slot is still held, so no callback can overlap it.
+                    if (shuttingDown) onLateTransition(pluginId)
+                }
+            }
         }
     }
 
     /**
-     * Closes the gate and settles accepted work.
+     * Closes the gate and settles accepted work within one global budget.
      *
-     * New transitions are rejected from this point on. Transitions already accepted are allowed
-     * to finish: acquiring each slot waits for its in-flight transition, and the rejection flag
-     * is set while holding the slot, so a transition queued behind one in flight can never
-     * start afterwards. Each wait is bounded — a callback that blocks a thread outright must not
-     * hold application exit — and a timed-out slot is still rejected so it can accept nothing
-     * more; its caller finalizes a late registration (see the transition guards in the manager
-     * and installer).
+     * New transitions are rejected from this point on. Every in-flight transition is allowed to
+     * finish: all slots are awaited concurrently against a single [settleTimeoutMs] deadline,
+     * and the rejection flag is set while holding each slot, so a transition queued behind one
+     * in flight can never start afterwards.
+     *
+     * @return the ids whose transitions did not settle within the budget. They remain owned by
+     * their in-flight transition, which finalizes them through [onLateTransition] when its
+     * callback returns; the caller must not tear them down itself.
      */
-    suspend fun shutdown() {
+    suspend fun shutdown(): Set<String> {
         shuttingDown = true
-        slots.forEach { (pluginId, slot) ->
-            val settled = withTimeoutOrNull(settleTimeoutMs) {
-                slot.mutex.withLock { slot.rejected = true }
+        val settled = ConcurrentHashMap.newKeySet<String>()
+
+        val waiters = ArrayList<Pair<String, Job>>(slots.size)
+        coroutineScope {
+            slots.forEach { (pluginId, slot) ->
+                waiters += pluginId to launch {
+                    slot.mutex.withLock { slot.rejected = true }
+                    settled += pluginId
+                }
             }
-            if (settled == null) {
-                slot.rejected = true
-                logger.warn(
-                    "Plugin '$pluginId' outlived the shutdown settle (${settleTimeoutMs / 1000}s); " +
-                            "it will finalize itself when the transition returns."
-                )
+            val jobs = waiters.map { (_, job) -> job }
+            val finished = withTimeoutOrNull(settleTimeoutMs) {
+                jobs.joinAll()
+                true
+            }
+            if (finished == null) {
+                // The budget is spent for the whole shutdown: stop waiting, let the remaining
+                // transitions keep running, and report them as stragglers.
+                jobs.forEach { it.cancel() }
+                jobs.joinAll()
             }
         }
+
+        val stragglers = waiters.mapTo(LinkedHashSet()) { (pluginId, _) -> pluginId }
+        stragglers.removeAll(settled)
+        stragglers.forEach { pluginId ->
+            slots[pluginId]?.rejected = true
+            logger.warn(
+                "Plugin '$pluginId' outlived the shutdown settle (${settleTimeoutMs / 1000}s); " +
+                        "it will finalize itself when the transition returns."
+            )
+        }
+        return stragglers
     }
 
     /** Whether shutdown has begun; a transition that outlived the settle sees this. */

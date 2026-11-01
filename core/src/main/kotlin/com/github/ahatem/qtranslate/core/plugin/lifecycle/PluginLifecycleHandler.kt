@@ -118,7 +118,7 @@ internal class PluginLifecycleHandler(
                         )
                         container.status = PluginStatus.FAILED
                         container.lastError = pluginError
-                        logger.error("Plugin '${container.id}' failed to initialize: ${error.message}", error.cause)
+                        logger.error("Plugin '${container.id}' failed to initialize (${error::class.simpleName})")
                         return false
                     }
                 )
@@ -131,7 +131,7 @@ internal class PluginLifecycleHandler(
                 )
                 container.status = PluginStatus.FAILED
                 container.lastError = pluginError
-                logger.error("Unexpected exception initializing plugin '${container.id}'", e)
+                logger.error("Unexpected exception initializing plugin '${container.id}' (${e::class.simpleName})")
                 return false
             }
         )
@@ -217,7 +217,7 @@ internal class PluginLifecycleHandler(
                             message = error.message,
                             cause = error.cause
                         )
-                        logger.error("Plugin '${container.id}' failed to enable: ${error.message}", error.cause)
+                        logger.error("Plugin '${container.id}' failed to enable (${error::class.simpleName})")
                     }
                 )
             },
@@ -228,7 +228,7 @@ internal class PluginLifecycleHandler(
                     message = "Unexpected exception while enabling: ${e.message}",
                     cause = e
                 )
-                logger.error("Unexpected exception enabling plugin '${container.id}'", e)
+                logger.error("Unexpected exception enabling plugin '${container.id}' (${e::class.simpleName})")
             }
         )
     }
@@ -247,7 +247,7 @@ internal class PluginLifecycleHandler(
         try {
             withTimeoutOrNull(DISABLE_TIMEOUT_MS) {
                 runCatching { container.plugin.onDisable() }.onFailure { e ->
-                    logger.error("Exception in onDisable() for plugin '${container.id}'", e)
+                    logger.error("Exception in onDisable() for plugin '${container.id}' (${e::class.simpleName})")
                 }
             } ?: logger.error(
                 "Plugin '${container.id}' disable timed out after ${DISABLE_TIMEOUT_MS / 1000}s — force-disabling."
@@ -300,7 +300,7 @@ internal class PluginLifecycleHandler(
             (container.context as? ScopedPluginContext)?.closeHttp()
 
         } catch (e: Throwable) {
-            logger.error("Unexpected exception shutting down plugin '${container.id}'", e)
+            logger.error("Unexpected exception shutting down plugin '${container.id}' (${e::class.simpleName})")
         } finally {
             runCatching { (container.classLoader as? URLClassLoader)?.close() }
             container.snapshotFile?.let { snapshot ->

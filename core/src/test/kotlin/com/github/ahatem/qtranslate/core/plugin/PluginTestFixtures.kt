@@ -37,6 +37,8 @@ internal object PluginTestFixtures {
 
         fun record(event: String) { events += event }
         fun count(event: String): Int = events.count { it == event }
+        /** The callback sequence in the order the host ran it, for overlap assertions. */
+        fun snapshot(): List<String> = events.toList()
         fun reset() { events.clear() }
         fun resetAll() { events.clear(); constructedLoaders.clear() }
     }
@@ -147,6 +149,57 @@ internal class RecordingPlugin : Plugin<PluginSettings.None> {
         return emptyList()
     }
 
+    override fun getSettings(): PluginSettings.None = PluginSettings.None
+}
+
+/**
+ * Marker text provider code throws in the diagnostics privacy tests. It must never reach a
+ * production log line or a logged throwable.
+ */
+internal const val PLUGIN_DIAGNOSTIC_SENTINEL = "SENTINEL-provider-controlled-diagnostic-text"
+
+/** A provider that fails initialization and final shutdown with the sentinel message. */
+internal class SentinelInitializeFailurePlugin : Plugin<PluginSettings.None> {
+    override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> =
+        throw IllegalStateException(PLUGIN_DIAGNOSTIC_SENTINEL)
+
+    override suspend fun shutdown() {
+        throw IllegalStateException(PLUGIN_DIAGNOSTIC_SENTINEL)
+    }
+
+    override fun getServices(): List<Service> = emptyList()
+    override fun getSettings(): PluginSettings.None = PluginSettings.None
+}
+
+/** A provider that fails enable, service declaration, and teardown with the sentinel message. */
+internal class SentinelEnableFailurePlugin : Plugin<PluginSettings.None> {
+    override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> = Ok(Unit)
+
+    override suspend fun onEnable(): Result<Unit, ServiceError> =
+        throw IllegalStateException(PLUGIN_DIAGNOSTIC_SENTINEL)
+
+    override suspend fun onDisable() {
+        throw IllegalStateException(PLUGIN_DIAGNOSTIC_SENTINEL)
+    }
+
+    override suspend fun shutdown() {
+        throw IllegalStateException(PLUGIN_DIAGNOSTIC_SENTINEL)
+    }
+
+    override fun getServices(): List<Service> =
+        throw IllegalStateException(PLUGIN_DIAGNOSTIC_SENTINEL)
+
+    override fun getSettings(): PluginSettings.None = PluginSettings.None
+}
+
+/** A provider whose constructor throws the sentinel message, exercising the load path. */
+internal class SentinelConstructorPlugin : Plugin<PluginSettings.None> {
+    init {
+        throw IllegalStateException(PLUGIN_DIAGNOSTIC_SENTINEL)
+    }
+
+    override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> = Ok(Unit)
+    override fun getServices(): List<Service> = emptyList()
     override fun getSettings(): PluginSettings.None = PluginSettings.None
 }
 

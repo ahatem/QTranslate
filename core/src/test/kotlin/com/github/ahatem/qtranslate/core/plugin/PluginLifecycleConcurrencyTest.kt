@@ -532,7 +532,7 @@ class PluginLifecycleConcurrencyTest {
     }
 
     @Test
-    fun `a transition outliving the shutdown settle finalizes exactly once`() = runBlocking {
+    fun `a transition outliving the shutdown settle is never overlapped by teardown`() = runBlocking {
         val directory = Files.createTempDirectory("qtranslate-lc-straggler").toFile()
         try {
             val stores = Stores(directory)
@@ -547,19 +547,30 @@ class PluginLifecycleConcurrencyTest {
             enableHold.entered.await()
             val shutdownJob = launch(Dispatchers.Default) { manager.shutdown() }
 
-            // Shutdown gives up on the parked transition after the bound and finalizes it itself.
+            // Shutdown gives up on the parked transition after the bound. While the accepted
+            // callback is still running, no final lifecycle callback may be entered: exactly
+            // once finalization does not make overlapping callbacks safe.
             shutdownJob.join()
             try {
                 assertTrue(manager.plugins.value.isEmpty(), "shutdown must not wait forever for a stuck callback")
-                assertEquals(1, PluginTestFixtures.Log.count("plugin-shutdown"))
+                assertEquals(0, PluginTestFixtures.Log.count("disable-enter"), "no onDisable overlap")
+                assertEquals(0, PluginTestFixtures.Log.count("plugin-shutdown"), "no shutdown overlap")
             } finally {
                 enableHold.release.countDown()
             }
             enableJob.join()
 
-            // The straggler's late completion removes its registration and must not finalize again.
+            // The straggler's own completion finalizes it, strictly after its callback returned.
+            assertEquals(
+                listOf(
+                    "enable-enter", "enable-exit", "getServices",
+                    "disable-enter", "disable-exit", "plugin-shutdown"
+                ),
+                PluginTestFixtures.Log.snapshot(),
+                "every later callback must start after the parked callback finished"
+            )
             assertEquals(1, PluginTestFixtures.Log.count("plugin-shutdown"), "finalization is claimed atomically")
-            assertTrue(manager.plugins.value.isEmpty(), "the late registration must remove itself")
+            assertTrue(manager.plugins.value.isEmpty())
             PluginTestFixtures.Log.constructedLoaders.forEach { assertFalse(it.providerDescriptorStillReachable()) }
             assertTrue(File(directory, "plugin-snapshots").listFiles().orEmpty().isEmpty())
         } finally { directory.deleteRecursively() }

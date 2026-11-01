@@ -99,8 +99,10 @@ internal class PluginInstaller(
             throw e
         } catch (e: Exception) {
             assessment.discard()
-            logger.error("Failed to install plugin from ${sourceJar.path}", e)
-            Err("An error occurred during installation: ${e.message}")
+            logger.error("Failed to install plugin from ${sourceJar.path} (${e::class.simpleName})")
+            // The exception may originate in provider code, so its message is not surfaced to
+            // the user or the log; the failure class is the useful diagnostic.
+            Err("An error occurred during installation (${e::class.simpleName}).")
         }
     }
 
@@ -210,7 +212,7 @@ internal class PluginInstaller(
             return
         }
         runCatching { container.jarFile.delete() }.onFailure {
-            logger.error("Failed to delete JAR file: ${container.jarFile.path}", it)
+            logger.error("Failed to delete JAR file: ${container.jarFile.path} (${it::class.simpleName})")
         }
         logger.info("Plugin '$pluginId' uninstalled successfully.")
     }
@@ -293,7 +295,9 @@ internal class PluginInstaller(
             // blocking implementation cannot wedge the transition past shutdown's settle bound.
             container.declaredServices = runCatching {
                 withTimeoutOrNull(GET_SERVICES_TIMEOUT_MS) { container.plugin.getServices() }
-            }.onFailure { logger.warn("Could not inspect services for '${container.id}': ${it.message}") }
+            }.onFailure {
+                logger.warn("Could not inspect services for '${container.id}' (${it::class.simpleName})")
+            }
                 .getOrNull()
                 ?: emptyList()
         }

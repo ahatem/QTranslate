@@ -43,6 +43,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -122,8 +123,16 @@ class PluginManager(
      */
     private val transitions = PluginTransitionOwner(
         loggerFactory.getLogger("PluginTransitionOwner"),
-        transitionSettleTimeoutMs
+        transitionSettleTimeoutMs,
+        onLateTransition = ::finalizeLateTransition
     )
+
+    /**
+     * Containers whose accepted transition outlived the shutdown settle. Their transition owns
+     * the instance until its callback returns, so shutdown parks the container here instead of
+     * tearing it down concurrently; the transition itself finalizes and removes it.
+     */
+    private val lateFinalization = ConcurrentHashMap<String, PluginContainer>()
 
     private val appSecrets = AppSecretStore(pluginKeyValueStore)
 
@@ -428,7 +437,7 @@ class PluginManager(
                                         // A check that throws is a failed check, not a crashed app.
                                         Err(
                                             ServiceError.UnknownError(
-                                                "Validation threw ${thrown::class.java.simpleName}: ${thrown.message}",
+                                                "Validation threw ${thrown::class.java.simpleName}",
                                                 thrown
                                             )
                                         )
@@ -519,10 +528,12 @@ class PluginManager(
      * Shuts down every plugin.
      *
      * Ownership contract: [PluginTransitionOwner.shutdown] first closes the gate — transitions
-     * requested from here on are rejected — and then settles every already-accepted transition by
-     * waiting out its per-plugin slot. Only when no callback can be running are fingerprints
-     * persisted (from settled states), containers finalized exactly once each, pending
-     * assessments dropped, and the registry cleared.
+     * requested from here on are rejected — and then settles every already-accepted transition
+     * concurrently against one global deadline. Only containers whose transition settled are
+     * finalized here. A straggler is left to its own accepted transition: that transition calls
+     * [finalizeLateTransition] before releasing its slot, so application shutdown never runs
+     * `onDisable()`/`shutdown()` at the same time as a callback on the same plugin instance.
+     * Finalization is claimed atomically, so the two paths cannot run the final callbacks twice.
      */
     suspend fun shutdown() {
         if (!shutdownStarted.compareAndSet(false, true)) {
@@ -532,14 +543,27 @@ class PluginManager(
 
         logger.info("Shutting down all plugins...")
 
-        transitions.shutdown()
+        // Park every live container before the gate closes: a transition that later turns out
+        // to be a straggler finds its instance here, even after the registry is cleared.
+        registry.mutex.withLock { registry.getAll().toList() }.forEach { container ->
+            lateFinalization[container.id] = container
+        }
+
+        val stragglers = transitions.shutdown()
 
         withContext(NonCancellable) {
             saveRegistryOnShutdown()
 
-            registry.mutex.withLock { registry.getAll().toList() }.forEach { container ->
-                lifecycleHandler.shutdown(container)
-            }
+            registry.mutex.withLock { registry.getAll().toList() }
+                .filterNot { it.id in stragglers }
+                .forEach { container ->
+                    lateFinalization.remove(container.id)
+                    lifecycleHandler.shutdown(container)
+                }
+
+            // Settled transitions have been finalized above (or by their own completion before
+            // the gate closed). Only stragglers still need the parked reference.
+            lateFinalization.keys.retainAll(stragglers)
 
             registry.mutex.withLock { registry.getAllPending().toList() }.forEach { it.assessment.discard() }
 
@@ -549,6 +573,20 @@ class PluginManager(
         }
 
         logger.info("All plugins shut down.")
+    }
+
+    /**
+     * Finalizes a container whose accepted transition completed after shutdown began. Runs
+     * inside that transition's slot, after the callback returned, so it cannot overlap plugin
+     * lifecycle work; the atomic claim in [PluginLifecycleHandler.shutdown] keeps a racing
+     * shutdown loop from running the final callbacks a second time.
+     */
+    private suspend fun finalizeLateTransition(pluginId: String) {
+        if (!transitions.isShutdown()) return
+        // The registry is intentionally left to shutdown: keeping the container registered
+        // until then preserves its fingerprint and lets the normal clear remove it.
+        val container = lateFinalization.remove(pluginId) ?: return
+        lifecycleHandler.shutdown(container)
     }
 
     // -------------------------------------------------------------------------
@@ -641,7 +679,12 @@ class PluginManager(
                 if (initialized) {
                     container.declaredServices = runCatching {
                         withTimeoutOrNull(GET_SERVICES_TIMEOUT_MS) { container.plugin.getServices() }
-                    }.onFailure { logger.warn("Could not inspect services for '${container.id}': ${it.message}") }
+                    }.onFailure {
+                        logger.warn(
+                            "Could not inspect services for '${container.id}' " +
+                                    "(${it::class.simpleName})"
+                        )
+                    }
                         .getOrNull()
                         ?: emptyList()
                 }
@@ -739,9 +782,9 @@ class PluginManager(
         loadResult.successful.forEach {
             logger.info("  LOADED  ${it.manifest.id} v${it.manifest.version} (${it.jarFile.name})")
         }
-        loaderFailures.forEach { logger.error("  FAILED  ${it.pluginId}: ${it.message}", it.cause) }
-        loadResult.failed.forEach { logger.error("  FAILED  ${it.pluginId}: ${it.message}", it.cause) }
-        loadResult.skipped.forEach { logger.warn("  SKIPPED ${it.pluginId}: ${it.message}") }
+        loaderFailures.forEach { logger.error("  FAILED  ${it.pluginId} (${it::class.simpleName})") }
+        loadResult.failed.forEach { logger.error("  FAILED  ${it.pluginId} (${it::class.simpleName})") }
+        loadResult.skipped.forEach { logger.warn("  SKIPPED ${it.pluginId} (${it::class.simpleName})") }
     }
 
     private fun toFailedPluginState(index: Int, error: PluginError): PluginState {

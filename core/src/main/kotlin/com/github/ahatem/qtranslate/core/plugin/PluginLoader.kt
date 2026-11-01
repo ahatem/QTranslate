@@ -141,6 +141,8 @@ class PluginLoader(
         synchronized(_loadFailures) {
             _loadFailures += PluginError.LoadFailure(pluginId, message, cause, jarFile.absolutePath)
         }
-        logger.error("PLUGIN FAILED ${jarFile.name}: $message", cause)
+        // The message is kept on the typed failure for the UI; the diagnostic line carries only
+        // the artifact, the operation's failure class, and no provider-controlled text or stack.
+        logger.error("PLUGIN FAILED ${jarFile.name} (${cause?.let { it::class.simpleName } ?: "unknown"})")
     }
 }
