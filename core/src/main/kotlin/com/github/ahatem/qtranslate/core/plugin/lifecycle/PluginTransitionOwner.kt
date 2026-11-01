@@ -33,8 +33,9 @@ import java.util.concurrent.ConcurrentHashMap
  *   superseded instance.
  * - **Accepted means completed.** Once a transition starts it runs under [NonCancellable]: a
  *   caller whose coroutine is cancelled (the settings dialog closing mid-transition) cannot
- *   abandon a half-finished teardown. Plugin callbacks themselves remain bounded by the
- *   timeouts in [PluginLifecycleHandler].
+ *   abandon a half-finished teardown. Individual callbacks are normally bounded by the timeouts
+ *   in [PluginLifecycleHandler]; a callback that blocks a thread outright ignores them and is
+ *   only escaped by the settle bound below.
  * - **Shutdown rejects, then settles within one global bound.** [shutdown] closes the gate, then
  *   waits concurrently for every in-flight transition against a single deadline, so N stuck
  *   plugins cost one settle bound rather than N. A slot that cannot be settled is reported to
@@ -50,10 +51,11 @@ internal class PluginTransitionOwner(
     private val logger: Logger,
     /**
      * How long shutdown waits for in-flight transitions before declaring them stragglers.
-     * Above the worst case a legal transition can take — initialize 30s plus two bounded
-     * service getters plus enable 15s — so only a genuinely stuck plugin takes the straggler
-     * path. It is a budget for the whole shutdown, not per slot: every slot is settled
-     * concurrently. Injectable so a test can exercise that path without waiting the real bound.
+     * It is a latency budget for the whole shutdown, not per slot: every slot is settled
+     * concurrently. It covers the ordinary initialize/enable path, but a legal
+     * `validateServices` transition can exceed it because its ceiling follows the user's own
+     * network timeouts; such a plugin is safely treated as a straggler and finalizes itself.
+     * Injectable so a test can exercise that path without waiting the real bound.
      */
     private val settleTimeoutMs: Long = DEFAULT_SETTLE_TIMEOUT_MS,
     /**
@@ -66,9 +68,11 @@ internal class PluginTransitionOwner(
 
     internal companion object {
         /**
-         * Init (30s) + declared services (15s) + enable (15s) + enable services (15s) is the
-         * legal worst case; the default leaves headroom above it. (A blocked constructor is the
-         * one unbounded piece; it can only be escaped by this bound.)
+         * The documented callback timeouts (init 30s + declared services 15s + enable 15s +
+         * enable services 15s) already sum to this value, and a transition can carry more work
+         * (context creation, validation bounded by the user's network settings, the install
+         * copy). Any transition at or beyond that ceiling is therefore a straggler; it is safe,
+         * not abandoned, and finalizes itself through the late-finalization hook.
          */
         const val DEFAULT_SETTLE_TIMEOUT_MS = 75_000L
     }

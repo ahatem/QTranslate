@@ -505,9 +505,18 @@ class PluginManager(
             } ?: Err(ServiceError.TimeoutError("Applying settings to '$pluginId' timed out"))
 
             if (result.isOk) {
+                // getServices is plugin code despite its fast contract. Bound it and run it
+                // outside the registry mutex, so a blocking implementation cannot wedge every
+                // registry operation (including the first step of shutdown) or outlive the
+                // transition's own timeout handling.
+                val declared = runCatching {
+                    withTimeoutOrNull(GET_SERVICES_TIMEOUT_MS) { container.plugin.getServices() }
+                }.onFailure {
+                    logger.warn("Could not inspect services for '$pluginId' (${it::class.simpleName})")
+                }.getOrNull() ?: emptyList()
                 registry.mutex.withLock {
-                    container.services = container.plugin.getServices()
-                    container.declaredServices = container.services
+                    container.services = declared
+                    container.declaredServices = declared
                 }
                 updateFlows()
             }

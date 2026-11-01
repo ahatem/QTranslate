@@ -43,15 +43,9 @@ internal data class PluginContainer(
      */
     val instanceId: String = ServiceId.DEFAULT_INSTANCE,
     /**
-     * Set once [com.github.ahatem.qtranslate.core.plugin.lifecycle.PluginLifecycleHandler.shutdown]
-     * has finalized this container. Transitions are serialized per plugin, so the check and the
-     * set cannot race; the flag is the fence that keeps a second teardown — from a racing
-     * uninstall and application shutdown, say — from firing the plugin's final callbacks twice.
-     */
-    /**
      * Set atomically on entry to finalization; see the handler's shutdown for the contract.
-     * Atomic, not a plain flag: application shutdown may finalize a straggler whose transition
-     * outlived the settle bound at the same time the straggler's own completion tries to.
+     * Atomic, not a plain flag: application shutdown may race a straggler's own completion, and
+     * the claim is the fence that keeps the final callbacks from firing twice.
      */
     val shutdownComplete: AtomicBoolean = AtomicBoolean(false)
 ) {
