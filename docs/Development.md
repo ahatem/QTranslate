@@ -67,6 +67,27 @@ claim checks ran when they did not. Existing behavior coverage must not be remov
 or weakened for a refactor. Source-spelling assertions are not substitutes for
 runtime behavior tests; preserve their intended protection when moving code.
 
+## Package and ownership map
+
+The authoritative map, including what each workspace package owns, lives in
+[`wiki/Architecture.md`](../wiki/Architecture.md#workspace-ownership). Keep it in one place: add
+findings and rules here only when they are about the development process, and link to the
+architecture guide for ownership.
+
+Place a responsibility with its owner before organizing packages around it. Move one coherent
+feature at a time and update tests/imports in the same change. Prefer moving a class to adding a
+compatibility alias; UI packages mirror the feature they render.
+
+## Verification expectations by slice
+
+- Behavior changes need a deterministic regression that fails for the right reason.
+- Concurrency/ownership changes need controlled interleavings (gates, virtual time or real
+  threads for lock-order claims) and must preserve coroutine cancellation.
+- Privacy/diagnostics changes use sentinel values and assert they never reach logs or history.
+- Persistence changes cover malformed input, recovery, migration round trips and shutdown drain.
+- Mechanical package moves prove rename fidelity and run the owning module suites plus the
+  canonical build; source-string checks supplement, never replace, behavior tests.
+
 ## Specialist changes
 
 ### Settings and storage
