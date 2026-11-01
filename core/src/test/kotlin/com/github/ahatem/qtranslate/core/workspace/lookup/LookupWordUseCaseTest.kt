@@ -1,4 +1,4 @@
-package com.github.ahatem.qtranslate.core.main.domain.usecase
+package com.github.ahatem.qtranslate.core.workspace.lookup
 
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.dictionary.BilingualDictionary

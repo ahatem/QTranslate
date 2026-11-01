@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.core.main.domain.usecase
 
+import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase
+
 import com.github.ahatem.qtranslate.api.dictionary.Definition
 import com.github.ahatem.qtranslate.api.dictionary.Dictionary
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry

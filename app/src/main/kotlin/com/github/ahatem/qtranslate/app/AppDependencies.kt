@@ -9,9 +9,9 @@ import com.github.ahatem.qtranslate.core.main.domain.usecase.OcrAndTranslateUseC
 import com.github.ahatem.qtranslate.core.main.domain.usecase.PerformSpellCheckUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SelectActiveServiceUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SwapLanguagesUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.LookupWordUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.SearchImagesUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.FetchInlineDefinitionUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.LookupWordUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.SearchImagesUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.RewriteUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SummarizeUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateStringUseCase

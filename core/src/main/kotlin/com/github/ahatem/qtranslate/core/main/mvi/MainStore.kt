@@ -14,6 +14,13 @@ import com.github.ahatem.qtranslate.core.history.restoredHistoryIndex
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.domain.language.LanguageSelectionCompat
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
+import com.github.ahatem.qtranslate.core.workspace.lookup.DictionaryLookupRequest
+import com.github.ahatem.qtranslate.core.workspace.lookup.DictionaryLookupSession
+import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.ImageLookupRequest
+import com.github.ahatem.qtranslate.core.workspace.lookup.ImageLookupSession
+import com.github.ahatem.qtranslate.core.workspace.lookup.LookupWordUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.SearchImagesUseCase
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import com.github.ahatem.qtranslate.core.settings.data.effectiveLayoutPresetId
