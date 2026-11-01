@@ -604,16 +604,21 @@ class TranslateTextUseCase(
 
         // The slot and its generation move together: a claim superseded while this job is being
         // built can neither install itself over the newer job nor leave a provider request
-        // running after its result stopped being publishable.
+        // running after its result stopped being publishable. The initial loading state belongs
+        // to that same token: an older job that was already running must not reopen a panel a
+        // newer request has taken over.
         val job = scope.launch(start = CoroutineStart.LAZY) {
-            updateState {
-                copy(
-                    extraOutputText = "",
-                    extraOutputFailed = false,
-                    extraOutputFailure = null,
-                    isExtraOutputLoading = true
-                )
-            }
+            val ownsPanel = extraOutputWork.withCurrent(claim.generation) {
+                updateState {
+                    copy(
+                        extraOutputText = "",
+                        extraOutputFailed = false,
+                        extraOutputFailure = null,
+                        isExtraOutputLoading = true
+                    )
+                }
+            } != null
+            if (!ownsPanel) return@launch
             val outcome = try {
                 handleExtraOutput(
                     request           = request,
@@ -706,7 +711,8 @@ class TranslateTextUseCase(
      *
      * The primary snapshot is persisted independently of the secondary outcome: a successful
      * secondary patches it before saving, while a failed or superseded one still saves the
-     * primary translation.
+     * primary translation. Panel state is reset only while this translation's secondary token
+     * still owns it.
      *
      * @param ruleTarget Set only on the rule-driven path, where the target language changed
      *   as a result of the detected source language.
@@ -731,6 +737,8 @@ class TranslateTextUseCase(
         // retires standalone refreshes and gates publication against a newer claim.
         val claim = retireExtraOutput("New translation requested")
 
+        // Primary fields are independent of the panel, so publish them without touching the
+        // secondary state.
         updateState {
             copy(
                 isLoading              = false,
@@ -739,15 +747,25 @@ class TranslateTextUseCase(
                 detectedSourceLanguage = detectedLanguage,
                 targetLanguage         = ruleTarget ?: targetLanguage,
                 history                = history,
-                historyIndex           = historyIndex,
-                extraOutputText        = "",
-                extraOutputFailed      = false,
-                extraOutputFailure     = null,
-                isExtraOutputLoading   = expectsExtraOutput
+                historyIndex           = historyIndex
             )
         }
 
-        if (!expectsExtraOutput) {
+        // The panel reset is a secondary-panel mutation and must hold the same token as its
+        // publication. A standalone refresh that claimed the panel while the primary result was
+        // being written keeps its state.
+        val ownsPanel = extraOutputWork.withCurrent(claim.generation) {
+            updateState {
+                copy(
+                    extraOutputText      = "",
+                    extraOutputFailed    = false,
+                    extraOutputFailure   = null,
+                    isExtraOutputLoading = expectsExtraOutput
+                )
+            }
+        } != null
+
+        if (!expectsExtraOutput || !ownsPanel) {
             if (settingsState.value.isHistoryEnabled) persistHistory(history)
             return
         }

@@ -33,6 +33,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -45,6 +46,10 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -455,6 +460,156 @@ class ExtraOutputLifecycleTest {
             assertEquals(1, fixture.summarizer.calls.size)
         } finally {
             scope.cancel()
+        }
+    }
+
+    @Test
+    fun `a superseded refresh cannot reopen the panel with its initial loading state`() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        try {
+            val fixture = fixture(scope)
+            fixture.summarizer.release = CompletableDeferred()
+            val state = AtomicReference(translatedState())
+            val initialWriteEntered = CountDownLatch(1)
+            val releaseInitialWrite = CountDownLatch(1)
+            val update: (MainState.() -> MainState) -> Unit = { transform ->
+                val before = state.get()
+                val after = before.transform()
+                if (after.isExtraOutputLoading && !before.isExtraOutputLoading) {
+                    // The stale refresh is about to write its initial loading state.
+                    initialWriteEntered.countDown()
+                    check(releaseInitialWrite.await(5, TimeUnit.SECONDS)) {
+                        "the initial loading write was never released"
+                    }
+                }
+                state.updateAndGet { it.transform() }
+            }
+
+            fixture.useCase.refreshExtraOutput(
+                extraOutputRequest = request(ExtraOutputType.Summarize),
+                getState = { state.get() },
+                updateState = update,
+                onStatusUpdate = { _, _, _ -> },
+            )
+            assertTrue(initialWriteEntered.await(5, TimeUnit.SECONDS), "the initial write never started")
+
+            // The newer request clears the panel while the older one is still at its first write.
+            // It either completes first (unguarded write) or waits for the panel lock (guarded).
+            val switching = thread(name = "extra-output-none") {
+                runBlocking {
+                    fixture.useCase.refreshExtraOutput(
+                        extraOutputRequest = request(ExtraOutputType.None),
+                        getState = { state.get() },
+                        updateState = { transform -> state.updateAndGet { it.transform() } },
+                        onStatusUpdate = { _, _, _ -> },
+                    )
+                }
+            }
+            awaitBlockedOrFinished(switching)
+
+            releaseInitialWrite.countDown()
+            switching.join(5_000)
+            assertFalse(switching.isAlive, "the newer request did not finish")
+            withTimeout(5_000) {
+                scope.coroutineContext[Job]?.children?.toList()?.forEach { it.join() }
+            }
+
+            assertEquals("", state.get().extraOutputText, "the stale write must not restore panel content")
+            assertFalse(state.get().isExtraOutputLoading, "the stale write must not restore the spinner")
+            assertFalse(state.get().extraOutputFailed)
+            assertNull(state.get().extraOutputFailure)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `a stale primary completion cannot reopen the panel a newer mode cleared`() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        try {
+            val fixture = fixture(scope)
+            fixture.translator.result = Ok(TranslationResponse("translated"))
+            val state = AtomicReference(
+                MainState(
+                    inputText = "hello",
+                    sourceLanguage = LanguageCode.ENGLISH,
+                    targetLanguage = LanguageCode.ARABIC,
+                )
+            )
+            val primaryPublicationEntered = CountDownLatch(1)
+            val releasePrimaryPublication = CountDownLatch(1)
+            val update: (MainState.() -> MainState) -> Unit = { transform ->
+                val before = state.get()
+                val after = before.transform()
+                if (after.translatedText == "translated" && !after.isLoading && before.translatedText.isEmpty()) {
+                    // The translation reached its primary publication with its extra-output token
+                    // still believed current.
+                    primaryPublicationEntered.countDown()
+                    check(releasePrimaryPublication.await(5, TimeUnit.SECONDS)) {
+                        "the primary publication was never released"
+                    }
+                }
+                state.updateAndGet { it.transform() }
+            }
+
+            val translation = scope.launch {
+                fixture.useCase(
+                    getState = { state.get() },
+                    updateState = update,
+                    onStatusUpdate = { _, _, _ -> },
+                    extraOutputRequest = request(ExtraOutputType.Summarize),
+                )
+            }
+            assertTrue(
+                primaryPublicationEntered.await(5, TimeUnit.SECONDS),
+                "the primary publication never started"
+            )
+
+            // Turning the panel off claims the newer token and clears it while the older
+            // translation is paused at its primary completion.
+            val switching = thread(name = "extra-output-none-primary") {
+                runBlocking {
+                    fixture.useCase.refreshExtraOutput(
+                        extraOutputRequest = request(ExtraOutputType.None),
+                        getState = { state.get() },
+                        updateState = { transform -> state.updateAndGet { it.transform() } },
+                        onStatusUpdate = { _, _, _ -> },
+                    )
+                }
+            }
+            switching.join(5_000)
+            assertFalse(switching.isAlive, "turning the panel off must not wait for the primary publication")
+            assertEquals("", state.get().extraOutputText)
+            assertFalse(state.get().isExtraOutputLoading)
+
+            releasePrimaryPublication.countDown()
+            withTimeout(5_000) { translation.join() }
+            withTimeout(5_000) {
+                scope.coroutineContext[Job]?.children?.toList()?.forEach { it.join() }
+            }
+
+            assertEquals("translated", state.get().translatedText, "the primary result still publishes")
+            assertEquals("", state.get().extraOutputText, "the stale completion must not restore panel content")
+            assertFalse(state.get().isExtraOutputLoading, "the stale completion must not restore the spinner")
+            assertFalse(state.get().extraOutputFailed)
+            assertNull(state.get().extraOutputFailure)
+            assertTrue(fixture.summarizer.calls.isEmpty(), "the superseded secondary request must never start")
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    /**
+     * Waits until [thread] either finishes or is waiting for a monitor. The guarded write holds the
+     * panel lock while it is paused, so the newer request can only be blocked there.
+     */
+    private fun awaitBlockedOrFinished(thread: Thread) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (thread.isAlive && thread.state != Thread.State.BLOCKED) {
+            check(System.nanoTime() < deadline) {
+                "the newer request neither finished nor waited for the panel owner"
+            }
+            Thread.yield()
         }
     }
 
