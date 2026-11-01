@@ -31,3 +31,6 @@ gradlew.bat text eol=crlf
 # Must stay LF to run on a Unix shell.
 gradlew text eol=lf
 *.sh    text eol=lf
+
+# Kotlin ABI validation writes a trailing blank line; keep the tool's dump byte-for-byte.
+api/api/api.api text eol=lf whitespace=-blank-at-eof
