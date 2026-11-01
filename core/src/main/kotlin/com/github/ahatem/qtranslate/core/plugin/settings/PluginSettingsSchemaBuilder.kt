@@ -243,7 +243,7 @@ internal class PluginSettingsSchemaBuilder(
             else -> null.also { logger.warn("Unsupported field type for conversion: ${field.type}") }
         }
     }.getOrElse {
-        logger.warn("Failed to convert value '$raw' for type ${field.type}: ${it.message}")
+        logger.warn("Failed to convert settings value for type ${field.type}: ${it::class.simpleName}")
         null
     }
 

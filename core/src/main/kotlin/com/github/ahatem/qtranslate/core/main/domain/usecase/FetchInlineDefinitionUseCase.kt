@@ -63,11 +63,11 @@ class FetchInlineDefinitionUseCase(
             // usually English, which is the language dictionaries actually cover.
             for (candidate in candidates) {
                 val summary = summarise(dictionary, candidate) ?: continue
-                logger.debug("Inline definition ready for '${candidate.word}' (${candidate.language.tag})")
+                logger.debug("Inline definition ready: language=${candidate.language.tag}")
                 updateState { copy(inlineDefinition = summary) }
                 return@launch
             }
-            logger.debug("No inline definition for ${candidates.joinToString { it.word }}")
+            logger.debug("No inline definition for ${candidates.size} candidate(s)")
         }
     }
 
@@ -75,13 +75,18 @@ class FetchInlineDefinitionUseCase(
         dictionary: Dictionary,
         candidate: Candidate
     ): String? {
-        val response = runCatching {
-            // Shorter than a normal lookup's patience. This is a detail beside the translation;
-            // if it has not arrived by now the reader has already moved on.
+        // Cancellation must escape: a discarded inline definition is a cancelled coroutine, not
+        // "no definition found", and swallowing the exception here would let the job finish as
+        // though it had completed normally.
+        val response = try {
             withTimeoutOrNull(TIMEOUT_MS) {
                 lookup(dictionary, candidate).get()
             }
-        }.getOrNull() ?: return null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        } ?: return null
 
         val entry = response.entries.firstOrNull() ?: return null
         val meanings = entry.definitions

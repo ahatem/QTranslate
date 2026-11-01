@@ -67,7 +67,7 @@ class GoogleLensOCRService(
                     language = langTag
                 )
             } catch (e: Exception) {
-                pluginContext.logger.error("Failed to build Google Lens request", e)
+                pluginContext.logger.error("Failed to build Google Lens request: ${e::class.simpleName}")
                 return@withContext Err(ServiceError.InvalidInputError("Failed to build Google Lens request", e))
             }
 
@@ -109,7 +109,7 @@ class GoogleLensOCRService(
                         )
                     }
                 } catch (e: Exception) {
-                    pluginContext.logger.error("Failed to parse Google Lens OCR response", e)
+                    pluginContext.logger.error("Failed to parse Google Lens OCR response: ${e::class.simpleName}")
                     Err(ServiceError.InvalidResponseError("Failed to parse Google Lens response", e))
                 }
             }

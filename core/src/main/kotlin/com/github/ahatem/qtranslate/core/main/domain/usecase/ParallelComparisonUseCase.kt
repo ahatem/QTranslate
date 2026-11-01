@@ -201,7 +201,7 @@ class ParallelComparisonUseCase(
                                 ::publish
                             )
                         } catch (error: Exception) {
-                            logger.error("Comparison translation failed for '$id'", error)
+                            logger.error("Comparison translation failed for '$id': ${error::class.simpleName}")
                             publishFailure(index, id, translator.name, error.shortSummary(), ::publish)
                         }
                         }

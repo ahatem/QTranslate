@@ -106,7 +106,7 @@ internal class LibreTranslateService(
             .fold(
                 onSuccess = { com.github.michaelbull.result.Ok(it) },
                 onFailure = {
-                    context.logger.warn("LibreTranslate returned an invalid response: ${it.message}")
+                    context.logger.warn("LibreTranslate returned an invalid response: ${it::class.simpleName}")
                     Err(ServiceError.InvalidResponseError("LibreTranslate returned an invalid JSON response.", it))
                 }
             )
@@ -118,6 +118,6 @@ internal class LibreTranslateService(
             else -> LanguageCode(code.lowercase())
         }
     }.onFailure {
-        context.logger.warn("LibreTranslate returned an invalid language code '$code'.")
+        context.logger.warn("LibreTranslate returned an invalid language code.")
     }.getOrNull()
 }

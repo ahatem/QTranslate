@@ -75,7 +75,7 @@ class AIServiceClient(
         val baseUrl = current.baseUrl.trimEnd('/')
         val endpoint = "$baseUrl/chat/completions"
 
-        pluginContext.logger.debug("AIServiceClient → $endpoint [model=${current.model}]")
+        pluginContext.logger.debug("AIServiceClient chat completion: model=${current.model}")
 
         val requestBody = ChatCompletionRequest(
             model               = current.model,
@@ -98,7 +98,7 @@ class AIServiceClient(
                     putAll(extra)
                 }.onFailure { e ->
                     pluginContext.logger.warn(
-                        "AI Plugin: Could not parse Custom Headers JSON — skipping. Error: ${e.message}"
+                        "AI Plugin: Could not parse Custom Headers JSON — skipping: ${e::class.simpleName}"
                     )
                 }
             }
@@ -153,7 +153,8 @@ class AIServiceClient(
         val endpoint = "$baseUrl/chat/completions"
 
         pluginContext.logger.debug(
-            "AIServiceClient (vision) → $endpoint [model=${current.model}, image=${image.width}×${image.height} ${image.format}]"
+            "AIServiceClient (vision): model=${current.model}, " +
+                    "image=${image.width}×${image.height} ${image.format}"
         )
 
         // Build the user content array: image part + optional text part
@@ -193,7 +194,7 @@ class AIServiceClient(
                 }.onSuccess { putAll(it) }
                  .onFailure { e ->
                     pluginContext.logger.warn(
-                        "AI Plugin: Could not parse Custom Headers JSON — skipping. Error: ${e.message}"
+                        "AI Plugin: Could not parse Custom Headers JSON — skipping: ${e::class.simpleName}"
                     )
                 }
             }
