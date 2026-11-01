@@ -270,7 +270,6 @@ suspend fun buildDependencies(
     )
 
     val lookupWordUseCase = LookupWordUseCase(
-        scope                = appScope,
         activeServiceManager = activeServiceManager,
         loggerFactory        = loggerFactory
     )
@@ -282,7 +281,6 @@ suspend fun buildDependencies(
     )
 
     val searchImagesUseCase = SearchImagesUseCase(
-        scope                = appScope,
         activeServiceManager = activeServiceManager,
         loggerFactory        = loggerFactory
     )

@@ -40,6 +40,12 @@ private data class ComparisonConfigKey(
     val disabledServices: Set<String>
 )
 
+/** Buffered session events are checked when consumed, so replacement also invalidates queued events. */
+private data class PendingMainEvent(
+    val event: MainEvent,
+    val publish: ((() -> Unit) -> Unit)? = null
+)
+
 internal data class SpellCheckInput(
     val text: String,
     val sourceLanguage: LanguageCode,
@@ -118,26 +124,31 @@ class MainStore(
     )
     override val state: StateFlow<MainState> = _state.asStateFlow()
 
-    private val _eventChannel = Channel<MainEvent>(Channel.BUFFERED)
-    override val events: Flow<MainEvent> = _eventChannel.receiveAsFlow()
+    private val _eventChannel = Channel<PendingMainEvent>(Channel.BUFFERED)
+    override val events: Flow<MainEvent> = _eventChannel.receiveAsFlow().mapNotNull { pending ->
+        val publish = pending.publish ?: return@mapNotNull pending.event
+        var event: MainEvent? = null
+        publish { event = pending.event }
+        event
+    }
 
     private val documentSession = DocumentTranslationSession(
         scope = scope,
         translate = { request, progress -> documentTranslationUseCase(request, progress) },
         onProgress = { progress -> _state.update { it.copy(documentTranslationProgress = progress) } },
-        onCompleted = { output -> _eventChannel.send(MainEvent.DocumentTranslationCompleted(output)) },
-        onFailed = { message -> _eventChannel.send(MainEvent.DocumentTranslationFailed(message)) }
+        onCompleted = { output, publish -> sendEvent(MainEvent.DocumentTranslationCompleted(output), publish) },
+        onFailed = { message, publish -> sendEvent(MainEvent.DocumentTranslationFailed(message), publish) }
     )
 
     private val dictionarySession = DictionaryLookupSession(
         scope, { request, started -> lookupWordUseCase(request, started) },
         onStarted = { request, publish ->
-            updateStatusBar(StatusCode.LookingUpWord, NotificationType.INFO, false)
+            sendEvent(MainEvent.UpdateStatusBar(StatusCode.LookingUpWord, NotificationType.INFO, false), publish)
             publish { _state.update { it.copy(isDictionaryLoading = true, dictionaryWord = request.word,
                 dictionaryLanguage = request.language, dictionaryFailed = false) } }
         },
         onResult = { outcome, publish ->
-            updateStatusBar(outcome.status, outcome.type, true)
+            sendEvent(MainEvent.UpdateStatusBar(outcome.status, outcome.type, true), publish)
             if (outcome.entries != null) publish { _state.update { it.copy(
                 isDictionaryLoading = false, dictionaryEntries = outcome.entries,
                 dictionaryFailed = outcome.failed ?: it.dictionaryFailed) } }
@@ -146,12 +157,12 @@ class MainStore(
     private val imageSession = ImageLookupSession(
         scope, { request, started -> searchImagesUseCase(request, started) },
         onStarted = { request, publish ->
-            updateStatusBar(StatusCode.SearchingImages, NotificationType.INFO, false)
+            sendEvent(MainEvent.UpdateStatusBar(StatusCode.SearchingImages, NotificationType.INFO, false), publish)
             publish { _state.update { it.copy(isImageSearchLoading = true, imageSearchTerm = request.term,
                 imageSearchFailed = false) } }
         },
         onResult = { outcome, publish ->
-            updateStatusBar(outcome.status, outcome.type, true)
+            sendEvent(MainEvent.UpdateStatusBar(outcome.status, outcome.type, true), publish)
             if (outcome.results != null) publish { _state.update { it.copy(
                 isImageSearchLoading = false, imageResults = outcome.results,
                 imageSearchFailed = outcome.failed ?: it.imageSearchFailed) } }
@@ -625,7 +636,7 @@ class MainStore(
             onStatusUpdate = ::updateStatusBar
         )
         if (extractedText.isBlank()) return
-        _eventChannel.send(MainEvent.CopyToClipboard(extractedText))
+        sendEvent(MainEvent.CopyToClipboard(extractedText))
         updateStatusBar(StatusCode.OcrTextCopied, NotificationType.INFO, true)
     }
 
@@ -762,7 +773,7 @@ class MainStore(
             translationStillCurrent = completion?.let { translateTextUseCase.isCurrent(it.requestId) } == true
         )
         if (textToCopy != null) {
-            _eventChannel.send(MainEvent.CopyToClipboard(textToCopy))
+            sendEvent(MainEvent.CopyToClipboard(textToCopy))
         }
 
         return completion
@@ -971,7 +982,7 @@ class MainStore(
         val result = _state.value.translatedText
         _state.update { it.copy(isReplacingSelection = false) }
         if (result.isNotBlank()) {
-            _eventChannel.send(MainEvent.PasteTranslation(result))
+            sendEvent(MainEvent.PasteTranslation(result))
         }
     }
 
@@ -1010,7 +1021,11 @@ class MainStore(
         type: NotificationType,
         isTemporary: Boolean
     ) {
-        _eventChannel.send(MainEvent.UpdateStatusBar(code, type, isTemporary))
+        sendEvent(MainEvent.UpdateStatusBar(code, type, isTemporary))
+    }
+
+    private suspend fun sendEvent(event: MainEvent, publish: ((() -> Unit) -> Unit)? = null) {
+        _eventChannel.send(PendingMainEvent(event, publish))
     }
 }
 
