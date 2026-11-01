@@ -1,8 +1,5 @@
-package com.github.ahatem.qtranslate.core.main.domain.usecase
+package com.github.ahatem.qtranslate.core.workspace.translation
 
-import com.github.ahatem.qtranslate.core.workspace.translation.TranslateTextUseCase
-import com.github.ahatem.qtranslate.core.workspace.translation.SummarizeUseCase
-import com.github.ahatem.qtranslate.core.workspace.translation.RewriteUseCase
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.Service

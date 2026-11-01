@@ -222,7 +222,7 @@ a `FakePluginContext` test fixture for that, so a plugin test needs no network.
 
 Thinner, and worth contributing to:
 
-- **Use cases in `:core`** — most of `core/main/domain/usecase` has no direct coverage
+- **Use cases in `:core`** — the remaining `core/main/domain/usecase` classes have little direct coverage; translation and lookup now live under `core/workspace/{translation,lookup}`
 - **Swing panels** — only the icon, theme and plugin-list models are covered
 - **Stores** — `MainStore` and `SettingsStore` are exercised only indirectly
 

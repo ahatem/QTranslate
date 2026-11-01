@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.core.workspace.translation
 
-import com.github.ahatem.qtranslate.core.workspace.translation.TranslationCompletion
 import com.github.ahatem.qtranslate.core.settings.data.AutoCopyTranslation
 
 /**
