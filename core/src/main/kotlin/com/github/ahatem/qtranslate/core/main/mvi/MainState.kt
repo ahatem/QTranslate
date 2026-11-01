@@ -55,6 +55,13 @@ data class MainState(
     val translationFailed: Boolean = false,
     val comparisonResults: List<ComparisonTranslationResult> = emptyList(),
     val extraOutputText: String = "",
+    /**
+     * Whether the last secondary-output request failed. Unlike [translationFailed] this never
+     * turns the panel into content: [extraOutputText] stays empty and [extraOutputError] carries
+     * the short message, so copy/speech/history do not see an error string as a result.
+     */
+    val extraOutputFailed: Boolean = false,
+    val extraOutputError: String? = null,
     val isExtraOutputLoading: Boolean = false,
     val sourceLanguage: LanguageCode = LanguageCode.AUTO,
     val detectedSourceLanguage: LanguageCode? = null,

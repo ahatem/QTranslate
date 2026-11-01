@@ -745,9 +745,15 @@ class MainContentView(
                 fallbackFontConfig = config.scaledEditorFallbackFont,
                 activeType = config.extraOutputType,
                 // Every extra output is derived as part of a translation, so until one has
-                // landed there is nothing for this panel to show.
-                placeholderText = localizer.getString("extra_output.placeholder")
-                    .takeIf { mainState.translatedText.isBlank() },
+                // landed there is nothing for this panel to show. A failure keeps its message
+                // here instead of becoming text.
+                placeholderText = when {
+                    mainState.extraOutputFailed ->
+                        mainState.extraOutputError.orEmpty().ifBlank { null }
+                    else ->
+                        localizer.getString("extra_output.placeholder")
+                            .takeIf { mainState.translatedText.isBlank() }
+                },
 
                 labelBackward = localizer.getString("extra_output.label_backward"),
                 labelSummary = localizer.getString("extra_output.label_summary"),

@@ -303,7 +303,7 @@ class QuickCloseComparisonStateTest {
         val source = File("src/main/kotlin/com/github/ahatem/qtranslate/core/main/mvi/MainStore.kt").readText()
         val hide = source.substringAfter("MainIntent.HideQuickTranslate ->").substringBefore("MainIntent.ToggleQuickTranslateDialogPin")
         assertTrue(hide.contains("val close = _state.value.quickCloseActions()"))
-        assertTrue(hide.contains("if (close.cancelWork) translateTextUseCase.cancel()"))
+        assertTrue(hide.contains("if (close.cancelWork) cancelTranslationWork()"))
         assertTrue(hide.contains("if (close.clearComparisons) clearComparisonState()"))
         assertTrue(hide.contains("_state.update { it.afterQuickClose() }"))
     }
