@@ -113,6 +113,7 @@ class OcrWorkspaceDialog(
 
     @Volatile
     private var shutdownComplete = false
+    private var closeNotified = false
 
     /** The last image actually shown, restored when a newer materialization fails. */
     private var lastGoodPanelImage: BufferedImage? = null
@@ -134,8 +135,11 @@ class OcrWorkspaceDialog(
         addWindowListener(object : WindowAdapter() {
             override fun windowClosed(e: WindowEvent?) {
                 shutdownNow()
-                persistBounds()
-                onClosed()
+                if (!closeNotified) {
+                    closeNotified = true
+                    persistBounds()
+                    onClosed()
+                }
             }
         })
     }
@@ -200,6 +204,13 @@ class OcrWorkspaceDialog(
         dispatchEvent(WindowEvent(this, WindowEvent.WINDOW_CLOSING))
     }
 
+    override fun dispose() {
+        // WINDOW_CLOSED is queued only after peer disposal. Stop reuse synchronously, including
+        // direct dispose() and application-exit paths, before that delayed notification exists.
+        shutdownNow()
+        super.dispose()
+    }
+
     /** Synchronous teardown for application exit, before AWT posts WINDOW_CLOSED. */
     fun shutdownNow() {
         if (shutdownComplete) return
@@ -211,6 +222,7 @@ class OcrWorkspaceDialog(
 
     /** Claims the visible input slot synchronously, before any file or clipboard work starts. */
     private fun claimImageInput(): Long? {
+        if (closed) return null
         cancelWorkspaceTranslationIfRunning()
         imagePanel.currentImage()?.let { lastGoodPanelImage = it }
         val token = store.beginImageInput() ?: return null

@@ -356,7 +356,9 @@ class OcrWorkspaceStore(
             if (closed) return
             // Editing changes the text, not the language it was recognized in.
             _state.update { it.copy(recognizedText = text, isEdited = true) }
-            lastGoodState = _state.value
+            // Loading edits are temporary. They cannot redefine the successfully materialized
+            // image/result that failure recovery must restore.
+            if (!_state.value.isLoadingImage) lastGoodState = _state.value
         }
     }
 

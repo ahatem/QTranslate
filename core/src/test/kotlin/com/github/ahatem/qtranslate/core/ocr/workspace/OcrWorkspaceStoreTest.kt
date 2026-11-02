@@ -591,6 +591,33 @@ class OcrWorkspaceStoreTest {
         assertEquals(imageB, fixture.store.state.value.image)
     }
 
+    @Test
+    fun `edits during materialization cannot redefine the last valid image fallback`() = runBlocking {
+        val fixture = threadFixture(RecordingOcrService())
+        val imageA = ImageData(byteArrayOf(1), "png", 100, 50)
+        val imageB = ImageData(byteArrayOf(2), "png", 20, 10)
+        val regions = listOf(OCRTextRegion("recognized A", 0, 0, 40, 12))
+        fixture.store.openWithResult(imageA, "A", "recognized A", regions, LanguageCode.JAPANESE)
+        fixture.store.updateText("edited A")
+        val tokenB = fixture.store.beginImageInput()!!
+        fixture.store.updateText("temporary loading edit")
+        fixture.store.failImageInput(tokenB, OcrWorkspaceError.ImageOpenFailed)
+        val restored = fixture.store.state.value
+        assertEquals(imageA, restored.image)
+        assertEquals("edited A", restored.recognizedText)
+        assertEquals(regions, restored.regions)
+        assertEquals(LanguageCode.JAPANESE, restored.recognizedLanguage)
+        assertTrue(restored.isEdited)
+        assertFalse(restored.isLoadingImage)
+
+        val retry = fixture.store.beginImageInput()!!
+        fixture.store.updateText("another loading edit")
+        assertTrue(fixture.store.completeImageInput(retry, imageB, "B", false, initialText = "recognized B"))
+        assertEquals(imageB, fixture.store.state.value.image)
+        assertEquals("recognized B", fixture.store.state.value.recognizedText)
+        assertTrue(fixture.store.state.value.regions.isEmpty())
+    }
+
     private class Fixture(
         val image: ImageData,
         val store: OcrWorkspaceStore,

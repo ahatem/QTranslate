@@ -74,6 +74,26 @@ class OcrWorkspaceSpeechTest {
         )
     }
 
+    @Test
+    fun `unknown OCR provenance never borrows unrelated main English detection`() = runBlocking {
+        val tts = RecordingTts()
+        val configuration = MutableStateFlow(Configuration.DEFAULT)
+        val useCase = HandleTextToSpeechUseCase(
+            ActiveServiceManager(MutableStateFlow(mapOf("tts" to tts)), configuration),
+            configuration, SilentPlayer, Silent353Factory,
+        )
+        val statuses = mutableListOf<com.github.ahatem.qtranslate.core.shared.StatusCode>()
+        useCase(
+            currentState = MainState(sourceLanguage = LanguageCode.AUTO, detectedSourceLanguage = LanguageCode.ENGLISH),
+            textSource = TextSource.Input,
+            textOverride = "synthetic OCR text with unknown provenance",
+            languageOverride = LanguageCode.AUTO,
+            onStatusUpdate = { code, _, _ -> statuses += code },
+        )
+        assertEquals(emptyList<TTSRequest>(), tts.requests)
+        assertEquals(listOf<com.github.ahatem.qtranslate.core.shared.StatusCode>(com.github.ahatem.qtranslate.core.shared.StatusCode.CannotDetermineLanguage), statuses)
+    }
+
     private class RecordingTts : TextToSpeech {
         val requests = mutableListOf<TTSRequest>()
         override val key = "tts"
