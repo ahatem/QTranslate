@@ -28,6 +28,8 @@ internal data class HelperResult(
     val languages: JsonElement? = null,
     val maxImageDimension: Int? = null,
     val autoDetect: Boolean? = null,
+    /** Windows: the rotation the engine applied before laying out its boxes. */
+    val textAngle: Double? = null,
     val lines: List<HelperLine> = emptyList(),
 ) {
     /**

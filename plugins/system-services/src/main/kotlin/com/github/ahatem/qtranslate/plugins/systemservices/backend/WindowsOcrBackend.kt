@@ -88,7 +88,7 @@ internal class WindowsOcrBackend(
                 val lines = result.lines.map { line -> OcrLineOrder.lineText(line, language) }
                 SystemOcrRecognition(
                     text = lines.joinToString("\n"),
-                    regions = regionsFrom(result.lines, lines, image, prepared),
+                    regions = regionsFrom(result.lines, lines, image, prepared, result.textAngle ?: 0.0),
                 )
             }
         } finally {
@@ -107,7 +107,12 @@ internal class WindowsOcrBackend(
         textLines: List<String>,
         original: ImageData,
         prepared: com.github.ahatem.qtranslate.plugins.systemservices.backend.PreparedImage,
+        textAngle: Double,
     ): List<OCRTextRegion> {
+        // A rotated result's BoundingRect values live in the rotated coordinate system. The host
+        // contract promises original-image pixels, so report text only rather than misplacing
+        // boxes on a tilted capture.
+        if (kotlin.math.abs(textAngle) > 0.1) return emptyList()
         if (prepared.width <= 0 || prepared.height <= 0) return emptyList()
         val scaleX = original.width.toDouble() / prepared.width
         val scaleY = original.height.toDouble() / prepared.height

@@ -130,10 +130,11 @@ try {
         }
 
         Write-Result @{
-            ok       = $true
-            lines    = $lines
-            text     = [string]::Join("`n", ($lines | ForEach-Object { $_.text }))
-            language = $engine.RecognizerLanguage.LanguageTag
+            ok        = $true
+            lines     = $lines
+            text      = [string]::Join("`n", ($lines | ForEach-Object { $_.text }))
+            language  = $engine.RecognizerLanguage.LanguageTag
+            textAngle = $ocr.TextAngle
         }
     }
     finally {
