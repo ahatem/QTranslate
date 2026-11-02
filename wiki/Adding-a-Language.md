@@ -8,7 +8,7 @@ QTranslate's interface can be translated into any language using a plain TOML fi
 
 English (US) is the source language, embedded directly in the application as the fallback every
 other language completes from — it isn't a file under `languages/`. Alongside it, QTranslate ships
-18 `languages/*.toml` files and is always able to use any of them:
+19 `languages/*.toml` files and is always able to use any of them:
 
 | Language | File | RTL |
 |----------|------|-----|
@@ -17,6 +17,7 @@ other language completes from — it isn't a file under `languages/`. Alongside 
 | Bengali (Bangladesh) | `bn-BD` | No |
 | Chinese (Simplified) | `zh-CN` | No |
 | Chinese (Traditional) | `zh-TW` | No |
+| Czech | `cs-CZ` | No |
 | French | `fr-FR` | No |
 | German | `de-DE` | No |
 | Hungarian | `hu-HU` | No |
