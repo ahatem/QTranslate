@@ -28,6 +28,9 @@ class OcrWorkspaceLifecycleTest {
         val storage = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val configuration = Configuration.DEFAULT.copy(autoCheckForUpdates = false, isGlobalHotkeysEnabled = false)
         val repository = SettingsRepository(directory, Json, Quiet, storageScope = storage)
+        // Seed the isolated repository too, so its initial emission cannot replace the test's
+        // disabled update/hotkey preferences with fresh-install defaults.
+        assertTrue(repository.updateConfiguration(configuration).isOk)
         val dependencies = buildDependencies(directory, Logs, repository, configuration)
         val catalog = OcrServiceCatalog(dependencies.pluginManager.activeServices,
             MutableStateFlow(configuration), dependencies.appScope, Quiet)
