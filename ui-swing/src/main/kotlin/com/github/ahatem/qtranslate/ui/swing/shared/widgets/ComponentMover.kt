@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
+import com.github.ahatem.qtranslate.ui.swing.shared.util.connectedScreenBounds
 import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -52,7 +53,7 @@ class ComponentMover private constructor(
     private var autoscrolls = false
 
     // Cache for performance
-    private var cachedBounds: Dimension? = null
+    private var cachedBounds: Rectangle? = null
     private var lastBoundsComponent: Component? = null
 
     // Track registered components for cleanup
@@ -191,12 +192,13 @@ class ComponentMover private constructor(
             config.snapSize.height
         )
 
-        val bounds = getBoundingSize(dest)
-        val proposedLocation = calculateConstrainedLocation(
+        val bounds = getBoundingBounds(dest)
+        val proposedLocation = constrainToDesktop(
             origLocation.x + dx,
             origLocation.y + dy,
-            dest,
-            bounds
+            Dimension(dest.width, dest.height),
+            bounds,
+            config.edgeInsets,
         )
 
         // Apply custom constraints
@@ -235,49 +237,33 @@ class ComponentMover private constructor(
     }
 
     /**
-     * Calculates new location constrained by edge insets and parent bounds.
+     * Gets the bounds for drag constraints with caching.
+     *
+     * A window is constrained to the whole virtual desktop, whose origin may be negative when a
+     * display sits left of or above the primary one. A component inside a parent is still
+     * constrained to that parent's local coordinates, whose origin is zero.
      */
-    private fun calculateConstrainedLocation(
-        x: Int,
-        y: Int,
-        component: Component,
-        bounds: Dimension
-    ): Point {
-        val maxX = (bounds.width - component.width - config.edgeInsets.right)
-            .coerceAtLeast(config.edgeInsets.left)
-        val maxY = (bounds.height - component.height - config.edgeInsets.bottom)
-            .coerceAtLeast(config.edgeInsets.top)
-
-        return Point(
-            x.coerceIn(config.edgeInsets.left, maxX),
-            y.coerceIn(config.edgeInsets.top, maxY)
-        )
-    }
-
-    /**
-     * Gets the bounding size for drag constraints with caching.
-     */
-    private fun getBoundingSize(component: Component): Dimension {
+    private fun getBoundingBounds(component: Component): Rectangle {
         // Use cache if same component
         if (component === lastBoundsComponent && cachedBounds != null) {
             return cachedBounds!!
         }
 
         val bounds = when (component) {
-            is Window -> {
-                val screenBounds = GraphicsEnvironment
-                    .getLocalGraphicsEnvironment()
-                    .maximumWindowBounds
-                Dimension(screenBounds.width, screenBounds.height)
-            }
-
-            else -> component.parent?.size ?: Dimension(0, 0)
+            is Window -> desktopBounds()
+            else -> component.parent?.let { Rectangle(0, 0, it.width, it.height) } ?: Rectangle()
         }
 
         lastBoundsComponent = component
         cachedBounds = bounds
         return bounds
     }
+
+    private fun desktopBounds(): Rectangle =
+        virtualDesktopBounds(connectedScreenBounds())
+            ?: runCatching {
+                GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds
+            }.getOrDefault(Rectangle())
 
     /**
      * Cleans up drag state and restores original settings.
