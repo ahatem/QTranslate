@@ -57,6 +57,8 @@ internal data class HelperWord(
     val t: String = "",
     val x: Double = 0.0,
     val y: Double = 0.0,
+    val w: Double = 0.0,
+    val h: Double = 0.0,
 )
 
 /** Reads and interprets the helper's result file. */

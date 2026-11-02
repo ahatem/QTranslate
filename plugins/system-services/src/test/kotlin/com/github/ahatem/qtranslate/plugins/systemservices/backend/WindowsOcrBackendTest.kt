@@ -54,6 +54,33 @@ class WindowsOcrBackendTest {
     }
 
     @Test
+    fun `recognizeStructuredText maps word boxes from the helper into original image pixels`() = runBlocking {
+        val backend = backend(
+            helper(
+                recognitionJson = """
+                    {"ok":true,"lines":[
+                      {"text":"Hello World","words":[
+                        {"t":"Hello","x":10,"y":12,"w":20,"h":8},
+                        {"t":"World","x":35,"y":10,"w":18,"h":10}
+                      ]}
+                    ]}
+                """.trimIndent()
+            )
+        )
+
+        val response = backend.recognizeStructured(imageData(width = 80, height = 40), LanguageCode.ENGLISH).unwrap()
+
+        assertEquals("Hello World", response.text)
+        assertEquals(1, response.regions.size)
+        val region = response.regions.single()
+        assertEquals("Hello World", region.text)
+        assertEquals(10, region.left)
+        assertEquals(10, region.top)
+        assertEquals(53, region.right)
+        assertEquals(20, region.bottom)
+    }
+
+    @Test
     fun `recognize returns an empty string when the engine finds no text`() = runBlocking {
         val backend = backend(helper(recognitionJson = """{"ok":true,"text":""}"""))
 

@@ -119,6 +119,8 @@ try {
                     t = $word.Text
                     x = [math]::Round($rect.X, 1)
                     y = [math]::Round($rect.Y, 1)
+                    w = [math]::Round($rect.Width, 1)
+                    h = [math]::Round($rect.Height, 1)
                 }
             }
             $lines += @{

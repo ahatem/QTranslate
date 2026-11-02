@@ -2,6 +2,8 @@ package com.github.ahatem.qtranslate.plugins.systemservices.backend
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.ImageData
+import com.github.ahatem.qtranslate.api.ocr.OCRRegionKind
+import com.github.ahatem.qtranslate.api.ocr.OCRTextRegion
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.plugins.systemservices.language.SystemOcrLanguages
 import com.github.michaelbull.result.Err
@@ -13,6 +15,7 @@ import com.github.michaelbull.result.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
+import kotlin.math.roundToInt
 
 /**
  * Windows OCR backed by `Windows.Media.Ocr`.
@@ -44,7 +47,12 @@ internal class WindowsOcrBackend(
     override suspend fun recognize(
         image: ImageData,
         language: LanguageCode,
-    ): Result<String, ServiceError> = coroutineBinding {
+    ): Result<String, ServiceError> = recognizeStructured(image, language).map { it.text }
+
+    override suspend fun recognizeStructured(
+        image: ImageData,
+        language: LanguageCode,
+    ): Result<SystemOcrRecognition, ServiceError> = coroutineBinding {
         val tooling = tooling().bind()
 
         if (language == LanguageCode.AUTO) {
@@ -75,12 +83,49 @@ internal class WindowsOcrBackend(
 
             // Words arrive in visual order; rebuild each line and keep the line order the engine gave.
             if (result.lines.isEmpty()) {
-                result.text.orEmpty()
+                SystemOcrRecognition(text = result.text.orEmpty())
             } else {
-                result.lines.joinToString("\n") { line -> OcrLineOrder.lineText(line, language) }
+                val lines = result.lines.map { line -> OcrLineOrder.lineText(line, language) }
+                SystemOcrRecognition(
+                    text = lines.joinToString("\n"),
+                    regions = regionsFrom(result.lines, lines, image, prepared),
+                )
             }
         } finally {
             TempFiles.deleteQuietly(imageFile, resultFile)
+        }
+    }
+
+    /**
+     * The helper reports coordinates in the image it actually received. OcrImage may have scaled
+     * that image down to the engine limit, so every box is mapped back to the caller's original
+     * pixels before leaving the backend. Clamping keeps rounding at the edge from producing a box
+     * one pixel outside the image.
+     */
+    private fun regionsFrom(
+        helperLines: List<HelperLine>,
+        textLines: List<String>,
+        original: ImageData,
+        prepared: com.github.ahatem.qtranslate.plugins.systemservices.backend.PreparedImage,
+    ): List<OCRTextRegion> {
+        if (prepared.width <= 0 || prepared.height <= 0) return emptyList()
+        val scaleX = original.width.toDouble() / prepared.width
+        val scaleY = original.height.toDouble() / prepared.height
+        return helperLines.mapIndexedNotNull { index, line ->
+            val words = line.words.filter { it.w > 0.0 && it.h > 0.0 }
+            if (words.isEmpty()) return@mapIndexedNotNull null
+            val left = (words.minOf { it.x } * scaleX).roundToInt().coerceIn(0, original.width)
+            val top = (words.minOf { it.y } * scaleY).roundToInt().coerceIn(0, original.height)
+            val right = (words.maxOf { it.x + it.w } * scaleX).roundToInt().coerceIn(left, original.width)
+            val bottom = (words.maxOf { it.y + it.h } * scaleY).roundToInt().coerceIn(top, original.height)
+            OCRTextRegion(
+                text = textLines.getOrElse(index) { line.text },
+                left = left,
+                top = top,
+                right = right,
+                bottom = bottom,
+                kind = OCRRegionKind.LINE,
+            )
         }
     }
 
