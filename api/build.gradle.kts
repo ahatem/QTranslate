@@ -1,6 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.abi.ExperimentalAbiValidation
 
-version = "2.1.0"  // only bump when the API interface changes
+version = "2.2.0"  // only bump when the API interface changes
 
 plugins {
     id("buildsrc.convention.kotlin-jvm")
