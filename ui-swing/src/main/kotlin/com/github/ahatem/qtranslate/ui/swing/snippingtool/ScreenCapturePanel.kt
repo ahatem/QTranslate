@@ -1,7 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.snippingtool
 
 import com.formdev.flatlaf.FlatClientProperties
-import com.github.ahatem.qtranslate.ui.swing.shared.util.getVirtualScreenBounds
 import java.awt.*
 import java.awt.geom.RoundRectangle2D
 import java.awt.image.BufferedImage
@@ -15,7 +14,8 @@ class ScreenCapturePanel(
     private val onSaveImage: (BufferedImage) -> Unit,
     private val onRecrop: () -> Unit,
     private val onCancel: () -> Unit,
-    private val buttonLabels: ButtonLabels = ButtonLabels()
+    private val buttonLabels: ButtonLabels = ButtonLabels(),
+    private val buttonTooltips: ButtonTooltips = ButtonTooltips(),
 ) : JLayeredPane() {
 
     data class ButtonLabels(
@@ -26,6 +26,18 @@ class ScreenCapturePanel(
         val recrop: String     = "Re-crop",
         val cancel: String     = "Cancel"
     )
+
+    data class ButtonTooltips(
+        val translate: String  = "OCR and translate the captured region",
+        val copyText: String   = "Recognize text and copy to clipboard",
+        val copyImage: String  = "Copy image to clipboard",
+        val saveImage: String  = "Save captured image as PNG",
+        val recrop: String     = "Clear selection and draw a new one",
+        val cancel: String     = "Close the capture tool",
+    )
+
+    private val actionButtons = mutableMapOf<CaptureToolbarAction, JButton>()
+    private val selectionDependentButtons = mutableListOf<JButton>()
 
     private var currentState: ScreenCaptureState? = null
 
@@ -66,7 +78,9 @@ class ScreenCapturePanel(
         // the dialog's default button cannot fire an empty capture (#364). The
         // validity rule mirrors ScreenCaptureController.mouseReleased.
         val selection = state.selection
-        translateButton.isEnabled = selection != null && selection.width > 0 && selection.height > 0
+        val validSelection = selection != null && selection.width > 0 && selection.height > 0
+        translateButton.isEnabled = validSelection
+        selectionDependentButtons.forEach { it.isEnabled = validSelection }
 
         if (state.showButtons && state.buttonsPosition != null) {
             buttonsPanel.location = state.buttonsPosition
@@ -80,8 +94,50 @@ class ScreenCapturePanel(
     fun getSelectedImage(): BufferedImage? {
         val state = currentState ?: return null
         val selection = state.selection ?: return null
-        return state.screenshot.getSubimage(selection.x, selection.y, selection.width, selection.height)
+        val panelSize = if (width > 0 && height > 0) {
+            size
+        } else {
+            // Headless tests and a panel that has not been laid out yet still carry a valid
+            // selection against the screenshot itself.
+            Dimension(state.screenshot.width, state.screenshot.height)
+        }
+        val imageSelection = CaptureGeometry.selectionToImage(
+            selection = selection,
+            screenshot = state.screenshot,
+            panelSize = panelSize,
+        ) ?: return null
+        return state.screenshot.getSubimage(
+            imageSelection.x,
+            imageSelection.y,
+            imageSelection.width,
+            imageSelection.height,
+        )
     }
+
+    /** Invokes a toolbar action as if its button was pressed, if the action is currently valid. */
+    fun trigger(action: CaptureToolbarAction) {
+        if (action == CaptureToolbarAction.CANCEL) {
+            onCancel()
+            return
+        }
+        if (action == CaptureToolbarAction.RECROP) {
+            onRecrop()
+            return
+        }
+        if (!translateButton.isEnabled) return
+        val image = getSelectedImage() ?: return
+        when (action) {
+            CaptureToolbarAction.TRANSLATE -> onTranslate(image)
+            CaptureToolbarAction.COPY_TEXT -> onCopyText(image)
+            CaptureToolbarAction.COPY_IMAGE -> onCopyImage(image)
+            CaptureToolbarAction.SAVE_IMAGE -> onSaveImage(image)
+            CaptureToolbarAction.RECROP,
+            CaptureToolbarAction.CANCEL -> Unit
+        }
+    }
+
+    /** The button for [action], for tooltip/shortcut tests and future accessibility wiring. */
+    internal fun buttonFor(action: CaptureToolbarAction): JButton? = actionButtons[action]
 
     // ─────────────────────────────────────────────────────────────────────────
     // Painting
@@ -190,18 +246,26 @@ class ScreenCapturePanel(
         // "default" = filled accent button — primary action
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "default")
         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        toolTipText = "OCR and translate the captured region"
+        toolTipText = buttonTooltips.translate
         addActionListener { getSelectedImage()?.let(onTranslate) }
         alignmentY = Component.CENTER_ALIGNMENT
+        actionButtons[CaptureToolbarAction.TRANSLATE] = this
     }
 
     private fun createButtonsPanel(): JPanel {
         val translateBtn = translateButton
-        val copyTextBtn  = flatBtn(buttonLabels.copyText,  "Recognize text and copy to clipboard")  { getSelectedImage()?.let(onCopyText)  }
-        val copyImageBtn = flatBtn(buttonLabels.copyImage, "Copy image to clipboard")                 { getSelectedImage()?.let(onCopyImage) }
-        val saveImageBtn = flatBtn(buttonLabels.saveImage, "Save captured image as PNG")              { getSelectedImage()?.let(onSaveImage) }
-        val recropBtn    = flatBtn(buttonLabels.recrop,    "Clear selection and draw a new one")      { onRecrop()    }
-        val cancelBtn    = flatBtn(buttonLabels.cancel,    "Close the capture tool")                  { onCancel()    }
+        val copyTextBtn  = flatBtn(buttonLabels.copyText,  buttonTooltips.copyText)  { getSelectedImage()?.let(onCopyText)  }
+        val copyImageBtn = flatBtn(buttonLabels.copyImage, buttonTooltips.copyImage) { getSelectedImage()?.let(onCopyImage) }
+        val saveImageBtn = flatBtn(buttonLabels.saveImage, buttonTooltips.saveImage) { getSelectedImage()?.let(onSaveImage) }
+        val recropBtn    = flatBtn(buttonLabels.recrop,    buttonTooltips.recrop)    { onRecrop()    }
+        val cancelBtn    = flatBtn(buttonLabels.cancel,    buttonTooltips.cancel)    { onCancel()    }
+        actionButtons[CaptureToolbarAction.COPY_TEXT] = copyTextBtn
+        actionButtons[CaptureToolbarAction.COPY_IMAGE] = copyImageBtn
+        actionButtons[CaptureToolbarAction.SAVE_IMAGE] = saveImageBtn
+        actionButtons[CaptureToolbarAction.RECROP] = recropBtn
+        actionButtons[CaptureToolbarAction.CANCEL] = cancelBtn
+        selectionDependentButtons += listOf(copyTextBtn, copyImageBtn, saveImageBtn)
+        selectionDependentButtons += translateBtn
 
         return object : JPanel() {
             override fun paintComponent(g: Graphics) {
@@ -286,23 +350,10 @@ class ScreenCapturePanel(
     // Position helpers
     // ─────────────────────────────────────────────────────────────────────────
 
-    fun calculateButtonsPosition(selection: Rectangle): Point {
-        val panelSize = buttonsPanel.preferredSize
-        val screenBounds = getVirtualScreenBounds()
-        val padding = 12
-
-        var x = selection.x + (selection.width - panelSize.width) / 2
-        var y = selection.y + selection.height + padding
-
-        x = x.coerceAtLeast(screenBounds.x + padding)
-            .coerceAtMost(screenBounds.x + screenBounds.width - panelSize.width - padding)
-
-        if (y + panelSize.height > screenBounds.y + screenBounds.height - padding) {
-            y = selection.y - panelSize.height - padding
-        }
-
-        y = y.coerceAtLeast(screenBounds.y + padding)
-
-        return Point(x, y)
-    }
+    fun calculateButtonsPosition(selection: Rectangle): Point =
+        CaptureGeometry.toolbarPosition(
+            selection = selection,
+            toolbarSize = buttonsPanel.preferredSize,
+            panelSize = size,
+        )
 }

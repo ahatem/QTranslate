@@ -239,6 +239,7 @@ fun main(args: Array<String>) = runBlocking {
             pluginManager    = deps.pluginManager,
             notificationBus  = deps.notificationBus,
             logger           = logFactory.getLogger("MainAppFrame"),
+            ocrExtractionUseCase = deps.ocrExtractionUseCase,
             initiallyHidden  = startHidden,
             appSecrets       = deps.appSecrets,
             translateString  = { text, target ->

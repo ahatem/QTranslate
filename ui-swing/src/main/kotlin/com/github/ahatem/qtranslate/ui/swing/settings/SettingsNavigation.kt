@@ -38,6 +38,7 @@ internal class SettingsNavigation(private val label: (String) -> String) {
                 Nav.Page(label("popups"), Icons.POPUP),
             )
         ),
+        Nav.Page(label("ocr"), Icons.OCR),
         Nav.Page(label("hotkeys"), Icons.KEYBOARD),
         Nav.Page(label("plugins"), Icons.PLUGIN),
         Nav.Page(label("network"), Icons.NETWORK),

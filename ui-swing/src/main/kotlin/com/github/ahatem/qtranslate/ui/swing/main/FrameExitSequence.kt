@@ -27,6 +27,8 @@ internal class FrameExitSequence(
     private val shutdownGlobalInput: () -> Unit,
     private val disposeSelectionButton: () -> Unit,
     private val disposeTray: () -> Unit,
+    /** Child utility windows that own coroutine work of their own, such as the OCR Workspace. */
+    private val disposeOwnedUtilityWindows: () -> Unit = {},
     private val cancelFrameScope: () -> Unit,
     private val captureBounds: () -> Pair<Size, Position>,
     private val onApplicationExit: (Size, Position) -> Unit,
@@ -40,6 +42,7 @@ internal class FrameExitSequence(
         shutdownGlobalInput()
         disposeSelectionButton()
         disposeTray()
+        disposeOwnedUtilityWindows()
         cancelFrameScope()
         val (size, position) = captureBounds()
         onApplicationExit(size, position)

@@ -11,6 +11,7 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.main.mvi.LookupTool
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
+import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
@@ -24,6 +25,9 @@ import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
 import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoard
 import com.github.ahatem.qtranslate.ui.swing.settings.SettingsDialog
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
@@ -158,6 +162,17 @@ private class Shots(
 
     /** Whether the scene in flight uses a dark theme — picks the composite backdrop's gradient. */
     private var sceneIsDark = true
+
+    private val ocrCatalog: OcrServiceCatalog by lazy {
+        OcrServiceCatalog(
+            activeServices = deps.pluginManager.activeServices,
+            configuration = deps.settingsStore.state
+                .map { it.workingConfiguration }
+                .stateIn(deps.appScope, SharingStarted.Eagerly, deps.settingsStore.state.value.workingConfiguration),
+            scope = deps.appScope,
+            logger = logger,
+        )
+    }
 
     private companion object {
         /** How long one request for a floating window is given before the scene asks again. */
@@ -426,7 +441,7 @@ private class Shots(
 
     suspend fun settingsShowcase() {
         start(settingsConfig(Scenes.DARK))
-        capturePages(Scenes.DARK, "dark", listOf(3 to "services", 10 to "plugins"))
+        capturePages(Scenes.DARK, "dark", listOf(3 to "services", 11 to "plugins"))
     }
 
     private fun settingsConfig(theme: String): Configuration =
@@ -444,6 +459,7 @@ private class Shots(
                 iconManager = deps.iconManager,
                 themeManager = deps.themeManager,
                 localizationManager = deps.localizationManager,
+                ocrServiceCatalog = ocrCatalog,
                 availableLanguages = { deps.mainStore.state.value.availableLanguages },
             ).apply {
                 isModal = false // modal would block the event thread this harness drives

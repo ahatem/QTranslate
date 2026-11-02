@@ -143,6 +143,7 @@ internal class StatusBarController(
         StatusCode.NoTextInImage                -> localizer.getString("status_bar.no_text_in_image")
         StatusCode.OcrComplete                  -> localizer.getString("status_bar.ocr_complete")
         StatusCode.OcrTextCopied               -> localizer.getString("status_bar.ocr_text_copied")
+        StatusCode.OcrImageCopied              -> localizer.getString("status_bar.ocr_image_copied")
         StatusCode.TextCopied                  -> localizer.getString("status_bar.text_copied")
         is StatusCode.OcrFailed                 -> localizer.getString("status_bar.ocr_failed", code.summary)
         StatusCode.NoSummarizerActive           -> localizer.getString("status_bar.no_summarizer_active")

@@ -63,6 +63,7 @@ import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 class AppDependencies(
     val appScope: CoroutineScope,
     val mainStore: MainStore,
+    val ocrExtractionUseCase: com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase,
     val translateStringUseCase: TranslateStringUseCase,
     val settingsStore: SettingsStore,
     val pluginManager: PluginManager,
@@ -287,6 +288,11 @@ suspend fun buildDependencies(
 
     // ---- 9. Stores ----
 
+    val ocrExtractionUseCase = com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase(
+        activeServiceManager = activeServiceManager,
+        loggerFactory = loggerFactory,
+    )
+
     val mainStore = MainStore(
         scope                      = appScope,
         settingsState              = configState,
@@ -303,7 +309,7 @@ suspend fun buildDependencies(
         ),
         translateTextUseCase       = translateUseCase,
         swapLanguagesUseCase       = SwapLanguagesUseCase(),
-        ocrAndTranslateUseCase     = OcrAndTranslateUseCase(activeServiceManager, loggerFactory),
+        ocrAndTranslateUseCase     = ocrExtractionUseCase,
         summarizeUseCase           = summarizeUseCase,
         rewriteUseCase             = rewriteUseCase,
         lookupWordUseCase          = lookupWordUseCase,
@@ -315,6 +321,7 @@ suspend fun buildDependencies(
     return AppDependencies(
         appScope            = appScope,
         mainStore           = mainStore,
+        ocrExtractionUseCase = ocrExtractionUseCase,
         translateStringUseCase = translateStringUseCase,
         settingsStore       = settingsStore,
         pluginManager       = pluginManager,

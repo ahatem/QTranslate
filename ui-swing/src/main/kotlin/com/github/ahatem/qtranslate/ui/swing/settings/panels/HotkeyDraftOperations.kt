@@ -49,6 +49,8 @@ internal object HotkeyDraftOperations {
     fun toggleScope(configuration: Configuration, action: HotkeyAction): Configuration {
         val current = binding(configuration, action) ?: return configuration
         if (action == HotkeyAction.SHOW_MAIN_WINDOW) return configuration
+        // Capture actions belong to the overlay. There is no meaningful global/local variant.
+        if (current.scope == HotkeyScope.CAPTURE) return configuration
         return replaceBinding(
             configuration,
             current.copy(
