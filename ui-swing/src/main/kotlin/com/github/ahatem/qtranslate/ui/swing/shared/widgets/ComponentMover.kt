@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
-import com.github.ahatem.qtranslate.ui.swing.shared.util.connectedScreenBounds
 import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -53,7 +52,7 @@ class ComponentMover private constructor(
     private var autoscrolls = false
 
     // Cache for performance
-    private var cachedBounds: Rectangle? = null
+    private var cachedBounds: List<Rectangle>? = null
     private var lastBoundsComponent: Component? = null
 
     // Track registered components for cleanup
@@ -192,8 +191,8 @@ class ComponentMover private constructor(
             config.snapSize.height
         )
 
-        val bounds = getBoundingBounds(dest)
-        val proposedLocation = constrainToDesktop(
+        val bounds = getBoundingScreens(dest)
+        val proposedLocation = constrainToScreens(
             origLocation.x + dx,
             origLocation.y + dy,
             Dimension(dest.width, dest.height),
@@ -237,21 +236,22 @@ class ComponentMover private constructor(
     }
 
     /**
-     * Gets the bounds for drag constraints with caching.
+     * Gets the usable display areas for drag constraints with caching.
      *
      * A window is constrained to the whole virtual desktop, whose origin may be negative when a
-     * display sits left of or above the primary one. A component inside a parent is still
-     * constrained to that parent's local coordinates, whose origin is zero.
+     * display sits left of or above the primary one. Reserved OS areas such as taskbars and menu
+     * bars are subtracted from each display, so they are not draggable space. A component inside
+     * a parent is still constrained to that parent's local coordinates, whose origin is zero.
      */
-    private fun getBoundingBounds(component: Component): Rectangle {
+    private fun getBoundingScreens(component: Component): List<Rectangle> {
         // Use cache if same component
         if (component === lastBoundsComponent && cachedBounds != null) {
             return cachedBounds!!
         }
 
         val bounds = when (component) {
-            is Window -> desktopBounds()
-            else -> component.parent?.let { Rectangle(0, 0, it.width, it.height) } ?: Rectangle()
+            is Window -> usableScreenBounds()
+            else -> listOf(component.parent?.let { Rectangle(0, 0, it.width, it.height) } ?: Rectangle())
         }
 
         lastBoundsComponent = component
@@ -259,11 +259,26 @@ class ComponentMover private constructor(
         return bounds
     }
 
-    private fun desktopBounds(): Rectangle =
-        virtualDesktopBounds(connectedScreenBounds())
-            ?: runCatching {
-                GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds
-            }.getOrDefault(Rectangle())
+    private fun usableScreenBounds(): List<Rectangle> {
+        val screens = runCatching {
+            val toolkit = Toolkit.getDefaultToolkit()
+            GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices.map { device ->
+                val configuration = device.defaultConfiguration
+                usableBounds(
+                    configuration.bounds,
+                    toolkit.getScreenInsets(configuration),
+                )
+            }
+        }.getOrDefault(emptyList())
+
+        return screens.ifEmpty {
+            listOf(
+                runCatching {
+                    GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds
+                }.getOrDefault(Rectangle())
+            )
+        }
+    }
 
     /**
      * Cleans up drag state and restores original settings.
