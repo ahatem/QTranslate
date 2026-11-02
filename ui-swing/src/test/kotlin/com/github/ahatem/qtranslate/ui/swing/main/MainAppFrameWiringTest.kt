@@ -53,6 +53,19 @@ class MainAppFrameWiringTest {
     }
 
     @Test
+    fun `OCR workspace is a single instance while its input materializes`() {
+        assertContains(source, "val existing = ocrWorkspaceDialog?.takeIf { !it.isWorkspaceClosed() }")
+        assertContains(source, "if (ocrWorkspaceDialog === created) ocrWorkspaceDialog = null")
+        assertContains(source, "?.openCapturedImage(")
+        // A newly constructed (not yet visible) workspace must still be reused, so this must not
+        // gate reuse on isDisplayable or isVisible.
+        assertTrue(
+            "takeIf { it.isDisplayable }" !in source,
+            "workspace reuse must not depend on peer creation during first materialization",
+        )
+    }
+
+    @Test
     fun `popups and drops route through their policies`() {
         assertContains(source, "PopupDismissalPolicy.dismissals(")
         assertContains(source, "contentDropRouter.route(content)")

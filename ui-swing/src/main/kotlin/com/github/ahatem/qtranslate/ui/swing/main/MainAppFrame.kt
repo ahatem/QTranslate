@@ -805,6 +805,7 @@ class MainAppFrame(
                             autoTranslate = event.autoTranslate,
                             initialText = event.initialText,
                             initialRegions = event.initialRegions,
+                            initialLanguage = event.initialLanguage,
                         )
                     }
                     MainEvent.ShowMainWindow -> withContext(Dispatchers.Swing) {
@@ -1145,49 +1146,59 @@ class MainAppFrame(
         autoTranslate: Boolean,
         initialText: String? = null,
         initialRegions: List<com.github.ahatem.qtranslate.api.ocr.OCRTextRegion> = emptyList(),
+        initialLanguage: LanguageCode? = null,
     ) {
         val extraction = ocrExtractionUseCase
         if (extraction == null) {
             logger.warn("OCR Workspace requested without an extraction use case")
             return
         }
-        val existing = ocrWorkspaceDialog?.takeIf { it.isDisplayable }
-        val dialog = existing ?: OcrWorkspaceDialog(
-            owner = null,
-            mainStore = mainStore,
-            settingsStore = settingsStore,
-            localizer = localizer,
-            extraction = extraction,
-            catalog = ocrServiceCatalog,
-            onCaptureRequested = {
-                val workspace = ocrWorkspaceDialog
-                workspace?.isVisible = false
-                openSnippingTool(
-                    command = OcrWorkflowCommand.OPEN_WORKSPACE,
-                    onCapturedImage = { captured ->
-                        workspace?.openImage(
-                            image = captured.toImageData("png"),
-                            label = localizer.getString("ocr_workspace.captured_label"),
-                            autoTranslate = false,
-                        )
-                    },
-                    onDismissedWithoutWorkspace = {
-                        if (workspace?.isDisplayable == true && workspace.isVisible.not()) {
-                            workspace.isVisible = true
-                            workspace.toFront()
-                        }
-                    },
-                )
-            },
-            onShowMainWindow = { showAndFocus() },
-            onOpenSettings = { openSettingsDialog(openToOcr = true) },
-            onClosed = { ocrWorkspaceDialog = null },
-        ).also { created ->
-            ocrWorkspaceDialog = created
+        val existing = ocrWorkspaceDialog?.takeIf { !it.isWorkspaceClosed() }
+        val dialog = existing ?: run {
+            lateinit var created: OcrWorkspaceDialog
+            created = OcrWorkspaceDialog(
+                owner = null,
+                mainStore = mainStore,
+                settingsStore = settingsStore,
+                localizer = localizer,
+                extraction = extraction,
+                catalog = ocrServiceCatalog,
+                onCaptureRequested = {
+                    val workspace = ocrWorkspaceDialog
+                    workspace?.isVisible = false
+                    openSnippingTool(
+                        command = OcrWorkflowCommand.OPEN_WORKSPACE,
+                        onCapturedImage = { captured ->
+                            ocrWorkspaceDialog
+                                ?.takeIf { !it.isWorkspaceClosed() }
+                                ?.openCapturedImage(
+                                    image = captured,
+                                    label = localizer.getString("ocr_workspace.captured_label"),
+                                )
+                        },
+                        onDismissedWithoutWorkspace = {
+                            val target = ocrWorkspaceDialog
+                            if (target != null && !target.isWorkspaceClosed() && target.isVisible.not()) {
+                                target.isVisible = true
+                                target.toFront()
+                            }
+                        },
+                    )
+                },
+                onShowMainWindow = { showAndFocus() },
+                onOpenSettings = { openSettingsDialog(openToOcr = true) },
+                onClosed = {
+                    // Clear only the exact instance that closed: an older close must not drop a
+                    // newer workspace reference.
+                    if (ocrWorkspaceDialog === created) ocrWorkspaceDialog = null
+                },
+            )
             created.applyComponentOrientation(
                 if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
                 else ComponentOrientation.LEFT_TO_RIGHT
             )
+            ocrWorkspaceDialog = created
+            created
         }
         dialog.openImage(
             image = image,
@@ -1195,6 +1206,7 @@ class MainAppFrame(
             autoTranslate = autoTranslate,
             initialText = initialText,
             initialRegions = initialRegions,
+            initialLanguage = initialLanguage,
         )
     }
 

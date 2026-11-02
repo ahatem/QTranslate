@@ -19,12 +19,10 @@ import com.github.ahatem.qtranslate.core.settings.data.Position
 import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
-import com.github.ahatem.qtranslate.ui.swing.shared.util.DroppedContent
 import com.github.ahatem.qtranslate.ui.swing.shared.util.DroppedContentClassifier
 import com.github.ahatem.qtranslate.ui.swing.shared.util.connectedScreenBounds
 import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isPositionReachable
-import com.github.ahatem.qtranslate.ui.swing.shared.util.toImageData
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -110,6 +108,15 @@ class OcrWorkspaceDialog(
     private var autoTranslatePending = false
     private var regionRanges: List<IntRange> = emptyList()
 
+    @Volatile
+    private var closed = false
+
+    @Volatile
+    private var shutdownComplete = false
+
+    /** The last image actually shown, restored when a newer materialization fails. */
+    private var lastGoodPanelImage: BufferedImage? = null
+
     init {
         defaultCloseOperation = DISPOSE_ON_CLOSE
         minimumSize = Dimension(760, 460)
@@ -140,37 +147,54 @@ class OcrWorkspaceDialog(
         autoTranslate: Boolean,
         initialText: String? = null,
         initialRegions: List<OCRTextRegion> = emptyList(),
+        initialLanguage: LanguageCode? = null,
     ) {
+        // Claim input ownership before any decoding. A second open/paste/capture immediately
+        // supersedes this one even while its bytes are still being materialized.
+        val token = claimImageInput() ?: return
         scope.launch {
-            val decoded = withContext(Dispatchers.IO) { decode(image) }
+            val decoded = OcrImageMaterializer.decode(image)
             withContext(Dispatchers.Swing) {
                 if (decoded == null) {
-                    showError(localizer.getString("ocr_workspace.image_open_failed"))
+                    failMaterialization(token, OcrWorkspaceError.ImageOpenFailed)
                     return@withContext
                 }
-                imagePanel.setImage(decoded)
-                invalidateWorkspaceTranslation()
-                autoTranslatePending = autoTranslate
-                if (initialText != null) {
-                    store.openWithResult(image, label, initialText, initialRegions)
-                } else {
-                    store.openImage(image, label, autoRun = true)
-                }
-                if (!isVisible) {
-                    isVisible = true
-                }
-                toFront()
-                SwingUtilities.invokeLater {
-                    imagePanel.fitToWindow(imageScroll.viewport.extentSize)
-                    if (autoTranslate && initialText != null) {
-                        translateCurrentText(initialText)
-                        autoTranslatePending = false
-                    }
-                    ocrTextArea.requestFocusInWindow()
-                }
+                finishMaterialization(
+                    token = token,
+                    decoded = decoded,
+                    image = image,
+                    label = label,
+                    autoTranslate = autoTranslate,
+                    initialText = initialText,
+                    initialRegions = initialRegions,
+                    initialLanguage = initialLanguage,
+                )
             }
         }
     }
+
+    /** Opens a screenshot captured by this workspace, encoding it off the EDT. */
+    fun openCapturedImage(image: BufferedImage, label: String) {
+        val token = claimImageInput() ?: return
+        scope.launch {
+            val materialized = OcrImageMaterializer.encode(image)
+            withContext(Dispatchers.Swing) {
+                if (materialized == null) {
+                    failMaterialization(token, OcrWorkspaceError.ImageOpenFailed)
+                    return@withContext
+                }
+                finishMaterialization(
+                    token = token,
+                    decoded = materialized.image,
+                    image = materialized.data,
+                    label = label,
+                    autoTranslate = false,
+                )
+            }
+        }
+    }
+
+    fun isWorkspaceClosed(): Boolean = closed
 
     fun closeWorkspace() {
         dispatchEvent(WindowEvent(this, WindowEvent.WINDOW_CLOSING))
@@ -178,8 +202,87 @@ class OcrWorkspaceDialog(
 
     /** Synchronous teardown for application exit, before AWT posts WINDOW_CLOSED. */
     fun shutdownNow() {
+        if (shutdownComplete) return
+        shutdownComplete = true
+        closed = true
         store.close()
         scope.cancel()
+    }
+
+    /** Claims the visible input slot synchronously, before any file or clipboard work starts. */
+    private fun claimImageInput(): Long? {
+        cancelWorkspaceTranslationIfRunning()
+        imagePanel.currentImage()?.let { lastGoodPanelImage = it }
+        val token = store.beginImageInput() ?: return null
+        imagePanel.setImage(null)
+        invalidateWorkspaceTranslation()
+        autoTranslatePending = false
+        return token
+    }
+
+    /** A new input supersedes the translation that belonged to the old one. */
+    private fun cancelWorkspaceTranslationIfRunning() {
+        val expected = expectedTranslationInput ?: return
+        val main = mainStore.state.value
+        if (main.isLoading && main.inputText == expected) {
+            mainStore.dispatch(MainIntent.CancelTranslation)
+        }
+    }
+
+    private fun failMaterialization(token: Long, error: OcrWorkspaceError) {
+        if (store.failImageInput(token, error)) {
+            imagePanel.setImage(lastGoodPanelImage)
+            lastGoodPanelImage?.let { imagePanel.fitToWindow(imageScroll.viewport.extentSize) }
+            val message = when (error) {
+                OcrWorkspaceError.ClipboardEmpty -> localizer.getString("ocr_workspace.clipboard_empty")
+                else -> localizer.getString("ocr_workspace.image_open_failed")
+            }
+            showError(message)
+        }
+    }
+
+    /**
+     * Publishes materialized bytes only when [token] still owns the input. The image panel, OCR
+     * auto-run and optional initial translation all follow that same decision, so text and
+     * geometry from image A can never attach to an image B shown later.
+     */
+    private fun finishMaterialization(
+        token: Long,
+        decoded: BufferedImage,
+        image: ImageData,
+        label: String,
+        autoTranslate: Boolean,
+        initialText: String? = null,
+        initialRegions: List<OCRTextRegion> = emptyList(),
+        initialLanguage: LanguageCode? = null,
+    ) {
+        val accepted = store.completeImageInput(
+            token = token,
+            image = image,
+            label = label,
+            autoRun = initialText == null,
+            initialText = initialText,
+            initialRegions = initialRegions,
+            recognizedLanguage = initialLanguage,
+        )
+        if (!accepted) return
+
+        imagePanel.setImage(decoded)
+        lastGoodPanelImage = decoded
+        autoTranslatePending = autoTranslate && initialText == null
+        if (!isVisible) {
+            isVisible = true
+        }
+        toFront()
+        SwingUtilities.invokeLater {
+            if (!store.isImageInputCurrent(token)) return@invokeLater
+            imagePanel.fitToWindow(imageScroll.viewport.extentSize)
+            if (autoTranslate && initialText != null) {
+                translateCurrentText(initialText)
+                autoTranslatePending = false
+            }
+            ocrTextArea.requestFocusInWindow()
+        }
     }
 
     private fun buildUi() {
@@ -430,12 +533,21 @@ class OcrWorkspaceDialog(
         providers.removeAllElements()
         state.providers.forEach(providers::addElement)
         providerCombo.selectedItem = state.providers.firstOrNull { it.id == state.providerId }
-        providerCombo.isEnabled = state.providers.isNotEmpty() && !state.isRecognizing
+        providerCombo.isEnabled = state.providers.isNotEmpty() && !state.isRecognizing && !state.isLoadingImage
         val languages = languageCombo.model as DefaultComboBoxModel<LanguageCode>
         languages.removeAllElements()
-        state.languages.forEach(languages::addElement)
-        languageCombo.selectedItem = state.language.takeIf { it in state.languages }
-        languageCombo.isEnabled = state.languages.isNotEmpty() && !state.isRecognizing
+        val shownLanguages = if (state.language == LanguageCode.AUTO &&
+            LanguageCode.AUTO !in state.languages
+        ) {
+            // Providers such as System OCR accept AUTO as their default even when their
+            // advertised list only names concrete recognition languages.
+            state.languages + LanguageCode.AUTO
+        } else {
+            state.languages
+        }
+        shownLanguages.forEach(languages::addElement)
+        languageCombo.selectedItem = state.language.takeIf { it in shownLanguages }
+        languageCombo.isEnabled = state.languages.isNotEmpty() && !state.isRecognizing && !state.isLoadingImage
         updatingCombos = false
 
         recognizeButton.isEnabled = state.canRunOcr
@@ -454,6 +566,7 @@ class OcrWorkspaceDialog(
 
         val error = state.error
         statusLabel.text = when {
+            state.isLoadingImage -> localizer.getString("ocr_workspace.loading_image")
             state.isRecognizing -> localizer.getString("ocr_workspace.recognizing")
             error != null -> errorText(error)
             state.isEdited && state.hasText -> localizer.getString("ocr_workspace.edited")
@@ -576,7 +689,10 @@ class OcrWorkspaceDialog(
     }
 
     private fun sendCurrentToQuick() {
-        val text = translatedTextForCurrent.ifBlank { ocrTextArea.text }
+        // Quick Translate always receives the recognized/edited source text. Sending
+        // translatedTextForCurrent here would feed an English target into the same
+        // Japanese->English pair and translate it a second time.
+        val text = ocrTextArea.text
         if (text.isBlank()) return
         mainStore.dispatch(MainIntent.ShowQuickTranslate(text))
     }
@@ -607,40 +723,53 @@ class OcrWorkspaceDialog(
             return
         }
         val file = chooser.selectedFile
+        val token = claimImageInput() ?: return
         scope.launch {
-            val image = withContext(Dispatchers.IO) { runCatching { ImageIO.read(file) }.getOrNull() }
+            val materialized = OcrImageMaterializer.readFile(file)
             withContext(Dispatchers.Swing) {
-                if (image == null) {
-                    showError(localizer.getString("ocr_workspace.image_open_failed"))
+                if (materialized == null) {
+                    failMaterialization(token, OcrWorkspaceError.ImageOpenFailed)
                 } else {
-                    openBufferedImage(image, file.name)
+                    finishMaterialization(
+                        token = token,
+                        decoded = materialized.image,
+                        image = materialized.data,
+                        label = file.name,
+                        autoTranslate = false,
+                    )
                 }
             }
         }
     }
 
     private fun pasteImage() {
+        // Clipboard access stays on the EDT; classification, file reads and decoding do not.
         val clipboard = Toolkit.getDefaultToolkit().systemClipboard
         val transferable = runCatching { clipboard.getContents(null) }.getOrNull()
         if (transferable == null) {
             showError(localizer.getString("ocr_workspace.clipboard_empty"))
             return
         }
-        when (val content = DroppedContentClassifier.classify(transferable)) {
-            is DroppedContent.Picture -> openBufferedImage(content.image, localizer.getString("ocr_workspace.clipboard_label"))
-            else -> showError(localizer.getString("ocr_workspace.clipboard_empty"))
+        if (!DroppedContentClassifier.canAccept(transferable)) {
+            // Plain text and other unsupported contents must not discard the current image.
+            showError(localizer.getString("ocr_workspace.clipboard_empty"))
+            return
         }
-    }
-
-    private fun openBufferedImage(image: BufferedImage, label: String) {
-        imagePanel.setImage(image)
-        invalidateWorkspaceTranslation()
-        autoTranslatePending = false
+        val token = claimImageInput() ?: return
         scope.launch {
-            val data = withContext(Dispatchers.IO) { image.toImageData("png") }
+            val materialized = OcrImageMaterializer.readClipboard(transferable)
             withContext(Dispatchers.Swing) {
-                store.openImage(data, label, autoRun = true)
-                imagePanel.fitToWindow(imageScroll.viewport.extentSize)
+                if (materialized == null) {
+                    failMaterialization(token, OcrWorkspaceError.ClipboardEmpty)
+                } else {
+                    finishMaterialization(
+                        token = token,
+                        decoded = materialized.image,
+                        image = materialized.data,
+                        label = localizer.getString("ocr_workspace.clipboard_label"),
+                        autoTranslate = false,
+                    )
+                }
             }
         }
     }
@@ -693,9 +822,9 @@ class OcrWorkspaceDialog(
 
     private fun listenOcrText() {
         if (ocrTextArea.text.isBlank()) return
-        val ocrLanguage = lastOcrState?.language
-            ?.takeIf { it != LanguageCode.AUTO }
-            ?: mainStore.state.value.resolvedSourceLanguage
+        // The recognized text's own provenance, not the dropdown for the next OCR run and not
+        // an unrelated main-window detection.
+        val ocrLanguage = lastOcrState?.recognizedLanguage ?: LanguageCode.AUTO
         mainStore.dispatch(
             MainIntent.ListenToText(
                 textSource = TextSource.Input,
@@ -724,6 +853,8 @@ class OcrWorkspaceDialog(
         OcrWorkspaceError.NoProvider -> localizer.getString("status_bar.no_ocr_active")
         OcrWorkspaceError.NoText -> localizer.getString("status_bar.no_text_in_image")
         OcrWorkspaceError.Timeout -> localizer.getString("status_bar.ocr_timeout")
+        OcrWorkspaceError.ImageOpenFailed -> localizer.getString("ocr_workspace.image_open_failed")
+        OcrWorkspaceError.ClipboardEmpty -> localizer.getString("ocr_workspace.clipboard_empty")
         is OcrWorkspaceError.Failed -> localizer.getString("status_bar.ocr_failed", error.summary)
     }
 
@@ -743,10 +874,6 @@ class OcrWorkspaceDialog(
             index, selected, focused,
         )
     }
-
-    private fun decode(image: ImageData): BufferedImage? = runCatching {
-        ImageIO.read(java.io.ByteArrayInputStream(image.bytes))
-    }.getOrNull()
 
     private fun buildRegionRanges(text: String, regions: List<OCRTextRegion>): List<IntRange> {
         var cursor = 0
