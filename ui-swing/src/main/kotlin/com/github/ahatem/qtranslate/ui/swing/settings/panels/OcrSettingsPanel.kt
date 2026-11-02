@@ -152,7 +152,9 @@ class OcrSettingsPanel(
             destinationCombo.selectedItem = destinations().firstOrNull {
                 it.destination == ocr.translationDestination
             }
-            destinationCombo.isEnabled = ocr.postSelectionAction == OcrPostSelectionAction.TRANSLATE
+            // The explicit "Screen OCR — Translate" hotkey uses this destination even when the
+            // default post-selection workflow is Show Actions, so it must remain editable.
+            destinationCombo.isEnabled = true
             renderProviders(state, ocr.recognitionLanguage)
             removeLineBreaksCheck.isSelected = ocr.removeLineBreaks
             annotationsCheck.isSelected = ocr.showWorkspaceAnnotations
@@ -264,6 +266,7 @@ class OcrSettingsPanel(
     internal fun postActionComboForTest(): JComboBox<*> = postActionCombo
     internal fun destinationComboForTest(): JComboBox<*> = destinationCombo
     internal fun removeLineBreaksForTest(): JCheckBox = removeLineBreaksCheck
+    internal fun annotationsForTest(): JCheckBox = annotationsCheck
     internal fun providerComboForTest(): JComboBox<*> = providerCombo
     internal fun languageComboForTest(): JComboBox<*> = languageCombo
 

@@ -274,6 +274,8 @@ class SettingsDialog(
      */
     fun showServicesPage() = navigator.selectPage(label("services"))
 
+    fun showOcrPage() = navigator.selectPage(label("ocr"))
+
     private fun buildPanel(name: String): JPanel = when (name) {
         label("general") ->
             GeneralPanel(settingsStore, localizationManager)

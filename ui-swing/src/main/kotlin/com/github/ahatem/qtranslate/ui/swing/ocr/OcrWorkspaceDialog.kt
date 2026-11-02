@@ -55,7 +55,12 @@ import javax.swing.filechooser.FileNameExtensionFilter
  * canonical [MainStore] and observed back, so this window never becomes a second translator.
  */
 class OcrWorkspaceDialog(
-    owner: Frame,
+    /**
+     * Deliberately nullable and normally null: the main frame is hidden/iconified while a
+     * capture is in flight, and an owned dialog can be suppressed or pull that owner back.
+     * The workspace is an independent utility window; MainAppFrame disposes it explicitly.
+     */
+    owner: Frame?,
     private val mainStore: MainStore,
     private val settingsStore: SettingsStore,
     private val localizer: LocalizationManager,
@@ -101,6 +106,7 @@ class OcrWorkspaceDialog(
     private var updatingCombos = false
     private var lastOcrState: OcrWorkspaceState? = null
     private var expectedTranslationInput: String? = null
+    private var translatedTextForCurrent: String = ""
     private var autoTranslatePending = false
     private var regionRanges: List<IntRange> = emptyList()
 
@@ -120,8 +126,7 @@ class OcrWorkspaceDialog(
 
         addWindowListener(object : WindowAdapter() {
             override fun windowClosed(e: WindowEvent?) {
-                store.close()
-                scope.cancel()
+                shutdownNow()
                 persistBounds()
                 onClosed()
             }
@@ -136,34 +141,45 @@ class OcrWorkspaceDialog(
         initialText: String? = null,
         initialRegions: List<OCRTextRegion> = emptyList(),
     ) {
-        val decoded = decode(image)
-        if (decoded == null) {
-            showError(localizer.getString("ocr_workspace.image_open_failed"))
-            return
-        }
-        imagePanel.setImage(decoded)
-        autoTranslatePending = autoTranslate
-        if (initialText != null) {
-            store.openWithResult(image, label, initialText, initialRegions)
-        } else {
-            store.openImage(image, label, autoRun = true)
-        }
-        if (!isVisible) {
-            isVisible = true
-        }
-        toFront()
-        SwingUtilities.invokeLater {
-            imagePanel.fitToWindow(imageScroll.viewport.extentSize)
-            if (autoTranslate && initialText != null) {
-                translateCurrentText(initialText)
-                autoTranslatePending = false
+        scope.launch {
+            val decoded = withContext(Dispatchers.IO) { decode(image) }
+            withContext(Dispatchers.Swing) {
+                if (decoded == null) {
+                    showError(localizer.getString("ocr_workspace.image_open_failed"))
+                    return@withContext
+                }
+                imagePanel.setImage(decoded)
+                invalidateWorkspaceTranslation()
+                autoTranslatePending = autoTranslate
+                if (initialText != null) {
+                    store.openWithResult(image, label, initialText, initialRegions)
+                } else {
+                    store.openImage(image, label, autoRun = true)
+                }
+                if (!isVisible) {
+                    isVisible = true
+                }
+                toFront()
+                SwingUtilities.invokeLater {
+                    imagePanel.fitToWindow(imageScroll.viewport.extentSize)
+                    if (autoTranslate && initialText != null) {
+                        translateCurrentText(initialText)
+                        autoTranslatePending = false
+                    }
+                    ocrTextArea.requestFocusInWindow()
+                }
             }
-            ocrTextArea.requestFocusInWindow()
         }
     }
 
     fun closeWorkspace() {
         dispatchEvent(WindowEvent(this, WindowEvent.WINDOW_CLOSING))
+    }
+
+    /** Synchronous teardown for application exit, before AWT posts WINDOW_CLOSED. */
+    fun shutdownNow() {
+        store.close()
+        scope.cancel()
     }
 
     private fun buildUi() {
@@ -179,7 +195,7 @@ class OcrWorkspaceDialog(
     }
 
     private fun buildImageSide(): JPanel {
-        val toolbar = JPanel(FlowLayout(FlowLayout.LEADING, 4, 2)).apply { isOpaque = false }
+        val toolbar = JPanel(WrapLayout(FlowLayout.LEADING, 4, 2)).apply { isOpaque = false }
         toolbar.add(actionButton("ocr_workspace.capture") { onCaptureRequested() })
         toolbar.add(actionButton("ocr_workspace.open_image") { chooseImageFile() })
         toolbar.add(actionButton("ocr_workspace.paste_image") { pasteImage() })
@@ -322,7 +338,7 @@ class OcrWorkspaceDialog(
     }
 
     private fun buildBottomBar(): JPanel {
-        val panel = JPanel(FlowLayout(FlowLayout.TRAILING, 4, 2)).apply { isOpaque = false }
+        val panel = JPanel(WrapLayout(FlowLayout.TRAILING, 4, 2)).apply { isOpaque = false }
         panel.add(JLabel(localizer.getString("ocr_workspace.source_language")))
         panel.add(sourceCombo)
         panel.add(JLabel(localizer.getString("ocr_workspace.target_language")))
@@ -352,9 +368,9 @@ class OcrWorkspaceDialog(
         recognizeButton.addActionListener { store.runOcr() }
         cancelRecognitionButton.addActionListener { store.cancelOcr() }
         copyOcrButton.addActionListener { copyText(selectedOrAll(ocrTextArea)) }
-        copyTranslationButton.addActionListener { copyText(selectedOrAll(translationArea)) }
-        listenOcrButton.addActionListener { listen(ocrTextArea.text, TextSource.Input) }
-        listenTranslationButton.addActionListener { listen(translationArea.text, TextSource.Output) }
+        copyTranslationButton.addActionListener { copyText(translatedTextForCurrent) }
+        listenOcrButton.addActionListener { listenOcrText() }
+        listenTranslationButton.addActionListener { listen(translatedTextForCurrent, TextSource.Output) }
         translateButton.addActionListener { translateCurrentText(ocrTextArea.text) }
         sourceCombo.addActionListener {
             if (updatingCombos) return@addActionListener
@@ -403,6 +419,11 @@ class OcrWorkspaceDialog(
     private fun renderOcr(state: OcrWorkspaceState) {
         val previous = lastOcrState
         lastOcrState = state
+        if (previous != null && previous.recognizedText != state.recognizedText) {
+            // The translation workspace stores one source string. A new recognition result or
+            // an edit makes any previous workspace translation describe different text.
+            invalidateWorkspaceTranslation()
+        }
 
         updatingCombos = true
         val providers = providerCombo.model as DefaultComboBoxModel<OcrProviderInfo>
@@ -424,8 +445,8 @@ class OcrWorkspaceDialog(
         listenOcrButton.isEnabled = state.hasText
         copyImageButton.isEnabled = state.hasImage
         saveImageButton.isEnabled = state.hasImage
-        copyTranslationButton.isEnabled = translationArea.text.isNotBlank()
-        listenTranslationButton.isEnabled = translationArea.text.isNotBlank()
+        copyTranslationButton.isEnabled = translatedTextForCurrent.isNotBlank()
+        listenTranslationButton.isEnabled = translatedTextForCurrent.isNotBlank()
         annotationsCheck.isEnabled = state.regions.isNotEmpty()
         annotationsCheck.isSelected = state.showAnnotations && state.regions.isNotEmpty()
         imagePanel.setRegions(state.regions)
@@ -484,6 +505,11 @@ class OcrWorkspaceDialog(
         val expected = expectedTranslationInput
         val isThisRequest = expected != null && state.inputText == expected
         if (isThisRequest) {
+            translatedTextForCurrent = if (!state.isLoading && !state.translationFailed) {
+                state.translatedText
+            } else {
+                ""
+            }
             translationArea.text = when {
                 state.isLoading -> localizer.getString("ocr_workspace.translating")
                 state.translationFailed && state.translatedText.isBlank() ->
@@ -498,16 +524,22 @@ class OcrWorkspaceDialog(
             translateButton.isEnabled = ocrTextArea.text.isNotBlank() &&
                 !state.isLoading &&
                 lastOcrState?.isRecognizing != true
-            copyTranslationButton.isEnabled = state.translatedText.isNotBlank()
-            listenTranslationButton.isEnabled = state.translatedText.isNotBlank()
+            copyTranslationButton.isEnabled = translatedTextForCurrent.isNotBlank()
+            listenTranslationButton.isEnabled = translatedTextForCurrent.isNotBlank()
         } else if (state.inputText != expected) {
             // Another surface now owns the shared translation workspace. Do not display an
             // unrelated result as if it belonged to this OCR source.
-            expectedTranslationInput = null
-            translationArea.text = ""
-            copyTranslationButton.isEnabled = false
-            listenTranslationButton.isEnabled = false
+            invalidateWorkspaceTranslation()
         }
+    }
+
+    private fun invalidateWorkspaceTranslation() {
+        expectedTranslationInput = null
+        translatedTextForCurrent = ""
+        translationArea.text = ""
+        translationArea.foreground = UIManager.getColor("TextArea.foreground")
+        copyTranslationButton.isEnabled = false
+        listenTranslationButton.isEnabled = false
     }
 
     private fun translateCurrentText(text: String) {
@@ -516,19 +548,25 @@ class OcrWorkspaceDialog(
         val prepared = mainStore.state.value.inputText
         if (prepared.isBlank()) return
         expectedTranslationInput = prepared
+        translatedTextForCurrent = ""
+        translationArea.text = localizer.getString("ocr_workspace.translating")
+        translationArea.foreground = UIManager.getColor("TextArea.foreground")
+        copyTranslationButton.isEnabled = false
+        listenTranslationButton.isEnabled = false
         mainStore.dispatch(MainIntent.Translate(prepared))
     }
 
     private fun retranslateIfVisible() {
         val text = expectedTranslationInput ?: return
+        translatedTextForCurrent = ""
         mainStore.dispatch(MainIntent.Translate(text))
     }
 
     private fun sendCurrentToMain() {
         val text = ocrTextArea.text
         if (text.isBlank()) return
-        if (expectedTranslationInput == mainStore.state.value.inputText &&
-            expectTranslationResult(mainStore.state.value)
+        if (translatedTextForCurrent.isNotBlank() &&
+            expectedTranslationInput == mainStore.state.value.inputText
         ) {
             onShowMainWindow()
             return
@@ -538,13 +576,10 @@ class OcrWorkspaceDialog(
     }
 
     private fun sendCurrentToQuick() {
-        val text = translationArea.text.ifBlank { ocrTextArea.text }
+        val text = translatedTextForCurrent.ifBlank { ocrTextArea.text }
         if (text.isBlank()) return
         mainStore.dispatch(MainIntent.ShowQuickTranslate(text))
     }
-
-    private fun expectTranslationResult(state: MainState): Boolean =
-        state.translatedText.isNotBlank() || state.translationFailed
 
     private fun selectRegion(index: Int) {
         val region = lastOcrState?.regions?.getOrNull(index) ?: return
@@ -572,12 +607,16 @@ class OcrWorkspaceDialog(
             return
         }
         val file = chooser.selectedFile
-        val image = runCatching { ImageIO.read(file) }.getOrNull()
-        if (image == null) {
-            showError(localizer.getString("ocr_workspace.image_open_failed"))
-            return
+        scope.launch {
+            val image = withContext(Dispatchers.IO) { runCatching { ImageIO.read(file) }.getOrNull() }
+            withContext(Dispatchers.Swing) {
+                if (image == null) {
+                    showError(localizer.getString("ocr_workspace.image_open_failed"))
+                } else {
+                    openBufferedImage(image, file.name)
+                }
+            }
         }
-        openBufferedImage(image, file.name)
     }
 
     private fun pasteImage() {
@@ -595,9 +634,15 @@ class OcrWorkspaceDialog(
 
     private fun openBufferedImage(image: BufferedImage, label: String) {
         imagePanel.setImage(image)
+        invalidateWorkspaceTranslation()
         autoTranslatePending = false
-        store.openImage(image.toImageData("png"), label, autoRun = true)
-        SwingUtilities.invokeLater { imagePanel.fitToWindow(imageScroll.viewport.extentSize) }
+        scope.launch {
+            val data = withContext(Dispatchers.IO) { image.toImageData("png") }
+            withContext(Dispatchers.Swing) {
+                store.openImage(data, label, autoRun = true)
+                imagePanel.fitToWindow(imageScroll.viewport.extentSize)
+            }
+        }
     }
 
     private fun copyCurrentImage() {
@@ -620,16 +665,23 @@ class OcrWorkspaceDialog(
         val image = imagePanel.currentImage() ?: return
         val chooser = JFileChooser().apply {
             dialogTitle = localizer.getString("ocr_workspace.save_image_title")
-            fileFilter = FileNameExtensionFilter("PNG (*.png)", "png")
+            fileFilter = FileNameExtensionFilter(localizer.getString("ocr_workspace.save_image_filter"), "png")
             selectedFile = File("ocr-image.png")
         }
         if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return
         var file = chooser.selectedFile
         if (!file.name.endsWith(".png", ignoreCase = true)) file = File("${file.absolutePath}.png")
-        if (runCatching { ImageIO.write(image, "PNG", file) }.getOrDefault(false)) {
-            statusLabel.text = localizer.getString("ocr_workspace.image_saved")
-        } else {
-            showError(localizer.getString("ocr_workspace.image_save_failed"))
+        scope.launch {
+            val saved = withContext(Dispatchers.IO) {
+                runCatching { ImageIO.write(image, "PNG", file) }.getOrDefault(false)
+            }
+            withContext(Dispatchers.Swing) {
+                if (saved) {
+                    statusLabel.text = localizer.getString("ocr_workspace.image_saved")
+                } else {
+                    showError(localizer.getString("ocr_workspace.image_save_failed"))
+                }
+            }
         }
     }
 
@@ -639,17 +691,27 @@ class OcrWorkspaceDialog(
         mainStore.dispatch(MainIntent.NotifyTextCopied)
     }
 
+    private fun listenOcrText() {
+        if (ocrTextArea.text.isBlank()) return
+        val ocrLanguage = lastOcrState?.language
+            ?.takeIf { it != LanguageCode.AUTO }
+            ?: mainStore.state.value.resolvedSourceLanguage
+        mainStore.dispatch(
+            MainIntent.ListenToText(
+                textSource = TextSource.Input,
+                text = ocrTextArea.text,
+                language = ocrLanguage,
+            )
+        )
+    }
+
     private fun listen(text: String, source: TextSource) {
         if (text.isBlank()) return
         mainStore.dispatch(
             MainIntent.ListenToText(
                 textSource = source,
                 text = text,
-                language = if (source == TextSource.Input) {
-                    mainStore.state.value.resolvedSourceLanguage
-                } else {
-                    mainStore.state.value.targetLanguage
-                },
+                language = mainStore.state.value.targetLanguage,
             )
         )
     }

@@ -519,10 +519,17 @@ class MainStore(
                 // pass; with instant translation enabled, the debounced observer must not replace
                 // it with an otherwise identical secondary request.
                 if (intent.text != null) {
-                    programmaticInputText = prepareInputText(
-                        intent.text,
-                        settingsState.value.isRemoveLineBreaksEnabled,
-                    )
+                    val currentInput = _state.value.inputText
+                    programmaticInputText = if (intent.text == currentInput) {
+                        // Canonical sequence UpdateInputText -> Translate: the editor already
+                        // holds the normalized value, so the marker must match it exactly.
+                        currentInput
+                    } else {
+                        prepareInputText(
+                            intent.text,
+                            settingsState.value.isRemoveLineBreaksEnabled,
+                        )
+                    }
                 }
                 cancelTranslationWork()
                 clearComparisonState()

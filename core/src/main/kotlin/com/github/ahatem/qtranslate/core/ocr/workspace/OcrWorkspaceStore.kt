@@ -77,16 +77,36 @@ class OcrWorkspaceStore(
 
     private val generation = AtomicLong()
     private var ocrJob: Job? = null
+    @Volatile
     private var closed = false
 
     init {
         // The catalog is shared and eagerly populated. Adopt its current value synchronously so
         // an image opened immediately after construction already has a provider to recognize with.
-        _state.update { it.withProviders(catalog.providers.value) }
+        applyProviders(catalog.providers.value)
         scope.launch {
             catalog.providers.collect { providers ->
                 if (closed) return@collect
-                _state.update { current -> current.withProviders(providers) }
+                applyProviders(providers)
+            }
+        }
+    }
+
+    /**
+     * Applies catalog changes without letting an in-flight request from the old provider publish
+     * under the new provider's label. A changed provider or language is a new recognition context.
+     */
+    private fun applyProviders(providers: List<OcrProviderInfo>) {
+        val before = _state.value
+        val next = before.withProviders(providers)
+        val contextChanged = next.providerId != before.providerId || next.language != before.language
+        if (contextChanged && before.isRecognizing) invalidateRequest()
+        _state.update { current ->
+            val updated = current.withProviders(providers)
+            if (contextChanged && current.isRecognizing) {
+                updated.copy(isRecognizing = false, error = null)
+            } else {
+                updated
             }
         }
     }
@@ -180,7 +200,11 @@ class OcrWorkspaceStore(
             if (closed || generation.get() != requestGeneration) return@launch
 
             _state.update { current ->
-                when (outcome) {
+                // Re-check at publication time, not only before the update: invalidation can
+                // happen on another thread between the first check and this lambda.
+                if (closed || generation.get() != requestGeneration) {
+                    current
+                } else when (outcome) {
                     is OcrExtractionOutcome.Success -> {
                         val text = preprocessOcrText(outcome.result.text, ocrSettings())
                         current.copy(

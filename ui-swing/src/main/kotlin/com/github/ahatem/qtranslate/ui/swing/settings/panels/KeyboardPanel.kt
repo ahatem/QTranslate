@@ -229,7 +229,10 @@ class KeyboardPanel(
                         // Single click scope column — toggle global/local
                         col == COL_SCOPE -> {
                             setRowSelectionInterval(row, row)
-                            onToggleScope(row)
+                            val action = actionOrder.getOrNull(row)
+                            if (action != null && bindingFor(action)?.scope != HotkeyScope.CAPTURE) {
+                                onToggleScope(row)
+                            }
                         }
                     }
                 }
@@ -658,7 +661,12 @@ class KeyboardPanel(
             else     UIManager.getColor("Component.accentColor")
                 ?: UIManager.getColor("Table.foreground")
             font        = font.deriveFont(Font.PLAIN)
-            toolTipText = localizationManager.getString("settings_hotkeys.scope_toggle_hint")
+            val scope = action?.let { bindingFor(it)?.scope }
+            toolTipText = if (scope == HotkeyScope.CAPTURE) {
+                localizationManager.getString("settings_hotkeys.scope_fixed_hint")
+            } else {
+                localizationManager.getString("settings_hotkeys.scope_toggle_hint")
+            }
             return this
         }
     }

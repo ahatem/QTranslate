@@ -39,20 +39,23 @@ class SnippingToolDialog(
     private val settingsStore: SettingsStore,
     private val localizer: LocalizationManager,
     command: OcrWorkflowCommand = OcrWorkflowCommand.DEFAULT,
-    /** Called when this capture will hand an image to the workspace, before dispatch. */
-    private val onWorkspaceWorkflowStarted: () -> Unit = {},
     /**
      * Called when the dialog closes without starting a workspace workflow. Used by the Workspace
      * when it hid itself to capture again, so a cancelled capture does not leave it invisible.
      */
     private val onDismissedWithoutWorkspace: () -> Unit = {},
+    /**
+     * Optional direct image receiver used by the Workspace's own Capture button. It bypasses the
+     * main OCR workflow so a recognition failure in the ordinary path cannot leave the workspace
+     * hidden. Normal OCR entry points leave this null.
+     */
+    private val onCapturedImage: ((BufferedImage) -> Unit)? = null,
 ) : JDialog(owner, "", true) {
 
     private val definition = settingsStore.state.value.originalConfiguration
     private val resolved: ResolvedOcrWorkflow = resolveOcrWorkflow(command, definition.ocr)
     private val panel: ScreenCapturePanel
     private val controller: ScreenCaptureController
-    private var workspaceWorkflowStarted = false
 
     init {
         defaultCloseOperation = DISPOSE_ON_CLOSE
@@ -84,7 +87,8 @@ class SnippingToolDialog(
             recrop = localizer.getString("screen_capture.recrop"),
             cancel = localizer.getString("screen_capture.cancel"),
         )
-        val shortcuts = captureShortcuts()
+        val shortcuts = installableCaptureShortcuts(definition.hotkeys)
+            .associate { (binding, _) -> binding.action to binding }
         val tooltips = ScreenCapturePanel.ButtonTooltips(
             translate = withShortcut(localizer.getString("screen_capture.translate_tooltip"), shortcuts[HotkeyAction.OCR_ACTION_TRANSLATE]),
             copyText = withShortcut(localizer.getString("screen_capture.copy_text_tooltip"), shortcuts[HotkeyAction.OCR_ACTION_COPY_TEXT]),
@@ -118,11 +122,11 @@ class SnippingToolDialog(
         rootPane.defaultButton = panel.translateButton
 
         setupListeners()
-        installCaptureShortcuts(shortcuts)
+        installCaptureShortcuts()
         panel.render(initialState)
         addWindowListener(object : WindowAdapter() {
             override fun windowClosed(e: WindowEvent?) {
-                if (!workspaceWorkflowStarted) onDismissedWithoutWorkspace()
+                onDismissedWithoutWorkspace()
             }
         })
 
@@ -144,13 +148,10 @@ class SnippingToolDialog(
 
     private fun performWorkflow(action: OcrPostSelectionAction, image: BufferedImage) {
         if (action == OcrPostSelectionAction.SHOW_ACTIONS) return
-        val destination = resolved.destinationOverride ?: definition.ocr.translationDestination
-        val opensWorkspace = action == OcrPostSelectionAction.OPEN_WORKSPACE ||
-            (action == OcrPostSelectionAction.TRANSLATE &&
-                destination == com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination.OCR_WORKSPACE)
-        if (opensWorkspace) {
-            workspaceWorkflowStarted = true
-            onWorkspaceWorkflowStarted()
+        if (action == OcrPostSelectionAction.OPEN_WORKSPACE && onCapturedImage != null) {
+            onCapturedImage.invoke(image)
+            dispose()
+            return
         }
         val imageData = image.toImageData("png")
         mainStore.dispatch(
@@ -203,11 +204,11 @@ class SnippingToolDialog(
      * Enter and Escape stay reserved for the primary action and cancellation; binding either
      * would make the documented keyboard contract unpredictable.
      */
-    private fun installCaptureShortcuts(shortcuts: Map<HotkeyAction, HotkeyBinding>) {
+    private fun installCaptureShortcuts() {
         installableCaptureShortcuts(definition.hotkeys).forEach { (binding, toolbarAction) ->
             val stroke = binding.toKeyStroke() ?: return@forEach
             val key = "ocrCapture_${binding.action.name}"
-            rootPane.inputMap.put(stroke, key)
+            rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(stroke, key)
             rootPane.actionMap.put(
                 key,
                 object : AbstractAction() {
@@ -216,9 +217,6 @@ class SnippingToolDialog(
             )
         }
     }
-
-    private fun captureShortcuts(): Map<HotkeyAction, HotkeyBinding> =
-        captureShortcutBindings(definition.hotkeys)
 
     private fun withShortcut(base: String, binding: HotkeyBinding?): String {
         if (binding == null || !binding.hasBinding) return base

@@ -489,7 +489,10 @@ class MainAppFrame(
         shutdownGlobalInput = { globalKeyListener.shutdown() },
         disposeSelectionButton = { selectionTranslateButton.dispose() },
         disposeTray = { trayBinding.dispose() },
-        disposeOwnedUtilityWindows = { ocrWorkspaceDialog?.dispose() },
+        disposeOwnedUtilityWindows = {
+            ocrWorkspaceDialog?.shutdownNow()
+            ocrWorkspaceDialog?.dispose()
+        },
         cancelFrameScope = { appScope.cancel() },
         captureBounds = { Size(width, height) to Position(x, y) },
         onApplicationExit = onApplicationExit,
@@ -1150,7 +1153,7 @@ class MainAppFrame(
         }
         val existing = ocrWorkspaceDialog?.takeIf { it.isDisplayable }
         val dialog = existing ?: OcrWorkspaceDialog(
-            owner = this,
+            owner = null,
             mainStore = mainStore,
             settingsStore = settingsStore,
             localizer = localizer,
@@ -1161,7 +1164,13 @@ class MainAppFrame(
                 workspace?.isVisible = false
                 openSnippingTool(
                     command = OcrWorkflowCommand.OPEN_WORKSPACE,
-                    onWorkspaceWorkflowStarted = { },
+                    onCapturedImage = { captured ->
+                        workspace?.openImage(
+                            image = captured.toImageData("png"),
+                            label = localizer.getString("ocr_workspace.captured_label"),
+                            autoTranslate = false,
+                        )
+                    },
                     onDismissedWithoutWorkspace = {
                         if (workspace?.isDisplayable == true && workspace.isVisible.not()) {
                             workspace.isVisible = true
@@ -1171,7 +1180,7 @@ class MainAppFrame(
                 )
             },
             onShowMainWindow = { showAndFocus() },
-            onOpenSettings = { openSettingsDialog() },
+            onOpenSettings = { openSettingsDialog(openToOcr = true) },
             onClosed = { ocrWorkspaceDialog = null },
         ).also { created ->
             ocrWorkspaceDialog = created
@@ -1214,10 +1223,12 @@ class MainAppFrame(
 
     private fun openSnippingTool(
         command: OcrWorkflowCommand = OcrWorkflowCommand.DEFAULT,
-        onWorkspaceWorkflowStarted: () -> Unit = {},
         onDismissedWithoutWorkspace: () -> Unit = {},
+        onCapturedImage: ((java.awt.image.BufferedImage) -> Unit)? = null,
     ) {
+        val workspaceToRestore = ocrWorkspaceDialog?.takeIf { it.isVisible }
         runOnUi {
+            workspaceToRestore?.isVisible = false
             isVisible = false
             state = ICONIFIED
             toBack()
@@ -1232,8 +1243,14 @@ class MainAppFrame(
                     settingsStore = settingsStore,
                     localizer = localizer,
                     command = command,
-                    onWorkspaceWorkflowStarted = onWorkspaceWorkflowStarted,
-                    onDismissedWithoutWorkspace = onDismissedWithoutWorkspace,
+                    onDismissedWithoutWorkspace = {
+                        onDismissedWithoutWorkspace()
+                        if (workspaceToRestore?.isDisplayable == true) {
+                            workspaceToRestore.isVisible = true
+                            workspaceToRestore.toFront()
+                        }
+                    },
+                    onCapturedImage = onCapturedImage,
                 )
             }
         }
@@ -1698,13 +1715,14 @@ class MainAppFrame(
     }
 
     /** Opens Settings with the correct orientation. Shared by the menu and the Ctrl+Comma binding. */
-    private fun openSettingsDialog(openToServices: Boolean = false) {
+    private fun openSettingsDialog(openToServices: Boolean = false, openToOcr: Boolean = false) {
         val dialog = createSettingsDialog()
         dialog.applyComponentOrientation(
             if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
             else ComponentOrientation.LEFT_TO_RIGHT
         )
         if (openToServices) dialog.showServicesPage()
+        if (openToOcr) dialog.showOcrPage()
         dialog.isVisible = true
     }
 
