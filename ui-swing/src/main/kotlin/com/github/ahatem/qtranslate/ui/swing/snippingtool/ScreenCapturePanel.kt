@@ -24,7 +24,8 @@ class ScreenCapturePanel(
         val copyImage: String  = "Copy Image",
         val saveImage: String  = "Save Image",
         val recrop: String     = "Re-crop",
-        val cancel: String     = "Cancel"
+        val cancel: String     = "Cancel",
+        val moreActions: String = "More actions",
     )
 
     data class ButtonTooltips(
@@ -50,6 +51,18 @@ class ScreenCapturePanel(
     val translateButton: JButton = createTranslateButton()
 
     private val buttonsPanel: JPanel
+    private val fullToolbarContents: List<Component>
+    private val fullToolbarSize: Dimension
+    private val fullToolbarBorder: javax.swing.border.Border
+    private val fullToolbarLayout: LayoutManager
+    private var compactToolbar = false
+    private val overflowButton by lazy {
+        JButton("\u22ef").apply {
+            toolTipText = buttonLabels.moreActions
+            accessibleContext.accessibleName = buttonLabels.moreActions
+            addActionListener { overflowMenu().show(this, 0, height) }
+        }
+    }
 
     val currentStatePublic: ScreenCaptureState?
         get() = currentState
@@ -59,6 +72,10 @@ class ScreenCapturePanel(
         layout = null
 
         buttonsPanel = createButtonsPanel()
+        fullToolbarContents = buttonsPanel.components.toList()
+        fullToolbarSize = Dimension(buttonsPanel.preferredSize)
+        fullToolbarBorder = buttonsPanel.border
+        fullToolbarLayout = buttonsPanel.layout
         add(buttonsPanel, PALETTE_LAYER)
     }
 
@@ -354,12 +371,58 @@ class ScreenCapturePanel(
         selection: Rectangle,
         displays: List<Rectangle> = emptyList(),
         virtualOrigin: Point = Point(),
-    ): Point =
-        CaptureGeometry.toolbarPosition(
-            selection = selection,
-            toolbarSize = buttonsPanel.preferredSize,
-            panelSize = size,
-            displays = displays,
-            virtualOrigin = virtualOrigin,
-        )
+    ): Point {
+        if (displays.isEmpty()) {
+            return CaptureGeometry.toolbarPosition(selection, buttonsPanel.size, size)
+        }
+        val fits = displays.any { it.width >= fullToolbarSize.width && it.height >= fullToolbarSize.height }
+        val compact = !fits
+        if (compactToolbar != compact) {
+            compactToolbar = compact
+            buttonsPanel.removeAll()
+            if (compactToolbar) {
+                // Keep the primary button attached for Enter/default-button semantics. All six
+                // actions remain available in the overflow menu when a full row cannot fit.
+                buttonsPanel.border = BorderFactory.createEmptyBorder()
+                buttonsPanel.layout = null
+                buttonsPanel.add(translateButton)
+                buttonsPanel.add(overflowButton)
+            } else {
+                buttonsPanel.border = fullToolbarBorder
+                buttonsPanel.layout = fullToolbarLayout
+                fullToolbarContents.forEach(buttonsPanel::add)
+            }
+        }
+        val preferred = if (compactToolbar) {
+            Dimension(translateButton.preferredSize.width + overflowButton.preferredSize.width,
+                maxOf(translateButton.preferredSize.height, overflowButton.preferredSize.height))
+        } else buttonsPanel.preferredSize
+        val desktopSelection = Rectangle(selection).apply { translate(virtualOrigin.x, virtualOrigin.y) }
+        val display = CaptureGeometry.toolbarDisplay(desktopSelection, preferred, displays)
+        buttonsPanel.size = Dimension(minOf(preferred.width, display.width), minOf(preferred.height, display.height))
+        if (compactToolbar) {
+            // Reserve overflow first, even when a long primary label or very small usable
+            // display cannot fit the pair's minimum sizes. Truncate the primary, never actions.
+            val overflowWidth = minOf(overflowButton.preferredSize.width, buttonsPanel.width)
+            val primaryWidth = buttonsPanel.width - overflowWidth
+            translateButton.setBounds(0, 0, primaryWidth, buttonsPanel.height)
+            overflowButton.setBounds(primaryWidth, 0, overflowWidth, buttonsPanel.height)
+        } else buttonsPanel.doLayout()
+        return CaptureGeometry.toolbarPosition(selection, buttonsPanel.size, size, displays, virtualOrigin)
+    }
+
+    /** The same actions and enabled states as the full toolbar, without a second workflow path. */
+    internal fun overflowMenu(): JPopupMenu = JPopupMenu().apply {
+        CaptureToolbarAction.entries.forEach { action ->
+            val button = actionButtons.getValue(action)
+            add(JMenuItem(button.text).apply {
+                isEnabled = button.isEnabled
+                addActionListener { trigger(action) }
+            })
+        }
+    }
+
+    internal fun toolbarBounds(): Rectangle = Rectangle(buttonsPanel.bounds)
+    internal fun isToolbarCompact(): Boolean = compactToolbar
+    internal fun overflowButtonBounds(): Rectangle = Rectangle(overflowButton.bounds)
 }

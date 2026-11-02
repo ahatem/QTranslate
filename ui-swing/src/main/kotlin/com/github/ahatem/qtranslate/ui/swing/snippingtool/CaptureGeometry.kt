@@ -105,7 +105,9 @@ internal object CaptureGeometry {
             selection.width,
             selection.height,
         )
-        val display = displayOwning(selectionOnDesktop, displays)
+        val fitting = displays.filter { it.width >= toolbarSize.width && it.height >= toolbarSize.height }
+        require(fitting.isNotEmpty()) { "Constrain the capture toolbar before placing it on a smaller display." }
+        val display = displayOwning(selectionOnDesktop, fitting)
         val local = Rectangle(
             display.x - virtualOrigin.x,
             display.y - virtualOrigin.y,
@@ -138,6 +140,13 @@ internal object CaptureGeometry {
             x.coerceIn(0, panelMaxX),
             y.coerceIn(0, panelMaxY),
         )
+    }
+
+    /** Chooses a fitting usable display, or the natural display for a compact fallback. */
+    fun toolbarDisplay(selectionOnDesktop: Rectangle, toolbarSize: Dimension, displays: List<Rectangle>): Rectangle {
+        require(displays.isNotEmpty())
+        val fitting = displays.filter { it.width >= toolbarSize.width && it.height >= toolbarSize.height }
+        return displayOwning(selectionOnDesktop, fitting.ifEmpty { displays })
     }
 
     /** The display with the largest overlap; nearest display when the selection is in a gap. */

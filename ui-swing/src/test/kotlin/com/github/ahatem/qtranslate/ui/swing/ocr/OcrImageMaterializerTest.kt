@@ -87,6 +87,35 @@ class OcrImageMaterializerTest {
     }
 
     @Test
+    fun `generic clipboard image rasterization happens off EDT`() = runBlocking {
+        val conversionThreads = java.util.concurrent.CopyOnWriteArrayList<Boolean>()
+        val generic = object : java.awt.Image() {
+            override fun getWidth(observer: java.awt.image.ImageObserver?): Int {
+                conversionThreads += javax.swing.SwingUtilities.isEventDispatchThread()
+                return image.width
+            }
+            override fun getHeight(observer: java.awt.image.ImageObserver?): Int {
+                conversionThreads += javax.swing.SwingUtilities.isEventDispatchThread()
+                return image.height
+            }
+            override fun getSource(): java.awt.image.ImageProducer = image.source
+            override fun getGraphics(): java.awt.Graphics = image.graphics
+            override fun getProperty(name: String?, observer: java.awt.image.ImageObserver?): Any = UndefinedProperty
+        }
+        val transferable = object : Transferable {
+            override fun getTransferDataFlavors() = arrayOf(DataFlavor.imageFlavor)
+            override fun isDataFlavorSupported(flavor: DataFlavor) = flavor == DataFlavor.imageFlavor
+            override fun getTransferData(flavor: DataFlavor): Any {
+                assertTrue(javax.swing.SwingUtilities.isEventDispatchThread(), "AWT payload retrieval belongs on EDT")
+                return generic
+            }
+        }
+        assertNotNull(OcrImageMaterializer.readClipboard(transferable))
+        assertTrue(conversionThreads.isNotEmpty(), "the generic conversion branch must execute")
+        assertTrue(conversionThreads.none { it }, "raster allocation/drawing must not run on EDT")
+    }
+
+    @Test
     fun `encoding a captured image is dispatched away from the caller`() = runBlocking {
         val dispatcher = RecordingDispatcher()
         val materialized = OcrImageMaterializer.encode(image, dispatcher)

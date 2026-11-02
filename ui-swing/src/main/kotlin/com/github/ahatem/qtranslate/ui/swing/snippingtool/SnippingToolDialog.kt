@@ -92,6 +92,7 @@ class SnippingToolDialog(
             saveImage = localizer.getString("screen_capture.save_image"),
             recrop = localizer.getString("screen_capture.recrop"),
             cancel = localizer.getString("screen_capture.cancel"),
+            moreActions = localizer.getString("screen_capture.more_actions"),
         )
         val shortcuts = installableCaptureShortcuts(definition.hotkeys)
             .associate { (binding, _) -> binding.action to binding }

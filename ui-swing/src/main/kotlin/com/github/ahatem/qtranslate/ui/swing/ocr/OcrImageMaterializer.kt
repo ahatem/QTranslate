@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.ui.swing.shared.util.ClipboardImageCandidate
 import com.github.ahatem.qtranslate.ui.swing.shared.util.DroppedContentClassifier
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toImageData
+import com.github.ahatem.qtranslate.ui.swing.shared.util.toBuffered
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.swing.Swing
@@ -60,15 +61,13 @@ internal object OcrImageMaterializer {
         val candidate = withContext(Dispatchers.Swing) {
             DroppedContentClassifier.imageCandidate(transferable)
         }
-        val picture = when (candidate) {
-            is ClipboardImageCandidate.Picture -> candidate.image
-            is ClipboardImageCandidate.ImageFile -> withContext(io) {
-                DroppedContentClassifier.readImageFile(candidate.file)
-            }
-            ClipboardImageCandidate.None -> null
-        } ?: return null
         return withContext(io) {
             runCatching {
+                val picture = when (candidate) {
+                    is ClipboardImageCandidate.Picture -> candidate.image.toBuffered()
+                    is ClipboardImageCandidate.ImageFile -> DroppedContentClassifier.readImageFile(candidate.file)
+                    ClipboardImageCandidate.None -> null
+                } ?: return@runCatching null
                 MaterializedImage(picture, picture.toImageData("png"))
             }.getOrNull()
         }

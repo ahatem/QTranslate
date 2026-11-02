@@ -849,6 +849,7 @@ recrop_tooltip = "Clear selection and draw a new one"
 cancel_tooltip = "Close the capture tool"
 save_image_title = "Save Captured Image"
 save_image_filter = "PNG Image (*.png)"
+more_actions = "More actions"
 
 [ocr_workspace]
 title = "OCR Workspace"

@@ -81,6 +81,19 @@ class CaptureGeometryTest {
     }
 
     @Test
+    fun `toolbar uses a fitting display when the selection display is too narrow or short`() {
+        val displays = listOf(Rectangle(-200, -100, 200, 600), Rectangle(200, -100, 1000, 600))
+        val toolbar = Dimension(300, 40)
+        val origin = Point(-200, -100)
+        val position = CaptureGeometry.toolbarPosition(Rectangle(50, 100, 40, 30), toolbar, Dimension(1400, 600), displays, origin)
+        val onDesktop = Rectangle(position.x + origin.x, position.y + origin.y, toolbar.width, toolbar.height)
+        assertTrue(displays[1].contains(onDesktop))
+        val shortDisplays = listOf(Rectangle(0, 0, 400, 20), Rectangle(500, 100, 500, 300))
+        val second = CaptureGeometry.toolbarPosition(Rectangle(10, 0, 40, 10), toolbar, Dimension(1000, 400), shortDisplays, Point())
+        assertTrue(shortDisplays[1].contains(Rectangle(second, toolbar)))
+    }
+
+    @Test
     fun `empty selections do not produce an image crop`() {
         val screenshot = BufferedImage(200, 100, BufferedImage.TYPE_INT_RGB)
         assertNull(CaptureGeometry.selectionToImage(Rectangle(1, 1, 0, 4), screenshot, Dimension(200, 100)))
