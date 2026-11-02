@@ -67,6 +67,15 @@ overlay. On the text side it offers editable recognized text, provider and recog
 selection, re-run, copy, TTS, translation, copy/TTS for the translation, source/target language
 controls, and explicit sending to the main window or Quick Translate.
 
+Send to Quick Translate always hands over the recognized or edited **source** text, even when the
+workspace already shows a translation. That keeps the canonical Quick request on the same
+source→target pair and avoids translating an English result back through the original pair.
+
+The recognized text keeps the language provenance of the OCR run that produced it (the provider's
+detected language, or the explicit recognition language that was requested). Changing the
+recognition-language dropdown prepares the next run and does not change what language TTS uses for
+text that is already on screen.
+
 Re-running OCR is always an explicit action. Changing the OCR provider or language does not
 silently overwrite text the user has corrected. A new recognition run does replace it, because
 that is the action the user asked for.
