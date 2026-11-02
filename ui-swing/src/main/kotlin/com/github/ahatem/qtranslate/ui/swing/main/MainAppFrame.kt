@@ -1095,7 +1095,7 @@ class MainAppFrame(
         appScope.launch {
             delay(200)
             withContext(Dispatchers.Swing) {
-                SnippingToolDialog(this@MainAppFrame, mainStore)
+                SnippingToolDialog(this@MainAppFrame, mainStore, settingsStore)
             }
         }
     }

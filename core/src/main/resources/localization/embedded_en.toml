@@ -402,6 +402,10 @@ recorder_invalid_key = "This key cannot be used as a shortcut"
 
 
 [settings_translation]
+ocr_destination = "OCR translation result:"
+ocr_destination_popup = "Popup window"
+ocr_destination_main = "Main window"
+ocr_destination_hint = "Choose whether OCR translation opens in the floating popup or the main window."
 behavior_group = "Behavior"
 instant_translation = "Instant translation (translate as you type)"
 instant_hint = "Triggers translation automatically after you stop typing."

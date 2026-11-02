@@ -3,6 +3,8 @@ package com.github.ahatem.qtranslate.ui.swing.snippingtool
 import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
+import com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination
+import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.util.getVirtualScreenBounds
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toImageData
 import java.awt.*
@@ -19,8 +21,9 @@ import javax.swing.*
 import javax.swing.filechooser.FileNameExtensionFilter
 
 class SnippingToolDialog(
-    owner: Frame,
-    private val mainStore: MainStore
+    private val owner: Frame,
+    private val mainStore: MainStore,
+    private val settingsStore: SettingsStore
 ) : JDialog(owner, "", true) {
 
     private val panel: ScreenCapturePanel
@@ -85,12 +88,13 @@ class SnippingToolDialog(
     }
 
     private fun dispatchOcrAndTranslate(image: ImageData) {
-        mainStore.dispatch(MainIntent.OcrAndTranslateImage(image))
-        (owner as? JFrame)?.let {
-            it.isVisible = true
-            it.state = JFrame.NORMAL
-            it.toFront()
+        val destination = settingsStore.state.value.workingConfiguration.ocrTranslationDestination
+        if (shouldPresentMainWindow(destination)) {
+            owner.isVisible = true
+            owner.state = Frame.NORMAL
+            owner.toFront()
         }
+        mainStore.dispatch(MainIntent.OcrAndTranslateImage(image, destination))
         dispose()
     }
 
@@ -148,3 +152,11 @@ class SnippingToolDialog(
     }
 
 }
+
+/**
+ * The capture dialog minimises the main window before it opens. Only the main-window
+ * destination may bring it back: the popup destination must leave it hidden so the result
+ * appears in Quick Translate alone.
+ */
+internal fun shouldPresentMainWindow(destination: OcrTranslationDestination): Boolean =
+    destination == OcrTranslationDestination.MAIN_WINDOW

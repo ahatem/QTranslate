@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
+import com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
 import java.io.File
@@ -72,8 +73,17 @@ sealed interface MainIntent : UiIntent {
      */
     data object StopTTS : MainIntent
 
-    /** User requested OCR on an image followed by translation of the detected text. */
-    data class OcrAndTranslateImage(val image: ImageData) : MainIntent
+    /**
+     * User requested OCR on an image followed by translation of the detected text.
+     *
+     * @property destination Where the translated result belongs. Defaults to the main window so
+     *   OCR started from the main workspace keeps its existing behavior; the capture flow passes
+     *   the user's configured destination explicitly.
+     */
+    data class OcrAndTranslateImage(
+        val image: ImageData,
+        val destination: OcrTranslationDestination = OcrTranslationDestination.MAIN_WINDOW
+    ) : MainIntent
 
     /**
      * User requested OCR on an image to extract text and copy it to the clipboard —
