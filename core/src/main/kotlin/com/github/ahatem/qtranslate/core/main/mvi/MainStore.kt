@@ -233,13 +233,15 @@ class MainStore(
                 .distinctUntilChanged()
                 .collect { text ->
                     if (settingsState.value.isInstantTranslationEnabled && text.isBlank()) {
-                        translateTextUseCase.cancel()
+                        cancelTranslationWork()
                         _state.update {
                             it.copy(
                                 translatedText = "",
                                 translationFailed = false,
                                 comparisonResults = emptyList(),
                                 extraOutputText = "",
+                                extraOutputFailed = false,
+                                extraOutputFailure = null,
                                 detectedSourceLanguage = null,
                                 isLoading = false
                             )
@@ -385,7 +387,7 @@ class MainStore(
                 // text effectively waits in line behind the old result.
                 // Capture state once to avoid reading _state.value twice (TOCTOU race).
                 if (settingsState.value.isInstantTranslationEnabled && _state.value.isLoading) {
-                    translateTextUseCase.cancel()
+                    cancelTranslationWork()
                     _state.update { s -> s.copy(isLoading = false) }
                 }
             }
@@ -424,7 +426,7 @@ class MainStore(
                 // are cleared only while the primary or a comparison is unfinished: extra output
                 // alone is published after them and does not make a finished set incomplete.
                 val close = _state.value.quickCloseActions()
-                if (close.cancelWork) translateTextUseCase.cancel()
+                if (close.cancelWork) cancelTranslationWork()
                 if (close.clearComparisons) clearComparisonState()
                 _state.update { it.afterQuickClose() }
             }
@@ -435,7 +437,7 @@ class MainStore(
                 _state.update { it.copy(isQuickTranslateDialogPinned = !it.isQuickTranslateDialogPinned) }
 
             MainIntent.RetranslateQuickTranslate -> {
-                translateTextUseCase.cancel()
+                cancelTranslationWork()
                 clearComparisonState()
                 scope.launch { translateText(TranslationOrigin.QUICK, comparisonPolicy = quickComparisonPolicy()) }
             }
@@ -457,7 +459,7 @@ class MainStore(
             }
 
             is MainIntent.Translate -> {
-                translateTextUseCase.cancel()
+                cancelTranslationWork()
                 clearComparisonState()
                 scope.launch { translateText(TranslationOrigin.MAIN, intent.text, comparisonPolicy = mainComparisonPolicy()) }
             }
@@ -467,11 +469,18 @@ class MainStore(
             }
 
             MainIntent.CancelTranslation -> {
-                translateTextUseCase.cancel()
+                cancelTranslationWork()
                 clearComparisonState()
                 // Both flags, because cancelling can land while the extra panel is still waiting
                 // on its own request and only the main one was ever cleared here.
-                _state.update { it.copy(isLoading = false, isExtraOutputLoading = false) }
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        isExtraOutputLoading = false,
+                        extraOutputFailed = false,
+                        extraOutputFailure = null
+                    )
+                }
                 scope.launch {
                     updateStatusBar(StatusCode.TranslationCancelled, NotificationType.INFO, true)
                 }
@@ -505,7 +514,7 @@ class MainStore(
                 val generation = quickTranslateGenerations.incrementAndGet()
                 // Invalidate a previous auto-read before its handler coroutine gets a chance to
                 // finish TTS setup. The handler also checks the request token after translation.
-                translateTextUseCase.cancel()
+                cancelTranslationWork()
                 clearComparisonState()
                 scope.launch { handleShowQuickTranslate(intent, generation) }
             }
@@ -865,6 +874,7 @@ class MainStore(
     private fun handleUndo() {
         val current = _state.value
         val selection = previousHistory(current.history, current.historyIndex) ?: return
+        translateTextUseCase.cancelExtraOutput()
         clearComparisonState()
 
         val newIndex = selection.index
@@ -880,6 +890,9 @@ class MainStore(
                 historyIndex           = newIndex,
                 isLoading              = false,
                 extraOutputText        = snapshot.extraOutputText,
+                extraOutputFailed      = false,
+                extraOutputFailure    = null,
+                isExtraOutputLoading   = false,
                 detectedSourceLanguage = snapshot.detectedSourceLanguage?.let { tag -> LanguageCode(tag) },
                 spellCheckCorrections  = emptyList()
             )
@@ -894,6 +907,7 @@ class MainStore(
     private fun handleRedo() {
         val current = _state.value
         val selection = nextHistory(current.history, current.historyIndex) ?: return
+        translateTextUseCase.cancelExtraOutput()
         clearComparisonState()
 
         val newIndex = selection.index
@@ -906,6 +920,9 @@ class MainStore(
                     translatedText         = "",
                     translationFailed      = false,
                     extraOutputText        = "",
+                    extraOutputFailed      = false,
+                    extraOutputFailure     = null,
+                    isExtraOutputLoading   = false,
                     detectedSourceLanguage = null,
                     spellCheckCorrections  = emptyList(),
                     historyIndex           = newIndex
@@ -923,6 +940,9 @@ class MainStore(
                     historyIndex           = newIndex,
                     isLoading              = false,
                     extraOutputText        = snapshot.extraOutputText,
+                    extraOutputFailed      = false,
+                    extraOutputFailure     = null,
+                    isExtraOutputLoading   = false,
                     detectedSourceLanguage = snapshot.detectedSourceLanguage?.let { tag -> LanguageCode(tag) },
                     spellCheckCorrections  = emptyList()
                 )
@@ -933,6 +953,7 @@ class MainStore(
     private fun handleRestoreHistoryEntry(intent: MainIntent.RestoreHistoryEntry) {
         val snapshot = intent.snapshot
         val current = _state.value
+        translateTextUseCase.cancelExtraOutput()
         clearComparisonState()
         _state.update {
             it.copy(
@@ -944,8 +965,26 @@ class MainStore(
                 historyIndex           = restoredHistoryIndex(current.history, it.historyIndex, snapshot),
                 isLoading              = false,
                 extraOutputText        = snapshot.extraOutputText,
+                extraOutputFailed      = false,
+                extraOutputFailure    = null,
+                isExtraOutputLoading   = false,
                 detectedSourceLanguage = snapshot.detectedSourceLanguage?.let { tag -> LanguageCode(tag) },
                 spellCheckCorrections  = emptyList()
+            )
+        }
+    }
+
+    /**
+     * Cancels the primary and every secondary request, normalizing the panel flags the request
+     * owned. Cancel paths otherwise leave a spinner or an old failure placeholder behind.
+     */
+    private fun cancelTranslationWork() {
+        translateTextUseCase.cancel()
+        _state.update {
+            it.copy(
+                isExtraOutputLoading = false,
+                extraOutputFailed = false,
+                extraOutputFailure = null
             )
         }
     }
@@ -1005,7 +1044,7 @@ class MainStore(
         // First: a normal translation or comparison request still in flight uses plugin
         // services, and application shutdown disables plugins and closes their resources
         // right after this returns.
-        translateTextUseCase.cancel()
+        cancelTranslationWork()
         cancelDocumentTranslation()
         dictionarySession.cancel()
         imageSession.cancel()

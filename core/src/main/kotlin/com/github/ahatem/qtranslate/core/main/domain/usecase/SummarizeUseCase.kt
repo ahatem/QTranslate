@@ -24,12 +24,12 @@ class SummarizeUseCase(
         text: String,
         summaryLength: String,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
-    ): String {
+    ): ExtraOutputResult {
         val summarizer = activeServiceManager.getActiveService<Summarizer>(ServiceRole.SUMMARIZER)
         if (summarizer == null) {
             logger.warn("No summarizer service available")
             onStatusUpdate(StatusCode.NoSummarizerActive, NotificationType.WARNING, true)
-            return ""
+            return ExtraOutputResult.Failure(ExtraOutputFailure.NoSummarizer)
         }
 
         onStatusUpdate(StatusCode.Summarizing, NotificationType.INFO, false)
@@ -48,20 +48,20 @@ class SummarizeUseCase(
         if (result == null) {
             logger.error("Summarize timed out")
             onStatusUpdate(StatusCode.SummarizeTimeout, NotificationType.ERROR, true)
-            return ""
+            return ExtraOutputResult.Failure(ExtraOutputFailure.Timeout)
         }
 
         return result.fold(
             success = { response ->
                 logger.debug("Summarize successful")
                 onStatusUpdate(StatusCode.SummaryReady, NotificationType.SUCCESS, true)
-                response.summary
+                ExtraOutputResult.Success(response.summary)
             },
             failure = { error ->
                 logger.error("Summarize failed: ${error::class.simpleName}")
                 val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.SummarizeFailed(summary), NotificationType.ERROR, true)
-                ""
+                ExtraOutputResult.Failure(ExtraOutputFailure.Provider(summary))
             }
         )
     }

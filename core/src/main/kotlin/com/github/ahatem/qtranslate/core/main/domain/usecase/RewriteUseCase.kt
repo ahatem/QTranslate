@@ -24,12 +24,12 @@ class RewriteUseCase(
         text: String,
         rewriteStyle: String,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
-    ): String {
+    ): ExtraOutputResult {
         val rewriter = activeServiceManager.getActiveService<Rewriter>(ServiceRole.REWRITER)
         if (rewriter == null) {
             logger.warn("No rewriter service available")
             onStatusUpdate(StatusCode.NoRewriterActive, NotificationType.WARNING, true)
-            return ""
+            return ExtraOutputResult.Failure(ExtraOutputFailure.NoRewriter)
         }
 
         onStatusUpdate(StatusCode.Rewriting, NotificationType.INFO, false)
@@ -48,20 +48,20 @@ class RewriteUseCase(
         if (result == null) {
             logger.error("Rewrite timed out")
             onStatusUpdate(StatusCode.RewriteTimeout, NotificationType.ERROR, true)
-            return ""
+            return ExtraOutputResult.Failure(ExtraOutputFailure.Timeout)
         }
 
         return result.fold(
             success = { response ->
                 logger.debug("Rewrite successful")
                 onStatusUpdate(StatusCode.RewriteReady, NotificationType.SUCCESS, true)
-                response.rewrittenText
+                ExtraOutputResult.Success(response.rewrittenText)
             },
             failure = { error ->
                 logger.error("Rewrite failed: ${error::class.simpleName}")
                 val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.RewriteFailed(summary), NotificationType.ERROR, true)
-                ""
+                ExtraOutputResult.Failure(ExtraOutputFailure.Provider(summary))
             }
         )
     }

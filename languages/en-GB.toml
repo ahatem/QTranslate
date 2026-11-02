@@ -598,6 +598,13 @@ label_backward = "Backward Translation"
 label_summary = "Summary"
 label_rewrite = "Rewrite"
 placeholder = "Available after translation"
+error_no_translator = "No translator service is active."
+error_no_summarizer = "No summarizer service is active. Install and configure a summarizer plugin."
+error_no_rewriter = "No rewriter service is active. Install and configure a rewriter plugin."
+error_timeout = "The extra output request timed out. Please try again."
+error_invalid_target = "Cannot translate back to Auto-Detect."
+error_provider = "The extra output request failed: %s"
+error_unknown = "The extra output request failed."
 
 # ===================================================================
 # NOTIFICATIONS & ERRORS
@@ -619,6 +626,9 @@ translation_timeout = "Translation timed out. Please try again."
 translation_failed = "Translation failed: %s"
 no_translator_active = "No translator service is active."
 performing_backward_translation = "Performing backward translation..."
+backward_translation_timeout = "Backward translation timed out. Please try again."
+backward_translation_complete = "Backward translation complete."
+backward_translation_failed = "Backward translation failed: %s"
 unexpected_error = "Unexpected error: %s"
 # Text-to-Speech
 no_text_to_speak = "No text to speak."
