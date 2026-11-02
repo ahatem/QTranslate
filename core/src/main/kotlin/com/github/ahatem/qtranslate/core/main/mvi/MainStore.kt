@@ -125,6 +125,15 @@ class MainStore(
     override val state: StateFlow<MainState> = _state.asStateFlow()
 
     private val _eventChannel = Channel<PendingMainEvent>(Channel.BUFFERED)
+    private val translationCoordinator = TranslationCoordinator(
+        useCase = translateTextUseCase,
+        settingsState = settingsState,
+        getState = { _state.value },
+        updateState = { transform -> _state.update(transform) },
+        onStatusUpdate = { code, type, isTemporary -> updateStatusBar(code, type, isTemporary) },
+        emitCopy = { text -> sendEvent(MainEvent.CopyToClipboard(text)) }
+    )
+
     override val events: Flow<MainEvent> = _eventChannel.receiveAsFlow().mapNotNull { pending ->
         val publish = pending.publish ?: return@mapNotNull pending.event
         var event: MainEvent? = null
@@ -473,14 +482,7 @@ class MainStore(
                 clearComparisonState()
                 // Both flags, because cancelling can land while the extra panel is still waiting
                 // on its own request and only the main one was ever cleared here.
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        isExtraOutputLoading = false,
-                        extraOutputFailed = false,
-                        extraOutputFailure = null
-                    )
-                }
+                _state.update { it.copy(isLoading = false) }
                 scope.launch {
                     updateStatusBar(StatusCode.TranslationCancelled, NotificationType.INFO, true)
                 }
@@ -730,7 +732,7 @@ class MainStore(
                 selectionGeneration = generation,
                 currentSelectionGeneration = quickTranslateGenerations.get(),
                 completion = completion,
-                translationStillCurrent = completion?.let { translateTextUseCase.isCurrent(it.requestId) } == true
+                translationStillCurrent = completion?.let { translationCoordinator.isCurrent(it.requestId) } == true
             )) return
 
         val speechPlan = selectionSpeechPlan(
@@ -748,7 +750,7 @@ class MainStore(
             languageOverride = speechPlan.languageOverride,
             requestStillCurrent = {
                 generation == quickTranslateGenerations.get() &&
-                    completion?.let { translateTextUseCase.isCurrent(it.requestId) } == true
+                    completion?.let { translationCoordinator.isCurrent(it.requestId) } == true
             }
         )
     }
@@ -766,26 +768,12 @@ class MainStore(
         extraOutputRequest: ExtraOutputRequest? = null,
         comparisonPolicy: ComparisonPolicy = ComparisonPolicy.DISABLED,
     ): TranslationCompletion? {
-        val completion = translateTextUseCase(
-            getState    = { _state.value },
-            updateState = { transform -> _state.update(transform) },
-            onStatusUpdate = ::updateStatusBar,
+        return translationCoordinator.translate(
+            origin = origin,
             textOverride = textOverride,
             extraOutputRequest = extraOutputRequest,
             comparisonPolicy = comparisonPolicy,
         )
-
-        val textToCopy = AutoCopyGuard.textToCopy(
-            setting = settingsState.value.autoCopyTranslation,
-            origin = origin,
-            completion = completion,
-            translationStillCurrent = completion?.let { translateTextUseCase.isCurrent(it.requestId) } == true
-        )
-        if (textToCopy != null) {
-            sendEvent(MainEvent.CopyToClipboard(textToCopy))
-        }
-
-        return completion
     }
 
     /**
@@ -793,19 +781,7 @@ class MainStore(
      * translation yet to derive one from.
      */
     private suspend fun refreshExtraOutput(extraOutputRequest: ExtraOutputRequest?) {
-        val refreshed = translateTextUseCase.refreshExtraOutput(
-            extraOutputRequest = extraOutputRequest,
-            getState = { _state.value },
-            updateState = { transform -> _state.update(transform) },
-            onStatusUpdate = ::updateStatusBar
-        )
-        if (!refreshed) {
-            translateText(
-                TranslationOrigin.INTERNAL,
-                extraOutputRequest = extraOutputRequest,
-                comparisonPolicy = ComparisonPolicy.DISABLED
-            )
-        }
+        translationCoordinator.refreshExtraOutput(extraOutputRequest)
     }
 
     private fun handleLookupWord(intent: MainIntent.LookupWord) {
@@ -874,7 +850,7 @@ class MainStore(
     private fun handleUndo() {
         val current = _state.value
         val selection = previousHistory(current.history, current.historyIndex) ?: return
-        translateTextUseCase.cancelExtraOutput()
+        translationCoordinator.cancelExtraOutput()
         clearComparisonState()
 
         val newIndex = selection.index
@@ -907,7 +883,7 @@ class MainStore(
     private fun handleRedo() {
         val current = _state.value
         val selection = nextHistory(current.history, current.historyIndex) ?: return
-        translateTextUseCase.cancelExtraOutput()
+        translationCoordinator.cancelExtraOutput()
         clearComparisonState()
 
         val newIndex = selection.index
@@ -953,7 +929,7 @@ class MainStore(
     private fun handleRestoreHistoryEntry(intent: MainIntent.RestoreHistoryEntry) {
         val snapshot = intent.snapshot
         val current = _state.value
-        translateTextUseCase.cancelExtraOutput()
+        translationCoordinator.cancelExtraOutput()
         clearComparisonState()
         _state.update {
             it.copy(
@@ -978,16 +954,7 @@ class MainStore(
      * Cancels the primary and every secondary request, normalizing the panel flags the request
      * owned. Cancel paths otherwise leave a spinner or an old failure placeholder behind.
      */
-    private fun cancelTranslationWork() {
-        translateTextUseCase.cancel()
-        _state.update {
-            it.copy(
-                isExtraOutputLoading = false,
-                extraOutputFailed = false,
-                extraOutputFailure = null
-            )
-        }
-    }
+    private fun cancelTranslationWork() = translationCoordinator.cancel()
 
     private suspend fun handleClearHistory() {
         historyRepository.clearHistory().fold(
@@ -1011,12 +978,11 @@ class MainStore(
         // LoadingIndicator means it never steals focus from the source app.
         clearComparisonState()
         _state.update { it.copy(inputText = preparedText, isReplacingSelection = true) }
-        translateTextUseCase(
-            getState       = { _state.value },
-            updateState    = { transform -> _state.update(transform) },
-            onStatusUpdate = ::updateStatusBar,
-            textOverride   = preparedText,
-            comparisonPolicy = ComparisonPolicy.DISABLED
+        translationCoordinator.translate(
+            origin = TranslationOrigin.MAIN,
+            textOverride = preparedText,
+            comparisonPolicy = ComparisonPolicy.DISABLED,
+            autoCopy = false,
         )
         val result = _state.value.translatedText
         _state.update { it.copy(isReplacingSelection = false) }
@@ -1036,7 +1002,7 @@ class MainStore(
     }
 
     private fun clearComparisonState() {
-        translateTextUseCase.invalidateComparisons()
+        translationCoordinator.invalidateComparisons()
         _state.update { it.copy(comparisonResults = emptyList()) }
     }
 
