@@ -146,7 +146,7 @@ class TranslationCoordinatorTest {
                 getState = { holder.state },
                 updateState = { transform -> holder.state = holder.state.transform() },
                 onStatusUpdate = { _, _, _ -> },
-                emitCopy = { holder.copies += it },
+                emitCopy = { text, _ -> holder.copies += text },
             )
         )
         return fixture

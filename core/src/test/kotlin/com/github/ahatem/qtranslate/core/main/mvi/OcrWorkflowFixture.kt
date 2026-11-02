@@ -84,6 +84,7 @@ internal class OcrWorkflowFixture(
     ocrSettings: OcrSettings = OcrSettings(),
     autoCopy: AutoCopyTranslation = AutoCopyTranslation.OFF,
     dispatcher: kotlinx.coroutines.CoroutineDispatcher? = null,
+    collectEvents: Boolean = true,
 ) {
     private val scope = CoroutineScope(
         SupervisorJob() + (dispatcher ?: testScope.coroutineContext[ContinuationInterceptor]!!)
@@ -105,7 +106,7 @@ internal class OcrWorkflowFixture(
     init {
         // Subscribe before the first dispatch; receiveAsFlow has one consumer, and the event
         // channel is only observed once this coroutine is actually parked on it.
-        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+        if (collectEvents) scope.launch(start = CoroutineStart.UNDISPATCHED) {
             store.events.collect {
                 events += it
                 emitted.send(it)

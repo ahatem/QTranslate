@@ -24,6 +24,7 @@ import com.github.ahatem.qtranslate.core.workspace.translation.SummarizeUseCase
 import com.github.ahatem.qtranslate.core.workspace.translation.TranslateTextUseCase
 import com.github.ahatem.qtranslate.core.workspace.translation.TranslationCompletion
 import com.github.ahatem.qtranslate.core.workspace.translation.TranslationCoordinator
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslationStart
 import com.github.ahatem.qtranslate.core.workspace.translation.TranslationOrigin
 import com.github.ahatem.qtranslate.core.workspace.lookup.DictionaryLookupRequest
 import com.github.ahatem.qtranslate.core.workspace.lookup.DictionaryLookupSession
@@ -61,12 +62,6 @@ private data class ComparisonConfigKey(
     val comparisonTranslatorIds: List<String>,
     val translationRules: List<com.github.ahatem.qtranslate.core.settings.data.TranslationRule>,
     val disabledServices: Set<String>
-)
-
-/** Buffered session events are checked when consumed, so replacement also invalidates queued events. */
-private data class PendingMainEvent(
-    val event: MainEvent,
-    val publish: ((() -> Unit) -> Unit)? = null
 )
 
 internal data class SpellCheckInput(
@@ -181,22 +176,28 @@ class MainStore(
     )
     override val state: StateFlow<MainState> = _state.asStateFlow()
 
-    private val _eventChannel = Channel<PendingMainEvent>(Channel.BUFFERED)
+    private val _eventChannel = Channel<MainEventDelivery>(Channel.BUFFERED)
     private val translationCoordinator = TranslationCoordinator(
         useCase = translateTextUseCase,
         settingsState = settingsState,
         getState = { _state.value },
         updateState = { transform -> _state.update(transform) },
         onStatusUpdate = { code, type, isTemporary -> updateStatusBar(code, type, isTemporary) },
-        emitCopy = { text -> sendEvent(MainEvent.CopyToClipboard(text)) }
+        emitCopy = { text, requestId ->
+            sendEvent(MainEvent.CopyToClipboard(text)) { publish ->
+                translateTextUseCase.withCurrentRequest(requestId, publish)
+            }
+        }
     )
 
-    override val events: Flow<MainEvent> = _eventChannel.receiveAsFlow().mapNotNull { pending ->
-        val publish = pending.publish ?: return@mapNotNull pending.event
-        var event: MainEvent? = null
-        publish { event = pending.event }
-        event
-    }
+    /**
+     * The single UI consumer transports these envelopes to Swing before accepting effects.
+     * Collect either this flow or [events], never both: they share the same one-shot channel.
+     */
+    val eventDeliveries: Flow<MainEventDelivery> = _eventChannel.receiveAsFlow()
+
+    /** Compatibility view for consumers that deliver immediately on their collection dispatcher. */
+    override val events: Flow<MainEvent> = eventDeliveries.mapNotNull { it.accept() }
 
     private val documentSession = DocumentTranslationSession(
         scope = scope,
@@ -604,24 +605,7 @@ class MainStore(
                 destinationOverride = null,
             )
 
-            is MainIntent.ShowQuickTranslate -> {
-                // Quick Translate writes inputText too. Mark it so the instant-translation
-                // observer does not replace the request this workflow is about to start.
-                programmaticInputText = prepareInputText(
-                    intent.selectedText,
-                    settingsState.value.isRemoveLineBreaksEnabled,
-                )
-                val generation = quickTranslateGenerations.incrementAndGet()
-                // Invalidate a previous auto-read before its handler coroutine gets a chance to
-                // finish TTS setup. The handler also checks the request token after translation.
-                cancelTranslationWork()
-                clearComparisonState()
-                scope.launch(
-                    start = if (intent.ocrWorkflow) CoroutineStart.UNDISPATCHED else CoroutineStart.DEFAULT
-                ) {
-                    handleShowQuickTranslate(intent, generation)
-                }
-            }
+            is MainIntent.ShowQuickTranslate -> startQuickTranslate(intent)
 
             is MainIntent.LookupWord -> scope.launch { handleLookupWord(intent) }
 
@@ -808,26 +792,25 @@ class MainStore(
             afterOcrPublication?.invoke(token)
             return
         }
+        // Admission detached old jobs. Release them before any test hook, queue send or other
+        // suspension can cancel this coroutine and strand work outside its owner's job slot.
+        publication.translationStart?.cancelPrevious()
         afterOcrPublication?.invoke(token)
 
         publication.events.forEach { event ->
             publishOcrEvent(token, event)
         }
-        if (publication.startTranslation) {
-            // The translation claim happens inside the OCR ownership block: a newer OCR claim
-            // either happens before (and this launch is refused) or after (and it cancels the
-            // translation by the identity captured here). Undispatched so the callback runs
-            // before the lock is released.
-            ocrOwner.withCurrent(token) {
-                var claimed: Long? = null
-                scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                    translateText(
-                        origin = TranslationOrigin.OCR,
-                        comparisonPolicy = ComparisonPolicy.DISABLED,
-                        onRequestClaimed = { claimed = it },
-                    )
-                }
-                ocrTranslation = claimed?.let { OcrTranslation(it, quick = false) }
+        val start = publication.translationStart ?: return
+        if (publication.quickText != null) {
+            startQuickTranslate(MainIntent.ShowQuickTranslate(publication.quickText), start)
+        } else {
+            scope.launch {
+                translateText(
+                    origin = TranslationOrigin.OCR,
+                    textOverride = publication.mainText,
+                    comparisonPolicy = ComparisonPolicy.DISABLED,
+                    start = start,
+                )
             }
         }
     }
@@ -870,21 +853,11 @@ class MainStore(
             )
             OcrPostSelectionAction.TRANSLATE -> when (destinationOverride ?: settings.translationDestination) {
                 OcrTranslationDestination.QUICK_TRANSLATE -> {
-                    // Canonical Quick path: it owns cancellation, comparison clearing,
-                    // popup visibility and request generation. Do not reproduce them here.
-                    // Undispatched OCR ownership lets this workflow cancel exactly the Quick
-                    // translation it started when a newer capture supersedes it.
-                    var claimed: Long? = null
-                    dispatch(
-                        MainIntent.ShowQuickTranslate(
-                            preparedText,
-                            ocrWorkflow = true,
-                            onTranslationClaimed = { claimed = it },
-                        )
-                    )
-                    ocrTranslation = claimed?.let { OcrTranslation(it, quick = true) }
-                    OcrPublication()
+                    val start = translationCoordinator.reserveStart()
+                    ocrTranslation = OcrTranslation(start.requestId, quick = true)
+                    OcrPublication(translationStart = start, quickText = preparedText)
                 }
+
                 OcrTranslationDestination.OCR_WORKSPACE -> OcrPublication(
                     events = listOf(
                         MainEvent.OpenOcrWorkspace(
@@ -905,10 +878,12 @@ class MainStore(
                         preparedText,
                         settingsState.value.isRemoveLineBreaksEnabled,
                     )
-                    clearComparisonState()
+                    val start = translationCoordinator.reserveStart()
+                    ocrTranslation = OcrTranslation(start.requestId, quick = false)
                     programmaticInputText = mainText
                     _state.update {
                         it.copy(
+                            comparisonResults = emptyList(),
                             inputText = mainText,
                             detectedSourceLanguage = null,
                             spellCheckCorrections = emptyList(),
@@ -916,7 +891,8 @@ class MainStore(
                     }
                     OcrPublication(
                         events = listOf(MainEvent.ShowMainWindow),
-                        startTranslation = true,
+                        translationStart = start,
+                        mainText = mainText,
                     )
                 }
             }
@@ -928,7 +904,9 @@ class MainStore(
 
     private data class OcrPublication(
         val events: List<MainEvent> = emptyList(),
-        val startTranslation: Boolean = false,
+        val translationStart: TranslationStart? = null,
+        val quickText: String? = null,
+        val mainText: String? = null,
     )
 
     /**
@@ -959,19 +937,43 @@ class MainStore(
     private fun cancelOcrTranslation(translation: OcrTranslation?) {
         if (translation == null) return
         val wasLoading = _state.value.isLoading
-        if (!translationCoordinator.cancelIfCurrent(translation.requestId)) return
-        // A cancelled Quick request may have published LOADING comparison rows before its
-        // primary stopped; no later coroutine will resolve them.
-        if (translation.quick) clearComparisonState()
-        _state.update { it.copy(isLoading = false) }
-        if (wasLoading && translation.quick && _state.value.isQuickTranslateDialogVisible) {
-            dispatch(MainIntent.HideQuickTranslate)
+        val cancellation = translationCoordinator.cancelIfCurrent(translation.requestId) ?: return
+        // A cancellation handler may have admitted a manual request. Only the cancellation's
+        // replacement identity may normalize flags; it cannot hide or clear a newer popup.
+        translationCoordinator.withCurrentRequest(cancellation) {
+            _state.update { current ->
+                current.copy(
+                    comparisonResults = if (translation.quick) emptyList() else current.comparisonResults,
+                    isLoading = false,
+                    isQuickTranslateDialogVisible = if (wasLoading && translation.quick) false else current.isQuickTranslateDialogVisible,
+                    isQuickTranslateDialogPinned = if (wasLoading && translation.quick) false else current.isQuickTranslateDialogPinned,
+                )
+            }
         }
+    }
+
+    /** Reuses canonical Quick startup; an OCR admission has already claimed translation. */
+    private fun startQuickTranslate(intent: MainIntent.ShowQuickTranslate, start: TranslationStart? = null) {
+        val generation: Long
+        if (start == null) {
+            programmaticInputText = prepareInputText(intent.selectedText, settingsState.value.isRemoveLineBreaksEnabled)
+            generation = quickTranslateGenerations.incrementAndGet()
+            cancelTranslationWork()
+            clearComparisonState()
+        } else {
+            start.cancelPrevious()
+            generation = translationCoordinator.withCurrentRequest(start.requestId) {
+                programmaticInputText = prepareInputText(intent.selectedText, settingsState.value.isRemoveLineBreaksEnabled)
+                quickTranslateGenerations.incrementAndGet()
+            } ?: return
+        }
+        scope.launch { handleShowQuickTranslate(intent, generation, start) }
     }
 
     private suspend fun handleShowQuickTranslate(
         intent: MainIntent.ShowQuickTranslate,
-        generation: Long
+        generation: Long,
+        start: TranslationStart? = null,
     ) {
         if (intent.selectedText.isBlank()) return
 
@@ -982,37 +984,41 @@ class MainStore(
         // is intentionally left untouched below.
         val preparedText = prepareInputText(intent.selectedText, settingsState.value.isRemoveLineBreaksEnabled)
 
-        if (_state.value.isQuickTranslateDialogVisible) {
-            // Already open, pinned or not: replace the text and count the trigger, so the popup
-            // refreshes in place and restarts its countdown. Hiding and re-showing it would
-            // flicker, move it, and throw away a pin the user had set.
-            _state.update {
-                it.copy(
-                    inputText = preparedText,
-                    quickTranslateTriggerCount = it.quickTranslateTriggerCount + 1
-                )
-            }
-        } else {
-            // Open a fresh popup — never pinned, whatever the last one was left as.
-            //
-            // isLoading and the cleared text are set here rather than left to the use case that
-            // follows. The popup withholds itself until there is something to show, and it decides
-            // that from this state; without it the popup saw "not loading, no text" for the moment
-            // between being asked for and the request starting, took that for a finished result,
-            // and opened empty — which is the loading state the user was seeing inside the popup
-            // instead of the marker that should have covered the wait.
-            _state.update {
-                it.copy(
-                    inputText = preparedText,
-                    translatedText = "",
-                    translationFailed = false,
-                    isLoading = true,
-                    isQuickTranslateDialogPinned = false,
-                    isQuickTranslateDialogVisible = true,
-                    quickTranslateTriggerCount = it.quickTranslateTriggerCount + 1
-                )
+        val showPopup = {
+            if (_state.value.isQuickTranslateDialogVisible) {
+                // Already open, pinned or not: replace the text and count the trigger, so the popup
+                // refreshes in place and restarts its countdown. Hiding and re-showing it would
+                // flicker, move it, and throw away a pin the user had set.
+                _state.update {
+                    it.copy(
+                        inputText = preparedText,
+                        quickTranslateTriggerCount = it.quickTranslateTriggerCount + 1
+                    )
+                }
+            } else {
+                // Open a fresh popup — never pinned, whatever the last one was left as.
+                //
+                // isLoading and the cleared text are set here rather than left to the use case that
+                // follows. The popup withholds itself until there is something to show, and it decides
+                // that from this state; without it the popup saw "not loading, no text" for the moment
+                // between being asked for and the request starting, took that for a finished result,
+                // and opened empty — which is the loading state the user was seeing inside the popup
+                // instead of the marker that should have covered the wait.
+                _state.update {
+                    it.copy(
+                        inputText = preparedText,
+                        translatedText = "",
+                        translationFailed = false,
+                        isLoading = true,
+                        isQuickTranslateDialogPinned = false,
+                        isQuickTranslateDialogVisible = true,
+                        quickTranslateTriggerCount = it.quickTranslateTriggerCount + 1
+                    )
+                }
             }
         }
+        if (start == null) showPopup()
+        else if (translationCoordinator.withCurrentRequest(start.requestId, showPopup) == null) return
 
         val readSource = settingsState.value.selectionReadSource
         if (intent.readSelectionAloud && readSource == SelectionReadSource.SOURCE) {
@@ -1047,6 +1053,7 @@ class MainStore(
             origin = TranslationOrigin.QUICK,
             comparisonPolicy = quickComparisonPolicy(),
             onRequestClaimed = intent.onTranslationClaimed,
+            start = start,
         )
         if (readSource != SelectionReadSource.TRANSLATION ||
             !SelectionTranslationReadGuard.shouldRead(
@@ -1090,6 +1097,7 @@ class MainStore(
         extraOutputRequest: ExtraOutputRequest? = null,
         comparisonPolicy: ComparisonPolicy = ComparisonPolicy.DISABLED,
         onRequestClaimed: ((Long) -> Unit)? = null,
+        start: TranslationStart? = null,
     ): TranslationCompletion? {
         return translationCoordinator.translate(
             origin = origin,
@@ -1097,6 +1105,7 @@ class MainStore(
             extraOutputRequest = extraOutputRequest,
             comparisonPolicy = comparisonPolicy,
             onRequestClaimed = onRequestClaimed,
+            start = start,
         )
     }
 
@@ -1356,7 +1365,7 @@ class MainStore(
     }
 
     private suspend fun sendEvent(event: MainEvent, publish: ((() -> Unit) -> Unit)? = null) {
-        _eventChannel.send(PendingMainEvent(event, publish))
+        _eventChannel.send(MainEventDelivery(event, publish))
     }
 }
 

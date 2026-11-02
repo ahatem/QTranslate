@@ -77,6 +77,54 @@ class OcrPublicationOwnershipTest {
     }
 
     @Test
+    @OptIn(kotlinx.coroutines.InternalCoroutinesApi::class)
+    fun `manual translation started during OCR cancellation keeps its popup and loading state`() = runBlocking {
+        val fixture = OcrWorkflowFixture(TestScope(), dispatcher = Dispatchers.IO)
+        val ocrStarted = CompletableDeferred<Unit>()
+        val cancellationEntered = CountDownLatch(1)
+        val resumeCancellation = java.util.concurrent.Semaphore(0)
+        val manualStarted = CompletableDeferred<Unit>()
+        val releaseManual = CompletableDeferred<Unit>()
+        var cleanup: Thread? = null
+        try {
+            fixture.ocr.responder = { Ok(OCRResponse("OCR source")) }
+            fixture.translator.beforeTranslate = { text ->
+                if (text == "OCR source") {
+                    kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]!!
+                        .invokeOnCompletion(onCancelling = true, invokeImmediately = true) {
+                            cancellationEntered.countDown()
+                            resumeCancellation.acquireUninterruptibly()
+                        }
+                    ocrStarted.complete(Unit)
+                    kotlinx.coroutines.awaitCancellation()
+                } else if (text == "manual source") {
+                    manualStarted.complete(Unit)
+                    releaseManual.await()
+                }
+            }
+            fixture.store.dispatch(MainIntent.OcrWorkflowImage(fixture.image(), OcrPostSelectionAction.TRANSLATE, OcrTranslationDestination.QUICK_TRANSLATE))
+            withTimeout(5_000) { ocrStarted.await() }
+            cleanup = Thread { fixture.store.dispatch(MainIntent.OcrWorkflowImage(fixture.image(), OcrPostSelectionAction.COPY_IMAGE)) }.also { it.start() }
+            assertTrue(cancellationEntered.await(5, TimeUnit.SECONDS))
+            fixture.store.dispatch(MainIntent.ShowQuickTranslate("manual source"))
+            withTimeout(5_000) { manualStarted.await() }
+            resumeCancellation.release()
+            cleanup.join(5_000)
+            assertTrue(!cleanup.isAlive)
+            assertTrue(fixture.store.state.value.isLoading, "OCR cleanup must not lower the manual spinner")
+            assertTrue(fixture.store.state.value.isQuickTranslateDialogVisible, "OCR cleanup must not hide the manual popup")
+            releaseManual.complete(Unit)
+            withTimeout(5_000) { fixture.store.state.first { it.translatedText == "t:manual source" } }
+            Unit
+        } finally {
+            resumeCancellation.release()
+            releaseManual.complete(Unit)
+            cleanup?.join(5_000)
+            fixture.cleanUp()
+        }
+    }
+
+    @Test
     fun `a stale copy-text workflow cannot emit a clipboard event`() = runBlocking {
         val fixture = OcrWorkflowFixture(
             testScope = TestScope(),

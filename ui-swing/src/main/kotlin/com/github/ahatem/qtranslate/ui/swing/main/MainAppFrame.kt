@@ -770,56 +770,60 @@ class MainAppFrame(
         // Single collector for all MainEvents — avoids channel-race where two separate
         // filterIsInstance collectors compete and one silently drops events it doesn't match.
         appScope.launch(handler) {
-            mainStore.events.collect { event ->
-                when (event) {
-                    is MainEvent.UpdateStatusBar -> withContext(Dispatchers.Swing) {
-                        statusBarController.handleEvent(event)
-                    }
-                    is MainEvent.PasteTranslation -> if (event.translatedText.isNotBlank()) {
-                        pasteTextToActiveApp(event.translatedText)
-                    }
-                    is MainEvent.ShowUpdateDialog -> withContext(Dispatchers.Swing) {
-                        showUpdateDialog(NotificationCode.UpdateAvailable(
-                            newVersion = event.newVersion,
-                            currentVersion = event.currentVersion,
-                            releaseNotes = event.releaseNotes,
-                            downloadUrl = event.downloadUrl,
-                            releaseUrl = event.releaseUrl
-                        ))
-                    }
-                    is MainEvent.CopyToClipboard -> withContext(Dispatchers.Swing) {
-                        // Clipboard contention must not turn a successful translation into a failure.
-                        runCatching {
-                            Toolkit.getDefaultToolkit().systemClipboard
-                                .setContents(StringSelection(event.text), null)
-                        }.onFailure { error ->
-                            logger.warn("Failed to copy text to the clipboard: ${error.message}")
+            mainStore.eventDeliveries.collect { delivery ->
+                withContext(Dispatchers.Swing) {
+                    val event = delivery.accept() ?: return@withContext
+                    when (event) {
+                        is MainEvent.UpdateStatusBar -> {
+                            statusBarController.handleEvent(event)
                         }
-                    }
-                    is MainEvent.CopyImageToClipboard -> withContext(Dispatchers.Swing) {
-                        copyImageToClipboard(event.image)
-                    }
-                    is MainEvent.OpenOcrWorkspace -> withContext(Dispatchers.Swing) {
-                        openOcrWorkspace(
-                            image = event.image,
-                            autoTranslate = event.autoTranslate,
-                            initialText = event.initialText,
-                            initialRegions = event.initialRegions,
-                            initialLanguage = event.initialLanguage,
-                        )
-                    }
-                    MainEvent.ShowMainWindow -> withContext(Dispatchers.Swing) {
-                        showAndFocus()
-                    }
-                    is MainEvent.DocumentTranslationCompleted -> withContext(Dispatchers.Swing) {
-                        documentTranslationDialog.complete(event.outputFile)
-                    }
-                    is MainEvent.DocumentTranslationFailed -> withContext(Dispatchers.Swing) {
-                        documentTranslationDialog.fail(event.message)
+                        is MainEvent.PasteTranslation -> if (event.translatedText.isNotBlank()) {
+                            pasteTextToActiveApp(event.translatedText)
+                        }
+                        is MainEvent.ShowUpdateDialog -> {
+                            showUpdateDialog(NotificationCode.UpdateAvailable(
+                                newVersion = event.newVersion,
+                                currentVersion = event.currentVersion,
+                                releaseNotes = event.releaseNotes,
+                                downloadUrl = event.downloadUrl,
+                                releaseUrl = event.releaseUrl
+                            ))
+                        }
+                        is MainEvent.CopyToClipboard -> {
+                            // Clipboard contention must not turn a successful translation into a failure.
+                            runCatching {
+                                Toolkit.getDefaultToolkit().systemClipboard
+                                    .setContents(StringSelection(event.text), null)
+                            }.onFailure { error ->
+                                logger.warn("Failed to copy text to the clipboard: ${error.message}")
+                            }
+                        }
+                        is MainEvent.CopyImageToClipboard -> {
+                            copyImageToClipboard(event.image)
+                        }
+                        is MainEvent.OpenOcrWorkspace -> {
+                            openOcrWorkspace(
+                                image = event.image,
+                                autoTranslate = event.autoTranslate,
+                                initialText = event.initialText,
+                                initialRegions = event.initialRegions,
+                                initialLanguage = event.initialLanguage,
+                            )
+                        }
+                        MainEvent.ShowMainWindow -> {
+                            showAndFocus()
+                        }
+                        is MainEvent.DocumentTranslationCompleted -> {
+                            documentTranslationDialog.complete(event.outputFile)
+                        }
+                        is MainEvent.DocumentTranslationFailed -> {
+                            documentTranslationDialog.fail(event.message)
+                        }
                     }
                 }
             }
         }
+
 
         // Donation nudge — track successful translations in-memory; show once at 500.
         // Uses scan() to detect isLoading true→false transitions that produced output.

@@ -108,6 +108,7 @@ sealed interface MainIntent : UiIntent {
      * @property text Optional text override. If `null`, uses the text from [textSource].
      * @property language Optional language override. If `null`, it is derived from [textSource].
      *   Set by callers whose text belongs to neither panel, such as a dictionary headword.
+     *   Explicit AUTO reports unknown language instead of borrowing the panel's detection.
      */
     data class ListenToText(
         val textSource: TextSource,
@@ -174,8 +175,6 @@ sealed interface MainIntent : UiIntent {
         val selectedText: String,
         /** Speak this request according to the persisted selection read-source preference. */
         val readSelectionAloud: Boolean = false,
-        /** True when an OCR workflow owns this request and must be able to cancel it later. */
-        val ocrWorkflow: Boolean = false,
         /** Receives the exact translation request identity claimed by this intent. */
         val onTranslationClaimed: ((Long) -> Unit)? = null,
     ) : MainIntent

@@ -21,7 +21,7 @@ internal class TranslationCoordinator(
     private val getState: () -> MainState,
     private val updateState: (MainState.() -> MainState) -> Unit,
     private val onStatusUpdate: suspend (StatusCode, NotificationType, Boolean) -> Unit,
-    private val emitCopy: suspend (String) -> Unit,
+    private val emitCopy: suspend (String, Long) -> Unit,
 ) {
     /**
      * Runs one translation and emits a copy event when the origin's auto-copy policy covers it.
@@ -35,6 +35,7 @@ internal class TranslationCoordinator(
             ComparisonPolicy.DISABLED,
         autoCopy: Boolean = true,
         onRequestClaimed: ((Long) -> Unit)? = null,
+        start: TranslationStart? = null,
     ): TranslationCompletion? {
         val completion = useCase(
             getState = getState,
@@ -44,6 +45,7 @@ internal class TranslationCoordinator(
             extraOutputRequest = extraOutputRequest,
             comparisonPolicy = comparisonPolicy,
             onRequestClaimed = onRequestClaimed,
+            start = start,
         )
 
         val textToCopy = if (!autoCopy) null else AutoCopyGuard.textToCopy(
@@ -52,12 +54,10 @@ internal class TranslationCoordinator(
             completion = completion,
             translationStillCurrent = completion?.let { useCase.isCurrent(it.requestId) } == true
         )
-        // Re-check immediately before the external copy: a newer translation (or a superseding
-        // OCR workflow that cancelled this one) may have taken ownership after the decision.
-        if (textToCopy != null &&
-            (completion == null || useCase.isCurrent(completion.requestId))
-        ) {
-            emitCopy(textToCopy)
+        // Carry identity into the queue. Checking here cannot authorize a later clipboard write:
+        // the delivery envelope revalidates on the effect dispatcher immediately before acceptance.
+        if (textToCopy != null && completion != null) {
+            emitCopy(textToCopy, completion.requestId)
         }
         return completion
     }
@@ -102,6 +102,11 @@ internal class TranslationCoordinator(
 
     fun isCurrent(requestId: Long): Boolean = useCase.isCurrent(requestId)
 
+    internal fun reserveStart(): TranslationStart = useCase.reserveStart()
+
+    internal fun <T> withCurrentRequest(requestId: Long, publish: () -> T): T? =
+        useCase.withCurrentRequest(requestId, publish)
+
     /** Identity of the current translation request, used by origin owners that must fence it. */
     internal fun currentRequestId(): Long = useCase.currentRequestId()
 
@@ -109,15 +114,13 @@ internal class TranslationCoordinator(
      * Cancels [requestId] only while it still owns the translation. Returns false when a newer
      * translation has already replaced it.
      */
-    internal fun cancelIfCurrent(requestId: Long): Boolean {
-        if (!useCase.cancelIfCurrent(requestId)) return false
-        updateState {
-            copy(
-                isExtraOutputLoading = false,
-                extraOutputFailed = false,
-                extraOutputFailure = null
-            )
+    internal fun cancelIfCurrent(requestId: Long): Long? {
+        val cancellation = useCase.cancelIfCurrent(requestId) ?: return null
+        useCase.withCurrentRequest(cancellation) {
+            updateState {
+                copy(isExtraOutputLoading = false, extraOutputFailed = false, extraOutputFailure = null)
+            }
         }
-        return true
+        return cancellation
     }
 }

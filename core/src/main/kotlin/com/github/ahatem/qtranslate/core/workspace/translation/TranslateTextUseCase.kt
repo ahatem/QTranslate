@@ -92,6 +92,16 @@ class TranslateTextUseCase(
     /** True only while [requestId] still owns the current translation result. */
     fun isCurrent(requestId: Long): Boolean = requestOwner.isCurrent(requestId)
 
+    /** Accepts a short queued-effect decision under the same lock as request supersession. */
+    internal fun <T> withCurrentRequest(requestId: Long, accept: () -> T): T? =
+        requestOwner.withCurrentRequest(requestId, accept)
+
+    /** Pure admission only: no cancellation, callbacks, provider work or coroutine starts. */
+    internal fun reserveStart(): TranslationStart {
+        val secondary = extraOutputWork.claim()
+        return TranslationStart(requestOwner.claim(secondary.generation), secondary)
+    }
+
     /** Identity of the current translation request, used by origin owners that must fence it. */
     internal fun currentRequestId(): Long = requestOwner.currentRequestId()
 
@@ -99,12 +109,15 @@ class TranslateTextUseCase(
      * Cancels only the translation identified by [requestId]. Returns false when a newer
      * translation has already taken ownership, so an OCR workflow cannot cancel unrelated work.
      */
-    internal fun cancelIfCurrent(requestId: Long): Boolean {
-        val canceled = requestOwner.cancelIfCurrent(requestId) ?: return false
+    internal fun cancelIfCurrent(requestId: Long): Long? {
+        val canceled = requestOwner.cancelIfCurrent(requestId) ?: return null
+        // Detach the exact secondary generation before invoking cancellation handlers. If a
+        // manual request already took it, leave that request's operation untouched.
+        val secondary = extraOutputWork.claimIfCurrent(canceled.secondaryGeneration)
         parallelComparisonUseCase?.invalidate(canceled.generation)
         canceled.previousJob?.cancel(CancellationException("Superseded by a newer OCR workflow"))
-        retireExtraOutput("Superseded by a newer OCR workflow")
-        return true
+        secondary?.previousJob?.cancel(CancellationException("Superseded by a newer OCR workflow"))
+        return canceled.requestId
     }
 
     /**
@@ -127,18 +140,16 @@ class TranslateTextUseCase(
         extraOutputRequest: ExtraOutputRequest? = null,
         comparisonPolicy: ComparisonPolicy = ComparisonPolicy.ENABLED,
         onRequestClaimed: ((Long) -> Unit)? = null,
+        start: TranslationStart? = null,
     ): TranslationCompletion? {
         val inputState = getState()
         val configuration = settingsState.value
         val capturedExtraOutput = extraOutputRequest ?: ExtraOutputRequest.from(configuration)
-        // A new translation owns the secondary panel too: work derived from the previous result
-        // must not land after this request started. The token is kept for every panel write this
-        // request may still perform; once a newer claim wins it, those writes are skipped.
-        val extraClaim = retireExtraOutput("New translation requested")
-        // Identity, generation and the job slot move in one ownership transition. A stale
-        // caller can therefore never cancel or replace a newer request's job.
-        val claim = requestOwner.claim()
-        claim.previousJob?.cancel(CancellationException("New translation requested"))
+        val admitted = start ?: reserveStart()
+        admitted.cancelPrevious() // Detached jobs only, always outside the OCR/translation locks.
+        val extraClaim = admitted.secondary
+        val claim = admitted.primary
+        if (!requestOwner.isCurrent(claim.requestId)) return null
         val requestId = claim.requestId
         onRequestClaimed?.invoke(requestId)
         val translationGeneration = claim.generation
