@@ -13,7 +13,7 @@ import com.github.michaelbull.result.map
 /**
  * Translates one string, for callers that are not the main window.
  *
- * [TranslateTextUseCase] drives the main translation flow and owns a great deal that only makes
+ * [com.github.ahatem.qtranslate.core.workspace.translation.TranslateTextUseCase] drives the main translation flow and owns a great deal that only makes
  * sense there: the input pane's text, history, the extra output panel, a cancellable job shared
  * with all of it. The language editor wants none of that. It wants a sentence turned into another
  * language so it can offer the result as a suggestion.

@@ -8,7 +8,7 @@ import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationProgress
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
-import com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure
+import com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonTranslationResult
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.arch.UiState

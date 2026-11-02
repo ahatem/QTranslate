@@ -1,6 +1,6 @@
 package com.github.ahatem.qtranslate.core.main.mvi
 
-import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslationCompletion
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslationCompletion
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue

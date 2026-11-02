@@ -1,7 +1,7 @@
 package com.github.ahatem.qtranslate.core.main.mvi
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
-import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslationCompletion
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslationCompletion
 import com.github.ahatem.qtranslate.core.settings.data.SelectionReadSource
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import kotlin.test.Test

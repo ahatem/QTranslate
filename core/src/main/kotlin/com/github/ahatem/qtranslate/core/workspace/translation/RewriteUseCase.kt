@@ -1,0 +1,68 @@
+package com.github.ahatem.qtranslate.core.workspace.translation
+
+import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.api.plugin.NotificationType
+import com.github.ahatem.qtranslate.api.plugin.StandardOptions
+import com.github.ahatem.qtranslate.api.rewriter.RewriteRequest
+import com.github.ahatem.qtranslate.api.rewriter.Rewriter
+import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
+import com.github.ahatem.qtranslate.core.shared.AppConstants
+import com.github.ahatem.qtranslate.core.shared.StatusCode
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
+import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
+import com.github.michaelbull.result.fold
+import kotlinx.coroutines.withTimeoutOrNull
+import com.github.ahatem.qtranslate.core.shared.util.shortSummary
+
+class RewriteUseCase(
+    private val activeServiceManager: ActiveServiceManager,
+    loggerFactory: LoggerFactory
+) {
+    private val logger: Logger = loggerFactory.getLogger("RewriteUseCase")
+
+    suspend operator fun invoke(
+        text: String,
+        rewriteStyle: String,
+        onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
+    ): ExtraOutputResult {
+        val rewriter = activeServiceManager.getActiveService<Rewriter>(ServiceRole.REWRITER)
+        if (rewriter == null) {
+            logger.warn("No rewriter service available")
+            onStatusUpdate(StatusCode.NoRewriterActive, NotificationType.WARNING, true)
+            return ExtraOutputResult.Failure(ExtraOutputFailure.NoRewriter)
+        }
+
+        onStatusUpdate(StatusCode.Rewriting, NotificationType.INFO, false)
+
+        val result = withTimeoutOrNull(AppConstants.TRANSLATION_TIMEOUT_MS) {
+            rewriter.rewrite(
+                RewriteRequest(
+                    text = text,
+                    // The service declares which styles it offers; the host only passes the id
+                    // the user picked, so a plugin-defined style travels through unchanged.
+                    options = mapOf(StandardOptions.KEY_REWRITE_STYLE to rewriteStyle)
+                )
+            )
+        }
+
+        if (result == null) {
+            logger.error("Rewrite timed out")
+            onStatusUpdate(StatusCode.RewriteTimeout, NotificationType.ERROR, true)
+            return ExtraOutputResult.Failure(ExtraOutputFailure.Timeout)
+        }
+
+        return result.fold(
+            success = { response ->
+                logger.debug("Rewrite successful")
+                onStatusUpdate(StatusCode.RewriteReady, NotificationType.SUCCESS, true)
+                ExtraOutputResult.Success(response.rewrittenText)
+            },
+            failure = { error ->
+                logger.error("Rewrite failed: ${error::class.simpleName}")
+                val summary = error.shortSummary()
+                onStatusUpdate(StatusCode.RewriteFailed(summary), NotificationType.ERROR, true)
+                ExtraOutputResult.Failure(ExtraOutputFailure.Provider(summary))
+            }
+        )
+    }
+}

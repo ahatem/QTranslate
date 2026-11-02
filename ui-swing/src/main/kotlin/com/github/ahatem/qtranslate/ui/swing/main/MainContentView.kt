@@ -918,23 +918,23 @@ class MainContentView(
     }
 
     /** Resolves a typed secondary-output failure into the user's language. */
-    private fun extraOutputFailureText(failure: com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure): String =
+    private fun extraOutputFailureText(failure: com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure): String =
         when (failure) {
-            com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure.NoTranslator ->
+            com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure.NoTranslator ->
                 localizer.getString("extra_output.error_no_translator")
-            com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure.NoSummarizer ->
+            com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure.NoSummarizer ->
                 localizer.getString("extra_output.error_no_summarizer")
-            com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure.NoRewriter ->
+            com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure.NoRewriter ->
                 localizer.getString("extra_output.error_no_rewriter")
-            com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure.Timeout ->
+            com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure.Timeout ->
                 localizer.getString("extra_output.error_timeout")
-            com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure.InvalidTarget ->
+            com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure.InvalidTarget ->
                 localizer.getString("extra_output.error_invalid_target")
-            is com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure.Provider ->
+            is com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure.Provider ->
                 failure.summary?.takeIf { it.isNotBlank() }
                     ?.let { localizer.getString("extra_output.error_provider", it) }
                     ?: localizer.getString("extra_output.error_unknown")
-            com.github.ahatem.qtranslate.core.main.domain.usecase.ExtraOutputFailure.Unexpected ->
+            com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure.Unexpected ->
                 localizer.getString("extra_output.error_unknown")
         }
 
