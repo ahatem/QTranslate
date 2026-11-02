@@ -3,7 +3,7 @@ kotlin = "2.4.21"
 kotlinxCoroutines = "1.11.0"
 kotlinxSerializationJSON = "1.11.0"
 result = "2.3.1"
-ktor = "3.6.0"
+ktor = "3.6.1"
 flatlaf = "3.7.2"
 flatlafFontsInter = "4.1"
 
@@ -22,7 +22,7 @@ diffUtils = "4.17"
 datastore = "1.3.0-alpha07"
 
 slf4j = "2.0.20"
-logback = "1.6.5"
+logback = "1.6.6"
 
 [libraries]
 # Kotlin ecosystem
