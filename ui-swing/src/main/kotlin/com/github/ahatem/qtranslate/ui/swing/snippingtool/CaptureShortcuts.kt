@@ -26,7 +26,13 @@ internal fun installableCaptureShortcuts(
         .mapNotNull { binding ->
             val toolbar = binding.action.captureToolbarAction() ?: return@mapNotNull null
             val keyCode = binding.toKeyStroke()?.keyCode ?: return@mapNotNull null
-            if (keyCode == KeyEvent.VK_ENTER || keyCode == KeyEvent.VK_ESCAPE) return@mapNotNull null
+            // Bare Enter and Escape are the capture dialog's primary and cancel actions.
+            // Explicit combinations such as Ctrl+Enter remain available as toolbar shortcuts.
+            if (binding.modifiers == 0 &&
+                (keyCode == KeyEvent.VK_ENTER || keyCode == KeyEvent.VK_ESCAPE)
+            ) {
+                return@mapNotNull null
+            }
             binding to toolbar
         }
 

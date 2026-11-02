@@ -37,8 +37,8 @@ class CaptureShortcutsTest {
     @Test
     fun `enter and escape stay reserved for the primary and cancel actions`() {
         val bindings = listOf(
-            binding(HotkeyAction.OCR_ACTION_TRANSLATE, KeyEvent.VK_ENTER),
-            binding(HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE),
+            binding(HotkeyAction.OCR_ACTION_TRANSLATE, KeyEvent.VK_ENTER, modifiers = 0),
+            binding(HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE, modifiers = 0),
             binding(HotkeyAction.OCR_ACTION_COPY_IMAGE, KeyEvent.VK_C),
         )
 
@@ -46,6 +46,19 @@ class CaptureShortcutsTest {
 
         assertEquals(listOf(HotkeyAction.OCR_ACTION_COPY_IMAGE), installed.map { it.first.action })
         assertEquals(CaptureToolbarAction.COPY_IMAGE, installed.single().second)
+    }
+
+    @Test
+    fun `a modified enter or escape remains available as a capture shortcut`() {
+        val bindings = listOf(
+            binding(HotkeyAction.OCR_ACTION_TRANSLATE, KeyEvent.VK_ENTER),
+            binding(HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE),
+        )
+
+        assertEquals(
+            listOf(HotkeyAction.OCR_ACTION_TRANSLATE, HotkeyAction.OCR_ACTION_CANCEL),
+            installableCaptureShortcuts(bindings).map { it.first.action },
+        )
     }
 
     @Test
@@ -77,10 +90,11 @@ class CaptureShortcutsTest {
         keyCode: Int,
         scope: HotkeyScope = HotkeyScope.CAPTURE,
         enabled: Boolean = true,
+        modifiers: Int = InputEvent.CTRL_DOWN_MASK,
     ) = HotkeyBinding(
         action = action,
         keyCode = keyCode,
-        modifiers = InputEvent.CTRL_DOWN_MASK,
+        modifiers = modifiers,
         isEnabled = enabled,
         scope = scope,
     )
