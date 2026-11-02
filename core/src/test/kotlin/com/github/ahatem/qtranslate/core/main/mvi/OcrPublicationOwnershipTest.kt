@@ -125,6 +125,41 @@ class OcrPublicationOwnershipTest {
     }
 
     @Test
+    fun `main OCR admission cancels detached work before a full event queue can suspend it`() = runBlocking {
+        val fixture = OcrWorkflowFixture(TestScope(), dispatcher = Dispatchers.IO, collectEvents = false)
+        val manualStarted = CompletableDeferred<Unit>()
+        val manualCancelled = CountDownLatch(1)
+        val atPublication = CountDownLatch(1)
+        val releasePublication = java.util.concurrent.Semaphore(0)
+        try {
+            fixture.translator.beforeTranslate = { text ->
+                if (text == "old manual") {
+                    manualStarted.complete(Unit)
+                    try { kotlinx.coroutines.awaitCancellation() } finally { manualCancelled.countDown() }
+                }
+            }
+            fixture.store.dispatch(MainIntent.ShowQuickTranslate("old manual"))
+            withTimeout(5_000) { manualStarted.await() }
+            fixture.ocr.responder = { Ok(OCRResponse("OCR replacement")) }
+            fixture.store.beforeOcrPublication = { atPublication.countDown(); releasePublication.acquireUninterruptibly() }
+            fixture.store.dispatch(MainIntent.OcrWorkflowImage(fixture.image(), OcrPostSelectionAction.TRANSLATE, OcrTranslationDestination.MAIN_WINDOW))
+            assertTrue(atPublication.await(5, TimeUnit.SECONDS))
+            // Fill the actual bounded transport without assuming its capacity. No consumer can
+            // release the pending ShowMainWindow send after the OCR admission detaches old work.
+            @Suppress("UNCHECKED_CAST")
+            val queue = MainStore::class.java.getDeclaredField("_eventChannel").apply { isAccessible = true }
+                .get(fixture.store) as kotlinx.coroutines.channels.Channel<MainEventDelivery>
+            while (queue.trySend(MainEventDelivery(MainEvent.ShowMainWindow)).isSuccess) { }
+            releasePublication.release()
+            assertTrue(manualCancelled.await(5, TimeUnit.SECONDS), "detached jobs must be cancelled before any blocking event send")
+            fixture.store.dispatch(MainIntent.OcrWorkflowImage(fixture.image(), OcrPostSelectionAction.COPY_IMAGE))
+        } finally {
+            releasePublication.release()
+            fixture.cleanUp()
+        }
+    }
+
+    @Test
     fun `a stale copy-text workflow cannot emit a clipboard event`() = runBlocking {
         val fixture = OcrWorkflowFixture(
             testScope = TestScope(),

@@ -106,8 +106,8 @@ class TranslateTextUseCase(
     internal fun currentRequestId(): Long = requestOwner.currentRequestId()
 
     /**
-     * Cancels only the translation identified by [requestId]. Returns false when a newer
-     * translation has already taken ownership, so an OCR workflow cannot cancel unrelated work.
+     * Cancels only the translation identified by [requestId]. Returns a cancellation identity, or null when
+     * a newer translation already owns the result, so OCR cannot cancel unrelated work.
      */
     internal fun cancelIfCurrent(requestId: Long): Long? {
         val canceled = requestOwner.cancelIfCurrent(requestId) ?: return null

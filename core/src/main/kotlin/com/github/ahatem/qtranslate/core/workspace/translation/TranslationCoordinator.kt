@@ -111,8 +111,8 @@ internal class TranslationCoordinator(
     internal fun currentRequestId(): Long = useCase.currentRequestId()
 
     /**
-     * Cancels [requestId] only while it still owns the translation. Returns false when a newer
-     * translation has already replaced it.
+     * Cancels [requestId] only while it still owns the translation. Returns its cancellation identity, or null
+     * when a newer translation has already replaced it.
      */
     internal fun cancelIfCurrent(requestId: Long): Long? {
         val cancellation = useCase.cancelIfCurrent(requestId) ?: return null
