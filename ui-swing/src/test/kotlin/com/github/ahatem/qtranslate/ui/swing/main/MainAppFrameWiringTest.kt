@@ -57,4 +57,13 @@ class MainAppFrameWiringTest {
         assertContains(source, "PopupDismissalPolicy.dismissals(")
         assertContains(source, "contentDropRouter.route(content)")
     }
+
+    @Test
+    fun `main state rendering stays on the Swing observer`() {
+        // The behavior is covered by MainStateRenderObserverTest; this pins the production call
+        // site so the frame cannot quietly go back to collecting render state on a background
+        // dispatcher.
+        assertContains(source, "MainStateRenderObserver(")
+        assertContains(source, ".start(handler, ::renderMainState)")
+    }
 }

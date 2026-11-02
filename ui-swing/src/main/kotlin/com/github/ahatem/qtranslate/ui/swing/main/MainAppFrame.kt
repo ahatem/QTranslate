@@ -17,6 +17,7 @@ import com.github.ahatem.qtranslate.core.plugin.storage.AppSecretStore
 import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
 import com.github.ahatem.qtranslate.core.settings.data.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
+import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
@@ -642,133 +643,13 @@ class MainAppFrame(
             )
         }
 
-        // Main content and QuickTranslate dialog rendering
-        appScope.launch(handler) {
-            mainStore.state.combine(settingsStore.state) { m, s -> m to s }
-                .distinctUntilChanged()
-                .collect { (mainState, settingsState) ->
-                    withContext(Dispatchers.Swing) {
-                        try {
-                            // Filter available languages by pinned list (Yan's request), for the
-                            // main window and the quick translate popup alike.
-                            val filteredState = mainState.withPinnedLanguages(
-                                settingsState.workingConfiguration.pinnedLanguages
-                            )
-                            mainContentView.render(filteredState, settingsState)
-
-                            if (mainState.isQuickTranslateDialogVisible || quickTranslateDialog.isVisible) {
-                                val dialogState = buildQuickTranslateDialogState(
-                                    filteredState,
-                                    settingsState.workingConfiguration,
-                                    localizer
-                                )
-                                quickTranslateDialog.render(dialogState)
-                            }
-
-                            if (mainState.isQuickDictionaryVisible || quickDictionaryDialog.isVisible) {
-                                quickDictionaryDialog.render(
-                                    buildQuickDictionaryDialogState(
-                                        mainState = mainState,
-                                        config = settingsState.workingConfiguration,
-                                        localizer = localizer,
-                                        onLookup = { word ->
-                                            mainStore.dispatch(MainIntent.LookupWord(word, mainState.resolvedSourceLanguage))
-                                        },
-                                        onListen = { word -> listenToLookedUpWord(word) },
-                                        onStopListening = { mainStore.dispatch(MainIntent.StopTTS) },
-                                        onDictionarySelected = { serviceId ->
-                                            settingsStore.dispatch(
-                                                SettingsIntent.UpdateServiceInActivePreset(
-                                                    ServiceRole.DICTIONARY, serviceId
-                                                )
-                                            )
-                                            val currentWord = mainStore.state.value.dictionaryWord
-                                            if (currentWord.isNotBlank()) {
-                                                mainStore.dispatch(
-                                                    MainIntent.LookupWord(currentWord, mainState.resolvedSourceLanguage)
-                                                )
-                                            }
-                                        },
-                                        onPinToggled = {
-                                            mainStore.dispatch(MainIntent.ToggleQuickDictionaryPin)
-                                        },
-                                        onClose = { mainStore.dispatch(MainIntent.HideQuickDictionary) },
-                                        onSavePosition = { position ->
-                                            settingsStore.dispatch(
-                                                SettingsIntent.ToggleSetting {
-                                                    it.copy(quickDictionaryLastKnownPosition = position)
-                                                }
-                                            )
-                                            settingsStore.dispatch(SettingsIntent.SaveChanges)
-                                        },
-                                        onSaveSize = { size ->
-                                            settingsStore.dispatch(
-                                                SettingsIntent.ToggleSetting {
-                                                    it.copy(quickDictionaryLastKnownSize = size)
-                                                }
-                                            )
-                                            settingsStore.dispatch(SettingsIntent.SaveChanges)
-                                        }
-                                    )
-                                )
-                            }
-
-                            if (mainState.isImageSearchVisible || imageSearchDialog.isVisible) {
-                                imageSearchDialog.render(
-                                    buildImageSearchDialogState(
-                                        mainState = mainState,
-                                        config = settingsState.workingConfiguration,
-                                        localizer = localizer,
-                                        onSearch = { term ->
-                                            mainStore.dispatch(
-                                                MainIntent.SearchImages(term, mainState.resolvedSourceLanguage)
-                                            )
-                                        },
-                                        onServiceSelected = { serviceId ->
-                                            settingsStore.dispatch(
-                                                SettingsIntent.UpdateServiceInActivePreset(
-                                                    ServiceRole.IMAGE_SEARCH, serviceId
-                                                )
-                                            )
-                                            val term = mainStore.state.value.imageSearchTerm
-                                            if (term.isNotBlank()) {
-                                                mainStore.dispatch(
-                                                    MainIntent.SearchImages(term, mainState.resolvedSourceLanguage)
-                                                )
-                                            }
-                                        },
-                                        onImageOpened = { result ->
-                                            openUrl(result.sourceUrl ?: result.fullUrl)
-                                        },
-                                        onPinToggled = {
-                                            mainStore.dispatch(MainIntent.ToggleImageSearchPin)
-                                        },
-                                        onClose = { mainStore.dispatch(MainIntent.HideImageSearch) },
-                                        onSavePosition = { position ->
-                                            settingsStore.dispatch(
-                                                SettingsIntent.ToggleSetting {
-                                                    it.copy(imageSearchLastKnownPosition = position)
-                                                }
-                                            )
-                                            settingsStore.dispatch(SettingsIntent.SaveChanges)
-                                        },
-                                        onSaveSize = { size ->
-                                            settingsStore.dispatch(
-                                                SettingsIntent.ToggleSetting {
-                                                    it.copy(imageSearchLastKnownSize = size)
-                                                }
-                                            )
-                                            settingsStore.dispatch(SettingsIntent.SaveChanges)
-                                        }
-                                    )
-                                )
-                            }
-                        } catch (e: Exception) {
-                            logger.error("Failed to render UI", e)
-                        }
-                    }
-                }
-        }
+        // Main content and QuickTranslate dialog rendering. The observer owns the Swing
+        // dispatcher so a snapshot cannot be rendered after a newer input event (#413).
+        MainStateRenderObserver(
+            scope = appScope,
+            mainState = mainStore.state,
+            settingsState = settingsStore.state,
+        ).start(handler, ::renderMainState)
 
         // Loading indicator — show when:
         // a) quick translate is loading (main window hidden, no dialog visible), OR
@@ -1021,6 +902,131 @@ class MainAppFrame(
                         }
                     }
                 }
+        }
+    }
+
+    /**
+     * Renders everything the main state feeds: the main content and any open lookup popups.
+     * Always called by [MainStateRenderObserver] on the Swing dispatcher.
+     */
+    private fun renderMainState(mainState: MainState, settingsState: SettingsState) {
+        try {
+            // Filter available languages by pinned list (Yan's request), for the
+            // main window and the quick translate popup alike.
+            val filteredState = mainState.withPinnedLanguages(
+                settingsState.workingConfiguration.pinnedLanguages
+            )
+            mainContentView.render(filteredState, settingsState)
+
+            if (mainState.isQuickTranslateDialogVisible || quickTranslateDialog.isVisible) {
+                val dialogState = buildQuickTranslateDialogState(
+                    filteredState,
+                    settingsState.workingConfiguration,
+                    localizer
+                )
+                quickTranslateDialog.render(dialogState)
+            }
+
+            if (mainState.isQuickDictionaryVisible || quickDictionaryDialog.isVisible) {
+                quickDictionaryDialog.render(
+                    buildQuickDictionaryDialogState(
+                        mainState = mainState,
+                        config = settingsState.workingConfiguration,
+                        localizer = localizer,
+                        onLookup = { word ->
+                            mainStore.dispatch(MainIntent.LookupWord(word, mainState.resolvedSourceLanguage))
+                        },
+                        onListen = { word -> listenToLookedUpWord(word) },
+                        onStopListening = { mainStore.dispatch(MainIntent.StopTTS) },
+                        onDictionarySelected = { serviceId ->
+                            settingsStore.dispatch(
+                                SettingsIntent.UpdateServiceInActivePreset(
+                                    ServiceRole.DICTIONARY, serviceId
+                                )
+                            )
+                            val currentWord = mainStore.state.value.dictionaryWord
+                            if (currentWord.isNotBlank()) {
+                                mainStore.dispatch(
+                                    MainIntent.LookupWord(currentWord, mainState.resolvedSourceLanguage)
+                                )
+                            }
+                        },
+                        onPinToggled = {
+                            mainStore.dispatch(MainIntent.ToggleQuickDictionaryPin)
+                        },
+                        onClose = { mainStore.dispatch(MainIntent.HideQuickDictionary) },
+                        onSavePosition = { position ->
+                            settingsStore.dispatch(
+                                SettingsIntent.ToggleSetting {
+                                    it.copy(quickDictionaryLastKnownPosition = position)
+                                }
+                            )
+                            settingsStore.dispatch(SettingsIntent.SaveChanges)
+                        },
+                        onSaveSize = { size ->
+                            settingsStore.dispatch(
+                                SettingsIntent.ToggleSetting {
+                                    it.copy(quickDictionaryLastKnownSize = size)
+                                }
+                            )
+                            settingsStore.dispatch(SettingsIntent.SaveChanges)
+                        }
+                    )
+                )
+            }
+
+            if (mainState.isImageSearchVisible || imageSearchDialog.isVisible) {
+                imageSearchDialog.render(
+                    buildImageSearchDialogState(
+                        mainState = mainState,
+                        config = settingsState.workingConfiguration,
+                        localizer = localizer,
+                        onSearch = { term ->
+                            mainStore.dispatch(
+                                MainIntent.SearchImages(term, mainState.resolvedSourceLanguage)
+                            )
+                        },
+                        onServiceSelected = { serviceId ->
+                            settingsStore.dispatch(
+                                SettingsIntent.UpdateServiceInActivePreset(
+                                    ServiceRole.IMAGE_SEARCH, serviceId
+                                )
+                            )
+                            val term = mainStore.state.value.imageSearchTerm
+                            if (term.isNotBlank()) {
+                                mainStore.dispatch(
+                                    MainIntent.SearchImages(term, mainState.resolvedSourceLanguage)
+                                )
+                            }
+                        },
+                        onImageOpened = { result ->
+                            openUrl(result.sourceUrl ?: result.fullUrl)
+                        },
+                        onPinToggled = {
+                            mainStore.dispatch(MainIntent.ToggleImageSearchPin)
+                        },
+                        onClose = { mainStore.dispatch(MainIntent.HideImageSearch) },
+                        onSavePosition = { position ->
+                            settingsStore.dispatch(
+                                SettingsIntent.ToggleSetting {
+                                    it.copy(imageSearchLastKnownPosition = position)
+                                }
+                            )
+                            settingsStore.dispatch(SettingsIntent.SaveChanges)
+                        },
+                        onSaveSize = { size ->
+                            settingsStore.dispatch(
+                                SettingsIntent.ToggleSetting {
+                                    it.copy(imageSearchLastKnownSize = size)
+                                }
+                            )
+                            settingsStore.dispatch(SettingsIntent.SaveChanges)
+                        }
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to render UI", e)
         }
     }
 
