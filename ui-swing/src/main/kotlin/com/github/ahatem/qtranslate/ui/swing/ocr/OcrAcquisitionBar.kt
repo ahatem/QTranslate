@@ -1,5 +1,10 @@
 package com.github.ahatem.qtranslate.ui.swing.ocr
 
+import com.formdev.flatlaf.extras.components.FlatButton
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
+import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
@@ -17,14 +22,25 @@ internal class OcrAcquisitionBar(
     private val onCopy: () -> Unit,
     private val onSave: () -> Unit,
     private val onSettings: () -> Unit,
-) : JPanel(FlowLayout(FlowLayout.LEADING, 3, 2)) {
+) : JPanel(BorderLayout()) {
     internal data class Labels(val capture: String, val open: String, val paste: String,
         val copy: String, val save: String, val settings: String, val more: String)
 
-    private val capture = JButton(labels.capture).apply { addActionListener { onCapture() } }
-    internal val open = JButton(labels.open).apply { addActionListener { onOpen() } }
-    internal val paste = JButton(labels.paste).apply { addActionListener { onPaste() } }
-    internal val more = JButton("⋯").apply {
+    private fun toolbarButton(label: String, action: () -> Unit) = FlatButton().apply {
+        text = label
+        buttonType = FlatButton.ButtonType.toolBarButton
+        isRequestFocusEnabled = false
+        addActionListener { action() }
+    }
+    private val capture = toolbarButton(labels.capture, onCapture).apply {
+        icon = IconSet.load(Icons.OCR, 16, 16).applyForegroundColorFilter()
+    }
+    internal val open = toolbarButton(labels.open, onOpen)
+    internal val paste = toolbarButton(labels.paste, onPaste)
+    internal val more = FlatButton().apply {
+        buttonType = FlatButton.ButtonType.toolBarButton
+        icon = IconSet.load(Icons.MORE, 16, 16).applyForegroundColorFilter()
+        isRequestFocusEnabled = false
         toolTipText = labels.more
         accessibleContext.accessibleName = labels.more
         addActionListener { if (isShowing) menu().show(this, 0, height) }
@@ -32,7 +48,14 @@ internal class OcrAcquisitionBar(
     private var imageAvailable = false
 
     init {
-        add(capture); add(open); add(paste); add(more)
+        add(JPanel(FlowLayout(FlowLayout.LEADING, 3, 2)).apply {
+            isOpaque = false
+            add(capture); add(open); add(paste)
+        }, BorderLayout.CENTER)
+        add(JPanel(FlowLayout(FlowLayout.TRAILING, 3, 2)).apply {
+            isOpaque = false
+            add(more)
+        }, BorderLayout.LINE_END)
         addComponentListener(object : ComponentAdapter() {
             override fun componentResized(e: ComponentEvent?) { updateForWidth(width) }
         })

@@ -268,7 +268,7 @@ private class Shots(
             onUi { dialog.size = Dimension(760, 460); dialog.validate() }
             write("ocr-small-$label", paintAfterLayout("ocr-small-$label", dialog.rootPane))
             if (label == "dark") {
-                onUi { buttonsOf(dialog).first { it.text == "⋯" }.doClick() }
+                onUi { buttonsOf(dialog).first { it.toolTipText == deps.localizationManager.getString("screen_capture.more_actions") }.doClick() }
                 lateinit var popup: javax.swing.JPopupMenu
                 onUi { popup = javax.swing.MenuSelectionManager.defaultManager().selectedPath.filterIsInstance<javax.swing.JPopupMenu>().last() }
                 write("ocr-overflow", paintAfterLayout("ocr-overflow", popup))

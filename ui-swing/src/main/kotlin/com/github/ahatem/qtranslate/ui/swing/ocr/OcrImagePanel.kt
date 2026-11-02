@@ -40,7 +40,7 @@ internal class OcrImagePanel : JPanel(), Scrollable {
 
     init {
         isOpaque = true
-        background = UIManager.getColor("Panel.background") ?: Color.DARK_GRAY
+        background = UIManager.getColor("TextArea.background") ?: UIManager.getColor("Panel.background")
         val mouse = object : MouseAdapter() {
             override fun mouseMoved(e: MouseEvent) {
                 val next = if (annotationsVisible) regionIndexAt(e.point) else null
@@ -54,6 +54,11 @@ internal class OcrImagePanel : JPanel(), Scrollable {
         }
         addMouseListener(mouse)
         addMouseMotionListener(mouse)
+    }
+
+    override fun updateUI() {
+        super.updateUI()
+        background = UIManager.getColor("TextArea.background") ?: UIManager.getColor("Panel.background")
     }
 
     fun setImage(image: BufferedImage?) {
@@ -157,6 +162,9 @@ internal class OcrImagePanel : JPanel(), Scrollable {
         val height = (source.height * scale).toInt().coerceAtLeast(1)
         val offset = imageOffset()
         g2d.drawImage(source, offset.x, offset.y, width, height, null)
+        g2d.color = UIManager.getColor("Component.borderColor") ?: foreground
+        g2d.stroke = BasicStroke(UIScale.scale(1f))
+        g2d.drawRect(offset.x, offset.y, width - 1, height - 1)
 
         if (!annotationsVisible || regions.isEmpty()) { g2d.dispose(); return }
         val normal = UIManager.getColor("Component.focusedBorderColor") ?: Color(0, 120, 215)

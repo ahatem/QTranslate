@@ -1,49 +1,47 @@
 package com.github.ahatem.qtranslate.ui.swing.main.history
 
+import com.formdev.flatlaf.extras.components.FlatButton
 import com.github.ahatem.qtranslate.core.ocr.OcrWorkflowCommand
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
+import com.github.ahatem.qtranslate.ui.swing.shared.util.ThemeIcon
 import java.awt.BorderLayout
-import java.awt.Graphics
 import java.awt.Insets
-import java.awt.Color
-import java.awt.Component
-import javax.swing.border.AbstractBorder
-import com.formdev.flatlaf.util.UIScale
-import javax.swing.UIManager
 import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
 import javax.swing.AbstractAction
-import javax.swing.JButton
 import javax.swing.JMenuItem
 import javax.swing.JPanel
 import javax.swing.JPopupMenu
 import javax.swing.KeyStroke
+import javax.swing.UIManager
 
 /** Main window entry point. Resolution of DEFAULT remains with the OCR workflow. */
 internal class OcrSplitButton(
     private val dispatch: (OcrWorkflowCommand) -> Unit,
     private val openSettings: () -> Unit,
 ) : JPanel(BorderLayout()) {
-    internal val primary = JButton("OCR")
-    internal val arrow = JButton("▾")
+    internal val primary = FlatButton().apply {
+        text = "OCR"
+        icon = IconSet.load(Icons.OCR, 16, 16).applyForegroundColorFilter()
+    }
+    internal val arrow = FlatButton().apply {
+        icon = ThemeIcon("Table.descendingSortIcon")
+    }
     private var labels: OcrSplitLabels? = null
 
     init {
         isOpaque = false
         listOf(primary, arrow).forEach {
-            it.putClientProperty("JButton.buttonType", "toolBarButton")
+            it.buttonType = FlatButton.ButtonType.toolBarButton
+            it.isFocusable = true
+            it.isRequestFocusEnabled = false
             it.putClientProperty("JComponent.minimumWidth", 0)
-            it.margin = Insets(2, 6, 2, 6)
         }
-        border = object : AbstractBorder() {
-            override fun getBorderInsets(c: Component, insets: Insets): Insets = insets.apply {
-                val size = UIScale.scale(1)
-                set(size, size, size, size)
-            }
-            override fun paintBorder(c: Component, g: Graphics, x: Int, y: Int, width: Int, height: Int) {
-                g.color = UIManager.getColor("Component.borderColor") ?: UIManager.getColor("Separator.foreground") ?: Color.GRAY
-                g.drawRect(x, y, width - 1, height - 1)
-            }
-        }
+        val margin = UIManager.getInsets("Button.toolbar.margin") ?: Insets(3, 3, 3, 3)
+        primary.margin = Insets(margin.top, margin.left, margin.bottom, 2)
+        arrow.margin = Insets(margin.top, 2, margin.bottom, margin.right)
         primary.isEnabled = false
         arrow.isEnabled = false
         primary.addActionListener { dispatch(OcrWorkflowCommand.DEFAULT) }
@@ -58,13 +56,6 @@ internal class OcrSplitButton(
         })
         add(primary, BorderLayout.CENTER)
         add(arrow, BorderLayout.LINE_END)
-    }
-
-    override fun paintChildren(g: Graphics) {
-        super.paintChildren(g)
-        val seam = if (componentOrientation.isLeftToRight) arrow.x else arrow.x + arrow.width - 1
-        g.color = UIManager.getColor("Component.borderColor") ?: UIManager.getColor("Separator.foreground") ?: Color.GRAY
-        g.drawLine(seam, insets.top, seam, height - insets.bottom - 1)
     }
 
     fun render(labels: OcrSplitLabels, enabled: Boolean) {
