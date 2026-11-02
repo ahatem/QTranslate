@@ -315,6 +315,33 @@ class InstantComparisonResultsTest {
         }
     }
 
+    @Test
+    fun `history undo redo blank and restore preserve navigation and invalidate comparisons`() = runTest {
+        val fixture = Fixture(this, LayoutPresetIds.COMPARISON)
+        try {
+            fixture.store.dispatch(MainIntent.UpdateInputText("hello"))
+            advanceUntilIdle()
+            val snapshot = fixture.store.state.value.history.last()
+            assertEquals(1, fixture.store.state.value.comparisonResults.size)
+
+            fixture.store.dispatch(MainIntent.UndoTranslation)
+            assertEquals(snapshot.inputText, fixture.store.state.value.inputText)
+            assertTrue(fixture.store.state.value.comparisonResults.isEmpty())
+            fixture.store.dispatch(MainIntent.RedoTranslation)
+            assertEquals("", fixture.store.state.value.inputText)
+            assertEquals("", fixture.store.state.value.translatedText)
+            assertTrue(fixture.store.state.value.comparisonResults.isEmpty())
+
+            fixture.store.dispatch(MainIntent.UpdateInputText("world"))
+            advanceUntilIdle()
+            assertEquals(1, fixture.store.state.value.comparisonResults.size)
+            fixture.store.dispatch(MainIntent.RestoreHistoryEntry(snapshot))
+            assertEquals(snapshot.inputText, fixture.store.state.value.inputText)
+            assertEquals(snapshot.translatedText, fixture.store.state.value.translatedText)
+            assertTrue(fixture.store.state.value.comparisonResults.isEmpty())
+        } finally { fixture.cleanUp() }
+    }
+
     private companion object {
         /**
          * How many debounce-sized virtual-time steps an awaited state may take.
@@ -410,8 +437,8 @@ class InstantComparisonResultsTest {
             ocrAndTranslateUseCase = OcrAndTranslateUseCase(manager, SILENT_FACTORY),
             summarizeUseCase = SummarizeUseCase(manager, SILENT_FACTORY),
             rewriteUseCase = RewriteUseCase(manager, SILENT_FACTORY),
-            lookupWordUseCase = LookupWordUseCase(scope, manager, SILENT_FACTORY),
-            searchImagesUseCase = SearchImagesUseCase(scope, manager, SILENT_FACTORY),
+            lookupWordUseCase = LookupWordUseCase(manager, SILENT_FACTORY),
+            searchImagesUseCase = SearchImagesUseCase(manager, SILENT_FACTORY),
             fetchInlineDefinitionUseCase = FetchInlineDefinitionUseCase(scope, manager, SILENT_FACTORY),
             documentTranslationUseCase = DocumentTranslationUseCase(manager, SILENT_FACTORY),
         )

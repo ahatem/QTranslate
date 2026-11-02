@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -33,9 +34,16 @@ class ApplicationShutdown(
     private val shutdownMainStore: suspend () -> Unit,
     private val shutdownPluginManager: suspend () -> Unit,
     private val closeHostHttpClient: () -> Unit,
-    private val cancelAppScope: () -> Unit,
+    private val cancelAppScope: suspend () -> Unit,
     private val logger: Logger,
-    private val exit: () -> Unit
+    private val exit: () -> Unit,
+    /**
+     * Bound on waiting for the application scope to finish. Accepted plugin transitions run
+     * under [kotlinx.coroutines.NonCancellable], so a genuinely blocked lifecycle callback can
+     * outlive the plugin settle bound; joining it without a limit would make the process
+     * impossible to exit.
+     */
+    private val cancelScopeTimeoutMs: Long = 5_000L
 ) {
     private val shutdownScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val started = AtomicBoolean(false)
@@ -64,8 +72,13 @@ class ApplicationShutdown(
             runCatching { closeHostHttpClient() }
                 .onFailure { logger.error("Failed to close host HTTP client", it) }
 
-            runCatching { cancelAppScope() }
-                .onFailure { logger.error("Failed to cancel application scope", it) }
+            runCatching {
+                if (withTimeoutOrNull(cancelScopeTimeoutMs) { cancelAppScope() } == null) {
+                    logger.warn(
+                        "Application scope did not stop within ${cancelScopeTimeoutMs}ms; exiting anyway"
+                    )
+                }
+            }.onFailure { logger.error("Failed to cancel application scope", it) }
 
             exit()
         }

@@ -81,7 +81,7 @@ class PluginRootsTest {
     }
 
     private fun scan(directory: File): List<com.github.ahatem.qtranslate.core.plugin.registry.PluginError.LoadFailure> {
-        val loader = PluginLoader(silentLogger)
+        val loader = PluginLoader(silentLogger, sandbox.resolve("cache"))
         loader.loadPluginsFromDirectory(directory)
         return loader.loadFailures
     }

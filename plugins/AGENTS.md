@@ -1,7 +1,7 @@
 # `:plugins/*` — service implementations
 
 Each plugin is independently packaged and installed at runtime. See
-`qtranslate-plugin-provider` for the full workflow.
+[Creating a plugin](../wiki/Creating-a-Plugin.md) for the contributor workflow.
 
 - Depend on `:api` and `:plugins:common` only. Never on `:core`, `:ui-swing`,
   or another service plugin. Shared HTTP/JSON/retry/mapping helpers live in

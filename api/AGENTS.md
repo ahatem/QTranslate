@@ -14,6 +14,9 @@ anywhere else.
 - KDoc on every public interface, method, and data type.
 - Evolve additively: new optional interfaces or defaulted members, never
   signature changes or removals without a major-version discussion.
+- The public ABI is dumped to `api/api/api.api`. `checkKotlinAbi` runs with
+  `build` and rejects any surface change, so after an intentional API change run
+  `./gradlew :api:updateKotlinAbi` and commit the dump alongside the source.
 - Adding a language means extending the shared `LanguageCode` catalog in its
   natural position — never an inline provider alias. Display names come from
   the existing locale mechanism, not hard-coded strings.

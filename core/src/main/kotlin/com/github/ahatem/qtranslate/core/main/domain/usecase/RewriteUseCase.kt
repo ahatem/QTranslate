@@ -58,7 +58,7 @@ class RewriteUseCase(
                 response.rewrittenText
             },
             failure = { error ->
-                logger.error("Rewrite failed: ${error.message}", error.cause)
+                logger.error("Rewrite failed: ${error::class.simpleName}")
                 val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.RewriteFailed(summary), NotificationType.ERROR, true)
                 ""

@@ -6,135 +6,45 @@ import com.github.ahatem.qtranslate.core.settings.data.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.launch
-import kotlin.uuid.ExperimentalUuidApi
 
-/**
- * Handles all service preset CRUD operations on behalf of [SettingsStore].
- *
- * This class is stateless — it never holds configuration itself. Instead, it
- * receives the current [Configuration] from the store, produces a new one,
- * and hands it back via [applyUpdate]. The store then decides how to persist it.
- *
- * Keeping preset logic here lets [SettingsStore] stay focused on the
- * save/cancel/draft lifecycle without growing unboundedly.
- *
- * @property applyUpdate Called with the new [Configuration] after each operation.
- *   The store uses this to update its working copy and trigger a save.
- * @property eventChannel Used to send one-shot UI events (e.g. error messages).
- * @property scope Coroutine scope for launching event emissions.
- * @property logger Logger scoped to this component.
- */
+/** Applies preset operations to the current draft. */
 internal class PresetManager(
-    private val applyUpdate: (Configuration) -> Unit,
+    private val applyUpdate: ((Configuration) -> Configuration) -> Unit,
+    private val delete: (String) -> Boolean,
     private val eventChannel: SendChannel<SettingsEvent>,
     private val scope: CoroutineScope,
     private val logger: Logger
 ) {
-    // -------------------------------------------------------------------------
-    // Preset switching
-    // -------------------------------------------------------------------------
-
-    fun setActivePreset(current: Configuration, presetId: String) {
-        val preset = current.servicePresets.find { it.id == presetId }
-        if (preset == null) {
-            logger.warn("Preset not found: $presetId — ignoring SetActivePreset intent")
-            return
+    fun setActivePreset(id: String) = applyUpdate { current ->
+        if (current.servicePresets.any { it.id == id }) current.withActivePresetId(id) else current
+    }
+    fun updateServiceInActivePreset(intent: SettingsIntent.UpdateServiceInActivePreset) = applyUpdate { current ->
+        if (current.activeServicePresetId == null) current else current.withServiceSelection(intent.type, intent.serviceId)
+    }
+    fun addTranslator(intent: SettingsIntent.AddTranslatorToActivePreset) = applyUpdate { current ->
+        if (current.activeServicePresetId == null) current else current.withTranslatorAdded(intent.serviceId)
+    }
+    fun removeTranslator(intent: SettingsIntent.RemoveTranslatorFromActivePreset) = applyUpdate { current ->
+        if (current.activeServicePresetId == null) current else current.withTranslatorRemoved(intent.serviceId)
+    }
+    fun moveTranslator(intent: SettingsIntent.MoveTranslatorInActivePreset) = applyUpdate { current ->
+        if (current.activeServicePresetId == null) current else current.withTranslatorMoved(intent.serviceId, intent.direction)
+    }
+    fun promoteTranslatorToPrimary(intent: SettingsIntent.PromoteTranslatorToPrimary) = applyUpdate { current ->
+        if (current.activeServicePresetId == null) current
+        else current.withActivePreset { it.withPromotedTranslator(intent.serviceId) }
+    }
+    @OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+    fun createPreset(name: String) {
+        val preset = ServicePreset.createDefault(name)
+        applyUpdate { it.withPreset(preset).withActivePresetId(preset.id) }
+    }
+    fun deletePreset(id: String) {
+        val deleted = delete(id)
+        if (!deleted) {
+            logger.warn("Cannot delete last preset")
+            scope.launch { eventChannel.send(SettingsEvent.ShowMessage("Cannot delete the last preset", NotificationType.ERROR)) }
         }
-
-        logger.info("Setting active preset: '$presetId' (${preset.name})")
-        applyUpdate(current.withActivePresetId(presetId))
-
     }
-
-    // -------------------------------------------------------------------------
-    // Service selection
-    // -------------------------------------------------------------------------
-
-    fun updateServiceInActivePreset(
-        current: Configuration,
-        intent: SettingsIntent.UpdateServiceInActivePreset
-    ) {
-        if (current.activeServicePresetId == null) {
-            logger.warn("No active preset — ignoring UpdateServiceInActivePreset intent")
-            return
-        }
-
-        logger.info("Updating service: ${intent.type} → ${intent.serviceId ?: "none"}")
-        applyUpdate(current.withServiceSelection(intent.type, intent.serviceId))
-
-    }
-
-    fun addTranslator(current: Configuration, intent: SettingsIntent.AddTranslatorToActivePreset) {
-        if (current.activeServicePresetId == null) {
-            logger.warn("No active preset - ignoring AddTranslatorToActivePreset intent")
-            return
-        }
-        applyUpdate(current.withTranslatorAdded(intent.serviceId))
-    }
-
-    fun removeTranslator(current: Configuration, intent: SettingsIntent.RemoveTranslatorFromActivePreset) {
-        if (current.activeServicePresetId == null) {
-            logger.warn("No active preset - ignoring RemoveTranslatorFromActivePreset intent")
-            return
-        }
-        applyUpdate(current.withTranslatorRemoved(intent.serviceId))
-    }
-
-    fun moveTranslator(current: Configuration, intent: SettingsIntent.MoveTranslatorInActivePreset) {
-        if (current.activeServicePresetId == null) {
-            logger.warn("No active preset - ignoring MoveTranslatorInActivePreset intent")
-            return
-        }
-        applyUpdate(current.withTranslatorMoved(intent.serviceId, intent.direction))
-    }
-
-    fun promoteTranslatorToPrimary(
-        current: Configuration,
-        intent: SettingsIntent.PromoteTranslatorToPrimary
-    ) {
-        if (current.activeServicePresetId == null) {
-            logger.warn("No active preset — ignoring PromoteTranslatorToPrimary intent")
-            return
-        }
-
-        logger.info("Promoting translator to primary: ${intent.serviceId}")
-        applyUpdate(
-            current.withActivePreset { preset -> preset.withPromotedTranslator(intent.serviceId) }
-        )
-    }
-
-    // -------------------------------------------------------------------------
-    // Preset CRUD
-    // -------------------------------------------------------------------------
-
-    @OptIn(ExperimentalUuidApi::class)
-    fun createPreset(current: Configuration, name: String) {
-        logger.info("Creating new preset: '$name'")
-        val newPreset = ServicePreset.createDefault(name)
-        val updated = current.withPreset(newPreset).withActivePresetId(newPreset.id)
-        applyUpdate(updated)
-
-    }
-
-    fun deletePreset(current: Configuration, presetId: String) {
-        if (current.servicePresets.size <= 1) {
-            logger.warn("Cannot delete last preset — ignoring DeletePreset intent")
-            scope.launch {
-                eventChannel.send(
-                    SettingsEvent.ShowMessage("Cannot delete the last preset", NotificationType.ERROR)
-                )
-            }
-            return
-        }
-
-        logger.info("Deleting preset: '$presetId'")
-        val updated = current.withoutPreset(presetId)
-        applyUpdate(updated)
-
-    }
-
-    fun renamePreset(current: Configuration, presetId: String, newName: String) {
-        logger.info("Renaming preset '$presetId' to '$newName'")
-        applyUpdate(current.withPresetRenamed(presetId, newName))
-    }
+    fun renamePreset(id: String, name: String) = applyUpdate { it.withPresetRenamed(id, name) }
 }

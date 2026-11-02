@@ -56,7 +56,7 @@ internal class PluginSettingsSchemaBuilder(
             val groups  = buildGroups(settingsClass, schema, actions)
             PluginSettingsModel(settingsClass, schema, groups)
         } catch (e: Exception) {
-            logger.error("Failed to build settings schema for plugin '$pluginId': ${e.message}", e)
+            logger.error("Failed to build settings schema for plugin '$pluginId' (${e::class.simpleName})")
             null
         }
     }
@@ -133,7 +133,7 @@ internal class PluginSettingsSchemaBuilder(
                 SettingType.CUSTOM_PANEL   -> buildCustomPanelSetting(args)
             }
         } catch (e: Exception) {
-            logger.error("Failed to create schema for field '${field.name}': ${e.message}")
+            logger.error("Failed to create schema for field '${field.name}' (${e::class.simpleName})")
             null
         }
     }
@@ -243,7 +243,7 @@ internal class PluginSettingsSchemaBuilder(
             else -> null.also { logger.warn("Unsupported field type for conversion: ${field.type}") }
         }
     }.getOrElse {
-        logger.warn("Failed to convert value '$raw' for type ${field.type}: ${it.message}")
+        logger.warn("Failed to convert settings value for type ${field.type}: ${it::class.simpleName}")
         null
     }
 

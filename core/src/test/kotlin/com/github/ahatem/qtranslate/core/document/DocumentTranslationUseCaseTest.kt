@@ -18,6 +18,7 @@ import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.apache.pdfbox.Loader
@@ -321,6 +322,22 @@ class DocumentTranslationUseCaseTest {
         }
 
         assertEquals("previous", output.readText())
+    }
+
+    @Test
+    fun `cancellation preserves files and removes temporary output`() = runBlocking {
+        val input = File(directory, "cancel.txt").apply { writeText("First\nSecond") }
+        val output = File(directory, "cancel-output.txt").apply { writeText("previous") }
+
+        assertFailsWith<CancellationException> {
+            useCase().invoke(request(input, output)) { progress ->
+                if (progress.completedSegments == 1) throw CancellationException("cancelled")
+            }
+        }
+
+        assertEquals("First\nSecond", input.readText())
+        assertEquals("previous", output.readText())
+        assertTrue(directory.listFiles().orEmpty().none { it.name.startsWith(".qtranslate-") })
     }
 
     private fun request(input: File, output: File) = DocumentTranslationRequest(

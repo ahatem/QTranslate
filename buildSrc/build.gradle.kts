@@ -5,6 +5,14 @@ plugins {
     `kotlin-dsl`
 }
 
+// Dependency locking for the build logic classpath (Kotlin Gradle plugin and friends). Regenerate
+// with `./gradlew -p buildSrc dependencies --write-locks` after an approved version change.
+// `gradleApi()` is a file-based dependency, not a module, so it is not lockable — the Gradle
+// distribution itself is pinned by the wrapper.
+dependencyLocking {
+    lockAllConfigurations()
+}
+
 kotlin {
     jvmToolchain(11)
 }

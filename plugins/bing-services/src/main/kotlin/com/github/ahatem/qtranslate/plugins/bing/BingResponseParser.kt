@@ -42,7 +42,7 @@ internal class BingResponseParser(private val logger: Logger) {
             .fold(
                 onSuccess = { Ok(it) },
                 onFailure = { failure ->
-                    logger.error("Bing translation array could not be decoded", failure)
+                    logger.error("Bing translation array could not be decoded: ${failure::class.simpleName}")
                     Err(ServiceError.InvalidResponseError(UNREADABLE, failure))
                 }
             )
@@ -54,7 +54,7 @@ internal class BingResponseParser(private val logger: Logger) {
     private fun unreadable(body: String, failure: Throwable): ServiceError {
         val opening = body.trimStart().take(1)
         return if (opening == "{" || opening == "[") {
-            logger.error("Bing returned a malformed JSON body", failure)
+            logger.error("Bing returned a malformed JSON body: ${failure::class.simpleName}")
             ServiceError.InvalidResponseError(UNREADABLE, failure)
         } else {
             // Response bodies are intentionally not logged.

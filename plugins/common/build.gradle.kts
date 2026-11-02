@@ -12,4 +12,7 @@ dependencies {
     implementation(libs.bundles.ktor)
 
     testFixturesImplementation(libs.kotlinxCoroutines)
+
+    testImplementation(kotlin("test"))
+    testImplementation(libs.kotlinxCoroutines)
 }

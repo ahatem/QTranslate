@@ -225,10 +225,11 @@ class TranslationPanel(
             text = localizationManager.getString("settings_translation.dict_auto_lookup_enabled"),
             selected = true,
             onChange = { enabled ->
+                val useSource = dictAutoUseSource.isSelected
                 applyDraft(store) {
                     it.copy(
                         dictionaryAutoSource = if (enabled) {
-                            if (dictAutoUseSource.isSelected) DictionaryAutoSource.SOURCE else DictionaryAutoSource.TRANSLATED
+                            if (useSource) DictionaryAutoSource.SOURCE else DictionaryAutoSource.TRANSLATED
                         } else {
                             DictionaryAutoSource.OFF
                         }
@@ -263,7 +264,12 @@ class TranslationPanel(
         // Visually subordinate to the checkbox above it -- it only matters when auto-lookup is on,
         // and indenting says so without another line of copy.
         dictAutoPopupCheck = JCheckBox(localizationManager.getString("settings_languages.dict_auto_popup_enabled")).apply {
-            addActionListener { if (!isUpdatingFromState) applyDraft(store) { it.copy(isDictionaryAutoPopupEnabled = isSelected) } }
+            addActionListener {
+                if (!isUpdatingFromState) {
+                    val enabled = isSelected
+                    applyDraft(store) { it.copy(isDictionaryAutoPopupEnabled = enabled) }
+                }
+            }
         }
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
             .insets(0, UIScale.scale(20), 0, 0).add(dictAutoPopupCheck)

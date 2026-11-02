@@ -20,7 +20,7 @@ QTranslate is structured around Clean Architecture with an MVI (Model-View-Inten
 └─────────────────┬───────────────────────────┘
                   │
 ┌─────────────────▼───────────────────────────┐
-│                  :api                       │  ← interfaces only
+│                  :api                       │  ← plugin contracts and values
 └─────────────────────────────────────────────┘
          ▲
          │  plugins depend only on :api
@@ -31,7 +31,7 @@ QTranslate is structured around Clean Architecture with an MVI (Model-View-Inten
 └─────────────────────────────────────────────┘
 ```
 
-**Dependency rule:** lower layers never import from upper layers. `:core` has no Swing imports. `:api` imports only what its own interfaces need (coroutines for suspend functions, kotlin-result for `Result`). Plugins only import `:api`.
+**Dependency rule:** lower layers never import from upper layers. `:core` has no Swing components or windows; hotkey value types and document text/image measurement are legitimate existing responsibilities. `:api` contains capability contracts, shared values/errors and pure compatibility semantics. Providers depend on `:api` and `:plugins:common`, never host implementation modules.
 
 ---
 
@@ -217,18 +217,32 @@ This keeps `PluginManager` decoupled from the UI — it posts a domain notificat
 ## Plugin loading lifecycle
 
 ```
-PluginLoader.loadPluginsFromDirectory()
-  → parse plugin.json (PluginManifest)
-  → verify API version compatibility
-  → ServiceLoader.load(Plugin::class, pluginClassLoader)
+PluginLoader.assessDirectory() / assessFile()
+  → copy the JAR into an app-owned read-only snapshot (no provider code runs)
+  → read plugin.json and the services descriptor as plain ZIP entries
+  → verify API version compatibility, then SHA-256 the snapshot
+  → PluginRegistry.validateAndFilter (blank IDs, duplicate IDs)
+  → fingerprint comparison against the last approved hash
+      unchanged / first seen → PluginLoader.loadApproved(snapshot)
+      changed                → PendingPlugin (AWAITING_VERIFICATION), nothing constructed
   → PluginRegistry.put(container)
 
-PluginLifecycleHandler
-  → initialize(container)   ← Plugin.onInitialize(context)
-  → enable(container)       ← Plugin.onEnable()
+PluginLifecycleHandler — every callback below is serialized per plugin by
+PluginTransitionOwner, so the "lifecycle methods are called sequentially" contract holds
+  → initialize(container)   ← Plugin.initialize(context)
+  → enable(container)       ← Plugin.onEnable() + getServices()
   [user action]
   → disable(container)      ← Plugin.onDisable()
-  → shutdown(container)     ← Plugin.onShutdown()
+  → shutdown(container)     ← Plugin.onDisable() (if enabled) + Plugin.shutdown(),
+                              closes the class loader and releases the snapshot
+
+Shutdown closes the transition gate, settles accepted transitions, then finalizes each
+plugin exactly once; later requests are rejected.
 ```
+
+`loadApproved` is the only place provider code is constructed: it verifies the snapshot hash
+again, defines the provider class from the snapshot's own code source, and only then calls the
+constructor. A changed JAR therefore never executes before the user confirms it, and the
+previous approved hash is preserved across restarts so the pause survives a relaunch.
 
 Plugins whose JAR hash changed since the last run are held in `AWAITING_VERIFICATION` until the user confirms the change.

@@ -11,7 +11,12 @@ import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.ui.swing.main.MainAppFrame
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 import com.github.michaelbull.result.fold
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -105,7 +110,8 @@ fun main(args: Array<String>) = runBlocking {
     }
 
     val json         = Json { ignoreUnknownKeys = true; isLenient = true }
-    val settingsRepo = SettingsRepository(appData, json, logFactory.getLogger("SettingsRepository"))
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("AppScope"))
+    val settingsRepo = SettingsRepository(appData, json, logFactory.getLogger("SettingsRepository"), storageScope = appScope)
 
     var configLoadTimedOut = false
     val initialConfig = withTimeoutOrNull(AppConstants.CONFIG_LOAD_TIMEOUT_MS) {
@@ -131,14 +137,15 @@ fun main(args: Array<String>) = runBlocking {
     // MainAppFrame's onApplicationExit callback below.
     val applicationShutdown = ApplicationShutdown(
         persistWindowBounds = { size, position ->
-            deps.settingsStore.persistScopedUpdateAndAwait {
+            check(deps.settingsStore.drainAcceptedSaves()) { "Timed out waiting for accepted settings saves" }
+            check(deps.settingsStore.persistScopedUpdateAndAwait {
                 it.copy(mainWindowSize = size, mainWindowPosition = position)
-            }
+            }) { "Failed to persist final window bounds" }
         },
         shutdownMainStore      = { deps.mainStore.onShutdown() },
         shutdownPluginManager  = { deps.pluginManager.shutdown() },
         closeHostHttpClient    = { deps.httpClient.close() },
-        cancelAppScope         = { deps.appScope.cancel() },
+        cancelAppScope         = { deps.appScope.coroutineContext[Job]?.cancelAndJoin() },
         logger                 = logFactory.getLogger("ApplicationShutdown"),
         exit                   = { exitProcess(0) }
     )

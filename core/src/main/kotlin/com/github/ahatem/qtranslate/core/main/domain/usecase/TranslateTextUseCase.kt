@@ -205,7 +205,10 @@ class TranslateTextUseCase(
 
                 result.fold(
                     success = { response ->
-                        logger.info("Translation successful: '${response.translatedText.take(50)}...'")
+                        logger.info(
+                            "Translation successful: translator='${translator.name}', " +
+                                    "chars=${response.translatedText.length}"
+                        )
 
                         val detectedLanguage = response.detectedLanguage
                             .takeIf { isAutoDetect }
@@ -284,7 +287,7 @@ class TranslateTextUseCase(
                         completion = TranslationCompletion(requestId, response.translatedText)
                     },
                     failure = { error ->
-                        logger.error("Translation failed: ${error.message}", error.cause)
+                        logger.error("Translation failed: ${error::class.simpleName}")
                         updateState { copy(isLoading = false, isExtraOutputLoading = false, translationFailed = true) }
                         val summary = error.shortSummary()
                         onStatusUpdate(StatusCode.TranslationFailed(summary), NotificationType.ERROR, true)
@@ -296,7 +299,7 @@ class TranslateTextUseCase(
                 clearComparisonsIfCurrent(translationGeneration, updateState)
                 throw e
             } catch (e: Exception) {
-                logger.error("Unexpected error during translation", e)
+                logger.error("Unexpected error during translation: ${e::class.simpleName}")
                 updateState { copy(isLoading = false, isExtraOutputLoading = false, translationFailed = true) }
                 val summary = e.shortSummary()
                 onStatusUpdate(StatusCode.UnexpectedError(summary), NotificationType.ERROR, true)
@@ -346,7 +349,10 @@ class TranslateTextUseCase(
 
         return retryResult.fold(
             success = { retryResponse ->
-                logger.info("Re-translation successful: '${retryResponse.translatedText.take(50)}...'")
+                logger.info(
+                    "Re-translation successful: translator='${translator.name}', " +
+                            "chars=${retryResponse.translatedText.length}"
+                )
                 if (comparisonPolicy == ComparisonPolicy.ENABLED) {
                     startComparisons(
                         text = textToTranslate,
@@ -381,7 +387,7 @@ class TranslateTextUseCase(
                 retryResponse.translatedText
             },
             failure = { error ->
-                logger.error("Re-translation failed: ${error.message}", error.cause)
+                logger.error("Re-translation failed: ${error::class.simpleName}")
                 updateState { copy(isLoading = false, isExtraOutputLoading = false, translationFailed = true) }
                 val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.TranslationFailed(summary), NotificationType.ERROR, true)
@@ -562,7 +568,7 @@ class TranslateTextUseCase(
                         history              = patched
                     )
                 }
-                if (settingsState.value.isHistoryEnabled) historyRepository.saveHistory(patched)
+                if (settingsState.value.isHistoryEnabled) persistHistory(patched)
             } finally {
                 // Switching type twice quickly cancels the first request. Without this the panel
                 // would keep the spinner of a request whose answer is never coming.
@@ -622,7 +628,7 @@ class TranslateTextUseCase(
         }
 
         if (!expectsExtraOutput) {
-            if (settingsState.value.isHistoryEnabled) historyRepository.saveHistory(history)
+            if (settingsState.value.isHistoryEnabled) persistHistory(history)
             return
         }
 
@@ -653,7 +659,12 @@ class TranslateTextUseCase(
             )
         }
 
-        if (settingsState.value.isHistoryEnabled) historyRepository.saveHistory(finalHistory)
+        if (settingsState.value.isHistoryEnabled) persistHistory(finalHistory)
+    }
+
+    // History is best effort: its repository records failure, while translation stays successful.
+    private suspend fun persistHistory(history: List<com.github.ahatem.qtranslate.core.history.HistorySnapshot>) {
+        historyRepository.saveHistory(history).fold(success = { }, failure = { })
     }
 
     private suspend fun handleExtraOutput(
@@ -722,7 +733,7 @@ class TranslateTextUseCase(
                     response.translatedText
                 },
                 failure = { error ->
-                    logger.error("Backward translation failed: ${error.message}", error.cause)
+                    logger.error("Backward translation failed: ${error::class.simpleName}")
                     onStatusUpdate(StatusCode.TranslationComplete, NotificationType.SUCCESS, true)
                     "Backward translation failed: ${error.message}"
                 }

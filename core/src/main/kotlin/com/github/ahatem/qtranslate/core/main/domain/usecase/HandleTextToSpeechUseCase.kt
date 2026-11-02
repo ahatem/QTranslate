@@ -19,6 +19,7 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.onErr
 import com.github.michaelbull.result.onOk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
@@ -127,14 +128,18 @@ class HandleTextToSpeechUseCase(
                         onStatusUpdate(StatusCode.DownloadingAudio, NotificationType.INFO, false)
 
                         val bytes: ByteArray? = withContext(Dispatchers.IO) {
-                            runCatching {
+                            try {
                                 java.net.URI(audio.url).toURL().readBytes()
-                            }.getOrNull()
+                            } catch (cancellation: CancellationException) {
+                                throw cancellation
+                            } catch (e: Exception) {
+                                null
+                            }
                         }
 
                         if (!requestStillCurrent()) return@onOk
                         if (bytes == null || bytes.isEmpty()) {
-                            logger.error("Failed to download audio stream from ${audio.url}")
+                            logger.error("Audio stream download failed")
                             onStatusUpdate(StatusCode.AudioDownloadFailed, NotificationType.ERROR, true)
                         } else {
                             logger.info("Stream downloaded — playing ${bytes.size} bytes (${audio.format})")
@@ -146,7 +151,7 @@ class HandleTextToSpeechUseCase(
                 }
             }
             .onErr { error ->
-                logger.error("TTS failed: ${error.message}", error.cause)
+                logger.error("TTS failed: ${error::class.simpleName}")
                 val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.TtsFailed(summary), NotificationType.ERROR, true)
             }
@@ -172,7 +177,7 @@ class HandleTextToSpeechUseCase(
     fun shutdown() {
         logger.info("Shutting down TTS use case")
         runCatching { audioPlayer.close() }.onFailure { e ->
-            logger.error("Error closing audio player during shutdown", e)
+            logger.error("Error closing audio player during shutdown: ${e::class.simpleName}")
         }
     }
 }

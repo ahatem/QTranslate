@@ -2,6 +2,11 @@ package com.github.ahatem.qtranslate.core.settings.data
 
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.core.shared.AppConstants
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -35,10 +40,12 @@ class SettingsRecoveryTest {
     }
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val storageScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val tempDir: File = Files.createTempDirectory("qtranslate-recovery").toFile()
 
     @AfterTest
     fun cleanUp() {
+        runBlocking { storageScope.coroutineContext[Job]!!.cancelAndJoin() }
         tempDir.deleteRecursively()
     }
 
@@ -50,7 +57,7 @@ class SettingsRecoveryTest {
      */
     private fun dir(name: String) = File(tempDir, name).apply { File(this, "datastore").mkdirs() }
 
-    private fun repository(directory: File) = SettingsRepository(directory, json, logger)
+    private fun repository(directory: File) = SettingsRepository(directory, json, logger, storageScope = storageScope)
 
     /**
      * A directory holding a real datastore file, written by a repository of its own.

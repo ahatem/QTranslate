@@ -4,10 +4,13 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
-import com.github.ahatem.qtranslate.core.document.DocumentTranslationException
+import com.github.ahatem.qtranslate.core.document.DocumentTranslationSession
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationRequest
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 import com.github.ahatem.qtranslate.core.history.HistoryRepository
+import com.github.ahatem.qtranslate.core.history.previousHistory
+import com.github.ahatem.qtranslate.core.history.nextHistory
+import com.github.ahatem.qtranslate.core.history.restoredHistoryIndex
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.domain.language.LanguageSelectionCompat
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
@@ -21,10 +24,9 @@ import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.shared.arch.Store
+import com.github.michaelbull.result.fold
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -36,6 +38,12 @@ private data class ComparisonConfigKey(
     val comparisonTranslatorIds: List<String>,
     val translationRules: List<com.github.ahatem.qtranslate.core.settings.data.TranslationRule>,
     val disabledServices: Set<String>
+)
+
+/** Buffered session events are checked when consumed, so replacement also invalidates queued events. */
+private data class PendingMainEvent(
+    val event: MainEvent,
+    val publish: ((() -> Unit) -> Unit)? = null
 )
 
 internal data class SpellCheckInput(
@@ -104,8 +112,6 @@ class MainStore(
     private val documentTranslationUseCase: DocumentTranslationUseCase
 ) : Store<MainState, MainIntent, MainEvent> {
 
-    private var documentTranslationJob: Job? = null
-    private var documentTranslationGeneration = 0L
     private val quickTranslateGenerations = AtomicLong()
 
     private val _state = MutableStateFlow(
@@ -118,8 +124,50 @@ class MainStore(
     )
     override val state: StateFlow<MainState> = _state.asStateFlow()
 
-    private val _eventChannel = Channel<MainEvent>(Channel.BUFFERED)
-    override val events: Flow<MainEvent> = _eventChannel.receiveAsFlow()
+    private val _eventChannel = Channel<PendingMainEvent>(Channel.BUFFERED)
+    override val events: Flow<MainEvent> = _eventChannel.receiveAsFlow().mapNotNull { pending ->
+        val publish = pending.publish ?: return@mapNotNull pending.event
+        var event: MainEvent? = null
+        publish { event = pending.event }
+        event
+    }
+
+    private val documentSession = DocumentTranslationSession(
+        scope = scope,
+        translate = { request, progress -> documentTranslationUseCase(request, progress) },
+        onProgress = { progress -> _state.update { it.copy(documentTranslationProgress = progress) } },
+        onCompleted = { output, publish -> sendEvent(MainEvent.DocumentTranslationCompleted(output), publish) },
+        onFailed = { message, publish -> sendEvent(MainEvent.DocumentTranslationFailed(message), publish) }
+    )
+
+    private val dictionarySession = DictionaryLookupSession(
+        scope, { request, started -> lookupWordUseCase(request, started) },
+        onStarted = { request, publish ->
+            sendEvent(MainEvent.UpdateStatusBar(StatusCode.LookingUpWord, NotificationType.INFO, false), publish)
+            publish { _state.update { it.copy(isDictionaryLoading = true, dictionaryWord = request.word,
+                dictionaryLanguage = request.language, dictionaryFailed = false) } }
+        },
+        onResult = { outcome, publish ->
+            sendEvent(MainEvent.UpdateStatusBar(outcome.status, outcome.type, true), publish)
+            if (outcome.entries != null) publish { _state.update { it.copy(
+                isDictionaryLoading = false, dictionaryEntries = outcome.entries,
+                dictionaryFailed = outcome.failed ?: it.dictionaryFailed) } }
+        }
+    )
+    private val imageSession = ImageLookupSession(
+        scope, { request, started -> searchImagesUseCase(request, started) },
+        onStarted = { request, publish ->
+            sendEvent(MainEvent.UpdateStatusBar(StatusCode.SearchingImages, NotificationType.INFO, false), publish)
+            publish { _state.update { it.copy(isImageSearchLoading = true, imageSearchTerm = request.term,
+                imageSearchFailed = false) } }
+        },
+        onResult = { outcome, publish ->
+            sendEvent(MainEvent.UpdateStatusBar(outcome.status, outcome.type, true), publish)
+            if (outcome.results != null) publish { _state.update { it.copy(
+                isImageSearchLoading = false, imageResults = outcome.results,
+                imageSearchFailed = outcome.failed ?: it.imageSearchFailed) } }
+        }
+    )
 
     init {
         loadInitialHistory()
@@ -547,56 +595,19 @@ class MainStore(
     // -------------------------------------------------------------------------
 
     private fun startDocumentTranslation(intent: MainIntent.TranslateDocument) {
-        documentTranslationJob?.cancel()
-        val generation = ++documentTranslationGeneration
-        documentTranslationJob = scope.launch {
-            val state = _state.value
-            try {
-                val output = documentTranslationUseCase(
-                    DocumentTranslationRequest(
-                        inputFile = intent.inputFile,
-                        outputFile = intent.outputFile,
-                        sourceLanguage = state.sourceLanguage,
-                        targetLanguage = state.targetLanguage,
-                        pdfMode = intent.pdfMode
-                    )
-                ) { progress ->
-                    if (generation == documentTranslationGeneration) {
-                        _state.update { it.copy(documentTranslationProgress = progress) }
-                    }
-                }
-                if (generation != documentTranslationGeneration) return@launch
-                _state.update { it.copy(documentTranslationProgress = null) }
-                _eventChannel.send(MainEvent.DocumentTranslationCompleted(output))
-            } catch (error: CancellationException) {
-                if (generation == documentTranslationGeneration) {
-                    _state.update { it.copy(documentTranslationProgress = null) }
-                }
-                throw error
-            } catch (error: DocumentTranslationException) {
-                if (generation != documentTranslationGeneration) return@launch
-                _state.update { it.copy(documentTranslationProgress = null) }
-                _eventChannel.send(MainEvent.DocumentTranslationFailed(error.message))
-            } catch (error: Exception) {
-                if (generation != documentTranslationGeneration) return@launch
-                _state.update { it.copy(documentTranslationProgress = null) }
-                _eventChannel.send(
-                    MainEvent.DocumentTranslationFailed(error.message ?: "Document translation failed.")
-                )
-            } finally {
-                if (generation == documentTranslationGeneration) {
-                    documentTranslationJob = null
-                }
-            }
-        }
+        val state = _state.value
+        documentSession.start(
+            DocumentTranslationRequest(
+                inputFile = intent.inputFile,
+                outputFile = intent.outputFile,
+                sourceLanguage = state.sourceLanguage,
+                targetLanguage = state.targetLanguage,
+                pdfMode = intent.pdfMode
+            )
+        )
     }
 
-    private fun cancelDocumentTranslation() {
-        documentTranslationGeneration++
-        documentTranslationJob?.cancel(CancellationException("Document translation cancelled"))
-        documentTranslationJob = null
-        _state.update { it.copy(documentTranslationProgress = null) }
-    }
+    private fun cancelDocumentTranslation() = documentSession.cancel()
 
     private suspend fun handleOcrAndTranslate(intent: MainIntent.OcrAndTranslateImage) {
         val extractedText = ocrAndTranslateUseCase(
@@ -625,7 +636,7 @@ class MainStore(
             onStatusUpdate = ::updateStatusBar
         )
         if (extractedText.isBlank()) return
-        _eventChannel.send(MainEvent.CopyToClipboard(extractedText))
+        sendEvent(MainEvent.CopyToClipboard(extractedText))
         updateStatusBar(StatusCode.OcrTextCopied, NotificationType.INFO, true)
     }
 
@@ -762,7 +773,7 @@ class MainStore(
             translationStillCurrent = completion?.let { translateTextUseCase.isCurrent(it.requestId) } == true
         )
         if (textToCopy != null) {
-            _eventChannel.send(MainEvent.CopyToClipboard(textToCopy))
+            sendEvent(MainEvent.CopyToClipboard(textToCopy))
         }
 
         return completion
@@ -788,25 +799,14 @@ class MainStore(
         }
     }
 
-    private suspend fun handleLookupWord(intent: MainIntent.LookupWord) {
-        lookupWordUseCase(
-            word = intent.word,
-            language = intent.language,
-            // Auto lookup says which side of the pair the word is not; a manual search does not,
-            // and keeps asking in the window's translation direction.
-            targetLanguage = intent.targetLanguage ?: _state.value.targetLanguage,
-            updateState = { transform -> _state.update(transform) },
-            onStatusUpdate = ::updateStatusBar
-        )
+    private fun handleLookupWord(intent: MainIntent.LookupWord) {
+        dictionarySession.start(DictionaryLookupRequest(
+            intent.word, intent.language, intent.targetLanguage ?: _state.value.targetLanguage
+        ))
     }
 
-    private suspend fun handleSearchImages(intent: MainIntent.SearchImages) {
-        searchImagesUseCase(
-            term = intent.term,
-            language = intent.language,
-            updateState = { transform -> _state.update(transform) },
-            onStatusUpdate = ::updateStatusBar
-        )
+    private fun handleSearchImages(intent: MainIntent.SearchImages) {
+        imageSession.start(ImageLookupRequest(intent.term, intent.language))
     }
 
     private suspend fun handleListen(
@@ -864,12 +864,11 @@ class MainStore(
 
     private fun handleUndo() {
         val current = _state.value
-        if (!current.canUndo) return
-
+        val selection = previousHistory(current.history, current.historyIndex) ?: return
         clearComparisonState()
 
-        val newIndex = current.historyIndex - 1
-        val snapshot = current.history[newIndex]
+        val newIndex = selection.index
+        val snapshot = requireNotNull(selection.snapshot)
 
         _state.update {
             it.copy(
@@ -894,11 +893,10 @@ class MainStore(
      */
     private fun handleRedo() {
         val current = _state.value
-        if (!current.canRedo) return
-
+        val selection = nextHistory(current.history, current.historyIndex) ?: return
         clearComparisonState()
 
-        val newIndex = current.historyIndex + 1
+        val newIndex = selection.index
 
         if (newIndex == current.history.size) {
             // Past the last snapshot — restore blank state.
@@ -914,7 +912,7 @@ class MainStore(
                 )
             }
         } else {
-            val snapshot = current.history[newIndex]
+            val snapshot = requireNotNull(selection.snapshot)
             _state.update {
                 it.copy(
                     inputText              = snapshot.inputText,
@@ -934,7 +932,7 @@ class MainStore(
 
     private fun handleRestoreHistoryEntry(intent: MainIntent.RestoreHistoryEntry) {
         val snapshot = intent.snapshot
-        val idx = _state.value.history.indexOf(snapshot)
+        val current = _state.value
         clearComparisonState()
         _state.update {
             it.copy(
@@ -943,7 +941,7 @@ class MainStore(
                 translationFailed      = false,
                 sourceLanguage         = LanguageCode(snapshot.sourceLanguage),
                 targetLanguage         = LanguageCode(snapshot.targetLanguage),
-                historyIndex           = if (idx >= 0) idx + 1 else it.historyIndex,
+                historyIndex           = restoredHistoryIndex(current.history, it.historyIndex, snapshot),
                 isLoading              = false,
                 extraOutputText        = snapshot.extraOutputText,
                 detectedSourceLanguage = snapshot.detectedSourceLanguage?.let { tag -> LanguageCode(tag) },
@@ -953,8 +951,11 @@ class MainStore(
     }
 
     private suspend fun handleClearHistory() {
-        historyRepository.clearHistory()
-        _state.update { it.copy(history = emptyList(), historyIndex = 0) }
+        historyRepository.clearHistory().fold(
+            success = { _state.update { it.copy(history = emptyList(), historyIndex = 0) } },
+            // The repository already records the failure; retain the visible history for retry.
+            failure = { }
+        )
     }
 
     private suspend fun handleReplaceWithTranslation(selectedText: String) {
@@ -981,7 +982,7 @@ class MainStore(
         val result = _state.value.translatedText
         _state.update { it.copy(isReplacingSelection = false) }
         if (result.isNotBlank()) {
-            _eventChannel.send(MainEvent.PasteTranslation(result))
+            sendEvent(MainEvent.PasteTranslation(result))
         }
     }
 
@@ -1006,8 +1007,11 @@ class MainStore(
         // right after this returns.
         translateTextUseCase.cancel()
         cancelDocumentTranslation()
+        dictionarySession.cancel()
+        imageSession.cancel()
         if (settingsState.value.clearHistoryOnExit) {
-            historyRepository.clearHistory()
+            // A failure is recorded by the repository; shutdown must still release resources.
+            historyRepository.clearHistory().fold(success = { }, failure = { })
         }
         handleTextToSpeechUseCase.shutdown()
     }
@@ -1017,7 +1021,11 @@ class MainStore(
         type: NotificationType,
         isTemporary: Boolean
     ) {
-        _eventChannel.send(MainEvent.UpdateStatusBar(code, type, isTemporary))
+        sendEvent(MainEvent.UpdateStatusBar(code, type, isTemporary))
+    }
+
+    private suspend fun sendEvent(event: MainEvent, publish: ((() -> Unit) -> Unit)? = null) {
+        _eventChannel.send(PendingMainEvent(event, publish))
     }
 }
 
