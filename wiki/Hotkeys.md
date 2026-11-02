@@ -8,10 +8,15 @@ every hotkey can be rebound from **Settings → Keyboard & Hotkeys**.
 Each hotkey has a scope:
 
 - **Global** — fires anywhere, in any application, whether or not QTranslate is focused. Used for
-  actions you trigger on text selected in some other app: Quick Translate, Listen, OCR, and similar.
+  actions you trigger on text selected in some other app, or for starting screen OCR from any
+  application.
 - **App-local** — fires only while a QTranslate window has focus. Used for in-app actions like
   clearing the input, swapping languages, or opening settings, so the combination doesn't get taken
   away from every other application on your system.
+- **Capture** — fires only while the screen-capture selection overlay is open. These actions
+  operate the capture toolbar (Translate, Copy Text, Copy Image, Save Image, Re-crop, Cancel).
+  They are never registered globally or in the main window. See
+  [Screen OCR](OCR.md#capture-workflows).
 
 **Show main window** is a special case: instead of a configurable key combination, it fires on a
 double press of Ctrl (press Ctrl twice in quick succession). This can be turned off in Keyboard &
@@ -46,9 +51,10 @@ Another application (or the OS itself) may already own that key combination. Try
 combination for the action, or close the application that might be intercepting it.
 
 **A hotkey works sometimes but not others**
-Global hotkeys that capture selected text (Quick Translate, Listen, OCR, Replace, Dictionary,
-Images) need something selected first. If nothing is selected when the hotkey fires, there's
-nothing to act on.
+Global hotkeys that capture selected text (Quick Translate, Listen, Replace, Dictionary, Images)
+need something selected first. If nothing is selected when the hotkey fires, there's nothing to
+act on. Screen OCR is different: it opens the capture overlay and does not use the current
+selection.
 
 **Double-Ctrl doesn't show the main window**
 Confirm it's still enabled in Keyboard & Hotkeys — it has its own toggle, separate from the rest of

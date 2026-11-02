@@ -62,6 +62,9 @@ Feature ownership is explicit in the package tree:
   secondary output and its outcomes, and the workflow policy (`TranslationCoordinator`) that
   turns an accepted origin into auto-copy, refresh fallback and cancellation.
 - `core/workspace/lookup` — dictionary and image lookup sessions, requests and outcomes.
+- `core/ocr` — OCR extraction, provider/language projection, workflow resolution, preprocessing
+  and the OCR Workspace store. Capture routing belongs to `MainStore`; the workspace owns only
+  OCR work and edited text.
 - `core/document` — document translation and format-specific text/subtitle/DOCX/PDF ownership.
 - `core/settings` — configuration, persistence, migration and the settings store.
 - `core/plugin` — loading, assessment, trust, install and lifecycle transitions.
@@ -86,7 +89,8 @@ Business logic lives in feature owners, not stores. Each one guards a narrow res
   fallback, cancellation normalization, completion identity
 - `SummarizeUseCase` / `RewriteUseCase` — typed `ExtraOutputResult` successes and failures
 - `HandleTextToSpeechUseCase` — resolves language, calls TTS, plays audio
-- `OcrAndTranslateUseCase` — extracts text from image, returns it to the store
+- `OcrExtractionUseCase` — resolves an OCR provider, applies the common timeout/failure mapping,
+  optionally asks for structured geometry, and returns a typed result to the store or workspace
 - `PerformSpellCheckUseCase` — calls spell checker, returns corrections
 - `SelectActiveServiceUseCase` — observes available services, resolves language lists
 - `CheckForUpdatesUseCase` — queries GitHub releases API
