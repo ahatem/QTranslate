@@ -59,6 +59,16 @@ internal class TranslationRequestOwner {
         Canceled(currentGeneration, previous)
     }
 
+    /** Invalidates only while [requestId] is still current; a newer request is left untouched. */
+    fun cancelIfCurrent(requestId: Long): Canceled? = synchronized(lock) {
+        if (currentRequestId != requestId) return null
+        currentRequestId = ++nextRequestId
+        currentGeneration = ++nextGeneration
+        val previous = job
+        job = null
+        Canceled(currentGeneration, previous)
+    }
+
     /** Advances only the comparison generation; the current request id stays owned. */
     fun invalidateGeneration(): Long = synchronized(lock) {
         currentGeneration = ++nextGeneration
@@ -66,6 +76,9 @@ internal class TranslationRequestOwner {
     }
 
     fun isCurrent(requestId: Long): Boolean = synchronized(lock) { currentRequestId == requestId }
+
+    /** The identity of the request currently allowed to publish, for origin-specific ownership. */
+    fun currentRequestId(): Long = synchronized(lock) { currentRequestId }
 
     /** Runs [block] only while [requestId] owns publication. Used for a short state update. */
     fun <T> withCurrentRequest(requestId: Long, block: () -> T): T? = synchronized(lock) {

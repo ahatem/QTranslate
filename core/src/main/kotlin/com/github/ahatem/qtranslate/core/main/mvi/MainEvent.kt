@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.core.main.mvi
 
+import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.api.ocr.OCRTextRegion
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
@@ -45,6 +46,7 @@ sealed interface MainEvent : UiEvent {
      *
      * @param initialText When non-null, an OCR result is already available and the workspace can
      *   adopt it instead of immediately running recognition again.
+     * @param initialLanguage The language that OCR result belongs to, when known.
      * @param autoTranslate Translate the initial text after the workspace adopts it.
      */
     data class OpenOcrWorkspace(
@@ -52,6 +54,7 @@ sealed interface MainEvent : UiEvent {
         val autoTranslate: Boolean,
         val initialText: String? = null,
         val initialRegions: List<OCRTextRegion> = emptyList(),
+        val initialLanguage: LanguageCode? = null,
     ) : MainEvent
 
     /** Presents the main window through the canonical show/focus path. */

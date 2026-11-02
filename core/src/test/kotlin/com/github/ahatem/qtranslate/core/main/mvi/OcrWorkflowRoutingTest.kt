@@ -327,6 +327,35 @@ class OcrWorkflowRoutingTest {
     }
 
     @Test
+    fun `workspace handoff to quick translates the recognized source exactly once`() = runTest {
+        val fixture = OcrWorkflowFixture(this)
+        try {
+            fixture.store.dispatch(
+                MainIntent.SelectSourceLanguage(com.github.ahatem.qtranslate.api.language.LanguageCode.JAPANESE)
+            )
+            fixture.store.dispatch(
+                MainIntent.SelectTargetLanguage(com.github.ahatem.qtranslate.api.language.LanguageCode.ENGLISH)
+            )
+            // The workspace first translates its recognized source: Japanese -> English.
+            fixture.store.dispatch(MainIntent.UpdateInputText("こんにちは"))
+            fixture.store.dispatch(MainIntent.Translate("こんにちは"))
+            advanceUntilIdle()
+            assertEquals("t:こんにちは", fixture.store.state.value.translatedText)
+
+            // "Send to Quick" must send the source text, never the already-English result.
+            fixture.store.dispatch(MainIntent.ShowQuickTranslate("こんにちは"))
+            advanceUntilIdle()
+
+            assertEquals(listOf("こんにちは", "こんにちは"), fixture.translator.received)
+            assertEquals("こんにちは", fixture.store.state.value.inputText)
+            assertEquals("t:こんにちは", fixture.store.state.value.translatedText)
+            assertTrue(fixture.store.state.value.isQuickTranslateDialogVisible)
+        } finally {
+            fixture.cleanUp()
+        }
+    }
+
+    @Test
     fun `a slow main OCR translation cannot overwrite a newer OCR quick result`() = runTest {
         val fixture = OcrWorkflowFixture(this)
         try {

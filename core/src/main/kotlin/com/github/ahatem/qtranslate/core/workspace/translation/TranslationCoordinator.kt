@@ -34,6 +34,7 @@ internal class TranslationCoordinator(
         comparisonPolicy: ComparisonPolicy =
             ComparisonPolicy.DISABLED,
         autoCopy: Boolean = true,
+        onRequestClaimed: ((Long) -> Unit)? = null,
     ): TranslationCompletion? {
         val completion = useCase(
             getState = getState,
@@ -42,6 +43,7 @@ internal class TranslationCoordinator(
             textOverride = textOverride,
             extraOutputRequest = extraOutputRequest,
             comparisonPolicy = comparisonPolicy,
+            onRequestClaimed = onRequestClaimed,
         )
 
         val textToCopy = if (!autoCopy) null else AutoCopyGuard.textToCopy(
@@ -50,7 +52,13 @@ internal class TranslationCoordinator(
             completion = completion,
             translationStillCurrent = completion?.let { useCase.isCurrent(it.requestId) } == true
         )
-        if (textToCopy != null) emitCopy(textToCopy)
+        // Re-check immediately before the external copy: a newer translation (or a superseding
+        // OCR workflow that cancelled this one) may have taken ownership after the decision.
+        if (textToCopy != null &&
+            (completion == null || useCase.isCurrent(completion.requestId))
+        ) {
+            emitCopy(textToCopy)
+        }
         return completion
     }
 
@@ -93,4 +101,23 @@ internal class TranslationCoordinator(
     fun cancelExtraOutput() = useCase.cancelExtraOutput()
 
     fun isCurrent(requestId: Long): Boolean = useCase.isCurrent(requestId)
+
+    /** Identity of the current translation request, used by origin owners that must fence it. */
+    internal fun currentRequestId(): Long = useCase.currentRequestId()
+
+    /**
+     * Cancels [requestId] only while it still owns the translation. Returns false when a newer
+     * translation has already replaced it.
+     */
+    internal fun cancelIfCurrent(requestId: Long): Boolean {
+        if (!useCase.cancelIfCurrent(requestId)) return false
+        updateState {
+            copy(
+                isExtraOutputLoading = false,
+                extraOutputFailed = false,
+                extraOutputFailure = null
+            )
+        }
+        return true
+    }
 }

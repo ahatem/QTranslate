@@ -173,7 +173,11 @@ sealed interface MainIntent : UiIntent {
     data class ShowQuickTranslate(
         val selectedText: String,
         /** Speak this request according to the persisted selection read-source preference. */
-        val readSelectionAloud: Boolean = false
+        val readSelectionAloud: Boolean = false,
+        /** True when an OCR workflow owns this request and must be able to cancel it later. */
+        val ocrWorkflow: Boolean = false,
+        /** Receives the exact translation request identity claimed by this intent. */
+        val onTranslationClaimed: ((Long) -> Unit)? = null,
     ) : MainIntent
 
     /** User dismissed the quick translate popup. */

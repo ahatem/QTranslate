@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import kotlin.coroutines.ContinuationInterceptor
@@ -82,9 +83,10 @@ internal class OcrWorkflowFixture(
     private val testScope: TestScope,
     ocrSettings: OcrSettings = OcrSettings(),
     autoCopy: AutoCopyTranslation = AutoCopyTranslation.OFF,
+    dispatcher: kotlinx.coroutines.CoroutineDispatcher? = null,
 ) {
     private val scope = CoroutineScope(
-        SupervisorJob() + testScope.coroutineContext[ContinuationInterceptor]!!
+        SupervisorJob() + (dispatcher ?: testScope.coroutineContext[ContinuationInterceptor]!!)
     )
     private val directory = Files.createTempDirectory("qtranslate-ocr-workflow").toFile()
     private val httpClient = HttpClient()
@@ -121,11 +123,17 @@ internal class OcrWorkflowFixture(
         return arrival.await()
     }
 
+    /** Waits for one event through the same single-consumer channel the UI collector uses. */
+    suspend fun awaitEvent(predicate: (MainEvent) -> Boolean): MainEvent =
+        withTimeout(5_000) { emittedEvents.first(predicate) }
+
     fun image(): ImageData = ImageData(byteArrayOf(1, 2, 3), "png", 8, 8)
 
     fun cleanUp() {
-        emitted.close()
+        // Stop producers before closing the relay channel: an in-flight event send must not
+        // become an uncaught ClosedSendChannelException in the next test.
         scope.cancel()
+        emitted.close()
         httpClient.close()
         directory.deleteRecursively()
     }

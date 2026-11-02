@@ -15,6 +15,7 @@ import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.domain.language.LanguageSelectionCompat
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
 import com.github.ahatem.qtranslate.core.ocr.OcrExtractionOutcome
+import com.github.ahatem.qtranslate.core.ocr.OcrRequestOwner
 import com.github.ahatem.qtranslate.core.ocr.preprocessOcrText
 import com.github.ahatem.qtranslate.core.ocr.resolveOcrLanguage
 import com.github.ahatem.qtranslate.core.workspace.translation.ComparisonPolicy
@@ -37,6 +38,7 @@ import com.github.ahatem.qtranslate.core.settings.data.effectiveLayoutPresetId
 import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.OcrPostSelectionAction
+import com.github.ahatem.qtranslate.core.settings.data.OcrSettings
 import com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination
 import com.github.ahatem.qtranslate.core.settings.data.SelectionReadSource
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
@@ -45,6 +47,7 @@ import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.shared.arch.Store
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -135,12 +138,29 @@ class MainStore(
     private val quickTranslateGenerations = AtomicLong()
 
     /**
-     * Screen OCR has its own request owner. Like [TranslationRequestOwner], it makes the newest
-     * capture supersede older work, so a slow recognition cannot overwrite a newer result or
-     * start a translation for a workflow the user already replaced.
+     * Screen OCR has its own publication owner. Ownership and every OCR-derived state/event
+     * decision share one lock, so a superseded capture can never become externally visible after
+     * a newer one has taken over. Cancellation alone is not the contract: a coroutine may already
+     * be inside publication.
      */
-    private val ocrRequestGenerations = AtomicLong()
-    private var ocrJob: Job? = null
+    private val ocrOwner = OcrRequestOwner()
+
+    /**
+     * The translation request this OCR workflow started, if any. A newer capture cancels it by
+     * identity, not by touching whatever translation happens to be current.
+     */
+    @Volatile
+    private var ocrTranslation: OcrTranslation? = null
+
+    private data class OcrTranslation(val requestId: Long, val quick: Boolean)
+
+    /**
+     * Test seam at the point where an older OCR request has returned but has not published yet.
+     * Production leaves it null. A deterministic race test holds one request there and lets a
+     * newer workflow take ownership.
+     */
+    internal var beforeOcrPublication: ((token: Long) -> Unit)? = null
+    internal var afterOcrPublication: ((token: Long) -> Unit)? = null
 
     /**
      * The input text a non-typing workflow just placed in the editor. The instant-translation
@@ -596,7 +616,11 @@ class MainStore(
                 // finish TTS setup. The handler also checks the request token after translation.
                 cancelTranslationWork()
                 clearComparisonState()
-                scope.launch { handleShowQuickTranslate(intent, generation) }
+                scope.launch(
+                    start = if (intent.ocrWorkflow) CoroutineStart.UNDISPATCHED else CoroutineStart.DEFAULT
+                ) {
+                    handleShowQuickTranslate(intent, generation)
+                }
             }
 
             is MainIntent.LookupWord -> scope.launch { handleLookupWord(intent) }
@@ -701,125 +725,244 @@ class MainStore(
     /**
      * Starts one capture workflow and makes it the only OCR request allowed to publish.
      *
-     * Copy Image deliberately stays outside the coroutine: it is a cheap clipboard operation and
-     * must not wait for a provider. It still invalidates older OCR work, because choosing it is a
-     * new workflow action.
+     * Copy Image never waits for a provider, but it still runs through the same fenced event
+     * owner: choosing it is a new workflow action, and an older capture must not publish after it.
      */
     private fun startOcrWorkflow(
         image: com.github.ahatem.qtranslate.api.ocr.ImageData,
         action: OcrPostSelectionAction,
         destinationOverride: OcrTranslationDestination?,
     ) {
-        val generation = ocrRequestGenerations.incrementAndGet()
-        ocrJob?.cancel()
-        ocrJob = null
+        val claim = ocrOwner.claim() ?: return
+        claim.previousJob?.cancel()
+        cancelOcrTranslation(ocrTranslation)
+        ocrTranslation = null
+        val token = claim.token
 
         when (action) {
-            OcrPostSelectionAction.COPY_IMAGE -> {
-                scope.launch {
-                    if (!isCurrentOcrRequest(generation)) return@launch
-                    sendEvent(MainEvent.CopyImageToClipboard(image))
-                    updateStatusBar(StatusCode.OcrImageCopied, NotificationType.SUCCESS, true)
-                }
+            OcrPostSelectionAction.COPY_IMAGE -> startOwnedOcrJob(token) {
+                publishOcrEvent(token, MainEvent.CopyImageToClipboard(image))
+                publishOcrStatus(token, StatusCode.OcrImageCopied, NotificationType.SUCCESS, true)
             }
-            OcrPostSelectionAction.OPEN_WORKSPACE -> {
-                scope.launch {
-                    if (!isCurrentOcrRequest(generation)) return@launch
-                    sendEvent(MainEvent.OpenOcrWorkspace(image = image, autoTranslate = false))
-                }
+            OcrPostSelectionAction.OPEN_WORKSPACE -> startOwnedOcrJob(token) {
+                publishOcrEvent(
+                    token,
+                    MainEvent.OpenOcrWorkspace(image = image, autoTranslate = false),
+                )
             }
             OcrPostSelectionAction.SHOW_ACTIONS -> Unit
             OcrPostSelectionAction.TRANSLATE,
-            OcrPostSelectionAction.COPY_TEXT -> {
-                ocrJob = scope.launch {
-                    handleOcrWorkflow(image, action, destinationOverride, generation)
-                }
+            OcrPostSelectionAction.COPY_TEXT -> startOwnedOcrJob(token) {
+                handleOcrWorkflow(image, action, destinationOverride, token)
             }
         }
+    }
+
+    /**
+     * Installs the job slot before the lazy body runs. If a newer workflow already owns OCR by
+     * the time the job is created, the candidate is detached and never starts.
+     */
+    private fun startOwnedOcrJob(token: Long, block: suspend () -> Unit): Job {
+        val candidate = scope.launch(start = CoroutineStart.LAZY) { block() }
+        if (!ocrOwner.install(token, candidate)) {
+            candidate.cancel()
+            return candidate
+        }
+        candidate.start()
+        return candidate
     }
 
     private suspend fun handleOcrWorkflow(
         image: com.github.ahatem.qtranslate.api.ocr.ImageData,
         action: OcrPostSelectionAction,
         destinationOverride: OcrTranslationDestination?,
-        generation: Long,
+        token: Long,
     ) {
         val settings = settingsState.value.ocr
         val language = resolveOcrLanguage(settings.recognitionLanguage, _state.value.sourceLanguage)
         val outcome = ocrAndTranslateUseCase.extract(
             image = image,
             language = language,
-            onStatusUpdate = ::updateStatusBar,
+            onStatusUpdate = { code, type, isTemporary ->
+                publishOcrStatus(token, code, type, isTemporary)
+            },
         )
-        if (!isCurrentOcrRequest(generation)) return
 
+        beforeOcrPublication?.invoke(token)
+        val publication = ocrOwner.withCurrent(token) {
+            publishOcrOutcome(
+                image = image,
+                action = action,
+                destinationOverride = destinationOverride,
+                settings = settings,
+                language = language,
+                outcome = outcome,
+            )
+        }
+        if (publication == null) {
+            afterOcrPublication?.invoke(token)
+            return
+        }
+        afterOcrPublication?.invoke(token)
+
+        publication.events.forEach { event ->
+            publishOcrEvent(token, event)
+        }
+        if (publication.startTranslation) {
+            // The translation claim happens inside the OCR ownership block: a newer OCR claim
+            // either happens before (and this launch is refused) or after (and it cancels the
+            // translation by the identity captured here). Undispatched so the callback runs
+            // before the lock is released.
+            ocrOwner.withCurrent(token) {
+                var claimed: Long? = null
+                scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    translateText(
+                        origin = TranslationOrigin.OCR,
+                        comparisonPolicy = ComparisonPolicy.DISABLED,
+                        onRequestClaimed = { claimed = it },
+                    )
+                }
+                ocrTranslation = claimed?.let { OcrTranslation(it, quick = false) }
+            }
+        }
+    }
+
+    /**
+     * The publication decision and every main-state write it owns happen while [token] is still
+     * current. Events are returned and only queued after the ownership block, still fenced by the
+     * same token so a newer workflow drops them at consumption time too.
+     */
+    private fun publishOcrOutcome(
+        image: com.github.ahatem.qtranslate.api.ocr.ImageData,
+        action: OcrPostSelectionAction,
+        destinationOverride: OcrTranslationDestination?,
+        settings: OcrSettings,
+        language: LanguageCode,
+        outcome: OcrExtractionOutcome,
+    ): OcrPublication {
         val result = (outcome as? OcrExtractionOutcome.Success)?.result
         val preparedText = result?.let { preprocessOcrText(it.text, settings) }.orEmpty()
         if (preparedText.isBlank()) {
             // The capture overlay has already closed and the main window was hidden for it.
             // A recognition failure must not strand the user on an invisible window with only
             // a hidden status-bar message. Workspace actions restore their own window.
-            if (action == OcrPostSelectionAction.TRANSLATE ||
+            return if (action == OcrPostSelectionAction.TRANSLATE ||
                 action == OcrPostSelectionAction.COPY_TEXT
             ) {
-                sendEvent(MainEvent.ShowMainWindow)
+                OcrPublication(events = listOf(MainEvent.ShowMainWindow))
+            } else {
+                OcrPublication()
             }
-            return
         }
         val recognized = requireNotNull(result)
 
-        when (action) {
-            OcrPostSelectionAction.COPY_TEXT -> {
-                sendEvent(MainEvent.CopyToClipboard(preparedText))
-                updateStatusBar(StatusCode.OcrTextCopied, NotificationType.INFO, true)
-            }
-            OcrPostSelectionAction.TRANSLATE -> {
-                when (destinationOverride ?: settings.translationDestination) {
-                    OcrTranslationDestination.QUICK_TRANSLATE -> {
-                        // Canonical Quick path: it owns cancellation, comparison clearing,
-                        // popup visibility and request generation. Do not reproduce them here.
-                        dispatch(MainIntent.ShowQuickTranslate(preparedText))
-                    }
-                    OcrTranslationDestination.OCR_WORKSPACE -> {
-                        sendEvent(
-                            MainEvent.OpenOcrWorkspace(
-                                image = image,
-                                autoTranslate = true,
-                                initialText = preparedText,
-                                initialRegions = recognized.regions,
-                            )
-                        )
-                    }
-                    OcrTranslationDestination.MAIN_WINDOW -> {
-                        if (!isCurrentOcrRequest(generation)) return
-                        // The main input's own line-break policy still applies, exactly as it
-                        // does to text typed or pasted there. Quick Translate applies it too.
-                        val mainText = prepareInputText(
+        return when (action) {
+            OcrPostSelectionAction.COPY_TEXT -> OcrPublication(
+                events = listOf(
+                    MainEvent.CopyToClipboard(preparedText),
+                    MainEvent.UpdateStatusBar(StatusCode.OcrTextCopied, NotificationType.INFO, true),
+                )
+            )
+            OcrPostSelectionAction.TRANSLATE -> when (destinationOverride ?: settings.translationDestination) {
+                OcrTranslationDestination.QUICK_TRANSLATE -> {
+                    // Canonical Quick path: it owns cancellation, comparison clearing,
+                    // popup visibility and request generation. Do not reproduce them here.
+                    // Undispatched OCR ownership lets this workflow cancel exactly the Quick
+                    // translation it started when a newer capture supersedes it.
+                    var claimed: Long? = null
+                    dispatch(
+                        MainIntent.ShowQuickTranslate(
                             preparedText,
-                            settingsState.value.isRemoveLineBreaksEnabled,
+                            ocrWorkflow = true,
+                            onTranslationClaimed = { claimed = it },
                         )
-                        clearComparisonState()
-                        programmaticInputText = mainText
-                        _state.update {
-                            it.copy(
-                                inputText = mainText,
-                                detectedSourceLanguage = null,
-                                spellCheckCorrections = emptyList(),
-                            )
-                        }
-                        sendEvent(MainEvent.ShowMainWindow)
-                        translateText(TranslationOrigin.OCR, comparisonPolicy = ComparisonPolicy.DISABLED)
+                    )
+                    ocrTranslation = claimed?.let { OcrTranslation(it, quick = true) }
+                    OcrPublication()
+                }
+                OcrTranslationDestination.OCR_WORKSPACE -> OcrPublication(
+                    events = listOf(
+                        MainEvent.OpenOcrWorkspace(
+                            image = image,
+                            autoTranslate = true,
+                            initialText = preparedText,
+                            initialRegions = recognized.regions,
+                            initialLanguage = recognized.detectedLanguage
+                                ?.takeIf { it != LanguageCode.AUTO }
+                                ?: language.takeIf { it != LanguageCode.AUTO },
+                        )
+                    )
+                )
+                OcrTranslationDestination.MAIN_WINDOW -> {
+                    // The main input's own line-break policy still applies, exactly as it
+                    // does to text typed or pasted there. Quick Translate applies it too.
+                    val mainText = prepareInputText(
+                        preparedText,
+                        settingsState.value.isRemoveLineBreaksEnabled,
+                    )
+                    clearComparisonState()
+                    programmaticInputText = mainText
+                    _state.update {
+                        it.copy(
+                            inputText = mainText,
+                            detectedSourceLanguage = null,
+                            spellCheckCorrections = emptyList(),
+                        )
                     }
+                    OcrPublication(
+                        events = listOf(MainEvent.ShowMainWindow),
+                        startTranslation = true,
+                    )
                 }
             }
             OcrPostSelectionAction.COPY_IMAGE,
             OcrPostSelectionAction.OPEN_WORKSPACE,
-            OcrPostSelectionAction.SHOW_ACTIONS -> Unit
+            OcrPostSelectionAction.SHOW_ACTIONS -> OcrPublication()
         }
     }
 
-    private fun isCurrentOcrRequest(generation: Long): Boolean =
-        ocrRequestGenerations.get() == generation
+    private data class OcrPublication(
+        val events: List<MainEvent> = emptyList(),
+        val startTranslation: Boolean = false,
+    )
+
+    /**
+     * Queues an OCR-derived event behind an ownership check at consumption time. Even if the
+     * event was buffered before a newer workflow claimed OCR, the newer claim makes the publish
+     * action a no-op and the event is dropped instead of reaching the UI.
+     */
+    private suspend fun publishOcrEvent(token: Long, event: MainEvent) {
+        sendEvent(event) { publish ->
+            ocrOwner.withCurrent(token) { publish() }
+        }
+    }
+
+    private suspend fun publishOcrStatus(
+        token: Long,
+        code: StatusCode,
+        type: NotificationType,
+        isTemporary: Boolean,
+    ) {
+        publishOcrEvent(token, MainEvent.UpdateStatusBar(code, type, isTemporary))
+    }
+
+    /**
+     * Cancels a translation only while the OCR workflow that started it still owns it. A manual
+     * translation that has since claimed the workspace is left alone, and the loading/comparison
+     * state the OCR path owned is normalized even when no replacement translation starts.
+     */
+    private fun cancelOcrTranslation(translation: OcrTranslation?) {
+        if (translation == null) return
+        val wasLoading = _state.value.isLoading
+        if (!translationCoordinator.cancelIfCurrent(translation.requestId)) return
+        // A cancelled Quick request may have published LOADING comparison rows before its
+        // primary stopped; no later coroutine will resolve them.
+        if (translation.quick) clearComparisonState()
+        _state.update { it.copy(isLoading = false) }
+        if (wasLoading && translation.quick && _state.value.isQuickTranslateDialogVisible) {
+            dispatch(MainIntent.HideQuickTranslate)
+        }
+    }
 
     private suspend fun handleShowQuickTranslate(
         intent: MainIntent.ShowQuickTranslate,
@@ -895,7 +1038,11 @@ class MainStore(
         }
 
         // Let TranslateTextUseCase own isLoading — it sets it at the start of the job.
-        val completion = translateText(TranslationOrigin.QUICK, comparisonPolicy = quickComparisonPolicy())
+        val completion = translateText(
+            origin = TranslationOrigin.QUICK,
+            comparisonPolicy = quickComparisonPolicy(),
+            onRequestClaimed = intent.onTranslationClaimed,
+        )
         if (readSource != SelectionReadSource.TRANSLATION ||
             !SelectionTranslationReadGuard.shouldRead(
                 readRequested = intent.readSelectionAloud,
@@ -937,12 +1084,14 @@ class MainStore(
         textOverride: String? = null,
         extraOutputRequest: ExtraOutputRequest? = null,
         comparisonPolicy: ComparisonPolicy = ComparisonPolicy.DISABLED,
+        onRequestClaimed: ((Long) -> Unit)? = null,
     ): TranslationCompletion? {
         return translationCoordinator.translate(
             origin = origin,
             textOverride = textOverride,
             extraOutputRequest = extraOutputRequest,
             comparisonPolicy = comparisonPolicy,
+            onRequestClaimed = onRequestClaimed,
         )
     }
 
@@ -1183,9 +1332,7 @@ class MainStore(
         // right after this returns.
         cancelTranslationWork()
         cancelDocumentTranslation()
-        ocrRequestGenerations.incrementAndGet()
-        ocrJob?.cancel()
-        ocrJob = null
+        ocrOwner.close()?.previousJob?.cancel()
         dictionarySession.cancel()
         imageSession.cancel()
         if (settingsState.value.clearHistoryOnExit) {

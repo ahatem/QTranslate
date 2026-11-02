@@ -92,6 +92,21 @@ class TranslateTextUseCase(
     /** True only while [requestId] still owns the current translation result. */
     fun isCurrent(requestId: Long): Boolean = requestOwner.isCurrent(requestId)
 
+    /** Identity of the current translation request, used by origin owners that must fence it. */
+    internal fun currentRequestId(): Long = requestOwner.currentRequestId()
+
+    /**
+     * Cancels only the translation identified by [requestId]. Returns false when a newer
+     * translation has already taken ownership, so an OCR workflow cannot cancel unrelated work.
+     */
+    internal fun cancelIfCurrent(requestId: Long): Boolean {
+        val canceled = requestOwner.cancelIfCurrent(requestId) ?: return false
+        parallelComparisonUseCase?.invalidate(canceled.generation)
+        canceled.previousJob?.cancel(CancellationException("Superseded by a newer OCR workflow"))
+        retireExtraOutput("Superseded by a newer OCR workflow")
+        return true
+    }
+
     /**
      * Gates publication on still owning the request. Only the in-memory state write happens
      * under the lock — never a call into another subsystem — so translation and comparison
@@ -111,6 +126,7 @@ class TranslateTextUseCase(
         textOverride: String? = null,
         extraOutputRequest: ExtraOutputRequest? = null,
         comparisonPolicy: ComparisonPolicy = ComparisonPolicy.ENABLED,
+        onRequestClaimed: ((Long) -> Unit)? = null,
     ): TranslationCompletion? {
         val inputState = getState()
         val configuration = settingsState.value
@@ -124,6 +140,7 @@ class TranslateTextUseCase(
         val claim = requestOwner.claim()
         claim.previousJob?.cancel(CancellationException("New translation requested"))
         val requestId = claim.requestId
+        onRequestClaimed?.invoke(requestId)
         val translationGeneration = claim.generation
         // Outside the ownership lock: comparison ownership is a different subsystem.
         parallelComparisonUseCase?.begin(translationGeneration)

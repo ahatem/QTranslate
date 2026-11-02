@@ -12,13 +12,13 @@ import com.github.ahatem.qtranslate.core.ocr.resolveOcrLanguage
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.OcrSettings
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicLong
 
 /** A typed workspace failure the UI can localize without showing provider bodies. */
 sealed interface OcrWorkspaceError {
@@ -26,6 +26,8 @@ sealed interface OcrWorkspaceError {
     data object NoProvider : OcrWorkspaceError
     data object NoText : OcrWorkspaceError
     data object Timeout : OcrWorkspaceError
+    data object ImageOpenFailed : OcrWorkspaceError
+    data object ClipboardEmpty : OcrWorkspaceError
     data class Failed(val summary: String) : OcrWorkspaceError
 }
 
@@ -36,18 +38,26 @@ data class OcrWorkspaceState(
     val providers: List<OcrProviderInfo> = emptyList(),
     val providerId: String? = null,
     val languages: List<LanguageCode> = emptyList(),
+    /** The language requested for the next recognition run. */
     val language: LanguageCode = LanguageCode.AUTO,
+    /**
+     * The language that belongs to [recognizedText] itself, from the provider's detection or
+     * the explicit language that request used. Never rewritten by changing [language].
+     */
+    val recognizedLanguage: LanguageCode? = null,
     val recognizedText: String = "",
     val isEdited: Boolean = false,
     val isRecognizing: Boolean = false,
+    /** A new image input has been claimed and its bytes are still being materialized. */
+    val isLoadingImage: Boolean = false,
     val error: OcrWorkspaceError? = null,
     val regions: List<OCRTextRegion> = emptyList(),
     val showAnnotations: Boolean = false,
 ) {
     val hasImage: Boolean get() = image != null
     val hasText: Boolean get() = recognizedText.isNotBlank()
-    val canRunOcr: Boolean get() = image != null && providerId != null && !isRecognizing
-    val canTranslate: Boolean get() = hasText && !isRecognizing
+    val canRunOcr: Boolean get() = image != null && providerId != null && !isRecognizing && !isLoadingImage
+    val canTranslate: Boolean get() = hasText && !isRecognizing && !isLoadingImage
 }
 
 /**
@@ -59,8 +69,11 @@ data class OcrWorkspaceState(
  * comparison and auto-copy stay in one place. The workspace only owns which OCR source/edit is
  * current.
  *
- * Every mutation of OCR result state is fenced by [generation]. A late result from a superseded
- * provider switch, re-run, new image or closed window is dropped before it can touch state.
+ * ### Ownership
+ * Image-input ownership and OCR-request ownership move under one lock. Every state publication
+ * checks that ownership *inside* the same lock that commits it, so a superseded request cannot
+ * publish after a newer one has taken over. The lock never spans provider I/O or coroutine
+ * starts; those are detached and cancelled/started afterwards.
  */
 class OcrWorkspaceStore(
     private val scope: CoroutineScope,
@@ -75,10 +88,31 @@ class OcrWorkspaceStore(
     )
     val state: StateFlow<OcrWorkspaceState> = _state.asStateFlow()
 
-    private val generation = AtomicLong()
+    private val lock = Any()
+    private var generation: Long = 0L
+    private var inputGeneration: Long = 0L
     private var ocrJob: Job? = null
-    @Volatile
-    private var closed = false
+    private var closed: Boolean = false
+
+    /** Last successfully displayed input, restored when a new materialization fails. */
+    private var lastGoodState: OcrWorkspaceState? = null
+
+    /**
+     * Whether the current language came from an explicit user choice. Catalog refreshes and
+     * dynamic language lists must not overwrite that, while the initial adoption of a saved
+     * recognition language must still happen after a dynamic provider's list arrives.
+     */
+    private var languageChosenByUser: Boolean = false
+
+    /**
+     * Test seams around the publication attempt. Production leaves both null. A deterministic
+     * race test can hold one request exactly where an implementation without the ownership lock
+     * would be about to commit, then let a newer request own the store.
+     */
+    internal var beforePublication: ((token: Long) -> Unit)? = null
+    internal var afterPublication: ((token: Long) -> Unit)? = null
+
+    private data class StartedOcr(val previousJob: Job?, val job: Job)
 
     init {
         // The catalog is shared and eagerly populated. Adopt its current value synchronously so
@@ -86,7 +120,6 @@ class OcrWorkspaceStore(
         applyProviders(catalog.providers.value)
         scope.launch {
             catalog.providers.collect { providers ->
-                if (closed) return@collect
                 applyProviders(providers)
             }
         }
@@ -97,42 +130,143 @@ class OcrWorkspaceStore(
      * under the new provider's label. A changed provider or language is a new recognition context.
      */
     private fun applyProviders(providers: List<OcrProviderInfo>) {
-        val before = _state.value
-        val next = before.withProviders(providers)
-        val contextChanged = next.providerId != before.providerId || next.language != before.language
-        // A dynamic provider starts with an empty language list and fills it asynchronously.
-        // That metadata arrival is not a user-initiated context change: the in-flight request
-        // was sent with AUTO and the provider resolves it. Cancelling here made the first
-        // workspace auto-run disappear with no error.
-        val metadataOnly = before.providerId == next.providerId &&
-            before.languages.isEmpty() &&
-            next.languages.isNotEmpty()
-        if (contextChanged && before.isRecognizing && !metadataOnly) invalidateRequest()
-        _state.update { current ->
-            val updated = current.withProviders(providers)
-            if (contextChanged && !metadataOnly && current.isRecognizing) {
-                updated.copy(isRecognizing = false, error = null)
+        var previous: Job? = null
+        synchronized(lock) {
+            if (closed) return
+            val before = _state.value
+            val next = before.withProviders(providers)
+            val contextChanged = next.providerId != before.providerId || next.language != before.language
+            // A dynamic provider starts with an empty language list and fills it asynchronously.
+            // That metadata arrival is not a user-initiated context change: the in-flight request
+            // was sent with AUTO and the provider resolves it. Cancelling here made the first
+            // workspace auto-run disappear with no error.
+            val metadataOnly = before.providerId == next.providerId &&
+                before.languages.isEmpty() &&
+                next.languages.isNotEmpty()
+            if (contextChanged && before.isRecognizing && !metadataOnly) {
+                previous = invalidateLocked()
+                _state.value = next.copy(isRecognizing = false, error = null)
             } else {
-                updated
+                _state.value = next
             }
         }
+        previous?.cancel()
     }
 
-    fun openImage(image: ImageData, label: String, autoRun: Boolean = true) {
-        if (closed) return
-        invalidateRequest()
-        _state.update {
-            it.copy(
-                image = image,
-                imageLabel = label,
+    /**
+     * Claims a new image input synchronously, before any decoding or encoding starts.
+     *
+     * Every pending operation that belonged to the previous image is invalidated here, so the
+     * newest input owns the workspace from the moment the user asks for it.
+     */
+    fun beginImageInput(): Long? {
+        var previous: Job? = null
+        val token = synchronized(lock) {
+            if (closed) return null
+            val next = ++inputGeneration
+            previous = invalidateLocked()
+            val current = _state.value
+            if (!current.isLoadingImage && (current.image != null || current.hasText)) {
+                lastGoodState = current
+            }
+            _state.value = current.copy(
+                image = null,
+                imageLabel = "",
                 recognizedText = "",
+                recognizedLanguage = null,
                 isEdited = false,
                 regions = emptyList(),
                 error = null,
                 isRecognizing = false,
+                isLoadingImage = true,
             )
+            next
         }
-        if (autoRun) runOcr()
+        previous?.cancel()
+        return token
+    }
+
+    /**
+     * Publishes materialized bytes for [token], or refuses when a newer input already owns the
+     * workspace. The optional auto-run starts under the same ownership gate, so it cannot run
+     * against a later image.
+     */
+    fun completeImageInput(
+        token: Long,
+        image: ImageData,
+        label: String,
+        autoRun: Boolean,
+        initialText: String? = null,
+        initialRegions: List<OCRTextRegion> = emptyList(),
+        recognizedLanguage: LanguageCode? = null,
+    ): Boolean {
+        var started: StartedOcr? = null
+        synchronized(lock) {
+            if (closed || token != inputGeneration) return false
+            val current = _state.value
+            val next = current.copy(
+                image = image,
+                imageLabel = label,
+                recognizedText = initialText.orEmpty(),
+                recognizedLanguage = if (initialText != null) recognizedLanguage else null,
+                isEdited = false,
+                regions = if (initialText != null) initialRegions else emptyList(),
+                error = null,
+                isRecognizing = false,
+                isLoadingImage = false,
+            )
+            _state.value = next
+            lastGoodState = next
+            if (autoRun && initialText == null) started = startOcrLocked(next)
+        }
+        started?.previousJob?.cancel()
+        started?.job?.start()
+        return true
+    }
+
+    /** Publishes a typed failure only while [token] still owns the image input. */
+    fun failImageInput(token: Long, error: OcrWorkspaceError): Boolean {
+        synchronized(lock) {
+            if (closed || token != inputGeneration) return false
+            val fallback = lastGoodState
+            _state.update { current ->
+                if (fallback != null) {
+                    current.copy(
+                        image = fallback.image,
+                        imageLabel = fallback.imageLabel,
+                        recognizedText = fallback.recognizedText,
+                        recognizedLanguage = fallback.recognizedLanguage,
+                        isEdited = fallback.isEdited,
+                        regions = fallback.regions,
+                        isRecognizing = false,
+                        isLoadingImage = false,
+                        error = error,
+                    )
+                } else {
+                    current.copy(
+                        image = null,
+                        imageLabel = "",
+                        recognizedText = "",
+                        recognizedLanguage = null,
+                        regions = emptyList(),
+                        isRecognizing = false,
+                        isLoadingImage = false,
+                        error = error,
+                    )
+                }
+            }
+            return true
+        }
+    }
+
+    fun isImageInputCurrent(token: Long): Boolean = synchronized(lock) {
+        !closed && token == inputGeneration
+    }
+
+    /** Convenience for callers that already hold materialized bytes. */
+    fun openImage(image: ImageData, label: String, autoRun: Boolean = true) {
+        val token = beginImageInput() ?: return
+        completeImageInput(token, image, label, autoRun)
     }
 
     /**
@@ -145,135 +279,187 @@ class OcrWorkspaceStore(
         label: String,
         text: String,
         regions: List<OCRTextRegion>,
+        recognizedLanguage: LanguageCode? = null,
     ) {
-        if (closed) return
-        invalidateRequest()
-        _state.update {
-            it.copy(
-                image = image,
-                imageLabel = label,
-                recognizedText = text,
-                isEdited = false,
-                regions = regions,
-                error = null,
-                isRecognizing = false,
-            )
-        }
+        val token = beginImageInput() ?: return
+        completeImageInput(
+            token = token,
+            image = image,
+            label = label,
+            autoRun = false,
+            initialText = text,
+            initialRegions = regions,
+            recognizedLanguage = recognizedLanguage,
+        )
     }
 
     fun selectProvider(providerId: String?) {
-        if (closed) return
-        val provider = _state.value.providers.firstOrNull { it.id == providerId }
-        invalidateRequest()
-        _state.update { current ->
-            current.copy(
-                providerId = provider?.id,
-                languages = provider?.languages.orEmpty(),
-                language = defaultLanguage(provider),
-                isRecognizing = false,
-                error = null,
-            )
+        var previous: Job? = null
+        synchronized(lock) {
+            if (closed) return
+            val provider = _state.value.providers.firstOrNull { it.id == providerId }
+            previous = invalidateLocked()
+            languageChosenByUser = false
+            _state.update { current ->
+                current.copy(
+                    providerId = provider?.id,
+                    languages = provider?.languages.orEmpty(),
+                    language = defaultLanguage(provider),
+                    isRecognizing = false,
+                    error = null,
+                )
+            }
         }
+        previous?.cancel()
     }
 
     fun selectLanguage(language: LanguageCode) {
-        if (closed) return
-        _state.update { it.copy(language = language) }
+        synchronized(lock) {
+            if (closed) return
+            languageChosenByUser = true
+            _state.update { it.copy(language = language) }
+        }
     }
 
     fun runOcr() {
-        if (closed) return
-        val snapshot = _state.value
-        val image = snapshot.image
-        if (image == null) {
-            _state.update { it.copy(error = OcrWorkspaceError.NoImage) }
-            return
-        }
-        val providerId = snapshot.providerId
-        if (providerId == null) {
-            _state.update { it.copy(error = OcrWorkspaceError.NoProvider) }
-            return
-        }
-
-        invalidateRequest()
-        val requestGeneration = generation.incrementAndGet()
-        _state.update { it.copy(isRecognizing = true, error = null) }
-        ocrJob = scope.launch {
-            val outcome = extraction.extract(
-                image = image,
-                language = snapshot.language,
-                serviceId = providerId,
-            )
-            if (closed || generation.get() != requestGeneration) return@launch
-
-            _state.update { current ->
-                // Re-check at publication time, not only before the update: invalidation can
-                // happen on another thread between the first check and this lambda.
-                if (closed || generation.get() != requestGeneration) {
-                    current
-                } else when (outcome) {
-                    is OcrExtractionOutcome.Success -> {
-                        val text = preprocessOcrText(outcome.result.text, ocrSettings())
-                        current.copy(
-                            recognizedText = text,
-                            isEdited = false,
-                            isRecognizing = false,
-                            error = null,
-                            regions = outcome.result.regions,
-                        )
-                    }
-                    OcrExtractionOutcome.NoText -> current.copy(
-                        recognizedText = "",
-                        isEdited = false,
-                        isRecognizing = false,
-                        error = OcrWorkspaceError.NoText,
-                        regions = emptyList(),
-                    )
-                    OcrExtractionOutcome.Timeout -> current.copy(
-                        isRecognizing = false,
-                        error = OcrWorkspaceError.Timeout,
-                    )
-                    OcrExtractionOutcome.NoService -> current.copy(
-                        isRecognizing = false,
-                        error = OcrWorkspaceError.NoProvider,
-                    )
-                    is OcrExtractionOutcome.Failure -> current.copy(
-                        isRecognizing = false,
-                        error = OcrWorkspaceError.Failed(outcome.summary),
-                    )
-                }
+        var started: StartedOcr? = null
+        synchronized(lock) {
+            if (closed) return
+            val snapshot = _state.value
+            if (snapshot.isLoadingImage) return
+            if (snapshot.image == null) {
+                _state.value = snapshot.copy(error = OcrWorkspaceError.NoImage)
+                return
             }
+            if (snapshot.providerId == null) {
+                _state.value = snapshot.copy(error = OcrWorkspaceError.NoProvider)
+                return
+            }
+            started = startOcrLocked(snapshot)
         }
+        started?.previousJob?.cancel()
+        started?.job?.start()
     }
 
     fun cancelOcr() {
-        if (closed) return
-        invalidateRequest()
-        _state.update { it.copy(isRecognizing = false) }
+        var previous: Job? = null
+        synchronized(lock) {
+            if (closed) return
+            previous = invalidateLocked()
+            _state.update { it.copy(isRecognizing = false) }
+        }
+        previous?.cancel()
     }
 
     fun updateText(text: String) {
-        if (closed) return
-        _state.update { it.copy(recognizedText = text, isEdited = true) }
+        synchronized(lock) {
+            if (closed) return
+            // Editing changes the text, not the language it was recognized in.
+            _state.update { it.copy(recognizedText = text, isEdited = true) }
+            lastGoodState = _state.value
+        }
     }
 
     fun toggleAnnotations() {
-        if (closed) return
-        _state.update { it.copy(showAnnotations = !it.showAnnotations) }
+        synchronized(lock) {
+            if (closed) return
+            _state.update { it.copy(showAnnotations = !it.showAnnotations) }
+        }
     }
 
     /** Cancels owned work and permanently stops this store from mutating state. */
     fun close() {
-        if (closed) return
-        closed = true
-        invalidateRequest()
-        _state.update { it.copy(isRecognizing = false) }
+        var previous: Job? = null
+        synchronized(lock) {
+            if (closed) return
+            closed = true
+            generation += 1
+            previous = ocrJob
+            ocrJob = null
+            _state.update { it.copy(isRecognizing = false) }
+        }
+        previous?.cancel()
     }
 
-    private fun invalidateRequest() {
-        generation.incrementAndGet()
-        ocrJob?.cancel()
+    private fun invalidateLocked(): Job? {
+        generation += 1
+        val previous = ocrJob
         ocrJob = null
+        return previous
+    }
+
+    /**
+     * Starts recognition from a snapshot that already belongs to the caller while the lock is
+     * held. The job is lazy so its slot is installed before any provider code can run.
+     */
+    private fun startOcrLocked(snapshot: OcrWorkspaceState): StartedOcr? {
+        val image = snapshot.image ?: return null
+        val providerId = snapshot.providerId ?: return null
+        val previous = invalidateLocked()
+        val token = generation
+        _state.value = snapshot.copy(isRecognizing = true, error = null)
+        val requestLanguage = snapshot.language
+        val candidate = scope.launch(start = CoroutineStart.LAZY) {
+            val self = kotlinx.coroutines.currentCoroutineContext()[Job]
+            val outcome = extraction.extract(
+                image = image,
+                language = requestLanguage,
+                serviceId = providerId,
+            )
+            beforePublication?.invoke(token)
+            var published = false
+            synchronized(lock) {
+                if (!closed && token == generation) {
+                    // Re-check and commit under the same lock: no newer image, provider, re-run
+                    // or close can become current between these lines.
+                    _state.value = when (outcome) {
+                        is OcrExtractionOutcome.Success -> {
+                            val text = preprocessOcrText(outcome.result.text, ocrSettings())
+                            _state.value.copy(
+                                recognizedText = text,
+                                recognizedLanguage = outcome.result.detectedLanguage
+                                    ?.takeIf { it != LanguageCode.AUTO }
+                                    ?: requestLanguage.takeIf { it != LanguageCode.AUTO },
+                                isEdited = false,
+                                isRecognizing = false,
+                                error = null,
+                                regions = outcome.result.regions,
+                            )
+                        }
+                        OcrExtractionOutcome.NoText -> _state.value.copy(
+                            recognizedText = "",
+                            recognizedLanguage = null,
+                            isEdited = false,
+                            isRecognizing = false,
+                            error = OcrWorkspaceError.NoText,
+                            regions = emptyList(),
+                        )
+                        OcrExtractionOutcome.Timeout -> _state.value.copy(
+                            isRecognizing = false,
+                            error = OcrWorkspaceError.Timeout,
+                        )
+                        OcrExtractionOutcome.NoService -> _state.value.copy(
+                            isRecognizing = false,
+                            error = OcrWorkspaceError.NoProvider,
+                        )
+                        is OcrExtractionOutcome.Failure -> _state.value.copy(
+                            isRecognizing = false,
+                            error = OcrWorkspaceError.Failed(outcome.summary),
+                        )
+                    }
+                    if (ocrJob === self) ocrJob = null
+                    lastGoodState = _state.value
+                    published = true
+                }
+            }
+            if (!published) {
+                afterPublication?.invoke(token)
+                return@launch
+            }
+            afterPublication?.invoke(token)
+        }
+        ocrJob = candidate
+        return StartedOcr(previous, candidate)
     }
 
     private fun OcrWorkspaceState.withProviders(providers: List<OcrProviderInfo>): OcrWorkspaceState {
@@ -285,9 +471,16 @@ class OcrWorkspaceStore(
             ?: configured?.takeIf { id -> providers.any { it.id == id } }
             ?: providers.firstOrNull()?.id
         val provider = providers.firstOrNull { it.id == selected }
-        val language = language.takeIf { candidate ->
-            provider != null && (provider.languages.isEmpty() || candidate in provider.languages)
-        } ?: defaultLanguage(provider)
+        val language = if (languageChosenByUser &&
+            (provider == null ||
+                provider.languages.isEmpty() ||
+                language in provider.languages ||
+                language == LanguageCode.AUTO)
+        ) {
+            language
+        } else {
+            defaultLanguage(provider)
+        }
         return copy(
             providers = providers,
             providerId = selected,
@@ -296,18 +489,25 @@ class OcrWorkspaceStore(
         )
     }
 
+    /**
+     * Resolves the persisted recognition-language policy against [provider].
+     *
+     * Blank means "follow the translation source". An explicit tag wins when the provider
+     * declares it. AUTO is passed through: it is the request contract's default and providers
+     * such as System OCR resolve it internally even when their advertised list does not include
+     * it. Anything unsupported falls back to AUTO, then to the provider's first language.
+     */
     private fun defaultLanguage(provider: OcrProviderInfo?): LanguageCode {
         val languages = provider?.languages.orEmpty()
         if (languages.isEmpty()) return LanguageCode.AUTO
         val configured = ocrSettings().recognitionLanguage
-        if (configured.isNotBlank()) {
-            val resolved = resolveOcrLanguage(configured, translationSource(), languages)
-            if (resolved == LanguageCode.AUTO || resolved in languages) return resolved
-            languages.firstOrNull { it == LanguageCode.AUTO }?.let { return it }
-            return languages.first()
+        val resolved = if (configured.isNotBlank()) {
+            resolveOcrLanguage(configured, translationSource(), languages)
+        } else {
+            translationSource()
         }
-        val source = translationSource()
-        if (source != LanguageCode.AUTO && source in languages) return source
+        if (resolved == LanguageCode.AUTO) return LanguageCode.AUTO
+        if (resolved in languages) return resolved
         return languages.firstOrNull { it == LanguageCode.AUTO } ?: languages.first()
     }
 }
