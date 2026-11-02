@@ -82,14 +82,13 @@ class SnippingToolDialog(
     }
 
     private fun dispatchOcrAndTranslate(image: ImageData) {
-        val dest = settingsStore.state.value.workingConfiguration.ocrTranslationDestination
-        val openInQuickTranslate = dest == OcrTranslationDestination.POPUP
-        if (!openInQuickTranslate) {
+        val destination = settingsStore.state.value.workingConfiguration.ocrTranslationDestination
+        if (shouldPresentMainWindow(destination)) {
             owner.isVisible = true
             owner.state = Frame.NORMAL
             owner.toFront()
         }
-        mainStore.dispatch(MainIntent.OcrAndTranslateImage(image, openInQuickTranslate = openInQuickTranslate))
+        mainStore.dispatch(MainIntent.OcrAndTranslateImage(image, destination))
         dispose()
     }
 
@@ -147,3 +146,11 @@ class SnippingToolDialog(
     }
 
 }
+
+/**
+ * The capture dialog minimises the main window before it opens. Only the main-window
+ * destination may bring it back: the popup destination must leave it hidden so the result
+ * appears in Quick Translate alone.
+ */
+internal fun shouldPresentMainWindow(destination: OcrTranslationDestination): Boolean =
+    destination == OcrTranslationDestination.MAIN_WINDOW

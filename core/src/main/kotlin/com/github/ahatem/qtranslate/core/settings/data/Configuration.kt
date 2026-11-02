@@ -225,7 +225,13 @@ data class Configuration(
      * Mohamed's request.
      */
     val isRemoveLineBreaksEnabled: Boolean = false,
-    val ocrTranslationDestination: OcrTranslationDestination = OcrTranslationDestination.POPUP,
+    /**
+     * Where an OCR translation result is shown after a screen capture.
+     *
+     * Defaults to the main window, which is where OCR results went before this setting existed,
+     * so an existing configuration without the key keeps its established workflow.
+     */
+    val ocrTranslationDestination: OcrTranslationDestination = OcrTranslationDestination.MAIN_WINDOW,
     val translationRules: List<TranslationRule> = emptyList(),
 
     // ---- Language Preferences ----
@@ -382,7 +388,7 @@ data class Configuration(
                 summaryLength                = StandardOptions.SUMMARY_LENGTH.defaultValue,
                 rewriteStyle                 = StandardOptions.REWRITE_STYLE.defaultValue,
                 isRemoveLineBreaksEnabled    = false,
-                ocrTranslationDestination    = OcrTranslationDestination.POPUP,
+                ocrTranslationDestination    = OcrTranslationDestination.MAIN_WINDOW,
                 pinnedLanguages              = emptyList(),
                 closeButtonBehavior          = CloseButtonBehavior.ASK,
                 minimizeButtonBehavior       = MinimizeButtonBehavior.HIDE_TO_TRAY,

@@ -3,38 +3,29 @@ package com.github.ahatem.qtranslate.core.settings.data
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 class OcrTranslationDestinationTest {
 
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true; prettyPrint = true }
+    private val json = Json { ignoreUnknownKeys = true }
 
     @Test
-    fun `default destination is POPUP`() {
-        assertEquals(OcrTranslationDestination.POPUP, Configuration.DEFAULT.ocrTranslationDestination)
+    fun `default destination preserves the existing main-window behavior`() {
+        assertEquals(OcrTranslationDestination.MAIN_WINDOW, Configuration.DEFAULT.ocrTranslationDestination)
     }
 
     @Test
-    fun `round-trip serialization preserves POPUP destination`() {
-        val config = Configuration.DEFAULT.copy(ocrTranslationDestination = OcrTranslationDestination.POPUP)
-        val serialized = json.encodeToString(Configuration.serializer(), config)
-        val deserialized = json.decodeFromString(Configuration.serializer(), serialized)
+    fun `every destination round-trips through configuration serialization`() {
+        for (destination in OcrTranslationDestination.entries) {
+            val config = Configuration.DEFAULT.copy(ocrTranslationDestination = destination)
+            val serialized = json.encodeToString(Configuration.serializer(), config)
+            val deserialized = json.decodeFromString(Configuration.serializer(), serialized)
 
-        assertEquals(OcrTranslationDestination.POPUP, deserialized.ocrTranslationDestination)
+            assertEquals(destination, deserialized.ocrTranslationDestination)
+        }
     }
 
     @Test
-    fun `round-trip serialization preserves MAIN_WINDOW destination`() {
-        val config = Configuration.DEFAULT.copy(ocrTranslationDestination = OcrTranslationDestination.MAIN_WINDOW)
-        val serialized = json.encodeToString(Configuration.serializer(), config)
-        val deserialized = json.decodeFromString(Configuration.serializer(), serialized)
-
-        assertEquals(OcrTranslationDestination.MAIN_WINDOW, deserialized.ocrTranslationDestination)
-    }
-
-    @Test
-    fun `deserializing older configuration without ocrTranslationDestination defaults to POPUP`() {
+    fun `deserializing older configuration without ocrTranslationDestination keeps the main window`() {
         val legacyJson = """
             {
                 "configVersion": 7,
@@ -43,6 +34,6 @@ class OcrTranslationDestinationTest {
         """.trimIndent()
 
         val deserialized = json.decodeFromString(Configuration.serializer(), legacyJson)
-        assertEquals(OcrTranslationDestination.POPUP, deserialized.ocrTranslationDestination)
+        assertEquals(OcrTranslationDestination.MAIN_WINDOW, deserialized.ocrTranslationDestination)
     }
 }

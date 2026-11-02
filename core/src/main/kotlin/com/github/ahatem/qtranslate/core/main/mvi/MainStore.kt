@@ -16,6 +16,7 @@ import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import com.github.ahatem.qtranslate.core.settings.data.effectiveLayoutPresetId
 import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
+import com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination
 import com.github.ahatem.qtranslate.core.settings.data.SelectionReadSource
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.AppConstants
@@ -81,9 +82,11 @@ internal fun MainState.clearSpellCorrectionsForInputChange(previous: SpellCheckI
  * This prevents out-of-order state updates from rapid synchronous dispatches.
  *
  * ### OCR flow
- * [MainIntent.OcrAndTranslateImage] extracts text via [OcrAndTranslateUseCase],
- * writes the result into [MainState.inputText], then triggers translation — the
- * same path as if the user had typed the text manually.
+ * [MainIntent.OcrAndTranslateImage] extracts text via [OcrAndTranslateUseCase], then routes it to
+ * the destination carried by the intent. The main window writes the text into
+ * [MainState.inputText] and translates it like manual input. The Quick Translate destination
+ * dispatches the canonical [MainIntent.ShowQuickTranslate] intent, so OCR uses the same request
+ * ownership and popup lifecycle as every other Quick Translate entry point.
  */
 class MainStore(
     private val scope: CoroutineScope,
@@ -607,16 +610,19 @@ class MainStore(
 
         if (extractedText.isBlank()) return
 
-        if (intent.openInQuickTranslate) {
-            val generation = quickTranslateGenerations.incrementAndGet()
-            translateTextUseCase.cancel()
-            clearComparisonState()
-            handleShowQuickTranslate(MainIntent.ShowQuickTranslate(extractedText), generation)
-        } else {
-            // Write extracted text into input then translate — same path as manual typing.
-            clearComparisonState()
-            _state.update { it.copy(inputText = extractedText) }
-            translateText(TranslationOrigin.OCR, comparisonPolicy = ComparisonPolicy.DISABLED)
+        when (intent.destination) {
+            OcrTranslationDestination.POPUP ->
+                // Reuse the normal Quick Translate entry point: it owns the generation token,
+                // cancels the previous translation work (including extra output), clears the
+                // comparison rows and starts the popup request.
+                dispatch(MainIntent.ShowQuickTranslate(extractedText))
+
+            OcrTranslationDestination.MAIN_WINDOW -> {
+                // Write extracted text into input then translate — same path as manual typing.
+                clearComparisonState()
+                _state.update { it.copy(inputText = extractedText) }
+                translateText(TranslationOrigin.OCR, comparisonPolicy = ComparisonPolicy.DISABLED)
+            }
         }
     }
 
