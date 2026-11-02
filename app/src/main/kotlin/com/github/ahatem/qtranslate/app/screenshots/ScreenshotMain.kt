@@ -112,7 +112,9 @@ fun main(args: Array<String>): Unit = runBlocking {
     } ?: logger.warn("No services became available; shots will show the empty state.")
 
     with(Shots(deps, outputDir, logger)) {
-        if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "document") {
+        if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "ocr-preview") {
+            ocrPreview()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "document") {
             documentTranslation()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "selector") {
             selectorAudit()
@@ -195,6 +197,120 @@ private class Shots(
     }
 
     // ── main window ───────────────────────────────────────────────────────────
+
+    /** Isolated presentation fixture: sample text, translation and transient states are synthetic. */
+    suspend fun ocrPreview() {
+        for ((theme, scale, label) in listOf(Triple(Scenes.DARK, 100, "dark"), Triple(Scenes.LIGHT, 100, "light"), Triple(Scenes.DARK, 200, "hidpi"))) {
+            val config = Scenes.classic(theme).copy(uiScale = scale)
+            sceneIsDark = theme == Scenes.DARK
+            sceneScalePercent = scale
+            AppUiSetup.apply(config, deps.themeManager)
+            runCatching { deps.localizationManager.loadLanguage(LanguageCode("en")) }
+            lateinit var dialog: com.github.ahatem.qtranslate.ui.swing.ocr.OcrWorkspaceDialog
+            onUi {
+                dialog = com.github.ahatem.qtranslate.ui.swing.ocr.OcrWorkspaceDialog(
+                    null, deps.mainStore, deps.settingsStore, deps.localizationManager,
+                    deps.ocrExtractionUseCase, ocrCatalog, {}, {}, {}, {},
+                ).apply { size = Dimension(900, 600); isVisible = true }
+            }
+            delay(1000)
+            write("ocr-empty-$label", paintAfterLayout("ocr-empty-$label", dialog.rootPane))
+            if (label == "hidpi") {
+                onUi { dialog.size = Dimension(760, 460); dialog.validate() }
+                write("ocr-empty-small-hidpi", paintAfterLayout("ocr-empty-small-hidpi", dialog.rootPane))
+                onUi { dialog.size = Dimension(900, 600); dialog.validate() }
+            }
+            val sample = BufferedImage(500, 180, BufferedImage.TYPE_INT_RGB)
+            sample.createGraphics().apply {
+                color = java.awt.Color.WHITE; fillRect(0, 0, 500, 180)
+                color = java.awt.Color.DARK_GRAY; font = java.awt.Font("SansSerif", java.awt.Font.PLAIN, 26)
+                drawString("Welcome to QTranslate", 25, 60); drawString("Translate text from images", 25, 115); dispose()
+            }
+            val bytes = java.io.ByteArrayOutputStream().apply { ImageIO.write(sample, "png", this) }.toByteArray()
+            onUi {
+                dialog.openImage(com.github.ahatem.qtranslate.api.ocr.ImageData(bytes, "png", 500, 180), "Sample", false,
+                    "Welcome to QTranslate\nTranslate text from images", listOf(
+                        com.github.ahatem.qtranslate.api.ocr.OCRTextRegion("Welcome to QTranslate", 20, 32, 310, 68),
+                        com.github.ahatem.qtranslate.api.ocr.OCRTextRegion("Translate text from images", 20, 87, 360, 122),
+                    ))
+            }
+            delay(1000)
+            onUi {
+                val field = dialog.javaClass.getDeclaredField("translationArea").apply { isAccessible = true }
+                (field.get(dialog) as javax.swing.JTextArea).text = "Bienvenue dans QTranslate\nTraduire le texte des images"
+            }
+            onUi {
+                val field = dialog.javaClass.getDeclaredField("ocrTextArea").apply { isAccessible = true }
+                (field.get(dialog) as javax.swing.JTextArea).caretPosition = 5
+            }
+            write("ocr-result-$label", paintAfterLayout("ocr-result-$label", dialog.rootPane))
+            if (label == "dark") {
+                onUi {
+                    val field = dialog.javaClass.getDeclaredField("recognitionOptions").apply { isAccessible = true }
+                    (field.get(dialog) as javax.swing.JButton).doClick()
+                }
+                lateinit var choices: javax.swing.JPopupMenu
+                onUi { choices = javax.swing.MenuSelectionManager.defaultManager().selectedPath.filterIsInstance<javax.swing.JPopupMenu>().last() }
+                write("ocr-recognition-menu", paintAfterLayout("ocr-recognition-menu", choices))
+                onUi { javax.swing.MenuSelectionManager.defaultManager().clearSelectedPath() }
+                val stateField = dialog.javaClass.getDeclaredField("lastOcrState").apply { isAccessible = true }
+                val render = dialog.javaClass.getDeclaredMethod("renderOcr", com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceState::class.java).apply { isAccessible = true }
+                lateinit var state: com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceState
+                onUi {
+                    state = stateField.get(dialog) as com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceState
+                    render.invoke(dialog, state.copy(isRecognizing = true, recognizedText = "", regions = emptyList()))
+                }
+                write("ocr-running", paintAfterLayout("ocr-running", dialog.rootPane))
+                onUi { render.invoke(dialog, state.copy(recognizedText = "", regions = emptyList(), error = com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceError.NoText)) }
+                write("ocr-no-text", paintAfterLayout("ocr-no-text", dialog.rootPane))
+                onUi { render.invoke(dialog, state) }
+            }
+            onUi { dialog.size = Dimension(760, 460); dialog.validate() }
+            write("ocr-small-$label", paintAfterLayout("ocr-small-$label", dialog.rootPane))
+            if (label == "dark") {
+                onUi { buttonsOf(dialog).first { it.text == "⋯" }.doClick() }
+                lateinit var popup: javax.swing.JPopupMenu
+                onUi { popup = javax.swing.MenuSelectionManager.defaultManager().selectedPath.filterIsInstance<javax.swing.JPopupMenu>().last() }
+                write("ocr-overflow", paintAfterLayout("ocr-overflow", popup))
+                onUi { javax.swing.MenuSelectionManager.defaultManager().clearSelectedPath() }
+            }
+            if (label == "hidpi") {
+                onUi {
+                    val panes = descendants(dialog).filterIsInstance<JScrollPane>()
+                    val textPane = panes.first { it.viewport.view is JPanel && (it.viewport.view as JPanel).layout is java.awt.GridLayout }
+                    textPane.verticalScrollBar.value = textPane.verticalScrollBar.maximum
+                }
+                write("ocr-small-hidpi-scrolled", paintAfterLayout("ocr-small-hidpi-scrolled", dialog.rootPane))
+            }
+            onUi { dialog.dispose() }
+        }
+        AppUiSetup.apply(Scenes.classic(Scenes.DARK).copy(uiScale = 100), deps.themeManager)
+        deps.localizationManager.loadLanguage(LanguageCode("ar-SA"))
+        lateinit var rtlDialog: com.github.ahatem.qtranslate.ui.swing.ocr.OcrWorkspaceDialog
+        onUi {
+            rtlDialog = com.github.ahatem.qtranslate.ui.swing.ocr.OcrWorkspaceDialog(
+                null, deps.mainStore, deps.settingsStore, deps.localizationManager,
+                deps.ocrExtractionUseCase, ocrCatalog, {}, {}, {}, {},
+            ).apply {
+                applyComponentOrientation(java.awt.ComponentOrientation.RIGHT_TO_LEFT)
+                size = Dimension(900, 600)
+                isVisible = true
+            }
+        }
+        write("ocr-rtl", paintAfterLayout("ocr-rtl", rtlDialog.rootPane))
+        onUi { rtlDialog.dispose() }
+        start(Scenes.classic(Scenes.DARK).copy(uiScale = 100))
+        capture("ocr-main")
+        onUi {
+            val primary = buttonsOf(requireFrame()).first { it.text == "OCR" }
+            val arrow = (primary.parent as Container).components.filterIsInstance<javax.swing.JButton>().first { it !== primary }
+            arrow.doClick()
+        }
+        lateinit var popup: javax.swing.JPopupMenu
+        onUi { popup = javax.swing.MenuSelectionManager.defaultManager().selectedPath.filterIsInstance<javax.swing.JPopupMenu>().last() }
+        write("ocr-main-menu", paintAfterLayout("ocr-main-menu", popup))
+        onUi { javax.swing.MenuSelectionManager.defaultManager().clearSelectedPath() }
+    }
 
     suspend fun mainWindow() {
         for ((theme, suffix) in Scenes.THEMES) {
@@ -925,6 +1041,20 @@ private inline fun <reified T : Component> find(root: Container): T? {
     }
     return null
 }
+
+private fun descendants(root: Container): List<Component> {
+    val result = mutableListOf<Component>()
+    val queue = ArrayDeque<Container>().apply { add(root) }
+    while (queue.isNotEmpty()) {
+        for (child in queue.removeFirst().components) {
+            result.add(child)
+            if (child is Container) queue.add(child)
+        }
+    }
+    return result
+}
+
+private fun buttonsOf(root: Container) = descendants(root).filterIsInstance<javax.swing.JButton>()
 
 /** Every split pane in [root]'s tree, breadth-first so outer panes come first. */
 private fun splitsOf(root: Container): List<JSplitPane> {

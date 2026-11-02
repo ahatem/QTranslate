@@ -285,7 +285,8 @@ class MainAppFrame(
         localizer = localizer,
         dispatch = { mainStore.dispatch(it) },
         dispatchSettings = { settingsStore.dispatch(it) },
-        onOpenSnippingTool = { openSnippingTool() },
+        onOpenSnippingTool = { command -> openSnippingTool(command) },
+        onOpenOcrSettings = { openSettingsDialog(openToOcr = true) },
         onOpenDocumentTranslation = { file ->
             if (file != null) documentTranslationDialog.openWith(file) else documentTranslationDialog.open()
         },

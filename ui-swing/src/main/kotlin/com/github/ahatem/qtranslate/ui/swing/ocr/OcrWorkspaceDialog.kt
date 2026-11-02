@@ -19,6 +19,9 @@ import com.github.ahatem.qtranslate.core.settings.data.Position
 import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
+import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
+import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.DroppedContentClassifier
 import com.github.ahatem.qtranslate.ui.swing.shared.util.connectedScreenBounds
 import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
@@ -87,9 +90,11 @@ class OcrWorkspaceDialog(
     private val recognizeButton = JButton()
     private val cancelRecognitionButton = JButton()
     private val statusLabel = JLabel(" ")
+    private val recognitionOptions = JButton()
+    private val zoomLabel = JButton()
     private val annotationsCheck = JCheckBox()
-    private val ocrTextArea = JTextArea()
-    private val translationArea = JTextArea()
+    private val ocrTextArea = HintTextArea()
+    private val translationArea = HintTextArea()
     private val sourceCombo = JComboBox<LanguageCode>()
     private val targetCombo = JComboBox<LanguageCode>()
     private val translateButton = JButton()
@@ -97,8 +102,7 @@ class OcrWorkspaceDialog(
     private val copyTranslationButton = JButton()
     private val listenOcrButton = JButton()
     private val listenTranslationButton = JButton()
-    private val copyImageButton = JButton()
-    private val saveImageButton = JButton()
+    private lateinit var acquisitionBar: OcrAcquisitionBar
 
     private var updatingOcrText = false
     private var updatingCombos = false
@@ -289,6 +293,7 @@ class OcrWorkspaceDialog(
         SwingUtilities.invokeLater {
             if (!store.isImageInputCurrent(token)) return@invokeLater
             imagePanel.fitToWindow(imageScroll.viewport.extentSize)
+            zoomLabel.text = "${(imagePanel.zoomScale() * 100).toInt()}%"
             if (autoTranslate && initialText != null) {
                 translateCurrentText(initialText)
                 autoTranslatePending = false
@@ -298,177 +303,215 @@ class OcrWorkspaceDialog(
     }
 
     private fun buildUi() {
-        title = localizer.getString("ocr_workspace.title")
         contentPane.layout = BorderLayout()
-
-        val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, buildImageSide(), buildTextSide()).apply {
-            resizeWeight = 0.47
+        contentPane.add(buildAcquisitionBar(), BorderLayout.NORTH)
+        val split = MirroredSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, buildImageSide(), buildTextSide()).apply {
+            leadingResizeWeight = 0.46
+            isMirrored = localizer.isRtl
             border = BorderFactory.createEmptyBorder()
             dividerSize = 6
+            setLeadingProportion(0.46)
         }
         contentPane.add(split, BorderLayout.CENTER)
+        contentPane.add(buildBottomBar(), BorderLayout.SOUTH)
+    }
+
+    private fun buildAcquisitionBar(): JPanel {
+        acquisitionBar = OcrAcquisitionBar(
+            OcrAcquisitionBar.Labels(
+                capture = localizer.getString("ocr_workspace.capture"),
+                open = localizer.getString("ocr_workspace.open_image"),
+                paste = localizer.getString("ocr_workspace.paste_image"),
+                copy = localizer.getString("ocr_workspace.copy_image"),
+                save = localizer.getString("ocr_workspace.save_image"),
+                settings = localizer.getString("ocr_workspace.settings"),
+                more = localizer.getString("screen_capture.more_actions"),
+            ), onCaptureRequested, ::chooseImageFile, ::pasteImage, ::copyCurrentImage, ::saveCurrentImage, onOpenSettings,
+        )
+        return acquisitionBar
     }
 
     private fun buildImageSide(): JPanel {
-        val toolbar = JPanel(WrapLayout(FlowLayout.LEADING, 4, 2)).apply { isOpaque = false }
-        toolbar.add(actionButton("ocr_workspace.capture") { onCaptureRequested() })
-        toolbar.add(actionButton("ocr_workspace.open_image") { chooseImageFile() })
-        toolbar.add(actionButton("ocr_workspace.paste_image") { pasteImage() })
-        copyImageButton.text = localizer.getString("ocr_workspace.copy_image")
-        copyImageButton.addActionListener { copyCurrentImage() }
-        saveImageButton.text = localizer.getString("ocr_workspace.save_image")
-        saveImageButton.addActionListener { saveCurrentImage() }
-        toolbar.add(copyImageButton)
-        toolbar.add(saveImageButton)
-        toolbar.add(Box.createHorizontalStrut(8))
-        toolbar.add(actionButton("ocr_workspace.zoom_out") { imagePanel.zoomOut() })
-        toolbar.add(actionButton("ocr_workspace.fit") { imagePanel.fitToWindow(imageScroll.viewport.extentSize) })
-        toolbar.add(actionButton("ocr_workspace.actual_size") { imagePanel.actualSize() })
-        toolbar.add(actionButton("ocr_workspace.zoom_in") { imagePanel.zoomIn() })
-
+        imagePanel.accessibleContext.accessibleName = localizer.getString("ocr_workspace.image_group")
+        imagePanel.emptyMessage = localizer.getString("ocr_workspace.empty_image")
+        imagePanel.accessibleContext.accessibleDescription = imagePanel.emptyMessage
+        imageScroll.border = BorderFactory.createEmptyBorder()
+        imageScroll.viewport.background = imagePanel.background
         annotationsCheck.text = localizer.getString("ocr_workspace.show_boxes")
         annotationsCheck.isOpaque = false
         annotationsCheck.isEnabled = false
         annotationsCheck.addActionListener { store.toggleAnnotations() }
-        toolbar.add(annotationsCheck)
-
-        imageScroll.horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
-        imageScroll.verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
-        imageScroll.border = BorderFactory.createTitledBorder(localizer.getString("ocr_workspace.image_group"))
-
+        zoomLabel.toolTipText = localizer.getString("ocr_workspace.actual_size")
+        zoomLabel.accessibleContext.accessibleName = zoomLabel.toolTipText
+        fun zoomChanged() { zoomLabel.text = "${(imagePanel.zoomScale() * 100).toInt()}%" }
+        zoomLabel.addActionListener { imagePanel.actualSize(); zoomChanged() }
+        zoomChanged()
+        zoomLabel.putClientProperty("JButton.buttonType", "toolBarButton")
+        val more = compactButton("⋯", "screen_capture.more_actions") {}
+        val fit = actionButton("ocr_workspace.fit") { imagePanel.fitToWindow(imageScroll.viewport.extentSize); zoomChanged() }
+        more.addActionListener {
+            JPopupMenu().apply {
+                add(JMenuItem(fit.text).apply { addActionListener { fit.doClick() } })
+                add(JCheckBoxMenuItem(annotationsCheck.text, annotationsCheck.isSelected).apply {
+                    isEnabled = annotationsCheck.isEnabled
+                    addActionListener { annotationsCheck.doClick() }
+                })
+            }.let { it.show(more, 0, -it.preferredSize.height) }
+        }
+        val zoomOut = compactButton("−", "ocr_workspace.zoom_out") { imagePanel.zoomOut(); zoomChanged() }
+        val zoomIn = compactButton("+", "ocr_workspace.zoom_in") { imagePanel.zoomIn(); zoomChanged() }
+        val zoom = JPanel(FlowLayout(FlowLayout.LEADING, 2, 1)).apply {
+            add(zoomOut)
+            add(zoomLabel)
+            add(zoomIn)
+            add(fit)
+            add(annotationsCheck)
+            add(more)
+            addComponentListener(object : java.awt.event.ComponentAdapter() {
+                override fun componentResized(e: java.awt.event.ComponentEvent?) {
+                    val fullWidth = components.sumOf { it.preferredSize.width } + components.size * 4
+                    val shortWidth = fullWidth - annotationsCheck.preferredSize.width - 4
+                    annotationsCheck.isVisible = width >= fullWidth
+                    fit.isVisible = width >= shortWidth
+                }
+            })
+        }
         return JPanel(BorderLayout()).apply {
-            add(toolbar, BorderLayout.NORTH)
+            // The essential controls must fit on one line even when the divider is dragged.
+            val essentialWidth = listOf(zoomOut, zoomLabel, zoomIn, more).sumOf { it.preferredSize.width } + 12
+            minimumSize = Dimension(essentialWidth, 0)
             add(imageScroll, BorderLayout.CENTER)
+            add(zoom, BorderLayout.SOUTH)
         }
     }
 
-    private fun buildTextSide(): JPanel {
-        val root = JPanel(BorderLayout(0, 6))
-        root.border = BorderFactory.createEmptyBorder(0, 6, 0, 0)
-        root.add(buildRecognitionBar(), BorderLayout.NORTH)
-
-        val texts = JPanel(GridLayout(2, 1, 0, 6))
-        texts.add(buildOcrTextPanel())
-        texts.add(buildTranslationPanel())
-        root.add(texts, BorderLayout.CENTER)
-        root.add(buildBottomBar(), BorderLayout.SOUTH)
-        return root
+    private fun buildTextSide(): JScrollPane {
+        val sections = object : JPanel(GridLayout(2, 1, 0, 4)), Scrollable {
+            override fun getPreferredScrollableViewportSize() = preferredSize
+            override fun getScrollableTracksViewportWidth() = true
+            override fun getScrollableTracksViewportHeight(): Boolean =
+                (parent as? JViewport)?.height?.let { it >= preferredSize.height } == true
+            override fun getScrollableUnitIncrement(r: Rectangle, orientation: Int, direction: Int) = getFontMetrics(font).height
+            override fun getScrollableBlockIncrement(r: Rectangle, orientation: Int, direction: Int) = r.height
+        }.apply {
+            border = BorderFactory.createEmptyBorder(2, 5, 2, 5)
+            add(buildOcrTextPanel()); add(buildTranslationPanel())
+        }
+        return JScrollPane(sections).apply {
+            border = BorderFactory.createEmptyBorder()
+            horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+            minimumSize = Dimension(0, 0)
+        }
     }
 
-    private fun buildRecognitionBar(): JPanel {
-        val panel = JPanel(GridBagLayout())
-        panel.border = BorderFactory.createTitledBorder(localizer.getString("ocr_workspace.recognition_group"))
-        val gbc = GridBagConstraints().apply {
-            gridy = 0
-            insets = Insets(2, 4, 2, 4)
-            anchor = GridBagConstraints.LINE_START
-        }
-        panel.add(JLabel(localizer.getString("ocr_workspace.provider")), gbc)
-        providerCombo.renderer = object : DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(
-                list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean,
-            ): Component = super.getListCellRendererComponent(
-                list, (value as? OcrProviderInfo)?.name ?: localizer.getString("settings_ocr.provider_automatic"),
-                index, selected, focused,
-            )
-        }
-        gbc.gridx = 1
-        gbc.weightx = 1.0
-        gbc.fill = GridBagConstraints.HORIZONTAL
-        panel.add(providerCombo, gbc)
+    private fun sectionHeader(key: String, vararg buttons: JButton): JPanel = JPanel(BorderLayout()).apply {
+        add(JLabel(localizer.getString(key)).apply {
+            font = font.deriveFont(Font.BOLD)
+            border = BorderFactory.createEmptyBorder(0, 12, 0, 12)
+        }, BorderLayout.CENTER)
+        add(JPanel(FlowLayout(FlowLayout.TRAILING, 0, 0)).apply { buttons.forEach(::add) }, BorderLayout.LINE_END)
+    }
 
-        gbc.gridx = 0
-        gbc.gridy = 1
-        gbc.weightx = 0.0
-        gbc.fill = GridBagConstraints.NONE
-        panel.add(JLabel(localizer.getString("ocr_workspace.language")), gbc)
-        languageCombo.renderer = object : DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(
-                list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean,
-            ): Component = super.getListCellRendererComponent(
-                list, (value as? LanguageCode)?.getDisplayName(autoDetectLabel = localizer.getString("common.auto_detect")) ?: "",
-                index, selected, focused,
-            )
-        }
-        gbc.gridx = 1
-        gbc.weightx = 1.0
-        gbc.fill = GridBagConstraints.HORIZONTAL
-        panel.add(languageCombo, gbc)
+    private fun compactButton(glyph: String, key: String, action: () -> Unit): JButton = JButton(glyph).apply {
+        toolTipText = localizer.getString(key)
+        accessibleContext.accessibleName = toolTipText
+        putClientProperty("JButton.buttonType", "toolBarButton")
+        addActionListener { action() }
+    }
 
-        recognizeButton.text = localizer.getString("ocr_workspace.recognize")
-        cancelRecognitionButton.text = localizer.getString("ocr_workspace.cancel")
-        gbc.gridx = 0
-        gbc.gridy = 2
-        gbc.gridwidth = 2
-        gbc.weightx = 0.0
-        gbc.fill = GridBagConstraints.NONE
-        panel.add(
-            JPanel(FlowLayout(FlowLayout.LEADING, 6, 0)).apply {
-                isOpaque = false
-                add(recognizeButton)
-                add(cancelRecognitionButton)
-                add(statusLabel)
-            },
-            gbc,
-        )
-        return panel
+    private fun configureSecondary(button: JButton, iconPath: String, key: String) {
+        button.icon = IconSet.load(iconPath, 16, 16)
+        button.toolTipText = localizer.getString(key)
+        button.accessibleContext.accessibleName = button.toolTipText
+        button.putClientProperty("JButton.buttonType", "toolBarButton")
     }
 
     private fun buildOcrTextPanel(): JPanel {
-        val panel = JPanel(BorderLayout(0, 2))
-        panel.border = BorderFactory.createTitledBorder(localizer.getString("ocr_workspace.text_group"))
+        providerCombo.renderer = object : DefaultListCellRenderer() {
+            override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean): Component =
+                super.getListCellRendererComponent(list, (value as? OcrProviderInfo)?.name ?: localizer.getString("settings_ocr.provider_automatic"), index, selected, focused)
+        }
+        languageCombo.renderer = languageRenderer()
+        recognitionOptions.text = localizer.getString("ocr_workspace.recognition_group") + " ▾"
+        recognitionOptions.addActionListener {
+            JPopupMenu().apply {
+                add(ocrChoiceMenu(localizer.getString("ocr_workspace.provider"), providerCombo) { it.name })
+                add(ocrChoiceMenu(localizer.getString("ocr_workspace.language"), languageCombo) {
+                    it.getDisplayName(autoDetectLabel = localizer.getString("common.auto_detect"))
+                })
+            }.show(recognitionOptions, 0, recognitionOptions.height)
+        }
         ocrTextArea.lineWrap = true
         ocrTextArea.wrapStyleWord = true
-        ocrTextArea.font = UIManager.getFont("TextArea.font")
-        val scroll = JScrollPane(ocrTextArea)
-        panel.add(scroll, BorderLayout.CENTER)
-
-        val actions = JPanel(FlowLayout(FlowLayout.LEADING, 4, 0)).apply { isOpaque = false }
-        copyOcrButton.text = localizer.getString("ocr_workspace.copy_text")
-        listenOcrButton.text = localizer.getString("ocr_workspace.listen")
-        actions.add(copyOcrButton)
-        actions.add(listenOcrButton)
-        panel.add(actions, BorderLayout.SOUTH)
-        return panel
+        ocrTextArea.hint = localizer.getString("ocr_workspace.no_text")
+        statusLabel.labelFor = ocrTextArea
+        configureSecondary(copyOcrButton, Icons.COPY, "ocr_workspace.copy_text")
+        configureSecondary(listenOcrButton, Icons.SPEAK, "ocr_workspace.listen")
+        recognizeButton.text = localizer.getString("ocr_workspace.recognize")
+        cancelRecognitionButton.text = localizer.getString("ocr_workspace.cancel")
+        cancelRecognitionButton.isVisible = false
+        val footer = JPanel(BorderLayout()).apply {
+            add(recognitionOptions, BorderLayout.CENTER)
+            add(JPanel(FlowLayout(FlowLayout.TRAILING, 2, 0)).apply { add(recognizeButton); add(cancelRecognitionButton) }, BorderLayout.LINE_END)
+        }
+        return JPanel(BorderLayout(0, 2)).apply {
+            // Based on the current font, so the editor remains useful at every UI scale.
+            preferredSize = Dimension(1, getFontMetrics(font).height * 10)
+            add(sectionHeader("ocr_workspace.text_group", copyOcrButton, listenOcrButton), BorderLayout.NORTH)
+            add(JScrollPane(ocrTextArea), BorderLayout.CENTER)
+            add(footer, BorderLayout.SOUTH)
+        }
     }
 
     private fun buildTranslationPanel(): JPanel {
-        val panel = JPanel(BorderLayout(0, 2))
-        panel.border = BorderFactory.createTitledBorder(localizer.getString("ocr_workspace.translation_group"))
         translationArea.isEditable = false
         translationArea.lineWrap = true
         translationArea.wrapStyleWord = true
-        translationArea.font = UIManager.getFont("TextArea.font")
-        panel.add(JScrollPane(translationArea), BorderLayout.CENTER)
-
-        val actions = JPanel(FlowLayout(FlowLayout.LEADING, 4, 0)).apply { isOpaque = false }
-        copyTranslationButton.text = localizer.getString("ocr_workspace.copy_translation")
-        listenTranslationButton.text = localizer.getString("ocr_workspace.listen")
+        translationArea.hint = localizer.getString("ocr_workspace.translation_empty")
+        translationArea.accessibleContext.accessibleDescription = translationArea.hint
+        sourceCombo.renderer = languageRenderer(); targetCombo.renderer = languageRenderer()
+        sourceCombo.minimumSize = Dimension(0, sourceCombo.preferredSize.height)
+        targetCombo.minimumSize = Dimension(0, targetCombo.preferredSize.height)
+        sourceCombo.toolTipText = localizer.getString("ocr_workspace.source_language")
+        targetCombo.toolTipText = localizer.getString("ocr_workspace.target_language")
+        // The selectors share available width; long localized names may be abbreviated.
+        val languages = JPanel(GridBagLayout()).apply {
+            val c = GridBagConstraints().apply { weightx = 1.0; fill = GridBagConstraints.HORIZONTAL }
+            add(sourceCombo, c)
+            c.weightx = 0.0; c.fill = GridBagConstraints.NONE
+            add(JLabel(if (localizer.isRtl) " ← " else " → "), c)
+            c.weightx = 1.0; c.fill = GridBagConstraints.HORIZONTAL
+            add(targetCombo, c)
+        }
+        val heading = JPanel(BorderLayout(0, 2)).apply {
+            add(sectionHeader("ocr_workspace.translation_group", copyTranslationButton, listenTranslationButton), BorderLayout.NORTH)
+            add(languages, BorderLayout.SOUTH)
+        }
+        configureSecondary(copyTranslationButton, Icons.COPY, "ocr_workspace.copy_translation")
+        configureSecondary(listenTranslationButton, Icons.SPEAK, "ocr_workspace.listen")
         translateButton.text = localizer.getString("ocr_workspace.translate")
-        actions.add(translateButton)
-        actions.add(copyTranslationButton)
-        actions.add(listenTranslationButton)
-        panel.add(actions, BorderLayout.SOUTH)
-        return panel
+        translateButton.putClientProperty("JButton.buttonType", "default")
+        return JPanel(BorderLayout(0, 2)).apply {
+            preferredSize = Dimension(1, getFontMetrics(font).height * 10)
+            add(heading, BorderLayout.NORTH)
+            add(JScrollPane(translationArea), BorderLayout.CENTER)
+            add(JPanel(FlowLayout(FlowLayout.TRAILING, 2, 0)).apply { add(translateButton) }, BorderLayout.SOUTH)
+        }
     }
 
     private fun buildBottomBar(): JPanel {
-        val panel = JPanel(WrapLayout(FlowLayout.TRAILING, 4, 2)).apply { isOpaque = false }
-        panel.add(JLabel(localizer.getString("ocr_workspace.source_language")))
-        panel.add(sourceCombo)
-        panel.add(JLabel(localizer.getString("ocr_workspace.target_language")))
-        panel.add(targetCombo)
-        panel.add(Box.createHorizontalStrut(6))
-        panel.add(actionButton("ocr_workspace.send_main") {
-            sendCurrentToMain()
-        })
-        panel.add(actionButton("ocr_workspace.send_quick") {
-            sendCurrentToQuick()
-        })
-        panel.add(actionButton("ocr_workspace.settings") { onOpenSettings() })
-        sourceCombo.renderer = languageRenderer()
-        targetCombo.renderer = languageRenderer()
-        return panel
+        val open = JButton(localizer.getString("ocr_workspace.open_in") + " ▾")
+        open.addActionListener {
+            JPopupMenu().apply {
+                add(JMenuItem(localizer.getString("ocr_workspace.send_main")).apply { addActionListener { sendCurrentToMain() } })
+                add(JMenuItem(localizer.getString("ocr_workspace.send_quick")).apply { addActionListener { sendCurrentToQuick() } })
+            }.show(open, 0, -preferredSize.height)
+        }
+        statusLabel.border = BorderFactory.createEmptyBorder(0, 10, 0, 10)
+        return JPanel(BorderLayout(4, 0)).apply {
+            border = BorderFactory.createEmptyBorder(2, 5, 2, 5)
+            add(statusLabel, BorderLayout.CENTER); add(open, BorderLayout.LINE_END)
+        }
     }
 
     private fun bindEvents() {
@@ -515,7 +558,10 @@ class OcrWorkspaceDialog(
         imageScroll.viewport.addComponentListener(object : java.awt.event.ComponentAdapter() {
             override fun componentResized(e: java.awt.event.ComponentEvent?) {
                 // A fitted image stays fitted when the window is resized; manual zoom is left alone.
-                if (lastOcrState?.image != null) imagePanel.refitIfFitted(imageScroll.viewport.extentSize)
+                if (lastOcrState?.image != null) {
+                    imagePanel.refitIfFitted(imageScroll.viewport.extentSize)
+                    zoomLabel.text = "${(imagePanel.zoomScale() * 100).toInt()}%"
+                }
             }
         })
     }
@@ -564,11 +610,21 @@ class OcrWorkspaceDialog(
 
         recognizeButton.isEnabled = state.canRunOcr
         cancelRecognitionButton.isEnabled = state.isRecognizing
-        translateButton.isEnabled = state.canTranslate && !state.isRecognizing
+        cancelRecognitionButton.isVisible = state.isRecognizing
+        recognizeButton.isVisible = !state.isRecognizing
+        recognitionOptions.isEnabled = !state.isRecognizing && !state.isLoadingImage
+        val recognitionSummary = listOfNotNull(
+            (providerCombo.selectedItem as? OcrProviderInfo)?.name,
+            (languageCombo.selectedItem as? LanguageCode)?.getDisplayName(autoDetectLabel = localizer.getString("common.auto_detect")),
+        ).joinToString(" · ")
+        recognitionOptions.text = (recognitionSummary.ifEmpty { localizer.getString("ocr_workspace.recognition_group") }) + " ▾"
+        recognitionOptions.toolTipText = recognitionSummary
+        val translation = mainStore.state.value
+        val translatingHere = expectedTranslationInput != null && translation.inputText == expectedTranslationInput && translation.isLoading
+        translateButton.isEnabled = state.canTranslate && !state.isRecognizing && !translatingHere
         copyOcrButton.isEnabled = state.hasText
         listenOcrButton.isEnabled = state.hasText
-        copyImageButton.isEnabled = state.hasImage
-        saveImageButton.isEnabled = state.hasImage
+        acquisitionBar.setImageAvailable(state.hasImage)
         copyTranslationButton.isEnabled = translatedTextForCurrent.isNotBlank()
         listenTranslationButton.isEnabled = translatedTextForCurrent.isNotBlank()
         annotationsCheck.isEnabled = state.regions.isNotEmpty()
@@ -585,6 +641,8 @@ class OcrWorkspaceDialog(
             state.hasText -> localizer.getString("ocr_workspace.ready")
             else -> localizer.getString("ocr_workspace.no_text")
         }
+        ocrTextArea.hint = statusLabel.text
+        ocrTextArea.accessibleContext.accessibleDescription = statusLabel.text
         statusLabel.foreground = if (error != null) {
             UIManager.getColor("Label.errorForeground") ?: Color.RED
         } else {
@@ -719,7 +777,7 @@ class OcrWorkspaceDialog(
 
     private fun highlightRegionForCaret(event: CaretEvent) {
         val index = regionRanges.indexOfFirst { event.dot in it }
-        if (index >= 0) imagePanel.setHighlightedRegion(index)
+        imagePanel.setHighlightedRegion(index.takeIf { it >= 0 })
     }
 
     private fun chooseImageFile() {
@@ -867,7 +925,7 @@ class OcrWorkspaceDialog(
         OcrWorkspaceError.Timeout -> localizer.getString("status_bar.ocr_timeout")
         OcrWorkspaceError.ImageOpenFailed -> localizer.getString("ocr_workspace.image_open_failed")
         OcrWorkspaceError.ClipboardEmpty -> localizer.getString("ocr_workspace.clipboard_empty")
-        is OcrWorkspaceError.Failed -> localizer.getString("status_bar.ocr_failed", error.summary)
+        is OcrWorkspaceError.Failed -> localizer.getString("ocr_workspace.recognition_failed")
     }
 
     private fun showError(message: String) {

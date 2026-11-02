@@ -22,6 +22,9 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.ui.swing.main.history.TranslationHistoryBar
 import com.github.ahatem.qtranslate.ui.swing.main.history.TranslationHistoryBarState
 import com.github.ahatem.qtranslate.ui.swing.main.history.TranslationHistoryBarStrings
+import com.github.ahatem.qtranslate.ui.swing.main.history.OcrSplitLabels
+import com.github.ahatem.qtranslate.core.ocr.OcrWorkflowCommand
+import com.github.ahatem.qtranslate.core.settings.data.OcrPostSelectionAction
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputTextPanel
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputTextState
 import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguageSelectionBar
@@ -77,7 +80,8 @@ class MainContentView(
     private val localizer: LocalizationManager,
     private val dispatch: (MainIntent) -> Unit,
     private val dispatchSettings: (SettingsIntent) -> Unit,
-    private val onOpenSnippingTool: () -> Unit,
+    private val onOpenSnippingTool: (OcrWorkflowCommand) -> Unit,
+    private val onOpenOcrSettings: () -> Unit,
     /**
      * Opens the document translation dialog, with [java.io.File] when one is already chosen --
      * a document pasted into the input pane, for instance.
@@ -100,7 +104,8 @@ class MainContentView(
         iconManager = iconManager,
         onBackward = { dispatch(MainIntent.UndoTranslation) },
         onForward = { dispatch(MainIntent.RedoTranslation) },
-        onImageTranslate = { onOpenSnippingTool() },
+        onImageTranslate = onOpenSnippingTool,
+        onOcrSettings = onOpenOcrSettings,
         onDocumentTranslate = { onOpenDocumentTranslation(null) },
     )
 
@@ -312,7 +317,7 @@ class MainContentView(
 
         updateTranslateKeyStroke(config)
         renderLookupDock(mainState, config)
-        renderComponents(mainState, config, effectiveLayoutId)
+        renderComponents(mainState, config, effectiveLayoutId, settingsState.originalConfiguration.ocr.postSelectionAction)
         lastState = mainState to settingsState
     }
 
@@ -546,7 +551,7 @@ class MainContentView(
         }
     }
 
-    private fun renderComponents(mainState: MainState, config: Configuration, effectiveLayoutId: String) {
+    private fun renderComponents(mainState: MainState, config: Configuration, effectiveLayoutId: String, ocrDefault: OcrPostSelectionAction) {
         currentTargetLanguage = mainState.targetLanguage
 
         // BackwardTranslate output is in the source language; all other extra output types are in target.
@@ -578,7 +583,23 @@ class MainContentView(
                 strings = TranslationHistoryBarStrings(
                     backwardTooltip = localizer.getString("main_window_history_bar.backward_tooltip"),
                     forwardTooltip = localizer.getString("main_window_history_bar.forward_tooltip"),
-                    imageTranslateTooltip = localizer.getString("main_window_history_bar.image_translate_tooltip"),
+                    ocr = OcrSplitLabels(
+                        defaultTooltip = localizer.getString("ocr_workspace.default_tooltip", localizer.getString(when (ocrDefault) {
+                            OcrPostSelectionAction.SHOW_ACTIONS -> "settings_ocr.post_show_actions"
+                            OcrPostSelectionAction.TRANSLATE -> "settings_ocr.post_translate"
+                            OcrPostSelectionAction.COPY_TEXT -> "settings_ocr.post_copy_text"
+                            OcrPostSelectionAction.COPY_IMAGE -> "settings_ocr.post_copy_image"
+                            OcrPostSelectionAction.OPEN_WORKSPACE -> "settings_ocr.post_workspace"
+                        })),
+                        chooseAction = localizer.getString("ocr_workspace.choose_action"),
+                        showActions = localizer.getString("settings_ocr.post_show_actions"),
+                        translate = localizer.getString("screen_capture.translate"),
+                        translateTooltip = localizer.getString("main_window_history_bar.image_translate_tooltip"),
+                        copyText = localizer.getString("screen_capture.copy_text"),
+                        copyImage = localizer.getString("screen_capture.copy_image"),
+                        workspace = localizer.getString("settings_ocr.post_workspace"),
+                        settings = localizer.getString("ocr_workspace.settings"),
+                    ),
                     documentTranslateTooltip = localizer.getString("main_window_history_bar.document_translate_tooltip"),
                 ),
             )

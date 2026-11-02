@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main.history
 
+import com.github.ahatem.qtranslate.core.ocr.OcrWorkflowCommand
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
@@ -15,13 +16,14 @@ class TranslationHistoryBar(
     private val iconManager: IconManager,
     private val onBackward: () -> Unit,
     private val onForward: () -> Unit,
-    private val onImageTranslate: () -> Unit,
+    private val onImageTranslate: (OcrWorkflowCommand) -> Unit,
+    private val onOcrSettings: () -> Unit,
     private val onDocumentTranslate: () -> Unit,
 ) : JPanel(BorderLayout()), Renderable<TranslationHistoryBarState> {
 
     private val backwardButton = createButtonWithIcon(iconManager, Icons.NAV_BACK, 16)
     private val forwardButton = createButtonWithIcon(iconManager, Icons.NAV_FORWARD, 16)
-    private val imageTranslateButton = createButtonWithIcon(iconManager, Icons.OCR, 16)
+    private val imageTranslateButton = OcrSplitButton(onImageTranslate, onOcrSettings)
     private val documentTranslateButton = createButtonWithIcon(iconManager, Icons.DOCUMENT, 16)
 
     private val statusLabel = JLabel().apply {
@@ -44,7 +46,6 @@ class TranslationHistoryBar(
     init {
         backwardButton.addActionListener { onBackward() }
         forwardButton.addActionListener { onForward() }
-        imageTranslateButton.addActionListener { onImageTranslate() }
         documentTranslateButton.addActionListener { onDocumentTranslate() }
 
         add(leftGroup, BorderLayout.LINE_START)
@@ -91,12 +92,11 @@ class TranslationHistoryBar(
     private fun renderControls(state: TranslationHistoryBarState) {
         backwardButton.isEnabled = !state.isLoading && state.canGoBackward
         forwardButton.isEnabled = !state.isLoading && state.canGoForward
-        imageTranslateButton.isEnabled = !state.isLoading
+        imageTranslateButton.render(state.strings.ocr, !state.isLoading)
         documentTranslateButton.isEnabled = !state.isLoading
 
         backwardButton.toolTipText = state.strings.backwardTooltip
         forwardButton.toolTipText = state.strings.forwardTooltip
-        imageTranslateButton.toolTipText = state.strings.imageTranslateTooltip
         documentTranslateButton.toolTipText = state.strings.documentTranslateTooltip
     }
 }

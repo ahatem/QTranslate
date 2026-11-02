@@ -852,6 +852,12 @@ save_image_filter = "PNG Image (*.png)"
 more_actions = "More actions"
 
 [ocr_workspace]
+default_tooltip = "Screen OCR — Default action: %s"
+choose_action = "Choose OCR action"
+open_in = "Open in"
+empty_image = "Capture, open or paste an image"
+translation_empty = "Translation will appear here"
+recognition_failed = "Recognition failed. Try another service or language."
 title = "OCR Workspace"
 image_group = "Image"
 text_group = "Recognized Text"
