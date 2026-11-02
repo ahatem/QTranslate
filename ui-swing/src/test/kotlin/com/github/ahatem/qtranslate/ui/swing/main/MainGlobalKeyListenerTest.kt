@@ -609,7 +609,12 @@ class MainGlobalKeyListenerTest {
                         keyCode = KeyEvent.VK_C,
                         modifiers = InputEvent.CTRL_DOWN_MASK,
                         scope = HotkeyScope.CAPTURE,
-                    )
+                    ),
+                    global(
+                        HotkeyAction.OCR_COPY_IMAGE,
+                        KeyEvent.VK_I,
+                        InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK,
+                    ),
                 )
             )
         )
@@ -617,9 +622,10 @@ class MainGlobalKeyListenerTest {
         advanceUntilIdle()
 
         assertTrue(harness.listener.getLocalBindings().isEmpty())
-        assertTrue(
-            harness.backend.applied.lastOrNull().orEmpty().isEmpty(),
-            "the native backend must not see capture-local actions",
+        assertEquals(
+            1,
+            harness.backend.applied.lastOrNull().orEmpty().size,
+            "only the global OCR action may reach the native backend",
         )
     }
 

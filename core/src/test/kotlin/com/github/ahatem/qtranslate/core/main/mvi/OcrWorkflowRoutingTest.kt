@@ -108,7 +108,8 @@ class OcrWorkflowRoutingTest {
 
             assertEquals(0, fixture.ocr.requests.size)
             assertTrue(fixture.translator.received.isEmpty())
-            assertEquals(1, fixture.events.filterIsInstance<MainEvent.CopyImageToClipboard>().size)
+            val event = fixture.events.filterIsInstance<MainEvent.CopyImageToClipboard>().single()
+            assertEquals(fixture.image(), event.image)
         } finally {
             fixture.cleanUp()
         }
@@ -129,6 +130,7 @@ class OcrWorkflowRoutingTest {
             val event = fixture.events.filterIsInstance<MainEvent.OpenOcrWorkspace>().single()
             assertFalse(event.autoTranslate)
             assertEquals(null, event.initialText)
+            assertEquals(fixture.image(), event.image)
             assertEquals(0, fixture.ocr.requests.size)
         } finally {
             fixture.cleanUp()
@@ -238,6 +240,7 @@ class OcrWorkflowRoutingTest {
             val event = fixture.events.filterIsInstance<MainEvent.OpenOcrWorkspace>().single()
             assertTrue(event.autoTranslate)
             assertEquals("workspace text", event.initialText)
+            assertEquals(fixture.image(), event.image)
             assertTrue(fixture.translator.received.isEmpty(), "the workspace owns its translation")
         } finally {
             fixture.cleanUp()
@@ -361,6 +364,8 @@ class OcrWorkflowRoutingTest {
                     action = OcrPostSelectionAction.TRANSLATE,
                 )
             )
+            runCurrent()
+            assertEquals(1, fixture.ocr.requests.size, "the first request is genuinely in flight")
             fixture.store.dispatch(
                 MainIntent.OcrWorkflowImage(
                     image = ImageData(byteArrayOf(2), "png", 9, 9),
@@ -369,6 +374,7 @@ class OcrWorkflowRoutingTest {
             )
             advanceUntilIdle()
 
+            assertEquals(2, fixture.ocr.requests.size)
             assertEquals("current text", fixture.store.state.value.inputText)
             assertEquals(listOf("current text"), fixture.translator.received)
         } finally {

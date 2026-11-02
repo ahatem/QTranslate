@@ -61,7 +61,13 @@ class OcrConfigurationTest {
     fun `v7 explicit hotkey lists receive every new OCR action on migration`() {
         val oldActions = HotkeyBinding.DEFAULTS
             .filterNot { it.action in NEW_OCR_ACTIONS }
-            .map { it.copy() }
+            .map { binding ->
+                if (binding.action == HotkeyAction.OPEN_OCR) {
+                    binding.copy(keyCode = java.awt.event.KeyEvent.VK_F9, modifiers = 0)
+                } else {
+                    binding.copy()
+                }
+            }
         val v7 = Configuration.DEFAULT.copy(
             configVersion = 7,
             hotkeys = oldActions,
@@ -72,6 +78,11 @@ class OcrConfigurationTest {
         assertEquals(ConfigMigrator.CURRENT_VERSION, migrated.configVersion)
         val actions = migrated.hotkeys.map { it.action }.toSet()
         assertTrue(actions.containsAll(NEW_OCR_ACTIONS), "old explicit lists still receive the new rows")
+        assertEquals(
+            java.awt.event.KeyEvent.VK_F9,
+            migrated.hotkeys.single { it.action == HotkeyAction.OPEN_OCR }.keyCode,
+            "migration must append missing rows, not replace the user's bindings",
+        )
         assertEquals(migrated, ConfigMigrator.migrate(migrated, logger), "the v7 step is idempotent")
     }
 

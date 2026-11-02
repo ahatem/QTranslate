@@ -52,7 +52,7 @@ class OcrSettingsPanelTest {
         onEdt {
             fixture.panel.render(fixture.store.state.value)
             assertEquals(0, fixture.panel.postActionComboForTest().selectedIndex)
-            assertFalse(fixture.panel.destinationComboForTest().isEnabled)
+            assertTrue(fixture.panel.destinationComboForTest().isEnabled, "explicit translate hotkeys need this destination")
             assertTrue(fixture.panel.providerComboForTest().itemCount >= 2)
             assertTrue(fixture.panel.languageComboForTest().itemCount >= 2)
             assertFalse(fixture.panel.removeLineBreaksForTest().isSelected)
@@ -68,6 +68,22 @@ class OcrSettingsPanelTest {
 
             fixture.panel.removeLineBreaksForTest().doClick()
             assertTrue(fixture.store.state.value.workingConfiguration.ocr.removeLineBreaks)
+
+            fixture.panel.destinationComboForTest().selectedIndex = 1
+            assertEquals(
+                com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination.QUICK_TRANSLATE,
+                fixture.store.state.value.workingConfiguration.ocr.translationDestination,
+            )
+
+            fixture.panel.annotationsForTest().doClick()
+            assertFalse(fixture.store.state.value.workingConfiguration.ocr.showWorkspaceAnnotations)
+
+            fixture.panel.providerComboForTest().selectedIndex = 0
+            assertEquals(
+                null,
+                fixture.store.state.value.workingConfiguration.getActivePreset()
+                    ?.selectedServices?.get(ServiceRole.OCR),
+            )
         }
     }
 

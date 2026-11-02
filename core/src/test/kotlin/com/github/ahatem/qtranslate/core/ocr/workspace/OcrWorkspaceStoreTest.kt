@@ -208,15 +208,17 @@ class OcrWorkspaceStoreTest {
         val ocr = RecordingOcrService()
         val fixture = fixture(this, ocr)
 
+        val region = OCRTextRegion("already recognized", 1, 2, 30, 12)
         fixture.store.openWithResult(
             image = fixture.image,
             label = "capture",
             text = "already recognized",
-            regions = emptyList(),
+            regions = listOf(region),
         )
         advanceUntilIdle()
 
         assertEquals("already recognized", fixture.store.state.value.recognizedText)
+        assertEquals(listOf(region), fixture.store.state.value.regions)
         assertEquals(0, ocr.requests.size)
     }
 

@@ -42,6 +42,31 @@ class CaptureGeometryTest {
     }
 
     @Test
+    fun `fractional display scaling rounds outward without dropping edge pixels`() {
+        val screenshot = BufferedImage(300, 150, BufferedImage.TYPE_INT_RGB)
+        assertEquals(
+            Rectangle(15, 15, 75, 45),
+            CaptureGeometry.selectionToImage(
+                Rectangle(10, 10, 50, 30),
+                screenshot,
+                Dimension(200, 100),
+            ),
+        )
+    }
+
+    @Test
+    fun `drag clamping keeps a move inside the panel and handles negative drags`() {
+        assertEquals(
+            Rectangle(0, 0, 10, 10),
+            CaptureGeometry.clampSelection(Rectangle(-10, -10, 20, 20), Dimension(200, 100)),
+        )
+        assertEquals(
+            Rectangle(180, 80, 20, 20),
+            CaptureGeometry.clampSelection(Rectangle(180, 80, 50, 50), Dimension(200, 100)),
+        )
+    }
+
+    @Test
     fun `a selection at the panel edge is clamped into the source image`() {
         val screenshot = BufferedImage(200, 100, BufferedImage.TYPE_INT_RGB)
         assertEquals(

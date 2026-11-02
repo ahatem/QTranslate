@@ -106,7 +106,7 @@ class LocalizationFilesTest {
 
         val sidebar = listOf(
             "general", "appearance", "services", "behavior", "languages",
-            "layout", "popups", "hotkeys", "plugins",
+            "layout", "popups", "ocr", "hotkeys", "plugins", "network",
             "group_translation", "group_interface"
         ).map { "settings_dialog_sidebar.$it" }
 

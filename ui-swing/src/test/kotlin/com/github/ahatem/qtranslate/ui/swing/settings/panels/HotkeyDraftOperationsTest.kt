@@ -230,6 +230,27 @@ class HotkeyDraftOperationsTest {
     }
 
     @Test
+    fun `capture action scope cannot be toggled`() {
+        val capture = HotkeyBinding(
+            action = HotkeyAction.OCR_ACTION_COPY_TEXT,
+            keyCode = KeyEvent.VK_C,
+            modifiers = InputEvent.CTRL_DOWN_MASK,
+            scope = HotkeyScope.CAPTURE,
+        )
+        val config = Configuration.DEFAULT.copy(
+            hotkeys = Configuration.DEFAULT.hotkeys.filterNot { it.action == capture.action } + capture,
+        )
+
+        val unchanged = HotkeyDraftOperations.toggleScope(config, capture.action)
+
+        assertEquals(config, unchanged)
+        assertEquals(
+            HotkeyScope.CAPTURE,
+            unchanged.hotkeys.single { it.action == capture.action }.scope,
+        )
+    }
+
+    @Test
     fun `show main scope cannot be toggled`() {
         val unchanged = HotkeyDraftOperations.toggleScope(customShowMain, HotkeyAction.SHOW_MAIN_WINDOW)
         assertEquals(customShowMain, unchanged)
