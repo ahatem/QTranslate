@@ -176,6 +176,19 @@ class OcrWorkspaceStoreTest {
     }
 
     @Test
+    fun `loading a dynamic provider language list does not cancel the first auto-run`() = runTest {
+        val dynamic = DynamicOcrService()
+        val fixture = fixture(this, dynamic)
+
+        fixture.store.openImage(fixture.image, "capture")
+        advanceUntilIdle()
+
+        assertEquals("resolved by the provider", fixture.store.state.value.recognizedText)
+        assertFalse(fixture.store.state.value.isRecognizing)
+        assertEquals(LanguageCode.ENGLISH, fixture.store.state.value.language)
+    }
+
+    @Test
     fun `geometry is retained when the provider reports it`() = runTest {
         val region = OCRTextRegion("recognized", 0, 0, 40, 12, OCRRegionKind.LINE)
         val delegate = RecordingOcrService()
@@ -268,6 +281,22 @@ class OcrWorkspaceStoreTest {
             image = ImageData(byteArrayOf(1, 2, 3), "png", 100, 50),
             store = store,
         )
+    }
+
+    /** Dynamic languages arrive after the workspace has already started its first request. */
+    private class DynamicOcrService : OCR {
+        override val key: String = "ocr"
+        override val name: String = "Dynamic OCR"
+        override val version: String = "test"
+        override val supportedLanguages: SupportedLanguages = SupportedLanguages.Dynamic
+
+        override suspend fun fetchSupportedLanguages(): Result<Set<LanguageCode>, ServiceError> =
+            Ok(setOf(LanguageCode.ENGLISH))
+
+        override suspend fun extractText(request: OCRRequest): Result<OCRResponse, ServiceError> {
+            kotlinx.coroutines.delay(1_000)
+            return Ok(OCRResponse("resolved by the provider"))
+        }
     }
 
     /** A structured provider that reuses the recording service's text and request log. */

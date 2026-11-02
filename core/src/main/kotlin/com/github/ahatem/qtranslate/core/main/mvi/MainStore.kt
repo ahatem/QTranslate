@@ -753,9 +753,20 @@ class MainStore(
         )
         if (!isCurrentOcrRequest(generation)) return
 
-        val result = (outcome as? OcrExtractionOutcome.Success)?.result ?: return
-        val preparedText = preprocessOcrText(result.text, settings)
-        if (preparedText.isBlank()) return
+        val result = (outcome as? OcrExtractionOutcome.Success)?.result
+        val preparedText = result?.let { preprocessOcrText(it.text, settings) }.orEmpty()
+        if (preparedText.isBlank()) {
+            // The capture overlay has already closed and the main window was hidden for it.
+            // A recognition failure must not strand the user on an invisible window with only
+            // a hidden status-bar message. Workspace actions restore their own window.
+            if (action == OcrPostSelectionAction.TRANSLATE ||
+                action == OcrPostSelectionAction.COPY_TEXT
+            ) {
+                sendEvent(MainEvent.ShowMainWindow)
+            }
+            return
+        }
+        val recognized = requireNotNull(result)
 
         when (action) {
             OcrPostSelectionAction.COPY_TEXT -> {
@@ -775,7 +786,7 @@ class MainStore(
                                 image = image,
                                 autoTranslate = true,
                                 initialText = preparedText,
-                                initialRegions = result.regions,
+                                initialRegions = recognized.regions,
                             )
                         )
                     }

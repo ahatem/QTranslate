@@ -275,6 +275,33 @@ class OcrWorkflowRoutingTest {
     }
 
     @Test
+    fun `a failed OCR translate reveals the main window instead of stranding the user`() = runTest {
+        val fixture = OcrWorkflowFixture(this)
+        try {
+            fixture.ocr.responder = {
+                com.github.michaelbull.result.Err(
+                    com.github.ahatem.qtranslate.api.plugin.ServiceError.InvalidResponseError("failed")
+                )
+            }
+
+            fixture.store.dispatch(
+                MainIntent.OcrWorkflowImage(
+                    image = fixture.image(),
+                    action = OcrPostSelectionAction.TRANSLATE,
+                    destinationOverride = OcrTranslationDestination.QUICK_TRANSLATE,
+                )
+            )
+            advanceUntilIdle()
+
+            assertTrue(fixture.events.any { it == MainEvent.ShowMainWindow })
+            assertEquals("", fixture.store.state.value.inputText)
+            assertFalse(fixture.store.state.value.isQuickTranslateDialogVisible)
+        } finally {
+            fixture.cleanUp()
+        }
+    }
+
+    @Test
     fun `OCR to Main does not copy under the quick-only policy`() = runTest {
         val fixture = OcrWorkflowFixture(
             this,

@@ -100,10 +100,17 @@ class OcrWorkspaceStore(
         val before = _state.value
         val next = before.withProviders(providers)
         val contextChanged = next.providerId != before.providerId || next.language != before.language
-        if (contextChanged && before.isRecognizing) invalidateRequest()
+        // A dynamic provider starts with an empty language list and fills it asynchronously.
+        // That metadata arrival is not a user-initiated context change: the in-flight request
+        // was sent with AUTO and the provider resolves it. Cancelling here made the first
+        // workspace auto-run disappear with no error.
+        val metadataOnly = before.providerId == next.providerId &&
+            before.languages.isEmpty() &&
+            next.languages.isNotEmpty()
+        if (contextChanged && before.isRecognizing && !metadataOnly) invalidateRequest()
         _state.update { current ->
             val updated = current.withProviders(providers)
-            if (contextChanged && current.isRecognizing) {
+            if (contextChanged && !metadataOnly && current.isRecognizing) {
                 updated.copy(isRecognizing = false, error = null)
             } else {
                 updated
