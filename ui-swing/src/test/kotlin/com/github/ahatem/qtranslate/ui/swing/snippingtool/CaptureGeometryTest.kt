@@ -7,6 +7,7 @@ import java.awt.image.BufferedImage
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * The capture overlay paints a screenshot across a panel. Robot pixels and Swing panel pixels are
@@ -120,6 +121,187 @@ class CaptureGeometryTest {
         assertEquals(
             Point(0, 52),
             CaptureGeometry.toolbarPosition(Rectangle(0, 10, 30, 30), Dimension(90, 30), Dimension(300, 200)),
+        )
+    }
+
+    @Test
+    fun `toolbar stays on a side by side monitor instead of the virtual union`() {
+        val displays = listOf(
+            Rectangle(0, 0, 1920, 1040),
+            Rectangle(1920, 0, 1920, 1040),
+        )
+        val toolbar = Dimension(300, 40)
+        assertToolbarOnRealDisplay(
+            selection = Rectangle(2500, 100, 120, 60),
+            toolbar = toolbar,
+            panel = Dimension(3840, 1080),
+            displays = displays,
+            origin = Point(0, 0),
+        )
+    }
+
+    @Test
+    fun `toolbar placement handles a monitor at negative x`() {
+        val displays = listOf(
+            Rectangle(-1920, 0, 1920, 1040),
+            Rectangle(0, 0, 1920, 1040),
+        )
+        val position = CaptureGeometry.toolbarPosition(
+            selection = Rectangle(120, 100, 120, 60),
+            toolbarSize = Dimension(300, 40),
+            panelSize = Dimension(3840, 1040),
+            displays = displays,
+            virtualOrigin = Point(-1920, 0),
+        )
+        assertToolbarOnRealDisplay(
+            selection = Rectangle(120, 100, 120, 60),
+            toolbar = Dimension(300, 40),
+            panel = Dimension(3840, 1040),
+            displays = displays,
+            origin = Point(-1920, 0),
+        )
+        assertEquals(30, position.x)
+    }
+
+    @Test
+    fun `toolbar placement handles a monitor above the primary`() {
+        val displays = listOf(
+            Rectangle(0, -1080, 1920, 1080),
+            Rectangle(0, 0, 1920, 1080),
+        )
+        assertToolbarOnRealDisplay(
+            selection = Rectangle(500, 80, 120, 60),
+            toolbar = Dimension(300, 40),
+            panel = Dimension(1920, 2160),
+            displays = displays,
+            origin = Point(0, -1080),
+        )
+    }
+
+    @Test
+    fun `toolbar placement handles a monitor below the primary`() {
+        val displays = listOf(
+            Rectangle(0, 0, 1920, 1080),
+            Rectangle(0, 1080, 1920, 1080),
+        )
+        assertToolbarOnRealDisplay(
+            selection = Rectangle(500, 2000, 120, 60),
+            toolbar = Dimension(300, 40),
+            panel = Dimension(1920, 2160),
+            displays = displays,
+            origin = Point(0, 0),
+        )
+    }
+
+    @Test
+    fun `toolbar placement avoids the gap in a staggered diagonal arrangement`() {
+        val displays = listOf(
+            Rectangle(0, 0, 1920, 1080),
+            Rectangle(1920, 1080, 1920, 1080),
+        )
+        assertToolbarOnRealDisplay(
+            selection = Rectangle(1800, 1000, 200, 200),
+            toolbar = Dimension(300, 40),
+            panel = Dimension(3840, 2160),
+            displays = displays,
+            origin = Point(0, 0),
+        )
+    }
+
+    @Test
+    fun `toolbar placement handles unequal monitor heights`() {
+        val displays = listOf(
+            Rectangle(0, 0, 1920, 1440),
+            Rectangle(1920, 0, 1920, 900),
+        )
+        assertToolbarOnRealDisplay(
+            selection = Rectangle(2000, 800, 120, 80),
+            toolbar = Dimension(300, 40),
+            panel = Dimension(3840, 1440),
+            displays = displays,
+            origin = Point(0, 0),
+        )
+    }
+
+    @Test
+    fun `a selection in a virtual desktop gap moves onto a real display`() {
+        val displays = listOf(
+            Rectangle(0, 0, 1920, 1080),
+            Rectangle(1920, 1080, 1920, 1080),
+        )
+        val toolbar = Dimension(300, 40)
+        val position = CaptureGeometry.toolbarPosition(
+            selection = Rectangle(2000, 1000, 100, 40),
+            toolbarSize = toolbar,
+            panelSize = Dimension(3840, 2160),
+            displays = displays,
+            virtualOrigin = Point(0, 0),
+        )
+        val panelRect = Rectangle(position, toolbar)
+        val desktopRect = Rectangle(panelRect.x, panelRect.y, panelRect.width, panelRect.height)
+        assertTrue(
+            displays.any { it.contains(desktopRect) },
+            "toolbar $desktopRect must be inside a real display, not the virtual-desktop gap",
+        )
+    }
+
+    @Test
+    fun `usable display insets are respected`() {
+        val displays = listOf(
+            Rectangle(0, 24, 1920, 1016),
+            Rectangle(1920, 0, 1920, 1040),
+        )
+        assertToolbarOnRealDisplay(
+            selection = Rectangle(100, 100, 120, 60),
+            toolbar = Dimension(300, 40),
+            panel = Dimension(3840, 1080),
+            displays = displays,
+            origin = Point(0, 0),
+        )
+    }
+
+    @Test
+    fun `a selection crossing a monitor boundary uses the display it overlaps most`() {
+        val displays = listOf(
+            Rectangle(0, 0, 1920, 1080),
+            Rectangle(1920, 0, 1920, 1080),
+        )
+        val toolbar = Dimension(300, 40)
+        val position = CaptureGeometry.toolbarPosition(
+            selection = Rectangle(1800, 100, 300, 100),
+            toolbarSize = toolbar,
+            panelSize = Dimension(3840, 1080),
+            displays = displays,
+            virtualOrigin = Point(0, 0),
+        )
+        val panelRect = Rectangle(position, toolbar)
+        assertTrue(displays[1].contains(panelRect), "the right monitor owns 180px of the selection")
+    }
+
+    private fun assertToolbarOnRealDisplay(
+        selection: Rectangle,
+        toolbar: Dimension,
+        panel: Dimension,
+        displays: List<Rectangle>,
+        origin: Point,
+    ) {
+        val position = CaptureGeometry.toolbarPosition(
+            selection = selection,
+            toolbarSize = toolbar,
+            panelSize = panel,
+            displays = displays,
+            virtualOrigin = origin,
+        )
+        val panelRect = Rectangle(position, toolbar)
+        val desktopRect = Rectangle(
+            panelRect.x + origin.x,
+            panelRect.y + origin.y,
+            panelRect.width,
+            panelRect.height,
+        )
+        assertTrue(
+            displays.any { it.contains(desktopRect) },
+            "toolbar $desktopRect must be fully contained by a real usable display $displays",
         )
     }
 

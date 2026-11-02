@@ -75,6 +75,102 @@ internal object CaptureGeometry {
         return Point(x, y)
     }
 
+    /**
+     * Places the toolbar on the actual display that owns most of [selection].
+     *
+     * The capture panel spans the virtual desktop, but its union contains gaps that belong to no
+     * monitor. Clamping to the union can therefore place the toolbar in empty space. [displays]
+     * are the connected usable display rectangles in virtual-screen coordinates (taskbar/menu-bar
+     * insets already removed); [virtualOrigin] converts them into the panel's local coordinates.
+     *
+     * The toolbar stays fully inside the chosen display, preferring below the selection and
+     * falling back to above. A selection crossing monitors picks the display with the largest
+     * intersection.
+     */
+    fun toolbarPosition(
+        selection: Rectangle,
+        toolbarSize: Dimension,
+        panelSize: Dimension,
+        displays: List<Rectangle>,
+        virtualOrigin: Point,
+        padding: Int = 12,
+    ): Point {
+        if (displays.isEmpty()) {
+            return toolbarPosition(selection, toolbarSize, panelSize, padding)
+        }
+
+        val selectionOnDesktop = Rectangle(
+            selection.x + virtualOrigin.x,
+            selection.y + virtualOrigin.y,
+            selection.width,
+            selection.height,
+        )
+        val display = displayOwning(selectionOnDesktop, displays)
+        val local = Rectangle(
+            display.x - virtualOrigin.x,
+            display.y - virtualOrigin.y,
+            display.width,
+            display.height,
+        )
+        val minX = local.x
+        val maxX = (local.x + local.width - toolbarSize.width).coerceAtLeast(minX)
+        val minY = local.y
+        val maxY = (local.y + local.height - toolbarSize.height).coerceAtLeast(minY)
+
+        var x = selection.x + (selection.width - toolbarSize.width) / 2
+        x = x.coerceIn(minX, maxX)
+
+        val below = selection.y + selection.height + padding
+        val above = selection.y - toolbarSize.height - padding
+        val y = when {
+            below in minY..maxY -> below
+            above in minY..maxY -> above
+            maxY - (selection.y + selection.height) >= selection.y - minY ->
+                below.coerceIn(minY, maxY)
+            else -> above.coerceIn(minY, maxY)
+        }
+
+        // Keep the result inside the panel as well, for a display whose reported bounds extend
+        // past the screenshot's logical size on an unusual HiDPI configuration.
+        val panelMaxX = max(0, panelSize.width - toolbarSize.width)
+        val panelMaxY = max(0, panelSize.height - toolbarSize.height)
+        return Point(
+            x.coerceIn(0, panelMaxX),
+            y.coerceIn(0, panelMaxY),
+        )
+    }
+
+    /** The display with the largest overlap; nearest display when the selection is in a gap. */
+    private fun displayOwning(selection: Rectangle, displays: List<Rectangle>): Rectangle {
+        var best = displays.first()
+        var bestArea = -1L
+        displays.forEach { display ->
+            val overlap = display.intersection(selection)
+            val area = if (overlap.isEmpty) 0L else overlap.width.toLong() * overlap.height.toLong()
+            if (area > bestArea) {
+                best = display
+                bestArea = area
+            }
+        }
+        if (bestArea > 0L) return best
+
+        val centerX = selection.x + selection.width / 2
+        val centerY = selection.y + selection.height / 2
+        return displays.minByOrNull { display ->
+            val dx = when {
+                centerX < display.x -> display.x - centerX
+                centerX > display.x + display.width -> centerX - (display.x + display.width)
+                else -> 0
+            }.toLong()
+            val dy = when {
+                centerY < display.y -> display.y - centerY
+                centerY > display.y + display.height -> centerY - (display.y + display.height)
+                else -> 0
+            }.toLong()
+            dx * dx + dy * dy
+        } ?: best
+    }
+
     /** The integer scale used to fit an image inside a viewport, never enlarging past actual size. */
     fun fitScale(image: Dimension, viewport: Dimension): Double {
         if (image.width <= 0 || image.height <= 0) return 1.0

@@ -1,7 +1,9 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.util
 
+import com.github.ahatem.qtranslate.ui.swing.shared.widgets.usableBounds
 import java.awt.GraphicsEnvironment
 import java.awt.Rectangle
+import java.awt.Toolkit
 
 /**
  * Whether a window restored to [bounds] would land somewhere the user can still reach it.
@@ -41,6 +43,22 @@ fun connectedScreenBounds(): List<Rectangle> = runCatching {
     GraphicsEnvironment.getLocalGraphicsEnvironment()
         .screenDevices
         .map { it.defaultConfiguration.bounds }
+}.getOrDefault(emptyList())
+
+/**
+ * The usable rectangle of every connected display, with OS-reserved insets removed.
+ *
+ * Capture toolbar placement uses these instead of the virtual-desktop union: the union includes
+ * gaps between irregularly arranged monitors, which belong to no display at all.
+ */
+fun connectedUsableScreenBounds(): List<Rectangle> = runCatching {
+    val toolkit = Toolkit.getDefaultToolkit()
+    GraphicsEnvironment.getLocalGraphicsEnvironment()
+        .screenDevices
+        .map { device ->
+            val configuration = device.defaultConfiguration
+            usableBounds(configuration.bounds, toolkit.getScreenInsets(configuration))
+        }
 }.getOrDefault(emptyList())
 
 /** Roughly a grabbable corner: enough to see the window and drag it somewhere better. */

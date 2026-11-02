@@ -350,10 +350,16 @@ class ScreenCapturePanel(
     // Position helpers
     // ─────────────────────────────────────────────────────────────────────────
 
-    fun calculateButtonsPosition(selection: Rectangle): Point =
+    fun calculateButtonsPosition(
+        selection: Rectangle,
+        displays: List<Rectangle> = emptyList(),
+        virtualOrigin: Point = Point(),
+    ): Point =
         CaptureGeometry.toolbarPosition(
             selection = selection,
             toolbarSize = buttonsPanel.preferredSize,
             panelSize = size,
+            displays = displays,
+            virtualOrigin = virtualOrigin,
         )
 }

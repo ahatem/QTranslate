@@ -10,6 +10,7 @@ import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.OcrPostSelectionAction
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
+import com.github.ahatem.qtranslate.ui.swing.shared.util.connectedUsableScreenBounds
 import com.github.ahatem.qtranslate.ui.swing.shared.util.getVirtualScreenBounds
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toImageData
 import java.awt.*
@@ -54,6 +55,7 @@ class SnippingToolDialog(
 
     private val definition = settingsStore.state.value.originalConfiguration
     private val resolved: ResolvedOcrWorkflow = resolveOcrWorkflow(command, definition.ocr)
+    private val usableDisplays: List<Rectangle> = connectedUsableScreenBounds()
     private val panel: ScreenCapturePanel
     private val controller: ScreenCaptureController
 
@@ -69,7 +71,11 @@ class SnippingToolDialog(
             currentState = initialState,
             onStateChanged = { newState ->
                 val buttonsPosition = if (newState.selection != null) {
-                    panel.calculateButtonsPosition(newState.selection)
+                    panel.calculateButtonsPosition(
+                        selection = newState.selection,
+                        displays = usableDisplays,
+                        virtualOrigin = bounds.location,
+                    )
                 } else null
                 val stateWithButtons = newState.copy(buttonsPosition = buttonsPosition)
                 panel.render(stateWithButtons)
