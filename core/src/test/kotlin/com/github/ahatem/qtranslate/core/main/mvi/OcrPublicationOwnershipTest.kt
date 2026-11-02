@@ -28,6 +28,55 @@ import kotlin.test.assertTrue
 class OcrPublicationOwnershipTest {
 
     @Test
+    @OptIn(kotlinx.coroutines.InternalCoroutinesApi::class)
+    fun `older OCR cleanup cannot cancel the translation installed by a newer claim`() = runBlocking {
+        val fixture = OcrWorkflowFixture(TestScope(), dispatcher = Dispatchers.IO)
+        val oldStarted = CompletableDeferred<Unit>()
+        val aClaimed = CountDownLatch(1)
+        val resumeA = java.util.concurrent.Semaphore(0)
+        val bStarted = CompletableDeferred<Unit>()
+        val releaseB = CompletableDeferred<Unit>()
+        var cleanup: Thread? = null
+        try {
+            fixture.ocr.responder = { request ->
+                if (request.image.width == 1) {
+                    kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]!!
+                        .invokeOnCompletion(onCancelling = true, invokeImmediately = true) {
+                            aClaimed.countDown()
+                            resumeA.acquireUninterruptibly()
+                        }
+                    oldStarted.complete(Unit)
+                    kotlinx.coroutines.awaitCancellation()
+                }
+                Ok(OCRResponse("B source"))
+            }
+            fixture.translator.beforeTranslate = { text ->
+                if (text == "B source") { bStarted.complete(Unit); releaseB.await() }
+            }
+            fixture.store.dispatch(MainIntent.OcrWorkflowImage(ImageData(byteArrayOf(1), "png", 1, 1), OcrPostSelectionAction.COPY_TEXT))
+            withTimeout(5_000) { oldStarted.await() }
+            cleanup = Thread {
+                fixture.store.dispatch(MainIntent.OcrWorkflowImage(fixture.image(), OcrPostSelectionAction.COPY_IMAGE))
+            }.also { it.start() }
+            assertTrue(aClaimed.await(5, TimeUnit.SECONDS), "A must pause after claiming, during detached-job cancellation")
+            fixture.store.dispatch(MainIntent.OcrWorkflowImage(fixture.image(), OcrPostSelectionAction.TRANSLATE, OcrTranslationDestination.QUICK_TRANSLATE))
+            withTimeout(5_000) { bStarted.await() }
+            resumeA.release()
+            cleanup.join(5_000)
+            assertTrue(!cleanup.isAlive)
+            assertTrue(fixture.store.state.value.isLoading, "older A must not cancel current B")
+            releaseB.complete(Unit)
+            val result = withTimeout(5_000) { fixture.store.state.first { it.translatedText == "t:B source" } }
+            assertEquals("B source", result.inputText)
+        } finally {
+            resumeA.release()
+            releaseB.complete(Unit)
+            cleanup?.join(5_000)
+            fixture.cleanUp()
+        }
+    }
+
+    @Test
     fun `a stale copy-text workflow cannot emit a clipboard event`() = runBlocking {
         val fixture = OcrWorkflowFixture(
             testScope = TestScope(),

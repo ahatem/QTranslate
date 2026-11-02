@@ -733,10 +733,15 @@ class MainStore(
         action: OcrPostSelectionAction,
         destinationOverride: OcrTranslationDestination?,
     ) {
-        val claim = ocrOwner.claim() ?: return
+        var previousTranslation: OcrTranslation? = null
+        val claim = ocrOwner.claim {
+            previousTranslation = ocrTranslation
+            ocrTranslation = null
+        } ?: return
+        // Only identities detached by this claim may be cancelled. A newer claim can install
+        // its translation while cancellation invokes handlers, so never reread the shared slot.
         claim.previousJob?.cancel()
-        cancelOcrTranslation(ocrTranslation)
-        ocrTranslation = null
+        cancelOcrTranslation(previousTranslation)
         val token = claim.token
 
         when (action) {
