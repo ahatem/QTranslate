@@ -14,6 +14,9 @@ import com.github.ahatem.qtranslate.core.history.restoredHistoryIndex
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.domain.language.LanguageSelectionCompat
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
+import com.github.ahatem.qtranslate.core.ocr.OcrExtractionOutcome
+import com.github.ahatem.qtranslate.core.ocr.preprocessOcrText
+import com.github.ahatem.qtranslate.core.ocr.resolveOcrLanguage
 import com.github.ahatem.qtranslate.core.workspace.translation.ComparisonPolicy
 import com.github.ahatem.qtranslate.core.workspace.translation.RewriteUseCase
 import com.github.ahatem.qtranslate.core.workspace.translation.SummarizeUseCase
@@ -33,6 +36,8 @@ import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import com.github.ahatem.qtranslate.core.settings.data.effectiveLayoutPresetId
 import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
+import com.github.ahatem.qtranslate.core.settings.data.OcrPostSelectionAction
+import com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination
 import com.github.ahatem.qtranslate.core.settings.data.SelectionReadSource
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.AppConstants
@@ -41,6 +46,7 @@ import com.github.ahatem.qtranslate.core.shared.arch.Store
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -127,6 +133,23 @@ class MainStore(
 ) : Store<MainState, MainIntent, MainEvent> {
 
     private val quickTranslateGenerations = AtomicLong()
+
+    /**
+     * Screen OCR has its own request owner. Like [TranslationRequestOwner], it makes the newest
+     * capture supersede older work, so a slow recognition cannot overwrite a newer result or
+     * start a translation for a workflow the user already replaced.
+     */
+    private val ocrRequestGenerations = AtomicLong()
+    private var ocrJob: Job? = null
+
+    /**
+     * The input text a non-typing workflow just placed in the editor. The instant-translation
+     * observer skips exactly this value once: otherwise enabling instant translation could
+     * schedule a second request that supersedes the OCR/Quick/Replace translation that owns it.
+     * Any user edit clears the marker by differing from it.
+     */
+    @Volatile
+    private var programmaticInputText: String? = null
 
     private val _state = MutableStateFlow(
         MainState(
@@ -279,6 +302,13 @@ class MainStore(
                 .debounce(AppConstants.INSTANT_TRANSLATION_DEBOUNCE_MS)
                 .distinctUntilChanged()
                 .collect { text ->
+                    if (text == programmaticInputText) {
+                        // One workflow owns this text. Consume the marker so a later identical
+                        // user edit is not suppressed as well.
+                        programmaticInputText = null
+                        return@collect
+                    }
+                    programmaticInputText = null
                     if (settingsState.value.isInstantTranslationEnabled
                         && text.length >= AppConstants.INSTANT_TRANSLATE_MIN_CHARS
                     ) {
@@ -398,6 +428,9 @@ class MainStore(
             // ---- Synchronous state mutations — no coroutine needed ----
 
             is MainIntent.UpdateInputText -> {
+                // The user is editing the input themselves; a previous programmatic write no
+                // longer owns the instant-translation suppression slot.
+                programmaticInputText = null
                 // Remove line breaks if enabled — replaces \n with space so
                 // PDF-copied text translates as complete sentences (Mohamed's request)
                 val cleaned = prepareInputText(intent.text, settingsState.value.isRemoveLineBreaksEnabled)
@@ -482,6 +515,15 @@ class MainStore(
             }
 
             is MainIntent.Translate -> {
+                // An explicit translation of externally supplied text owns the input for this
+                // pass; with instant translation enabled, the debounced observer must not replace
+                // it with an otherwise identical secondary request.
+                if (intent.text != null) {
+                    programmaticInputText = prepareInputText(
+                        intent.text,
+                        settingsState.value.isRemoveLineBreaksEnabled,
+                    )
+                }
                 cancelTranslationWork()
                 clearComparisonState()
                 scope.launch { translateText(TranslationOrigin.MAIN, intent.text, comparisonPolicy = mainComparisonPolicy()) }
@@ -517,16 +559,31 @@ class MainStore(
                 handleListen(intent.textSource, intent.text, intent.language)
             }
 
-            is MainIntent.OcrAndTranslateImage -> {
-                clearComparisonState()
-                scope.launch { handleOcrAndTranslate(intent) }
-            }
+            is MainIntent.OcrWorkflowImage -> startOcrWorkflow(
+                image = intent.image,
+                action = intent.action,
+                destinationOverride = intent.destinationOverride,
+            )
 
-            is MainIntent.OcrAndCopyText -> scope.launch {
-                handleOcrAndCopyText(intent)
-            }
+            is MainIntent.OcrAndTranslateImage -> startOcrWorkflow(
+                image = intent.image,
+                action = OcrPostSelectionAction.TRANSLATE,
+                destinationOverride = intent.destination,
+            )
+
+            is MainIntent.OcrAndCopyText -> startOcrWorkflow(
+                image = intent.image,
+                action = OcrPostSelectionAction.COPY_TEXT,
+                destinationOverride = null,
+            )
 
             is MainIntent.ShowQuickTranslate -> {
+                // Quick Translate writes inputText too. Mark it so the instant-translation
+                // observer does not replace the request this workflow is about to start.
+                programmaticInputText = prepareInputText(
+                    intent.selectedText,
+                    settingsState.value.isRemoveLineBreaksEnabled,
+                )
                 val generation = quickTranslateGenerations.incrementAndGet()
                 // Invalidate a previous auto-read before its handler coroutine gets a chance to
                 // finish TTS setup. The handler also checks the request token after translation.
@@ -634,36 +691,117 @@ class MainStore(
 
     private fun cancelDocumentTranslation() = documentSession.cancel()
 
-    private suspend fun handleOcrAndTranslate(intent: MainIntent.OcrAndTranslateImage) {
-        val extractedText = ocrAndTranslateUseCase(
-            image = intent.image,
-            currentState = _state.value,
-            onStatusUpdate = ::updateStatusBar
-        )
-
-        if (extractedText.isBlank()) return
-
-        // Write extracted text into input then translate — same path as manual typing.
-        clearComparisonState()
-        _state.update { it.copy(inputText = extractedText) }
-        translateText(TranslationOrigin.OCR, comparisonPolicy = ComparisonPolicy.DISABLED)
-    }
-
     /**
-     * OCR-only path: extracts text from [intent.image] and emits [MainEvent.CopyToClipboard]
-     * so the UI layer can write it to the system clipboard.
-     * Does NOT translate — the user chose "Copy Text", not "Translate".
+     * Starts one capture workflow and makes it the only OCR request allowed to publish.
+     *
+     * Copy Image deliberately stays outside the coroutine: it is a cheap clipboard operation and
+     * must not wait for a provider. It still invalidates older OCR work, because choosing it is a
+     * new workflow action.
      */
-    private suspend fun handleOcrAndCopyText(intent: MainIntent.OcrAndCopyText) {
-        val extractedText = ocrAndTranslateUseCase(
-            image = intent.image,
-            currentState = _state.value,
-            onStatusUpdate = ::updateStatusBar
-        )
-        if (extractedText.isBlank()) return
-        sendEvent(MainEvent.CopyToClipboard(extractedText))
-        updateStatusBar(StatusCode.OcrTextCopied, NotificationType.INFO, true)
+    private fun startOcrWorkflow(
+        image: com.github.ahatem.qtranslate.api.ocr.ImageData,
+        action: OcrPostSelectionAction,
+        destinationOverride: OcrTranslationDestination?,
+    ) {
+        val generation = ocrRequestGenerations.incrementAndGet()
+        ocrJob?.cancel()
+        ocrJob = null
+
+        when (action) {
+            OcrPostSelectionAction.COPY_IMAGE -> {
+                scope.launch {
+                    if (!isCurrentOcrRequest(generation)) return@launch
+                    sendEvent(MainEvent.CopyImageToClipboard(image))
+                    updateStatusBar(StatusCode.OcrImageCopied, NotificationType.SUCCESS, true)
+                }
+            }
+            OcrPostSelectionAction.OPEN_WORKSPACE -> {
+                scope.launch {
+                    if (!isCurrentOcrRequest(generation)) return@launch
+                    sendEvent(MainEvent.OpenOcrWorkspace(image = image, autoTranslate = false))
+                }
+            }
+            OcrPostSelectionAction.SHOW_ACTIONS -> Unit
+            OcrPostSelectionAction.TRANSLATE,
+            OcrPostSelectionAction.COPY_TEXT -> {
+                ocrJob = scope.launch {
+                    handleOcrWorkflow(image, action, destinationOverride, generation)
+                }
+            }
+        }
     }
+
+    private suspend fun handleOcrWorkflow(
+        image: com.github.ahatem.qtranslate.api.ocr.ImageData,
+        action: OcrPostSelectionAction,
+        destinationOverride: OcrTranslationDestination?,
+        generation: Long,
+    ) {
+        val settings = settingsState.value.ocr
+        val language = resolveOcrLanguage(settings.recognitionLanguage, _state.value.sourceLanguage)
+        val outcome = ocrAndTranslateUseCase.extract(
+            image = image,
+            language = language,
+            onStatusUpdate = ::updateStatusBar,
+        )
+        if (!isCurrentOcrRequest(generation)) return
+
+        val result = (outcome as? OcrExtractionOutcome.Success)?.result ?: return
+        val preparedText = preprocessOcrText(result.text, settings)
+        if (preparedText.isBlank()) return
+
+        when (action) {
+            OcrPostSelectionAction.COPY_TEXT -> {
+                sendEvent(MainEvent.CopyToClipboard(preparedText))
+                updateStatusBar(StatusCode.OcrTextCopied, NotificationType.INFO, true)
+            }
+            OcrPostSelectionAction.TRANSLATE -> {
+                when (destinationOverride ?: settings.translationDestination) {
+                    OcrTranslationDestination.QUICK_TRANSLATE -> {
+                        // Canonical Quick path: it owns cancellation, comparison clearing,
+                        // popup visibility and request generation. Do not reproduce them here.
+                        dispatch(MainIntent.ShowQuickTranslate(preparedText))
+                    }
+                    OcrTranslationDestination.OCR_WORKSPACE -> {
+                        sendEvent(
+                            MainEvent.OpenOcrWorkspace(
+                                image = image,
+                                autoTranslate = true,
+                                initialText = preparedText,
+                                initialRegions = result.regions,
+                            )
+                        )
+                    }
+                    OcrTranslationDestination.MAIN_WINDOW -> {
+                        if (!isCurrentOcrRequest(generation)) return
+                        // The main input's own line-break policy still applies, exactly as it
+                        // does to text typed or pasted there. Quick Translate applies it too.
+                        val mainText = prepareInputText(
+                            preparedText,
+                            settingsState.value.isRemoveLineBreaksEnabled,
+                        )
+                        clearComparisonState()
+                        programmaticInputText = mainText
+                        _state.update {
+                            it.copy(
+                                inputText = mainText,
+                                detectedSourceLanguage = null,
+                                spellCheckCorrections = emptyList(),
+                            )
+                        }
+                        sendEvent(MainEvent.ShowMainWindow)
+                        translateText(TranslationOrigin.OCR, comparisonPolicy = ComparisonPolicy.DISABLED)
+                    }
+                }
+            }
+            OcrPostSelectionAction.COPY_IMAGE,
+            OcrPostSelectionAction.OPEN_WORKSPACE,
+            OcrPostSelectionAction.SHOW_ACTIONS -> Unit
+        }
+    }
+
+    private fun isCurrentOcrRequest(generation: Long): Boolean =
+        ocrRequestGenerations.get() == generation
 
     private suspend fun handleShowQuickTranslate(
         intent: MainIntent.ShowQuickTranslate,
@@ -991,6 +1129,7 @@ class MainStore(
         // even when the main window is visible. focusableWindowState=false on
         // LoadingIndicator means it never steals focus from the source app.
         clearComparisonState()
+        programmaticInputText = preparedText
         _state.update { it.copy(inputText = preparedText, isReplacingSelection = true) }
         translationCoordinator.translate(
             origin = TranslationOrigin.MAIN,
@@ -1026,6 +1165,9 @@ class MainStore(
         // right after this returns.
         cancelTranslationWork()
         cancelDocumentTranslation()
+        ocrRequestGenerations.incrementAndGet()
+        ocrJob?.cancel()
+        ocrJob = null
         dictionarySession.cancel()
         imageSession.cancel()
         if (settingsState.value.clearHistoryOnExit) {

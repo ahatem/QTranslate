@@ -5,6 +5,8 @@ import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
+import com.github.ahatem.qtranslate.core.settings.data.OcrPostSelectionAction
+import com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
 import java.io.File
@@ -72,8 +74,27 @@ sealed interface MainIntent : UiIntent {
      */
     data object StopTTS : MainIntent
 
-    /** User requested OCR on an image followed by translation of the detected text. */
-    data class OcrAndTranslateImage(val image: ImageData) : MainIntent
+    /**
+     * Runs one post-selection OCR workflow.
+     *
+     * [OcrPostSelectionAction.SHOW_ACTIONS] is a UI-only outcome and is ignored here; the capture
+     * overlay never dispatches it. [destinationOverride] is used by the explicit
+     * "translate to Quick/Main" hotkeys; null means use the saved destination.
+     */
+    data class OcrWorkflowImage(
+        val image: ImageData,
+        val action: OcrPostSelectionAction,
+        val destinationOverride: OcrTranslationDestination? = null,
+    ) : MainIntent
+
+    /**
+     * Existing image-drop/paste route. It always translates but now follows the saved OCR
+     * destination preference (Main Window by default, preserving historic behavior).
+     */
+    data class OcrAndTranslateImage(
+        val image: ImageData,
+        val destination: OcrTranslationDestination? = null,
+    ) : MainIntent
 
     /**
      * User requested OCR on an image to extract text and copy it to the clipboard —
