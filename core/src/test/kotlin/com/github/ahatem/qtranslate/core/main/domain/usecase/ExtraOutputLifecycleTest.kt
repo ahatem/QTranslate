@@ -23,6 +23,7 @@ import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
@@ -599,6 +600,254 @@ class ExtraOutputLifecycleTest {
         }
     }
 
+    @Test
+    fun `a standalone refresh keeps the panel when a translation resumes its startup`() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        try {
+            val fixture = fixture(scope)
+            fixture.translator.hold = CompletableDeferred()
+            val state = AtomicReference(
+                MainState(
+                    inputText = "hello",
+                    translatedText = "old translation",
+                    sourceLanguage = LanguageCode.ENGLISH,
+                    targetLanguage = LanguageCode.ARABIC,
+                )
+            )
+            val startupEntered = CountDownLatch(1)
+            val releaseStartup = CountDownLatch(1)
+            val secondaryPublished = CountDownLatch(1)
+            val update: (MainState.() -> MainState) -> Unit = { transform ->
+                val before = state.get()
+                val after = before.transform()
+                if (!before.isLoading && after.isLoading && after.translatedText.isEmpty()) {
+                    // The translation is about to publish its startup state.
+                    startupEntered.countDown()
+                    check(releaseStartup.await(5, TimeUnit.SECONDS)) {
+                        "the translation startup was never released"
+                    }
+                }
+                val applied = state.updateAndGet { it.transform() }
+                if (applied.extraOutputText == "summary" && !applied.isExtraOutputLoading) {
+                    secondaryPublished.countDown()
+                }
+            }
+
+            val translation = scope.launch {
+                fixture.useCase(
+                    getState = { state.get() },
+                    updateState = update,
+                    onStatusUpdate = { _, _, _ -> },
+                    extraOutputRequest = request(ExtraOutputType.Summarize),
+                )
+            }
+            assertTrue(startupEntered.await(5, TimeUnit.SECONDS), "the translation startup never started")
+
+            // The standalone refresh claims the panel while the translation is paused before its
+            // startup publication, and publishes a complete result.
+            fixture.useCase.refreshExtraOutput(
+                extraOutputRequest = request(ExtraOutputType.Summarize),
+                getState = { state.get() },
+                updateState = update,
+                onStatusUpdate = { _, _, _ -> },
+            )
+            assertTrue(
+                secondaryPublished.await(5, TimeUnit.SECONDS),
+                "the standalone refresh never published its panel state"
+            )
+
+            releaseStartup.countDown()
+            withTimeout(5_000) { fixture.translator.started.await() }
+
+            assertTrue(state.get().isLoading, "the translation still publishes its primary startup")
+            assertEquals("", state.get().translatedText)
+            assertFalse(state.get().translationFailed)
+            assertEquals("summary", state.get().extraOutputText, "the newer panel content survives")
+            assertFalse(state.get().isExtraOutputLoading, "the translation must not reopen the newer panel")
+            assertFalse(state.get().extraOutputFailed)
+            assertNull(state.get().extraOutputFailure)
+
+            translation.cancel()
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `a primary failure cannot lower a newer secondary request's spinner`() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        try {
+            val fixture = fixture(scope)
+            fixture.translator.result = Err(ServiceError.InvalidResponseError("primary exploded"))
+            fixture.translator.hold = CompletableDeferred()
+            fixture.summarizer.release = CompletableDeferred()
+            val state = AtomicReference(
+                MainState(
+                    inputText = "hello",
+                    translatedText = "old translation",
+                    sourceLanguage = LanguageCode.ENGLISH,
+                    targetLanguage = LanguageCode.ARABIC,
+                )
+            )
+            val startupEntered = CountDownLatch(1)
+            val releaseStartup = CountDownLatch(1)
+            val secondaryPublished = CountDownLatch(1)
+            val update: (MainState.() -> MainState) -> Unit = { transform ->
+                val before = state.get()
+                val after = before.transform()
+                if (!before.isLoading && after.isLoading && after.translatedText.isEmpty()) {
+                    startupEntered.countDown()
+                    check(releaseStartup.await(5, TimeUnit.SECONDS)) {
+                        "the translation startup was never released"
+                    }
+                }
+                val applied = state.updateAndGet { it.transform() }
+                if (applied.extraOutputText == "summary" && !applied.isExtraOutputLoading) {
+                    secondaryPublished.countDown()
+                }
+            }
+
+            val translation = scope.launch {
+                fixture.useCase(
+                    getState = { state.get() },
+                    updateState = update,
+                    onStatusUpdate = { _, _, _ -> },
+                    extraOutputRequest = request(ExtraOutputType.Summarize),
+                )
+            }
+            assertTrue(startupEntered.await(5, TimeUnit.SECONDS), "the translation startup never started")
+
+            fixture.useCase.refreshExtraOutput(
+                extraOutputRequest = request(ExtraOutputType.Summarize),
+                getState = { state.get() },
+                updateState = update,
+                onStatusUpdate = { _, _, _ -> },
+            )
+            withTimeout(5_000) { fixture.summarizer.started.await() }
+            assertTrue(state.get().isExtraOutputLoading, "the standalone refresh owns the spinner")
+
+            releaseStartup.countDown()
+            withTimeout(5_000) { fixture.translator.started.await() }
+
+            fixture.translator.hold?.complete(Unit)
+            withTimeout(5_000) { translation.join() }
+
+            assertTrue(state.get().translationFailed)
+            assertFalse(state.get().isLoading)
+            assertTrue(
+                state.get().isExtraOutputLoading,
+                "the primary failure must not lower the newer spinner"
+            )
+            assertEquals("", state.get().extraOutputText)
+            assertFalse(state.get().extraOutputFailed)
+            assertNull(state.get().extraOutputFailure)
+
+            fixture.summarizer.release?.complete(Unit)
+            assertTrue(
+                secondaryPublished.await(5, TimeUnit.SECONDS),
+                "the newer refresh never published after the primary failure"
+            )
+            assertEquals("summary", state.get().extraOutputText)
+            assertFalse(state.get().isExtraOutputLoading)
+            assertFalse(state.get().extraOutputFailed)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `a failed rule-driven retranslation cannot lower a newer secondary request's spinner`() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        try {
+            val fixture = fixture(
+                scope,
+                config = Configuration.DEFAULT.copy(
+                    translationRules = listOf(TranslationRule("en", "ar"))
+                ),
+            )
+            fixture.translator.scriptedResults += Ok(
+                TranslationResponse("first pass", detectedLanguage = LanguageCode.ENGLISH)
+            )
+            fixture.translator.scriptedResults += Err(
+                ServiceError.InvalidResponseError("retry exploded")
+            )
+            fixture.translator.hold = CompletableDeferred()
+            fixture.translator.holdOnCall = 2
+            fixture.summarizer.release = CompletableDeferred()
+            val state = AtomicReference(
+                MainState(
+                    inputText = "hello",
+                    translatedText = "old translation",
+                    sourceLanguage = LanguageCode.AUTO,
+                    targetLanguage = LanguageCode.FRENCH,
+                )
+            )
+            val startupEntered = CountDownLatch(1)
+            val releaseStartup = CountDownLatch(1)
+            val secondaryPublished = CountDownLatch(1)
+            val update: (MainState.() -> MainState) -> Unit = { transform ->
+                val before = state.get()
+                val after = before.transform()
+                if (!before.isLoading && after.isLoading && after.translatedText.isEmpty()) {
+                    startupEntered.countDown()
+                    check(releaseStartup.await(5, TimeUnit.SECONDS)) {
+                        "the translation startup was never released"
+                    }
+                }
+                val applied = state.updateAndGet { it.transform() }
+                if (applied.extraOutputText == "summary" && !applied.isExtraOutputLoading) {
+                    secondaryPublished.countDown()
+                }
+            }
+
+            val translation = scope.launch {
+                fixture.useCase(
+                    getState = { state.get() },
+                    updateState = update,
+                    onStatusUpdate = { _, _, _ -> },
+                    extraOutputRequest = request(ExtraOutputType.Summarize),
+                    comparisonPolicy = ComparisonPolicy.DISABLED,
+                )
+            }
+            assertTrue(startupEntered.await(5, TimeUnit.SECONDS), "the translation startup never started")
+
+            fixture.useCase.refreshExtraOutput(
+                extraOutputRequest = request(ExtraOutputType.Summarize),
+                getState = { state.get() },
+                updateState = update,
+                onStatusUpdate = { _, _, _ -> },
+            )
+            withTimeout(5_000) { fixture.summarizer.started.await() }
+            assertTrue(state.get().isExtraOutputLoading, "the standalone refresh owns the spinner")
+
+            releaseStartup.countDown()
+            withTimeout(5_000) { fixture.translator.secondCallStarted.await() }
+
+            fixture.translator.hold?.complete(Unit)
+            withTimeout(5_000) { translation.join() }
+
+            assertTrue(state.get().translationFailed)
+            assertFalse(state.get().isLoading)
+            assertTrue(
+                state.get().isExtraOutputLoading,
+                "the retranslation failure must not lower the newer spinner"
+            )
+            assertFalse(state.get().extraOutputFailed)
+            assertNull(state.get().extraOutputFailure)
+
+            fixture.summarizer.release?.complete(Unit)
+            assertTrue(
+                secondaryPublished.await(5, TimeUnit.SECONDS),
+                "the newer refresh never published after the retranslation failure"
+            )
+            assertEquals("summary", state.get().extraOutputText)
+            assertFalse(state.get().isExtraOutputLoading)
+            assertFalse(state.get().extraOutputFailed)
+        } finally {
+            scope.cancel()
+        }
+    }
+
     /**
      * Waits until [thread] either finishes or is waiting for a monitor. The guarded write holds the
      * panel lock while it is paused, so the newer request can only be blocked there.
@@ -622,8 +871,12 @@ class ExtraOutputLifecycleTest {
         targetLanguage = LanguageCode.ARABIC,
     )
 
-    private fun fixture(scope: CoroutineScope, includeTranslator: Boolean = true): Fixture {
-        val settings = MutableStateFlow(Configuration.DEFAULT)
+    private fun fixture(
+        scope: CoroutineScope,
+        includeTranslator: Boolean = true,
+        config: Configuration = Configuration.DEFAULT,
+    ): Fixture {
+        val settings = MutableStateFlow(config)
         val translator = RecordingTranslator()
         val summarizer = RecordingSummarizer()
         val rewriter = RecordingRewriter()
@@ -668,13 +921,20 @@ class ExtraOutputLifecycleTest {
 
     private class RecordingTranslator : RecordingService("translator"), Translator {
         val calls = mutableListOf<TranslationRequest>()
+        val started = CompletableDeferred<Unit>()
+        val secondCallStarted = CompletableDeferred<Unit>()
+        val scriptedResults = mutableListOf<Result<TranslationResponse, ServiceError>>()
         var result: Result<TranslationResponse, ServiceError>? = null
         var hold: CompletableDeferred<Unit>? = null
+        var holdOnCall: Int? = null
 
         override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> {
+            val call = calls.size + 1
             calls += request
-            hold?.await()
-            return result ?: Ok(TranslationResponse("backward"))
+            started.complete(Unit)
+            if (call == 2) secondCallStarted.complete(Unit)
+            if (holdOnCall == null || holdOnCall == call) hold?.await()
+            return scriptedResults.removeFirstOrNull() ?: result ?: Ok(TranslationResponse("backward"))
         }
     }
 
