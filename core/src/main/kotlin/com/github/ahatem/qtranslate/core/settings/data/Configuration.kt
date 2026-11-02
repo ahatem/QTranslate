@@ -211,6 +211,10 @@ data class Configuration(
     val summaryLength: String = StandardOptions.SUMMARY_LENGTH.defaultValue,
     val rewriteStyle: String = StandardOptions.REWRITE_STYLE.defaultValue,
 
+    // ---- OCR ----
+    /** Workflow, recognition and text-processing preferences for screen OCR. */
+    val ocr: OcrSettings = OcrSettings(),
+
     // ---- Translation ----
     /**
      * When true, line breaks in the input text are replaced with a single space
@@ -269,6 +273,9 @@ data class Configuration(
     val closePopupsOnClickOutside: Boolean = true,
     val mainWindowSize: Size? = null,
     val mainWindowPosition: Position? = null,
+    /** Last OCR Workspace size and position. Null means "place it once, then remember". */
+    val ocrWorkspaceSize: Size? = null,
+    val ocrWorkspacePosition: Position? = null,
     val uiFontConfig: FontConfig = FontConfig(name = "Inter", size = 13),
     val uiScale: Int = 100,
     val themeId: String = "os_default",

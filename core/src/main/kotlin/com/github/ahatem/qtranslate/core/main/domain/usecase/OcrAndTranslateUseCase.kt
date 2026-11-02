@@ -1,82 +1,10 @@
 package com.github.ahatem.qtranslate.core.main.domain.usecase
 
-import com.github.ahatem.qtranslate.api.core.Logger
-import com.github.ahatem.qtranslate.api.ocr.ImageData
-import com.github.ahatem.qtranslate.api.ocr.OCR
-import com.github.ahatem.qtranslate.api.ocr.OCRRequest
-import com.github.ahatem.qtranslate.api.plugin.NotificationType
-import com.github.ahatem.qtranslate.core.main.mvi.MainState
-import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
-import com.github.ahatem.qtranslate.core.shared.StatusCode
-import com.github.ahatem.qtranslate.api.plugin.ServiceRole
-import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
-import com.github.michaelbull.result.fold
-import kotlinx.coroutines.withTimeoutOrNull
-import com.github.ahatem.qtranslate.core.shared.util.shortSummary
-
-class OcrAndTranslateUseCase(
-    private val activeServiceManager: ActiveServiceManager,
-    loggerFactory: LoggerFactory
-) {
-    private val logger: Logger = loggerFactory.getLogger("OcrAndTranslateUseCase")
-
-    private companion object {
-        const val OCR_TIMEOUT_MS = 30_000L
-    }
-
-    /**
-     * Performs OCR on [image] and returns the extracted text.
-     *
-     * Returns an empty string on any failure. The [MainStore] that calls this
-     * should update [MainState.inputText] with the result and trigger translation
-     * only if the returned string is non-blank.
-     */
-    suspend operator fun invoke(
-        image: ImageData,
-        currentState: MainState,
-        onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
-    ): String {
-        val ocrService = activeServiceManager.getActiveService<OCR>(ServiceRole.OCR)
-        if (ocrService == null) {
-            logger.warn("No OCR service available")
-            onStatusUpdate(StatusCode.NoOcrServiceActive, NotificationType.ERROR, true)
-            return ""
-        }
-
-        logger.info("Starting OCR with '${ocrService.name}'")
-        onStatusUpdate(StatusCode.RecognizingText, NotificationType.INFO, false)
-
-        val request = OCRRequest(image, language = currentState.sourceLanguage)
-        logger.debug("OCR request: language=${currentState.sourceLanguage}")
-
-        val result = withTimeoutOrNull(OCR_TIMEOUT_MS) {
-            ocrService.extractText(request)
-        }
-
-        if (result == null) {
-            logger.error("OCR timed out after ${OCR_TIMEOUT_MS}ms")
-            onStatusUpdate(StatusCode.OcrTimeout, NotificationType.ERROR, true)
-            return ""
-        }
-
-        return result.fold(
-            success = { response ->
-                if (response.text.isBlank()) {
-                    logger.warn("No text detected in image")
-                    onStatusUpdate(StatusCode.NoTextInImage, NotificationType.WARNING, true)
-                    ""
-                } else {
-                    logger.info("OCR successful: detected ${response.text.length} characters")
-                    onStatusUpdate(StatusCode.OcrComplete, NotificationType.SUCCESS, true)
-                    response.text
-                }
-            },
-            failure = { error ->
-                logger.error("OCR failed: ${error::class.simpleName}")
-                val summary = error.shortSummary()
-                onStatusUpdate(StatusCode.OcrFailed(summary), NotificationType.ERROR, true)
-                ""
-            }
-        )
-    }
-}
+/**
+ * Compatibility name for the OCR extraction use case.
+ *
+ * OCR now has more than one consumer (capture workflows and the OCR Workspace), so the
+ * implementation lives in `core.ocr`. Existing construction sites and tests can keep using the
+ * historical name until they are touched.
+ */
+typealias OcrAndTranslateUseCase = com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase
