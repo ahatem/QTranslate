@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.ocr
 
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.api.ocr.OCRTextRegion
@@ -93,6 +94,12 @@ class OcrWorkspaceDialog(
     private val recognizeButton = JButton()
     private val cancelRecognitionButton = JButton()
     private val statusLabel = JLabel(" ")
+    private val infoLabel = JLabel(" ")
+    private val busyBar = JProgressBar().apply {
+        isIndeterminate = true
+        isVisible = false
+        preferredSize = Dimension(UIScale.scale(80), UIScale.scale(6))
+    }
     private val recognitionOptions = JButton()
     private val zoomLabel = JButton()
     private val annotationsCheck = JCheckBox()
@@ -252,11 +259,8 @@ class OcrWorkspaceDialog(
         if (store.failImageInput(token, error)) {
             imagePanel.setImage(lastGoodPanelImage)
             lastGoodPanelImage?.let { imagePanel.fitToWindow(imageScroll.viewport.extentSize) }
-            val message = when (error) {
-                OcrWorkspaceError.ClipboardEmpty -> localizer.getString("ocr_workspace.clipboard_empty")
-                else -> localizer.getString("ocr_workspace.image_open_failed")
-            }
-            showError(message)
+            flashStatus(errorText(error), isError = true)
+            updateInfo()
         }
     }
 
@@ -289,6 +293,7 @@ class OcrWorkspaceDialog(
         imagePanel.setImage(decoded)
         lastGoodPanelImage = decoded
         autoTranslatePending = autoTranslate && initialText == null
+        updateInfo()
         if (!isVisible) {
             isVisible = true
         }
@@ -555,9 +560,26 @@ class OcrWorkspaceDialog(
             }.show(open, 0, -preferredSize.height)
         }
         statusLabel.border = BorderFactory.createEmptyBorder(0, 10, 0, 10)
+        infoLabel.foreground = UIManager.getColor("Label.disabledForeground")
+        infoLabel.border = BorderFactory.createEmptyBorder(0, 10, 0, 0)
         return JPanel(BorderLayout(4, 0)).apply {
             border = BorderFactory.createEmptyBorder(2, 5, 2, 5)
-            add(statusLabel, BorderLayout.CENTER); add(open, BorderLayout.LINE_END)
+            add(
+                JPanel(FlowLayout(FlowLayout.LEADING, 6, 0)).apply {
+                    isOpaque = false
+                    add(busyBar)
+                    add(statusLabel)
+                },
+                BorderLayout.CENTER,
+            )
+            add(
+                JPanel(FlowLayout(FlowLayout.TRAILING, 8, 0)).apply {
+                    isOpaque = false
+                    add(infoLabel)
+                    add(open)
+                },
+                BorderLayout.LINE_END,
+            )
         }
     }
 
@@ -637,14 +659,10 @@ class OcrWorkspaceDialog(
             invalidateWorkspaceTranslation()
         }
 
+        val busy = state.isRecognizing || state.isLoadingImage
         updatingCombos = true
-        val providers = providerCombo.model as DefaultComboBoxModel<OcrProviderInfo>
-        providers.removeAllElements()
-        state.providers.forEach(providers::addElement)
-        providerCombo.selectedItem = state.providers.firstOrNull { it.id == state.providerId }
-        providerCombo.isEnabled = state.providers.isNotEmpty() && !state.isRecognizing && !state.isLoadingImage
-        val languages = languageCombo.model as DefaultComboBoxModel<LanguageCode>
-        languages.removeAllElements()
+        providerCombo.syncItems(state.providers, state.providers.firstOrNull { it.id == state.providerId })
+        providerCombo.isEnabled = state.providers.isNotEmpty() && !busy
         val shownLanguages = if (state.language == LanguageCode.AUTO &&
             LanguageCode.AUTO !in state.languages
         ) {
@@ -654,9 +672,8 @@ class OcrWorkspaceDialog(
         } else {
             state.languages
         }
-        shownLanguages.forEach(languages::addElement)
-        languageCombo.selectedItem = state.language.takeIf { it in shownLanguages }
-        languageCombo.isEnabled = state.languages.isNotEmpty() && !state.isRecognizing && !state.isLoadingImage
+        languageCombo.syncItems(shownLanguages, state.language.takeIf { it in shownLanguages })
+        languageCombo.isEnabled = state.languages.isNotEmpty() && !busy
         updatingCombos = false
 
         recognizeButton.isEnabled = state.canRunOcr
@@ -683,6 +700,7 @@ class OcrWorkspaceDialog(
         imagePanel.setRegions(state.regions)
         imagePanel.setAnnotationsVisible(state.showAnnotations && state.regions.isNotEmpty())
 
+        busyBar.isVisible = busy
         val error = state.error
         statusLabel.text = when {
             state.isLoadingImage -> localizer.getString("ocr_workspace.loading_image")
@@ -692,14 +710,14 @@ class OcrWorkspaceDialog(
             state.hasText || !state.hasImage -> localizer.getString("ocr_workspace.ready")
             else -> localizer.getString("ocr_workspace.no_text")
         }
-        ocrTextArea.hint = if (!state.hasText && error == null && !state.isLoadingImage && !state.isRecognizing) {
+        ocrTextArea.hint = if (!state.hasText && error == null && !busy) {
             localizer.getString("ocr_workspace.no_text")
         } else statusLabel.text
         ocrTextArea.accessibleContext.accessibleDescription = ocrTextArea.hint
-        statusLabel.foreground = if (error != null) {
-            UIManager.getColor("Label.errorForeground") ?: Color.RED
-        } else {
-            UIManager.getColor("Label.disabledForeground") ?: UIManager.getColor("Label.foreground")
+        statusLabel.foreground = when {
+            error != null -> errorColor()
+            busy -> UIManager.getColor("Label.foreground")
+            else -> UIManager.getColor("Label.disabledForeground") ?: UIManager.getColor("Label.foreground")
         }
 
         if (ocrTextArea.text != state.recognizedText) {
@@ -709,6 +727,8 @@ class OcrWorkspaceDialog(
             ocrTextArea.caretPosition = caret.coerceAtMost(ocrTextArea.text.length)
             updatingOcrText = false
         }
+        ocrTextArea.autoOrient()
+        updateInfo()
         regionRanges = buildRegionRanges(state.recognizedText, state.regions)
 
         if (previous != null && previous.isRecognizing && !state.isRecognizing) {
@@ -726,16 +746,11 @@ class OcrWorkspaceDialog(
 
     private fun renderMain(state: MainState) {
         updatingCombos = true
-        val sourceItems = sourceCombo.model as DefaultComboBoxModel<LanguageCode>
-        sourceItems.removeAllElements()
-        state.availableLanguages.forEach(sourceItems::addElement)
-        sourceCombo.selectedItem = state.sourceLanguage
+        sourceCombo.syncItems(state.availableLanguages, state.sourceLanguage)
         sourceCombo.isEnabled = state.availableLanguages.isNotEmpty()
-        val targetItems = targetCombo.model as DefaultComboBoxModel<LanguageCode>
-        targetItems.removeAllElements()
-        state.availableLanguages.filter { it != LanguageCode.AUTO }.forEach(targetItems::addElement)
-        targetCombo.selectedItem = state.targetLanguage
-        targetCombo.isEnabled = targetItems.size > 0
+        val targets = state.availableLanguages.filter { it != LanguageCode.AUTO }
+        targetCombo.syncItems(targets, state.targetLanguage)
+        targetCombo.isEnabled = targets.isNotEmpty()
         updatingCombos = false
 
         val expected = expectedTranslationInput
@@ -753,10 +768,11 @@ class OcrWorkspaceDialog(
                 else -> state.translatedText
             }
             translationArea.foreground = if (state.translationFailed) {
-                UIManager.getColor("Label.errorForeground") ?: Color.RED
+                errorColor()
             } else {
                 UIManager.getColor("TextArea.foreground")
             }
+            translationArea.autoOrient()
             translateButton.isEnabled = ocrTextArea.text.isNotBlank() &&
                 !state.isLoading &&
                 lastOcrState?.isRecognizing != true
@@ -874,12 +890,12 @@ class OcrWorkspaceDialog(
         val clipboard = Toolkit.getDefaultToolkit().systemClipboard
         val transferable = runCatching { clipboard.getContents(null) }.getOrNull()
         if (transferable == null) {
-            showError(localizer.getString("ocr_workspace.clipboard_empty"))
+            flashStatus(localizer.getString("ocr_workspace.clipboard_empty"), isError = true)
             return
         }
         if (!DroppedContentClassifier.canAccept(transferable)) {
             // Plain text and other unsupported contents must not discard the current image.
-            showError(localizer.getString("ocr_workspace.clipboard_empty"))
+            flashStatus(localizer.getString("ocr_workspace.clipboard_empty"), isError = true)
             return
         }
         val token = claimImageInput() ?: return
@@ -933,9 +949,9 @@ class OcrWorkspaceDialog(
             }
             withContext(Dispatchers.Swing) {
                 if (saved) {
-                    statusLabel.text = localizer.getString("ocr_workspace.image_saved")
+                    flashStatus(localizer.getString("ocr_workspace.image_saved"), isError = false)
                 } else {
-                    showError(localizer.getString("ocr_workspace.image_save_failed"))
+                    flashStatus(localizer.getString("ocr_workspace.image_save_failed"), isError = true)
                 }
             }
         }
@@ -985,8 +1001,42 @@ class OcrWorkspaceDialog(
         is OcrWorkspaceError.Failed -> localizer.getString("ocr_workspace.recognition_failed")
     }
 
-    private fun showError(message: String) {
-        JOptionPane.showMessageDialog(this, message, localizer.getString("ocr_workspace.error_title"), JOptionPane.ERROR_MESSAGE)
+    private fun updateInfo() {
+        val dims = imagePanel.currentImage()?.let { "${it.width}\u00D7${it.height}" }
+        infoLabel.text = dims ?: " "
+    }
+
+    private fun flashStatus(message: String, isError: Boolean) {
+        statusLabel.text = message
+        statusLabel.foreground = if (isError) errorColor() else UIManager.getColor("Label.foreground")
+    }
+
+    private fun errorColor(): Color = UIManager.getColor("Label.errorForeground") ?: Color.RED
+
+    /** Replaces combo items only when they actually changed, so an open popup never flickers. */
+    private fun <T> JComboBox<T>.syncItems(items: List<T>, selected: T?) {
+        @Suppress("UNCHECKED_CAST")
+        val m = model as DefaultComboBoxModel<T>
+        val current = (0 until m.size).map(m::getElementAt)
+        if (current != items) {
+            m.removeAllElements()
+            items.forEach(m::addElement)
+        }
+        if (selectedItem != selected) selectedItem = selected
+    }
+
+    /** Mirrors the text direction to the first strongly directional character, like bidi does. */
+    private fun JTextArea.autoOrient() {
+        val rtl = text.codePoints().toArray().asSequence().firstNotNullOfOrNull { cp ->
+            when (Character.getDirectionality(cp)) {
+                Character.DIRECTIONALITY_LEFT_TO_RIGHT -> false
+                Character.DIRECTIONALITY_RIGHT_TO_LEFT,
+                Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC -> true
+                else -> null
+            }
+        } ?: return
+        val target = if (rtl) ComponentOrientation.RIGHT_TO_LEFT else ComponentOrientation.LEFT_TO_RIGHT
+        if (componentOrientation != target) applyComponentOrientation(target)
     }
 
     private fun actionButton(key: String, onClick: () -> Unit): JButton =
