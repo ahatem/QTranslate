@@ -602,6 +602,8 @@ class OcrWorkspaceDialog(
         })
         ocrTextArea.addCaretListener(::highlightRegionForCaret)
         imagePanel.onRegionClicked = ::selectRegion
+        imagePanel.onZoomChanged = { zoomLabel.text = "${(it * 100).toInt()}%" }
+        imagePanel.onFileDropped = ::openImageFile
         imageScroll.viewport.addComponentListener(object : java.awt.event.ComponentAdapter() {
             override fun componentResized(e: java.awt.event.ComponentEvent?) {
                 // A fitted image stays fitted when the window is resized; manual zoom is left alone.
@@ -828,7 +830,7 @@ class OcrWorkspaceDialog(
 
     private fun highlightRegionForCaret(event: CaretEvent) {
         val index = regionRanges.indexOfFirst { event.dot in it }
-        imagePanel.setHighlightedRegion(index.takeIf { it >= 0 })
+        if (index >= 0) imagePanel.setHighlightedRegion(index, reveal = true)
     }
 
     private fun chooseImageFile() {
@@ -843,7 +845,11 @@ class OcrWorkspaceDialog(
             ocrTextArea.requestFocusInWindow()
             return
         }
-        val file = chooser.selectedFile
+        openImageFile(chooser.selectedFile)
+    }
+
+    /** Shared by the file chooser and drag & drop. */
+    private fun openImageFile(file: File) {
         val token = claimImageInput() ?: return
         scope.launch {
             val materialized = OcrImageMaterializer.readFile(file)

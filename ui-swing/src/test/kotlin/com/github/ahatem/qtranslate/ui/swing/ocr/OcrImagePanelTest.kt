@@ -36,10 +36,10 @@ class OcrImagePanelTest {
             panel.setAnnotationsVisible(true)
             var clicked: Int? = null
             panel.onRegionClicked = { clicked = it }
-            panel.dispatchEvent(MouseEvent(panel, MouseEvent.MOUSE_CLICKED, 0, 0, 120, 70, 1, false))
+            panel.dispatchEvent(MouseEvent(panel, MouseEvent.MOUSE_CLICKED, 0, 0, 120, 70, 1, false, MouseEvent.BUTTON1))
             assertEquals(0, clicked)
             clicked = null
-            panel.dispatchEvent(MouseEvent(panel, MouseEvent.MOUSE_CLICKED, 0, 0, 20, 20, 1, false))
+            panel.dispatchEvent(MouseEvent(panel, MouseEvent.MOUSE_CLICKED, 0, 0, 20, 20, 1, false, MouseEvent.BUTTON1))
             assertNull(clicked)
         }
     }
