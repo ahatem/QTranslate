@@ -21,6 +21,7 @@ import com.github.ahatem.qtranslate.core.settings.data.Position
 import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
+import com.github.ahatem.qtranslate.ui.swing.main.layout.BorderSplitPaneUI
 import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
 import com.github.ahatem.qtranslate.ui.swing.main.layout.UISpacing
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
@@ -319,7 +320,10 @@ class OcrWorkspaceDialog(
         val split = MirroredSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, buildImageSide(), buildTextSide()).apply {
             leadingResizeWeight = 0.46
             isMirrored = localizer.isRtl
-            dividerSize = UISpacing.DIVIDER_SIZE
+            // Dictionary dock's border line, not the grip: image and text are separate
+            // regions, so the seam reads as a border like the dock's.
+            setUI(BorderSplitPaneUI())
+            dividerSize = UISpacing.DOCK_DIVIDER_HIT_WIDTH
             clearBorder()
             setLeadingProportion(0.46)
         }
@@ -415,25 +419,22 @@ class OcrWorkspaceDialog(
         imageCards.add(empty, "empty")
         (imageCards.layout as CardLayout).show(imageCards, "empty")
 
-        // The zoom controls sit in a floating card docked at the bottom of the
-        // image viewer with a gap around it, instead of a full-width strip
-        // underneath the image — so a small capture leaves more of itself
-        // visible and the controls read as floating over the viewer.
-        val dock = JPanel(FlowLayout(FlowLayout.CENTER, 0, 0)).apply {
+        // The zoom controls float in the bottom centre *over the image*
+        // instead of taking a strip underneath it. A null-layout overlay
+        // holds the image filling the area and the card on top.
+        val overlay = JPanel().apply {
+            layout = null
             isOpaque = false
-            border = BorderFactory.createEmptyBorder(0, UIScale.scale(8), UIScale.scale(8), UIScale.scale(8))
+            // Container paints the first child last (on top), so add the card
+            // first and the image behind it.
             add(zoom)
+            add(imageCards)
         }
-        val wrapper = JPanel(BorderLayout()).apply {
-            // The essential controls must fit on one line even when the divider is dragged.
-            val essentialWidth = listOf(zoomOut, zoomLabel, zoomIn, more).sumOf { it.preferredSize.width } + UIScale.scale(12)
-            minimumSize = Dimension(essentialWidth, 0)
-            add(imageCards, BorderLayout.CENTER)
-            add(dock, BorderLayout.SOUTH)
-        }
-        fun updateZoomVisibility() {
+        fun layoutOverlay() {
+            imageCards.setBounds(0, 0, overlay.width, overlay.height)
             if (!zoom.isVisible) return
-            val available = wrapper.width - 2 * UIScale.scale(8)
+            val margin = UIScale.scale(8)
+            val available = overlay.width - 2 * margin
             // Hide the secondary controls before measuring the bar, so it never
             // grows wider than the image it floats over.
             val essential = listOf(zoomOut, zoomLabel, zoomIn).sumOf { it.preferredSize.width }
@@ -443,23 +444,35 @@ class OcrWorkspaceDialog(
             annotationsCheck.isVisible = full
             fit.isVisible = full || available >= fitWidth
             more.isVisible = !full
-            // Re-validate so the card shrinks/grows with its contents.
-            dock.revalidate()
-            wrapper.revalidate()
+            val barSize = zoom.preferredSize
+            val x = (overlay.width - barSize.width) / 2
+            val y = overlay.height - barSize.height - margin
+            zoom.setBounds(x, y, barSize.width, barSize.height)
         }
-        wrapper.addComponentListener(object : java.awt.event.ComponentAdapter() {
+        overlay.addComponentListener(object : java.awt.event.ComponentAdapter() {
             override fun componentResized(e: java.awt.event.ComponentEvent?) {
-                updateZoomVisibility()
+                layoutOverlay()
+            }
+            override fun componentShown(e: java.awt.event.ComponentEvent?) {
+                layoutOverlay()
             }
         })
-        // Keep the original responsive rule (listening to the bar itself) as a
-        // second trigger; both compute the same visibility, so they agree.
+        zoom.addPropertyChangeListener("visible") { evt ->
+            if (evt.newValue == true && overlay.width > 0 && overlay.height > 0) {
+                layoutOverlay()
+            }
+        }
         zoom.addComponentListener(object : java.awt.event.ComponentAdapter() {
             override fun componentResized(e: java.awt.event.ComponentEvent?) {
-                updateZoomVisibility()
+                if (overlay.width > 0 && overlay.height > 0) layoutOverlay()
             }
         })
-        return wrapper
+        return JPanel(BorderLayout()).apply {
+            // The essential controls must fit on one line even when the divider is dragged.
+            val essentialWidth = listOf(zoomOut, zoomLabel, zoomIn, more).sumOf { it.preferredSize.width } + UIScale.scale(12)
+            minimumSize = Dimension(essentialWidth, 0)
+            add(overlay, BorderLayout.CENTER)
+        }
     }
 
     private fun buildTextSide(): JScrollPane {
