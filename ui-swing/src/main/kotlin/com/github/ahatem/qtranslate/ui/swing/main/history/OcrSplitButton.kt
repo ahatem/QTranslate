@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.history
 
 import com.formdev.flatlaf.extras.components.FlatButton
+import com.formdev.flatlaf.ui.FlatLineBorder
 import com.github.ahatem.qtranslate.core.ocr.OcrWorkflowCommand
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
@@ -15,6 +16,8 @@ import javax.swing.JMenuItem
 import javax.swing.JPanel
 import javax.swing.JPopupMenu
 import javax.swing.KeyStroke
+import javax.swing.JSeparator
+import javax.swing.SwingConstants
 import javax.swing.UIManager
 
 /** Main window entry point. Resolution of DEFAULT remains with the OCR workflow. */
@@ -32,7 +35,12 @@ internal class OcrSplitButton(
     private var labels: OcrSplitLabels? = null
 
     init {
-        isOpaque = false
+        isOpaque = true
+        border = object : FlatLineBorder(Insets(1, 1, 1, 1), null, 1f, -1) {
+            override fun getLineColor() = UIManager.getColor("Button.startBorderColor")
+                ?: UIManager.getColor("Component.borderColor")
+            override fun getArc(): Int = UIManager.getInt("Button.arc")
+        }
         listOf(primary, arrow).forEach {
             it.buttonType = FlatButton.ButtonType.toolBarButton
             it.isFocusable = true
@@ -40,8 +48,8 @@ internal class OcrSplitButton(
             it.putClientProperty("JComponent.minimumWidth", 0)
         }
         val margin = UIManager.getInsets("Button.toolbar.margin") ?: Insets(3, 3, 3, 3)
-        primary.margin = Insets(margin.top, margin.left, margin.bottom, 2)
-        arrow.margin = Insets(margin.top, 2, margin.bottom, margin.right)
+        primary.margin = Insets(margin.top, margin.left, margin.bottom, margin.left)
+        arrow.margin = Insets(margin.top, 2, margin.bottom, 2)
         primary.isEnabled = false
         arrow.isEnabled = false
         primary.addActionListener { dispatch(OcrWorkflowCommand.DEFAULT) }
@@ -54,8 +62,14 @@ internal class OcrSplitButton(
         primary.actionMap.put("ocrMenu", object : AbstractAction() {
             override fun actionPerformed(e: ActionEvent?) { arrow.doClick() }
         })
-        add(primary, BorderLayout.CENTER)
+        add(primary, BorderLayout.LINE_START)
+        add(JSeparator(SwingConstants.VERTICAL), BorderLayout.CENTER)
         add(arrow, BorderLayout.LINE_END)
+    }
+
+    override fun updateUI() {
+        super.updateUI()
+        background = UIManager.getColor("Button.background") ?: UIManager.getColor("Panel.background")
     }
 
     fun render(labels: OcrSplitLabels, enabled: Boolean) {
