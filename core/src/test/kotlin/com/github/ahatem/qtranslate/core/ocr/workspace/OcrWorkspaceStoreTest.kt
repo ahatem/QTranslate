@@ -13,7 +13,7 @@ import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
-import com.github.ahatem.qtranslate.core.main.domain.usecase.OcrAndTranslateUseCase
+import com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase
 import com.github.ahatem.qtranslate.core.main.mvi.RecordingOcrService
 import com.github.ahatem.qtranslate.core.main.mvi.Silent353Factory
 import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
@@ -682,7 +682,7 @@ class OcrWorkspaceStoreTest {
         )
         val store = OcrWorkspaceStore(
             scope = runtime,
-            extraction = OcrAndTranslateUseCase(manager, Silent353Factory),
+            extraction = OcrExtractionUseCase(manager, Silent353Factory),
             catalog = catalog,
             configuration = { configuration.value },
             translationSource = { translationSource },

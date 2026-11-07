@@ -15,7 +15,7 @@ import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 import com.github.ahatem.qtranslate.core.history.HistoryRepository
 import com.github.ahatem.qtranslate.core.main.domain.usecase.CheckForUpdatesUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.HandleTextToSpeechUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.OcrAndTranslateUseCase
+import com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.PerformSpellCheckUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SelectActiveServiceUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SwapLanguagesUseCase
@@ -187,7 +187,7 @@ internal class OcrWorkflowFixture(
             loggerFactory = Silent353Factory,
         ),
         swapLanguagesUseCase = SwapLanguagesUseCase(),
-        ocrAndTranslateUseCase = OcrAndTranslateUseCase(manager, Silent353Factory),
+        ocrExtractionUseCase = OcrExtractionUseCase(manager, Silent353Factory),
         summarizeUseCase = SummarizeUseCase(manager, Silent353Factory),
         rewriteUseCase = RewriteUseCase(manager, Silent353Factory),
         lookupWordUseCase = LookupWordUseCase(manager, Silent353Factory),

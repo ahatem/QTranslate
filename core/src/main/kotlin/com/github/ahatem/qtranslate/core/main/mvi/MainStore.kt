@@ -15,6 +15,7 @@ import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.domain.language.LanguageSelectionCompat
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
 import com.github.ahatem.qtranslate.core.ocr.OcrExtractionOutcome
+import com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase
 import com.github.ahatem.qtranslate.core.ocr.OcrRequestOwner
 import com.github.ahatem.qtranslate.core.ocr.preprocessOcrText
 import com.github.ahatem.qtranslate.core.ocr.resolveOcrLanguage
@@ -107,7 +108,7 @@ internal fun MainState.clearSpellCorrectionsForInputChange(previous: SpellCheckI
  * This prevents out-of-order state updates from rapid synchronous dispatches.
  *
  * ### OCR flow
- * [MainIntent.OcrAndTranslateImage] extracts text via [OcrAndTranslateUseCase],
+ * [MainIntent.OcrAndTranslateImage] extracts text via [OcrExtractionUseCase],
  * writes the result into [MainState.inputText], then triggers translation — the
  * same path as if the user had typed the text manually.
  */
@@ -121,7 +122,7 @@ class MainStore(
     private val selectActiveServiceUseCase: SelectActiveServiceUseCase,
     private val translateTextUseCase: TranslateTextUseCase,
     private val swapLanguagesUseCase: SwapLanguagesUseCase,
-    private val ocrAndTranslateUseCase: OcrAndTranslateUseCase,
+    private val ocrExtractionUseCase: OcrExtractionUseCase,
     private val summarizeUseCase: SummarizeUseCase,
     private val rewriteUseCase: RewriteUseCase,
     private val lookupWordUseCase: LookupWordUseCase,
@@ -769,7 +770,7 @@ class MainStore(
     ) {
         val settings = settingsState.value.ocr
         val language = resolveOcrLanguage(settings.recognitionLanguage, _state.value.sourceLanguage)
-        val outcome = ocrAndTranslateUseCase.extract(
+        val outcome = ocrExtractionUseCase.extract(
             image = image,
             language = language,
             onStatusUpdate = { code, type, isTemporary ->

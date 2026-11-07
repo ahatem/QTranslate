@@ -2,7 +2,7 @@ package com.github.ahatem.qtranslate.core.workspace.translation
 
 import com.github.ahatem.qtranslate.core.main.domain.usecase.CheckForUpdatesUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.HandleTextToSpeechUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.OcrAndTranslateUseCase
+import com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.PerformSpellCheckUseCase
 
 
@@ -160,7 +160,7 @@ class InteractiveDiagnosticsPrivacyTest {
         val logger = CapturingLogger()
         val image = ImageData(byteArrayOf(1, 2, 3), "png", 8, 8)
 
-        val okUseCase = OcrAndTranslateUseCase(
+        val okUseCase = OcrExtractionUseCase(
             manager(FakeOCR(Ok(OCRResponse("SENTINEL-ZQ42-OCRTEXT-9d14")))),
             CapturingLoggerFactory(logger)
         )
@@ -172,7 +172,7 @@ class InteractiveDiagnosticsPrivacyTest {
             "the success diagnostic keeps the character count: ${logger.messages}"
         )
 
-        val failingUseCase = OcrAndTranslateUseCase(
+        val failingUseCase = OcrExtractionUseCase(
             manager(FakeOCR(Err(ServiceError.InvalidResponseError("SENTINEL-ZQ42-OCRERR-77aa")))),
             CapturingLoggerFactory(logger)
         )

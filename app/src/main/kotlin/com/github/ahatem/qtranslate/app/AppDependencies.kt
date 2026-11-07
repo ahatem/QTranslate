@@ -5,7 +5,6 @@ import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.main.domain.usecase.CheckForUpdatesUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.HandleTextToSpeechUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.OcrAndTranslateUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.PerformSpellCheckUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SelectActiveServiceUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SwapLanguagesUseCase
@@ -309,7 +308,7 @@ suspend fun buildDependencies(
         ),
         translateTextUseCase       = translateUseCase,
         swapLanguagesUseCase       = SwapLanguagesUseCase(),
-        ocrAndTranslateUseCase     = ocrExtractionUseCase,
+        ocrExtractionUseCase     = ocrExtractionUseCase,
         summarizeUseCase           = summarizeUseCase,
         rewriteUseCase             = rewriteUseCase,
         lookupWordUseCase          = lookupWordUseCase,
