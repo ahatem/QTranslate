@@ -99,10 +99,8 @@ class OcrWorkspaceDialog(
     private val cancelRecognitionButton = JButton()
     private val statusLabel = JLabel(" ")
     private val infoLabel = JLabel(" ")
-    private val busyBar = JProgressBar().apply {
-        isIndeterminate = true
+    private val busySpinner = com.github.ahatem.qtranslate.ui.swing.shared.widgets.LoadingSpinner().apply {
         isVisible = false
-        preferredSize = Dimension(UIScale.scale(80), UIScale.scale(6))
     }
     private val zoomLabel = JButton()
     private val annotationsCheck = JCheckBox()
@@ -230,6 +228,7 @@ class OcrWorkspaceDialog(
         if (shutdownComplete) return
         shutdownComplete = true
         closed = true
+        busySpinner.isRunning = false
         store.close()
         scope.cancel()
     }
@@ -419,51 +418,51 @@ class OcrWorkspaceDialog(
         (imageCards.layout as CardLayout).show(imageCards, "empty")
 
         // The zoom controls float in the bottom centre *over the image*
-        // instead of taking a strip underneath it. A null-layout overlay
-        // holds the image filling the area and the card on top.
-        val overlay = JPanel().apply {
-            layout = null
-            isOpaque = false
-            // Container paints the first child last (on top), so add the card
-            // first and the image behind it.
-            add(zoom)
-            add(imageCards)
-        }
-        fun layoutOverlay() {
-            imageCards.setBounds(0, 0, overlay.width, overlay.height)
-            if (!zoom.isVisible) return
-            val margin = UIScale.scale(8)
-            val available = overlay.width - 2 * margin
-            // Hide the secondary controls before measuring the bar, so it never
-            // grows wider than the image it floats over.
-            val essential = listOf(zoomOut, zoomLabel, zoomIn).sumOf { it.preferredSize.width }
-            val fullWidth = essential + fit.preferredSize.width + annotationsCheck.preferredSize.width + UIScale.scale(24)
-            val fitWidth = essential + fit.preferredSize.width + more.preferredSize.width + UIScale.scale(20)
-            val full = available >= fullWidth
-            annotationsCheck.isVisible = full
-            fit.isVisible = full || available >= fitWidth
-            more.isVisible = !full
-            val barSize = zoom.preferredSize
-            val x = (overlay.width - barSize.width) / 2
-            val y = overlay.height - barSize.height - margin
-            zoom.setBounds(x, y, barSize.width, barSize.height)
-        }
-        overlay.addComponentListener(object : java.awt.event.ComponentAdapter() {
-            override fun componentResized(e: java.awt.event.ComponentEvent?) {
-                layoutOverlay()
+        // instead of taking a strip underneath it. Layout stays declarative:
+        // doLayout() positions both children, so no resize listeners need to
+        // chase each other while the pointer moves inside the viewer.
+        val overlay = object : JPanel() {
+            init {
+                layout = null
+                isOpaque = false
+                // Container paints the first child last (on top), so add the card
+                // first and the image behind it.
+                add(zoom)
+                add(imageCards)
             }
-            override fun componentShown(e: java.awt.event.ComponentEvent?) {
-                layoutOverlay()
-            }
-        })
-        zoom.addPropertyChangeListener("visible") { evt ->
-            if (evt.newValue == true && overlay.width > 0 && overlay.height > 0) {
-                layoutOverlay()
+
+            override fun doLayout() {
+                imageCards.setBounds(0, 0, width, height)
+                if (!zoom.isVisible) return
+                val margin = UIScale.scale(8)
+                val available = width - 2 * margin
+                // Hide the secondary controls before measuring the bar, so it never
+                // grows wider than the image it floats over.
+                val essential = listOf(zoomOut, zoomLabel, zoomIn).sumOf { it.preferredSize.width }
+                val fullWidth = essential + fit.preferredSize.width + annotationsCheck.preferredSize.width + UIScale.scale(24)
+                val fitWidth = essential + fit.preferredSize.width + more.preferredSize.width + UIScale.scale(20)
+                val full = available >= fullWidth
+                if (annotationsCheck.isVisible != full) {
+                    annotationsCheck.isVisible = full
+                }
+                val fitVisible = full || available >= fitWidth
+                if (fit.isVisible != fitVisible) {
+                    fit.isVisible = fitVisible
+                }
+                if (more.isVisible == full) {
+                    more.isVisible = !full
+                }
+                if (annotationsCheck.isVisible != full || fit.isVisible != fitVisible) {
+                    // Visibility changed the bar's own size — lay out once more
+                    // in this same pass instead of re-entering via a listener.
+                    invalidate()
+                }
+                val barSize = zoom.preferredSize
+                val x = (width - barSize.width) / 2
+                val y = height - barSize.height - margin
+                zoom.setBounds(x, y, barSize.width, barSize.height)
             }
         }
-        // Deliberately no listener on zoom's own resize: hover/focus can change a
-        // toolbar button by a pixel, and re-laying out the overlay for that
-        // made the card oscillate while the pointer was inside the viewer.
         return JPanel(BorderLayout()).apply {
             // The essential controls must fit on one line even when the divider is dragged.
             val essentialWidth = listOf(zoomOut, zoomLabel, zoomIn, more).sumOf { it.preferredSize.width } + UIScale.scale(12)
@@ -605,27 +604,27 @@ class OcrWorkspaceDialog(
             }.show(open, 0, -preferredSize.height)
         }
         statusLabel.border = BorderFactory.createEmptyBorder(0, 10, 0, 10)
-        statusLabel.alignmentY = Component.CENTER_ALIGNMENT
         infoLabel.foreground = UIManager.getColor("Label.disabledForeground")
         infoLabel.border = BorderFactory.createEmptyBorder(0, 10, 0, 0)
-        infoLabel.alignmentY = Component.CENTER_ALIGNMENT
-        open.alignmentY = Component.CENTER_ALIGNMENT
-        busyBar.alignmentY = Component.CENTER_ALIGNMENT
         return JPanel(BorderLayout(4, 0)).apply {
             border = BorderFactory.createEmptyBorder(2, 5, 2, 5)
+            // GridBag anchors centre every child vertically; FlowLayout top-aligns
+            // shorter labels, which read as off-centre next to the button strip.
             add(
-                JPanel(FlowLayout(FlowLayout.LEADING, 6, 0)).apply {
+                JPanel(GridBagLayout()).apply {
                     isOpaque = false
-                    add(busyBar)
-                    add(statusLabel)
+                    val c = GridBagConstraints().apply { anchor = GridBagConstraints.WEST; gridy = 0 }
+                    c.gridx = 0; c.insets = Insets(0, 0, 0, 6); add(busySpinner, c)
+                    c.gridx = 1; c.weightx = 1.0; add(statusLabel, c)
                 },
                 BorderLayout.CENTER,
             )
             add(
-                JPanel(FlowLayout(FlowLayout.TRAILING, 8, 0)).apply {
+                JPanel(GridBagLayout()).apply {
                     isOpaque = false
-                    add(infoLabel)
-                    add(open)
+                    val c = GridBagConstraints().apply { anchor = GridBagConstraints.EAST; gridy = 0 }
+                    c.gridx = 0; c.insets = Insets(0, 0, 0, 8); add(infoLabel, c)
+                    c.gridx = 1; add(open, c)
                 },
                 BorderLayout.LINE_END,
             )
@@ -781,7 +780,7 @@ class OcrWorkspaceDialog(
         imagePanel.setRegions(state.regions)
         imagePanel.setAnnotationsVisible(state.showAnnotations && state.regions.isNotEmpty())
 
-        busyBar.isVisible = busy
+        busySpinner.isRunning = busy
         val error = state.error
         statusLabel.text = when {
             state.isLoadingImage -> localizer.getString("ocr_workspace.loading_image")
