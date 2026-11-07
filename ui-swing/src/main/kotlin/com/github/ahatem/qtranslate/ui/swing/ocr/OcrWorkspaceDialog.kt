@@ -21,11 +21,13 @@ import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
+import com.github.ahatem.qtranslate.ui.swing.main.layout.UISpacing
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.ThemeIcon
 import com.github.ahatem.qtranslate.ui.swing.shared.util.DroppedContentClassifier
 import com.github.ahatem.qtranslate.ui.swing.shared.util.connectedScreenBounds
+import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isPositionReachable
 import kotlinx.coroutines.CoroutineName
@@ -316,8 +318,8 @@ class OcrWorkspaceDialog(
         val split = MirroredSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, buildImageSide(), buildTextSide()).apply {
             leadingResizeWeight = 0.46
             isMirrored = localizer.isRtl
-            border = BorderFactory.createEmptyBorder()
-            dividerSize = 6
+            dividerSize = UISpacing.DIVIDER_SIZE
+            clearBorder()
             setLeadingProportion(0.46)
         }
         contentPane.add(split, BorderLayout.CENTER)
@@ -346,7 +348,7 @@ class OcrWorkspaceDialog(
         imagePanel.accessibleContext.accessibleName = localizer.getString("ocr_workspace.image_group")
         imagePanel.emptyMessage = localizer.getString("ocr_workspace.empty_image")
         imagePanel.accessibleContext.accessibleDescription = imagePanel.emptyMessage
-        imageScroll.border = BorderFactory.createEmptyBorder()
+        imageScroll.clearBorder()
         imageScroll.viewport.background = imagePanel.background
         annotationsCheck.text = localizer.getString("ocr_workspace.show_boxes")
         annotationsCheck.isOpaque = false
@@ -436,7 +438,7 @@ class OcrWorkspaceDialog(
             add(buildOcrTextPanel()); add(buildTranslationPanel())
         }
         return JScrollPane(sections).apply {
-            border = BorderFactory.createEmptyBorder()
+            clearBorder()
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             minimumSize = Dimension(0, 0)
         }
@@ -486,7 +488,7 @@ class OcrWorkspaceDialog(
         }
         ocrTextArea.lineWrap = true
         ocrTextArea.wrapStyleWord = true
-        ocrTextArea.border = BorderFactory.createEmptyBorder(8, 10, 8, 10)
+        ocrTextArea.border = BorderFactory.createEmptyBorder(UIScale.scale(8), UIScale.scale(10), UIScale.scale(8), UIScale.scale(10))
         ocrTextArea.background = UIManager.getColor("TextArea.background")
         ocrTextArea.hint = localizer.getString("ocr_workspace.no_text")
         statusLabel.labelFor = ocrTextArea
@@ -504,7 +506,7 @@ class OcrWorkspaceDialog(
             preferredSize = Dimension(1, getFontMetrics(font).height * 7)
             add(sectionHeader("ocr_workspace.text_group", copyOcrButton, listenOcrButton), BorderLayout.NORTH)
             add(JScrollPane(ocrTextArea).apply {
-                border = BorderFactory.createEmptyBorder()
+                isFocusable = false
                 viewport.background = ocrTextArea.background
             }, BorderLayout.CENTER)
             add(footer, BorderLayout.SOUTH)
@@ -515,7 +517,7 @@ class OcrWorkspaceDialog(
         translationArea.isEditable = false
         translationArea.lineWrap = true
         translationArea.wrapStyleWord = true
-        translationArea.border = BorderFactory.createEmptyBorder(8, 10, 8, 10)
+        translationArea.border = BorderFactory.createEmptyBorder(UIScale.scale(8), UIScale.scale(10), UIScale.scale(8), UIScale.scale(10))
         translationArea.hint = localizer.getString("ocr_workspace.translation_empty")
         translationArea.accessibleContext.accessibleDescription = translationArea.hint
         sourceCombo.renderer = languageRenderer(); targetCombo.renderer = languageRenderer()
@@ -541,7 +543,7 @@ class OcrWorkspaceDialog(
             preferredSize = Dimension(1, getFontMetrics(font).height * 7)
             add(heading, BorderLayout.NORTH)
             add(JScrollPane(translationArea).apply {
-                border = BorderFactory.createEmptyBorder()
+                isFocusable = false
                 viewport.background = translationArea.background
             }, BorderLayout.CENTER)
         }
