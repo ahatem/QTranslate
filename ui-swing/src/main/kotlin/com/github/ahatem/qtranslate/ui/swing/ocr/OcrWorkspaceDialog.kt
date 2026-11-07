@@ -107,6 +107,7 @@ class OcrWorkspaceDialog(
     private val translationArea = HintTextArea()
     private val sourceCombo = JComboBox<LanguageCode>()
     private val targetCombo = JComboBox<LanguageCode>()
+    private val swapButton = JButton("⇄")
     private val translateButton = JButton()
     private val copyOcrButton = JButton()
     private val copyTranslationButton = JButton()
@@ -138,13 +139,9 @@ class OcrWorkspaceDialog(
         size = Dimension(900, 600)
         buildUi()
         bindEvents()
+        registerShortcuts()
         observeState()
         restoreBounds()
-        rootPane.registerKeyboardAction(
-            { closeWorkspace() },
-            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0),
-            JComponent.WHEN_IN_FOCUSED_WINDOW,
-        )
 
         addWindowListener(object : WindowAdapter() {
             override fun windowClosed(e: WindowEvent?) {
@@ -529,7 +526,11 @@ class OcrWorkspaceDialog(
         configureSecondary(copyTranslationButton, Icons.COPY, "ocr_workspace.copy_translation")
         configureSecondary(listenTranslationButton, Icons.SPEAK, "ocr_workspace.listen")
         translateButton.text = localizer.getString("ocr_workspace.translate")
-        val direction = OcrTranslationControls(sourceCombo, targetCombo, translateButton, localizer.isRtl)
+        swapButton.toolTipText = localizer.getString("main_window_language_bar.swap_languages_tooltip")
+        swapButton.accessibleContext.accessibleName = swapButton.toolTipText
+        swapButton.putClientProperty("JButton.buttonType", "toolBarButton")
+        swapButton.isRequestFocusEnabled = false
+        val direction = OcrTranslationControls(sourceCombo, targetCombo, translateButton, swapButton)
         val heading = JPanel(BorderLayout(0, 4)).apply {
             add(JSeparator(), BorderLayout.NORTH)
             add(sectionHeader("ocr_workspace.translation_group", copyTranslationButton, listenTranslationButton), BorderLayout.CENTER)
@@ -599,6 +600,7 @@ class OcrWorkspaceDialog(
         listenOcrButton.addActionListener { listenOcrText() }
         listenTranslationButton.addActionListener { listen(translatedTextForCurrent, TextSource.Output) }
         translateButton.addActionListener { translateCurrentText(ocrTextArea.text) }
+        swapButton.addActionListener { swapLanguages() }
         sourceCombo.addActionListener {
             if (updatingCombos) return@addActionListener
             (sourceCombo.selectedItem as? LanguageCode)?.let {
@@ -635,6 +637,42 @@ class OcrWorkspaceDialog(
                 }
             }
         })
+    }
+
+    private fun registerShortcuts() {
+        fun bind(code: Int, modifiers: Int, action: () -> Unit) {
+            rootPane.registerKeyboardAction(
+                { action() },
+                KeyStroke.getKeyStroke(code, modifiers),
+                JComponent.WHEN_IN_FOCUSED_WINDOW,
+            )
+        }
+        // Focus ownership is explicit: text editing never loses its chords
+        // (notably Ctrl+V for pasting text) to destructive/modal actions.
+        fun isEditingText(): Boolean = focusOwner is JTextArea
+
+        fun bindUnlessEditing(code: Int, modifiers: Int, action: () -> Unit) {
+            bind(code, modifiers) { if (!isEditingText()) action() }
+        }
+
+        val mask = Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx
+        // Esc: stop a running recognition first; close only when there is nothing to stop.
+        bind(java.awt.event.KeyEvent.VK_ESCAPE, 0) {
+            if (lastOcrState?.isRecognizing == true) store.cancelOcr() else closeWorkspace()
+        }
+        // Ctrl/Cmd+Enter mirrors the main window's TRANSLATE binding; safe while editing
+        // (plain Enter still inserts a newline).
+        bind(java.awt.event.KeyEvent.VK_ENTER, mask) { if (translateButton.isEnabled) translateCurrentText(ocrTextArea.text) }
+        // Destructive or modal actions only when the user is not editing text, so edited
+        // text is never overwritten by an accidental chord and Ctrl+V is never stolen.
+        bindUnlessEditing(java.awt.event.KeyEvent.VK_R, mask) { if (lastOcrState?.canRunOcr == true) store.runOcr() }
+        bindUnlessEditing(java.awt.event.KeyEvent.VK_O, mask) { if (!closed) chooseImageFile() }
+        bindUnlessEditing(java.awt.event.KeyEvent.VK_S, mask) { if (imagePanel.currentImage() != null) saveCurrentImage() }
+        bind(java.awt.event.KeyEvent.VK_0, mask) { imagePanel.fitToWindow(imageScroll.viewport.extentSize) }
+        bind(java.awt.event.KeyEvent.VK_1, mask) { imagePanel.actualSize() }
+        bind(java.awt.event.KeyEvent.VK_EQUALS, mask) { imagePanel.zoomIn() }
+        bind(java.awt.event.KeyEvent.VK_MINUS, mask) { imagePanel.zoomOut() }
+        rootPane.defaultButton = recognizeButton
     }
 
     private fun observeState() {
@@ -697,6 +735,8 @@ class OcrWorkspaceDialog(
         listenTranslationButton.isEnabled = translatedTextForCurrent.isNotBlank()
         annotationsCheck.isEnabled = state.regions.isNotEmpty()
         annotationsCheck.isSelected = state.showAnnotations && state.regions.isNotEmpty()
+        // Accent whichever action is the natural next step; Enter fires it outside text areas.
+        rootPane.defaultButton = if (state.hasText && !state.isRecognizing) translateButton else recognizeButton
         imagePanel.setRegions(state.regions)
         imagePanel.setAnnotationsVisible(state.showAnnotations && state.regions.isNotEmpty())
 
@@ -752,6 +792,8 @@ class OcrWorkspaceDialog(
         targetCombo.syncItems(targets, state.targetLanguage)
         targetCombo.isEnabled = targets.isNotEmpty()
         updatingCombos = false
+        // Swapping with an auto-detected source would make the target "auto", which is invalid.
+        swapButton.isEnabled = state.sourceLanguage != LanguageCode.AUTO && targets.isNotEmpty()
 
         val expected = expectedTranslationInput
         val isThisRequest = expected != null && state.inputText == expected
@@ -812,6 +854,15 @@ class OcrWorkspaceDialog(
         val text = expectedTranslationInput ?: return
         translatedTextForCurrent = ""
         mainStore.dispatch(MainIntent.Translate(text))
+    }
+
+    private fun swapLanguages() {
+        val source = sourceCombo.selectedItem as? LanguageCode ?: return
+        val target = targetCombo.selectedItem as? LanguageCode ?: return
+        if (source == LanguageCode.AUTO) return
+        mainStore.dispatch(MainIntent.SelectSourceLanguage(target))
+        mainStore.dispatch(MainIntent.SelectTargetLanguage(source))
+        retranslateIfVisible()
     }
 
     private fun sendCurrentToMain() {

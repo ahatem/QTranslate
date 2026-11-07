@@ -12,7 +12,8 @@ class OcrTranslationControlsTest {
         SwingUtilities.invokeAndWait {
             var calls = 0
             val button = JButton("Translate").apply { addActionListener { calls++ } }
-            val controls = OcrTranslationControls(JComboBox(arrayOf("Auto")), JComboBox(arrayOf("English")), button, false)
+            val swap = JButton("⇄")
+            val controls = OcrTranslationControls(JComboBox(arrayOf("Auto")), JComboBox(arrayOf("English")), button, swap)
             controls.adaptToWidth(100)
             assertTrue(controls.isActionWrapped)
             button.doClick()

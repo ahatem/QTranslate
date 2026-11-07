@@ -17,14 +17,14 @@ internal class OcrTranslationControls(
     source: JComboBox<*>,
     target: JComboBox<*>,
     internal val translate: JButton,
-    rtl: Boolean,
+    internal val swap: JButton,
 ) : JPanel(BorderLayout(4, 2)) {
-    private val direction = JLabel(if (rtl) " ← " else " → ")
+    // GridBagLayout mirrors column order in RTL; the swap glyph is symmetric so it needs no flip.
     private val languages = JPanel(GridBagLayout()).apply {
         val c = GridBagConstraints().apply { weightx = 1.0; fill = GridBagConstraints.HORIZONTAL }
         add(source, c)
         c.weightx = 0.0; c.fill = GridBagConstraints.NONE
-        add(direction, c)
+        add(swap, c)
         c.weightx = 1.0; c.fill = GridBagConstraints.HORIZONTAL
         add(target, c)
     }
@@ -43,7 +43,7 @@ internal class OcrTranslationControls(
     internal fun adaptToWidth(width: Int) {
         if (width <= 0) return
         val readableLanguageWidth = getFontMetrics(font).height * 7
-        val needsWrap = width < readableLanguageWidth * 2 + direction.preferredSize.width + translate.preferredSize.width + 12
+        val needsWrap = width < readableLanguageWidth * 2 + swap.preferredSize.width + translate.preferredSize.width + 12
         if (needsWrap == isActionWrapped) return
         val restoreFocus = translate.isFocusOwner
         remove(translate)
