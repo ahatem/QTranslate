@@ -361,8 +361,13 @@ class OcrWorkspaceDialog(
         zoomLabel.accessibleContext.accessibleName = zoomLabel.toolTipText
         fun zoomChanged() { zoomLabel.text = "${(imagePanel.zoomScale() * 100).toInt()}%" }
         zoomLabel.addActionListener { imagePanel.actualSize(); zoomChanged() }
-        zoomChanged()
         zoomLabel.putClientProperty("JButton.buttonType", "toolBarButton")
+        // Fixed width so 67% / 100% / 200% do not make the floating bar jump
+        // sideways every time the zoom changes.
+        zoomLabel.preferredSize = Dimension(UIScale.scale(52), zoomLabel.preferredSize.height)
+        zoomLabel.minimumSize = zoomLabel.preferredSize
+        zoomLabel.maximumSize = zoomLabel.preferredSize
+        zoomChanged()
         val more = compactButton("⋯", "screen_capture.more_actions") {}
         val fit = actionButton("ocr_workspace.fit") { imagePanel.fitToWindow(imageScroll.viewport.extentSize); zoomChanged() }.apply {
             putClientProperty("JButton.buttonType", "toolBarButton")
@@ -418,17 +423,18 @@ class OcrWorkspaceDialog(
         (imageCards.layout as CardLayout).show(imageCards, "empty")
 
         // The zoom controls float in the bottom centre *over the image*
-        // instead of taking a strip underneath it. Layout stays declarative:
-        // doLayout() positions both children, so no resize listeners need to
-        // chase each other while the pointer moves inside the viewer.
-        val overlay = object : JPanel() {
+        // instead of taking a strip underneath it. A layered pane with
+        // explicit layers (not add order) keeps the opaque image from
+        // covering the card, and doLayout() positions both children
+        // declaratively — no listeners to chase pointer movement.
+        var overflow = false
+        val overlay = object : JLayeredPane() {
             init {
-                layout = null
                 isOpaque = false
-                // Container paints the first child last (on top), so add the card
-                // first and the image behind it.
-                add(zoom)
                 add(imageCards)
+                add(zoom)
+                setLayer(imageCards, JLayeredPane.DEFAULT_LAYER)
+                setLayer(zoom, JLayeredPane.POPUP_LAYER)
             }
 
             override fun doLayout() {
@@ -436,12 +442,14 @@ class OcrWorkspaceDialog(
                 if (!zoom.isVisible) return
                 val margin = UIScale.scale(8)
                 val available = width - 2 * margin
-                // Hide the secondary controls before measuring the bar, so it never
-                // grows wider than the image it floats over.
                 val essential = listOf(zoomOut, zoomLabel, zoomIn).sumOf { it.preferredSize.width }
                 val fullWidth = essential + fit.preferredSize.width + annotationsCheck.preferredSize.width + UIScale.scale(24)
                 val fitWidth = essential + fit.preferredSize.width + more.preferredSize.width + UIScale.scale(20)
-                val full = available >= fullWidth
+                // Hysteresis: once overflowing, need extra room before going
+                // full again, so a pixel of scrollbar/hover jitter cannot flip it.
+                val hysteresis = UIScale.scale(24)
+                overflow = if (overflow) available < fullWidth - hysteresis else available < fullWidth
+                val full = !overflow
                 if (annotationsCheck.isVisible != full) {
                     annotationsCheck.isVisible = full
                 }
@@ -453,8 +461,6 @@ class OcrWorkspaceDialog(
                     more.isVisible = !full
                 }
                 if (annotationsCheck.isVisible != full || fit.isVisible != fitVisible) {
-                    // Visibility changed the bar's own size — lay out once more
-                    // in this same pass instead of re-entering via a listener.
                     invalidate()
                 }
                 val barSize = zoom.preferredSize
@@ -598,10 +604,15 @@ class OcrWorkspaceDialog(
             isRequestFocusEnabled = false
         }
         open.addActionListener {
-            JPopupMenu().apply {
+            val menu = JPopupMenu().apply {
                 add(JMenuItem(localizer.getString("ocr_workspace.send_main")).apply { addActionListener { sendCurrentToMain() } })
                 add(JMenuItem(localizer.getString("ocr_workspace.send_quick")).apply { addActionListener { sendCurrentToQuick() } })
-            }.show(open, 0, -preferredSize.height)
+            }
+            // Anchor by the menu, not the button: left-aligning a wider menu to a
+            // right-edge button pushed it off the dialog and Swing moved it
+            // sideways to stay on screen, so it read as detached.
+            val menuSize = menu.preferredSize
+            menu.show(open, open.width - menuSize.width, -menuSize.height)
         }
         statusLabel.border = BorderFactory.createEmptyBorder(0, 10, 0, 10)
         infoLabel.foreground = UIManager.getColor("Label.disabledForeground")
