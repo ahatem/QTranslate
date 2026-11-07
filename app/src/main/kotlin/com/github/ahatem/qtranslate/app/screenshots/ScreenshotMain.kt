@@ -245,14 +245,6 @@ private class Shots(
             }
             write("ocr-result-$label", paintAfterLayout("ocr-result-$label", dialog.rootPane))
             if (label == "dark") {
-                onUi {
-                    val field = dialog.javaClass.getDeclaredField("recognitionOptions").apply { isAccessible = true }
-                    (field.get(dialog) as javax.swing.JButton).doClick()
-                }
-                lateinit var choices: javax.swing.JPopupMenu
-                onUi { choices = javax.swing.MenuSelectionManager.defaultManager().selectedPath.filterIsInstance<javax.swing.JPopupMenu>().last() }
-                write("ocr-recognition-menu", paintAfterLayout("ocr-recognition-menu", choices))
-                onUi { javax.swing.MenuSelectionManager.defaultManager().clearSelectedPath() }
                 val stateField = dialog.javaClass.getDeclaredField("lastOcrState").apply { isAccessible = true }
                 val render = dialog.javaClass.getDeclaredMethod("renderOcr", com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceState::class.java).apply { isAccessible = true }
                 lateinit var state: com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceState

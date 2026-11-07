@@ -104,7 +104,6 @@ class OcrWorkspaceDialog(
         isVisible = false
         preferredSize = Dimension(UIScale.scale(80), UIScale.scale(6))
     }
-    private val recognitionOptions = JButton()
     private val zoomLabel = JButton()
     private val annotationsCheck = JCheckBox()
     private val ocrTextArea = HintTextArea()
@@ -462,11 +461,9 @@ class OcrWorkspaceDialog(
                 layoutOverlay()
             }
         }
-        zoom.addComponentListener(object : java.awt.event.ComponentAdapter() {
-            override fun componentResized(e: java.awt.event.ComponentEvent?) {
-                if (overlay.width > 0 && overlay.height > 0) layoutOverlay()
-            }
-        })
+        // Deliberately no listener on zoom's own resize: hover/focus can change a
+        // toolbar button by a pixel, and re-laying out the overlay for that
+        // made the card oscillate while the pointer was inside the viewer.
         return JPanel(BorderLayout()).apply {
             // The essential controls must fit on one line even when the divider is dragged.
             val essentialWidth = listOf(zoomOut, zoomLabel, zoomIn, more).sumOf { it.preferredSize.width } + UIScale.scale(12)
@@ -522,20 +519,12 @@ class OcrWorkspaceDialog(
                 super.getListCellRendererComponent(list, (value as? OcrProviderInfo)?.name ?: localizer.getString("settings_ocr.provider_automatic"), index, selected, focused)
         }
         languageCombo.renderer = languageRenderer()
-        recognitionOptions.text = localizer.getString("ocr_workspace.recognition_group")
-        recognitionOptions.icon = ThemeIcon("Table.descendingSortIcon")
-        recognitionOptions.horizontalTextPosition = SwingConstants.LEADING
-        recognitionOptions.putClientProperty("JButton.buttonType", "toolBarButton")
-        recognitionOptions.horizontalAlignment = SwingConstants.LEADING
-        recognitionOptions.isRequestFocusEnabled = false
-        recognitionOptions.addActionListener {
-            JPopupMenu().apply {
-                add(ocrChoiceMenu(localizer.getString("ocr_workspace.provider"), providerCombo) { it.name })
-                add(ocrChoiceMenu(localizer.getString("ocr_workspace.language"), languageCombo) {
-                    it.getDisplayName(autoDetectLabel = localizer.getString("common.auto_detect"))
-                })
-            }.show(recognitionOptions, 0, recognitionOptions.height)
-        }
+        providerCombo.toolTipText = localizer.getString("ocr_workspace.provider")
+        providerCombo.accessibleContext.accessibleName = providerCombo.toolTipText
+        providerCombo.minimumSize = Dimension(0, providerCombo.preferredSize.height)
+        languageCombo.toolTipText = localizer.getString("ocr_workspace.language")
+        languageCombo.accessibleContext.accessibleName = languageCombo.toolTipText
+        languageCombo.minimumSize = Dimension(0, languageCombo.preferredSize.height)
         ocrTextArea.lineWrap = true
         ocrTextArea.wrapStyleWord = true
         ocrTextArea.border = BorderFactory.createEmptyBorder(UIScale.scale(8), UIScale.scale(10), UIScale.scale(8), UIScale.scale(10))
@@ -547,9 +536,12 @@ class OcrWorkspaceDialog(
         recognizeButton.text = localizer.getString("ocr_workspace.recognize")
         cancelRecognitionButton.text = localizer.getString("ocr_workspace.cancel")
         cancelRecognitionButton.isVisible = false
-        val footer = JPanel(BorderLayout()).apply {
-            add(recognitionOptions, BorderLayout.CENTER)
-            add(JPanel(FlowLayout(FlowLayout.TRAILING, 2, 0)).apply { add(recognizeButton); add(cancelRecognitionButton) }, BorderLayout.LINE_END)
+        val footer = JPanel(GridBagLayout()).apply {
+            val c = GridBagConstraints().apply { fill = GridBagConstraints.HORIZONTAL }
+            c.gridx = 0; c.weightx = 1.0; add(providerCombo, c)
+            c.gridx = 1; c.weightx = 1.0; c.insets = Insets(0, UIScale.scale(6), 0, 0); add(languageCombo, c)
+            c.gridx = 2; c.weightx = 0.0; c.fill = GridBagConstraints.NONE; c.insets = Insets(0, UIScale.scale(6), 0, 0)
+            add(JPanel(FlowLayout(FlowLayout.TRAILING, 2, 0)).apply { add(recognizeButton); add(cancelRecognitionButton) }, c)
         }
         return JPanel(BorderLayout(0, 2)).apply {
             // Based on the current font, so the editor remains useful at every UI scale.
@@ -613,8 +605,12 @@ class OcrWorkspaceDialog(
             }.show(open, 0, -preferredSize.height)
         }
         statusLabel.border = BorderFactory.createEmptyBorder(0, 10, 0, 10)
+        statusLabel.alignmentY = Component.CENTER_ALIGNMENT
         infoLabel.foreground = UIManager.getColor("Label.disabledForeground")
         infoLabel.border = BorderFactory.createEmptyBorder(0, 10, 0, 0)
+        infoLabel.alignmentY = Component.CENTER_ALIGNMENT
+        open.alignmentY = Component.CENTER_ALIGNMENT
+        busyBar.alignmentY = Component.CENTER_ALIGNMENT
         return JPanel(BorderLayout(4, 0)).apply {
             border = BorderFactory.createEmptyBorder(2, 5, 2, 5)
             add(
@@ -770,13 +766,6 @@ class OcrWorkspaceDialog(
         cancelRecognitionButton.isEnabled = state.isRecognizing
         cancelRecognitionButton.isVisible = state.isRecognizing
         recognizeButton.isVisible = !state.isRecognizing
-        recognitionOptions.isEnabled = !state.isRecognizing && !state.isLoadingImage
-        val recognitionSummary = listOfNotNull(
-            (providerCombo.selectedItem as? OcrProviderInfo)?.name,
-            (languageCombo.selectedItem as? LanguageCode)?.getDisplayName(autoDetectLabel = localizer.getString("common.auto_detect")),
-        ).joinToString(" · ")
-        recognitionOptions.text = recognitionSummary.ifEmpty { localizer.getString("ocr_workspace.recognition_group") }
-        recognitionOptions.toolTipText = recognitionSummary
         val translation = mainStore.state.value
         val translatingHere = expectedTranslationInput != null && translation.inputText == expectedTranslationInput && translation.isLoading
         translateButton.isEnabled = state.canTranslate && !state.isRecognizing && !translatingHere
