@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.ocr
 
+import com.formdev.flatlaf.ui.FlatLineBorder
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.ImageData
@@ -375,19 +376,16 @@ class OcrWorkspaceDialog(
         }
         val zoomOut = compactButton("−", "ocr_workspace.zoom_out") { imagePanel.zoomOut(); zoomChanged() }
         val zoomIn = compactButton("+", "ocr_workspace.zoom_in") { imagePanel.zoomIn(); zoomChanged() }
-        val zoom = JPanel(FlowLayout(FlowLayout.LEADING, 2, 1)).apply {
+        val zoom = JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(2), UIScale.scale(1))).apply {
             add(zoomOut); add(zoomLabel); add(zoomIn); add(fit); add(annotationsCheck); add(more)
-            addComponentListener(object : java.awt.event.ComponentAdapter() {
-                override fun componentResized(e: java.awt.event.ComponentEvent?) {
-                    val essential = listOf(zoomOut, zoomLabel, zoomIn).sumOf { it.preferredSize.width }
-                    val fullWidth = essential + fit.preferredSize.width + annotationsCheck.preferredSize.width + 24
-                    val fitWidth = essential + fit.preferredSize.width + more.preferredSize.width + 20
-                    val full = width >= fullWidth
-                    annotationsCheck.isVisible = full
-                    fit.isVisible = full || width >= fitWidth
-                    more.isVisible = !full
-                }
-            })
+            // Floating card above the image: opaque so the image does not show through the
+            // controls, rounded with the same arc the toolbar buttons use.
+            isOpaque = true
+            border = object : FlatLineBorder(Insets(1, 1, 1, 1), null, 1f, -1) {
+                override fun getLineColor() = UIManager.getColor("Component.borderColor") ?: Color.GRAY
+                override fun getArc(): Int = UIManager.getInt("Button.arc")
+            }
+            background = UIManager.getColor("Panel.background") ?: Color.DARK_GRAY
         }
         imageControls = zoom
         imageControls.isVisible = false
@@ -416,13 +414,52 @@ class OcrWorkspaceDialog(
         imageCards.add(imageScroll, "image")
         imageCards.add(empty, "empty")
         (imageCards.layout as CardLayout).show(imageCards, "empty")
-        return JPanel(BorderLayout()).apply {
+
+        // The zoom controls sit in a floating card docked at the bottom of the
+        // image viewer with a gap around it, instead of a full-width strip
+        // underneath the image — so a small capture leaves more of itself
+        // visible and the controls read as floating over the viewer.
+        val dock = JPanel(FlowLayout(FlowLayout.CENTER, 0, 0)).apply {
+            isOpaque = false
+            border = BorderFactory.createEmptyBorder(0, UIScale.scale(8), UIScale.scale(8), UIScale.scale(8))
+            add(zoom)
+        }
+        val wrapper = JPanel(BorderLayout()).apply {
             // The essential controls must fit on one line even when the divider is dragged.
-            val essentialWidth = listOf(zoomOut, zoomLabel, zoomIn, more).sumOf { it.preferredSize.width } + 12
+            val essentialWidth = listOf(zoomOut, zoomLabel, zoomIn, more).sumOf { it.preferredSize.width } + UIScale.scale(12)
             minimumSize = Dimension(essentialWidth, 0)
             add(imageCards, BorderLayout.CENTER)
-            add(zoom, BorderLayout.SOUTH)
+            add(dock, BorderLayout.SOUTH)
         }
+        fun updateZoomVisibility() {
+            if (!zoom.isVisible) return
+            val available = wrapper.width - 2 * UIScale.scale(8)
+            // Hide the secondary controls before measuring the bar, so it never
+            // grows wider than the image it floats over.
+            val essential = listOf(zoomOut, zoomLabel, zoomIn).sumOf { it.preferredSize.width }
+            val fullWidth = essential + fit.preferredSize.width + annotationsCheck.preferredSize.width + UIScale.scale(24)
+            val fitWidth = essential + fit.preferredSize.width + more.preferredSize.width + UIScale.scale(20)
+            val full = available >= fullWidth
+            annotationsCheck.isVisible = full
+            fit.isVisible = full || available >= fitWidth
+            more.isVisible = !full
+            // Re-validate so the card shrinks/grows with its contents.
+            dock.revalidate()
+            wrapper.revalidate()
+        }
+        wrapper.addComponentListener(object : java.awt.event.ComponentAdapter() {
+            override fun componentResized(e: java.awt.event.ComponentEvent?) {
+                updateZoomVisibility()
+            }
+        })
+        // Keep the original responsive rule (listening to the bar itself) as a
+        // second trigger; both compute the same visibility, so they agree.
+        zoom.addComponentListener(object : java.awt.event.ComponentAdapter() {
+            override fun componentResized(e: java.awt.event.ComponentEvent?) {
+                updateZoomVisibility()
+            }
+        })
+        return wrapper
     }
 
     private fun buildTextSide(): JScrollPane {
