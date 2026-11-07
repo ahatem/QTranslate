@@ -738,7 +738,6 @@ save_image_title = "Save OCR Image"
 save_image_filter = "PNG Image (*.png)"
 image_saved = "Image saved."
 image_save_failed = "The image could not be saved."
-error_title = "OCR Workspace"
 
 [status_bar]
 # Translation
