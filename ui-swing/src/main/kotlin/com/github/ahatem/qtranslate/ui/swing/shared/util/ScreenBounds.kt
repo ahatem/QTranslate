@@ -1,7 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.util
 
-import com.github.ahatem.qtranslate.ui.swing.shared.widgets.usableBounds
 import java.awt.GraphicsEnvironment
+import java.awt.Insets
 import java.awt.Rectangle
 import java.awt.Toolkit
 
@@ -60,6 +60,19 @@ fun connectedUsableScreenBounds(): List<Rectangle> = runCatching {
             usableBounds(configuration.bounds, toolkit.getScreenInsets(configuration))
         }
 }.getOrDefault(emptyList())
+
+/**
+ * The usable part of a display after subtracting the OS-reserved insets.
+ *
+ * [screen] is in virtual-screen coordinates, so its origin may be negative. Insets such as a
+ * Windows taskbar or a macOS menu bar are removed before the rectangle is used for dragging.
+ */
+internal fun usableBounds(screen: Rectangle, insets: Insets): Rectangle = Rectangle(
+    screen.x + insets.left,
+    screen.y + insets.top,
+    (screen.width - insets.left - insets.right).coerceAtLeast(0),
+    (screen.height - insets.top - insets.bottom).coerceAtLeast(0),
+)
 
 /** Roughly a grabbable corner: enough to see the window and drag it somewhere better. */
 private const val MIN_VISIBLE_WIDTH = 120
