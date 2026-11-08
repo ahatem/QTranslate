@@ -476,10 +476,9 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `fallback parses a nested array response`() = runBlocking {
+    fun `the flat client parses a nested array response`() = runBlocking {
         val client = GoogleTestHttpClient(
-            primaryHandler = { Err(ServiceError.TimeoutError("timed out")) },
-            fallbackHandler = { Ok("""[["Bonjour","en"]]""") }
+            primaryHandler = { Ok("""[["Bonjour","en"]]""") }
         )
         val service = createService(client, AtomicLong(0))
 
@@ -493,14 +492,21 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `fallback parses a flat array response`() = runBlocking {
+    fun `the flat client names the requested source when its reply omits one`() = runBlocking {
+        // The live endpoint answers the text-only form whenever the request names a source, so the
+        // reply carries no source field. The request is then the answer to "which language is this",
+        // and a null here would strip the detected language from every explicit-source translation.
+        val explicit = TranslationRequest(
+            text = "Hello",
+            sourceLanguage = LanguageCode.ENGLISH,
+            targetLanguage = LanguageCode.FRENCH
+        )
         val client = GoogleTestHttpClient(
-            primaryHandler = { Err(ServiceError.TimeoutError("timed out")) },
-            fallbackHandler = { Ok("""["Bonjour","en"]""") }
+            primaryHandler = { Ok(PRIMARY_TEXT_ONLY_JSON) }
         )
         val service = createService(client, AtomicLong(0))
 
-        service.translate(request).fold(
+        service.translate(explicit).fold(
             success = {
                 assertEquals("Bonjour", it.translatedText)
                 assertEquals(LanguageCode.ENGLISH, it.detectedLanguage)
@@ -510,10 +516,10 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `fallback response without detected language still succeeds`() = runBlocking {
+    fun `the sentence client without a detected source still succeeds`() = runBlocking {
         val client = GoogleTestHttpClient(
             primaryHandler = { Err(ServiceError.TimeoutError("timed out")) },
-            fallbackHandler = { Ok("""["Bonjour"]""") }
+            fallbackHandler = { Ok("""{"sentences":[{"trans":"Bonjour","orig":"Hello"}]}""") }
         )
         val service = createService(client, AtomicLong(0))
 
@@ -527,43 +533,162 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `empty fallback response fails with an invalid response error`() = runBlocking {
+    fun `empty primary response fails with an invalid response error`() = runBlocking {
         val client = GoogleTestHttpClient(
-            primaryHandler = { Err(ServiceError.TimeoutError("timed out")) },
-            fallbackHandler = { Ok("[]") }
+            primaryHandler = { Ok("[]") },
+            // The unusable first answer is retryable, so the second path is asked; making that fail
+            // too is what surfaces the primary's own classification.
+            fallbackHandler = { Err(ServiceError.TimeoutError("timed out")) }
         )
         val service = createService(client, AtomicLong(0))
 
-        assertIs<ServiceError.InvalidResponseError>(service.translate(request).getError())
-        Unit
+        // The caller is left with the second path's failure, so that is the type; what must survive
+        // is the first path's own classification, which is what tells a throttled host apart from
+        // one that answered with something unusable.
+        val error = service.translate(request).getError()
+        assertIs<ServiceError.TimeoutError>(error)
+        assertContains(error.message, "primary endpoint returned an unusable response")
     }
 
     @Test
-    fun `malformed fallback response fails with an invalid response error`() = runBlocking {
+    fun `malformed second path response fails with an invalid response error`() = runBlocking {
         val client = GoogleTestHttpClient(
             primaryHandler = { Err(ServiceError.TimeoutError("timed out")) },
             fallbackHandler = { Ok("<html>nope</html>") }
         )
         val service = createService(client, AtomicLong(0))
 
-        assertIs<ServiceError.InvalidResponseError>(service.translate(request).getError())
-        Unit
+        // This path answered, it just answered with something unusable, so its own type is what the
+        // caller sees and the first path's timeout is stated beside it.
+        val error = service.translate(request).getError()
+        assertIs<ServiceError.InvalidResponseError>(error)
+        assertContains(error.message, "primary endpoint timed out")
+        assertContains(error.message, "sentence client returned an unusable response")
     }
 
     @Test
-    fun `unsupported fallback object shape fails with an invalid response error`() = runBlocking {
+    fun `an unsupported primary object shape fails with an invalid response error`() = runBlocking {
         val client = GoogleTestHttpClient(
-            primaryHandler = { Err(ServiceError.TimeoutError("timed out")) },
-            fallbackHandler = { Ok("""{"translated":"Bonjour"}""") }
+            primaryHandler = { Ok("""{"translated":"Bonjour"}""") },
+            fallbackHandler = { Err(ServiceError.TimeoutError("timed out")) }
         )
         val service = createService(client, AtomicLong(0))
 
-        assertIs<ServiceError.InvalidResponseError>(service.translate(request).getError())
-        Unit
+        val error = service.translate(request).getError()
+        assertIs<ServiceError.TimeoutError>(error)
+        assertContains(error.message, "primary endpoint returned an unusable response")
     }
 
     @Test
-    fun `backward translation goes through the fallback endpoint`() = runBlocking {
+    fun `the translator never contacts the host most hosts files block`() = runBlocking {
+        // The reporter's environment sinkholes clients5.google.com, which used to be the fallback.
+        // Every path is exercised here and none of them may name that host, so a future change that
+        // reintroduces it fails this test instead of failing for the reporter.
+        val scenarios: List<Pair<String, GoogleTestHttpClient>> = listOf(
+            "healthy" to GoogleTestHttpClient(primaryHandler = { Ok(PRIMARY_JSON) }),
+            "primary throttled" to GoogleTestHttpClient(
+                primaryHandler = { Err(ServiceError.RateLimitError("rate limited", retryAfterSeconds = 30)) },
+                fallbackHandler = { Ok(FALLBACK_FLAT) }
+            ),
+            "primary stalled" to GoogleTestHttpClient(
+                primaryHandler = { Err(ServiceError.TimeoutError("timed out")) },
+                fallbackHandler = { Ok(FALLBACK_FLAT) }
+            ),
+            "primary unusable" to GoogleTestHttpClient(
+                primaryHandler = { Ok("<html>nope</html>") },
+                fallbackHandler = { Ok(FALLBACK_FLAT) }
+            ),
+            "both unusable" to GoogleTestHttpClient(
+                primaryHandler = { Ok("<html>nope</html>") },
+                fallbackHandler = { Ok("<html>nope</html>") }
+            )
+        )
+        for ((name, client) in scenarios) {
+            val service = createService(client, AtomicLong(0))
+            service.translate(request)
+            val contacted = client.urls.filter { it.contains("clients5") }
+            assertTrue(contacted.isEmpty(), "$name contacted a blocked host: $contacted")
+            assertTrue(
+                client.urls.all { it.contains("translate.googleapis.com") },
+                "$name contacted something other than the Google host: ${client.urls}"
+            )
+        }
+    }
+
+    @Test
+    fun `the primary is the flat client and the second path asks for no dictionary payload`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Err(ServiceError.TimeoutError("timed out")) },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, AtomicLong(0))
+
+        service.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+
+        val first = client.queryParams.first()
+        assertEquals("dict-chrome-ex", first["client"])
+        assertTrue(first.containsKey("q"), "the first path must send the text")
+        assertTrue(!first.containsKey("dt"), "the flat client does not take a feature list")
+
+        val second = client.queryParams[1]
+        assertEquals("gtx", second["client"])
+        // Only the translation itself: the dictionary payload it used to request cost ~750 ms per
+        // request and nothing in the application ever displayed the alternatives it produced.
+        assertEquals("t", second["dt"])
+    }
+
+    @Test
+    fun `a rate limited primary is asked once and the second path answers`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Err(ServiceError.RateLimitError("429 Too Many Requests", retryAfterSeconds = 20)) },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, AtomicLong(0))
+
+        service.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        // getOnce on the first path: a throttle costs one wire attempt, not three.
+        assertEquals(1, client.primaryCalls)
+        assertEquals(1, client.fallbackCalls)
+    }
+
+    @Test
+    fun `the flat client keeps line breaks, punctuation and non-BMP characters`() = runBlocking {
+        val translated = "Première ligne.\nDeuxième ligne : « ok » 🎉 𝔘 👍🏽"
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Ok("[[\"$translated\",\"en\"]]") }
+        )
+        val service = createService(client, AtomicLong(0))
+
+        service.translate(request).fold(
+            success = {
+                assertEquals(translated, it.translatedText)
+                assertEquals(LanguageCode.ENGLISH, it.detectedLanguage)
+            },
+            failure = { fail(it.message) }
+        )
+    }
+
+    @Test
+    fun `the flat client reports the source it detected for an auto request`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Ok("""[["Bonjour","fr"]]""") }
+        )
+        val service = createService(client, AtomicLong(0))
+
+        service.translate(request).fold(
+            success = { assertEquals(LanguageCode.FRENCH, it.detectedLanguage) },
+            failure = { fail(it.message) }
+        )
+    }
+
+    @Test
+    fun `backward translation goes through the second path`() = runBlocking {
         val backward = TranslationRequest(
             text = "Bonjour",
             sourceLanguage = LanguageCode.FRENCH,
@@ -571,7 +696,7 @@ class GoogleTranslatorServiceTest {
         )
         val client = GoogleTestHttpClient(
             primaryHandler = { Err(ServiceError.TimeoutError("timed out")) },
-            fallbackHandler = { Ok("""["Hello","fr"]""") }
+            fallbackHandler = { Ok("""{"sentences":[{"trans":"Hello","orig":"Bonjour"}],"src":"fr"}""") }
         )
         val service = createService(client, AtomicLong(0))
 
@@ -906,7 +1031,7 @@ class GoogleTranslatorServiceTest {
         { Err(ServiceError.NetworkError("Network error: Connection refused: getsockopt")) }
 
     @Test
-    fun `a refused fallback is reported with the primary failure and the refusing host`() = runBlocking {
+    fun `a refused second path is reported with the primary failure and its classification`() = runBlocking {
         val client = GoogleTestHttpClient(
             primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
             fallbackHandler = refusedFallback
@@ -921,7 +1046,7 @@ class GoogleTranslatorServiceTest {
         // their machine cannot reach. Both stages are now stated, each classified.
         assertIs<ServiceError.NetworkError>(error)
         assertContains(error.message, "primary endpoint rate limited")
-        assertContains(error.message, "fallback clients5.google.com unreachable")
+        assertContains(error.message, "sentence client unreachable")
         assertContains(error.message, "Network error: Connection refused: getsockopt")
         // The status bar shows the first line only, so the classification has to fit there.
         val summary = error.message.lineSequence().first()
@@ -1158,7 +1283,8 @@ class GoogleTranslatorServiceTest {
                 delay(2_500)
                 Ok(PRIMARY_JSON)
             },
-            fallbackHandler = { Ok(FALLBACK_FLAT) }
+            fallbackHandler = { Ok(FALLBACK_FLAT) },
+            spellHandler = { Ok(SPELL_JSON) }
         )
         val translator = createService(client, clock, hedgeMillis = 100, health = health)
 
@@ -1183,7 +1309,8 @@ class GoogleTranslatorServiceTest {
         )
         val spellResult = spellChecker.check(SpellCheckRequest("Helo world."))
         assertTrue(spellResult.isOk, "spell check failed: ${spellResult.getError()?.message}")
-        assertEquals(3, client.primaryCalls)
+        assertEquals(2, client.primaryCalls)
+        assertEquals(1, client.spellCalls)
     }
 
     @Test
@@ -1196,7 +1323,8 @@ class GoogleTranslatorServiceTest {
                 if (index < 2) delay(5_000)
                 Ok(PRIMARY_JSON)
             },
-            fallbackHandler = { Ok(FALLBACK_FLAT) }
+            fallbackHandler = { Ok(FALLBACK_FLAT) },
+            spellHandler = { Ok(SPELL_JSON) }
         )
         val translator = createService(client, clock, hedgeMillis = 100, health = health)
 
@@ -1297,7 +1425,8 @@ class GoogleTranslatorServiceTest {
                     else -> Ok(PRIMARY_JSON)
                 }
             },
-            fallbackHandler = { Ok(FALLBACK_FLAT) }
+            fallbackHandler = { Ok(FALLBACK_FLAT) },
+            spellHandler = { Ok(SPELL_JSON) }
         )
         val translator = createService(client, clock, hedgeMillis = 100, health = health)
 
@@ -1424,7 +1553,7 @@ class GoogleTranslatorServiceTest {
 
         assertIs<ServiceError.TimeoutError>(error)
         assertContains(error.message, "primary endpoint timed out")
-        assertContains(error.message, "fallback clients5.google.com timed out")
+        assertContains(error.message, "sentence client timed out")
     }
 
     @Test
@@ -1458,17 +1587,30 @@ class GoogleTranslatorServiceTest {
 
         assertIs<ServiceError.InvalidResponseError>(error)
         assertContains(error.message, "primary endpoint rate limited")
-        assertContains(error.message, "fallback clients5.google.com returned an unusable response")
+        assertContains(error.message, "sentence client returned an unusable response")
         // The fallback answered, it just answered badly, so a reachability hint would be wrong.
         assertTrue(!error.message.contains("hosts-file"), error.message)
     }
 
     private companion object {
-        const val PRIMARY_JSON = """{"sentences":[{"trans":"Bonjour","orig":"Hello"}],"src":"en"}"""
-        const val FALLBACK_FLAT = """["Bonjour","en"]"""
+        /**
+         * What the translator's first path (the flat client) actually answers for an auto-detected
+         * source: a one-element array around a field array carrying the translation and the source
+         * it found. An explicit source answers the text-only form below instead.
+         */
+        const val PRIMARY_JSON = """[["Bonjour","en"]]"""
+
+        /** The text-only form the flat client answers when the request names the source. */
+        const val PRIMARY_TEXT_ONLY_JSON = """["Bonjour"]"""
+
+        /** What the translator's second path (the sentence client) actually answers. */
+        const val FALLBACK_FLAT = """{"sentences":[{"trans":"Bonjour","orig":"Hello"}],"src":"en"}"""
         const val OFFICIAL_JSON = """{"data":{"translations":[{"translatedText":"Bonjour","detectedSourceLanguage":"en"}]}}"""
 
         /** Longer than any test's own latency, so the hedge only fires where a test asks it to. */
+        /** A payload the spell checker recognises, for tests that translate and spell check. */
+        const val SPELL_JSON = """{"sentences":[{"trans":"translated","orig":"original"}],"src":"en"}"""
+
         const val HEDGE_NEVER_FIRES = 60_000L
     }
 }

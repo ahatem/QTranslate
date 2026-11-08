@@ -105,7 +105,7 @@ class GoogleSpellCheckerServiceTest {
         assertTrue(spellChecker.check(SpellCheckRequest("Helo world.")).isErr)
         assertTrue(spellChecker.check(SpellCheckRequest("Helo world.")).isOk)
 
-        assertEquals(2, client.primaryCalls)
+        assertEquals(2, client.spellCalls)
     }
 
     @Test
@@ -119,7 +119,7 @@ class GoogleSpellCheckerServiceTest {
 
         // The lone sentence is tried once. A plain GET would have retried the rate limit twice
         // before the failure reached the circuit.
-        assertEquals(1, client.primaryCalls)
+        assertEquals(1, client.spellCalls)
     }
 
     @Test
@@ -132,7 +132,7 @@ class GoogleSpellCheckerServiceTest {
         assertTrue(spellChecker.check(SpellCheckRequest("Helo world.")).isErr)
         assertTrue(spellChecker.check(SpellCheckRequest("Helo world.")).isErr)
 
-        assertEquals(2, client.primaryCalls)
+        assertEquals(2, client.spellCalls)
     }
 
     @Test
@@ -143,7 +143,7 @@ class GoogleSpellCheckerServiceTest {
         assertTrue(spellChecker.check(SpellCheckRequest("Helo world.")).isOk)
         assertTrue(spellChecker.check(SpellCheckRequest("Helo world.")).isOk)
 
-        assertEquals(1, client.primaryCalls)
+        assertEquals(1, client.spellCalls)
     }
 
     @Test
@@ -166,7 +166,7 @@ class GoogleSpellCheckerServiceTest {
 
         // The first failure opens the circuit, so the six queued sentences issue no more requests.
         assertTrue(job.await().isErr)
-        assertEquals(4, client.primaryCalls)
+        assertEquals(4, client.spellCalls)
     }
 
     private fun requestWithTenSentences() =
