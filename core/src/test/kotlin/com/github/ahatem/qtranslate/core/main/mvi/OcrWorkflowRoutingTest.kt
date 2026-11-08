@@ -437,4 +437,148 @@ class OcrWorkflowRoutingTest {
             fixture.cleanUp()
         }
     }
+
+    @Test
+    fun `workspace translation is superseded by a newer OCR workflow and does not auto-copy`() = runTest {
+        // Finding 1: OCR -> WORKSPACE auto-translate is filed under the capture token,
+        // so choosing Copy Image for B cancels A's still-running translation.
+        val fixture = OcrWorkflowFixture(
+            this,
+            OcrSettings(
+                postSelectionAction = OcrPostSelectionAction.TRANSLATE,
+                translationDestination = OcrTranslationDestination.OCR_WORKSPACE,
+            ),
+            autoCopy = com.github.ahatem.qtranslate.core.settings.data.AutoCopyTranslation.ALL,
+        )
+        try {
+            fixture.ocr.responder = { Ok(OCRResponse("slow text")) }
+            fixture.store.dispatch(
+                MainIntent.OcrWorkflowImage(
+                    image = fixture.image(),
+                    action = OcrPostSelectionAction.TRANSLATE,
+                )
+            )
+            advanceUntilIdle()
+
+            val open = fixture.events.filterIsInstance<MainEvent.OpenOcrWorkspace>().single()
+            assertTrue(open.autoTranslate)
+            assertTrue(open.ocrToken != null, "workspace must learn the capture identity")
+
+            fixture.translator.beforeTranslate = { text ->
+                if (text == "slow text") kotlinx.coroutines.delay(10_000)
+            }
+            var workspaceRequestId: Long? = null
+            fixture.store.dispatch(MainIntent.UpdateInputText("slow text"))
+            fixture.store.dispatch(
+                MainIntent.Translate(
+                    text = "slow text",
+                    onTranslationClaimed = { workspaceRequestId = it },
+                    ocrWorkspaceToken = open.ocrToken,
+                )
+            )
+            runCurrent()
+            assertTrue(workspaceRequestId != null)
+            assertTrue(fixture.store.state.value.isLoading)
+
+            // B arrives via Copy Image: the newer claim cancels A's translation.
+            fixture.store.dispatch(
+                MainIntent.OcrWorkflowImage(
+                    image = ImageData(byteArrayOf(4, 5), "png", 9, 9),
+                    action = OcrPostSelectionAction.COPY_IMAGE,
+                )
+            )
+            advanceUntilIdle()
+
+            assertTrue(fixture.events.any { it is MainEvent.CopyImageToClipboard })
+            assertFalse(fixture.store.state.value.isLoading, "A must not keep loading over B")
+            assertEquals("", fixture.store.state.value.translatedText, "A must never publish as current")
+            assertTrue(
+                fixture.events.filterIsInstance<MainEvent.CopyToClipboard>().isEmpty(),
+                "stale A must not overwrite the clipboard after B",
+            )
+        } finally {
+            fixture.cleanUp()
+        }
+    }
+
+    @Test
+    fun `a workspace translation for a superseded capture is dropped before it starts`() = runTest {
+        val fixture = OcrWorkflowFixture(
+            this,
+            OcrSettings(
+                postSelectionAction = OcrPostSelectionAction.TRANSLATE,
+                translationDestination = OcrTranslationDestination.OCR_WORKSPACE,
+            ),
+        )
+        try {
+            fixture.ocr.responder = { Ok(OCRResponse("stale text")) }
+            fixture.store.dispatch(
+                MainIntent.OcrWorkflowImage(
+                    image = fixture.image(),
+                    action = OcrPostSelectionAction.TRANSLATE,
+                )
+            )
+            advanceUntilIdle()
+
+            val open = fixture.events.filterIsInstance<MainEvent.OpenOcrWorkspace>().single()
+            val staleToken = open.ocrToken
+            assertTrue(staleToken != null)
+
+            // A newer workflow takes OCR ownership before the workspace asks.
+            fixture.store.dispatch(
+                MainIntent.OcrWorkflowImage(
+                    image = ImageData(byteArrayOf(4, 5), "png", 9, 9),
+                    action = OcrPostSelectionAction.COPY_IMAGE,
+                )
+            )
+            runCurrent()
+
+            fixture.store.dispatch(
+                MainIntent.Translate(text = "stale text", ocrWorkspaceToken = staleToken)
+            )
+            advanceUntilIdle()
+
+            assertTrue(fixture.translator.received.isEmpty(), "superseded must not translate")
+            assertFalse(fixture.store.state.value.isLoading)
+            assertEquals("", fixture.store.state.value.translatedText)
+        } finally {
+            fixture.cleanUp()
+        }
+    }
+
+    @Test
+    fun `cancel translation if current ignores a superseded request`() = runTest {
+        // Finding 3: a new input must not cancel a newer manual request with the same
+        // text by content equality — cancellation is by request identity only.
+        val fixture = OcrWorkflowFixture(this)
+        try {
+            fixture.translator.beforeTranslate = { kotlinx.coroutines.delay(10_000) }
+            var firstId: Long? = null
+            fixture.store.dispatch(MainIntent.UpdateInputText("hello"))
+            fixture.store.dispatch(
+                MainIntent.Translate(text = "hello", onTranslationClaimed = { firstId = it })
+            )
+            runCurrent()
+            assertTrue(firstId != null)
+            assertTrue(fixture.store.state.value.isLoading)
+
+            // A newer manual request with identical text takes over.
+            var secondId: Long? = null
+            fixture.store.dispatch(
+                MainIntent.Translate(text = "hello", onTranslationClaimed = { secondId = it })
+            )
+            runCurrent()
+            assertTrue(secondId != null && secondId != firstId)
+
+            fixture.store.dispatch(MainIntent.CancelTranslationIfCurrent(firstId!!))
+            runCurrent()
+            assertTrue(fixture.store.state.value.isLoading, "newer manual must survive the stale cancel")
+
+            fixture.store.dispatch(MainIntent.CancelTranslationIfCurrent(secondId!!))
+            runCurrent()
+            assertFalse(fixture.store.state.value.isLoading, "the current request must cancel")
+        } finally {
+            fixture.cleanUp()
+        }
+    }
 }

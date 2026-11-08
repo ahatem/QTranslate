@@ -56,6 +56,8 @@ sealed interface MainEvent : UiEvent {
         val initialText: String? = null,
         val initialRegions: List<OCRTextRegion> = emptyList(),
         val initialLanguage: LanguageCode? = null,
+        /** OCR capture identity that opened the workspace, when it came from one. */
+        val ocrToken: Long? = null,
     ) : MainEvent
 
     /** Presents the main window through the canonical show/focus path. */

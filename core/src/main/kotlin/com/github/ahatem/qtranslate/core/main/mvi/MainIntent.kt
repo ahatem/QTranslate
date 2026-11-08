@@ -36,8 +36,21 @@ sealed interface MainIntent : UiIntent {
     /**
      * User requested a translation.
      * @property text Optional text override. If `null`, uses [MainState.inputText].
+     * @property onTranslationClaimed Receives the exact translation request identity
+     * claimed by this intent (workspace translations use it to avoid cancelling
+     * a newer manual request with the same text by content equality).
+     * @property ocrWorkspaceToken When set, this workspace translation is filed
+     * under the OCR capture that opened the workspace, so a newer OCR workflow
+     * supersedes it and stale work cannot publish or auto-copy over it.
      */
-    data class Translate(val text: String? = null) : MainIntent
+    data class Translate(
+        val text: String? = null,
+        val onTranslationClaimed: ((Long) -> Unit)? = null,
+        val ocrWorkspaceToken: Long? = null,
+    ) : MainIntent
+
+    /** Cancels a translation only while [requestId] still owns the result. */
+    data class CancelTranslationIfCurrent(val requestId: Long) : MainIntent
 
     /**
      * The extra panel's type or option changed, so only its content needs recomputing.

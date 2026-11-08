@@ -120,6 +120,11 @@ class OcrWorkspaceDialog(
     private var updatingCombos = false
     private var lastOcrState: OcrWorkspaceState? = null
     private var expectedTranslationInput: String? = null
+    // Written from the translation callback (Default dispatcher) via invokeLater
+    // in recordTranslationRequest, so all dialog reads stay on the EDT.
+    private var expectedRequestId: Long? = null
+    /** OCR capture identity from the OpenOcrWorkspace event, for workspace translations. */
+    private var currentOcrToken: Long? = null
     private var translatedTextForCurrent: String = ""
     private var autoTranslatePending = false
     private var regionRanges: List<IntRange> = emptyList()
@@ -164,7 +169,9 @@ class OcrWorkspaceDialog(
         initialText: String? = null,
         initialRegions: List<OCRTextRegion> = emptyList(),
         initialLanguage: LanguageCode? = null,
+        ocrToken: Long? = null,
     ) {
+        currentOcrToken = ocrToken
         // Claim input ownership before any decoding. A second open/paste/capture immediately
         // supersedes this one even while its bytes are still being materialized.
         val token = claimImageInput() ?: return
@@ -191,6 +198,7 @@ class OcrWorkspaceDialog(
 
     /** Opens a screenshot captured by this workspace, encoding it off the EDT. */
     fun openCapturedImage(image: BufferedImage, label: String) {
+        currentOcrToken = null
         val token = claimImageInput() ?: return
         scope.launch {
             val materialized = OcrImageMaterializer.encode(image)
@@ -245,12 +253,14 @@ class OcrWorkspaceDialog(
         return token
     }
 
-    /** A new input supersedes the translation that belonged to the old one. */
+    /** A new input supersedes the translation that belonged to the old one. Cancellation is
+     * gated by request identity in MainStore: a newer manual request with the same text
+     * is never cancelled here. */
     private fun cancelWorkspaceTranslationIfRunning() {
         val expected = expectedTranslationInput ?: return
         val main = mainStore.state.value
         if (main.isLoading && main.inputText == expected) {
-            mainStore.dispatch(MainIntent.CancelTranslation)
+            expectedRequestId?.let { mainStore.dispatch(MainIntent.CancelTranslationIfCurrent(it)) }
         }
     }
 
@@ -880,6 +890,7 @@ class OcrWorkspaceDialog(
 
     private fun invalidateWorkspaceTranslation() {
         expectedTranslationInput = null
+        expectedRequestId = null
         translatedTextForCurrent = ""
         translationArea.text = ""
         translationArea.foreground = UIManager.getColor("TextArea.foreground")
@@ -893,18 +904,45 @@ class OcrWorkspaceDialog(
         val prepared = mainStore.state.value.inputText
         if (prepared.isBlank()) return
         expectedTranslationInput = prepared
+        expectedRequestId = null
         translatedTextForCurrent = ""
         translationArea.text = localizer.getString("ocr_workspace.translating")
         translationArea.foreground = UIManager.getColor("TextArea.foreground")
         copyTranslationButton.isEnabled = false
         listenTranslationButton.isEnabled = false
-        mainStore.dispatch(MainIntent.Translate(prepared))
+        // ocrWorkspaceToken files this request under the capture that opened the
+        // workspace (null for local file/paste/capture): a newer OCR workflow then
+        // supersedes it, so it can never publish or auto-copy over newer work.
+        // onTranslationClaimed captures its exact identity for the same reason.
+        mainStore.dispatch(
+            MainIntent.Translate(
+                text = prepared,
+                onTranslationClaimed = { requestId -> recordTranslationRequest(prepared, requestId) },
+                ocrWorkspaceToken = currentOcrToken,
+            )
+        )
     }
 
     private fun retranslateIfVisible() {
         val text = expectedTranslationInput ?: return
         translatedTextForCurrent = ""
-        mainStore.dispatch(MainIntent.Translate(text))
+        expectedRequestId = null
+        mainStore.dispatch(
+            MainIntent.Translate(
+                text = text,
+                onTranslationClaimed = { requestId -> recordTranslationRequest(text, requestId) },
+                ocrWorkspaceToken = currentOcrToken,
+            )
+        )
+    }
+
+    /** Records the claimed request identity on the EDT, only while it is still expected. */
+    private fun recordTranslationRequest(prepared: String, requestId: Long) {
+        SwingUtilities.invokeLater {
+            if (!closed && expectedTranslationInput == prepared) {
+                expectedRequestId = requestId
+            }
+        }
     }
 
     private fun swapLanguages() {
@@ -968,6 +1006,7 @@ class OcrWorkspaceDialog(
 
     /** Shared by the file chooser and drag & drop. */
     private fun openImageFile(file: File) {
+        currentOcrToken = null
         val token = claimImageInput() ?: return
         scope.launch {
             val materialized = OcrImageMaterializer.readFile(file)
@@ -1000,6 +1039,7 @@ class OcrWorkspaceDialog(
             flashStatus(localizer.getString("ocr_workspace.clipboard_empty"), isError = true)
             return
         }
+        currentOcrToken = null
         val token = claimImageInput() ?: return
         scope.launch {
             val materialized = OcrImageMaterializer.readClipboard(transferable)

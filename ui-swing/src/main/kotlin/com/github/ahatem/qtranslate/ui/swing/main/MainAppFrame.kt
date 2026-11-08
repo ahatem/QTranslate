@@ -809,6 +809,7 @@ class MainAppFrame(
                                 initialText = event.initialText,
                                 initialRegions = event.initialRegions,
                                 initialLanguage = event.initialLanguage,
+                                ocrToken = event.ocrToken,
                             )
                         }
                         MainEvent.ShowMainWindow -> {
@@ -1152,6 +1153,7 @@ class MainAppFrame(
         initialText: String? = null,
         initialRegions: List<com.github.ahatem.qtranslate.api.ocr.OCRTextRegion> = emptyList(),
         initialLanguage: LanguageCode? = null,
+        ocrToken: Long? = null,
     ) {
         val extraction = ocrExtractionUseCase
         if (extraction == null) {
@@ -1209,6 +1211,7 @@ class MainAppFrame(
             image = image,
             label = localizer.getString("ocr_workspace.captured_label"),
             autoTranslate = autoTranslate,
+            ocrToken = ocrToken,
             initialText = initialText,
             initialRegions = initialRegions,
             initialLanguage = initialLanguage,

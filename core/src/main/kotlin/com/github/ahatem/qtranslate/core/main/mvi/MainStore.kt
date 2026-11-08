@@ -537,6 +537,8 @@ class MainStore(
             }
 
             is MainIntent.Translate -> {
+                val workspaceToken = intent.ocrWorkspaceToken
+                if (workspaceToken != null && !ocrOwner.isCurrent(workspaceToken)) return
                 // An explicit translation of externally supplied text owns the input for this
                 // pass; with instant translation enabled, the debounced observer must not replace
                 // it with an otherwise identical secondary request.
@@ -555,7 +557,26 @@ class MainStore(
                 }
                 cancelTranslationWork()
                 clearComparisonState()
-                scope.launch { translateText(TranslationOrigin.MAIN, intent.text, comparisonPolicy = mainComparisonPolicy()) }
+                scope.launch {
+                    translateText(
+                        TranslationOrigin.MAIN,
+                        intent.text,
+                        comparisonPolicy = mainComparisonPolicy(),
+                        onRequestClaimed = { claimedId ->
+                            if (workspaceToken != null) {
+                                val filed = ocrOwner.withCurrent(workspaceToken) {
+                                    ocrTranslation = OcrTranslation(claimedId, quick = false)
+                                }
+                                if (filed == null) {
+                                    // Stale: a newer OCR workflow claimed ownership after
+                                    // our pre-check. Do not let this orphan start.
+                                    translationCoordinator.cancelIfCurrent(claimedId)
+                                }
+                            }
+                            intent.onTranslationClaimed?.invoke(claimedId)
+                        },
+                    )
+                }
             }
 
             is MainIntent.RefreshExtraOutput -> scope.launch {
@@ -570,6 +591,16 @@ class MainStore(
                 _state.update { it.copy(isLoading = false) }
                 scope.launch {
                     updateStatusBar(StatusCode.TranslationCancelled, NotificationType.INFO, true)
+                }
+            }
+
+            is MainIntent.CancelTranslationIfCurrent -> {
+                // Ownership-gated cleanup: only the named request may be cancelled.
+                // A null result means a newer owner holds the result, so do nothing —
+                // never infer ownership from input text or loading state.
+                val cancellation = translationCoordinator.cancelIfCurrent(intent.requestId) ?: return
+                translationCoordinator.withCurrentRequest(cancellation) {
+                    _state.update { it.copy(isLoading = false) }
                 }
             }
 
@@ -737,7 +768,7 @@ class MainStore(
             OcrPostSelectionAction.OPEN_WORKSPACE -> startOwnedOcrJob(token) {
                 publishOcrEvent(
                     token,
-                    MainEvent.OpenOcrWorkspace(image = image, autoTranslate = false),
+                    MainEvent.OpenOcrWorkspace(image = image, autoTranslate = false, ocrToken = token),
                 )
             }
             OcrPostSelectionAction.SHOW_ACTIONS -> Unit
@@ -787,6 +818,7 @@ class MainStore(
                 settings = settings,
                 language = language,
                 outcome = outcome,
+                token = token,
             )
         }
         if (publication == null) {
@@ -828,6 +860,7 @@ class MainStore(
         settings: OcrSettings,
         language: LanguageCode,
         outcome: OcrExtractionOutcome,
+        token: Long,
     ): OcrPublication {
         val result = (outcome as? OcrExtractionOutcome.Success)?.result
         val preparedText = result?.let { preprocessOcrText(it.text, settings) }.orEmpty()
@@ -869,6 +902,7 @@ class MainStore(
                             initialLanguage = recognized.detectedLanguage
                                 ?.takeIf { it != LanguageCode.AUTO }
                                 ?: language.takeIf { it != LanguageCode.AUTO },
+                            ocrToken = token,
                         )
                     )
                 )
