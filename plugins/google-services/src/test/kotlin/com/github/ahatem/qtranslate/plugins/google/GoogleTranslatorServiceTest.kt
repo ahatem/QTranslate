@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.plugins.google
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckRequest
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
@@ -44,15 +45,17 @@ class GoogleTranslatorServiceTest {
         settings: GoogleSettings = GoogleSettings(),
         // Long unless a test is about the hedge, so a slow handler in an unrelated test cannot
         // start a fallback request behind that test's back.
-        hedgeMillis: Long = HEDGE_NEVER_FIRES
+        hedgeMillis: Long = HEDGE_NEVER_FIRES,
+        health: GoogleEndpointHealth = GoogleEndpointHealth({ clock.get() }, { 0L })
     ) = GoogleTranslatorService(
         FakePluginContext(),
         settings,
         client,
         GoogleLanguageMapper,
         ApiConfig(),
-        GoogleEndpointHealth({ clock.get() }, { 0L }),
-        hedgeMillis
+        health,
+        hedgeMillis,
+        { clock.get() }
     )
 
     @Test
@@ -1056,6 +1059,10 @@ class GoogleTranslatorServiceTest {
     // in the log) before the fallback's 0.3 s answer could even start. The hedge below bounds what
     // a user waits without shortening the primary's own budget and without discarding a slow
     // primary that does answer, so it cannot break a fallback that is unreachable (#365).
+    //
+    // A missed hedge is the translator's own business, not a primary failure: `GoogleEndpointHealth`
+    // is shared with the fallback-less spell checker, so a merely slow primary must never open that
+    // circuit. The translator keeps a private note instead and re-probes the primary later.
 
     @Test
     fun `a slow primary no longer holds back a working fallback`() = runBlocking {
@@ -1113,7 +1120,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `a primary that misses the hedge budget counts toward opening the circuit`() = runBlocking {
+    fun `a primary that keeps missing the hedge budget is answered by the fallback directly`() = runBlocking {
         val clock = AtomicLong(0)
         val client = GoogleTestHttpClient(
             primaryHandler = { index ->
@@ -1131,11 +1138,195 @@ class GoogleTranslatorServiceTest {
             )
         }
 
-        // A missed budget is a transient primary failure, so the second request opens the circuit
-        // and the third is served by the fallback without paying the hedge again: the hedge is a
-        // bounded detour, not a second provider request on every translation.
+        // A missed budget is remembered by the translator itself, so the second request makes it
+        // prefer the fallback and the third is served without paying the hedge again: the hedge is a
+        // bounded detour, not a second provider request on every translation. The primary is not
+        // failing here, so nothing about it reaches the shared circuit.
         assertEquals(2, client.primaryCalls)
         assertEquals(3, client.fallbackCalls)
+    }
+
+    @Test
+    fun `a slow but working primary still serves spell check after two hedged translations`() = runBlocking {
+        val clock = AtomicLong(0)
+        val health = GoogleEndpointHealth({ clock.get() }, { 0L })
+        val client = GoogleTestHttpClient(
+            primaryHandler = {
+                // Consistently ~2.5 s: longer than the hedge, well inside any request timeout, and
+                // an answer every time. This is the population the hedge is for, and it used to get
+                // working translations *and* working spell checking.
+                delay(2_500)
+                Ok(PRIMARY_JSON)
+            },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val translator = createService(client, clock, hedgeMillis = 100, health = health)
+
+        repeat(2) { attempt ->
+            translator.translate(request).fold(
+                success = { assertEquals("Bonjour", it.translatedText) },
+                failure = { fail("translation $attempt failed: ${it.message}") }
+            )
+        }
+        assertEquals(2, client.primaryCalls)
+        assertEquals(2, client.fallbackCalls)
+
+        // Both missed budgets belonged to the translator's own patience. `GoogleEndpointHealth` is
+        // shared with the spell checker, which has no second host: a permit it cannot get is a
+        // failed spell check, so the hedge must not have opened the circuit here.
+        val spellChecker = GoogleSpellCheckerService(
+            FakePluginContext(),
+            client,
+            GoogleLanguageMapper,
+            ApiConfig(),
+            health
+        )
+        val spellResult = spellChecker.check(SpellCheckRequest("Helo world."))
+        assertTrue(spellResult.isOk, "spell check failed: ${spellResult.getError()?.message}")
+        assertEquals(3, client.primaryCalls)
+    }
+
+    @Test
+    fun `the translator returns to the primary once it answers inside the budget again`() = runBlocking {
+        val clock = AtomicLong(0)
+        val health = GoogleEndpointHealth({ clock.get() }, { 0L })
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                // Slow for the first two hedged requests, then fast again: the primary recovers.
+                if (index < 2) delay(5_000)
+                Ok(PRIMARY_JSON)
+            },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val translator = createService(client, clock, hedgeMillis = 100, health = health)
+
+        repeat(2) { translator.translate(request) }
+        assertEquals(2, client.primaryCalls)
+        assertEquals(2, client.fallbackCalls)
+
+        // While the quiet period runs the fallback is asked on its own: no hedge, no primary call.
+        translator.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        assertEquals(2, client.primaryCalls)
+        assertEquals(3, client.fallbackCalls)
+
+        // Once it has elapsed the primary is asked again, hedged as usual. It answers inside the
+        // budget this time, so it serves the request and the note about it being slow is dropped.
+        clock.set(60_000)
+        translator.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        assertEquals(3, client.primaryCalls)
+        assertEquals(3, client.fallbackCalls)
+
+        // Direct primary use is back: the next translation costs one request again.
+        translator.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        assertEquals(4, client.primaryCalls)
+        assertEquals(3, client.fallbackCalls)
+
+        // And the shared circuit was never touched, so spell checking kept working throughout.
+        val spellChecker = GoogleSpellCheckerService(
+            FakePluginContext(),
+            client,
+            GoogleLanguageMapper,
+            ApiConfig(),
+            health
+        )
+        val spellResult = spellChecker.check(SpellCheckRequest("Helo world."))
+        assertTrue(spellResult.isOk, "spell check failed: ${spellResult.getError()?.message}")
+    }
+
+    @Test
+    fun `a fallback that dies while it is preferred still lets the slow primary serve`() = runBlocking {
+        val clock = AtomicLong(0)
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                if (index < 2) delay(5_000)
+                Ok(PRIMARY_JSON)
+            },
+            fallbackHandler = { index ->
+                // The fallback answers twice, which is what makes the translator prefer it, and then
+                // becomes unreachable.
+                if (index < 2) Ok(FALLBACK_FLAT) else refusedFallback(index)
+            }
+        )
+        val service = createService(client, clock, hedgeMillis = 100)
+
+        repeat(2) { service.translate(request) }
+        assertEquals(2, client.primaryCalls)
+
+        // Preferring the fallback must not make an unreachable fallback fatal: the slow primary is
+        // asked and its answer is returned (#365).
+        service.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        assertEquals(3, client.primaryCalls)
+        assertEquals(3, client.fallbackCalls)
+
+        // Its failure also drops the preference, so the next request pays the hedge again rather
+        // than asking the dead host first.
+        service.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        assertEquals(4, client.primaryCalls)
+        assertEquals(3, client.fallbackCalls)
+    }
+
+    @Test
+    fun `a half-open probe is not raced by the hedge so a slow recovery heals the circuit`() = runBlocking {
+        val clock = AtomicLong(0)
+        val health = GoogleEndpointHealth({ clock.get() }, { 0L })
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                when {
+                    // Two genuine failures open the circuit, as they always did.
+                    index < 2 -> Err(ServiceError.TimeoutError("timed out"))
+                    // The probe is slow but working: it is the answer the circuit is waiting for.
+                    index == 2 -> {
+                        delay(2_500)
+                        Ok(PRIMARY_JSON)
+                    }
+                    else -> Ok(PRIMARY_JSON)
+                }
+            },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val translator = createService(client, clock, hedgeMillis = 100, health = health)
+
+        translator.translate(request)
+        translator.translate(request)
+        assertEquals(2, client.primaryCalls)
+        assertEquals(2, client.fallbackCalls)
+
+        clock.set(2_000)
+        translator.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+
+        // The probe was awaited instead of being cancelled at the hedge, so its own answer healed
+        // the circuit and the fallback was never needed. Cancelling it would have reopened the
+        // cooldown and left the fallback-less spell checker unavailable while the primary works.
+        assertEquals(3, client.primaryCalls)
+        assertEquals(2, client.fallbackCalls)
+
+        val spellChecker = GoogleSpellCheckerService(
+            FakePluginContext(),
+            client,
+            GoogleLanguageMapper,
+            ApiConfig(),
+            health
+        )
+        val spellResult = spellChecker.check(SpellCheckRequest("Helo world."))
+        assertTrue(spellResult.isOk, "spell check failed: ${spellResult.getError()?.message}")
     }
 
     @Test

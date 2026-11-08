@@ -35,6 +35,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 class GoogleTranslatorService(
     private val pluginContext: PluginContext,
@@ -51,9 +53,19 @@ class GoogleTranslatorService(
      * user from the secondary host is worth a second request, which is what turns the primary's
      * throttle into a short delay instead of the whole timeout.
      */
-    private val primaryHedgeMillis: Long = PRIMARY_HEDGE_MILLIS
+    private val primaryHedgeMillis: Long = PRIMARY_HEDGE_MILLIS,
+    /**
+     * Time source for [hedgeBudget]'s quiet period, injectable so the recovery path is
+     * deterministic in tests. The shared [GoogleEndpointHealth] keeps its own clock.
+     */
+    clock: () -> Long = { System.currentTimeMillis() }
 ) : Translator {
 
+    /**
+     * This service's own record of the primary being too slow to wait for. Deliberately not part of
+     * [GoogleEndpointHealth]: see [HedgeBudget] for why a missed hedge is not a primary failure.
+     */
+    private val hedgeBudget = HedgeBudget(clock)
 
     override val key: String = "google-translator"
     override val name: String = "Google Translate"
@@ -150,6 +162,12 @@ class GoogleTranslatorService(
      * cancelled before it answers unless the fallback has already produced the translation, and if
      * the fallback cannot be reached the primary's answer is still the one returned. A host-blocked
      * fallback therefore cannot turn a slow but working primary into a failure.
+     *
+     * A primary that keeps missing the budget is remembered by [hedgeBudget], which is private to
+     * this service, so after two misses the fallback is asked first and the primary is re-probed
+     * later. That decision never touches [GoogleEndpointHealth], because the host does answer — just
+     * later than this service's own patience — and the spell checker shares that circuit without a
+     * second host to fall back to.
      */
     // `select` is stable; only its Deferred clause still carries the opt-in marker.
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -158,6 +176,14 @@ class GoogleTranslatorService(
     ): Result<TranslationResponse, ServiceError> {
         val sourceTag = languageMapper.toProviderCode(request.sourceLanguage)
         val targetTag = languageMapper.toProviderCode(request.targetLanguage)
+
+        // The primary has recently been too slow to be worth waiting for, so the fallback is asked
+        // on its own instead of paying the hedge on every translation.
+        if (hedgeBudget.prefersFallbackNow()) {
+            pluginContext.logger.info("Primary endpoint slow recently, trying the fallback first")
+            currentCoroutineContext().ensureActive()
+            return translateWithFallbackFirst(request.text, sourceTag, targetTag)
+        }
 
         val permit = endpointHealth.tryAcquirePrimary()
         if (permit == null) {
@@ -179,9 +205,19 @@ class GoogleTranslatorService(
                 tryFallbackEndpoint(request.text, sourceTag, targetTag)
             }
 
-            val primaryResult = withTimeoutOrNull(primaryHedgeMillis) { primary.await() }
+            // A half-open probe is the one request that decides whether the circuit heals, so it is
+            // never raced: hedging it would cancel the very answer the circuit is waiting for, and
+            // a slow-but-working primary would keep reopening the cooldown the spell checker cannot
+            // afford. Ordinary requests are hedged.
+            val primaryResult =
+                if (permit.isProbe) primary.await()
+                else withTimeoutOrNull(primaryHedgeMillis) { primary.await() }
 
             if (primaryResult != null) {
+                // A hedged primary that answered inside the budget clears this service's note about
+                // it being slow. A probe's latency says nothing about the budget, so it is left
+                // alone there.
+                if (!permit.isProbe) hedgeBudget.recordPrimaryAnsweredInBudget()
                 // The primary answered inside the budget. Either it is all that was needed, or it
                 // failed for a reason the other host cannot fix; the fallback stays unasked.
                 if (primaryResult.isOk || primaryResult.getError()!!.suppressesFallback()) {
@@ -231,16 +267,13 @@ class GoogleTranslatorService(
                     }
                     if (firstAnswered.result.isOk) {
                         // The primary missed the budget while the fallback served the request. That
-                        // missed budget is recorded as a transient primary failure, so after the
-                        // usual two the circuit stops paying the hedge and the fallback is used
-                        // directly until a probe finds the primary answering in time again.
+                        // is a fact about this service's patience, not about the endpoint: the host
+                        // is answering, only later than the hedge. It is therefore noted privately,
+                        // so after two misses the fallback is asked first and the primary is
+                        // re-probed later, and never recorded as a primary failure on the circuit
+                        // the spell checker shares.
                         currentCoroutineContext().ensureActive()
-                        endpointHealth.recordTransientFailure(
-                            permit,
-                            ServiceError.TimeoutError(
-                                "Primary endpoint did not answer within ${primaryHedgeMillis}ms"
-                            )
-                        )
+                        hedgeBudget.recordMiss()
                         primary.cancel()
                         return@coroutineScope firstAnswered.result
                     }
@@ -252,6 +285,40 @@ class GoogleTranslatorService(
                 }
             }
         }
+    }
+
+    /**
+     * Serves a request while [hedgeBudget] says the primary is too slow to wait for.
+     *
+     * The fallback is asked on its own, exactly as it would be with the circuit open, so the request
+     * costs one call and no hedge. The primary is still reachable: if the fallback cannot serve the
+     * request, the slow primary is asked directly and its answer is the one returned, so an
+     * unreachable fallback (#365) can never fail a request the primary could have served.
+     */
+    private suspend fun translateWithFallbackFirst(
+        text: String,
+        sourceTag: String,
+        targetTag: String
+    ): Result<TranslationResponse, ServiceError> {
+        val fallbackResult = tryFallbackEndpoint(text, sourceTag, targetTag)
+        if (fallbackResult.isOk) return fallbackResult
+
+        pluginContext.logger.info("Fallback endpoint failed, trying the slow primary")
+        currentCoroutineContext().ensureActive()
+        val fallbackError = fallbackResult.getError()!!
+        // The circuit may be open on genuine failures, in which case the primary really was skipped.
+        val permit = endpointHealth.tryAcquirePrimary()
+            ?: return Err(fallbackFailure(PRIMARY_SKIPPED, fallbackError))
+
+        return attemptPrimaryEndpoint(permit, text, sourceTag, targetTag).fold(
+            success = { success ->
+                // The fallback is not serving requests, so it is no longer the cheaper path and the
+                // note that steered requests towards it is dropped.
+                hedgeBudget.recordFallbackUnusable()
+                Ok(success)
+            },
+            failure = { error -> Err(error.withFallbackFailure(fallbackError)) }
+        )
     }
 
     /** Which of the two unofficial paths answered first once both were live. */
@@ -466,4 +533,60 @@ class GoogleTranslatorService(
     private fun JsonElement.stringOrNull(): String? =
         (this as? JsonPrimitive)?.takeIf { it.isString }?.content
 
+}
+
+/**
+ * How often this translator is willing to wait for a primary that keeps missing its hedge budget.
+ *
+ * "The primary did not answer within [GoogleTranslatorService]'s hedge budget" is not a primary
+ * failure. The host answers, only later than this service is willing to make a user wait, so
+ * recording it on the shared [GoogleEndpointHealth] circuit would take every other consumer of that
+ * circuit down with it — and `GoogleSpellCheckerService` has no second host: a permit it cannot get
+ * is a failed spell check. On a network where the primary is merely slow, that would trade working
+ * translations for permanently unavailable spell checking.
+ *
+ * So the translator keeps its own bounded note instead. Two consecutive misses make it ask the
+ * fallback first for [DIRECT_FALLBACK_MILLIS]; after that the primary is asked again, hedged as
+ * usual, so a primary that speeds up is picked up again on the next re-probe. Any primary answer
+ * inside the budget — or a fallback that cannot serve the request — clears the note.
+ *
+ * The quiet period is fixed rather than doubling: the re-probe costs one request, so there is no
+ * reason to keep a recovered primary unused for minutes. State is atomic because translations run
+ * concurrently; the counters are advisory and a lost update only changes the next scheduling
+ * decision, never a result.
+ */
+private class HedgeBudget(private val clock: () -> Long) {
+
+    private val consecutiveMisses = AtomicInteger(0)
+    private val directFallbackUntilMillis = AtomicLong(0L)
+
+    /** Whether the fallback should be asked first right now. */
+    fun prefersFallbackNow(): Boolean =
+        consecutiveMisses.get() >= MISS_THRESHOLD && clock() < directFallbackUntilMillis.get()
+
+    /** The primary answered inside the hedge budget, so it is worth waiting for again. */
+    fun recordPrimaryAnsweredInBudget() = clear()
+
+    /** The fallback could not serve a request, so preferring it is pointless. */
+    fun recordFallbackUnusable() = clear()
+
+    /** The primary missed the hedge budget and the fallback served the request instead. */
+    fun recordMiss() {
+        if (consecutiveMisses.incrementAndGet() >= MISS_THRESHOLD) {
+            directFallbackUntilMillis.set(clock() + DIRECT_FALLBACK_MILLIS)
+        }
+    }
+
+    private fun clear() {
+        consecutiveMisses.set(0)
+        directFallbackUntilMillis.set(0L)
+    }
+
+    private companion object {
+        const val MISS_THRESHOLD = 2
+
+        /** Long enough to spare a throttled primary a hedge on every translation, short enough
+         *  that a primary which recovers is back in use within half a minute. */
+        const val DIRECT_FALLBACK_MILLIS = 30_000L
+    }
 }
