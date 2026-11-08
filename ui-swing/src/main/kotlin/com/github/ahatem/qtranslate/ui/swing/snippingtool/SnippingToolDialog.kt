@@ -94,7 +94,7 @@ class SnippingToolDialog(
             cancel = localizer.getString("screen_capture.cancel"),
             moreActions = localizer.getString("screen_capture.more_actions"),
         )
-        val shortcuts = installableCaptureShortcuts(definition.hotkeys)
+        val shortcuts = installableCaptureShortcuts(definition.effectiveHotkeys)
             .associate { (binding, _) -> binding.action to binding }
         val tooltips = ScreenCapturePanel.ButtonTooltips(
             translate = withShortcut(localizer.getString("screen_capture.translate_tooltip"), shortcuts[HotkeyAction.OCR_ACTION_TRANSLATE]),
@@ -212,7 +212,7 @@ class SnippingToolDialog(
      * would make the documented keyboard contract unpredictable.
      */
     private fun installCaptureShortcuts() {
-        installableCaptureShortcuts(definition.hotkeys).forEach { (binding, toolbarAction) ->
+        installableCaptureShortcuts(definition.effectiveHotkeys).forEach { (binding, toolbarAction) ->
             val stroke = binding.toKeyStroke() ?: return@forEach
             val key = "ocrCapture_${binding.action.name}"
             rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(stroke, key)

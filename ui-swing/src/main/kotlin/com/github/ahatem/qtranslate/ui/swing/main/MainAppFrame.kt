@@ -560,7 +560,7 @@ class MainAppFrame(
         val storeState = settingsStore.state.value
         globalKeyListener.updateRuntimeState(
             InputRuntimeState(
-                bindings = storeState.originalConfiguration.hotkeys,
+                bindings = storeState.originalConfiguration.effectiveHotkeys,
                 globalHotkeysEnabled = storeState.workingConfiguration.isGlobalHotkeysEnabled,
                 selectionCaptureEnabled = storeState.originalConfiguration.selectionBehavior.selectionCaptureEnabled,
                 dismissOnOutsideClickEnabled = storeState.workingConfiguration.closePopupsOnClickOutside
@@ -868,7 +868,7 @@ class MainAppFrame(
             settingsStore.state
                 .map { state ->
                     InputRuntimeState(
-                        bindings = state.originalConfiguration.hotkeys,
+                        bindings = state.originalConfiguration.effectiveHotkeys,
                         globalHotkeysEnabled = state.originalConfiguration.isGlobalHotkeysEnabled,
                         selectionCaptureEnabled = state.originalConfiguration.selectionBehavior.selectionCaptureEnabled,
                         dismissOnOutsideClickEnabled = state.workingConfiguration.closePopupsOnClickOutside
@@ -1774,7 +1774,7 @@ class MainAppFrame(
         val saved = settingsStore.state.value.originalConfiguration
         globalKeyListener.updateRuntimeState(
             InputRuntimeState(
-                bindings = saved.hotkeys,
+                bindings = saved.effectiveHotkeys,
                 globalHotkeysEnabled = config.isGlobalHotkeysEnabled,
                 selectionCaptureEnabled = saved.selectionBehavior.selectionCaptureEnabled,
                 dismissOnOutsideClickEnabled = config.closePopupsOnClickOutside

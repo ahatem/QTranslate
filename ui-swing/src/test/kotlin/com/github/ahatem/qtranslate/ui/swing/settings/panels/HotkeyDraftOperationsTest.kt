@@ -17,7 +17,7 @@ class HotkeyDraftOperationsTest {
 
     @Test
     fun `legacy and modern presets identify independently of action order`() {
-        assertEquals(HotkeyPresetKind.LEGACY, HotkeyPresets.identify(HotkeyBinding.DEFAULTS))
+        assertEquals(HotkeyPresetKind.LEGACY, HotkeyPresets.identify(HotkeyBinding.LEGACY_DEFAULTS))
         assertEquals(HotkeyPresetKind.LEGACY, HotkeyPresets.identify(HotkeyPresets.LEGACY.reversed()))
         assertEquals(HotkeyPresetKind.MODERN, HotkeyPresets.identify(HotkeyPresets.MODERN.shuffled()))
     }
@@ -238,7 +238,7 @@ class HotkeyDraftOperationsTest {
             scope = HotkeyScope.CAPTURE,
         )
         val config = Configuration.DEFAULT.copy(
-            hotkeys = Configuration.DEFAULT.hotkeys.filterNot { it.action == capture.action } + capture,
+            ocrHotkeys = Configuration.DEFAULT.ocrHotkeys.filterNot { it.action == capture.action } + capture,
         )
 
         val unchanged = HotkeyDraftOperations.toggleScope(config, capture.action)
@@ -246,7 +246,7 @@ class HotkeyDraftOperationsTest {
         assertEquals(config, unchanged)
         assertEquals(
             HotkeyScope.CAPTURE,
-            unchanged.hotkeys.single { it.action == capture.action }.scope,
+            unchanged.effectiveHotkeys.single { it.action == capture.action }.scope,
         )
     }
 

@@ -76,14 +76,53 @@ class OcrConfigurationTest {
         val migrated = ConfigMigrator.migrate(v7, logger)
 
         assertEquals(ConfigMigrator.CURRENT_VERSION, migrated.configVersion)
-        val actions = migrated.hotkeys.map { it.action }.toSet()
+        // OCR rows live under ocrHotkeys so a v7 binary never sees them.
+        val actions = migrated.effectiveHotkeys.map { it.action }.toSet()
         assertTrue(actions.containsAll(NEW_OCR_ACTIONS), "old explicit lists still receive the new rows")
+        assertTrue(migrated.hotkeys.none { it.action in NEW_OCR_ACTIONS }, "legacy list stays v7-readable")
+        assertTrue(migrated.ocrHotkeys.map { it.action }.toSet().containsAll(NEW_OCR_ACTIONS), "OCR rows persist separately")
         assertEquals(
             java.awt.event.KeyEvent.VK_F9,
             migrated.hotkeys.single { it.action == HotkeyAction.OPEN_OCR }.keyCode,
             "migration must append missing rows, not replace the user's bindings",
         )
         assertEquals(migrated, ConfigMigrator.migrate(migrated, logger), "the v7 step is idempotent")
+    }
+
+    @Test
+    fun `migrated serialization keeps the legacy list downgrade-readable`() {
+        val oldActions = HotkeyBinding.DEFAULTS
+            .filterNot { it.action in NEW_OCR_ACTIONS }
+            .map { binding ->
+                if (binding.action == HotkeyAction.OPEN_OCR) {
+                    binding.copy(keyCode = java.awt.event.KeyEvent.VK_F9, modifiers = 0)
+                } else {
+                    binding.copy()
+                }
+            }
+        val v7 = Configuration.DEFAULT.copy(
+            configVersion = 7,
+            hotkeys = oldActions,
+            ocrHotkeys = emptyList(),
+        )
+        val migrated = ConfigMigrator.migrate(v7, logger)
+        val encoded = json.encodeToString(Configuration.serializer(), migrated)
+
+        // The pre-OCR schema must not see OCR vocabulary inside `hotkeys`:
+        // a v7 decoder dies on any unknown enum value before the migrator runs.
+        assertTrue("\"OCR_" !in encoded.substringAfter("\"hotkeys\":").substringBefore("\"ocrHotkeys\""),
+            "legacy hotkeys payload must contain no OCR actions for a v7 reader")
+        assertTrue("\"CAPTURE\"" !in encoded.substringAfter("\"hotkeys\":").substringBefore("\"ocrHotkeys\""),
+            "legacy hotkeys payload must contain no CAPTURE scope for a v7 reader")
+        // Legacy customization survives verbatim, OCR rows persist alongside.
+        assertEquals(
+            java.awt.event.KeyEvent.VK_F9,
+            migrated.hotkeys.single { it.action == HotkeyAction.OPEN_OCR }.keyCode,
+        )
+        assertTrue(migrated.ocrHotkeys.map { it.action }.toSet().containsAll(NEW_OCR_ACTIONS))
+        // Reload with the current vocabulary: both halves present and idempotent.
+        val reloaded = json.decodeFromString<Configuration>(encoded)
+        assertEquals(migrated, ConfigMigrator.migrate(reloaded, logger))
     }
 
     @Test

@@ -95,6 +95,58 @@ data class HotkeyBinding(
         if (hasBinding) KeyStroke.getKeyStroke(keyCode, modifiers) else null
 
     companion object {
+        /**
+         * The vocabulary a pre-OCR build can deserialize. Configuration persists
+         * this subset under `hotkeys` alone; post-v7 OCR rows live under
+         * `ocrHotkeys` (an unknown key such builds ignore), so a downgrade never
+         * trips on an unknown enum value.
+         */
+        val LEGACY_ACTIONS: Set<HotkeyAction> = setOf(
+            HotkeyAction.SHOW_MAIN_WINDOW,
+            HotkeyAction.SHOW_QUICK_TRANSLATE,
+            HotkeyAction.LISTEN_TO_TEXT,
+            HotkeyAction.OPEN_OCR,
+            HotkeyAction.REPLACE_WITH_TRANSLATION,
+            HotkeyAction.CYCLE_TARGET_LANGUAGE,
+            HotkeyAction.SHOW_DICTIONARY,
+            HotkeyAction.SHOW_IMAGES,
+            HotkeyAction.TRANSLATE,
+            HotkeyAction.FOCUS_INPUT,
+            HotkeyAction.FOCUS_OUTPUT,
+            HotkeyAction.FOCUS_EXTRA_OUTPUT,
+            HotkeyAction.COPY_TRANSLATION,
+            HotkeyAction.CLEAR_INPUT,
+            HotkeyAction.SWAP_LANGUAGES,
+            HotkeyAction.OPEN_SETTINGS,
+            HotkeyAction.SHOW_HISTORY,
+            HotkeyAction.TRANSLATE_DOCUMENT,
+        )
+
+        /** Post-v7 OCR workflow + capture-local rows, persisted under `ocrHotkeys`. */
+        val OCR_ACTIONS: Set<HotkeyAction> = setOf(
+            HotkeyAction.OCR_SHOW_ACTIONS,
+            HotkeyAction.OCR_TRANSLATE,
+            HotkeyAction.OCR_TRANSLATE_QUICK,
+            HotkeyAction.OCR_TRANSLATE_MAIN,
+            HotkeyAction.OCR_OPEN_WORKSPACE,
+            HotkeyAction.OCR_COPY_TEXT,
+            HotkeyAction.OCR_COPY_IMAGE,
+            HotkeyAction.OCR_ACTION_TRANSLATE,
+            HotkeyAction.OCR_ACTION_COPY_TEXT,
+            HotkeyAction.OCR_ACTION_COPY_IMAGE,
+            HotkeyAction.OCR_ACTION_SAVE_IMAGE,
+            HotkeyAction.OCR_ACTION_RECROP,
+            HotkeyAction.OCR_ACTION_CANCEL,
+        )
+
+        /** Legacy-only defaults (v7 vocabulary), persisted under `hotkeys`. */
+        val LEGACY_DEFAULTS: List<HotkeyBinding>
+            get() = DEFAULTS.filter { it.action in LEGACY_ACTIONS }
+
+        /** OCR-only defaults, persisted under `ocrHotkeys`. */
+        val OCR_DEFAULTS: List<HotkeyBinding>
+            get() = DEFAULTS.filter { it.action in OCR_ACTIONS }
+
         val DEFAULTS: List<HotkeyBinding> = listOf(
             // SHOW_MAIN_WINDOW: double-Ctrl via raw key events — no KeyStroke, always GLOBAL
             HotkeyBinding(HotkeyAction.SHOW_MAIN_WINDOW,         keyCode = 0,                                          modifiers = 0,                                         scope = HotkeyScope.GLOBAL, isDoubleCtrlEnabled = true),

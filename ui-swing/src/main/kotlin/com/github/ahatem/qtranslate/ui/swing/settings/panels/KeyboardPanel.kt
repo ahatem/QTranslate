@@ -310,7 +310,7 @@ class KeyboardPanel(
         if (action in nonEditableActions) return false
         val configuration = store.state.value.workingConfiguration
         if (configuration.isGlobalHotkeysEnabled) return true
-        val scope = configuration.hotkeys.find { it.action == action }?.scope ?: HotkeyScope.GLOBAL
+        val scope = configuration.effectiveHotkeys.find { it.action == action }?.scope ?: HotkeyScope.GLOBAL
         return scope == HotkeyScope.LOCAL || scope == HotkeyScope.CAPTURE
     }
 
@@ -386,7 +386,7 @@ class KeyboardPanel(
     internal fun tableForTest(): JTable = table
 
     private fun bindingFor(action: HotkeyAction): HotkeyBinding? =
-        store.state.value.workingConfiguration.hotkeys.find { it.action == action }
+        store.state.value.workingConfiguration.effectiveHotkeys.find { it.action == action }
 
     private fun tokenizeBinding(binding: HotkeyBinding): List<String> = buildList {
         if (binding.modifiers and InputEvent.CTRL_DOWN_MASK != 0) add("Ctrl")
@@ -432,7 +432,7 @@ class KeyboardPanel(
 
             val model = table.model as DefaultTableModel
             actionOrder.forEachIndexed { row, action ->
-                val binding = c.hotkeys.find { it.action == action }
+                val binding = c.effectiveHotkeys.find { it.action == action }
                 model.setValueAt(binding, row, COL_HOTKEY)
                 model.setValueAt(scopeLabel(binding?.scope ?: HotkeyScope.GLOBAL), row, COL_SCOPE)
             }

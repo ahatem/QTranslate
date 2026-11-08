@@ -113,8 +113,11 @@ class ConfigMigratorTest {
             "google-services:default:google-translator",
             migrated.servicePresets.single().selectedServices[ServiceRole.TRANSLATOR]
         )
-        // The hotkey steps still ran on the way through.
-        assertEquals(HotkeyBinding.DEFAULTS.size, migrated.hotkeys.size)
+        // The hotkey steps still ran on the way through. Legacy and OCR rows
+        // now persist in separate collections (see the downgrade story).
+        assertEquals(HotkeyBinding.DEFAULTS.size, migrated.effectiveHotkeys.size)
+        assertEquals(HotkeyBinding.LEGACY_DEFAULTS.size, migrated.hotkeys.size)
+        assertEquals(HotkeyBinding.OCR_DEFAULTS.size, migrated.ocrHotkeys.size)
     }
 
     @Test

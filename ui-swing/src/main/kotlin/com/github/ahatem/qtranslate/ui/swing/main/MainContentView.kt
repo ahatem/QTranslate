@@ -331,7 +331,7 @@ class MainContentView(
      * and the frame-level local hotkey still answers it outside the text panes.
      */
     private fun updateTranslateKeyStroke(config: Configuration) {
-        val binding = config.hotkeys.find { it.action == HotkeyAction.TRANSLATE }
+        val binding = config.effectiveHotkeys.find { it.action == HotkeyAction.TRANSLATE }
         val requested = binding?.takeIf { it.isEnabled }?.toKeyStroke()
         if (requested == requestedTranslateKeyStroke) return
         requestedTranslateKeyStroke = requested
