@@ -16,12 +16,14 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
@@ -39,14 +41,18 @@ class GoogleTranslatorServiceTest {
     private fun createService(
         client: GoogleTestHttpClient,
         clock: AtomicLong,
-        settings: GoogleSettings = GoogleSettings()
+        settings: GoogleSettings = GoogleSettings(),
+        // Long unless a test is about the hedge, so a slow handler in an unrelated test cannot
+        // start a fallback request behind that test's back.
+        hedgeMillis: Long = HEDGE_NEVER_FIRES
     ) = GoogleTranslatorService(
         FakePluginContext(),
         settings,
         client,
         GoogleLanguageMapper,
         ApiConfig(),
-        GoogleEndpointHealth({ clock.get() }, { 0L })
+        GoogleEndpointHealth({ clock.get() }, { 0L }),
+        hedgeMillis
     )
 
     @Test
@@ -882,7 +888,8 @@ class GoogleTranslatorServiceTest {
     // unreachable — a hosts-file sinkhole refuses the connection, DNS can fail, the socket can
     // reset, or the endpoint can answer with a provider-level HTTP error. These tests keep the
     // connection-level failures (refused, DNS, reset) distinct from the HTTP/provider failures
-    // and pin down what each means for the circuit and for recovery.
+    // and pin down what each means for the circuit, for recovery, and for the error the user is
+    // shown.
     //
     // The asserted call counts hold under the fake transport's retry policy, which retries only
     // a rate limit. Production keeps Ktor's default exception retry — `retryIf` overrides only
@@ -896,7 +903,7 @@ class GoogleTranslatorServiceTest {
         { Err(ServiceError.NetworkError("Network error: Connection refused: getsockopt")) }
 
     @Test
-    fun `a refused fallback surfaces its own connection error, not the primary's`() = runBlocking {
+    fun `a refused fallback is reported with the primary failure and the refusing host`() = runBlocking {
         val client = GoogleTestHttpClient(
             primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
             fallbackHandler = refusedFallback
@@ -905,11 +912,17 @@ class GoogleTranslatorServiceTest {
 
         val error = service.translate(request).getError()
 
-        // The error the user sees is the fallback's connection-level failure itself. It is a
-        // NetworkError, distinct from the primary's rate limit and from any provider HTTP
-        // response, and the message is not rewritten into a cause it does not have.
+        // The failure is still the fallback's connection-level failure, so it keeps that type and
+        // is not rewritten into a cause it does not have. What was missing was context: a bare
+        // "Connection refused" left the reporter unable to tell a throttled primary from a host
+        // their machine cannot reach. Both stages are now stated, each classified.
         assertIs<ServiceError.NetworkError>(error)
-        assertEquals("Network error: Connection refused: getsockopt", error.message)
+        assertContains(error.message, "primary endpoint rate limited")
+        assertContains(error.message, "fallback clients5.google.com unreachable")
+        assertContains(error.message, "Network error: Connection refused: getsockopt")
+        // The status bar shows the first line only, so the classification has to fit there.
+        val summary = error.message.lineSequence().first()
+        assertTrue(summary.length <= 120, "status bar line is ${summary.length} chars: $summary")
         assertEquals(1, client.fallbackCalls)
     }
 
@@ -969,7 +982,8 @@ class GoogleTranslatorServiceTest {
 
         val dnsError = service.translate(request).getError()
         assertIs<ServiceError.NetworkError>(dnsError)
-        assertEquals(fallbackErrors[0], dnsError.message)
+        assertContains(dnsError.message, "primary endpoint rate limited")
+        assertContains(dnsError.message, fallbackErrors[0])
 
         // A connection-level fallback failure never feeds the circuit: the cooldown opened by
         // the primary's rate limit still runs out, admits a probe, and the probe's failure is
@@ -978,7 +992,7 @@ class GoogleTranslatorServiceTest {
         clock.set(2_000)
         val resetError = service.translate(request).getError()
         assertIs<ServiceError.NetworkError>(resetError)
-        assertEquals(fallbackErrors[1], resetError.message)
+        assertContains(resetError.message, fallbackErrors[1])
         assertEquals(2, client.primaryCalls)
         assertEquals(2, client.fallbackCalls)
     }
@@ -1035,9 +1049,235 @@ class GoogleTranslatorServiceTest {
         assertEquals(3, client.fallbackCalls)
     }
 
+    // --- A throttled primary must not hold back a working fallback (#244) ---------------
+    //
+    // The reporter's log is sequential: the primary was given its whole request timeout and only
+    // then was the working fallback asked, so every translation paid the primary's budget (4.9 s
+    // in the log) before the fallback's 0.3 s answer could even start. The hedge below bounds what
+    // a user waits without shortening the primary's own budget and without discarding a slow
+    // primary that does answer, so it cannot break a fallback that is unreachable (#365).
+
+    @Test
+    fun `a slow primary no longer holds back a working fallback`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                // Throttled into a slow body rather than a 429: still working, not answering yet.
+                delay(3_000)
+                Ok(PRIMARY_JSON)
+            },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, AtomicLong(0), hedgeMillis = 150)
+
+        val startedAt = System.nanoTime()
+        val result = service.translate(request)
+        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+
+        result.fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        assertEquals(1, client.fallbackCalls)
+        assertTrue(elapsedMillis >= 150, "returned before the 150ms hedge: ${elapsedMillis}ms")
+        // The fallback answered just after the hedge; the rest of the primary's 3 s was not
+        // waited for. Before this change the call took the primary's whole 3000 ms.
+        assertTrue(elapsedMillis < 1_500, "waited for the throttled primary: ${elapsedMillis}ms")
+    }
+
+    @Test
+    fun `a slow primary still serves the request when the fallback cannot be reached`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                delay(400)
+                Ok(PRIMARY_JSON)
+            },
+            fallbackHandler = refusedFallback
+        )
+        val service = createService(client, AtomicLong(0), hedgeMillis = 100)
+
+        val startedAt = System.nanoTime()
+        val result = service.translate(request)
+        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+
+        // The fallback was asked because the primary missed the budget, it refused the
+        // connection, and the primary's own answer is still the one returned: an unreachable
+        // fallback (#365) cannot turn a slow but working primary into a failure.
+        result.fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        assertEquals(1, client.primaryCalls)
+        assertEquals(1, client.fallbackCalls)
+        assertTrue(elapsedMillis >= 400, "returned before the primary answered: ${elapsedMillis}ms")
+        assertTrue(elapsedMillis < 1_500, "translation took ${elapsedMillis}ms")
+    }
+
+    @Test
+    fun `a primary that misses the hedge budget counts toward opening the circuit`() = runBlocking {
+        val clock = AtomicLong(0)
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                delay(2_000)
+                Ok(PRIMARY_JSON)
+            },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, clock, hedgeMillis = 100)
+
+        repeat(3) { attempt ->
+            service.translate(request).fold(
+                success = { assertEquals("Bonjour", it.translatedText) },
+                failure = { fail("attempt $attempt failed: ${it.message}") }
+            )
+        }
+
+        // A missed budget is a transient primary failure, so the second request opens the circuit
+        // and the third is served by the fallback without paying the hedge again: the hedge is a
+        // bounded detour, not a second provider request on every translation.
+        assertEquals(2, client.primaryCalls)
+        assertEquals(3, client.fallbackCalls)
+    }
+
+    @Test
+    fun `a fast primary failure reaches the fallback without waiting for the hedge`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, AtomicLong(0), hedgeMillis = 5_000)
+
+        val startedAt = System.nanoTime()
+        service.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+
+        // A 429 is an answer, so the fallback is asked at once rather than at the hedge deadline.
+        assertEquals(1, client.fallbackCalls)
+        assertTrue(elapsedMillis < 1_000, "translation took ${elapsedMillis}ms")
+    }
+
+    @Test
+    fun `an ordinary primary answer never costs a second provider request`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                delay(100)
+                Ok(PRIMARY_JSON)
+            },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = createService(client, AtomicLong(0), hedgeMillis = 5_000)
+
+        service.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+
+        // The hedge is a budget, not a race: one translation never costs two provider requests,
+        // and a primary that answers in time is never replaced by the fallback.
+        assertEquals(1, client.primaryCalls)
+        assertEquals(0, client.fallbackCalls)
+    }
+
+    @Test
+    fun `the shipped hedge budget bounds the wait for a slow primary`() = runBlocking {
+        // No hedge override here: this is the delay a user actually gets, with the shipped default.
+        val client = GoogleTestHttpClient(
+            primaryHandler = { index ->
+                delay(10_000)
+                Ok(PRIMARY_JSON)
+            },
+            fallbackHandler = { Ok(FALLBACK_FLAT) }
+        )
+        val service = GoogleTranslatorService(
+            FakePluginContext(),
+            GoogleSettings(),
+            client,
+            GoogleLanguageMapper,
+            ApiConfig(),
+            GoogleEndpointHealth({ 0L }, { 0L })
+        )
+
+        val startedAt = System.nanoTime()
+        service.translate(request).fold(
+            success = { assertEquals("Bonjour", it.translatedText) },
+            failure = { fail(it.message) }
+        )
+        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+
+        assertTrue(elapsedMillis >= 1_500, "returned before the 2s hedge: ${elapsedMillis}ms")
+        assertTrue(elapsedMillis < 6_000, "waited for the throttled primary: ${elapsedMillis}ms")
+        assertEquals(1, client.fallbackCalls)
+    }
+
+    // --- The error a user is left with when both endpoints fail (#365) -------------------
+    //
+    // A bare "Connection refused" names neither of the two things that went wrong. These tests pin
+    // the message contract: the fallback's own error type survives, both stages are classified in
+    // the line the status bar shows, and the fallback's own detail is still there in full.
+
+    @Test
+    fun `a timeout on both endpoints stays a timeout and names both stages`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = {
+                Err(ServiceError.TimeoutError("Request timed out: https://translate.googleapis.com/translate_a/single"))
+            },
+            fallbackHandler = {
+                Err(ServiceError.TimeoutError("Request timed out: https://clients5.google.com/translate_a/t"))
+            }
+        )
+        val service = createService(client, AtomicLong(0))
+
+        val error = service.translate(request).getError()
+
+        assertIs<ServiceError.TimeoutError>(error)
+        assertContains(error.message, "primary endpoint timed out")
+        assertContains(error.message, "fallback clients5.google.com timed out")
+    }
+
+    @Test
+    fun `a fallback failure after a skipped primary says the primary was skipped`() = runBlocking {
+        val clock = AtomicLong(0)
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Err(ServiceError.RateLimitError("rate limited", retryAfterSeconds = 30)) },
+            fallbackHandler = refusedFallback
+        )
+        val service = createService(client, clock)
+
+        // The rate limit opens the circuit, so the second request never reaches the primary. The
+        // user is still told which endpoint was not tried, and why.
+        service.translate(request)
+        val error = service.translate(request).getError()
+
+        assertIs<ServiceError.NetworkError>(error)
+        assertContains(error.message, "primary endpoint skipped after recent failures")
+        assertContains(error.message, "Network error: Connection refused: getsockopt")
+    }
+
+    @Test
+    fun `an unusable fallback answer keeps its own error type in the combined message`() = runBlocking {
+        val client = GoogleTestHttpClient(
+            primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
+            fallbackHandler = { Ok("[]") }
+        )
+        val service = createService(client, AtomicLong(0))
+
+        val error = service.translate(request).getError()
+
+        assertIs<ServiceError.InvalidResponseError>(error)
+        assertContains(error.message, "primary endpoint rate limited")
+        assertContains(error.message, "fallback clients5.google.com returned an unusable response")
+        // The fallback answered, it just answered badly, so a reachability hint would be wrong.
+        assertTrue(!error.message.contains("hosts-file"), error.message)
+    }
+
     private companion object {
         const val PRIMARY_JSON = """{"sentences":[{"trans":"Bonjour","orig":"Hello"}],"src":"en"}"""
         const val FALLBACK_FLAT = """["Bonjour","en"]"""
         const val OFFICIAL_JSON = """{"data":{"translations":[{"translatedText":"Bonjour","detectedSourceLanguage":"en"}]}}"""
+
+        /** Longer than any test's own latency, so the hedge only fires where a test asks it to. */
+        const val HEDGE_NEVER_FIRES = 60_000L
     }
 }
