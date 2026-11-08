@@ -275,6 +275,30 @@ class OcrWorkspaceStoreTest {
     }
 
     @Test
+    fun `follow-source resolves against the translation source at run time`() = runTest {
+        val ocr = RecordingOcrService(
+            supportedLanguages = SupportedLanguages.Specific(
+                setOf(LanguageCode.ENGLISH, LanguageCode.JAPANESE),
+            ),
+        )
+        val fixture = fixture(
+            this,
+            ocr,
+            OcrSettings(recognitionLanguage = ""),
+            translationSource = LanguageCode.ENGLISH,
+        )
+        fixture.store.openImage(fixture.image, "capture")
+        advanceUntilIdle()
+        assertEquals(LanguageCode.ENGLISH, ocr.requests.last().language)
+
+        fixture.translationSource.value = LanguageCode.JAPANESE
+        fixture.store.runOcr()
+        advanceUntilIdle()
+        assertEquals(LanguageCode.JAPANESE, ocr.requests.last().language)
+        assertEquals(LanguageCode.JAPANESE, fixture.store.state.value.language)
+    }
+
+    @Test
     fun `auto recognition setting stays auto for a provider that resolves it internally`() = runTest {
         val ocr = RecordingOcrService(
             supportedLanguages = SupportedLanguages.Specific(
@@ -622,6 +646,7 @@ class OcrWorkspaceStoreTest {
         val image: ImageData,
         val store: OcrWorkspaceStore,
         val services: MutableStateFlow<Map<String, Service>>,
+        val translationSource: MutableStateFlow<LanguageCode> = MutableStateFlow(LanguageCode.ENGLISH),
     )
 
     private fun fixture(
@@ -654,6 +679,7 @@ class OcrWorkspaceStoreTest {
         ocrSettings: OcrSettings,
         translationSource: LanguageCode,
     ): Fixture {
+        val sourceFlow = MutableStateFlow(translationSource)
         val second = RecordingOcrService(
             key = "second",
             name = "Second OCR",
@@ -685,12 +711,13 @@ class OcrWorkspaceStoreTest {
             extraction = OcrExtractionUseCase(manager, Silent353Factory),
             catalog = catalog,
             configuration = { configuration.value },
-            translationSource = { translationSource },
+            translationSource = { sourceFlow.value },
         )
         return Fixture(
             image = ImageData(byteArrayOf(1, 2, 3), "png", 100, 50),
             store = store,
             services = serviceFlow,
+            translationSource = sourceFlow,
         )
     }
 

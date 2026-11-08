@@ -399,8 +399,15 @@ class OcrWorkspaceStore(
         val providerId = snapshot.providerId ?: return null
         val previous = invalidateLocked()
         val token = generation
-        _state.value = snapshot.copy(isRecognizing = true, error = null)
-        val requestLanguage = snapshot.language
+        // "Follow translation source" is a live policy, not a one-time adoption:
+        // resolve it against the current source at execution time so a source
+        // change since the provider was adopted is honoured by the next run.
+        val requestLanguage = if (!languageChosenByUser && ocrSettings().recognitionLanguage.isBlank()) {
+            defaultLanguage(snapshot.provider())
+        } else {
+            snapshot.language
+        }
+        _state.value = snapshot.copy(language = requestLanguage, isRecognizing = true, error = null)
         val candidate = scope.launch(start = CoroutineStart.LAZY) {
             val self = kotlinx.coroutines.currentCoroutineContext()[Job]
             val outcome = extraction.extract(
