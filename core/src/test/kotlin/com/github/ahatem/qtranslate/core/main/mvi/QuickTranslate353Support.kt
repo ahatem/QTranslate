@@ -18,9 +18,12 @@ class RecordingTranslator : Translator {
     override val version = "test"
     override val supportedLanguages = SupportedLanguages.All
     val received = mutableListOf<String>()
+    /** Test hook for holding one request while a newer one starts. */
+    var beforeTranslate: suspend (String) -> Unit = {}
 
     override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> {
         received += request.text
+        beforeTranslate(request.text)
         return Ok(TranslationResponse("$key:${request.text}"))
     }
 }

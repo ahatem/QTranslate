@@ -330,6 +330,15 @@ public final class com/github/ahatem/qtranslate/api/ocr/OCR$DefaultImpls {
 	public static fun validate-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/ocr/OCR;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
+public final class com/github/ahatem/qtranslate/api/ocr/OCRRegionKind : java/lang/Enum {
+	public static final field BLOCK Lcom/github/ahatem/qtranslate/api/ocr/OCRRegionKind;
+	public static final field LINE Lcom/github/ahatem/qtranslate/api/ocr/OCRRegionKind;
+	public static final field WORD Lcom/github/ahatem/qtranslate/api/ocr/OCRRegionKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/ocr/OCRRegionKind;
+	public static fun values ()[Lcom/github/ahatem/qtranslate/api/ocr/OCRRegionKind;
+}
+
 public final class com/github/ahatem/qtranslate/api/ocr/OCRRequest {
 	public synthetic fun <init> (Lcom/github/ahatem/qtranslate/api/ocr/ImageData;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Lcom/github/ahatem/qtranslate/api/ocr/ImageData;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -355,6 +364,60 @@ public final class com/github/ahatem/qtranslate/api/ocr/OCRResponse {
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getConfidence ()Ljava/lang/Float;
 	public final fun getDetectedLanguage-hgNBXZM ()Ljava/lang/String;
+	public final fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/github/ahatem/qtranslate/api/ocr/OCRTextRegion {
+	public fun <init> (Ljava/lang/String;IIIILcom/github/ahatem/qtranslate/api/ocr/OCRRegionKind;Ljava/lang/Float;)V
+	public synthetic fun <init> (Ljava/lang/String;IIIILcom/github/ahatem/qtranslate/api/ocr/OCRRegionKind;Ljava/lang/Float;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun component6 ()Lcom/github/ahatem/qtranslate/api/ocr/OCRRegionKind;
+	public final fun component7 ()Ljava/lang/Float;
+	public final fun copy (Ljava/lang/String;IIIILcom/github/ahatem/qtranslate/api/ocr/OCRRegionKind;Ljava/lang/Float;)Lcom/github/ahatem/qtranslate/api/ocr/OCRTextRegion;
+	public static synthetic fun copy$default (Lcom/github/ahatem/qtranslate/api/ocr/OCRTextRegion;Ljava/lang/String;IIIILcom/github/ahatem/qtranslate/api/ocr/OCRRegionKind;Ljava/lang/Float;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/ocr/OCRTextRegion;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBottom ()I
+	public final fun getConfidence ()Ljava/lang/Float;
+	public final fun getKind ()Lcom/github/ahatem/qtranslate/api/ocr/OCRRegionKind;
+	public final fun getLeft ()I
+	public final fun getRight ()I
+	public final fun getText ()Ljava/lang/String;
+	public final fun getTop ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/github/ahatem/qtranslate/api/ocr/StructuredOCR : com/github/ahatem/qtranslate/api/ocr/OCR {
+	public abstract fun extractStructuredText-T3BZVFY (Lcom/github/ahatem/qtranslate/api/ocr/OCRRequest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/ocr/StructuredOCR$DefaultImpls {
+	public static fun fetchSupportedLanguages-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/ocr/StructuredOCR;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun getIconPath (Lcom/github/ahatem/qtranslate/api/ocr/StructuredOCR;)Ljava/lang/String;
+	public static fun getMetadata (Lcom/github/ahatem/qtranslate/api/ocr/StructuredOCR;)Lcom/github/ahatem/qtranslate/api/plugin/ServiceMetadata;
+	public static fun getOptions (Lcom/github/ahatem/qtranslate/api/ocr/StructuredOCR;)Ljava/util/List;
+	public static fun validate-Zyo9ksc (Lcom/github/ahatem/qtranslate/api/ocr/StructuredOCR;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/github/ahatem/qtranslate/api/ocr/StructuredOCRResponse {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/Float;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/Float;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/util/List;
+	public final fun component3 ()Ljava/lang/Float;
+	public final fun component4-hgNBXZM ()Ljava/lang/String;
+	public final fun copy-HA4j5nM (Ljava/lang/String;Ljava/util/List;Ljava/lang/Float;Ljava/lang/String;)Lcom/github/ahatem/qtranslate/api/ocr/StructuredOCRResponse;
+	public static synthetic fun copy-HA4j5nM$default (Lcom/github/ahatem/qtranslate/api/ocr/StructuredOCRResponse;Ljava/lang/String;Ljava/util/List;Ljava/lang/Float;Ljava/lang/String;ILjava/lang/Object;)Lcom/github/ahatem/qtranslate/api/ocr/StructuredOCRResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getConfidence ()Ljava/lang/Float;
+	public final fun getDetectedLanguage-hgNBXZM ()Ljava/lang/String;
+	public final fun getRegions ()Ljava/util/List;
 	public final fun getText ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;

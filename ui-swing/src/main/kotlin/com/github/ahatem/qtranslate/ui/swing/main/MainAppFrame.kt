@@ -6,12 +6,18 @@ import com.formdev.flatlaf.util.FontUtils
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.main.mvi.MainEvent
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
+import com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase
+import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
+import com.github.ahatem.qtranslate.core.ocr.OcrWorkflowCommand
+import com.github.ahatem.qtranslate.core.ocr.ocrWorkflowCommand
+import com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.plugin.storage.AppSecretStore
 import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
@@ -48,6 +54,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.layout.DockRoomPlanner
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
 import com.github.ahatem.qtranslate.ui.swing.main.lookup.AutoLookupCoordinator
 import com.github.ahatem.qtranslate.ui.swing.main.menus.*
+import com.github.ahatem.qtranslate.ui.swing.ocr.OcrWorkspaceDialog
 import com.github.ahatem.qtranslate.ui.swing.quicktranslate.QuickTranslateDialog
 import com.github.ahatem.qtranslate.ui.swing.quicktranslate.LoadingIndicator
 import com.github.ahatem.qtranslate.ui.swing.quicktranslate.LoadingIndicatorState
@@ -83,6 +90,11 @@ class MainAppFrame(
     private val localizer: LocalizationManager,
     private val notificationBus: NotificationBus,
     private val logger: Logger,
+    /**
+     * Shared OCR extraction for the Workspace. The main capture workflow goes through
+     * [MainStore] instead. Null in screenshot-harness frames, which never open OCR.
+     */
+    private val ocrExtractionUseCase: OcrExtractionUseCase? = null,
     /**
      * Translates one string, used by the language editor to offer a suggestion for an untranslated
      * key. Optional so a frame can be built without a translator, which simply hides the action.
@@ -126,6 +138,24 @@ class MainAppFrame(
     private val historyDialog by lazy { HistoryDialog(this) }
     private val dictionaryDialog by lazy { DictionaryDialog(this, iconManager) }
     private val loadingIndicator by lazy { LoadingIndicator(this) }
+
+    /**
+     * One catalog shared by the OCR Workspace and the OCR settings page. It projects plugin
+     * services and settings; it never registers a provider of its own.
+     */
+    private val ocrServiceCatalog: OcrServiceCatalog by lazy {
+        val configuration = settingsStore.state
+            .map { it.workingConfiguration }
+            .stateIn(appScope, SharingStarted.Eagerly, settingsStore.state.value.workingConfiguration)
+        OcrServiceCatalog(
+            activeServices = pluginManager.activeServices,
+            configuration = configuration,
+            scope = appScope,
+            logger = logger,
+        )
+    }
+
+    private var ocrWorkspaceDialog: OcrWorkspaceDialog? = null
 
     private val documentTranslationDialog by lazy {
         DocumentTranslationDialog(
@@ -241,6 +271,7 @@ class MainAppFrame(
         iconManager = iconManager,
         themeManager = themeManager,
         localizationManager = localizer,
+        ocrServiceCatalog = ocrServiceCatalog,
         availableLanguages = { mainStore.state.value.availableLanguages },
         availableTranslatorIds = { mainStore.state.value.availableTranslatorIds },
         translateString = translateString,
@@ -254,7 +285,8 @@ class MainAppFrame(
         localizer = localizer,
         dispatch = { mainStore.dispatch(it) },
         dispatchSettings = { settingsStore.dispatch(it) },
-        onOpenSnippingTool = { openSnippingTool() },
+        onOpenSnippingTool = { command -> openSnippingTool(command) },
+        onOpenOcrSettings = { openSettingsDialog(openToOcr = true) },
         onOpenDocumentTranslation = { file ->
             if (file != null) documentTranslationDialog.openWith(file) else documentTranslationDialog.open()
         },
@@ -345,6 +377,7 @@ class MainAppFrame(
             mainStore.dispatch(MainIntent.ListenToText(TextSource.Input, text))
         },
         onOpenSnippingTool = { openSnippingTool() },
+        onOpenOcrWorkflow = { command -> openSnippingTool(command) },
         onReplaceWithTranslation = { text ->
             mainStore.dispatch(MainIntent.ReplaceWithTranslation(text))
         },
@@ -457,6 +490,10 @@ class MainAppFrame(
         shutdownGlobalInput = { globalKeyListener.shutdown() },
         disposeSelectionButton = { selectionTranslateButton.dispose() },
         disposeTray = { trayBinding.dispose() },
+        disposeOwnedUtilityWindows = {
+            ocrWorkspaceDialog?.shutdownNow()
+            ocrWorkspaceDialog?.dispose()
+        },
         cancelFrameScope = { appScope.cancel() },
         captureBounds = { Size(width, height) to Position(x, y) },
         onApplicationExit = onApplicationExit,
@@ -523,7 +560,7 @@ class MainAppFrame(
         val storeState = settingsStore.state.value
         globalKeyListener.updateRuntimeState(
             InputRuntimeState(
-                bindings = storeState.originalConfiguration.hotkeys,
+                bindings = storeState.originalConfiguration.effectiveHotkeys,
                 globalHotkeysEnabled = storeState.workingConfiguration.isGlobalHotkeysEnabled,
                 selectionCaptureEnabled = storeState.originalConfiguration.selectionBehavior.selectionCaptureEnabled,
                 dismissOnOutsideClickEnabled = storeState.workingConfiguration.closePopupsOnClickOutside
@@ -734,41 +771,61 @@ class MainAppFrame(
         // Single collector for all MainEvents — avoids channel-race where two separate
         // filterIsInstance collectors compete and one silently drops events it doesn't match.
         appScope.launch(handler) {
-            mainStore.events.collect { event ->
-                when (event) {
-                    is MainEvent.UpdateStatusBar -> withContext(Dispatchers.Swing) {
-                        statusBarController.handleEvent(event)
-                    }
-                    is MainEvent.PasteTranslation -> if (event.translatedText.isNotBlank()) {
-                        pasteTextToActiveApp(event.translatedText)
-                    }
-                    is MainEvent.ShowUpdateDialog -> withContext(Dispatchers.Swing) {
-                        showUpdateDialog(NotificationCode.UpdateAvailable(
-                            newVersion = event.newVersion,
-                            currentVersion = event.currentVersion,
-                            releaseNotes = event.releaseNotes,
-                            downloadUrl = event.downloadUrl,
-                            releaseUrl = event.releaseUrl
-                        ))
-                    }
-                    is MainEvent.CopyToClipboard -> withContext(Dispatchers.Swing) {
-                        // Clipboard contention must not turn a successful translation into a failure.
-                        runCatching {
-                            Toolkit.getDefaultToolkit().systemClipboard
-                                .setContents(StringSelection(event.text), null)
-                        }.onFailure { error ->
-                            logger.warn("Failed to copy text to the clipboard: ${error.message}")
+            mainStore.eventDeliveries.collect { delivery ->
+                withContext(Dispatchers.Swing) {
+                    val event = delivery.accept() ?: return@withContext
+                    when (event) {
+                        is MainEvent.UpdateStatusBar -> {
+                            statusBarController.handleEvent(event)
                         }
-                    }
-                    is MainEvent.DocumentTranslationCompleted -> withContext(Dispatchers.Swing) {
-                        documentTranslationDialog.complete(event.outputFile)
-                    }
-                    is MainEvent.DocumentTranslationFailed -> withContext(Dispatchers.Swing) {
-                        documentTranslationDialog.fail(event.message)
+                        is MainEvent.PasteTranslation -> if (event.translatedText.isNotBlank()) {
+                            pasteTextToActiveApp(event.translatedText)
+                        }
+                        is MainEvent.ShowUpdateDialog -> {
+                            showUpdateDialog(NotificationCode.UpdateAvailable(
+                                newVersion = event.newVersion,
+                                currentVersion = event.currentVersion,
+                                releaseNotes = event.releaseNotes,
+                                downloadUrl = event.downloadUrl,
+                                releaseUrl = event.releaseUrl
+                            ))
+                        }
+                        is MainEvent.CopyToClipboard -> {
+                            // Clipboard contention must not turn a successful translation into a failure.
+                            runCatching {
+                                Toolkit.getDefaultToolkit().systemClipboard
+                                    .setContents(StringSelection(event.text), null)
+                            }.onFailure { error ->
+                                logger.warn("Failed to copy text to the clipboard: ${error.message}")
+                            }
+                        }
+                        is MainEvent.CopyImageToClipboard -> {
+                            copyImageToClipboard(event.image)
+                        }
+                        is MainEvent.OpenOcrWorkspace -> {
+                            openOcrWorkspace(
+                                image = event.image,
+                                autoTranslate = event.autoTranslate,
+                                initialText = event.initialText,
+                                initialRegions = event.initialRegions,
+                                initialLanguage = event.initialLanguage,
+                                ocrToken = event.ocrToken,
+                            )
+                        }
+                        MainEvent.ShowMainWindow -> {
+                            showAndFocus()
+                        }
+                        is MainEvent.DocumentTranslationCompleted -> {
+                            documentTranslationDialog.complete(event.outputFile)
+                        }
+                        is MainEvent.DocumentTranslationFailed -> {
+                            documentTranslationDialog.fail(event.message)
+                        }
                     }
                 }
             }
         }
+
 
         // Donation nudge — track successful translations in-memory; show once at 500.
         // Uses scan() to detect isLoading true→false transitions that produced output.
@@ -812,7 +869,7 @@ class MainAppFrame(
             settingsStore.state
                 .map { state ->
                     InputRuntimeState(
-                        bindings = state.originalConfiguration.hotkeys,
+                        bindings = state.originalConfiguration.effectiveHotkeys,
                         globalHotkeysEnabled = state.originalConfiguration.isGlobalHotkeysEnabled,
                         selectionCaptureEnabled = state.originalConfiguration.selectionBehavior.selectionCaptureEnabled,
                         dismissOnOutsideClickEnabled = state.workingConfiguration.closePopupsOnClickOutside
@@ -1085,8 +1142,113 @@ class MainAppFrame(
         mainContentView.requestFocusOnInput()
     }
 
-    private fun openSnippingTool() {
+    /**
+     * Opens or refreshes the single OCR Workspace. The dialog owns OCR work; closing it returns
+     * here through [onClosed], so a later workflow creates a fresh store rather than reviving a
+     * disposed window.
+     */
+    private fun openOcrWorkspace(
+        image: ImageData,
+        autoTranslate: Boolean,
+        initialText: String? = null,
+        initialRegions: List<com.github.ahatem.qtranslate.api.ocr.OCRTextRegion> = emptyList(),
+        initialLanguage: LanguageCode? = null,
+        ocrToken: Long? = null,
+    ) {
+        val extraction = ocrExtractionUseCase
+        if (extraction == null) {
+            logger.warn("OCR Workspace requested without an extraction use case")
+            return
+        }
+        val existing = ocrWorkspaceDialog?.takeIf { !it.isWorkspaceClosed() }
+        val dialog = existing ?: run {
+            lateinit var created: OcrWorkspaceDialog
+            created = OcrWorkspaceDialog(
+                owner = null,
+                mainStore = mainStore,
+                settingsStore = settingsStore,
+                localizer = localizer,
+                extraction = extraction,
+                catalog = ocrServiceCatalog,
+                onCaptureRequested = {
+                    val workspace = ocrWorkspaceDialog
+                    workspace?.isVisible = false
+                    openSnippingTool(
+                        command = OcrWorkflowCommand.OPEN_WORKSPACE,
+                        onCapturedImage = { captured ->
+                            ocrWorkspaceDialog
+                                ?.takeIf { !it.isWorkspaceClosed() }
+                                ?.openCapturedImage(
+                                    image = captured,
+                                    label = localizer.getString("ocr_workspace.captured_label"),
+                                )
+                        },
+                        onDismissedWithoutWorkspace = {
+                            val target = ocrWorkspaceDialog
+                            if (target != null && !target.isWorkspaceClosed() && target.isVisible.not()) {
+                                target.isVisible = true
+                                target.toFront()
+                            }
+                        },
+                    )
+                },
+                onShowMainWindow = { showAndFocus() },
+                onOpenSettings = { openSettingsDialog(openToOcr = true) },
+                onClosed = {
+                    // Clear only the exact instance that closed: an older close must not drop a
+                    // newer workspace reference.
+                    if (ocrWorkspaceDialog === created) ocrWorkspaceDialog = null
+                },
+            )
+            created.applyComponentOrientation(
+                if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
+                else ComponentOrientation.LEFT_TO_RIGHT
+            )
+            ocrWorkspaceDialog = created
+            created
+        }
+        dialog.openImage(
+            image = image,
+            label = localizer.getString("ocr_workspace.captured_label"),
+            autoTranslate = autoTranslate,
+            ocrToken = ocrToken,
+            initialText = initialText,
+            initialRegions = initialRegions,
+            initialLanguage = initialLanguage,
+        )
+    }
+
+    private fun copyImageToClipboard(image: ImageData) {
+        runCatching {
+            val decoded = ImageIO.read(java.io.ByteArrayInputStream(image.bytes))
+                ?: return@runCatching
+            Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                object : java.awt.datatransfer.Transferable {
+                    override fun getTransferDataFlavors() = arrayOf(java.awt.datatransfer.DataFlavor.imageFlavor)
+                    override fun isDataFlavorSupported(flavor: java.awt.datatransfer.DataFlavor) =
+                        flavor == java.awt.datatransfer.DataFlavor.imageFlavor
+                    override fun getTransferData(flavor: java.awt.datatransfer.DataFlavor): Any {
+                        if (!isDataFlavorSupported(flavor)) {
+                            throw java.awt.datatransfer.UnsupportedFlavorException(flavor)
+                        }
+                        return decoded
+                    }
+                },
+                null,
+            )
+        }.onFailure { error ->
+            logger.warn("Failed to copy OCR image to the clipboard: ${error.message}")
+        }
+    }
+
+    private fun openSnippingTool(
+        command: OcrWorkflowCommand = OcrWorkflowCommand.DEFAULT,
+        onDismissedWithoutWorkspace: () -> Unit = {},
+        onCapturedImage: ((java.awt.image.BufferedImage) -> Unit)? = null,
+    ) {
+        val workspaceToRestore = ocrWorkspaceDialog?.takeIf { it.isVisible }
         runOnUi {
+            workspaceToRestore?.isVisible = false
             isVisible = false
             state = ICONIFIED
             toBack()
@@ -1095,7 +1257,21 @@ class MainAppFrame(
         appScope.launch {
             delay(200)
             withContext(Dispatchers.Swing) {
-                SnippingToolDialog(this@MainAppFrame, mainStore)
+                SnippingToolDialog(
+                    owner = this@MainAppFrame,
+                    mainStore = mainStore,
+                    settingsStore = settingsStore,
+                    localizer = localizer,
+                    command = command,
+                    onDismissedWithoutWorkspace = {
+                        onDismissedWithoutWorkspace()
+                        if (workspaceToRestore?.isDisplayable == true) {
+                            workspaceToRestore.isVisible = true
+                            workspaceToRestore.toFront()
+                        }
+                    },
+                    onCapturedImage = onCapturedImage,
+                )
             }
         }
     }
@@ -1559,13 +1735,14 @@ class MainAppFrame(
     }
 
     /** Opens Settings with the correct orientation. Shared by the menu and the Ctrl+Comma binding. */
-    private fun openSettingsDialog(openToServices: Boolean = false) {
+    private fun openSettingsDialog(openToServices: Boolean = false, openToOcr: Boolean = false) {
         val dialog = createSettingsDialog()
         dialog.applyComponentOrientation(
             if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
             else ComponentOrientation.LEFT_TO_RIGHT
         )
         if (openToServices) dialog.showServicesPage()
+        if (openToOcr) dialog.showOcrPage()
         dialog.isVisible = true
     }
 
@@ -1600,7 +1777,7 @@ class MainAppFrame(
         val saved = settingsStore.state.value.originalConfiguration
         globalKeyListener.updateRuntimeState(
             InputRuntimeState(
-                bindings = saved.hotkeys,
+                bindings = saved.effectiveHotkeys,
                 globalHotkeysEnabled = config.isGlobalHotkeysEnabled,
                 selectionCaptureEnabled = saved.selectionBehavior.selectionCaptureEnabled,
                 dismissOnOutsideClickEnabled = config.closePopupsOnClickOutside

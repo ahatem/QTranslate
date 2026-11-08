@@ -35,6 +35,7 @@ class SettingsNavigationTest {
                         Nav.Page("settings_dialog_sidebar.popups", Icons.POPUP),
                     )
                 ),
+                Nav.Page("settings_dialog_sidebar.ocr", Icons.OCR),
                 Nav.Page("settings_dialog_sidebar.hotkeys", Icons.KEYBOARD),
                 Nav.Page("settings_dialog_sidebar.plugins", Icons.PLUGIN),
                 Nav.Page("settings_dialog_sidebar.network", Icons.NETWORK),
@@ -48,7 +49,7 @@ class SettingsNavigationTest {
         assertEquals(
             listOf(
                 "general", "appearance", "services", "behavior", "languages",
-                "layout", "popups", "hotkeys", "plugins", "network",
+                "layout", "popups", "ocr", "hotkeys", "plugins", "network",
             ).map { "settings_dialog_sidebar.$it" },
             navigation.pages.map { it.label },
         )

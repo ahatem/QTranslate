@@ -153,7 +153,7 @@ Plugins run on your computer with access to local resources, so install third-pa
 
 | | |
 |---|---|
-| **Screen OCR** | Draw a rectangle anywhere on screen — translate, copy text, copy image, or save; re-crop without closing |
+| **Screen OCR** | Draw a rectangle anywhere on screen — translate, copy text, copy image, or save; or open the OCR Workspace to edit and re-run recognition. Choose a fast workflow, the historic toolbar, or an explicit hotkey |
 | **Spell checking** | Live underlines as you type, click a suggestion to apply |
 | **Remove line breaks** | Strips newlines from pasted text so PDF content translates as sentences |
 | **Language filter** | Pin 3–4 target languages so the picker isn't overwhelming |
@@ -272,7 +272,7 @@ Bundled plugins: Google, Bing, System Services, AI Services, DeepL, Mozhi, MyMem
 4. Press `Ctrl+D` — open the Dictionary for the selected word
 5. Press `Ctrl+Shift+Q` — see pictures of the selected word
 6. Press `Ctrl+E` — listen to the selected text
-7. Press `Ctrl+I` — draw a screen region to OCR and translate
+7. Press `Ctrl+I` — draw a screen region to OCR. By default the action toolbar appears; choose a fast post-selection workflow or open the OCR Workspace from **Settings → OCR**
 
 Open **Settings** (gear icon) to configure API keys, themes, hotkeys, and service presets.
 

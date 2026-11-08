@@ -4,6 +4,7 @@ import com.formdev.flatlaf.util.UIScale
 import com.github.michaelbull.result.fold
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
@@ -31,6 +32,8 @@ class SettingsDialog(
     private val iconManager: IconManager,
     private val themeManager: ThemeManager,
     private val localizationManager: LocalizationManager,
+    /** Shared OCR provider/language projection. Null only in harnesses that never open OCR. */
+    private val ocrServiceCatalog: OcrServiceCatalog? = null,
     /**
      * Snapshot of languages currently supported by the active translator.
      * Evaluated lazily so [GeneralPanel] always gets the latest list when
@@ -271,6 +274,8 @@ class SettingsDialog(
      */
     fun showServicesPage() = navigator.selectPage(label("services"))
 
+    fun showOcrPage() = navigator.selectPage(label("ocr"))
+
     private fun buildPanel(name: String): JPanel = when (name) {
         label("general") ->
             GeneralPanel(settingsStore, localizationManager)
@@ -286,6 +291,17 @@ class SettingsDialog(
 
         label("plugins") ->
             PluginsPanel(iconManager, pluginManager, localizationManager, scope)
+
+        label("ocr") ->
+            ocrServiceCatalog?.let { catalog ->
+                OcrSettingsPanel(
+                    store = settingsStore,
+                    localizationManager = localizationManager,
+                    catalog = catalog,
+                    scope = scope,
+                    onOpenHotkeys = { navigator.selectPage(label("hotkeys")) },
+                )
+            } ?: JPanel()
 
         label("hotkeys") ->
             KeyboardPanel(settingsStore, localizationManager, pauseGlobalHotkeys, resumeGlobalHotkeys)

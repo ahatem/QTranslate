@@ -139,9 +139,10 @@ internal object Scenes {
         5 to "languages",
         7 to "layout",
         8 to "popups",
-        9 to "hotkeys",
-        10 to "plugins",
-        11 to "network",
+        9 to "ocr",
+        10 to "hotkeys",
+        11 to "plugins",
+        12 to "network",
     )
 
     // ── history ───────────────────────────────────────────────────────────────

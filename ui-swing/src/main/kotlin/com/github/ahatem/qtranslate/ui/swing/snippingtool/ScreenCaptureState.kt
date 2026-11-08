@@ -11,6 +11,16 @@ enum class CaptureMode {
     SELECTED   // A selection exists, user can now move or resize
 }
 
+/** Actions the toolbar and the capture-local shortcuts can invoke. */
+enum class CaptureToolbarAction {
+    TRANSLATE,
+    COPY_TEXT,
+    COPY_IMAGE,
+    SAVE_IMAGE,
+    RECROP,
+    CANCEL
+}
+
 // Defines what a specific mouse action will do (move, resize corner, etc.)
 enum class MouseAction(val cursor: Int) {
     NONE(Cursor.DEFAULT_CURSOR),

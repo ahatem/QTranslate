@@ -119,6 +119,8 @@ try {
                     t = $word.Text
                     x = [math]::Round($rect.X, 1)
                     y = [math]::Round($rect.Y, 1)
+                    w = [math]::Round($rect.Width, 1)
+                    h = [math]::Round($rect.Height, 1)
                 }
             }
             $lines += @{
@@ -128,10 +130,11 @@ try {
         }
 
         Write-Result @{
-            ok       = $true
-            lines    = $lines
-            text     = [string]::Join("`n", ($lines | ForEach-Object { $_.text }))
-            language = $engine.RecognizerLanguage.LanguageTag
+            ok        = $true
+            lines     = $lines
+            text      = [string]::Join("`n", ($lines | ForEach-Object { $_.text }))
+            language  = $engine.RecognizerLanguage.LanguageTag
+            textAngle = $ocr.TextAngle
         }
     }
     finally {

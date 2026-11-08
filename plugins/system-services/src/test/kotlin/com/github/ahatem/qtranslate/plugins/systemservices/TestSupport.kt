@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.plugins.systemservices.backend.BackendLangua
 import com.github.ahatem.qtranslate.plugins.systemservices.backend.ProcessOutcome
 import com.github.ahatem.qtranslate.plugins.systemservices.backend.ProcessRunner
 import com.github.ahatem.qtranslate.plugins.systemservices.backend.SystemOcrBackend
+import com.github.ahatem.qtranslate.plugins.systemservices.backend.SystemOcrRecognition
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.fold
@@ -96,10 +97,18 @@ internal class FakeBackend(
     private val onLanguages: suspend () -> Result<BackendLanguages, ServiceError> =
         { Ok(BackendLanguages(setOf(LanguageCode.ENGLISH, LanguageCode.JAPANESE), detectsLanguage = false)) },
     private val onValidate: suspend () -> Result<Unit, ServiceError> = { Ok(Unit) },
+    private val onRecognizeStructured: (suspend (ImageData, LanguageCode) -> Result<SystemOcrRecognition, ServiceError>)? = null,
     override val displayName: String = "Fake Engine",
 ) : SystemOcrBackend {
     override suspend fun recognize(image: ImageData, language: LanguageCode): Result<String, ServiceError> =
         onRecognize(image, language)
+
+    override suspend fun recognizeStructured(
+        image: ImageData,
+        language: LanguageCode,
+    ): Result<SystemOcrRecognition, ServiceError> =
+        onRecognizeStructured?.invoke(image, language)
+            ?: super.recognizeStructured(image, language)
 
     override suspend fun supportedLanguages(): Result<BackendLanguages, ServiceError> = onLanguages()
 

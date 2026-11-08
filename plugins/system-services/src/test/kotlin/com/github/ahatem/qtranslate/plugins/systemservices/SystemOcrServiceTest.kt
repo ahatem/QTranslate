@@ -37,6 +37,36 @@ class SystemOcrServiceTest {
     }
 
     @Test
+    fun `extractStructuredText returns provider geometry when the backend supplies it`() = runBlocking {
+        val region = com.github.ahatem.qtranslate.api.ocr.OCRTextRegion(
+            text = "Hello",
+            left = 4,
+            top = 8,
+            right = 64,
+            bottom = 24,
+            kind = com.github.ahatem.qtranslate.api.ocr.OCRRegionKind.LINE,
+        )
+        val service = SystemOcrService(
+            FakeBackend(
+                onRecognizeStructured = { _, _ ->
+                    Ok(
+                        com.github.ahatem.qtranslate.plugins.systemservices.backend.SystemOcrRecognition(
+                            text = "Hello",
+                            regions = listOf(region),
+                        )
+                    )
+                }
+            ),
+            logger,
+        )
+
+        val response = service.extractStructuredText(OCRRequest(imageData())).unwrap()
+
+        assertEquals("Hello", response.text)
+        assertEquals(listOf(region), response.regions)
+    }
+
+    @Test
     fun `extractText returns an empty response when the engine finds no text`() = runBlocking {
         val service = SystemOcrService(FakeBackend(onRecognize = { _, _ -> Ok("") }), logger)
 

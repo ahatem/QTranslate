@@ -34,6 +34,15 @@ internal class ExtraOutputWorkOwner {
         Claim(generation, previous)
     }
 
+    /** Detaches only the secondary operation belonging to a cancelled primary request. */
+    fun claimIfCurrent(token: Long): Claim? = synchronized(lock) {
+        if (token != generation) return null
+        generation += 1
+        val previous = job
+        job = null
+        Claim(generation, previous)
+    }
+
     /**
      * Installs [candidate] as the current operation, but only while [claim] still owns the
      * generation. A stale claim is refused, so it can never displace the live job.

@@ -10,7 +10,7 @@ import com.github.ahatem.qtranslate.core.main.domain.usecase.CheckForUpdatesUseC
 import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.HandleTextToSpeechUseCase
 import com.github.ahatem.qtranslate.core.workspace.lookup.LookupWordUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.OcrAndTranslateUseCase
+import com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.PerformSpellCheckUseCase
 import com.github.ahatem.qtranslate.core.workspace.translation.RewriteUseCase
 import com.github.ahatem.qtranslate.core.workspace.lookup.SearchImagesUseCase
@@ -96,7 +96,7 @@ internal class QuickTranslateLineBreaksFixture(
             loggerFactory = Silent353Factory,
         ),
         swapLanguagesUseCase = SwapLanguagesUseCase(),
-        ocrAndTranslateUseCase = OcrAndTranslateUseCase(manager, Silent353Factory),
+        ocrExtractionUseCase = OcrExtractionUseCase(manager, Silent353Factory),
         summarizeUseCase = SummarizeUseCase(manager, Silent353Factory),
         rewriteUseCase = RewriteUseCase(manager, Silent353Factory),
         lookupWordUseCase = LookupWordUseCase(manager, Silent353Factory),

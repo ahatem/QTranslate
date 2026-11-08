@@ -13,6 +13,6 @@ data class TranslationHistoryBarState(
 data class TranslationHistoryBarStrings(
     val backwardTooltip: String,
     val forwardTooltip: String,
-    val imageTranslateTooltip: String,
+    val ocr: OcrSplitLabels,
     val documentTranslateTooltip: String,
 )

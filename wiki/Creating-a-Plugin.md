@@ -96,7 +96,7 @@ dependencies {
     // compileOnly — available at compile time, NOT bundled in your JAR.
     // QTranslate provides this at runtime. Never use "implementation" here —
     // it causes classloader conflicts and bloats your JAR.
-    compileOnly("com.github.ahatem:qtranslate-api:2.1.0")
+    compileOnly("com.github.ahatem:qtranslate-api:2.2.0")
 
     // Your own dependencies go as "implementation" — they ARE bundled
     implementation("io.ktor:ktor-client-core:3.5.2")
@@ -372,6 +372,8 @@ application words them differently because they call for different actions.
 
 **Other service types** (`TextToSpeech`, `OCR`, `SpellChecker`, `Dictionary`, `ImageSearch`) follow the exact same pattern — implement the interface, return `Ok`/`Err`. See the Google plugin for a complete TTS and OCR example.
 
+OCR providers may additionally implement the optional `StructuredOCR` interface. It returns the same text plus line/word/block rectangles in original-image pixels, enabling the OCR Workspace's box overlay. This is optional and additive: providers that only implement `OCR` keep working, and no coordinates should be invented when the engine does not report them.
+
 **User-selectable modifiers** — override `Service.options: List<ServiceOption>` to offer controls like summary length or rewrite style; the host renders them and passes the chosen values back in the request. Leave it as the default empty list when your service takes no modifiers.
 
 **Test connection** — override `Service.validate()` to check the service is configured and reachable without doing real work. It powers the settings panel's "test connection" affordance. Return `ServiceError.ConfigurationError` when required settings are missing and `ServiceError.AuthenticationError` when they're present but rejected — the host words these differently. Defaults to success, which is correct for services that need no configuration.
@@ -389,13 +391,13 @@ application words them differently because they call for different actions.
   "version":       "1.0.0",
   "author":        "Your Name",
   "description":   "Translates using the Example API.",
-  "minApiVersion": "2.1.0",
+  "minApiVersion": "2.2.0",
   "icon":          "assets/icon.svg"
 }
 ```
 
 - `id` must match your `Plugin` class exactly — this is your plugin's permanent identifier
-- `minApiVersion` — `2.1.0` is the current API. The major version must match the host's, and the
+- `minApiVersion` — `2.2.0` is the current API. The major version must match the host's, and the
   minor must not exceed it, so declare the oldest version your plugin actually needs
 - `icon` — path inside your JAR resources
 
@@ -545,7 +547,7 @@ This forward-compatible file records metadata that a future catalog can consume:
   "author":        "your-github-username",
   "description":   "One-sentence plugin description.",
   "serviceTypes":  ["TRANSLATOR"],
-  "minApiVersion": "2.1.0",
+  "minApiVersion": "2.2.0",
   "sha256":        "abc123...",
   "icon":          "assets/icon.svg"
 }

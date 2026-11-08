@@ -47,6 +47,7 @@ sealed class StatusCode {
     object NoTextInImage : StatusCode()
     object OcrComplete : StatusCode()
     object OcrTextCopied : StatusCode()
+    object OcrImageCopied : StatusCode()
 
     /** Confirms a copy-to-clipboard action that would otherwise give no visible feedback. */
     object TextCopied : StatusCode()

@@ -5,6 +5,8 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.OCR
 import com.github.ahatem.qtranslate.api.ocr.OCRRequest
 import com.github.ahatem.qtranslate.api.ocr.OCRResponse
+import com.github.ahatem.qtranslate.api.ocr.StructuredOCR
+import com.github.ahatem.qtranslate.api.ocr.StructuredOCRResponse
 import com.github.ahatem.qtranslate.api.plugin.DisplayText
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.ServiceMetadata
@@ -25,7 +27,7 @@ import com.github.michaelbull.result.map
 internal class SystemOcrService(
     private val backend: SystemOcrBackend,
     private val logger: Logger,
-) : OCR {
+) : StructuredOCR {
 
     override val key: String = "system-ocr"
 
@@ -61,18 +63,37 @@ internal class SystemOcrService(
         request: OCRRequest,
     ): Result<OCRResponse, ServiceError> = coroutineBinding {
         val language = languageToRecognize(request.language).bind()
-
         val startedAt = System.nanoTime()
         val text = backend.recognize(request.image, language).bind()
-        val elapsedMillis = (System.nanoTime() - startedAt) / NANOS_PER_MILLISECOND
+        logRecognition(request, language, startedAt, text.length)
+        OCRResponse(text = text)
+    }
 
+    override suspend fun extractStructuredText(
+        request: OCRRequest,
+    ): Result<StructuredOCRResponse, ServiceError> = coroutineBinding {
+        val language = languageToRecognize(request.language).bind()
+        val startedAt = System.nanoTime()
+        val recognition = backend.recognizeStructured(request.image, language).bind()
+        logRecognition(request, language, startedAt, recognition.text.length)
+        StructuredOCRResponse(
+            text = recognition.text,
+            regions = recognition.regions,
+        )
+    }
+
+    private fun logRecognition(
+        request: OCRRequest,
+        language: LanguageCode,
+        startedAt: Long,
+        characterCount: Int,
+    ) {
+        val elapsedMillis = (System.nanoTime() - startedAt) / NANOS_PER_MILLISECOND
         // Dimensions, language and engine are safe to log; the recognized text and image are not.
         logger.info(
             "System OCR (${backend.displayName}) recognized ${request.image.width}x${request.image.height} " +
-                "as '${language.tag}' in ${elapsedMillis}ms (${text.length} characters)"
+                "as '${language.tag}' in ${elapsedMillis}ms (${characterCount} characters)"
         )
-
-        OCRResponse(text = text)
     }
 
     /**

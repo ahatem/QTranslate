@@ -57,10 +57,11 @@ class HandleTextToSpeechUseCase(
     ) {
         if (!requestStillCurrent()) return
         val textToSynthesize = textOverride ?: getTextFromSource(currentState, textSource)
-        // AUTO is not a language a TTS service can speak, so it falls through to the panel's
-        // language rather than being handed over as-is.
-        val language = languageOverride?.takeIf { it != LanguageCode.AUTO }
-            ?: determineLanguage(currentState, textSource)
+        // Omitted means derive from the requested panel. Explicit AUTO means the external
+        // text's language is unknown; borrowing an unrelated panel detection would invent
+        // provenance (notably for OCR results whose provider reports no language).
+        val language = if (languageOverride == null) determineLanguage(currentState, textSource)
+            else languageOverride.takeIf { it != LanguageCode.AUTO }
 
         if (textToSynthesize.isBlank()) {
             logger.debug("TTS skipped: text is blank")

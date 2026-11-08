@@ -70,6 +70,23 @@ class TranslationRequestOwnerTest {
     }
 
     @Test
+    fun `cancel-if-current refuses a stale id and leaves the newer request alive`() {
+        val owner = TranslationRequestOwner()
+        val claimA = owner.claim()
+        val claimB = owner.claim()
+        val jobB = Job()
+        assertTrue(owner.install(claimB, jobB))
+
+        assertEquals(null, owner.cancelIfCurrent(claimA.requestId))
+        assertTrue(jobB.isActive)
+        assertTrue(owner.isCurrent(claimB.requestId))
+
+        assertTrue(owner.cancelIfCurrent(claimB.requestId) != null)
+        assertFalse(owner.isCurrent(claimB.requestId))
+        assertEquals(null, owner.cancelIfCurrent(claimB.requestId))
+    }
+
+    @Test
     fun `publication follows both request identity and generation`() = runTest {
         val owner = TranslationRequestOwner()
         val claim = owner.claim()

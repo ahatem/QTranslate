@@ -53,6 +53,13 @@ class KeyboardPanel(
         HotkeyAction.SHOW_QUICK_TRANSLATE,
         HotkeyAction.LISTEN_TO_TEXT,
         HotkeyAction.OPEN_OCR,
+        HotkeyAction.OCR_SHOW_ACTIONS,
+        HotkeyAction.OCR_TRANSLATE,
+        HotkeyAction.OCR_TRANSLATE_QUICK,
+        HotkeyAction.OCR_TRANSLATE_MAIN,
+        HotkeyAction.OCR_OPEN_WORKSPACE,
+        HotkeyAction.OCR_COPY_TEXT,
+        HotkeyAction.OCR_COPY_IMAGE,
         HotkeyAction.REPLACE_WITH_TRANSLATION,
         HotkeyAction.CYCLE_TARGET_LANGUAGE,
         HotkeyAction.SHOW_DICTIONARY,
@@ -68,7 +75,15 @@ class KeyboardPanel(
         HotkeyAction.SWAP_LANGUAGES,
         HotkeyAction.OPEN_SETTINGS,
         HotkeyAction.SHOW_HISTORY,
-        HotkeyAction.TRANSLATE_DOCUMENT
+        HotkeyAction.TRANSLATE_DOCUMENT,
+        // Capture-local actions. Their scope is fixed to CAPTURE; they are installed only on
+        // the snipping overlay and never in the main window or the global registry.
+        HotkeyAction.OCR_ACTION_TRANSLATE,
+        HotkeyAction.OCR_ACTION_COPY_TEXT,
+        HotkeyAction.OCR_ACTION_COPY_IMAGE,
+        HotkeyAction.OCR_ACTION_SAVE_IMAGE,
+        HotkeyAction.OCR_ACTION_RECROP,
+        HotkeyAction.OCR_ACTION_CANCEL,
     )
 
     private val nonEditableActions    = emptySet<HotkeyAction>()
@@ -214,7 +229,10 @@ class KeyboardPanel(
                         // Single click scope column — toggle global/local
                         col == COL_SCOPE -> {
                             setRowSelectionInterval(row, row)
-                            onToggleScope(row)
+                            val action = actionOrder.getOrNull(row)
+                            if (action != null && bindingFor(action)?.scope != HotkeyScope.CAPTURE) {
+                                onToggleScope(row)
+                            }
                         }
                     }
                 }
@@ -292,8 +310,8 @@ class KeyboardPanel(
         if (action in nonEditableActions) return false
         val configuration = store.state.value.workingConfiguration
         if (configuration.isGlobalHotkeysEnabled) return true
-        val scope = configuration.hotkeys.find { it.action == action }?.scope ?: HotkeyScope.GLOBAL
-        return scope == HotkeyScope.LOCAL
+        val scope = configuration.effectiveHotkeys.find { it.action == action }?.scope ?: HotkeyScope.GLOBAL
+        return scope == HotkeyScope.LOCAL || scope == HotkeyScope.CAPTURE
     }
 
     /** Records a new binding for [action], through the recorder dialog unless a test replaced it. */
@@ -368,7 +386,7 @@ class KeyboardPanel(
     internal fun tableForTest(): JTable = table
 
     private fun bindingFor(action: HotkeyAction): HotkeyBinding? =
-        store.state.value.workingConfiguration.hotkeys.find { it.action == action }
+        store.state.value.workingConfiguration.effectiveHotkeys.find { it.action == action }
 
     private fun tokenizeBinding(binding: HotkeyBinding): List<String> = buildList {
         if (binding.modifiers and InputEvent.CTRL_DOWN_MASK != 0) add("Ctrl")
@@ -414,7 +432,7 @@ class KeyboardPanel(
 
             val model = table.model as DefaultTableModel
             actionOrder.forEachIndexed { row, action ->
-                val binding = c.hotkeys.find { it.action == action }
+                val binding = c.effectiveHotkeys.find { it.action == action }
                 model.setValueAt(binding, row, COL_HOTKEY)
                 model.setValueAt(scopeLabel(binding?.scope ?: HotkeyScope.GLOBAL), row, COL_SCOPE)
             }
@@ -435,6 +453,13 @@ class KeyboardPanel(
         HotkeyAction.SHOW_QUICK_TRANSLATE     -> localizationManager.getString("settings_hotkeys.action_quick_translate")
         HotkeyAction.LISTEN_TO_TEXT           -> localizationManager.getString("settings_hotkeys.action_listen")
         HotkeyAction.OPEN_OCR                 -> localizationManager.getString("settings_hotkeys.action_ocr")
+        HotkeyAction.OCR_SHOW_ACTIONS         -> localizationManager.getString("settings_hotkeys.action_ocr_show_actions")
+        HotkeyAction.OCR_TRANSLATE            -> localizationManager.getString("settings_hotkeys.action_ocr_translate")
+        HotkeyAction.OCR_TRANSLATE_QUICK      -> localizationManager.getString("settings_hotkeys.action_ocr_translate_quick")
+        HotkeyAction.OCR_TRANSLATE_MAIN       -> localizationManager.getString("settings_hotkeys.action_ocr_translate_main")
+        HotkeyAction.OCR_OPEN_WORKSPACE       -> localizationManager.getString("settings_hotkeys.action_ocr_workspace")
+        HotkeyAction.OCR_COPY_TEXT            -> localizationManager.getString("settings_hotkeys.action_ocr_copy_text")
+        HotkeyAction.OCR_COPY_IMAGE           -> localizationManager.getString("settings_hotkeys.action_ocr_copy_image")
         HotkeyAction.REPLACE_WITH_TRANSLATION -> localizationManager.getString("settings_hotkeys.action_replace")
         HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizationManager.getString("settings_hotkeys.action_cycle_language")
         HotkeyAction.SHOW_DICTIONARY          -> localizationManager.getString("settings_hotkeys.action_show_dictionary")
@@ -449,11 +474,18 @@ class KeyboardPanel(
         HotkeyAction.OPEN_SETTINGS            -> localizationManager.getString("settings_hotkeys.action_open_settings")
         HotkeyAction.SHOW_HISTORY             -> localizationManager.getString("settings_hotkeys.action_show_history")
         HotkeyAction.TRANSLATE_DOCUMENT       -> localizationManager.getString("settings_hotkeys.action_translate_document")
+        HotkeyAction.OCR_ACTION_TRANSLATE     -> localizationManager.getString("settings_hotkeys.action_capture_translate")
+        HotkeyAction.OCR_ACTION_COPY_TEXT     -> localizationManager.getString("settings_hotkeys.action_capture_copy_text")
+        HotkeyAction.OCR_ACTION_COPY_IMAGE    -> localizationManager.getString("settings_hotkeys.action_capture_copy_image")
+        HotkeyAction.OCR_ACTION_SAVE_IMAGE    -> localizationManager.getString("settings_hotkeys.action_capture_save_image")
+        HotkeyAction.OCR_ACTION_RECROP        -> localizationManager.getString("settings_hotkeys.action_capture_recrop")
+        HotkeyAction.OCR_ACTION_CANCEL        -> localizationManager.getString("settings_hotkeys.action_capture_cancel")
     }
 
     private fun scopeLabel(scope: HotkeyScope): String = when (scope) {
         HotkeyScope.GLOBAL -> localizationManager.getString("settings_hotkeys.scope_global")
         HotkeyScope.LOCAL  -> localizationManager.getString("settings_hotkeys.scope_local")
+        HotkeyScope.CAPTURE -> localizationManager.getString("settings_hotkeys.scope_capture")
     }
 
     private fun presetLabel(preset: HotkeyPresetKind): String = when (preset) {
@@ -629,7 +661,12 @@ class KeyboardPanel(
             else     UIManager.getColor("Component.accentColor")
                 ?: UIManager.getColor("Table.foreground")
             font        = font.deriveFont(Font.PLAIN)
-            toolTipText = localizationManager.getString("settings_hotkeys.scope_toggle_hint")
+            val scope = action?.let { bindingFor(it)?.scope }
+            toolTipText = if (scope == HotkeyScope.CAPTURE) {
+                localizationManager.getString("settings_hotkeys.scope_fixed_hint")
+            } else {
+                localizationManager.getString("settings_hotkeys.scope_toggle_hint")
+            }
             return this
         }
     }

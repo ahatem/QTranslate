@@ -26,7 +26,27 @@ enum class HotkeyAction {
     SWAP_LANGUAGES,            // swap source and target languages (default: Ctrl+Shift+S, LOCAL)
     OPEN_SETTINGS,             // open the settings dialog (default: Ctrl+Comma, LOCAL)
     SHOW_HISTORY,              // open the translation history dialog (default: Ctrl+Shift+H, LOCAL)
-    TRANSLATE_DOCUMENT         // open the document translation dialog (default: Ctrl+Shift+D, LOCAL)
+    TRANSLATE_DOCUMENT,        // open the document translation dialog (default: Ctrl+Shift+D, LOCAL)
+
+    // Explicit OCR workflow entry points. OPEN_OCR is the configured/default workflow; these
+    // force one workflow regardless of the saved post-selection preference.
+    OCR_SHOW_ACTIONS,
+    OCR_TRANSLATE,
+    OCR_TRANSLATE_QUICK,
+    OCR_TRANSLATE_MAIN,
+    OCR_OPEN_WORKSPACE,
+    OCR_COPY_TEXT,
+    OCR_COPY_IMAGE,
+
+    // Actions available only while the capture overlay is open. Keeping them in this persisted,
+    // typed list is what lets the same recorder edit them; the CAPTURE scope keeps them out of
+    // the main window and the global registry.
+    OCR_ACTION_TRANSLATE,
+    OCR_ACTION_COPY_TEXT,
+    OCR_ACTION_COPY_IMAGE,
+    OCR_ACTION_SAVE_IMAGE,
+    OCR_ACTION_RECROP,
+    OCR_ACTION_CANCEL
 }
 
 /**
@@ -42,7 +62,8 @@ enum class HotkeyAction {
 @Serializable
 enum class HotkeyScope {
     GLOBAL,  // Registered with the global input backend — fires system-wide
-    LOCAL    // Registered via Swing InputMap — fires only inside QTranslate
+    LOCAL,   // Registered via Swing InputMap — fires only inside QTranslate
+    CAPTURE  // Installed only on the screen-capture overlay's root pane
 }
 
 /**
@@ -74,6 +95,58 @@ data class HotkeyBinding(
         if (hasBinding) KeyStroke.getKeyStroke(keyCode, modifiers) else null
 
     companion object {
+        /**
+         * The vocabulary a pre-OCR build can deserialize. Configuration persists
+         * this subset under `hotkeys` alone; post-v7 OCR rows live under
+         * `ocrHotkeys` (an unknown key such builds ignore), so a downgrade never
+         * trips on an unknown enum value.
+         */
+        val LEGACY_ACTIONS: Set<HotkeyAction> = setOf(
+            HotkeyAction.SHOW_MAIN_WINDOW,
+            HotkeyAction.SHOW_QUICK_TRANSLATE,
+            HotkeyAction.LISTEN_TO_TEXT,
+            HotkeyAction.OPEN_OCR,
+            HotkeyAction.REPLACE_WITH_TRANSLATION,
+            HotkeyAction.CYCLE_TARGET_LANGUAGE,
+            HotkeyAction.SHOW_DICTIONARY,
+            HotkeyAction.SHOW_IMAGES,
+            HotkeyAction.TRANSLATE,
+            HotkeyAction.FOCUS_INPUT,
+            HotkeyAction.FOCUS_OUTPUT,
+            HotkeyAction.FOCUS_EXTRA_OUTPUT,
+            HotkeyAction.COPY_TRANSLATION,
+            HotkeyAction.CLEAR_INPUT,
+            HotkeyAction.SWAP_LANGUAGES,
+            HotkeyAction.OPEN_SETTINGS,
+            HotkeyAction.SHOW_HISTORY,
+            HotkeyAction.TRANSLATE_DOCUMENT,
+        )
+
+        /** Post-v7 OCR workflow + capture-local rows, persisted under `ocrHotkeys`. */
+        val OCR_ACTIONS: Set<HotkeyAction> = setOf(
+            HotkeyAction.OCR_SHOW_ACTIONS,
+            HotkeyAction.OCR_TRANSLATE,
+            HotkeyAction.OCR_TRANSLATE_QUICK,
+            HotkeyAction.OCR_TRANSLATE_MAIN,
+            HotkeyAction.OCR_OPEN_WORKSPACE,
+            HotkeyAction.OCR_COPY_TEXT,
+            HotkeyAction.OCR_COPY_IMAGE,
+            HotkeyAction.OCR_ACTION_TRANSLATE,
+            HotkeyAction.OCR_ACTION_COPY_TEXT,
+            HotkeyAction.OCR_ACTION_COPY_IMAGE,
+            HotkeyAction.OCR_ACTION_SAVE_IMAGE,
+            HotkeyAction.OCR_ACTION_RECROP,
+            HotkeyAction.OCR_ACTION_CANCEL,
+        )
+
+        /** Legacy-only defaults (v7 vocabulary), persisted under `hotkeys`. */
+        val LEGACY_DEFAULTS: List<HotkeyBinding>
+            get() = DEFAULTS.filter { it.action in LEGACY_ACTIONS }
+
+        /** OCR-only defaults, persisted under `ocrHotkeys`. */
+        val OCR_DEFAULTS: List<HotkeyBinding>
+            get() = DEFAULTS.filter { it.action in OCR_ACTIONS }
+
         val DEFAULTS: List<HotkeyBinding> = listOf(
             // SHOW_MAIN_WINDOW: double-Ctrl via raw key events — no KeyStroke, always GLOBAL
             HotkeyBinding(HotkeyAction.SHOW_MAIN_WINDOW,         keyCode = 0,                                          modifiers = 0,                                         scope = HotkeyScope.GLOBAL, isDoubleCtrlEnabled = true),
@@ -98,6 +171,26 @@ data class HotkeyBinding(
             HotkeyBinding(HotkeyAction.OPEN_SETTINGS,            keyCode = java.awt.event.KeyEvent.VK_COMMA,            modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK,  scope = HotkeyScope.LOCAL),
             HotkeyBinding(HotkeyAction.SHOW_HISTORY,             keyCode = java.awt.event.KeyEvent.VK_H,                modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.LOCAL),
             HotkeyBinding(HotkeyAction.TRANSLATE_DOCUMENT,       keyCode = java.awt.event.KeyEvent.VK_D,                modifiers = java.awt.event.InputEvent.CTRL_DOWN_MASK or java.awt.event.InputEvent.SHIFT_DOWN_MASK, scope = HotkeyScope.LOCAL),
+
+            // Explicit OCR workflows ship unassigned. OCR is a destructive, screen-wide gesture;
+            // taking more key combinations from other applications by default would be a poor
+            // trade. The existing OPEN_OCR keeps its historic default above.
+            HotkeyBinding(HotkeyAction.OCR_SHOW_ACTIONS,         keyCode = 0, modifiers = 0, scope = HotkeyScope.GLOBAL),
+            HotkeyBinding(HotkeyAction.OCR_TRANSLATE,            keyCode = 0, modifiers = 0, scope = HotkeyScope.GLOBAL),
+            HotkeyBinding(HotkeyAction.OCR_TRANSLATE_QUICK,      keyCode = 0, modifiers = 0, scope = HotkeyScope.GLOBAL),
+            HotkeyBinding(HotkeyAction.OCR_TRANSLATE_MAIN,       keyCode = 0, modifiers = 0, scope = HotkeyScope.GLOBAL),
+            HotkeyBinding(HotkeyAction.OCR_OPEN_WORKSPACE,       keyCode = 0, modifiers = 0, scope = HotkeyScope.GLOBAL),
+            HotkeyBinding(HotkeyAction.OCR_COPY_TEXT,            keyCode = 0, modifiers = 0, scope = HotkeyScope.GLOBAL),
+            HotkeyBinding(HotkeyAction.OCR_COPY_IMAGE,           keyCode = 0, modifiers = 0, scope = HotkeyScope.GLOBAL),
+
+            // Capture-local actions: deliberately unassigned, and deliberately a different scope
+            // from both global workflows and the main window's local shortcuts.
+            HotkeyBinding(HotkeyAction.OCR_ACTION_TRANSLATE,     keyCode = 0, modifiers = 0, scope = HotkeyScope.CAPTURE),
+            HotkeyBinding(HotkeyAction.OCR_ACTION_COPY_TEXT,     keyCode = 0, modifiers = 0, scope = HotkeyScope.CAPTURE),
+            HotkeyBinding(HotkeyAction.OCR_ACTION_COPY_IMAGE,    keyCode = 0, modifiers = 0, scope = HotkeyScope.CAPTURE),
+            HotkeyBinding(HotkeyAction.OCR_ACTION_SAVE_IMAGE,    keyCode = 0, modifiers = 0, scope = HotkeyScope.CAPTURE),
+            HotkeyBinding(HotkeyAction.OCR_ACTION_RECROP,        keyCode = 0, modifiers = 0, scope = HotkeyScope.CAPTURE),
+            HotkeyBinding(HotkeyAction.OCR_ACTION_CANCEL,        keyCode = 0, modifiers = 0, scope = HotkeyScope.CAPTURE),
         )
     }
 }

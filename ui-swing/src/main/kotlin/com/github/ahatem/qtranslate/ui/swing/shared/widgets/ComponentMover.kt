@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
+import com.github.ahatem.qtranslate.ui.swing.shared.util.usableBounds
 import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent

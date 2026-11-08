@@ -18,7 +18,7 @@ internal class TranslationRequestOwner {
 
     internal data class Claim(val requestId: Long, val generation: Long, val previousJob: Job?)
 
-    internal data class Canceled(val generation: Long, val previousJob: Job?)
+    internal data class Canceled(val generation: Long, val previousJob: Job?, val requestId: Long, val secondaryGeneration: Long)
 
     private val lock = Any()
     private var nextRequestId: Long = 0L
@@ -26,9 +26,11 @@ internal class TranslationRequestOwner {
     private var currentRequestId: Long = 0L
     private var currentGeneration: Long = 0L
     private var job: Job? = null
+    private var secondaryGeneration: Long = 0L
 
     /** Claims a new request and generation, detaching the job it supersedes. */
-    fun claim(): Claim = synchronized(lock) {
+    fun claim(secondaryGeneration: Long = 0L): Claim = synchronized(lock) {
+        this.secondaryGeneration = secondaryGeneration
         val id = ++nextRequestId
         val generation = ++nextGeneration
         currentRequestId = id
@@ -56,7 +58,17 @@ internal class TranslationRequestOwner {
         currentGeneration = ++nextGeneration
         val previous = job
         job = null
-        Canceled(currentGeneration, previous)
+        Canceled(currentGeneration, previous, currentRequestId, secondaryGeneration)
+    }
+
+    /** Invalidates only while [requestId] is still current; a newer request is left untouched. */
+    fun cancelIfCurrent(requestId: Long): Canceled? = synchronized(lock) {
+        if (currentRequestId != requestId) return null
+        currentRequestId = ++nextRequestId
+        currentGeneration = ++nextGeneration
+        val previous = job
+        job = null
+        Canceled(currentGeneration, previous, currentRequestId, secondaryGeneration)
     }
 
     /** Advances only the comparison generation; the current request id stays owned. */
@@ -66,6 +78,9 @@ internal class TranslationRequestOwner {
     }
 
     fun isCurrent(requestId: Long): Boolean = synchronized(lock) { currentRequestId == requestId }
+
+    /** The identity of the request currently allowed to publish, for origin-specific ownership. */
+    fun currentRequestId(): Long = synchronized(lock) { currentRequestId }
 
     /** Runs [block] only while [requestId] owns publication. Used for a short state update. */
     fun <T> withCurrentRequest(requestId: Long, block: () -> T): T? = synchronized(lock) {

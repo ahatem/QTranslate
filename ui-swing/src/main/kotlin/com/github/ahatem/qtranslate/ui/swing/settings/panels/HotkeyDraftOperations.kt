@@ -10,9 +10,19 @@ import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
 internal object HotkeyDraftOperations {
 
     fun replaceBinding(configuration: Configuration, binding: HotkeyBinding): Configuration {
-        val bindings = configuration.hotkeys
-            .filterNot { it.action == binding.action } + binding
-        return configuration.copy(hotkeys = bindings)
+        // Post-v7 OCR rows persist under ocrHotkeys, legacy rows under hotkeys,
+        // so a downgrade never sees an unknown enum value in the legacy list.
+        return if (binding.action in HotkeyBinding.OCR_ACTIONS) {
+            configuration.copy(
+                ocrHotkeys = configuration.ocrHotkeys
+                    .filterNot { it.action == binding.action } + binding
+            )
+        } else {
+            configuration.copy(
+                hotkeys = configuration.hotkeys
+                    .filterNot { it.action == binding.action } + binding
+            )
+        }
     }
 
     fun replacePreset(configuration: Configuration, preset: HotkeyPresetKind): Configuration =
@@ -49,6 +59,8 @@ internal object HotkeyDraftOperations {
     fun toggleScope(configuration: Configuration, action: HotkeyAction): Configuration {
         val current = binding(configuration, action) ?: return configuration
         if (action == HotkeyAction.SHOW_MAIN_WINDOW) return configuration
+        // Capture actions belong to the overlay. There is no meaningful global/local variant.
+        if (current.scope == HotkeyScope.CAPTURE) return configuration
         return replaceBinding(
             configuration,
             current.copy(
@@ -58,5 +70,5 @@ internal object HotkeyDraftOperations {
     }
 
     private fun binding(configuration: Configuration, action: HotkeyAction): HotkeyBinding? =
-        configuration.hotkeys.find { it.action == action }
+        configuration.effectiveHotkeys.find { it.action == action }
 }
