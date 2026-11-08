@@ -913,7 +913,9 @@ class OcrWorkspaceDialog(
         // ocrWorkspaceToken files this request under the capture that opened the
         // workspace (null for local file/paste/capture): a newer OCR workflow then
         // supersedes it, so it can never publish or auto-copy over newer work.
-        // onTranslationClaimed captures its exact identity for the same reason.
+        // onTranslationClaimed captures its exact identity synchronously inside
+        // dispatch (before this call returns) for the same reason, including the
+        // local token-less path.
         mainStore.dispatch(
             MainIntent.Translate(
                 text = prepared,
@@ -936,11 +938,22 @@ class OcrWorkspaceDialog(
         )
     }
 
-    /** Records the claimed request identity on the EDT, only while it is still expected. */
+    /**
+     * Records the claimed request identity only while it is still expected. Workspace
+     * dispatch runs on the EDT and the store claims synchronously inside dispatch, so this
+     * still lands before any later image/text replacement can run; off-EDT callers fall
+     * back to the EDT without losing that ordering.
+     */
     private fun recordTranslationRequest(prepared: String, requestId: Long) {
-        SwingUtilities.invokeLater {
+        if (SwingUtilities.isEventDispatchThread()) {
             if (!closed && expectedTranslationInput == prepared) {
                 expectedRequestId = requestId
+            }
+        } else {
+            SwingUtilities.invokeLater {
+                if (!closed && expectedTranslationInput == prepared) {
+                    expectedRequestId = requestId
+                }
             }
         }
     }

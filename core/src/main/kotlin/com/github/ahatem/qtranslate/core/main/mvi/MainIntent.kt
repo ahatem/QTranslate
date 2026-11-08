@@ -38,7 +38,10 @@ sealed interface MainIntent : UiIntent {
      * @property text Optional text override. If `null`, uses [MainState.inputText].
      * @property onTranslationClaimed Receives the exact translation request identity
      * claimed by this intent (workspace translations use it to avoid cancelling
-     * a newer manual request with the same text by content equality).
+     * a newer manual request with the same text by content equality). When set, the
+     * claim is made synchronously inside [dispatch] and this callback is invoked
+     * before `dispatch` returns, so the caller can cancel/supersede by identity at
+     * any later point with no claim gap.
      * @property ocrWorkspaceToken When set, this workspace translation is filed
      * under the OCR capture that opened the workspace, so a newer OCR workflow
      * supersedes it and stale work cannot publish or auto-copy over it.

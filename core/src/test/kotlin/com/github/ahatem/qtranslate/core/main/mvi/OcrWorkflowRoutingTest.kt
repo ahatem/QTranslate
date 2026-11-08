@@ -581,4 +581,36 @@ class OcrWorkflowRoutingTest {
             fixture.cleanUp()
         }
     }
+
+    @Test
+    fun `workspace-local identity is claimed during dispatch so an immediate replacement supersedes it`() = runTest {
+        // Forces the old claim gap exactly: dispatch A, then replace (cancel) *before* any
+        // scheduler work runs. Previously A's identity was still unknown here, so cleanup
+        // was skipped and A later published/auto-copied over the newer input.
+        val fixture = OcrWorkflowFixture(
+            this,
+            autoCopy = com.github.ahatem.qtranslate.core.settings.data.AutoCopyTranslation.ALL,
+        )
+        try {
+            var claimedId: Long? = null
+            fixture.store.dispatch(MainIntent.UpdateInputText("slow text"))
+            fixture.store.dispatch(
+                MainIntent.Translate(text = "slow text", onTranslationClaimed = { claimedId = it })
+            )
+            assertTrue(claimedId != null, "identity must be known before dispatch returns")
+            // No runCurrent/advanceUntilIdle between A and its replacement.
+            fixture.store.dispatch(MainIntent.CancelTranslationIfCurrent(claimedId!!))
+            advanceUntilIdle()
+
+            assertTrue(fixture.translator.received.isEmpty(), "superseded before start must not reach the provider")
+            assertEquals("", fixture.store.state.value.translatedText, "stale A must never publish")
+            assertFalse(fixture.store.state.value.isLoading)
+            assertTrue(
+                fixture.events.filterIsInstance<MainEvent.CopyToClipboard>().isEmpty(),
+                "stale A must not auto-copy over the newer workspace input",
+            )
+        } finally {
+            fixture.cleanUp()
+        }
+    }
 }

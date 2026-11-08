@@ -557,25 +557,42 @@ class MainStore(
                 }
                 cancelTranslationWork()
                 clearComparisonState()
-                scope.launch {
-                    translateText(
-                        TranslationOrigin.MAIN,
-                        intent.text,
-                        comparisonPolicy = mainComparisonPolicy(),
-                        onRequestClaimed = { claimedId ->
-                            if (workspaceToken != null) {
-                                val filed = ocrOwner.withCurrent(workspaceToken) {
-                                    ocrTranslation = OcrTranslation(claimedId, quick = false)
-                                }
-                                if (filed == null) {
-                                    // Stale: a newer OCR workflow claimed ownership after
-                                    // our pre-check. Do not let this orphan start.
-                                    translationCoordinator.cancelIfCurrent(claimedId)
-                                }
-                            }
-                            intent.onTranslationClaimed?.invoke(claimedId)
-                        },
-                    )
+                // Workspace intents (onTranslationClaimed set) claim their TranslationStart
+                // synchronously, before dispatch returns. The previous async-only claim left
+                // a window where a replacement could not cancel the translation because its
+                // identity was still unknown. After reserveStart the caller owns the exact
+                // requestId: a subsequent CancelTranslationIfCurrent aborts the launched
+                // coroutine at the use case's isCurrent gate, before any provider call,
+                // publication or auto-copy.
+                if (intent.onTranslationClaimed != null) {
+                    val start = translationCoordinator.reserveStart()
+                    if (workspaceToken != null) {
+                        val filed = ocrOwner.withCurrent(workspaceToken) {
+                            ocrTranslation = OcrTranslation(start.requestId, quick = false)
+                        }
+                        if (filed == null) {
+                            // Stale under the OCR owner: never start the orphan.
+                            translationCoordinator.cancelIfCurrent(start.requestId)
+                            return
+                        }
+                    }
+                    intent.onTranslationClaimed.invoke(start.requestId)
+                    scope.launch {
+                        translateText(
+                            TranslationOrigin.MAIN,
+                            intent.text,
+                            comparisonPolicy = mainComparisonPolicy(),
+                            start = start,
+                        )
+                    }
+                } else {
+                    scope.launch {
+                        translateText(
+                            TranslationOrigin.MAIN,
+                            intent.text,
+                            comparisonPolicy = mainComparisonPolicy(),
+                        )
+                    }
                 }
             }
 
