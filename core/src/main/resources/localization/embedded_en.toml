@@ -415,6 +415,7 @@ recorder_hint = "Press a key combination, then click OK · Esc to cancel"
 recorder_modifier_hint = "Now press a letter, number or function key"
 recorder_hint_confirm = "Press another combination to change · Esc to clear"
 recorder_invalid_key = "This key cannot be used as a shortcut"
+recorder_reserved_capture_key = "Enter and Escape are reserved for the capture dialog. Use a modified combination such as Ctrl+Enter"
 
 
 [settings_translation]

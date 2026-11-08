@@ -62,6 +62,20 @@ class CaptureShortcutsTest {
     }
 
     @Test
+    fun `bare enter and escape are reserved for capture actions only`() {
+        // Settings must reject these at recording time; the runtime filter stays
+        // as the last resort for already-saved configs.
+        assertTrue(isReservedBareCaptureKey(HotkeyAction.OCR_ACTION_COPY_IMAGE, KeyEvent.VK_ENTER, 0))
+        assertTrue(isReservedBareCaptureKey(HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE, 0))
+        // Modified Enter/Escape are intentionally supported.
+        assertTrue(!isReservedBareCaptureKey(HotkeyAction.OCR_ACTION_COPY_IMAGE, KeyEvent.VK_ENTER, InputEvent.CTRL_DOWN_MASK))
+        assertTrue(!isReservedBareCaptureKey(HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE, InputEvent.CTRL_DOWN_MASK))
+        // Non-capture actions keep bare Enter/Escape available.
+        assertTrue(!isReservedBareCaptureKey(HotkeyAction.TRANSLATE, KeyEvent.VK_ENTER, 0))
+        assertTrue(!isReservedBareCaptureKey(HotkeyAction.OPEN_OCR, KeyEvent.VK_ESCAPE, 0))
+    }
+
+    @Test
     fun `capture actions map to their toolbar actions`() {
         val bindings = listOf(
             binding(HotkeyAction.OCR_ACTION_TRANSLATE, KeyEvent.VK_T),

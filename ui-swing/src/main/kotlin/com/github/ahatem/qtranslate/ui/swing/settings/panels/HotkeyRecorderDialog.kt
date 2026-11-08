@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
+import com.github.ahatem.qtranslate.ui.swing.snippingtool.isReservedBareCaptureKey
 import java.awt.*
 import java.awt.event.*
 import javax.swing.*
@@ -48,6 +49,7 @@ internal object HotkeyRecorderDialog {
         var liveModifiers     = 0
         var isErrorState      = false
         var errorKeyCode      = 0
+        var isReservedError   = false
 
         // ── dialog ──────────────────────────────────────────────────────────
         val dialog = JDialog(
@@ -197,10 +199,14 @@ internal object HotkeyRecorderDialog {
         // The input field always shows plain normal text — only hintLabel changes colour.
         fun updateUI() {
             when {
-                isErrorState -> {
+                isErrorState || isReservedError -> {
                     inputField.font = captureFont
                     inputField.text = KeyEvent.getKeyText(errorKeyCode)
-                    hintLabel.text       = "⚠  ${localizer.getString("settings_hotkeys.recorder_invalid_key")}"
+                    hintLabel.text       = if (isReservedError) {
+                        "⚠  ${localizer.getString("settings_hotkeys.recorder_reserved_capture_key")}"
+                    } else {
+                        "⚠  ${localizer.getString("settings_hotkeys.recorder_invalid_key")}"
+                    }
                     hintLabel.foreground = errorFg
                     okButton.isEnabled   = false
                 }
@@ -245,11 +251,20 @@ internal object HotkeyRecorderDialog {
                 if (sk == null) { menu.addSeparator(); continue }
                 menu.add(JMenuItem("Set ${sk.name}").apply {
                     addActionListener {
-                        capturedKeyCode   = sk.keyCode
-                        capturedModifiers = sk.mods
-                        liveModifiers     = 0
-                        isCaptureDone     = true
-                        isErrorState      = false
+                        if (isReservedBareCaptureKey(action, sk.keyCode, sk.mods)) {
+                            errorKeyCode    = sk.keyCode
+                            isErrorState    = false
+                            isReservedError = true
+                            isCaptureDone   = false
+                            okButton.isEnabled = false
+                        } else {
+                            capturedKeyCode   = sk.keyCode
+                            capturedModifiers = sk.mods
+                            liveModifiers     = 0
+                            isCaptureDone     = true
+                            isErrorState      = false
+                            isReservedError   = false
+                        }
                         updateUI()
                         inputField.requestFocusInWindow()
                     }
@@ -263,6 +278,7 @@ internal object HotkeyRecorderDialog {
             override fun keyPressed(e: KeyEvent) {
                 e.consume()
                 isErrorState = false
+                isReservedError = false
 
                 val resolvedKeyCode = when {
                     e.keyCode != KeyEvent.VK_UNDEFINED -> e.keyCode
@@ -305,11 +321,18 @@ internal object HotkeyRecorderDialog {
                     }
 
                     else -> {
-                        // Valid main key — capture the full combination
-                        capturedKeyCode   = resolvedKeyCode
-                        capturedModifiers = e.modifiersEx
-                        liveModifiers     = 0
-                        isCaptureDone     = true
+                        if (isReservedBareCaptureKey(action, resolvedKeyCode, e.modifiersEx)) {
+                            errorKeyCode    = resolvedKeyCode
+                            isReservedError = true
+                            isCaptureDone   = false
+                            okButton.isEnabled = false
+                        } else {
+                            // Valid main key — capture the full combination
+                            capturedKeyCode   = resolvedKeyCode
+                            capturedModifiers = e.modifiersEx
+                            liveModifiers     = 0
+                            isCaptureDone     = true
+                        }
                         updateUI()
                     }
                 }

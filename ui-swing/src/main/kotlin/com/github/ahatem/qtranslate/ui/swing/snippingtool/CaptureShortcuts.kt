@@ -17,6 +17,17 @@ internal fun captureShortcutBindings(bindings: List<HotkeyBinding>): Map<HotkeyA
         .filter { it.scope == HotkeyScope.CAPTURE && it.isEnabled && it.hasBinding }
         .associateBy { it.action }
 
+/**
+ * True when [action] is a capture-toolbar action and [keyCode]/[modifiers] is the bare
+ * Enter or Escape the overlay reserves for its primary/cancel actions.
+ * Settings must reject this at recording time; the runtime installer drops it too,
+ * so the UI must never present it as saved successfully.
+ */
+internal fun isReservedBareCaptureKey(action: HotkeyAction, keyCode: Int, modifiers: Int): Boolean =
+    action.captureToolbarAction() != null &&
+        modifiers == 0 &&
+        (keyCode == KeyEvent.VK_ENTER || keyCode == KeyEvent.VK_ESCAPE)
+
 /** The capture shortcuts that can actually be installed without stealing Enter or Escape. */
 internal fun installableCaptureShortcuts(
     bindings: List<HotkeyBinding>,
