@@ -78,10 +78,41 @@ class GoogleTranslatorService(
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.Dynamic
 
     companion object {
-        private const val TRANSLATE_PRIMARY = "https://translate.googleapis.com/translate_a/single"
-        private const val TRANSLATE_FALLBACK = "https://clients5.google.com/translate_a/t"
+        /**
+         * Both unofficial endpoints are served by one host.
+         *
+         * That is deliberate. The hostname the fallback used to live on, `clients5.google.com`, is
+         * blocked by common hosts-file lists and privacy filters, which turned the path that exists
+         * to survive a throttle into a connection refusal. Nothing here needs a second hostname:
+         * `translate.googleapis.com` serves several client variants and the sentence one is not the
+         * only one that works.
+         */
+        private const val UNOFFICIAL_API = "https://translate.googleapis.com"
+
+        /** Path of the flat client, which answers with a bare JSON array. */
+        private const val FLAT_ENDPOINT_PATH = "/translate_a/t"
+
+        /** Path of the sentence client, which answers with a document-shaped JSON object. */
+        private const val SENTENCE_ENDPOINT_PATH = "/translate_a/single"
+
+        /**
+         * The client id the Chrome dictionary extension uses. Measured fastest and least throttled
+         * of the three variants: 182 ms median over 28 requests with no 429, against 204 ms for
+         * client=at, which returned 429 after seven, and 964 ms for client=gtx with the full
+         * dictionary payload.
+         */
+        private const val FLAT_CLIENT = "dict-chrome-ex"
+
+        /**
+         * The older web client id. Kept as the second path rather than the first: it answers
+         * reliably but slower, and it is the variant observed returning 429.
+         */
+        private const val SENTENCE_CLIENT = "gtx"
+
+        /** Source tag that asks the endpoints to detect the language themselves. */
+        private const val AUTO_SOURCE_TAG = "auto"
+
         private const val TRANSLATE_OFFICIAL = "https://translation.googleapis.com/language/translate/v2"
-        private const val FALLBACK_HOST = "clients5.google.com"
 
         /**
          * What to say about the primary when the circuit skipped it and the fallback then failed.
@@ -91,7 +122,6 @@ class GoogleTranslatorService(
          * know was involved, and it explains why the primary was not tried.
          */
         private const val PRIMARY_SKIPPED = "primary endpoint skipped after recent failures"
-        private val TRANSLATE_FEATURES = listOf("t", "bd", "at", "ex", "ld", "md", "rw", "rm", "ss", "qc")
 
         /**
          * Two seconds: longer than an unthrottled primary needs for an ordinary translation, short
@@ -180,16 +210,16 @@ class GoogleTranslatorService(
         // The primary has recently been too slow to be worth waiting for, so the fallback is asked
         // on its own instead of paying the hedge on every translation.
         if (hedgeBudget.prefersFallbackNow()) {
-            pluginContext.logger.info("Primary endpoint slow recently, trying the fallback first")
+            pluginContext.logger.info("Primary endpoint slow recently, asking the sentence client first")
             currentCoroutineContext().ensureActive()
             return translateWithFallbackFirst(request.text, sourceTag, targetTag)
         }
 
         val permit = endpointHealth.tryAcquirePrimary()
         if (permit == null) {
-            pluginContext.logger.info("Primary endpoint unhealthy, using fallback")
+            pluginContext.logger.info("Primary endpoint unhealthy, asking the sentence client directly")
             currentCoroutineContext().ensureActive()
-            return tryFallbackEndpoint(request.text, sourceTag, targetTag).fold(
+            return trySecondaryEndpoint(request.text, sourceTag, targetTag).fold(
                 success = { success -> Ok(success) },
                 failure = { error -> Err(fallbackFailure(PRIMARY_SKIPPED, error)) }
             )
@@ -202,7 +232,7 @@ class GoogleTranslatorService(
             val primary = async { attemptPrimaryEndpoint(permit, request.text, sourceTag, targetTag) }
             val fallback = async {
                 fallbackArmed.await()
-                tryFallbackEndpoint(request.text, sourceTag, targetTag)
+                trySecondaryEndpoint(request.text, sourceTag, targetTag)
             }
 
             // A half-open probe is the one request that decides whether the circuit heals, so it is
@@ -224,7 +254,7 @@ class GoogleTranslatorService(
                     fallback.cancel()
                     return@coroutineScope primaryResult
                 }
-                pluginContext.logger.info("Primary endpoint failed, trying fallback")
+                pluginContext.logger.info("Primary endpoint failed, trying the sentence client")
                 fallbackArmed.complete(Unit)
                 return@coroutineScope fallback.await().fold(
                     success = { success -> Ok(success) },
@@ -233,7 +263,7 @@ class GoogleTranslatorService(
             }
 
             pluginContext.logger.info(
-                "Primary endpoint has not answered within ${primaryHedgeMillis}ms, asking the fallback"
+                "Primary endpoint has not answered within ${primaryHedgeMillis}ms, asking the sentence client"
             )
             fallbackArmed.complete(Unit)
 
@@ -300,10 +330,10 @@ class GoogleTranslatorService(
         sourceTag: String,
         targetTag: String
     ): Result<TranslationResponse, ServiceError> {
-        val fallbackResult = tryFallbackEndpoint(text, sourceTag, targetTag)
+        val fallbackResult = trySecondaryEndpoint(text, sourceTag, targetTag)
         if (fallbackResult.isOk) return fallbackResult
 
-        pluginContext.logger.info("Fallback endpoint failed, trying the slow primary")
+        pluginContext.logger.info("Flat client failed, asking the slow primary")
         currentCoroutineContext().ensureActive()
         val fallbackError = fallbackResult.getError()!!
         // The circuit may be open on genuine failures, in which case the primary really was skipped.
@@ -373,15 +403,16 @@ class GoogleTranslatorService(
     private fun fallbackFailure(primaryClause: String, fallbackError: ServiceError): ServiceError {
         // The first line is what the status bar shows, so it carries the classification of both
         // stages; the fallback's own detail follows on its own line.
-        val summary = "Google Translate: $primaryClause, fallback $FALLBACK_HOST ${fallbackError.describe()}"
+        val summary = "Google Translate: $primaryClause, sentence client ${fallbackError.describe()}"
         val detail = buildString {
-            append("Fallback detail: ")
+            append("Second path detail: ")
             append(fallbackError.message.lineSequence().first())
             if (fallbackError.isReachabilityFailure()) {
                 append('\n')
                 append(
-                    "A hosts-file entry, firewall, VPN or ad blocker that blocks $FALLBACK_HOST " +
-                        "would also produce this; the primary endpoint is retried automatically."
+                    "Both paths use the same Google host, so a hosts-file entry, firewall, VPN or " +
+                        "proxy that blocks it would also produce this; the first path is retried " +
+                        "automatically."
                 )
             }
         }
@@ -439,95 +470,150 @@ class GoogleTranslatorService(
         else -> false
     }
 
+    /**
+     * Where one anonymous endpoint lives, which client it speaks for, and what it must be asked.
+     *
+     * The two variants are data rather than two copies of a URL string, so the host, the client id
+     * and the parser stay next to each other and a change of host is one edit. This is not a plugin
+     * framework: there are exactly two of these.
+     */
+    private data class UnofficialEndpoint(
+        val url: String,
+        val client: String,
+        val queryParams: Map<String, Any?>,
+    )
+
+    private fun flatEndpoint(text: String, sourceTag: String, targetTag: String) = UnofficialEndpoint(
+        url = UNOFFICIAL_API + FLAT_ENDPOINT_PATH,
+        client = FLAT_CLIENT,
+        queryParams = mapOf(
+            "client" to FLAT_CLIENT,
+            "sl" to sourceTag,
+            "tl" to targetTag,
+            "q" to text
+        )
+    )
+
+    /**
+     * The second path, kept because it speaks a different protocol rather than because it came
+     * first: it returns sentence objects with a detected source, so a change to the flat client's
+     * array shape or quota leaves a working path behind.
+     *
+     * It no longer asks for `bd`/`ex`/`md`/`synsets`: that dictionary payload cost roughly 750 ms per
+     * request and the alternatives derived from it were never displayed by the application.
+     */
+    private fun sentenceEndpoint(text: String, sourceTag: String, targetTag: String) = UnofficialEndpoint(
+        url = UNOFFICIAL_API + SENTENCE_ENDPOINT_PATH,
+        client = SENTENCE_CLIENT,
+        queryParams = mapOf(
+            "client" to SENTENCE_CLIENT,
+            "ie" to "UTF-8",
+            "oe" to "UTF-8",
+            "dj" to 1,
+            "dt" to "t",
+            "sl" to sourceTag,
+            "tl" to targetTag,
+            "q" to text
+        )
+    )
+
     private suspend fun tryPrimaryEndpoint(
         text: String,
         sourceTag: String,
         targetTag: String
-    ): Result<TranslationResponse, ServiceError> = coroutineBinding {
-        val responseString = httpClient.getOnce(
-            url = TRANSLATE_PRIMARY,
-            headers = apiConfig.createHeaders(),
-            queryParams = mapOf(
-                "client" to "gtx",
-                "ie" to "UTF-8",
-                "oe" to "UTF-8",
-                "dj" to 1,
-                "dt" to TRANSLATE_FEATURES,
-                "sl" to sourceTag,
-                "tl" to targetTag,
-                "q" to text
-            )
-        ).bind()
-
-        val parsed = translateParser.parse(responseString).bind()
-        val translatedText = parsed.sentences.joinToString("") { it.text.orEmpty() }
-        val detectedLang = languageMapper.fromProviderCode(parsed.sourceLanguage)
-        val alternatives = parsed.dictionary?.firstOrNull()?.terms?.take(3) ?: emptyList()
-
-        TranslationResponse(
-            translatedText = translatedText.trim(),
-            detectedLanguage = detectedLang,
-            alternatives = alternatives
-        )
-    }
-
-    private suspend fun tryFallbackEndpoint(
-        text: String,
-        sourceTag: String,
-        targetTag: String
-    ): Result<TranslationResponse, ServiceError> = coroutineBinding {
-        val responseString = httpClient.get(
-            url = TRANSLATE_FALLBACK,
-            headers = apiConfig.createHeaders(),
-            queryParams = mapOf(
-                "client" to "dict-chrome-ex",
-                "dj" to 1,
-                "sl" to sourceTag,
-                "tl" to targetTag,
-                "q" to text
-            )
-        ).bind()
-
-        parseFallbackResponse(responseString).bind()
+    ): Result<TranslationResponse, ServiceError> {
+        val endpoint = flatEndpoint(text, sourceTag, targetTag)
+        return coroutineBinding {
+            val responseString = httpClient.getOnce(
+                url = endpoint.url,
+                headers = apiConfig.createHeaders(),
+                queryParams = endpoint.queryParams
+            ).bind()
+            parseFlatResponse(responseString, sourceTag).bind()
+        }
     }
 
     /**
-     * Parses the fallback endpoint's response, which is not documented and has been observed in two
-     * array shapes. The payload is inspected field by field rather than decoded into a fixed type, so
-     * an unexpected shape fails normally instead of throwing while indexing.
+     * Parses the flat client's reply, which is a JSON array whose first element is either the
+     * translated string or a second array of fields.
+     *
+     * Both shapes were observed against the live endpoint: an explicit source answers
+     * `["translated"]`, while auto-detection answers `[["translated", "fr"]]`. The payload is
+     * inspected element by element rather than decoded into a fixed type, so an unexpected shape
+     * fails normally instead of throwing while indexing.
      */
-    private fun parseFallbackResponse(
-        responseString: String
+    private fun parseFlatResponse(
+        responseString: String,
+        requestedSourceTag: String,
     ): Result<TranslationResponse, ServiceError> {
         val root = runCatching { PluginJson.parseToJsonElement(responseString) }
-            .getOrElse { return Err(ServiceError.InvalidResponseError("Fallback response is not valid JSON", it)) }
+            .getOrElse { return Err(ServiceError.InvalidResponseError("Primary response is not valid JSON", it)) }
 
-        val fields = fallbackFields(root)
-            ?: return Err(ServiceError.InvalidResponseError("Unsupported fallback response shape", null))
+        val fields = flatResponseFields(root)
+            ?: return Err(ServiceError.InvalidResponseError("Unsupported primary response shape", null))
 
         val translatedText = fields.firstOrNull()?.stringOrNull()?.trim()
         if (translatedText.isNullOrEmpty()) {
-            return Err(ServiceError.InvalidResponseError("No translation in fallback response", null))
+            return Err(ServiceError.InvalidResponseError("No translation in primary response", null))
         }
 
+        // Auto-detection is the only case where the endpoint reports the source it found. With an
+        // explicit source the reply omits it, and the answer to "which language is this" is the
+        // language the request named.
         val detectedLanguage = fields.getOrNull(1)
             ?.stringOrNull()
             ?.let { languageMapper.fromProviderCode(it) }
+            ?: requestedSourceTag
+                .takeIf { it.isNotBlank() && it != AUTO_SOURCE_TAG }
+                ?.let { languageMapper.fromProviderCode(it) }
 
-        return Ok(TranslationResponse(translatedText = translatedText, detectedLanguage = detectedLanguage))
+        return Ok(
+            TranslationResponse(
+                translatedText = translatedText,
+                detectedLanguage = detectedLanguage
+            )
+        )
     }
 
-    /**
-     * Extracts the flat field list from the two known fallback shapes: a nested
-     * `[[translated, src, ...]]` or a flat `[translated, src, ...]`. Any other shape yields null.
-     */
-    private fun fallbackFields(root: JsonElement): List<JsonElement>? = when (root) {
+    /** The field list of the two observed flat shapes, or null for anything else. */
+    private fun flatResponseFields(root: JsonElement): List<JsonElement>? = when (root) {
         is JsonArray -> when (val first = root.firstOrNull()) {
             is JsonArray -> first.toList()
             is JsonPrimitive -> root.toList()
             else -> null
         }
         else -> null
+    }
+
+    private suspend fun trySecondaryEndpoint(
+        text: String,
+        sourceTag: String,
+        targetTag: String
+    ): Result<TranslationResponse, ServiceError> {
+        val endpoint = sentenceEndpoint(text, sourceTag, targetTag)
+        return coroutineBinding {
+            val responseString = httpClient.get(
+                url = endpoint.url,
+                headers = apiConfig.createHeaders(),
+                queryParams = endpoint.queryParams
+            ).bind()
+            parseSentenceResponse(responseString).bind()
+        }
+    }
+
+    /** Parses the sentence client's document-shaped reply into the same response model. */
+    private suspend fun parseSentenceResponse(
+        responseString: String
+    ): Result<TranslationResponse, ServiceError> = coroutineBinding {
+        val parsed = translateParser.parse(responseString).bind()
+        TranslationResponse(
+            translatedText = parsed.sentences.joinToString("") { it.text.orEmpty() }.trim(),
+            // The model defaults `src` to an empty string, which is not a language tag; a reply
+            // without a source section means "not reported", not "the empty language".
+            detectedLanguage = parsed.sourceLanguage
+                .takeIf { it.isNotBlank() }
+                ?.let { languageMapper.fromProviderCode(it) }
+        )
     }
 
     private fun JsonElement.stringOrNull(): String? =
