@@ -171,6 +171,10 @@ class TranslateTextUseCase(
         val active = activeServiceManager.getActive<Translator>(ServiceRole.TRANSLATOR)
         if (active == null) {
             logger.warn("No translator service available")
+            // The job below normally clears translatedText on start; without a
+            // translator there is no job, so the stale result of a previous
+            // request would otherwise remain publishable as this request's.
+            publish { copy(isLoading = false, translatedText = "", translationFailed = true) }
             onStatusUpdate(StatusCode.NoTranslatorActive, NotificationType.ERROR, true)
             return null
         }

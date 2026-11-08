@@ -41,6 +41,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class TranslationFailureStateTest {
     private val directories = mutableListOf<java.io.File>()
+    private lateinit var useCaseSettings: MutableStateFlow<Configuration>
 
     @AfterTest
     fun cleanUp() {
@@ -93,6 +94,29 @@ class TranslationFailureStateTest {
     }
 
     @Test
+    fun `no translator after a success clears the stale result instead of presenting it as current`() = runTest {
+        // Finding 4 (fixture-local): A succeeds, then every translator is disabled.
+        // Translating B must fail cleanly and never present A's text as B's.
+        val translator = SwitchTranslator(fail = false)
+        val useCase = useCase(this, translator)
+        var state = MainState(inputText = "A", sourceLanguage = LanguageCode.ENGLISH, targetLanguage = LanguageCode.FRENCH)
+        useCase(getState = { state }, updateState = { transform -> state = state.transform() }, onStatusUpdate = { _, _, _ -> })
+        advanceUntilIdle()
+        assertEquals("bonjour", state.translatedText)
+        assertFalse(state.translationFailed)
+
+        val settingsState = useCaseSettings
+        settingsState.value = settingsState.value.copy(disabledServices = setOf(translator.key))
+        state = state.copy(inputText = "B")
+        useCase(getState = { state }, updateState = { transform -> state = state.transform() }, onStatusUpdate = { _, _, _ -> })
+        advanceUntilIdle()
+        assertEquals("B", state.inputText)
+        assertEquals("", state.translatedText, "stale A must not present as B's result")
+        assertTrue(state.translationFailed)
+        assertFalse(state.isLoading)
+    }
+
+    @Test
     fun `a retry that fails again is failed again`() = runTest {
         val translator = SwitchTranslator(fail = true)
         val useCase = useCase(this, translator)
@@ -115,6 +139,7 @@ class TranslationFailureStateTest {
         val settings = MutableStateFlow(
             Configuration.DEFAULT.copy(servicePresets = listOf(preset), activeServicePresetId = preset.id)
         )
+        useCaseSettings = settings
         val manager = ActiveServiceManager(MutableStateFlow(mapOf<String, Service>(translator.key to translator)), settings)
         val directory = Files.createTempDirectory("qtranslate-failure-state").toFile()
         directories += directory
