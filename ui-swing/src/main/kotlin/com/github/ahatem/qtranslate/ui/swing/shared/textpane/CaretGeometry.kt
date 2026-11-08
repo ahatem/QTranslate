@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.textpane
 
+import java.awt.Polygon
 import java.awt.geom.AffineTransform
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -41,6 +42,16 @@ internal object CaretGeometry {
      */
     const val NOMINAL_WIDTH = 2
 
+    /**
+     * Length and height of the direction flag, in user units.
+     *
+     * Four is what Swing's own caret draws, and matching it keeps the mark the same size relative to
+     * the text here as in any other component. It is a constant of the widget, not a setting: the
+     * flag answers a question the caret cannot otherwise answer, and a caret that has to be
+     * configured to answer it is a caret nobody configures.
+     */
+    const val FLAG_SIZE = 4
+
     /** A caret resolved onto the device pixel grid. */
     data class Placement(
         /** Left edge, in device pixels. */
@@ -79,8 +90,8 @@ internal object CaretGeometry {
         transform: AffineTransform,
         nominalWidth: Int = NOMINAL_WIDTH,
     ): Placement {
-        val scaleX = if (transform.scaleX > 0.0) transform.scaleX else 1.0
-        val scaleY = if (transform.scaleY > 0.0) transform.scaleY else 1.0
+        val scaleX = userScaleX(transform)
+        val scaleY = userScaleY(transform)
 
         // Whole device pixels, measured from the display's origin rather than from the row's. Rounding
         // the two edges of the row and taking the difference keeps the caret inside the row even when
@@ -106,6 +117,43 @@ internal object CaretGeometry {
             originY = originY,
         )
     }
+
+    /**
+     * The direction flag that belongs beside [placement]: a small triangle on the side the insertion
+     * point reads towards.
+     *
+     * Its vertical edge is the caret's own edge on that side, so the mark reads as an extension of
+     * the caret rather than as a separate glyph in the text. It starts at the top of the caret body
+     * and is clamped to the caret's height, since the row is what Swing repaints when the caret
+     * blinks and the body is already inside it. The apex points one flag length along the run, which
+     * is the direction text typed at this point will take.
+     *
+     * The triangle is returned in whole device pixels, like the caret itself, for the reasons in the
+     * class documentation: a shape whose edges land between columns is drawn by a tie-break rather
+     * than by geometry.
+     */
+    fun flag(placement: Placement, leftToRight: Boolean, transform: AffineTransform): Polygon {
+        val length = Math.round(FLAG_SIZE * userScaleX(transform)).toInt().coerceAtLeast(1)
+        val height = Math.round(FLAG_SIZE * userScaleY(transform)).toInt().coerceAtLeast(1)
+            .coerceAtMost(placement.height)
+
+        // Outside the caret, on the side the insertion runs to: the right edge for left-to-right
+        // text, the left edge for right-to-left, the same side `DefaultCaret` puts it on.
+        val base = if (leftToRight) placement.x + placement.width else placement.x
+        val apex = base + if (leftToRight) length else -length
+        val top = placement.y
+        val bottom = top + height
+
+        return Polygon(
+            intArrayOf(base, base, apex),
+            intArrayOf(top, bottom, top),
+            3,
+        )
+    }
+
+    private fun userScaleX(transform: AffineTransform): Double = if (transform.scaleX > 0.0) transform.scaleX else 1.0
+
+    private fun userScaleY(transform: AffineTransform): Double = if (transform.scaleY > 0.0) transform.scaleY else 1.0
 
     /**
      * The transform that maps [Placement] device pixels onto the display one to one.
