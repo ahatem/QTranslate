@@ -49,3 +49,59 @@ The automated readiness probe is deliberately offline and does not replace these
 5. Run the downloaded Windows and portable builds. Check About shows the tag version, an older stable install sees the new stable release, and a fresh stable install does not offer itself as an update. For an RC, check that a later stable release is offered to the RC installation. Check release notes and changelog links.
 
 If published verification fails, fix the issue and use a new version or prerelease number; do not silently move a published tag. After publishing, reconcile `main` back into `develop` if necessary and retain the smoke and workflow evidence.
+
+## Windows installation scope
+
+Windows ships one archive and, once Authenticode signing lands, one installer. Do not add a second install scope instead of finishing that one.
+
+| Fact | Value | Where it is defined |
+|---|---|---|
+| Installer type | MSI, built with WiX 3 from a jpackage app-image | `.github/scripts/package-windows.ps1` |
+| Install scope | Per-user (no elevation, no `ALLUSERS`) | `--win-per-user-install` |
+| Install directory | `%LOCALAPPDATA%\QTranslate` (`[LocalAppDataFolder]QTranslate`) | jpackage MSI directory table |
+| Product registration | `HKCU\Software\QTranslate contributors\QTranslate\<ProductVersion>`, Add/Remove Programs entry in the user's hive (Windows 11 24H2+ surfaces per-user entries from HKLM) | generated MSI tables |
+| Start Menu shortcut | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\QTranslate\QTranslate.lnk` | `--win-menu --win-menu-group QTranslate` |
+| Upgrade identity | `UpgradeCode` from `.github/windows-upgrade-uuid.txt`; never regenerate it | `--win-upgrade-uuid` |
+| Product code | Derived by jpackage from vendor, name and version; changes every version, identical across scopes | jpackage `WinMsiBundler` |
+| User data | `%APPDATA%\QTranslate`; the installation directory is never written | `AppDataLayout` |
+| Published artifact today | `QTranslate-<version>-windows-x64.zip` only (portable, carries `portable.flag`) | `release.yml` |
+| MSI publication | Blocked on Authenticode signing; the unsigned MSI is a CI artifact only | `release.yml`, `ci.yml`, [Development](../docs/Development.md) |
+
+Per-user is the correct scope for this application: it needs no machine-wide resource. It registers no file association and no protocol handler, autostart is the per-user `HKCU` Run key (`WindowsStartupRegistration`), global hotkeys are in-session, and plugins and settings live under `%APPDATA%`. The one cross-user coupling is the single-instance socket on localhost port 49185 (`SingleInstanceGuard`): two sessions on one machine cannot both run the application. That predates the installer and is not something an install scope can fix.
+
+Scope rules:
+
+- Never change the scope of a published product. Windows Installer cannot upgrade a per-machine product with a per-user package that carries the same `UpgradeCode`: the second package is treated as a different installation context instead of a replacement, so the result is a failed install, a duplicate entry, or an orphaned payload. If a scope change ever becomes necessary, the old product must be uninstalled first by a documented step in the release notes.
+- Do not ship both a per-user and a per-machine MSI for one version. They share the same `ProductCode`, so only one can be installed and neither upgrades the other.
+- Keep `--win-dir-chooser` out. A per-user install has one correct writable location, and a chooser would let a user pick a directory that a later per-user upgrade does not expect.
+
+When signing lands, publishing the installer is a release change, not a packaging change: add the MSI to the published assets and to `SHA256SUMS.txt`, state in the release notes that the MSI installs per-user without administrator rights, and update the README download table. The installer lifecycle is already verified on every candidate (`verify-windows-installer.ps1`): silent install, one registration, per-user data root, in-place upgrade against a synthetic higher version, uninstall, and user data preserved byte-for-byte across both.
+
+## Winget
+
+Winget is an external distribution channel: manifests live in `microsoft/winget-pkgs`, not in this repository, and every new version is a pull request there. Nothing is submitted until a signed MSI is a permanent release asset; a manifest that points at an internal CI artifact cannot be validated and would break for every user after the artifact expires.
+
+The published ZIP is not a winget installer. It carries `portable.flag`, so the application keeps user data next to the launcher, which a package manager's own extraction directory does not survive. Winget must use the MSI, which installs with normal installed semantics.
+
+Manifest set (schema 1.6 or later, produced and validated by `wingetcreate`):
+
+| File | Contents for QTranslate |
+|---|---|
+| `QTranslate.QTranslate.yaml` | `PackageVersion`, `DefaultLocale: en-US` |
+| `QTranslate.QTranslate.installer.yaml` | `InstallerType: msi`, `Scope: user`, `Architecture: x64`, `InstallerUrl`, `InstallerSha256`, `UpgradeBehavior: install`, `InstallerSwitches` silent `/qn /norestart`, `InstallerSuccessCodes: [3010]`, and `AppsAndFeaturesEntries` with `DisplayName: QTranslate`, `Publisher: QTranslate contributors`, `UpgradeCode` from `.github/windows-upgrade-uuid.txt` |
+| `QTranslate.QTranslate.locale.en-US.yaml` | `Publisher`, `PackageName`, `License: MPL-2.0`, `ShortDescription`, `Moniker`, tags, repository and issue URLs |
+
+Requirements that follow from the current MSI:
+
+- `PackageIdentifier` is fixed by the first accepted submission. `QTranslate.QTranslate` matches the product name. Winget correlates an installed product with a manifest through Add/Remove Programs, so the manifest `Publisher` and the ARP publisher (`QTranslate contributors`, from `--vendor`) must agree; `AppsAndFeaturesEntries` is the sanctioned way to record the ARP publisher when it differs from the identifier. If moderation objects to the difference, changing `--vendor` to `QTranslate` is the alternative, and it does not affect upgrade identity because the `UpgradeCode` is pinned.
+- `PackageVersion` must be the MSI `ProductVersion` that Add/Remove Programs shows. Windows Installer allows only `major.minor.build` (255.255.65535), so a version with a prerelease or build suffix cannot be published. That is also why prereleases are not submitted: two release candidates of one base share a `ProductVersion`.
+- `InstallerSha256` and `InstallerUrl` must describe one immutable file. GitHub release asset URLs are stable and a tag is never moved, so they satisfy that; an MSI that is rebuilt or re-uploaded after the manifest is merged does not.
+- Because `UpgradeBehavior` is `install` and the MSI carries the pinned `UpgradeCode`, `winget upgrade` replaces the previous version in place rather than installing beside it. The in-place upgrade and the uninstall both keep `%APPDATA%\QTranslate`, so a winget-managed installation keeps the user's history and settings.
+
+Publishing and updating, all outside this repository:
+
+1. Sign the MSI and publish it as a release asset with its `SHA256SUMS.txt` entry.
+2. First submission: `wingetcreate new <msi-url>` in a fork of `microsoft/winget-pkgs`, review the generated manifests against the table above, run `winget validate <dir>` and a `winget install --manifest <dir>` test, then open the pull request.
+3. Each later release: `wingetcreate update QTranslate.QTranslate --version <version> --urls <msi-url> --submit` and review the pull request it opens.
+
+Known limitation to document for users: the in-application update prompt still offers the Windows ZIP. A user who follows it after installing with winget extracts a second copy instead of upgrading the installed one, and the single-instance guard then makes the second copy exit silently. Pointing the updater at the release page for installed builds is a separate change.
