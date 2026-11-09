@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.main
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
+import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -105,11 +106,12 @@ class MainStateRenderObserverTest {
     @Test
     fun `background collection reproduces the stale echo the EDT dispatcher prevents`() {
         val main = MutableStateFlow(MainState(inputText = "seed"))
-        val rendered = mutableListOf<String>()
+        val rendered = Collections.synchronizedList(mutableListOf<String>())
         val editorText = AtomicReference("")
         val staleOverwrite = AtomicBoolean(false)
         val seedRendered = CountDownLatch(1)
         val staleRenderStarted = CountDownLatch(1)
+        val staleRenderEvaluated = CountDownLatch(1)
         val releaseStaleRender = CountDownLatch(1)
         val latestRendered = CountDownLatch(1)
         val scope = scope()
@@ -129,6 +131,9 @@ class MainStateRenderObserverTest {
                     staleRenderStarted.countDown()
                     releaseStaleRender.await(5, TimeUnit.SECONDS)
                     if (editorText.get() == "ab") staleOverwrite.set(true)
+                    // Rendering "ab" may finish on another thread before this callback resumes,
+                    // so the control is only established once this line has run.
+                    staleRenderEvaluated.countDown()
                 }
                 "ab" -> latestRendered.countDown()
             }
@@ -147,6 +152,7 @@ class MainStateRenderObserverTest {
             main.value = MainState(inputText = "ab")
             releaseStaleRender.countDown()
 
+            await(staleRenderEvaluated, "the stale render never resumed after the edit landed")
             await(latestRendered, "the newer snapshot was not rendered")
             assertTrue(
                 staleOverwrite.get(),
