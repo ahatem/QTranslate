@@ -99,7 +99,7 @@ class AIDictionaryService(
                 )
             )
         } catch (e: Exception) {
-            Err(ServiceError.InvalidResponseError("Failed to parse AI dictionary response: $raw", e))
+            Err(ServiceError.InvalidResponseError("Failed to parse AI dictionary response.", e))
         }
 
     // ─── Private DTOs ────────────────────────────────────────────────────────

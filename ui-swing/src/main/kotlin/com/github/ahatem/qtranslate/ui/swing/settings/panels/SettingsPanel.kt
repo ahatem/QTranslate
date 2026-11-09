@@ -24,7 +24,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
  *
  * ### State dispatch
  * Use [applyDraft] for every setting change — it reads state atomically from the
- * store and dispatches a single [SettingsIntent.UpdateDraft], preventing the
+ * store and dispatches a single [SettingsIntent.TransformDraft], preventing the
  * stale-read race that occurs when reading `store.state.value` directly in listeners:
  *
  * ```kotlin
@@ -86,14 +86,13 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
 
     /**
      * Reads the current working configuration atomically from [store] and dispatches
-     * an [SettingsIntent.UpdateDraft] with the result of [transform].
+     * an [SettingsIntent.TransformDraft] with the result of [transform].
      *
      * Always use this instead of `store.state.value.workingConfiguration.copy(...)` directly,
      * which risks reading stale state if two changes fire in rapid succession.
      */
     protected fun applyDraft(store: SettingsStore, transform: (Configuration) -> Configuration) {
-        val current = store.state.value.workingConfiguration
-        store.dispatch(SettingsIntent.UpdateDraft(transform(current)))
+        store.dispatch(SettingsIntent.TransformDraft(transform))
     }
 
     // -------------------------------------------------------------------------

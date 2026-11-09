@@ -12,11 +12,11 @@ import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.core.history.HistoryRepository
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonTranslationResult
-import com.github.ahatem.qtranslate.core.main.domain.usecase.ComparisonPolicy
-import com.github.ahatem.qtranslate.core.main.domain.usecase.ParallelComparisonUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.RewriteUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.SummarizeUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateTextUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.ComparisonPolicy
+import com.github.ahatem.qtranslate.core.workspace.translation.ParallelComparisonUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.RewriteUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.SummarizeUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslateTextUseCase
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
@@ -303,7 +303,7 @@ class QuickCloseComparisonStateTest {
         val source = File("src/main/kotlin/com/github/ahatem/qtranslate/core/main/mvi/MainStore.kt").readText()
         val hide = source.substringAfter("MainIntent.HideQuickTranslate ->").substringBefore("MainIntent.ToggleQuickTranslateDialogPin")
         assertTrue(hide.contains("val close = _state.value.quickCloseActions()"))
-        assertTrue(hide.contains("if (close.cancelWork) translateTextUseCase.cancel()"))
+        assertTrue(hide.contains("if (close.cancelWork) cancelTranslationWork()"))
         assertTrue(hide.contains("if (close.clearComparisons) clearComparisonState()"))
         assertTrue(hide.contains("_state.update { it.afterQuickClose() }"))
     }

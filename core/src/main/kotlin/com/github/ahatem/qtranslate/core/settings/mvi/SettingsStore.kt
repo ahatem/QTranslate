@@ -4,14 +4,25 @@ import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
+import com.github.ahatem.qtranslate.core.settings.data.SettingsError
+import com.github.ahatem.qtranslate.core.settings.data.withoutPreset
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.Ok
 import com.github.ahatem.qtranslate.core.shared.arch.Store
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * MVI store managing application configuration and settings.
@@ -49,9 +60,81 @@ class SettingsStore(
     // Serializes save operations — prevents two concurrent save coroutines from
     // both seeing isSaving=false and racing to write conflicting configurations.
     private val saveMutex = Mutex()
+    private val committedRevision = AtomicLong()
+    private val acceptedLock = Any()
+    private val accepted = mutableSetOf<Job>()
+    private var closing = false
+    private var lastAccepted: Job? = null
+
+    /**
+     * Configurations this store wrote and whose echo [observeRepositoryChanges] still expects.
+     *
+     * The repository delivers its flow on the storage dispatcher, so the echo of an older write can
+     * be collected after a newer save has already been committed. Applying it then would move
+     * `originalConfiguration` — the value the UI treats as saved — backwards, and recompute
+     * `isDirty` against a configuration that no longer exists. A save already writes the same state
+     * itself, so its own echo has nothing to teach the store and is consumed here instead.
+     *
+     * DataStore emits in write order, so a matching entry can be dropped together with everything
+     * before it; any other emission is an external change and is applied as before.
+     */
+    private val ownWriteEchoes = ArrayDeque<Configuration>()
+
+    // Bounds the queue if the repository conflates emissions and some echoes never arrive.
+    private val ownWriteEchoLimit = 8
+
+    private fun <T> accept(block: suspend () -> T): Deferred<T> = synchronized(acceptedLock) {
+        check(!closing) { "Settings persistence is shutting down" }
+        val previous = lastAccepted
+        val job = scope.async(start = CoroutineStart.LAZY) {
+            previous?.join()
+            block()
+        }
+        lastAccepted = job
+        accepted.add(job)
+        job.invokeOnCompletion { synchronized(acceptedLock) { accepted.remove(job) } }
+        job.start()
+        job
+    }
+
+    private fun rememberOwnWrite(config: Configuration) = synchronized(ownWriteEchoes) {
+        ownWriteEchoes.addLast(config)
+        while (ownWriteEchoes.size > ownWriteEchoLimit) ownWriteEchoes.removeFirst()
+    }
+
+    /** Whether an emission is the echo of a write this store already applied itself. */
+    private fun consumeOwnWriteEcho(persisted: Configuration): Boolean {
+        synchronized(ownWriteEchoes) {
+            val index = ownWriteEchoes.indexOfFirst { it == persisted }
+            if (index < 0) {
+                // Not ours: everything still queued is older than this external change.
+                ownWriteEchoes.clear()
+                return false
+            }
+            repeat(index + 1) { ownWriteEchoes.removeFirst() }
+            return true
+        }
+    }
+
+    /** Stop accepting saves and wait for accepted operations before cancelling storage. */
+    suspend fun drainAcceptedSaves(timeoutMillis: Long = 10_000): Boolean {
+        val pending = synchronized(acceptedLock) {
+            closing = true
+            accepted.toList()
+        }
+        return withTimeoutOrNull(timeoutMillis) { pending.joinAll(); true } ?: false
+    }
 
     private val presetManager = PresetManager(
-        applyUpdate = { newConfig -> applyWorkingUpdate(newConfig) },
+        applyUpdate = { transform -> applyWorkingUpdate(transform) },
+        delete = { id ->
+            val previous = _state.getAndUpdate { current ->
+                val config = current.workingConfiguration
+                val updated = if (config.servicePresets.size > 1) config.withoutPreset(id) else config
+                current.copy(workingConfiguration = updated, isDirty = updated != current.originalConfiguration)
+            }
+            previous.workingConfiguration.servicePresets.size > 1
+        },
         eventChannel = _eventChannel,
         scope = scope,
         logger = logger
@@ -78,6 +161,11 @@ class SettingsStore(
             settingsRepository.configuration
                 .distinctUntilChanged()
                 .collect { persisted ->
+                    val observedRevision = committedRevision.get()
+                    saveMutex.withLock {
+                    if (observedRevision != committedRevision.get()) return@withLock
+                    // A late echo of our own write must not overwrite a newer commit.
+                    if (consumeOwnWriteEcho(persisted)) return@withLock
                     _state.update { current ->
                         current.copy(
                             originalConfiguration = persisted,
@@ -92,6 +180,7 @@ class SettingsStore(
                             else current.workingConfiguration != persisted
                         )
                     }
+                    }
                 }
         }
     }
@@ -105,6 +194,7 @@ class SettingsStore(
         when (intent) {
             // Draft mode
             is SettingsIntent.UpdateDraft    -> handleUpdateDraft(intent.newConfiguration)
+            is SettingsIntent.TransformDraft -> applyWorkingUpdate(intent.transform)
             SettingsIntent.SaveChanges       -> launchSave()
             SettingsIntent.CancelChanges     -> handleCancelChanges()
             SettingsIntent.ResetToDefaults   -> handleResetToDefaults()
@@ -117,44 +207,37 @@ class SettingsStore(
 
             // Preset operations update the settings draft and wait for Apply/OK.
             is SettingsIntent.SetActivePreset ->
-                presetManager.setActivePreset(_state.value.workingConfiguration, intent.presetId)
+                presetManager.setActivePreset(intent.presetId)
 
             is SettingsIntent.UpdateServiceInActivePreset ->
-                presetManager.updateServiceInActivePreset(_state.value.workingConfiguration, intent)
+                presetManager.updateServiceInActivePreset(intent)
 
             is SettingsIntent.AddTranslatorToActivePreset ->
-                presetManager.addTranslator(_state.value.workingConfiguration, intent)
+                presetManager.addTranslator(intent)
 
             is SettingsIntent.RemoveTranslatorFromActivePreset ->
-                presetManager.removeTranslator(_state.value.workingConfiguration, intent)
+                presetManager.removeTranslator(intent)
 
             is SettingsIntent.MoveTranslatorInActivePreset ->
-                presetManager.moveTranslator(_state.value.workingConfiguration, intent)
+                presetManager.moveTranslator(intent)
 
             is SettingsIntent.PromoteTranslatorToPrimary ->
-                presetManager.promoteTranslatorToPrimary(_state.value.workingConfiguration, intent)
+                presetManager.promoteTranslatorToPrimary(intent)
 
             is SettingsIntent.CreatePreset ->
-                presetManager.createPreset(_state.value.workingConfiguration, intent.name)
+                presetManager.createPreset(intent.name)
 
             is SettingsIntent.DeletePreset ->
-                presetManager.deletePreset(_state.value.workingConfiguration, intent.presetId)
+                presetManager.deletePreset(intent.presetId)
 
             is SettingsIntent.RenamePreset ->
-                presetManager.renamePreset(_state.value.workingConfiguration, intent.presetId, intent.newName)
+                presetManager.renamePreset(intent.presetId, intent.newName)
 
-            is SettingsIntent.AddTranslationRule -> {
-                val updated = _state.value.workingConfiguration.copy(
-                    translationRules = _state.value.workingConfiguration.translationRules + intent.rule
-                )
-                applyWorkingUpdate(updated)
+            is SettingsIntent.AddTranslationRule -> applyWorkingUpdate { current ->
+                current.copy(translationRules = current.translationRules + intent.rule)
             }
-
-            is SettingsIntent.RemoveTranslationRule -> {
-                val updated = _state.value.workingConfiguration.copy(
-                    translationRules = _state.value.workingConfiguration.translationRules - intent.rule
-                )
-                applyWorkingUpdate(updated)
+            is SettingsIntent.RemoveTranslationRule -> applyWorkingUpdate { current ->
+                current.copy(translationRules = current.translationRules - intent.rule)
             }
         }
     }
@@ -196,12 +279,10 @@ class SettingsStore(
      * Applies [newConfig] as the new working configuration and marks the state dirty
      * if it differs from the original. Called by both internal handlers and [PresetManager].
      */
-    private fun applyWorkingUpdate(newConfig: Configuration) {
+    private fun applyWorkingUpdate(transform: (Configuration) -> Configuration) {
         _state.update { current ->
-            current.copy(
-                workingConfiguration = newConfig,
-                isDirty = newConfig != current.originalConfiguration
-            )
+            val newConfig = transform(current.workingConfiguration)
+            current.copy(workingConfiguration = newConfig, isDirty = newConfig != current.originalConfiguration)
         }
     }
 
@@ -218,60 +299,53 @@ class SettingsStore(
      * the latest changes).
      */
     private fun launchSave() {
+        val receipt = submitDraftSave()
         scope.launch {
-            saveMutex.withLock {
-                // Re-read state inside the coroutine and inside the lock —
-                // this is the fix for the stale-state race condition.
-                val current = _state.value
-
-                if (!current.isDirty) {
-                    logger.debug("Nothing to save — skipping")
-                    return@withLock
-                }
-
-                // Capture the config we intend to save while holding the lock
-                val configToSave = current.workingConfiguration
-
-                logger.info("Saving configuration...")
-                _state.update { it.copy(isSaving = true) }
-
-                settingsRepository.updateConfiguration(configToSave).fold(
-                    success = {
-                        logger.info("Configuration saved successfully")
-                        _state.update {
-                            it.copy(
-                                originalConfiguration = configToSave,
-                                isDirty = it.workingConfiguration != configToSave,
-                                isSaving = false
-                            )
-                        }
-                        _eventChannel.send(
-                            SettingsEvent.ShowMessage("Settings saved", NotificationType.SUCCESS)
-                        )
-                    },
-                    failure = { error ->
-                        logger.error("Failed to save configuration: ${error.message}")
-                        _state.update { it.copy(isSaving = false) }
-                        _eventChannel.send(
-                            SettingsEvent.ShowMessage(
-                                "Failed to save settings: ${error.message}",
-                                NotificationType.ERROR
-                            )
-                        )
-                    }
-                )
-            }
+            receipt.await().fold(
+                success = { _eventChannel.send(SettingsEvent.ShowMessage("Settings saved", NotificationType.SUCCESS)) },
+                failure = { error -> _eventChannel.send(SettingsEvent.ShowMessage("Failed to save settings: ${error.message}", NotificationType.ERROR)) }
+            )
         }
     }
+
+    /** Accepts the complete save sequence in the application scope, independent of its waiter. */
+    fun submitDraftSave(afterCommit: suspend () -> Unit = {}): Deferred<Result<Unit, SettingsError>> {
+        val snapshot = _state.value
+        return accept {
+        saveMutex.withLock {
+            val result = if (!snapshot.isDirty) Ok(Unit) else {
+                val configToSave = snapshot.workingConfiguration
+                _state.update { it.copy(isSaving = true) }
+                settingsRepository.updateConfiguration(configToSave).also { saved ->
+                    saved.fold(
+                        success = {
+                            committedRevision.incrementAndGet()
+                            rememberOwnWrite(configToSave)
+                            _state.update { it.copy(originalConfiguration = configToSave,
+                                isDirty = it.workingConfiguration != configToSave, isSaving = false) }
+                        },
+                        failure = {
+                            logger.error("Failed to save configuration")
+                            _state.update { it.copy(isSaving = false) }
+                        }
+                    )
+                }
+            }
+            result.fold(success = { afterCommit() }, failure = {})
+            result
+        }
+        }
+    }
+
+    /** Waits for the result of this accepted request. */
+    suspend fun saveDraftAndAwait(): Result<Unit, SettingsError> = submitDraftSave().await()
 
     /** Persists an external quick action without committing an unrelated settings draft. */
     private fun launchScopedSave(
         update: (Configuration) -> Configuration,
         onSuccess: (Configuration) -> Unit
     ) {
-        scope.launch {
-            saveMutex.withLock { performScopedSave(update, onSuccess, notify = true) }
-        }
+        accept { saveMutex.withLock { performScopedSave(update, onSuccess, notify = true) } }
     }
 
     /**
@@ -298,6 +372,8 @@ class SettingsStore(
         _state.update { it.copy(isSaving = true) }
         return settingsRepository.updateConfiguration(configToSave).fold(
             success = {
+                committedRevision.incrementAndGet()
+                rememberOwnWrite(configToSave)
                 _state.update { current ->
                     val workingConfiguration = if (current.isDirty) {
                         update(current.workingConfiguration)
@@ -313,22 +389,22 @@ class SettingsStore(
                 }
                 onSuccess(configToSave)
                 if (notify) {
-                    _eventChannel.send(
+                    scope.launch { _eventChannel.send(
                         SettingsEvent.ShowMessage("Settings saved", NotificationType.SUCCESS)
-                    )
+                    ) }
                 }
                 true
             },
             failure = { error ->
-                logger.error("Failed to save configuration: ${error.message}")
+                logger.error("Failed to save configuration")
                 _state.update { it.copy(isSaving = false) }
                 if (notify) {
-                    _eventChannel.send(
+                    scope.launch { _eventChannel.send(
                         SettingsEvent.ShowMessage(
                             "Failed to save settings: ${error.message}",
                             NotificationType.ERROR
                         )
-                    )
+                    ) }
                 }
                 false
             }

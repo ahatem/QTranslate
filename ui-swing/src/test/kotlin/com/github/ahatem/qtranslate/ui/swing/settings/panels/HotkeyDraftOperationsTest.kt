@@ -17,7 +17,7 @@ class HotkeyDraftOperationsTest {
 
     @Test
     fun `legacy and modern presets identify independently of action order`() {
-        assertEquals(HotkeyPresetKind.LEGACY, HotkeyPresets.identify(HotkeyBinding.DEFAULTS))
+        assertEquals(HotkeyPresetKind.LEGACY, HotkeyPresets.identify(HotkeyBinding.LEGACY_DEFAULTS))
         assertEquals(HotkeyPresetKind.LEGACY, HotkeyPresets.identify(HotkeyPresets.LEGACY.reversed()))
         assertEquals(HotkeyPresetKind.MODERN, HotkeyPresets.identify(HotkeyPresets.MODERN.shuffled()))
     }
@@ -227,6 +227,27 @@ class HotkeyDraftOperationsTest {
         assertEquals(KeyEvent.VK_M, binding.keyCode)
         assertEquals(InputEvent.CTRL_DOWN_MASK or InputEvent.ALT_DOWN_MASK, binding.modifiers)
         assertFalse(binding.isDoubleCtrlEnabled)
+    }
+
+    @Test
+    fun `capture action scope cannot be toggled`() {
+        val capture = HotkeyBinding(
+            action = HotkeyAction.OCR_ACTION_COPY_TEXT,
+            keyCode = KeyEvent.VK_C,
+            modifiers = InputEvent.CTRL_DOWN_MASK,
+            scope = HotkeyScope.CAPTURE,
+        )
+        val config = Configuration.DEFAULT.copy(
+            ocrHotkeys = Configuration.DEFAULT.ocrHotkeys.filterNot { it.action == capture.action } + capture,
+        )
+
+        val unchanged = HotkeyDraftOperations.toggleScope(config, capture.action)
+
+        assertEquals(config, unchanged)
+        assertEquals(
+            HotkeyScope.CAPTURE,
+            unchanged.effectiveHotkeys.single { it.action == capture.action }.scope,
+        )
     }
 
     @Test

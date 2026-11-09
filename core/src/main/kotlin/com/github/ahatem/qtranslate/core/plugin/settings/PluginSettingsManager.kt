@@ -92,8 +92,10 @@ internal class PluginSettingsManager(
 
             result
         } catch (e: Exception) {
-            logger.error("Unexpected exception applying settings for plugin '$pluginId'", e)
-            Err(ServiceError.UnknownError(e.message ?: "Unknown error applying settings", e))
+            // Provider code can throw with arbitrary text; the log and the returned error keep
+            // only the failure class, never the exception message.
+            logger.error("Unexpected exception applying settings for plugin '$pluginId' (${e::class.simpleName})")
+            Err(ServiceError.UnknownError("Applying settings failed (${e::class.simpleName})", e))
         }
     }
 

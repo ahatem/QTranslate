@@ -1,0 +1,55 @@
+# This is a Gradle generated file for dependency locking.
+# Manual edits can break the build and are not advised.
+# This file is expected to be part of source control.
+# To regenerate this file, run: ./gradlew :buildSrc:dependencies --write-locks
+com.google.code.gson:gson:2.11.0=buildScriptClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testRuntimeClasspath
+com.google.errorprone:error_prone_annotations:2.27.0=buildScriptClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testRuntimeClasspath
+org.apiguardian:apiguardian-api:1.1.2=testCompileClasspath
+org.jetbrains.kotlin:fus-statistics-gradle-plugin:2.4.21=buildScriptClasspath,compileClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-assignment-compiler-plugin-embeddable:2.4.10=kotlinCompilerPluginClasspathMain,kotlinCompilerPluginClasspathTest
+org.jetbrains.kotlin:kotlin-build-statistics:2.4.21=buildScriptClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-build-tools-api:2.4.10=kotlinBuildToolsApiClasspath
+org.jetbrains.kotlin:kotlin-build-tools-api:2.4.21=buildScriptClasspath,compileClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-build-tools-compat:2.4.10=kotlinBuildToolsApiClasspath
+org.jetbrains.kotlin:kotlin-build-tools-cri-impl:2.4.10=kotlinBuildToolsApiClasspath
+org.jetbrains.kotlin:kotlin-build-tools-impl:2.4.10=kotlinBuildToolsApiClasspath
+org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10=kotlinBuildToolsApiClasspath
+org.jetbrains.kotlin:kotlin-compiler-runner:2.4.10=kotlinBuildToolsApiClasspath
+org.jetbrains.kotlin:kotlin-compiler-runner:2.4.21=buildScriptClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-daemon-client:2.4.10=kotlinBuildToolsApiClasspath
+org.jetbrains.kotlin:kotlin-daemon-client:2.4.21=buildScriptClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-daemon-embeddable:2.4.10=kotlinBuildToolsApiClasspath
+org.jetbrains.kotlin:kotlin-gradle-plugin-annotations:2.4.21=buildScriptClasspath,compileClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-gradle-plugin-api:2.4.21=buildScriptClasspath,compileClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-gradle-plugin-idea-proto:2.4.21=buildScriptClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-gradle-plugin-idea:2.4.21=buildScriptClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21=buildScriptClasspath,compileClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-gradle-plugins-bom:2.4.21=buildScriptClasspath,compileClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-klib-commonizer-api:2.4.21=buildScriptClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-native-utils:2.4.21=buildScriptClasspath,compileClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-reflect:1.6.10=kotlinBuildToolsApiClasspath
+org.jetbrains.kotlin:kotlin-reflect:2.4.10=compileClasspath,precompiledScriptPluginAccessorsGenerationClasspath,testCompileClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-sam-with-receiver-compiler-plugin-embeddable:2.4.10=kotlinCompilerPluginClasspathMain,kotlinCompilerPluginClasspathTest
+org.jetbrains.kotlin:kotlin-script-runtime:2.4.10=compilePluginsBlocksPluginClasspathElements,kotlinBuildToolsApiClasspath,kotlinCompilerPluginClasspathMain,kotlinCompilerPluginClasspathTest
+org.jetbrains.kotlin:kotlin-scripting-common:2.4.10=compilePluginsBlocksPluginClasspathElements,kotlinCompilerPluginClasspathMain,kotlinCompilerPluginClasspathTest
+org.jetbrains.kotlin:kotlin-scripting-compiler-embeddable:2.4.10=compilePluginsBlocksPluginClasspathElements,kotlinCompilerPluginClasspathMain,kotlinCompilerPluginClasspathTest
+org.jetbrains.kotlin:kotlin-scripting-compiler-impl-embeddable:2.4.10=compilePluginsBlocksPluginClasspathElements,kotlinCompilerPluginClasspathMain,kotlinCompilerPluginClasspathTest
+org.jetbrains.kotlin:kotlin-scripting-jvm:2.4.10=compilePluginsBlocksPluginClasspathElements,kotlinCompilerPluginClasspathMain,kotlinCompilerPluginClasspathTest
+org.jetbrains.kotlin:kotlin-stdlib:2.4.10=compileClasspath,compilePluginsBlocksPluginClasspathElements,kotlinBuildToolsApiClasspath,kotlinCompilerPluginClasspathMain,kotlinCompilerPluginClasspathTest,precompiledScriptPluginAccessorsGenerationClasspath,testCompileClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-test-junit5:2.4.10=testCompileClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-test:2.4.10=testCompileClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-tooling-core:2.4.10=kotlinBuildToolsApiClasspath
+org.jetbrains.kotlin:kotlin-tooling-core:2.4.21=buildScriptClasspath,compileClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-util-io:2.4.21=buildScriptClasspath,compileClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-util-klib-metadata:2.4.21=buildScriptClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-util-klib:2.4.21=buildScriptClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testRuntimeClasspath
+org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.8.0=buildScriptClasspath,kotlinBuildToolsApiClasspath,precompiledScriptPluginAccessorsGenerationClasspath,runtimeClasspath,testRuntimeClasspath
+org.jetbrains:annotations:13.0=compileClasspath,compilePluginsBlocksPluginClasspathElements,kotlinBuildToolsApiClasspath,kotlinCompilerPluginClasspathMain,kotlinCompilerPluginClasspathTest,precompiledScriptPluginAccessorsGenerationClasspath,testCompileClasspath,testRuntimeClasspath
+org.junit.jupiter:junit-jupiter-api:5.10.1=testCompileClasspath,testRuntimeClasspath
+org.junit.jupiter:junit-jupiter-engine:5.10.1=testRuntimeClasspath
+org.junit.platform:junit-platform-commons:1.10.1=testCompileClasspath,testRuntimeClasspath
+org.junit.platform:junit-platform-engine:1.10.1=testRuntimeClasspath
+org.junit.platform:junit-platform-launcher:1.10.1=testRuntimeClasspath
+org.junit:junit-bom:5.10.1=testCompileClasspath,testRuntimeClasspath
+org.opentest4j:opentest4j:1.3.0=testCompileClasspath,testRuntimeClasspath
+empty=kotlinScriptDefExtensions,testKotlinScriptDefExtensions

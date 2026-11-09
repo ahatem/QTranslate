@@ -14,18 +14,18 @@ import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 import com.github.ahatem.qtranslate.core.history.HistoryRepository
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.core.main.domain.usecase.CheckForUpdatesUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.FetchInlineDefinitionUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.HandleTextToSpeechUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.LookupWordUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.OcrAndTranslateUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.ParallelComparisonUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.LookupWordUseCase
+import com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.ParallelComparisonUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.PerformSpellCheckUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.RewriteUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.SearchImagesUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.RewriteUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.SearchImagesUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SelectActiveServiceUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.SummarizeUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.SummarizeUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SwapLanguagesUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateTextUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslateTextUseCase
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
@@ -39,6 +39,7 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
@@ -315,6 +316,33 @@ class InstantComparisonResultsTest {
         }
     }
 
+    @Test
+    fun `history undo redo blank and restore preserve navigation and invalidate comparisons`() = runTest {
+        val fixture = Fixture(this, LayoutPresetIds.COMPARISON)
+        try {
+            fixture.store.dispatch(MainIntent.UpdateInputText("hello"))
+            advanceUntilIdle()
+            val snapshot = fixture.store.state.value.history.last()
+            assertEquals(1, fixture.store.state.value.comparisonResults.size)
+
+            fixture.store.dispatch(MainIntent.UndoTranslation)
+            assertEquals(snapshot.inputText, fixture.store.state.value.inputText)
+            assertTrue(fixture.store.state.value.comparisonResults.isEmpty())
+            fixture.store.dispatch(MainIntent.RedoTranslation)
+            assertEquals("", fixture.store.state.value.inputText)
+            assertEquals("", fixture.store.state.value.translatedText)
+            assertTrue(fixture.store.state.value.comparisonResults.isEmpty())
+
+            fixture.store.dispatch(MainIntent.UpdateInputText("world"))
+            advanceUntilIdle()
+            assertEquals(1, fixture.store.state.value.comparisonResults.size)
+            fixture.store.dispatch(MainIntent.RestoreHistoryEntry(snapshot))
+            assertEquals(snapshot.inputText, fixture.store.state.value.inputText)
+            assertEquals(snapshot.translatedText, fixture.store.state.value.translatedText)
+            assertTrue(fixture.store.state.value.comparisonResults.isEmpty())
+        } finally { fixture.cleanUp() }
+    }
+
     private companion object {
         /**
          * How many debounce-sized virtual-time steps an awaited state may take.
@@ -350,9 +378,9 @@ class InstantComparisonResultsTest {
         val comparisonTranslators: List<Translator> = listOf(EchoTranslator("bing")),
         disabledServices: Set<String> = emptySet(),
     ) {
-        private val scope = CoroutineScope(
-            SupervisorJob() + testScope.coroutineContext[ContinuationInterceptor]!!
-        )
+        private val testDispatcher =
+            testScope.coroutineContext[ContinuationInterceptor] as CoroutineDispatcher
+        private val scope = CoroutineScope(SupervisorJob() + testDispatcher)
         private val directory = Files.createTempDirectory("qtranslate-instant-comparison").toFile()
         private val httpClient = HttpClient()
         private val primary = EchoTranslator("t", fail = primaryFails)
@@ -379,7 +407,14 @@ class InstantComparisonResultsTest {
         val store = MainStore(
             scope = scope,
             settingsState = settings,
-            historyRepository = HistoryRepository(directory, SILENT_LOGGER, Json),
+            historyRepository = HistoryRepository(
+                directory,
+                SILENT_LOGGER,
+                Json,
+                // History persistence runs on the storage dispatcher; without this the save escapes
+                // the test scheduler and advanceUntilIdle() returns before the entry is recorded.
+                persistenceDispatcher = testDispatcher,
+            ),
             checkForUpdatesUseCase = CheckForUpdatesUseCase(
                 currentVersion = "0.0.0",
                 settingsState = settings,
@@ -400,18 +435,23 @@ class InstantComparisonResultsTest {
                 scope = scope,
                 settingsState = settings,
                 activeServiceManager = manager,
-                historyRepository = HistoryRepository(directory, SILENT_LOGGER, Json),
+                historyRepository = HistoryRepository(
+                    directory,
+                    SILENT_LOGGER,
+                    Json,
+                    persistenceDispatcher = testDispatcher,
+                ),
                 summarizeUseCase = SummarizeUseCase(manager, SILENT_FACTORY),
                 rewriteUseCase = RewriteUseCase(manager, SILENT_FACTORY),
                 loggerFactory = SILENT_FACTORY,
                 parallelComparisonUseCase = ParallelComparisonUseCase(scope, manager, SILENT_FACTORY),
             ),
             swapLanguagesUseCase = SwapLanguagesUseCase(),
-            ocrAndTranslateUseCase = OcrAndTranslateUseCase(manager, SILENT_FACTORY),
+            ocrExtractionUseCase = OcrExtractionUseCase(manager, SILENT_FACTORY),
             summarizeUseCase = SummarizeUseCase(manager, SILENT_FACTORY),
             rewriteUseCase = RewriteUseCase(manager, SILENT_FACTORY),
-            lookupWordUseCase = LookupWordUseCase(scope, manager, SILENT_FACTORY),
-            searchImagesUseCase = SearchImagesUseCase(scope, manager, SILENT_FACTORY),
+            lookupWordUseCase = LookupWordUseCase(manager, SILENT_FACTORY),
+            searchImagesUseCase = SearchImagesUseCase(manager, SILENT_FACTORY),
             fetchInlineDefinitionUseCase = FetchInlineDefinitionUseCase(scope, manager, SILENT_FACTORY),
             documentTranslationUseCase = DocumentTranslationUseCase(manager, SILENT_FACTORY),
         )

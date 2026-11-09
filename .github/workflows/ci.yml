@@ -68,7 +68,7 @@ jobs:
   # missing a resource the released artifact carries.
   macos-helper:
     name: Build macOS helpers
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 20
 
     steps:
@@ -302,7 +302,7 @@ jobs:
 
   macos-candidate:
     name: macOS portable candidate
-    runs-on: macos-14
+    runs-on: macos-15
     needs: release-variants
     timeout-minutes: 15
 

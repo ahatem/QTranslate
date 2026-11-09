@@ -64,9 +64,20 @@ public sealed class PluginSettings {
  * containing the fully qualified class name of your implementation.
  *
  * ### Threading Model
- * All lifecycle methods are called sequentially from a single dedicated background
- * thread managed by the core. Implementations **do not** need to be internally
- * thread-safe with respect to these calls.
+ * Lifecycle methods for one plugin instance are serialized by the host: a callback is not entered
+ * while another lifecycle callback on the same instance is still running. Application shutdown
+ * also refuses to start teardown while an accepted transition is still inside a callback; if
+ * that transition outlives the host's settle bound, it owns the instance until the callback
+ * returns and finalizes it then.
+ *
+ * The one exception is a callback the host abandoned at its own timeout. A blocking lifecycle
+ * method cannot be stopped from outside, so its body may still be running in the background
+ * after the host has moved on. Do not block indefinitely in a lifecycle method.
+ *
+ * The calls are made from background threads managed by the core, but not necessarily the same
+ * thread every time. These methods are `suspend`, so a call may also resume on a different
+ * thread inside its own body. Do not rely on thread affinity or thread-local storage.
+ * Implementations **do not** need to be internally thread-safe with respect to these calls.
  *
  * For any background work a plugin needs to initiate itself (polling, keep-alive pings,
  * background sync), use the [PluginContext.scope] coroutine scope provided during

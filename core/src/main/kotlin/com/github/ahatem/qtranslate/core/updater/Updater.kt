@@ -120,13 +120,13 @@ class Updater(
                 )
             )
         } catch (e: io.ktor.serialization.JsonConvertException) {
-            logger.error("Failed to parse GitHub release response", e)
+            logger.error("Failed to parse GitHub release response: ${e::class.simpleName}")
             Err(UpdaterError.ParseError("Could not parse release data: ${e.message}", e))
         } catch (e: SerializationException) {
-            logger.error("Failed to parse GitHub release response", e)
+            logger.error("Failed to parse GitHub release response: ${e::class.simpleName}")
             Err(UpdaterError.ParseError("Could not parse release data: ${e.message}", e))
         } catch (e: Exception) {
-            logger.error("Failed to fetch latest release from $repoOwner/$repoName", e)
+            logger.error("Failed to fetch latest release from $repoOwner/$repoName: ${e::class.simpleName}")
             Err(UpdaterError.NetworkError("Network error during update check: ${e.message}", e))
         }
 }

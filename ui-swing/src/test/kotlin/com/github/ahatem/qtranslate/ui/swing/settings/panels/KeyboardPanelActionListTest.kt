@@ -108,6 +108,13 @@ class KeyboardPanelActionListTest {
             HotkeyAction.SHOW_QUICK_TRANSLATE,
             HotkeyAction.LISTEN_TO_TEXT,
             HotkeyAction.OPEN_OCR,
+            HotkeyAction.OCR_SHOW_ACTIONS,
+            HotkeyAction.OCR_TRANSLATE,
+            HotkeyAction.OCR_TRANSLATE_QUICK,
+            HotkeyAction.OCR_TRANSLATE_MAIN,
+            HotkeyAction.OCR_OPEN_WORKSPACE,
+            HotkeyAction.OCR_COPY_TEXT,
+            HotkeyAction.OCR_COPY_IMAGE,
             HotkeyAction.REPLACE_WITH_TRANSLATION,
             HotkeyAction.CYCLE_TARGET_LANGUAGE,
             HotkeyAction.SHOW_DICTIONARY,
@@ -121,7 +128,13 @@ class KeyboardPanelActionListTest {
             HotkeyAction.SWAP_LANGUAGES,
             HotkeyAction.OPEN_SETTINGS,
             HotkeyAction.SHOW_HISTORY,
-            HotkeyAction.TRANSLATE_DOCUMENT
+            HotkeyAction.TRANSLATE_DOCUMENT,
+            HotkeyAction.OCR_ACTION_TRANSLATE,
+            HotkeyAction.OCR_ACTION_COPY_TEXT,
+            HotkeyAction.OCR_ACTION_COPY_IMAGE,
+            HotkeyAction.OCR_ACTION_SAVE_IMAGE,
+            HotkeyAction.OCR_ACTION_RECROP,
+            HotkeyAction.OCR_ACTION_CANCEL,
         )
 
         assertEquals(bindableInOrder, renderedTable().actions(), "row order is what a row index maps back to")
@@ -144,7 +157,27 @@ class KeyboardPanelActionListTest {
     fun `every row arrives with the default binding for a distinct action`() {
         val bindings = renderedTable().bindings()
 
-        val unbound = bindings.indices.filter { bindings[it]?.hasBinding != true }
+        // Specialized OCR workflows ship deliberately unassigned: they are screen-wide gestures
+        // and must not take more key combinations from other applications by default. Every other
+        // listed action must still arrive bound.
+        val intentionallyUnassigned = setOf(
+            HotkeyAction.OCR_SHOW_ACTIONS,
+            HotkeyAction.OCR_TRANSLATE,
+            HotkeyAction.OCR_TRANSLATE_QUICK,
+            HotkeyAction.OCR_TRANSLATE_MAIN,
+            HotkeyAction.OCR_OPEN_WORKSPACE,
+            HotkeyAction.OCR_COPY_TEXT,
+            HotkeyAction.OCR_COPY_IMAGE,
+            HotkeyAction.OCR_ACTION_TRANSLATE,
+            HotkeyAction.OCR_ACTION_COPY_TEXT,
+            HotkeyAction.OCR_ACTION_COPY_IMAGE,
+            HotkeyAction.OCR_ACTION_SAVE_IMAGE,
+            HotkeyAction.OCR_ACTION_RECROP,
+            HotkeyAction.OCR_ACTION_CANCEL,
+        )
+        val unbound = bindings.indices.filter { index ->
+            bindings[index]?.action !in intentionallyUnassigned && bindings[index]?.hasBinding != true
+        }
         assertTrue(unbound.isEmpty(), "a listed action should arrive with a default binding: rows $unbound")
 
         val actions = bindings.map { it?.action }

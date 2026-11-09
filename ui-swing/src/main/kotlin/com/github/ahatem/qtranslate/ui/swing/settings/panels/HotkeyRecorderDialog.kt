@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
+import com.github.ahatem.qtranslate.ui.swing.snippingtool.isReservedBareCaptureKey
 import java.awt.*
 import java.awt.event.*
 import javax.swing.*
@@ -48,6 +49,7 @@ internal object HotkeyRecorderDialog {
         var liveModifiers     = 0
         var isErrorState      = false
         var errorKeyCode      = 0
+        var isReservedError   = false
 
         // ── dialog ──────────────────────────────────────────────────────────
         val dialog = JDialog(
@@ -63,6 +65,13 @@ internal object HotkeyRecorderDialog {
             HotkeyAction.SHOW_QUICK_TRANSLATE     -> localizer.getString("settings_hotkeys.action_quick_translate")
             HotkeyAction.LISTEN_TO_TEXT           -> localizer.getString("settings_hotkeys.action_listen")
             HotkeyAction.OPEN_OCR                 -> localizer.getString("settings_hotkeys.action_ocr")
+            HotkeyAction.OCR_SHOW_ACTIONS         -> localizer.getString("settings_hotkeys.action_ocr_show_actions")
+            HotkeyAction.OCR_TRANSLATE            -> localizer.getString("settings_hotkeys.action_ocr_translate")
+            HotkeyAction.OCR_TRANSLATE_QUICK      -> localizer.getString("settings_hotkeys.action_ocr_translate_quick")
+            HotkeyAction.OCR_TRANSLATE_MAIN       -> localizer.getString("settings_hotkeys.action_ocr_translate_main")
+            HotkeyAction.OCR_OPEN_WORKSPACE       -> localizer.getString("settings_hotkeys.action_ocr_workspace")
+            HotkeyAction.OCR_COPY_TEXT            -> localizer.getString("settings_hotkeys.action_ocr_copy_text")
+            HotkeyAction.OCR_COPY_IMAGE           -> localizer.getString("settings_hotkeys.action_ocr_copy_image")
             HotkeyAction.REPLACE_WITH_TRANSLATION -> localizer.getString("settings_hotkeys.action_replace")
             HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizer.getString("settings_hotkeys.action_cycle_language")
             HotkeyAction.SHOW_DICTIONARY          -> localizer.getString("settings_hotkeys.action_show_dictionary")
@@ -77,6 +86,12 @@ internal object HotkeyRecorderDialog {
             HotkeyAction.OPEN_SETTINGS            -> localizer.getString("settings_hotkeys.action_open_settings")
             HotkeyAction.SHOW_HISTORY             -> localizer.getString("settings_hotkeys.action_show_history")
             HotkeyAction.TRANSLATE_DOCUMENT       -> localizer.getString("settings_hotkeys.action_translate_document")
+            HotkeyAction.OCR_ACTION_TRANSLATE     -> localizer.getString("settings_hotkeys.action_capture_translate")
+            HotkeyAction.OCR_ACTION_COPY_TEXT     -> localizer.getString("settings_hotkeys.action_capture_copy_text")
+            HotkeyAction.OCR_ACTION_COPY_IMAGE    -> localizer.getString("settings_hotkeys.action_capture_copy_image")
+            HotkeyAction.OCR_ACTION_SAVE_IMAGE    -> localizer.getString("settings_hotkeys.action_capture_save_image")
+            HotkeyAction.OCR_ACTION_RECROP        -> localizer.getString("settings_hotkeys.action_capture_recrop")
+            HotkeyAction.OCR_ACTION_CANCEL        -> localizer.getString("settings_hotkeys.action_capture_cancel")
         }
 
         // ── colours ──────────────────────────────────────────────────────────
@@ -184,10 +199,14 @@ internal object HotkeyRecorderDialog {
         // The input field always shows plain normal text — only hintLabel changes colour.
         fun updateUI() {
             when {
-                isErrorState -> {
+                isErrorState || isReservedError -> {
                     inputField.font = captureFont
                     inputField.text = KeyEvent.getKeyText(errorKeyCode)
-                    hintLabel.text       = "⚠  ${localizer.getString("settings_hotkeys.recorder_invalid_key")}"
+                    hintLabel.text       = if (isReservedError) {
+                        "⚠  ${localizer.getString("settings_hotkeys.recorder_reserved_capture_key")}"
+                    } else {
+                        "⚠  ${localizer.getString("settings_hotkeys.recorder_invalid_key")}"
+                    }
                     hintLabel.foreground = errorFg
                     okButton.isEnabled   = false
                 }
@@ -232,11 +251,20 @@ internal object HotkeyRecorderDialog {
                 if (sk == null) { menu.addSeparator(); continue }
                 menu.add(JMenuItem("Set ${sk.name}").apply {
                     addActionListener {
-                        capturedKeyCode   = sk.keyCode
-                        capturedModifiers = sk.mods
-                        liveModifiers     = 0
-                        isCaptureDone     = true
-                        isErrorState      = false
+                        if (isReservedBareCaptureKey(action, sk.keyCode, sk.mods)) {
+                            errorKeyCode    = sk.keyCode
+                            isErrorState    = false
+                            isReservedError = true
+                            isCaptureDone   = false
+                            okButton.isEnabled = false
+                        } else {
+                            capturedKeyCode   = sk.keyCode
+                            capturedModifiers = sk.mods
+                            liveModifiers     = 0
+                            isCaptureDone     = true
+                            isErrorState      = false
+                            isReservedError   = false
+                        }
                         updateUI()
                         inputField.requestFocusInWindow()
                     }
@@ -250,6 +278,7 @@ internal object HotkeyRecorderDialog {
             override fun keyPressed(e: KeyEvent) {
                 e.consume()
                 isErrorState = false
+                isReservedError = false
 
                 val resolvedKeyCode = when {
                     e.keyCode != KeyEvent.VK_UNDEFINED -> e.keyCode
@@ -292,11 +321,18 @@ internal object HotkeyRecorderDialog {
                     }
 
                     else -> {
-                        // Valid main key — capture the full combination
-                        capturedKeyCode   = resolvedKeyCode
-                        capturedModifiers = e.modifiersEx
-                        liveModifiers     = 0
-                        isCaptureDone     = true
+                        if (isReservedBareCaptureKey(action, resolvedKeyCode, e.modifiersEx)) {
+                            errorKeyCode    = resolvedKeyCode
+                            isReservedError = true
+                            isCaptureDone   = false
+                            okButton.isEnabled = false
+                        } else {
+                            // Valid main key — capture the full combination
+                            capturedKeyCode   = resolvedKeyCode
+                            capturedModifiers = e.modifiersEx
+                            liveModifiers     = 0
+                            isCaptureDone     = true
+                        }
                         updateUI()
                     }
                 }

@@ -6,17 +6,24 @@ import com.formdev.flatlaf.util.FontUtils
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.main.mvi.MainEvent
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
+import com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase
+import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
+import com.github.ahatem.qtranslate.core.ocr.OcrWorkflowCommand
+import com.github.ahatem.qtranslate.core.ocr.ocrWorkflowCommand
+import com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.plugin.storage.AppSecretStore
 import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
 import com.github.ahatem.qtranslate.core.settings.data.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
+import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
@@ -50,6 +57,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.layout.DockRoomPlanner
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
 import com.github.ahatem.qtranslate.ui.swing.main.lookup.AutoLookupCoordinator
 import com.github.ahatem.qtranslate.ui.swing.main.menus.*
+import com.github.ahatem.qtranslate.ui.swing.ocr.OcrWorkspaceDialog
 import com.github.ahatem.qtranslate.ui.swing.quicktranslate.QuickTranslateDialog
 import com.github.ahatem.qtranslate.ui.swing.quicktranslate.LoadingIndicator
 import com.github.ahatem.qtranslate.ui.swing.quicktranslate.LoadingIndicatorState
@@ -74,7 +82,6 @@ import javax.imageio.ImageIO
 import javax.swing.*
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.connectedScreenBounds
-import com.github.ahatem.qtranslate.ui.swing.shared.util.isPositionReachable
 import java.util.Locale
 
 class MainAppFrame(
@@ -86,6 +93,11 @@ class MainAppFrame(
     private val localizer: LocalizationManager,
     private val notificationBus: NotificationBus,
     private val logger: Logger,
+    /**
+     * Shared OCR extraction for the Workspace. The main capture workflow goes through
+     * [MainStore] instead. Null in screenshot-harness frames, which never open OCR.
+     */
+    private val ocrExtractionUseCase: OcrExtractionUseCase? = null,
     /**
      * Translates one string, used by the language editor to offer a suggestion for an untranslated
      * key. Optional so a frame can be built without a translator, which simply hides the action.
@@ -115,7 +127,16 @@ class MainAppFrame(
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("MainAppFrame"))
 
-    private var trayIcon: TrayIcon? = null
+    private val trayBinding = TrayIconBinding(logger)
+
+    /**
+     * Owns the window's saved bounds: what is written to settings on close/iconify, and
+     * where the window may be placed on restore. See [WindowPositionBinding].
+     */
+    private val windowPosition = WindowPositionBinding(
+        dispatchSettings = { settingsStore.dispatch(it) },
+        logger = logger,
+    )
 
     private val aboutDialog by lazy { InfoDialog(this) }
     private val updateDialog by lazy { UpdateDialog(this) }
@@ -255,6 +276,7 @@ class MainAppFrame(
         iconManager = iconManager,
         themeManager = themeManager,
         localizationManager = localizer,
+        ocrServiceCatalog = ocrServiceCatalog,
         availableLanguages = { mainStore.state.value.availableLanguages },
         availableTranslatorIds = { mainStore.state.value.availableTranslatorIds },
         translateString = translateString,
@@ -268,7 +290,8 @@ class MainAppFrame(
         localizer = localizer,
         dispatch = { mainStore.dispatch(it) },
         dispatchSettings = { settingsStore.dispatch(it) },
-        onOpenSnippingTool = { openSnippingTool() },
+        onOpenSnippingTool = { command -> openSnippingTool(command) },
+        onOpenOcrSettings = { openSettingsDialog(openToOcr = true) },
         onOpenDocumentTranslation = { file ->
             if (file != null) documentTranslationDialog.openWith(file) else documentTranslationDialog.open()
         },
@@ -359,6 +382,7 @@ class MainAppFrame(
             mainStore.dispatch(MainIntent.ListenToText(TextSource.Input, text))
         },
         onOpenSnippingTool = { openSnippingTool() },
+        onOpenOcrWorkflow = { command -> openSnippingTool(command) },
         onReplaceWithTranslation = { text ->
             mainStore.dispatch(MainIntent.ReplaceWithTranslation(text))
         },
@@ -454,6 +478,33 @@ class MainAppFrame(
     )
 
     /**
+     * Routes file drops to what the app does with them. The wiring that installs the same
+     * routing on every surface stays with [setupDropTarget]; the decision lives here.
+     */
+    private val contentDropRouter = ContentDropRouter(
+        dispatch = { mainStore.dispatch(it) },
+        openDocument = { file -> documentTranslationDialog.openWith(file) },
+    )
+
+    /**
+     * The ordered local teardown every exit route converges on through `windowClosed`.
+     * See [FrameExitSequence] for why the steps run in this order and why the bounds are
+     * captured only after them.
+     */
+    private val frameExit = FrameExitSequence(
+        shutdownGlobalInput = { globalKeyListener.shutdown() },
+        disposeSelectionButton = { selectionTranslateButton.dispose() },
+        disposeTray = { trayBinding.dispose() },
+        disposeOwnedUtilityWindows = {
+            ocrWorkspaceDialog?.shutdownNow()
+            ocrWorkspaceDialog?.dispose()
+        },
+        cancelFrameScope = { appScope.cancel() },
+        captureBounds = { Size(width, height) to Position(x, y) },
+        onApplicationExit = onApplicationExit,
+    )
+
+    /**
      * True while a child owns Escape for its own dismissal, so the main-window
      * hide binding stays out of the way. Covers lightweight popups/menus in this
      * window (same focused window) and visible owned dialogs.
@@ -467,35 +518,36 @@ class MainAppFrame(
     /**
      * Closes any floating popup the user has just clicked away from.
      *
-     * Driven by the native hook rather than by an AWT listener. The click that dismisses a popup
-     * almost always lands in another application — the document being read — and AWT never sees
-     * those: it only delivers events destined for this program's own windows. An AWT-based
-     * version of this appeared to work when clicking on QTranslate itself and did nothing at all
-     * in the case that matters.
-     *
-     * Pinned popups are left alone, which is the point of pinning.
+     * Driven by the native hook rather than by an AWT listener — see
+     * [PopupDismissalPolicy] for why, and for what counts as "outside".
      */
     private fun dismissPopupsPressedOutside(screenPoint: java.awt.Point) {
-        if (!settingsStore.state.value.workingConfiguration.closePopupsOnClickOutside) return
         val state = mainStore.state.value
-
-        fun pressedOutside(dialog: java.awt.Window) = dialog.isVisible && !dialog.bounds.contains(screenPoint)
-
-        if (state.isQuickTranslateDialogVisible && !state.isQuickTranslateDialogPinned &&
-            pressedOutside(quickTranslateDialog)
-        ) {
-            mainStore.dispatch(MainIntent.HideQuickTranslate)
-        }
-        if (state.isQuickDictionaryVisible && !state.isQuickDictionaryPinned &&
-            pressedOutside(quickDictionaryDialog)
-        ) {
-            mainStore.dispatch(MainIntent.HideQuickDictionary)
-        }
-        if (state.isImageSearchVisible && !state.isImageSearchPinned &&
-            pressedOutside(imageSearchDialog)
-        ) {
-            mainStore.dispatch(MainIntent.HideImageSearch)
-        }
+        val dismissals = PopupDismissalPolicy.dismissals(
+            closePopupsOnClickOutside = settingsStore.state.value.workingConfiguration.closePopupsOnClickOutside,
+            screenPoint = screenPoint,
+            popups = listOf(
+                PopupDismissalPolicy.Popup(
+                    visibleInState = state.isQuickTranslateDialogVisible,
+                    pinned = state.isQuickTranslateDialogPinned,
+                    window = { PopupDismissalPolicy.WindowSnapshot(quickTranslateDialog.isVisible) { quickTranslateDialog.bounds } },
+                    hideIntent = MainIntent.HideQuickTranslate,
+                ),
+                PopupDismissalPolicy.Popup(
+                    visibleInState = state.isQuickDictionaryVisible,
+                    pinned = state.isQuickDictionaryPinned,
+                    window = { PopupDismissalPolicy.WindowSnapshot(quickDictionaryDialog.isVisible) { quickDictionaryDialog.bounds } },
+                    hideIntent = MainIntent.HideQuickDictionary,
+                ),
+                PopupDismissalPolicy.Popup(
+                    visibleInState = state.isImageSearchVisible,
+                    pinned = state.isImageSearchPinned,
+                    window = { PopupDismissalPolicy.WindowSnapshot(imageSearchDialog.isVisible) { imageSearchDialog.bounds } },
+                    hideIntent = MainIntent.HideImageSearch,
+                ),
+            ),
+        )
+        dismissals.forEach { mainStore.dispatch(it) }
     }
 
     private val statusBarController: StatusBarController = StatusBarController(
@@ -513,7 +565,7 @@ class MainAppFrame(
         val storeState = settingsStore.state.value
         globalKeyListener.updateRuntimeState(
             InputRuntimeState(
-                bindings = storeState.originalConfiguration.hotkeys,
+                bindings = storeState.originalConfiguration.effectiveHotkeys,
                 globalHotkeysEnabled = storeState.workingConfiguration.isGlobalHotkeysEnabled,
                 selectionCaptureEnabled = storeState.originalConfiguration.selectionBehavior.selectionCaptureEnabled,
                 dismissOnOutsideClickEnabled = storeState.workingConfiguration.closePopupsOnClickOutside
@@ -633,139 +685,13 @@ class MainAppFrame(
             )
         }
 
-        // Main content and QuickTranslate dialog rendering
-        appScope.launch(handler) {
-            mainStore.state.combine(settingsStore.state) { m, s -> m to s }
-                .distinctUntilChanged()
-                .collect { (mainState, settingsState) ->
-                    withContext(Dispatchers.Swing) {
-                        try {
-                            // Filter available languages by pinned list (Yan's request).
-                            // If pinnedLanguages is empty, show all languages.
-                            val filteredState = run {
-                                val pinned = settingsState.workingConfiguration.pinnedLanguages
-                                if (pinned.isEmpty()) mainState
-                                else mainState.copy(
-                                    availableLanguages = mainState.availableLanguages.filter {
-                                        it.tag == "auto" || it.tag in pinned
-                                    }
-                                )
-                            }
-                            mainContentView.render(filteredState, settingsState)
-
-                            if (mainState.isQuickTranslateDialogVisible || quickTranslateDialog.isVisible) {
-                                val dialogState = buildQuickTranslateDialogState(
-                                    mainState,
-                                    settingsState.workingConfiguration,
-                                    localizer
-                                )
-                                quickTranslateDialog.render(dialogState)
-                            }
-
-                            if (mainState.isQuickDictionaryVisible || quickDictionaryDialog.isVisible) {
-                                quickDictionaryDialog.render(
-                                    buildQuickDictionaryDialogState(
-                                        mainState = mainState,
-                                        config = settingsState.workingConfiguration,
-                                        localizer = localizer,
-                                        onLookup = { word ->
-                                            mainStore.dispatch(MainIntent.LookupWord(word, mainState.resolvedSourceLanguage))
-                                        },
-                                        onListen = { word -> listenToLookedUpWord(word) },
-                                        onStopListening = { mainStore.dispatch(MainIntent.StopTTS) },
-                                        onDictionarySelected = { serviceId ->
-                                            settingsStore.dispatch(
-                                                SettingsIntent.UpdateServiceInActivePreset(
-                                                    ServiceRole.DICTIONARY, serviceId
-                                                )
-                                            )
-                                            val currentWord = mainStore.state.value.dictionaryWord
-                                            if (currentWord.isNotBlank()) {
-                                                mainStore.dispatch(
-                                                    MainIntent.LookupWord(currentWord, mainState.resolvedSourceLanguage)
-                                                )
-                                            }
-                                        },
-                                        onPinToggled = {
-                                            mainStore.dispatch(MainIntent.ToggleQuickDictionaryPin)
-                                        },
-                                        onClose = { mainStore.dispatch(MainIntent.HideQuickDictionary) },
-                                        onSavePosition = { position ->
-                                            settingsStore.dispatch(
-                                                SettingsIntent.ToggleSetting {
-                                                    it.copy(quickDictionaryLastKnownPosition = position)
-                                                }
-                                            )
-                                            settingsStore.dispatch(SettingsIntent.SaveChanges)
-                                        },
-                                        onSaveSize = { size ->
-                                            settingsStore.dispatch(
-                                                SettingsIntent.ToggleSetting {
-                                                    it.copy(quickDictionaryLastKnownSize = size)
-                                                }
-                                            )
-                                            settingsStore.dispatch(SettingsIntent.SaveChanges)
-                                        }
-                                    )
-                                )
-                            }
-
-                            if (mainState.isImageSearchVisible || imageSearchDialog.isVisible) {
-                                imageSearchDialog.render(
-                                    buildImageSearchDialogState(
-                                        mainState = mainState,
-                                        config = settingsState.workingConfiguration,
-                                        localizer = localizer,
-                                        onSearch = { term ->
-                                            mainStore.dispatch(
-                                                MainIntent.SearchImages(term, mainState.resolvedSourceLanguage)
-                                            )
-                                        },
-                                        onServiceSelected = { serviceId ->
-                                            settingsStore.dispatch(
-                                                SettingsIntent.UpdateServiceInActivePreset(
-                                                    ServiceRole.IMAGE_SEARCH, serviceId
-                                                )
-                                            )
-                                            val term = mainStore.state.value.imageSearchTerm
-                                            if (term.isNotBlank()) {
-                                                mainStore.dispatch(
-                                                    MainIntent.SearchImages(term, mainState.resolvedSourceLanguage)
-                                                )
-                                            }
-                                        },
-                                        onImageOpened = { result ->
-                                            openUrl(result.sourceUrl ?: result.fullUrl)
-                                        },
-                                        onPinToggled = {
-                                            mainStore.dispatch(MainIntent.ToggleImageSearchPin)
-                                        },
-                                        onClose = { mainStore.dispatch(MainIntent.HideImageSearch) },
-                                        onSavePosition = { position ->
-                                            settingsStore.dispatch(
-                                                SettingsIntent.ToggleSetting {
-                                                    it.copy(imageSearchLastKnownPosition = position)
-                                                }
-                                            )
-                                            settingsStore.dispatch(SettingsIntent.SaveChanges)
-                                        },
-                                        onSaveSize = { size ->
-                                            settingsStore.dispatch(
-                                                SettingsIntent.ToggleSetting {
-                                                    it.copy(imageSearchLastKnownSize = size)
-                                                }
-                                            )
-                                            settingsStore.dispatch(SettingsIntent.SaveChanges)
-                                        }
-                                    )
-                                )
-                            }
-                        } catch (e: Exception) {
-                            logger.error("Failed to render UI", e)
-                        }
-                    }
-                }
-        }
+        // Main content and QuickTranslate dialog rendering. The observer owns the Swing
+        // dispatcher so a snapshot cannot be rendered after a newer input event (#413).
+        MainStateRenderObserver(
+            scope = appScope,
+            mainState = mainStore.state,
+            settingsState = settingsStore.state,
+        ).start(handler, ::renderMainState)
 
         // Loading indicator — show when:
         // a) quick translate is loading (main window hidden, no dialog visible), OR
@@ -850,41 +776,61 @@ class MainAppFrame(
         // Single collector for all MainEvents — avoids channel-race where two separate
         // filterIsInstance collectors compete and one silently drops events it doesn't match.
         appScope.launch(handler) {
-            mainStore.events.collect { event ->
-                when (event) {
-                    is MainEvent.UpdateStatusBar -> withContext(Dispatchers.Swing) {
-                        statusBarController.handleEvent(event)
-                    }
-                    is MainEvent.PasteTranslation -> if (event.translatedText.isNotBlank()) {
-                        pasteTextToActiveApp(event.translatedText)
-                    }
-                    is MainEvent.ShowUpdateDialog -> withContext(Dispatchers.Swing) {
-                        showUpdateDialog(NotificationCode.UpdateAvailable(
-                            newVersion = event.newVersion,
-                            currentVersion = event.currentVersion,
-                            releaseNotes = event.releaseNotes,
-                            downloadUrl = event.downloadUrl,
-                            releaseUrl = event.releaseUrl
-                        ))
-                    }
-                    is MainEvent.CopyToClipboard -> withContext(Dispatchers.Swing) {
-                        // Clipboard contention must not turn a successful translation into a failure.
-                        runCatching {
-                            Toolkit.getDefaultToolkit().systemClipboard
-                                .setContents(StringSelection(event.text), null)
-                        }.onFailure { error ->
-                            logger.warn("Failed to copy text to the clipboard: ${error.message}")
+            mainStore.eventDeliveries.collect { delivery ->
+                withContext(Dispatchers.Swing) {
+                    val event = delivery.accept() ?: return@withContext
+                    when (event) {
+                        is MainEvent.UpdateStatusBar -> {
+                            statusBarController.handleEvent(event)
                         }
-                    }
-                    is MainEvent.DocumentTranslationCompleted -> withContext(Dispatchers.Swing) {
-                        documentTranslationDialog.complete(event.outputFile)
-                    }
-                    is MainEvent.DocumentTranslationFailed -> withContext(Dispatchers.Swing) {
-                        documentTranslationDialog.fail(event.message)
+                        is MainEvent.PasteTranslation -> if (event.translatedText.isNotBlank()) {
+                            pasteTextToActiveApp(event.translatedText)
+                        }
+                        is MainEvent.ShowUpdateDialog -> {
+                            showUpdateDialog(NotificationCode.UpdateAvailable(
+                                newVersion = event.newVersion,
+                                currentVersion = event.currentVersion,
+                                releaseNotes = event.releaseNotes,
+                                downloadUrl = event.downloadUrl,
+                                releaseUrl = event.releaseUrl
+                            ))
+                        }
+                        is MainEvent.CopyToClipboard -> {
+                            // Clipboard contention must not turn a successful translation into a failure.
+                            runCatching {
+                                Toolkit.getDefaultToolkit().systemClipboard
+                                    .setContents(StringSelection(event.text), null)
+                            }.onFailure { error ->
+                                logger.warn("Failed to copy text to the clipboard: ${error.message}")
+                            }
+                        }
+                        is MainEvent.CopyImageToClipboard -> {
+                            copyImageToClipboard(event.image)
+                        }
+                        is MainEvent.OpenOcrWorkspace -> {
+                            openOcrWorkspace(
+                                image = event.image,
+                                autoTranslate = event.autoTranslate,
+                                initialText = event.initialText,
+                                initialRegions = event.initialRegions,
+                                initialLanguage = event.initialLanguage,
+                                ocrToken = event.ocrToken,
+                            )
+                        }
+                        MainEvent.ShowMainWindow -> {
+                            showAndFocus()
+                        }
+                        is MainEvent.DocumentTranslationCompleted -> {
+                            documentTranslationDialog.complete(event.outputFile)
+                        }
+                        is MainEvent.DocumentTranslationFailed -> {
+                            documentTranslationDialog.fail(event.message)
+                        }
                     }
                 }
             }
         }
+
 
         // Donation nudge — track successful translations in-memory; show once at 500.
         // Uses scan() to detect isLoading true→false transitions that produced output.
@@ -928,7 +874,7 @@ class MainAppFrame(
             settingsStore.state
                 .map { state ->
                     InputRuntimeState(
-                        bindings = state.originalConfiguration.hotkeys,
+                        bindings = state.originalConfiguration.effectiveHotkeys,
                         globalHotkeysEnabled = state.originalConfiguration.isGlobalHotkeysEnabled,
                         selectionCaptureEnabled = state.originalConfiguration.selectionBehavior.selectionCaptureEnabled,
                         dismissOnOutsideClickEnabled = state.workingConfiguration.closePopupsOnClickOutside
@@ -1022,6 +968,131 @@ class MainAppFrame(
     }
 
     /**
+     * Renders everything the main state feeds: the main content and any open lookup popups.
+     * Always called by [MainStateRenderObserver] on the Swing dispatcher.
+     */
+    private fun renderMainState(mainState: MainState, settingsState: SettingsState) {
+        try {
+            // Filter available languages by pinned list (Yan's request), for the
+            // main window and the quick translate popup alike.
+            val filteredState = mainState.withPinnedLanguages(
+                settingsState.workingConfiguration.pinnedLanguages
+            )
+            mainContentView.render(filteredState, settingsState)
+
+            if (mainState.isQuickTranslateDialogVisible || quickTranslateDialog.isVisible) {
+                val dialogState = buildQuickTranslateDialogState(
+                    filteredState,
+                    settingsState.workingConfiguration,
+                    localizer
+                )
+                quickTranslateDialog.render(dialogState)
+            }
+
+            if (mainState.isQuickDictionaryVisible || quickDictionaryDialog.isVisible) {
+                quickDictionaryDialog.render(
+                    buildQuickDictionaryDialogState(
+                        mainState = mainState,
+                        config = settingsState.workingConfiguration,
+                        localizer = localizer,
+                        onLookup = { word ->
+                            mainStore.dispatch(MainIntent.LookupWord(word, mainState.resolvedSourceLanguage))
+                        },
+                        onListen = { word -> listenToLookedUpWord(word) },
+                        onStopListening = { mainStore.dispatch(MainIntent.StopTTS) },
+                        onDictionarySelected = { serviceId ->
+                            settingsStore.dispatch(
+                                SettingsIntent.UpdateServiceInActivePreset(
+                                    ServiceRole.DICTIONARY, serviceId
+                                )
+                            )
+                            val currentWord = mainStore.state.value.dictionaryWord
+                            if (currentWord.isNotBlank()) {
+                                mainStore.dispatch(
+                                    MainIntent.LookupWord(currentWord, mainState.resolvedSourceLanguage)
+                                )
+                            }
+                        },
+                        onPinToggled = {
+                            mainStore.dispatch(MainIntent.ToggleQuickDictionaryPin)
+                        },
+                        onClose = { mainStore.dispatch(MainIntent.HideQuickDictionary) },
+                        onSavePosition = { position ->
+                            settingsStore.dispatch(
+                                SettingsIntent.ToggleSetting {
+                                    it.copy(quickDictionaryLastKnownPosition = position)
+                                }
+                            )
+                            settingsStore.dispatch(SettingsIntent.SaveChanges)
+                        },
+                        onSaveSize = { size ->
+                            settingsStore.dispatch(
+                                SettingsIntent.ToggleSetting {
+                                    it.copy(quickDictionaryLastKnownSize = size)
+                                }
+                            )
+                            settingsStore.dispatch(SettingsIntent.SaveChanges)
+                        }
+                    )
+                )
+            }
+
+            if (mainState.isImageSearchVisible || imageSearchDialog.isVisible) {
+                imageSearchDialog.render(
+                    buildImageSearchDialogState(
+                        mainState = mainState,
+                        config = settingsState.workingConfiguration,
+                        localizer = localizer,
+                        onSearch = { term ->
+                            mainStore.dispatch(
+                                MainIntent.SearchImages(term, mainState.resolvedSourceLanguage)
+                            )
+                        },
+                        onServiceSelected = { serviceId ->
+                            settingsStore.dispatch(
+                                SettingsIntent.UpdateServiceInActivePreset(
+                                    ServiceRole.IMAGE_SEARCH, serviceId
+                                )
+                            )
+                            val term = mainStore.state.value.imageSearchTerm
+                            if (term.isNotBlank()) {
+                                mainStore.dispatch(
+                                    MainIntent.SearchImages(term, mainState.resolvedSourceLanguage)
+                                )
+                            }
+                        },
+                        onImageOpened = { result ->
+                            openUrl(result.sourceUrl ?: result.fullUrl)
+                        },
+                        onPinToggled = {
+                            mainStore.dispatch(MainIntent.ToggleImageSearchPin)
+                        },
+                        onClose = { mainStore.dispatch(MainIntent.HideImageSearch) },
+                        onSavePosition = { position ->
+                            settingsStore.dispatch(
+                                SettingsIntent.ToggleSetting {
+                                    it.copy(imageSearchLastKnownPosition = position)
+                                }
+                            )
+                            settingsStore.dispatch(SettingsIntent.SaveChanges)
+                        },
+                        onSaveSize = { size ->
+                            settingsStore.dispatch(
+                                SettingsIntent.ToggleSetting {
+                                    it.copy(imageSearchLastKnownSize = size)
+                                }
+                            )
+                            settingsStore.dispatch(SettingsIntent.SaveChanges)
+                        }
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to render UI", e)
+        }
+    }
+
+    /**
      * Registers LOCAL-scope hotkeys via Swing InputMap/ActionMap.
      * These only fire when QTranslate has focus — they never intercept keys
      * from other applications. Called after globalKeyListener.initialize() and
@@ -1076,8 +1147,113 @@ class MainAppFrame(
         mainContentView.requestFocusOnInput()
     }
 
-    private fun openSnippingTool() {
+    /**
+     * Opens or refreshes the single OCR Workspace. The dialog owns OCR work; closing it returns
+     * here through [onClosed], so a later workflow creates a fresh store rather than reviving a
+     * disposed window.
+     */
+    private fun openOcrWorkspace(
+        image: ImageData,
+        autoTranslate: Boolean,
+        initialText: String? = null,
+        initialRegions: List<com.github.ahatem.qtranslate.api.ocr.OCRTextRegion> = emptyList(),
+        initialLanguage: LanguageCode? = null,
+        ocrToken: Long? = null,
+    ) {
+        val extraction = ocrExtractionUseCase
+        if (extraction == null) {
+            logger.warn("OCR Workspace requested without an extraction use case")
+            return
+        }
+        val existing = ocrWorkspaceDialog?.takeIf { !it.isWorkspaceClosed() }
+        val dialog = existing ?: run {
+            lateinit var created: OcrWorkspaceDialog
+            created = OcrWorkspaceDialog(
+                owner = null,
+                mainStore = mainStore,
+                settingsStore = settingsStore,
+                localizer = localizer,
+                extraction = extraction,
+                catalog = ocrServiceCatalog,
+                onCaptureRequested = {
+                    val workspace = ocrWorkspaceDialog
+                    workspace?.isVisible = false
+                    openSnippingTool(
+                        command = OcrWorkflowCommand.OPEN_WORKSPACE,
+                        onCapturedImage = { captured ->
+                            ocrWorkspaceDialog
+                                ?.takeIf { !it.isWorkspaceClosed() }
+                                ?.openCapturedImage(
+                                    image = captured,
+                                    label = localizer.getString("ocr_workspace.captured_label"),
+                                )
+                        },
+                        onDismissedWithoutWorkspace = {
+                            val target = ocrWorkspaceDialog
+                            if (target != null && !target.isWorkspaceClosed() && target.isVisible.not()) {
+                                target.isVisible = true
+                                target.toFront()
+                            }
+                        },
+                    )
+                },
+                onShowMainWindow = { showAndFocus() },
+                onOpenSettings = { openSettingsDialog(openToOcr = true) },
+                onClosed = {
+                    // Clear only the exact instance that closed: an older close must not drop a
+                    // newer workspace reference.
+                    if (ocrWorkspaceDialog === created) ocrWorkspaceDialog = null
+                },
+            )
+            created.applyComponentOrientation(
+                if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
+                else ComponentOrientation.LEFT_TO_RIGHT
+            )
+            ocrWorkspaceDialog = created
+            created
+        }
+        dialog.openImage(
+            image = image,
+            label = localizer.getString("ocr_workspace.captured_label"),
+            autoTranslate = autoTranslate,
+            ocrToken = ocrToken,
+            initialText = initialText,
+            initialRegions = initialRegions,
+            initialLanguage = initialLanguage,
+        )
+    }
+
+    private fun copyImageToClipboard(image: ImageData) {
+        runCatching {
+            val decoded = ImageIO.read(java.io.ByteArrayInputStream(image.bytes))
+                ?: return@runCatching
+            Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                object : java.awt.datatransfer.Transferable {
+                    override fun getTransferDataFlavors() = arrayOf(java.awt.datatransfer.DataFlavor.imageFlavor)
+                    override fun isDataFlavorSupported(flavor: java.awt.datatransfer.DataFlavor) =
+                        flavor == java.awt.datatransfer.DataFlavor.imageFlavor
+                    override fun getTransferData(flavor: java.awt.datatransfer.DataFlavor): Any {
+                        if (!isDataFlavorSupported(flavor)) {
+                            throw java.awt.datatransfer.UnsupportedFlavorException(flavor)
+                        }
+                        return decoded
+                    }
+                },
+                null,
+            )
+        }.onFailure { error ->
+            logger.warn("Failed to copy OCR image to the clipboard: ${error.message}")
+        }
+    }
+
+    private fun openSnippingTool(
+        command: OcrWorkflowCommand = OcrWorkflowCommand.DEFAULT,
+        onDismissedWithoutWorkspace: () -> Unit = {},
+        onCapturedImage: ((java.awt.image.BufferedImage) -> Unit)? = null,
+    ) {
+        val workspaceToRestore = ocrWorkspaceDialog?.takeIf { it.isVisible }
         runOnUi {
+            workspaceToRestore?.isVisible = false
             isVisible = false
             state = ICONIFIED
             toBack()
@@ -1086,7 +1262,21 @@ class MainAppFrame(
         appScope.launch {
             delay(200)
             withContext(Dispatchers.Swing) {
-                SnippingToolDialog(this@MainAppFrame, mainStore)
+                SnippingToolDialog(
+                    owner = this@MainAppFrame,
+                    mainStore = mainStore,
+                    settingsStore = settingsStore,
+                    localizer = localizer,
+                    command = command,
+                    onDismissedWithoutWorkspace = {
+                        onDismissedWithoutWorkspace()
+                        if (workspaceToRestore?.isDisplayable == true) {
+                            workspaceToRestore.isVisible = true
+                            workspaceToRestore.toFront()
+                        }
+                    },
+                    onCapturedImage = onCapturedImage,
+                )
             }
         }
     }
@@ -1211,51 +1401,27 @@ class MainAppFrame(
     }
 
     private fun setupTrayMenu() {
-        if (!SystemTray.isSupported()) return
-
-        val tray = SystemTray.getSystemTray()
-        val iconsList = applicationIcons
-
-        if (iconsList.isEmpty()) {
-            logger.error("Failed to load any tray icons")
-            return
-        }
-
-        val multiResImage = java.awt.image.BaseMultiResolutionImage(*iconsList.toTypedArray())
-
-        trayIcon = TrayIcon(multiResImage, "QTranslate").apply {
-            isImageAutoSize = true
-            toolTip = "QTranslate"
-
-            addMouseListener(object : MouseAdapter() {
-                override fun mouseReleased(e: MouseEvent) {
-                    if (e.isPopupTrigger) {
-                        val menu = createTrayPopupMenu()
-                        val dummy = JFrame().apply {
-                            isUndecorated = true
-                            isVisible = true
-                            setLocation(e.xOnScreen, e.yOnScreen)
-                        }
-                        menu.show(dummy, 0, 0)
-                        dummy.dispose()
-                        menu.setLocation(e.xOnScreen, e.yOnScreen - menu.height)
+        trayBinding.install(applicationIcons, object : MouseAdapter() {
+            override fun mouseReleased(e: MouseEvent) {
+                if (e.isPopupTrigger) {
+                    val menu = createTrayPopupMenu()
+                    val dummy = JFrame().apply {
+                        isUndecorated = true
+                        isVisible = true
+                        setLocation(e.xOnScreen, e.yOnScreen)
                     }
+                    menu.show(dummy, 0, 0)
+                    dummy.dispose()
+                    menu.setLocation(e.xOnScreen, e.yOnScreen - menu.height)
                 }
+            }
 
-                override fun mouseClicked(e: MouseEvent) {
-                    if (e.button == MouseEvent.BUTTON1 && e.clickCount == 1) {
-                        runOnUi { showAndFocus() }
-                    }
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.button == MouseEvent.BUTTON1 && e.clickCount == 1) {
+                    runOnUi { showAndFocus() }
                 }
-            })
-        }
-
-        try {
-            tray.add(trayIcon!!)
-        } catch (e: AWTException) {
-            logger.error("Failed to add tray icon", e)
-            trayIcon = null
-        }
+            }
+        })
     }
 
     private fun createTrayPopupMenu(): JPopupMenu {
@@ -1366,12 +1532,7 @@ class MainAppFrame(
              * shutdown finishes off the EDT the frame may already be disposed.
              */
             override fun windowClosed(e: WindowEvent?) {
-                globalKeyListener.shutdown()
-                selectionTranslateButton.dispose()
-                trayIcon?.let { SystemTray.getSystemTray().remove(it) }
-                trayIcon = null
-                appScope.cancel()
-                onApplicationExit(Size(width, height), Position(x, y))
+                frameExit.exit()
             }
         })
         // Global hotkeys must work even when the frame starts hidden in the tray (#226):
@@ -1384,14 +1545,7 @@ class MainAppFrame(
     private fun saveWindowBounds() {
         val s = size
         val p = location
-        settingsStore.dispatch(
-            SettingsIntent.ToggleSetting {
-                it.copy(
-                    mainWindowSize = Size(s.width, s.height),
-                    mainWindowPosition = Position(p.x, p.y)
-                )
-            }
-        )
+        windowPosition.persistBounds(s.width, s.height, p.x, p.y)
     }
 
     /**
@@ -1399,18 +1553,17 @@ class MainAppFrame(
      *
      * A position saved on a display that is no longer attached restores a window that is running
      * and focusable and entirely invisible, which is indistinguishable from the application having
-     * failed to start.
+     * failed to start. [WindowPositionBinding] makes the reachability decision; this only
+     * applies it.
      */
     private fun restorePosition(saved: Position?) {
         if (saved == null) {
             setLocationRelativeTo(null)
             return
         }
-        if (isPositionReachable(Rectangle(saved.x, saved.y, width, height), connectedScreenBounds())) {
-            setLocation(saved.x, saved.y)
-        } else {
-            logger.info("Saved window position (${saved.x}, ${saved.y}) is off every connected display; centring instead")
-            setLocationRelativeTo(null)
+        when (val placement = windowPosition.restorePlacement(saved, width, height, connectedScreenBounds())) {
+            is WindowRestorePlacement.At -> setLocation(placement.position.x, placement.position.y)
+            WindowRestorePlacement.Centered -> setLocationRelativeTo(null)
         }
     }
 
@@ -1424,10 +1577,20 @@ class MainAppFrame(
      *   the dialog never appears again.
      */
     private fun handleCloseButton() {
-        when (settingsStore.state.value.originalConfiguration.closeButtonBehavior) {
-            CloseButtonBehavior.MINIMIZE_TO_TRAY -> isVisible = false
-            CloseButtonBehavior.EXIT -> dispose()
-            CloseButtonBehavior.ASK -> showCloseDialog()
+        applyCloseAction(
+            CloseButtonPolicy.decide(settingsStore.state.value.originalConfiguration.closeButtonBehavior)
+        )
+    }
+
+    /**
+     * Applies one close decision. [CloseButtonAction.EXIT] disposes the frame, which fires
+     * `windowClosed` exactly once and converges on [frameExit].
+     */
+    private fun applyCloseAction(action: CloseButtonAction) {
+        when (action) {
+            CloseButtonAction.HIDE_TO_TRAY -> isVisible = false
+            CloseButtonAction.EXIT -> dispose()
+            CloseButtonAction.ASK -> showCloseDialog()
         }
     }
 
@@ -1511,19 +1674,12 @@ class MainAppFrame(
         dialog.setLocationRelativeTo(this)
         dialog.isVisible = true
 
-        when (result) {
-            CloseButtonBehavior.MINIMIZE_TO_TRAY -> {
-                if (rememberCheck.isSelected) saveClosePreference(CloseButtonBehavior.MINIMIZE_TO_TRAY)
-                isVisible = false
+        when (val outcome = CloseDialogPolicy.outcome(result, rememberCheck.isSelected)) {
+            CloseDialogOutcome.Dismiss -> Unit
+            is CloseDialogOutcome.Apply -> {
+                if (outcome.rememberChoice) saveClosePreference(outcome.behavior)
+                applyCloseAction(CloseButtonPolicy.decide(outcome.behavior))
             }
-
-            CloseButtonBehavior.EXIT -> {
-                if (rememberCheck.isSelected) saveClosePreference(CloseButtonBehavior.EXIT)
-                dispose()
-            }
-
-            CloseButtonBehavior.ASK -> {}
-            null -> {}
         }
     }
 
@@ -1620,15 +1776,7 @@ class MainAppFrame(
      * pointer and inserts there.
      */
     private fun setupDropTarget() {
-        val onContent: (DroppedContent) -> Unit = { content ->
-            when (content) {
-                is DroppedContent.Picture ->
-                    mainStore.dispatch(MainIntent.OcrAndTranslateImage(content.image.toImageData("png")))
-                is DroppedContent.Document ->
-                    SwingUtilities.invokeLater { documentTranslationDialog.openWith(content.file) }
-                DroppedContent.None -> Unit
-            }
-        }
+        val onContent: (DroppedContent) -> Unit = { content -> contentDropRouter.route(content) }
         val onDragOver = { dragOverlay.keepShowing() }
         val onDropped = { dragOverlay.hide() }
 
@@ -1646,7 +1794,7 @@ class MainAppFrame(
         val saved = settingsStore.state.value.originalConfiguration
         globalKeyListener.updateRuntimeState(
             InputRuntimeState(
-                bindings = saved.hotkeys,
+                bindings = saved.effectiveHotkeys,
                 globalHotkeysEnabled = config.isGlobalHotkeysEnabled,
                 selectionCaptureEnabled = saved.selectionBehavior.selectionCaptureEnabled,
                 dismissOnOutsideClickEnabled = config.closePopupsOnClickOutside

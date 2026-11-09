@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.snippingtool
 
+import java.awt.Dimension
 import java.awt.Point
 import java.awt.Rectangle
 import java.awt.event.MouseAdapter
@@ -10,7 +11,17 @@ import kotlin.math.min
 
 class ScreenCaptureController(
     private var currentState: ScreenCaptureState,
-    private val onStateChanged: (newState: ScreenCaptureState) -> Unit
+    private val onStateChanged: (newState: ScreenCaptureState) -> Unit,
+    /** Panel-local drawing bounds. Defaults to the screenshot's pixel size for tests. */
+    private val selectionBounds: () -> Dimension = {
+        Dimension(currentState.screenshot.width, currentState.screenshot.height)
+    },
+    /**
+     * Called after the user first finishes drawing a valid rectangle. [shiftDown] is the
+     * modifier state at release, used as the documented path back to the action toolbar when an
+     * immediate post-selection action is configured.
+     */
+    private val onSelectionCommitted: ((shiftDown: Boolean) -> Unit)? = null,
 ) : MouseAdapter() {
 
     companion object {
@@ -20,6 +31,7 @@ class ScreenCaptureController(
     private var dragStartPoint: Point? = null
     private var dragStartSelection: Rectangle? = null
     private var activeMouseAction = MouseAction.NONE
+    private var creatingSelection = false
 
     fun updateState(newState: ScreenCaptureState) {
         this.currentState = newState
@@ -33,6 +45,7 @@ class ScreenCaptureController(
         dragStartPoint = null
         dragStartSelection = null
         activeMouseAction = MouseAction.NONE
+        creatingSelection = false
         onStateChanged(
             currentState.copy(
                 mode = CaptureMode.IDLE,
@@ -51,15 +64,22 @@ class ScreenCaptureController(
         when (currentState.mode) {
             CaptureMode.IDLE -> {
                 activeMouseAction = MouseAction.CROSSHAIR
+                creatingSelection = true
+                val bounds = selectionBounds()
+                val start = Point(
+                    e.x.coerceIn(0, max(0, bounds.width)),
+                    e.y.coerceIn(0, max(0, bounds.height)),
+                )
                 val newState = currentState.copy(
                     mode = CaptureMode.SELECTING,
-                    selection = Rectangle(e.x, e.y, 0, 0),
+                    selection = Rectangle(start.x, start.y, 0, 0),
                     showButtons = false
                 )
                 onStateChanged(newState)
             }
 
             CaptureMode.SELECTED -> {
+                creatingSelection = false
                 activeMouseAction = determineMouseAction(e.point, currentSelection!!)
                 dragStartSelection = Rectangle(currentSelection)
                 val newState = currentState.copy(showButtons = false)
@@ -77,7 +97,7 @@ class ScreenCaptureController(
             MouseAction.CROSSHAIR -> createSelectionFromPoints(start, e.point)
             MouseAction.MOVE -> moveSelection(dragStartSelection!!, start, e.point)
             else -> resizeSelection(dragStartSelection!!, start, e.point, activeMouseAction)
-        }
+        }.let { CaptureGeometry.clampSelection(it, selectionBounds()) }
 
         onStateChanged(currentState.copy(selection = newSelection))
     }
@@ -85,6 +105,8 @@ class ScreenCaptureController(
     override fun mouseReleased(e: MouseEvent) {
         dragStartPoint = null
         dragStartSelection = null
+        val committed = creatingSelection
+        creatingSelection = false
 
         val newMode =
             if (currentState.selection != null && currentState.selection!!.width > 0 && currentState.selection!!.height > 0) {
@@ -103,6 +125,9 @@ class ScreenCaptureController(
                 buttonsPosition = null
             )
         )
+        if (committed && newMode == CaptureMode.SELECTED) {
+            onSelectionCommitted?.invoke(e.isShiftDown)
+        }
     }
 
     override fun mouseMoved(e: MouseEvent) {

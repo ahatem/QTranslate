@@ -27,6 +27,7 @@ import io.ktor.http.*
 import io.ktor.http.content.ByteArrayContent
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.util.reflect.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -185,10 +186,12 @@ internal class KtorHttpClient(
             }
             handleResponse(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            logger.error("POST request timeout for $url", e)
+            logger.error("POST request timeout")
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            logger.error("POST request failed for $url", e)
+            logger.error("POST request failed")
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -230,10 +233,12 @@ internal class KtorHttpClient(
             }
             handleResponse(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            logger.error("GET request timeout for $url", e)
+            logger.error("GET request timeout")
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            logger.error("GET request failed for $url", e)
+            logger.error("GET request failed")
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -270,10 +275,12 @@ internal class KtorHttpClient(
 
             handleResponse(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            logger.error("POST form request timeout for $url", e)
+            logger.error("POST form request timeout")
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            logger.error("POST form request failed for $url", e)
+            logger.error("POST form request failed")
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -312,10 +319,12 @@ internal class KtorHttpClient(
 
             handleResponseBytes(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            logger.error("POST form bytes request timeout for $url", e)
+            logger.error("POST form bytes request timeout")
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            logger.error("POST form bytes request failed for $url", e)
+            logger.error("POST form bytes request failed")
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -412,10 +421,12 @@ internal class KtorHttpClient(
             }
             handleResponseBytes(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            logger.error("GET bytes request timeout for $url", e)
+            logger.error("GET bytes request timeout")
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            logger.error("GET bytes request failed for $url", e)
+            logger.error("GET bytes request failed")
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -441,10 +452,12 @@ internal class KtorHttpClient(
             }
             handleResponseBytes(response, url)
         } catch (e: HttpRequestTimeoutException) {
-            logger.error("POST bytes request timeout for $url", e)
+            logger.error("POST bytes request timeout")
             Err(ServiceError.TimeoutError("Request timed out: $url", e))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            logger.error("POST bytes request failed for $url", e)
+            logger.error("POST bytes request failed")
             Err(ServiceError.NetworkError("Network error: ${e.message}", e))
         }
     }
@@ -486,8 +499,8 @@ internal class KtorHttpClient(
             )
 
             HttpStatusCode.PaymentRequired -> {
-                val errorBody = runCatching { response.bodyAsText() }.getOrDefault("")
-                logger.error("HTTP 402 (Payment Required) for $url — $errorBody")
+                val errorBody = readErrorBody(response)
+                logger.error("HTTP status=402 (Payment Required)")
                 Err(
                     ServiceError.AuthenticationError(
                         "Insufficient credits. " +
@@ -498,12 +511,28 @@ internal class KtorHttpClient(
             }
 
             else -> {
-                val errorBody = runCatching { response.bodyAsText() }.getOrDefault("")
-                logger.error("HTTP ${response.status.value} for $url — $errorBody")
+                val errorBody = readErrorBody(response)
+                logger.error("HTTP status=${response.status.value}")
                 Err(ServiceError.ServiceUnavailableError("HTTP ${response.status.value} for $url\n$errorBody"))
             }
         }
     }
+
+    /**
+     * Reads a non-2xx body for the error message.
+     *
+     * The read suspends, so a cancelled request must not be turned into "no body" here: the
+     * blanket swallow [runCatching] performs would let a cancelled coroutine finish as an
+     * ordinary failure instead of propagating.
+     */
+    private suspend fun readErrorBody(response: HttpResponse): String =
+        try {
+            response.bodyAsText()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            ""
+        }
 
     private suspend fun handleResponseBytes(
         response: HttpResponse,
@@ -520,8 +549,8 @@ internal class KtorHttpClient(
             )
 
             else -> {
-                val errorBody = runCatching { response.bodyAsText() }.getOrDefault("")
-                logger.error("HTTP ${response.status.value} for $url — $errorBody")
+                val errorBody = readErrorBody(response)
+                logger.error("HTTP status=${response.status.value}")
                 Err(ServiceError.ServiceUnavailableError("HTTP ${response.status.value} for $url\n$errorBody"))
             }
         }

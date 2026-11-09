@@ -79,7 +79,7 @@ class CheckForUpdatesUseCase(
                 }
             }
             .onErr { error ->
-                logger.error("Update check failed: ${error.message}", error.cause)
+                logger.error("Update check failed: ${error::class.simpleName}")
 
                 val code = when (error) {
                     is UpdaterError.NetworkError -> StatusCode.UpdateCheckNetworkError

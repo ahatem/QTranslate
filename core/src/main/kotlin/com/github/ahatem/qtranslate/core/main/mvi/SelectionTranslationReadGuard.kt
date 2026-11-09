@@ -1,6 +1,6 @@
 package com.github.ahatem.qtranslate.core.main.mvi
 
-import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslationCompletion
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslationCompletion
 
 /**
  * Keeps automatic speech tied to the selection and translation request that asked for it.

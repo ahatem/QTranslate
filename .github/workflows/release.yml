@@ -18,7 +18,7 @@ jobs:
   # the released ZIP and plugin JARs carry a working macOS backend.
   macos-helper:
     name: Build macOS Vision helper
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 20
 
     steps:

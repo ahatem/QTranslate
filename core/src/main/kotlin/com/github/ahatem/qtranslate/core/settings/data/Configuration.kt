@@ -168,7 +168,18 @@ data class Configuration(
     val disabledServices: Set<String> = emptySet(),
 
     // ---- Hotkeys ----
-    val hotkeys: List<HotkeyBinding> = HotkeyBinding.DEFAULTS,
+    /**
+     * Legacy (pre-OCR) bindings only, frozen to the v7 vocabulary. Post-v7 OCR rows
+     * live under [ocrHotkeys] so a downgrade to `develop` can still deserialize this
+     * list (unknown enum values abort decoding before the migrator runs).
+     */
+    val hotkeys: List<HotkeyBinding> = HotkeyBinding.LEGACY_DEFAULTS,
+    /**
+     * Post-v7 OCR workflow and capture-local bindings. Unknown to a pre-OCR build
+     * (`ignoreUnknownKeys`), so it round-trips losslessly on its own branch and is
+     * silently ignored — never half-read — by older builds.
+     */
+    val ocrHotkeys: List<HotkeyBinding> = HotkeyBinding.OCR_DEFAULTS,
 
     // ---- General Behaviour ----
     val launchOnSystemStartup: Boolean = false,
@@ -210,6 +221,10 @@ data class Configuration(
      */
     val summaryLength: String = StandardOptions.SUMMARY_LENGTH.defaultValue,
     val rewriteStyle: String = StandardOptions.REWRITE_STYLE.defaultValue,
+
+    // ---- OCR ----
+    /** Workflow, recognition and text-processing preferences for screen OCR. */
+    val ocr: OcrSettings = OcrSettings(),
 
     // ---- Translation ----
     /**
@@ -269,6 +284,9 @@ data class Configuration(
     val closePopupsOnClickOutside: Boolean = true,
     val mainWindowSize: Size? = null,
     val mainWindowPosition: Position? = null,
+    /** Last OCR Workspace size and position. Null means "place it once, then remember". */
+    val ocrWorkspaceSize: Size? = null,
+    val ocrWorkspacePosition: Position? = null,
     val uiFontConfig: FontConfig = FontConfig(name = "Inter", size = 13),
     val uiScale: Int = 100,
     val themeId: String = "os_default",
@@ -343,6 +361,10 @@ data class Configuration(
     // ---- Network ----
     val network: NetworkConfig = NetworkConfig()
 ) {
+    /** All bindable rows (legacy + OCR), ordered as [HotkeyBinding.DEFAULTS]. */
+    val effectiveHotkeys: List<HotkeyBinding>
+        get() = hotkeys + ocrHotkeys
+
     fun getActivePreset(): ServicePreset? =
         servicePresets.find { it.id == activeServicePresetId }
 
@@ -354,7 +376,8 @@ data class Configuration(
                 servicePresets               = listOf(defaultPreset),
                 activeServicePresetId        = defaultPreset.id,
                 disabledServices             = emptySet(),
-                hotkeys                      = HotkeyBinding.DEFAULTS,
+                hotkeys                      = HotkeyBinding.LEGACY_DEFAULTS,
+                ocrHotkeys                   = HotkeyBinding.OCR_DEFAULTS,
                 launchOnSystemStartup        = false,
                 isGlobalHotkeysEnabled       = true,
                 selectionBehavior            = SelectionBehavior.OFF,

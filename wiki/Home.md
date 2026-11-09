@@ -10,6 +10,7 @@ Welcome to the QTranslate documentation wiki.
 
 - [Installing Plugins](Installing-Plugins.md) — how to find, install, and configure plugins
 - [Hotkeys](Hotkeys.md) — global vs. app-local hotkeys, switching presets, and troubleshooting one that won't fire
+- [Screen OCR and the OCR Workspace](OCR.md) — fast OCR workflows, capture shortcuts, editable text, provider/language selection, and translation destinations
 - [System Services](System-Services.md) — the bundled offline OCR/TTS/spell-check plugin, and what each platform needs
 - [AI Services](AI-Services.md) — point translation, summarizing, rewriting, and Vision OCR at a local Ollama/LM Studio server or a cloud OpenAI-compatible endpoint
 - [Conversation Sessions](Conversation-Sessions.md) — record a Discord call, read the live transcript and translate any word by hovering it; set up speech-to-text with Groq, OpenAI, Deepgram or a local Whisper server

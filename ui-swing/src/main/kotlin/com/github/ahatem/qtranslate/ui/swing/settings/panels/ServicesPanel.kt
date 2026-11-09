@@ -151,7 +151,8 @@ class ServicesPanel(
             isOpaque = false
             addActionListener {
                 if (!isUpdatingFromState) {
-                    applyDraft(store) { it.withServiceRoleEnabled(role, isSelected) }
+                    val enabled = isSelected
+                    applyDraft(store) { it.withServiceRoleEnabled(role, enabled) }
                 }
             }
             serviceEnabledChecks[role] = this

@@ -22,6 +22,9 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.ui.swing.main.history.TranslationHistoryBar
 import com.github.ahatem.qtranslate.ui.swing.main.history.TranslationHistoryBarState
 import com.github.ahatem.qtranslate.ui.swing.main.history.TranslationHistoryBarStrings
+import com.github.ahatem.qtranslate.ui.swing.main.history.OcrSplitLabels
+import com.github.ahatem.qtranslate.core.ocr.OcrWorkflowCommand
+import com.github.ahatem.qtranslate.core.settings.data.OcrPostSelectionAction
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputTextPanel
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputTextState
 import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguageSelectionBar
@@ -77,7 +80,8 @@ class MainContentView(
     private val localizer: LocalizationManager,
     private val dispatch: (MainIntent) -> Unit,
     private val dispatchSettings: (SettingsIntent) -> Unit,
-    private val onOpenSnippingTool: () -> Unit,
+    private val onOpenSnippingTool: (OcrWorkflowCommand) -> Unit,
+    private val onOpenOcrSettings: () -> Unit,
     /**
      * Opens the document translation dialog, with [java.io.File] when one is already chosen --
      * a document pasted into the input pane, for instance.
@@ -100,7 +104,8 @@ class MainContentView(
         iconManager = iconManager,
         onBackward = { dispatch(MainIntent.UndoTranslation) },
         onForward = { dispatch(MainIntent.RedoTranslation) },
-        onImageTranslate = { onOpenSnippingTool() },
+        onImageTranslate = onOpenSnippingTool,
+        onOcrSettings = onOpenOcrSettings,
         onDocumentTranslate = { onOpenDocumentTranslation(null) },
     )
 
@@ -312,7 +317,7 @@ class MainContentView(
 
         updateTranslateKeyStroke(config)
         renderLookupDock(mainState, config)
-        renderComponents(mainState, config, effectiveLayoutId)
+        renderComponents(mainState, config, effectiveLayoutId, settingsState.originalConfiguration.ocr.postSelectionAction)
         lastState = mainState to settingsState
     }
 
@@ -326,7 +331,7 @@ class MainContentView(
      * and the frame-level local hotkey still answers it outside the text panes.
      */
     private fun updateTranslateKeyStroke(config: Configuration) {
-        val binding = config.hotkeys.find { it.action == HotkeyAction.TRANSLATE }
+        val binding = config.effectiveHotkeys.find { it.action == HotkeyAction.TRANSLATE }
         val requested = binding?.takeIf { it.isEnabled }?.toKeyStroke()
         if (requested == requestedTranslateKeyStroke) return
         requestedTranslateKeyStroke = requested
@@ -546,7 +551,7 @@ class MainContentView(
         }
     }
 
-    private fun renderComponents(mainState: MainState, config: Configuration, effectiveLayoutId: String) {
+    private fun renderComponents(mainState: MainState, config: Configuration, effectiveLayoutId: String, ocrDefault: OcrPostSelectionAction) {
         currentTargetLanguage = mainState.targetLanguage
 
         // BackwardTranslate output is in the source language; all other extra output types are in target.
@@ -578,7 +583,23 @@ class MainContentView(
                 strings = TranslationHistoryBarStrings(
                     backwardTooltip = localizer.getString("main_window_history_bar.backward_tooltip"),
                     forwardTooltip = localizer.getString("main_window_history_bar.forward_tooltip"),
-                    imageTranslateTooltip = localizer.getString("main_window_history_bar.image_translate_tooltip"),
+                    ocr = OcrSplitLabels(
+                        defaultTooltip = localizer.getString("ocr_workspace.default_tooltip", localizer.getString(when (ocrDefault) {
+                            OcrPostSelectionAction.SHOW_ACTIONS -> "settings_ocr.post_show_actions"
+                            OcrPostSelectionAction.TRANSLATE -> "settings_ocr.post_translate"
+                            OcrPostSelectionAction.COPY_TEXT -> "settings_ocr.post_copy_text"
+                            OcrPostSelectionAction.COPY_IMAGE -> "settings_ocr.post_copy_image"
+                            OcrPostSelectionAction.OPEN_WORKSPACE -> "settings_ocr.post_workspace"
+                        })),
+                        chooseAction = localizer.getString("ocr_workspace.choose_action"),
+                        showActions = localizer.getString("settings_ocr.post_show_actions"),
+                        translate = localizer.getString("screen_capture.translate"),
+                        translateTooltip = localizer.getString("main_window_history_bar.image_translate_tooltip"),
+                        copyText = localizer.getString("screen_capture.copy_text"),
+                        copyImage = localizer.getString("screen_capture.copy_image"),
+                        workspace = localizer.getString("settings_ocr.post_workspace"),
+                        settings = localizer.getString("ocr_workspace.settings"),
+                    ),
                     documentTranslateTooltip = localizer.getString("main_window_history_bar.document_translate_tooltip"),
                 ),
             )
@@ -745,9 +766,15 @@ class MainContentView(
                 fallbackFontConfig = config.scaledEditorFallbackFont,
                 activeType = config.extraOutputType,
                 // Every extra output is derived as part of a translation, so until one has
-                // landed there is nothing for this panel to show.
-                placeholderText = localizer.getString("extra_output.placeholder")
-                    .takeIf { mainState.translatedText.isBlank() },
+                // landed there is nothing for this panel to show. A failure keeps its message
+                // here instead of becoming text.
+                placeholderText = when {
+                    mainState.extraOutputFailed ->
+                        mainState.extraOutputFailure?.let(::extraOutputFailureText)
+                    else ->
+                        localizer.getString("extra_output.placeholder")
+                            .takeIf { mainState.translatedText.isBlank() }
+                },
 
                 labelBackward = localizer.getString("extra_output.label_backward"),
                 labelSummary = localizer.getString("extra_output.label_summary"),
@@ -910,6 +937,27 @@ class MainContentView(
             openDictionary(initialWord)
         }
     }
+
+    /** Resolves a typed secondary-output failure into the user's language. */
+    private fun extraOutputFailureText(failure: com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure): String =
+        when (failure) {
+            com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure.NoTranslator ->
+                localizer.getString("extra_output.error_no_translator")
+            com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure.NoSummarizer ->
+                localizer.getString("extra_output.error_no_summarizer")
+            com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure.NoRewriter ->
+                localizer.getString("extra_output.error_no_rewriter")
+            com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure.Timeout ->
+                localizer.getString("extra_output.error_timeout")
+            com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure.InvalidTarget ->
+                localizer.getString("extra_output.error_invalid_target")
+            is com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure.Provider ->
+                failure.summary?.takeIf { it.isNotBlank() }
+                    ?.let { localizer.getString("extra_output.error_provider", it) }
+                    ?: localizer.getString("extra_output.error_unknown")
+            com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure.Unexpected ->
+                localizer.getString("extra_output.error_unknown")
+        }
 
     private fun showImagesForWord(word: String, language: LanguageCode = currentLookupLanguage) =
         openImages(word, language)

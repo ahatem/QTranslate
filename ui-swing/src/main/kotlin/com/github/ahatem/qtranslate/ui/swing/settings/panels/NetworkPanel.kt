@@ -95,12 +95,12 @@ class NetworkPanel(
                 FlatClientProperties.PLACEHOLDER_TEXT,
                 localizationManager.getString("settings_network.proxy_url_placeholder")
             )
-            onEdit { applyNetwork { config -> config.copy(proxyUrl = text.trim()) } }
+            onEdit { val edited = text.trim(); applyNetwork { config -> config.copy(proxyUrl = edited) } }
         }
         addRow(localizationManager.getString("settings_network.proxy_url"), proxyUrlField)
 
         proxyUserField = JTextField().apply {
-            onEdit { applyNetwork { config -> config.copy(proxyUsername = text.trim()) } }
+            onEdit { val edited = text.trim(); applyNetwork { config -> config.copy(proxyUsername = edited) } }
         }
         addRow(localizationManager.getString("settings_network.proxy_username"), proxyUserField)
 
@@ -171,13 +171,13 @@ class NetworkPanel(
         )
         maxRetries = JSpinner(SpinnerNumberModel(2, 0, 10, 1)).apply {
             (editor as? JSpinner.NumberEditor)?.textField?.columns = 3
-            addChangeListener { if (!isUpdatingFromState) applyNetwork { it.copy(maxRetries = value as Int) } }
+            addChangeListener { if (!isUpdatingFromState) { val edited = value as Int; applyNetwork { it.copy(maxRetries = edited) } } }
         }
         addRow(localizationManager.getString("settings_network.max_retries"), compact(maxRetries, info("settings_network.max_retries_info")))
         retryDelay = JSpinner(SpinnerNumberModel(1, 1, 60, 1)).apply {
             (editor as? JSpinner.NumberEditor)?.textField?.columns = 3
             addChangeListener {
-                if (!isUpdatingFromState) applyNetwork { it.copy(retryInitialDelaySeconds = value as Int) }
+                if (!isUpdatingFromState) { val edited = value as Int; applyNetwork { it.copy(retryInitialDelaySeconds = edited) } }
             }
         }
         addRow(
@@ -196,13 +196,13 @@ class NetworkPanel(
         perHostCap = JSpinner(SpinnerNumberModel(8, 1, 64, 1)).apply {
             (editor as? JSpinner.NumberEditor)?.textField?.columns = 3
             addChangeListener {
-                if (!isUpdatingFromState) applyNetwork { it.copy(maxConnectionsPerHost = value as Int) }
+                if (!isUpdatingFromState) { val edited = value as Int; applyNetwork { it.copy(maxConnectionsPerHost = edited) } }
             }
         }
         totalCap = JSpinner(SpinnerNumberModel(64, 1, 512, 1)).apply {
             (editor as? JSpinner.NumberEditor)?.textField?.columns = 4
             addChangeListener {
-                if (!isUpdatingFromState) applyNetwork { it.copy(maxConnectionsTotal = value as Int) }
+                if (!isUpdatingFromState) { val edited = value as Int; applyNetwork { it.copy(maxConnectionsTotal = edited) } }
             }
         }
         addRow(localizationManager.getString("settings_network.per_host_connections"), compact(perHostCap, info("settings_network.per_host_connections_info")))

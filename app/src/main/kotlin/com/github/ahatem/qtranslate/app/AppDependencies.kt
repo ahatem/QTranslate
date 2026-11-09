@@ -5,18 +5,17 @@ import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.main.domain.usecase.CheckForUpdatesUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.HandleTextToSpeechUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.OcrAndTranslateUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.PerformSpellCheckUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SelectActiveServiceUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SwapLanguagesUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.LookupWordUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.SearchImagesUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.FetchInlineDefinitionUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.RewriteUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.SummarizeUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.LookupWordUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.SearchImagesUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.RewriteUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.SummarizeUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateStringUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateTextUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.ParallelComparisonUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslateTextUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.ParallelComparisonUseCase
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
 import com.github.ahatem.qtranslate.core.plugin.text.LocalizedPluginTextResolver
@@ -41,7 +40,6 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -65,6 +63,7 @@ import com.github.ahatem.qtranslate.core.conversation.ConversationFeature
 class AppDependencies(
     val appScope: CoroutineScope,
     val mainStore: MainStore,
+    val ocrExtractionUseCase: com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase,
     val translateStringUseCase: TranslateStringUseCase,
     val settingsStore: SettingsStore,
     val pluginManager: PluginManager,
@@ -126,9 +125,9 @@ suspend fun buildDependencies(
 
     // ---- 1. Coroutine scope ----
 
-    val appScope = CoroutineScope(
-        SupervisorJob() + Dispatchers.Default + CoroutineName("AppScope")
-    )
+    // The settings repository is created before initial configuration is loaded. Reuse
+    // its owned job so every DataStore is stopped with the application graph.
+    val appScope = CoroutineScope(settingsRepo.storageScope.coroutineContext + Dispatchers.Default + CoroutineName("AppScope"))
 
     // ---- 2. Shared HTTP client ----
     // One HttpClient = one connection pool for the host app.
@@ -155,7 +154,7 @@ suspend fun buildDependencies(
 
     // One instance, shared: the settings dialog writes the proxy password and the plugin
     // manager reads it back when building each plugin's client.
-    val keyValueStore = PluginKeyValueStore(appData)
+    val keyValueStore = PluginKeyValueStore(appData, appScope)
     val appSecrets = AppSecretStore(keyValueStore)
 
     // ---- 4. Settings store + reactive config ----
@@ -176,7 +175,7 @@ suspend fun buildDependencies(
     val pluginManager = PluginManager(
         appDataDirectory            = appData,
         settingsRepository          = settingsRepo,
-        pluginFingerprintRepository = PluginFingerprintRepository(appData, Json { ignoreUnknownKeys = true; isLenient = true }),
+        pluginFingerprintRepository = PluginFingerprintRepository(appData, Json { ignoreUnknownKeys = true; isLenient = true }, appScope),
         pluginKeyValueStore         = keyValueStore,
         loggerFactory               = loggerFactory,
         notificationBus             = notificationBus,
@@ -196,7 +195,8 @@ suspend fun buildDependencies(
     val historyRepo = HistoryRepository(
         appDataDirectory = appData,
         logger           = loggerFactory.getLogger("HistoryRepository"),
-        json             = Json { ignoreUnknownKeys = true; isLenient = true }
+        json             = Json { ignoreUnknownKeys = true; isLenient = true },
+        storageScope     = appScope
     )
 
     val audioPlayer = JLayerAudioPlayer(
@@ -273,7 +273,6 @@ suspend fun buildDependencies(
     )
 
     val lookupWordUseCase = LookupWordUseCase(
-        scope                = appScope,
         activeServiceManager = activeServiceManager,
         loggerFactory        = loggerFactory
     )
@@ -285,12 +284,16 @@ suspend fun buildDependencies(
     )
 
     val searchImagesUseCase = SearchImagesUseCase(
-        scope                = appScope,
         activeServiceManager = activeServiceManager,
         loggerFactory        = loggerFactory
     )
 
     // ---- 9. Stores ----
+
+    val ocrExtractionUseCase = com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase(
+        activeServiceManager = activeServiceManager,
+        loggerFactory = loggerFactory,
+    )
 
     val mainStore = MainStore(
         scope                      = appScope,
@@ -308,7 +311,7 @@ suspend fun buildDependencies(
         ),
         translateTextUseCase       = translateUseCase,
         swapLanguagesUseCase       = SwapLanguagesUseCase(),
-        ocrAndTranslateUseCase     = OcrAndTranslateUseCase(activeServiceManager, loggerFactory),
+        ocrExtractionUseCase     = ocrExtractionUseCase,
         summarizeUseCase           = summarizeUseCase,
         rewriteUseCase             = rewriteUseCase,
         lookupWordUseCase          = lookupWordUseCase,
@@ -320,6 +323,7 @@ suspend fun buildDependencies(
     return AppDependencies(
         appScope            = appScope,
         mainStore           = mainStore,
+        ocrExtractionUseCase = ocrExtractionUseCase,
         translateStringUseCase = translateStringUseCase,
         settingsStore       = settingsStore,
         pluginManager       = pluginManager,

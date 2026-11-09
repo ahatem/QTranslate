@@ -7,6 +7,14 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.core.shared.AppConstants
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.SerializationException
@@ -20,22 +28,29 @@ import java.io.IOException
  * History is stored as a single JSON array and capped at
  * [AppConstants.MAX_HISTORY_ENTRIES] entries on every save to prevent
  * unbounded growth. Failures on read return an empty list; failures on
- * write are logged and silently swallowed so they never interrupt a translation.
+ * writes are returned to callers as typed errors.
  */
 class HistoryRepository(
     appDataDirectory: File,
     private val logger: Logger,
-    private val json: Json
+    private val json: Json,
+    dataStore: DataStore<Preferences>? = null,
+    val storageScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    /**
+     * Dispatcher the preference store writes on. File-backed persistence belongs off the UI thread,
+     * which is why the default is [Dispatchers.IO]; a test that drives the store on a test scheduler
+     * passes its own dispatcher so a save completes inside virtual time instead of racing it.
+     */
+    persistenceDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
+    private val dataStore: DataStore<Preferences> = dataStore ?: PreferenceDataStoreFactory.create(
+        scope = CoroutineScope(storageScope.coroutineContext + persistenceDispatcher),
+        produceFile = { File(appDataDirectory, "datastore/${AppConstants.DATASTORE_HISTORY_FILE}") }
+    )
+
     private object Keys {
         val HISTORY_JSON = stringPreferencesKey("translation_history_json")
     }
-
-    private val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
-        produceFile = {
-            File(appDataDirectory, "datastore/${AppConstants.DATASTORE_HISTORY_FILE}")
-        }
-    )
 
     suspend fun loadHistory(): List<HistorySnapshot> = try {
         logger.debug("Loading translation history...")
@@ -49,6 +64,8 @@ class HistoryRepository(
             logger.info("Loaded ${history.size} history entries")
             history
         }
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: SerializationException) {
         logger.error("Failed to deserialize history, starting fresh", e)
         emptyList()
@@ -60,7 +77,7 @@ class HistoryRepository(
         emptyList()
     }
 
-    suspend fun saveHistory(history: List<HistorySnapshot>) {
+    suspend fun saveHistory(history: List<HistorySnapshot>): Result<Unit, HistoryError> {
         try {
             val truncated = history.takeLast(AppConstants.MAX_HISTORY_ENTRIES)
             logger.debug("Saving ${truncated.size} history entries...")
@@ -70,24 +87,42 @@ class HistoryRepository(
             dataStore.edit { it[Keys.HISTORY_JSON] = json.encodeToString(truncated) }
 
             logger.info("History saved successfully")
+            return Ok(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: SerializationException) {
             logger.error("Failed to serialize history", e)
+            return Err(HistoryError.SerializationError(e.message ?: "Serialization failed"))
         } catch (e: IOException) {
             logger.error("Failed to write history to disk", e)
+            return Err(HistoryError.IOError(e.message ?: "Disk write failed"))
         } catch (e: Exception) {
             logger.error("Unexpected error saving history", e)
+            return Err(HistoryError.UnknownError(e.message ?: "Unknown error"))
         }
     }
 
-    suspend fun clearHistory() {
+    suspend fun clearHistory(): Result<Unit, HistoryError> {
         try {
             logger.info("Clearing translation history...")
             dataStore.edit { it.clear() }
             logger.info("History cleared successfully")
+            return Ok(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: IOException) {
             logger.error("Failed to clear history", e)
+            return Err(HistoryError.IOError(e.message ?: "Disk write failed"))
         } catch (e: Exception) {
             logger.error("Unexpected error clearing history", e)
+            return Err(HistoryError.UnknownError(e.message ?: "Unknown error"))
         }
     }
+}
+/** Failures while persisting translation history. */
+sealed interface HistoryError {
+    val message: String
+    data class SerializationError(override val message: String) : HistoryError
+    data class IOError(override val message: String) : HistoryError
+    data class UnknownError(override val message: String) : HistoryError
 }

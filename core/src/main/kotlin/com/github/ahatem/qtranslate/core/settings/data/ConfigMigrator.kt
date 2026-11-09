@@ -24,7 +24,7 @@ object ConfigMigrator {
      * would skip every migration it needs. A configuration this build creates from scratch is
      * stamped with this value instead.
      */
-    internal const val CURRENT_VERSION = 7
+    internal const val CURRENT_VERSION = 9
 
     /** The old defaults, frozen: this is what "the user never changed it" looked like. */
     private const val LEGACY_POPUP_IDLE_SECONDS = 3
@@ -58,9 +58,11 @@ object ConfigMigrator {
                 // v1 → v2: inject default bindings for any HotkeyActions that were added after the
                 // user's config was first saved (FOCUS_INPUT, FOCUS_OUTPUT, FOCUS_EXTRA_OUTPUT).
                 // This is safe to run repeatedly — it only adds bindings that are missing.
+                // Legacy rows only: post-v7 OCR rows live under ocrHotkeys and must never
+                // be written into the legacy collection.
                 logger.info("ConfigMigrator: migrating v1 → v2 — patching missing hotkey defaults")
                 val existingActions = config.hotkeys.map { it.action }.toSet()
-                val missingDefaults = HotkeyBinding.DEFAULTS.filter { it.action !in existingActions }
+                val missingDefaults = HotkeyBinding.LEGACY_DEFAULTS.filter { it.action !in existingActions }
                 config.copy(
                     configVersion = 2,
                     hotkeys = config.hotkeys + missingDefaults
@@ -73,7 +75,7 @@ object ConfigMigrator {
                 // saved hotkey list and never receive the new bindings at all.
                 logger.info("ConfigMigrator: migrating v2 → v3 — patching missing hotkey defaults")
                 val existingActions = config.hotkeys.map { it.action }.toSet()
-                val missingDefaults = HotkeyBinding.DEFAULTS.filter { it.action !in existingActions }
+                val missingDefaults = HotkeyBinding.LEGACY_DEFAULTS.filter { it.action !in existingActions }
                 config.copy(
                     configVersion = 3,
                     hotkeys = config.hotkeys + missingDefaults
@@ -126,7 +128,7 @@ object ConfigMigrator {
                 // binding would exist only for people installing fresh.
                 logger.info("ConfigMigrator: migrating v4 → v5 — patching missing hotkey defaults")
                 val existingActions = config.hotkeys.map { it.action }.toSet()
-                val missingDefaults = HotkeyBinding.DEFAULTS.filter { it.action !in existingActions }
+                val missingDefaults = HotkeyBinding.LEGACY_DEFAULTS.filter { it.action !in existingActions }
                 config.copy(
                     configVersion = 5,
                     hotkeys = config.hotkeys + missingDefaults
@@ -166,6 +168,40 @@ object ConfigMigrator {
                         if (enabled) SelectionBehavior.SHOW_ICON else SelectionBehavior.OFF
                     } ?: config.selectionBehavior,
                     legacySelectionIconEnabled = null
+                )
+            }
+            7 -> {
+                // v7 → v8 (revised pre-ship): OCR workflow + capture rows live under
+                // `ocrHotkeys`, never under legacy `hotkeys`, so a pre-OCR binary
+                // that cannot decode the new enum values can still read the file
+                // (unknown key is skipped) and never destroys customized v7 rows.
+                logger.info("ConfigMigrator: migrating v7 → v8 — publishing OCR hotkey defaults")
+                val existingOcr = config.ocrHotkeys.map { it.action }.toSet()
+                val missing = HotkeyBinding.OCR_DEFAULTS.filter { it.action !in existingOcr }
+                config.copy(
+                    configVersion = 8,
+                    // hotkeys verbatim — v7 customizations survive untouched.
+                    ocrHotkeys = config.ocrHotkeys + missing,
+                )
+            }
+            8 -> {
+                // v8 → v9 repair: files written by the unshipped merged-list v8
+                // carry OCR rows inside `hotkeys`. Partition them out without
+                // losing either customization. Runs once; a second run finds
+                // `hotkeys` already legacy-only and is a no-op (idempotent).
+                logger.info("ConfigMigrator: migrating v8 → v9 — partitioning OCR hotkeys")
+                val legacy = config.hotkeys.filter { it.action in HotkeyBinding.LEGACY_ACTIONS }
+                val ocrFromLegacy = config.hotkeys.filter { it.action in HotkeyBinding.OCR_ACTIONS }
+                val mergedOcr = (config.ocrHotkeys + ocrFromLegacy)
+                    .associateBy { it.action }
+                    .values
+                    .toList()
+                val existing = mergedOcr.map { it.action }.toSet()
+                val missing = HotkeyBinding.OCR_DEFAULTS.filter { it.action !in existing }
+                config.copy(
+                    configVersion = 9,
+                    hotkeys = legacy,
+                    ocrHotkeys = mergedOcr + missing,
                 )
             }
             else -> {

@@ -60,7 +60,7 @@ internal class MozhiTranslatorService(
         if (request.sourceLanguage != LanguageCode.AUTO) return null
         val code = response.detected ?: response.sourceLanguage ?: return null
         return runCatching { fromMozhiCode(code) }
-            .onFailure { context.logger.warn("Mozhi returned an invalid detected language '$code'.") }
+            .onFailure { context.logger.warn("Mozhi returned an invalid detected language.") }
             .getOrNull()
     }
 

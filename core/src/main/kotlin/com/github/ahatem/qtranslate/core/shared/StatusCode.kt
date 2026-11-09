@@ -17,6 +17,9 @@ sealed class StatusCode {
     data class TranslationFailed(val summary: String) : StatusCode()
     object NoTranslatorActive : StatusCode()
     object PerformingBackwardTranslation : StatusCode()
+    object BackwardTranslationTimeout : StatusCode()
+    object BackwardTranslationComplete : StatusCode()
+    data class BackwardTranslationFailed(val summary: String) : StatusCode()
     data class UnexpectedError(val summary: String) : StatusCode()
     /** Comparison was requested but fewer than two translators are usable; Classic is shown. */
     object ComparisonNeedsTwoTranslators : StatusCode()
@@ -44,6 +47,7 @@ sealed class StatusCode {
     object NoTextInImage : StatusCode()
     object OcrComplete : StatusCode()
     object OcrTextCopied : StatusCode()
+    object OcrImageCopied : StatusCode()
 
     /** Confirms a copy-to-clipboard action that would otherwise give no visible feedback. */
     object TextCopied : StatusCode()

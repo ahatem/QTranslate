@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
 import com.github.ahatem.qtranslate.ui.swing.shared.textpane.CaretGeometry
+import com.github.ahatem.qtranslate.ui.swing.shared.textpane.InsertionDirection
 import java.awt.Graphics
 import java.awt.Graphics2D
 import javax.swing.text.BadLocationException
@@ -20,6 +21,12 @@ import javax.swing.text.DefaultCaret
  * The rectangle stays inside the row the text UI reported. That is the area Swing repaints when the
  * caret blinks and moves, so anything painted outside it would survive as a trail, and the superclass
  * sizes that area without knowing how wide this caret is.
+ *
+ * Where the text runs both ways, the caret also carries the small direction flag the superclass draws:
+ * at a boundary between two directions the rectangle alone says where the insertion point is but not
+ * which way what is typed there will go, and Arabic mixed with Latin is exactly where that is
+ * ambiguous. The flag is Swing's own answer to that question, taken from the same bidi structure the
+ * text UI lays the text out from, so it agrees with the text beside it instead of second-guessing it.
  *
  * See [CaretGeometry] for why the rectangle is resolved in device pixels.
  */
@@ -64,6 +71,12 @@ class AdvancedCaret(
             )
             g2.transform = CaretGeometry.transformFor(placement)
             g2.fillRect(placement.x, placement.y, placement.width, placement.height)
+
+            // Null where the document holds one direction: an ordinary caret gains no mark.
+            val insertionIsLeftToRight = InsertionDirection.at(comp.document, dot, dotBias)
+            if (insertionIsLeftToRight != null) {
+                g2.fillPolygon(CaretGeometry.flag(placement, insertionIsLeftToRight, oldTransform))
+            }
         } finally {
             g2.transform = oldTransform
             g2.color = oldColor

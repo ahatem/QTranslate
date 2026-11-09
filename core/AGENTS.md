@@ -19,13 +19,13 @@ document processing. UI-agnostic.
   `StateFlow` state out, one-shot occurrences through the event channel.
   UI observes; it never reaches into store internals.
 - Expected failures use `com.github.michaelbull.result.Result` with the typed
-  error (`ServiceError`, `SettingsError`, `UpdaterError`). Never throw for
-  routine failures; never invent a parallel error convention.
+  error (`ServiceError`, `SettingsError`, `UpdaterError`). Internal adapter exceptions may abort work when caught at the boundary; preserve
+  cancellation and never invent a parallel error convention.
 - Blocking I/O always inside `withContext(Dispatchers.IO)`. CPU work on
   `Dispatchers.Default`. No `Thread.sleep`, no arbitrary delays to paper over
   races — use deterministic, event-driven mechanisms.
 - Settings changes go through `SettingsRepository` + `ConfigMigrator`
-  (see `qtranslate-settings-migration`). Writes return `Result`; corruption
+  (see [storage workflow](../docs/Development.md#settings-and-storage)). Writes return `Result`; corruption
   must recover from timestamped backups, never lose user data.
 - Cross-cutting rules: notifications via `NotificationBus`; user-visible text
   via `LocalizationManager` (never hard-coded UI strings in logic); history

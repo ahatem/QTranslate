@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationProgress
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
+import com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputFailure
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonTranslationResult
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.arch.UiState
@@ -55,6 +56,14 @@ data class MainState(
     val translationFailed: Boolean = false,
     val comparisonResults: List<ComparisonTranslationResult> = emptyList(),
     val extraOutputText: String = "",
+    /**
+     * Whether the last secondary-output request failed. Unlike [translationFailed] this never
+     * turns the panel into content: [extraOutputText] stays empty and [extraOutputFailure] carries
+     * a typed reason, so copy/speech/history do not see an error string as a result and the UI
+     * localizes the message.
+     */
+    val extraOutputFailed: Boolean = false,
+    val extraOutputFailure: ExtraOutputFailure? = null,
     val isExtraOutputLoading: Boolean = false,
     val sourceLanguage: LanguageCode = LanguageCode.AUTO,
     val detectedSourceLanguage: LanguageCode? = null,

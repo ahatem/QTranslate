@@ -104,7 +104,7 @@ class AITranslatorService(
 
             Ok(TranslationResponse(translatedText = dto.translation.trim(), detectedLanguage = detectedLang))
         } catch (e: Exception) {
-            Err(ServiceError.InvalidResponseError("Failed to parse AI translation response: $raw", e))
+            Err(ServiceError.InvalidResponseError("Failed to parse AI translation response.", e))
         }
 
     @Serializable

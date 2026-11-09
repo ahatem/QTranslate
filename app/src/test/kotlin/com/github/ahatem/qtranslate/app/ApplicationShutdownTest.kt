@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.app
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.core.settings.data.Position
 import com.github.ahatem.qtranslate.core.settings.data.Size
+import kotlinx.coroutines.awaitCancellation
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
@@ -84,4 +85,44 @@ class ApplicationShutdownTest {
             recorder.order
         )
     }
+    @Test fun `a scope that never stops cannot block exit`() {
+        val recorder = Recorder()
+        val exited = CountDownLatch(1)
+        val application = ApplicationShutdown(
+            persistWindowBounds = { _, _ -> recorder.record("bounds") },
+            shutdownMainStore = { recorder.record("mainStore") },
+            shutdownPluginManager = { recorder.record("pluginManager") },
+            closeHostHttpClient = { recorder.record("httpClient") },
+            // A blocked plugin transition runs under NonCancellable, so cancelling and joining
+            // the scope may never return.
+            cancelAppScope = { awaitCancellation() },
+            logger = Log(),
+            exit = { recorder.record("exit"); exited.countDown() },
+            cancelScopeTimeoutMs = 100
+        )
+
+        application.requestShutdown(Size(800, 600), Position(10, 20))
+
+        assertTrue(exited.await(5, TimeUnit.SECONDS), "exit must still run after the join bound")
+        assertTrue("exit" in recorder.order)
+    }
+
+    @Test fun `shutdown awaits persistence before cancelling scope and exiting`() {
+        val recorder = Recorder()
+        val exited = CountDownLatch(1)
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val application = shutdown(recorder, exited, persistWindowBounds = { _, _ ->
+            recorder.record("bounds")
+            entered.countDown()
+            check(release.await(5, TimeUnit.SECONDS))
+        })
+        application.requestShutdown(Size(800, 600), Position(10, 20))
+        assertTrue(entered.await(5, TimeUnit.SECONDS))
+        assertEquals(listOf("bounds"), recorder.order)
+        release.countDown()
+        assertTrue(exited.await(5, TimeUnit.SECONDS))
+        assertEquals(listOf("bounds", "mainStore", "pluginManager", "httpClient", "appScope", "exit"), recorder.order)
+    }
+
 }

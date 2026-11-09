@@ -5,6 +5,8 @@ import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.history.HistorySnapshot
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
+import com.github.ahatem.qtranslate.core.settings.data.OcrPostSelectionAction
+import com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
 import java.io.File
@@ -34,8 +36,24 @@ sealed interface MainIntent : UiIntent {
     /**
      * User requested a translation.
      * @property text Optional text override. If `null`, uses [MainState.inputText].
+     * @property onTranslationClaimed Receives the exact translation request identity
+     * claimed by this intent (workspace translations use it to avoid cancelling
+     * a newer manual request with the same text by content equality). When set, the
+     * claim is made synchronously inside [dispatch] and this callback is invoked
+     * before `dispatch` returns, so the caller can cancel/supersede by identity at
+     * any later point with no claim gap.
+     * @property ocrWorkspaceToken When set, this workspace translation is filed
+     * under the OCR capture that opened the workspace, so a newer OCR workflow
+     * supersedes it and stale work cannot publish or auto-copy over it.
      */
-    data class Translate(val text: String? = null) : MainIntent
+    data class Translate(
+        val text: String? = null,
+        val onTranslationClaimed: ((Long) -> Unit)? = null,
+        val ocrWorkspaceToken: Long? = null,
+    ) : MainIntent
+
+    /** Cancels a translation only while [requestId] still owns the result. */
+    data class CancelTranslationIfCurrent(val requestId: Long) : MainIntent
 
     /**
      * The extra panel's type or option changed, so only its content needs recomputing.
@@ -72,8 +90,27 @@ sealed interface MainIntent : UiIntent {
      */
     data object StopTTS : MainIntent
 
-    /** User requested OCR on an image followed by translation of the detected text. */
-    data class OcrAndTranslateImage(val image: ImageData) : MainIntent
+    /**
+     * Runs one post-selection OCR workflow.
+     *
+     * [OcrPostSelectionAction.SHOW_ACTIONS] is a UI-only outcome and is ignored here; the capture
+     * overlay never dispatches it. [destinationOverride] is used by the explicit
+     * "translate to Quick/Main" hotkeys; null means use the saved destination.
+     */
+    data class OcrWorkflowImage(
+        val image: ImageData,
+        val action: OcrPostSelectionAction,
+        val destinationOverride: OcrTranslationDestination? = null,
+    ) : MainIntent
+
+    /**
+     * Existing image-drop/paste route. It always translates but now follows the saved OCR
+     * destination preference (Main Window by default, preserving historic behavior).
+     */
+    data class OcrAndTranslateImage(
+        val image: ImageData,
+        val destination: OcrTranslationDestination? = null,
+    ) : MainIntent
 
     /**
      * User requested OCR on an image to extract text and copy it to the clipboard —
@@ -87,6 +124,7 @@ sealed interface MainIntent : UiIntent {
      * @property text Optional text override. If `null`, uses the text from [textSource].
      * @property language Optional language override. If `null`, it is derived from [textSource].
      *   Set by callers whose text belongs to neither panel, such as a dictionary headword.
+     *   Explicit AUTO reports unknown language instead of borrowing the panel's detection.
      */
     data class ListenToText(
         val textSource: TextSource,
@@ -152,7 +190,9 @@ sealed interface MainIntent : UiIntent {
     data class ShowQuickTranslate(
         val selectedText: String,
         /** Speak this request according to the persisted selection read-source preference. */
-        val readSelectionAloud: Boolean = false
+        val readSelectionAloud: Boolean = false,
+        /** Receives the exact translation request identity claimed by this intent. */
+        val onTranslationClaimed: ((Long) -> Unit)? = null,
     ) : MainIntent
 
     /** User dismissed the quick translate popup. */

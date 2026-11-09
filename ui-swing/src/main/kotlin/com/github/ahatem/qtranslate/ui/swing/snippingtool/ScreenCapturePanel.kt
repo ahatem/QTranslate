@@ -1,7 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.snippingtool
 
 import com.formdev.flatlaf.FlatClientProperties
-import com.github.ahatem.qtranslate.ui.swing.shared.util.getVirtualScreenBounds
 import java.awt.*
 import java.awt.geom.RoundRectangle2D
 import java.awt.image.BufferedImage
@@ -15,7 +14,8 @@ class ScreenCapturePanel(
     private val onSaveImage: (BufferedImage) -> Unit,
     private val onRecrop: () -> Unit,
     private val onCancel: () -> Unit,
-    private val buttonLabels: ButtonLabels = ButtonLabels()
+    private val buttonLabels: ButtonLabels = ButtonLabels(),
+    private val buttonTooltips: ButtonTooltips = ButtonTooltips(),
 ) : JLayeredPane() {
 
     data class ButtonLabels(
@@ -24,8 +24,21 @@ class ScreenCapturePanel(
         val copyImage: String  = "Copy Image",
         val saveImage: String  = "Save Image",
         val recrop: String     = "Re-crop",
-        val cancel: String     = "Cancel"
+        val cancel: String     = "Cancel",
+        val moreActions: String = "More actions",
     )
+
+    data class ButtonTooltips(
+        val translate: String  = "OCR and translate the captured region",
+        val copyText: String   = "Recognize text and copy to clipboard",
+        val copyImage: String  = "Copy image to clipboard",
+        val saveImage: String  = "Save captured image as PNG",
+        val recrop: String     = "Clear selection and draw a new one",
+        val cancel: String     = "Close the capture tool",
+    )
+
+    private val actionButtons = mutableMapOf<CaptureToolbarAction, JButton>()
+    private val selectionDependentButtons = mutableListOf<JButton>()
 
     private var currentState: ScreenCaptureState? = null
 
@@ -38,6 +51,18 @@ class ScreenCapturePanel(
     val translateButton: JButton = createTranslateButton()
 
     private val buttonsPanel: JPanel
+    private val fullToolbarContents: List<Component>
+    private val fullToolbarSize: Dimension
+    private val fullToolbarBorder: javax.swing.border.Border
+    private val fullToolbarLayout: LayoutManager
+    private var compactToolbar = false
+    private val overflowButton by lazy {
+        JButton("\u22ef").apply {
+            toolTipText = buttonLabels.moreActions
+            accessibleContext.accessibleName = buttonLabels.moreActions
+            addActionListener { overflowMenu().show(this, 0, height) }
+        }
+    }
 
     val currentStatePublic: ScreenCaptureState?
         get() = currentState
@@ -47,6 +72,10 @@ class ScreenCapturePanel(
         layout = null
 
         buttonsPanel = createButtonsPanel()
+        fullToolbarContents = buttonsPanel.components.toList()
+        fullToolbarSize = Dimension(buttonsPanel.preferredSize)
+        fullToolbarBorder = buttonsPanel.border
+        fullToolbarLayout = buttonsPanel.layout
         add(buttonsPanel, PALETTE_LAYER)
     }
 
@@ -66,7 +95,9 @@ class ScreenCapturePanel(
         // the dialog's default button cannot fire an empty capture (#364). The
         // validity rule mirrors ScreenCaptureController.mouseReleased.
         val selection = state.selection
-        translateButton.isEnabled = selection != null && selection.width > 0 && selection.height > 0
+        val validSelection = selection != null && selection.width > 0 && selection.height > 0
+        translateButton.isEnabled = validSelection
+        selectionDependentButtons.forEach { it.isEnabled = validSelection }
 
         if (state.showButtons && state.buttonsPosition != null) {
             buttonsPanel.location = state.buttonsPosition
@@ -80,8 +111,50 @@ class ScreenCapturePanel(
     fun getSelectedImage(): BufferedImage? {
         val state = currentState ?: return null
         val selection = state.selection ?: return null
-        return state.screenshot.getSubimage(selection.x, selection.y, selection.width, selection.height)
+        val panelSize = if (width > 0 && height > 0) {
+            size
+        } else {
+            // Headless tests and a panel that has not been laid out yet still carry a valid
+            // selection against the screenshot itself.
+            Dimension(state.screenshot.width, state.screenshot.height)
+        }
+        val imageSelection = CaptureGeometry.selectionToImage(
+            selection = selection,
+            screenshot = state.screenshot,
+            panelSize = panelSize,
+        ) ?: return null
+        return state.screenshot.getSubimage(
+            imageSelection.x,
+            imageSelection.y,
+            imageSelection.width,
+            imageSelection.height,
+        )
     }
+
+    /** Invokes a toolbar action as if its button was pressed, if the action is currently valid. */
+    fun trigger(action: CaptureToolbarAction) {
+        if (action == CaptureToolbarAction.CANCEL) {
+            onCancel()
+            return
+        }
+        if (action == CaptureToolbarAction.RECROP) {
+            onRecrop()
+            return
+        }
+        if (!translateButton.isEnabled) return
+        val image = getSelectedImage() ?: return
+        when (action) {
+            CaptureToolbarAction.TRANSLATE -> onTranslate(image)
+            CaptureToolbarAction.COPY_TEXT -> onCopyText(image)
+            CaptureToolbarAction.COPY_IMAGE -> onCopyImage(image)
+            CaptureToolbarAction.SAVE_IMAGE -> onSaveImage(image)
+            CaptureToolbarAction.RECROP,
+            CaptureToolbarAction.CANCEL -> Unit
+        }
+    }
+
+    /** The button for [action], for tooltip/shortcut tests and future accessibility wiring. */
+    internal fun buttonFor(action: CaptureToolbarAction): JButton? = actionButtons[action]
 
     // ─────────────────────────────────────────────────────────────────────────
     // Painting
@@ -190,18 +263,26 @@ class ScreenCapturePanel(
         // "default" = filled accent button — primary action
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "default")
         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        toolTipText = "OCR and translate the captured region"
+        toolTipText = buttonTooltips.translate
         addActionListener { getSelectedImage()?.let(onTranslate) }
         alignmentY = Component.CENTER_ALIGNMENT
+        actionButtons[CaptureToolbarAction.TRANSLATE] = this
     }
 
     private fun createButtonsPanel(): JPanel {
         val translateBtn = translateButton
-        val copyTextBtn  = flatBtn(buttonLabels.copyText,  "Recognize text and copy to clipboard")  { getSelectedImage()?.let(onCopyText)  }
-        val copyImageBtn = flatBtn(buttonLabels.copyImage, "Copy image to clipboard")                 { getSelectedImage()?.let(onCopyImage) }
-        val saveImageBtn = flatBtn(buttonLabels.saveImage, "Save captured image as PNG")              { getSelectedImage()?.let(onSaveImage) }
-        val recropBtn    = flatBtn(buttonLabels.recrop,    "Clear selection and draw a new one")      { onRecrop()    }
-        val cancelBtn    = flatBtn(buttonLabels.cancel,    "Close the capture tool")                  { onCancel()    }
+        val copyTextBtn  = flatBtn(buttonLabels.copyText,  buttonTooltips.copyText)  { getSelectedImage()?.let(onCopyText)  }
+        val copyImageBtn = flatBtn(buttonLabels.copyImage, buttonTooltips.copyImage) { getSelectedImage()?.let(onCopyImage) }
+        val saveImageBtn = flatBtn(buttonLabels.saveImage, buttonTooltips.saveImage) { getSelectedImage()?.let(onSaveImage) }
+        val recropBtn    = flatBtn(buttonLabels.recrop,    buttonTooltips.recrop)    { onRecrop()    }
+        val cancelBtn    = flatBtn(buttonLabels.cancel,    buttonTooltips.cancel)    { onCancel()    }
+        actionButtons[CaptureToolbarAction.COPY_TEXT] = copyTextBtn
+        actionButtons[CaptureToolbarAction.COPY_IMAGE] = copyImageBtn
+        actionButtons[CaptureToolbarAction.SAVE_IMAGE] = saveImageBtn
+        actionButtons[CaptureToolbarAction.RECROP] = recropBtn
+        actionButtons[CaptureToolbarAction.CANCEL] = cancelBtn
+        selectionDependentButtons += listOf(copyTextBtn, copyImageBtn, saveImageBtn)
+        selectionDependentButtons += translateBtn
 
         return object : JPanel() {
             override fun paintComponent(g: Graphics) {
@@ -286,23 +367,62 @@ class ScreenCapturePanel(
     // Position helpers
     // ─────────────────────────────────────────────────────────────────────────
 
-    fun calculateButtonsPosition(selection: Rectangle): Point {
-        val panelSize = buttonsPanel.preferredSize
-        val screenBounds = getVirtualScreenBounds()
-        val padding = 12
-
-        var x = selection.x + (selection.width - panelSize.width) / 2
-        var y = selection.y + selection.height + padding
-
-        x = x.coerceAtLeast(screenBounds.x + padding)
-            .coerceAtMost(screenBounds.x + screenBounds.width - panelSize.width - padding)
-
-        if (y + panelSize.height > screenBounds.y + screenBounds.height - padding) {
-            y = selection.y - panelSize.height - padding
+    fun calculateButtonsPosition(
+        selection: Rectangle,
+        displays: List<Rectangle> = emptyList(),
+        virtualOrigin: Point = Point(),
+    ): Point {
+        if (displays.isEmpty()) {
+            return CaptureGeometry.toolbarPosition(selection, buttonsPanel.size, size)
         }
-
-        y = y.coerceAtLeast(screenBounds.y + padding)
-
-        return Point(x, y)
+        val fits = displays.any { it.width >= fullToolbarSize.width && it.height >= fullToolbarSize.height }
+        val compact = !fits
+        if (compactToolbar != compact) {
+            compactToolbar = compact
+            buttonsPanel.removeAll()
+            if (compactToolbar) {
+                // Keep the primary button attached for Enter/default-button semantics. All six
+                // actions remain available in the overflow menu when a full row cannot fit.
+                buttonsPanel.border = BorderFactory.createEmptyBorder()
+                buttonsPanel.layout = null
+                buttonsPanel.add(translateButton)
+                buttonsPanel.add(overflowButton)
+            } else {
+                buttonsPanel.border = fullToolbarBorder
+                buttonsPanel.layout = fullToolbarLayout
+                fullToolbarContents.forEach(buttonsPanel::add)
+            }
+        }
+        val preferred = if (compactToolbar) {
+            Dimension(translateButton.preferredSize.width + overflowButton.preferredSize.width,
+                maxOf(translateButton.preferredSize.height, overflowButton.preferredSize.height))
+        } else buttonsPanel.preferredSize
+        val desktopSelection = Rectangle(selection).apply { translate(virtualOrigin.x, virtualOrigin.y) }
+        val display = CaptureGeometry.toolbarDisplay(desktopSelection, preferred, displays)
+        buttonsPanel.size = Dimension(minOf(preferred.width, display.width), minOf(preferred.height, display.height))
+        if (compactToolbar) {
+            // Reserve overflow first, even when a long primary label or very small usable
+            // display cannot fit the pair's minimum sizes. Truncate the primary, never actions.
+            val overflowWidth = minOf(overflowButton.preferredSize.width, buttonsPanel.width)
+            val primaryWidth = buttonsPanel.width - overflowWidth
+            translateButton.setBounds(0, 0, primaryWidth, buttonsPanel.height)
+            overflowButton.setBounds(primaryWidth, 0, overflowWidth, buttonsPanel.height)
+        } else buttonsPanel.doLayout()
+        return CaptureGeometry.toolbarPosition(selection, buttonsPanel.size, size, displays, virtualOrigin)
     }
+
+    /** The same actions and enabled states as the full toolbar, without a second workflow path. */
+    internal fun overflowMenu(): JPopupMenu = JPopupMenu().apply {
+        CaptureToolbarAction.entries.forEach { action ->
+            val button = actionButtons.getValue(action)
+            add(JMenuItem(button.text).apply {
+                isEnabled = button.isEnabled
+                addActionListener { trigger(action) }
+            })
+        }
+    }
+
+    internal fun toolbarBounds(): Rectangle = Rectangle(buttonsPanel.bounds)
+    internal fun isToolbarCompact(): Boolean = compactToolbar
+    internal fun overflowButtonBounds(): Rectangle = Rectangle(overflowButton.bounds)
 }

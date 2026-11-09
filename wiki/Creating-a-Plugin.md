@@ -372,6 +372,8 @@ application words them differently because they call for different actions.
 
 **Other service types** (`TextToSpeech`, `OCR`, `SpellChecker`, `Dictionary`, `ImageSearch`) follow the exact same pattern — implement the interface, return `Ok`/`Err`. See the Google plugin for a complete TTS and OCR example.
 
+OCR providers may additionally implement the optional `StructuredOCR` interface. It returns the same text plus line/word/block rectangles in original-image pixels, enabling the OCR Workspace's box overlay. This is optional and additive: providers that only implement `OCR` keep working, and no coordinates should be invented when the engine does not report them.
+
 **User-selectable modifiers** — override `Service.options: List<ServiceOption>` to offer controls like summary length or rewrite style; the host renders them and passes the chosen values back in the request. Leave it as the default empty list when your service takes no modifiers.
 
 **Test connection** — override `Service.validate()` to check the service is configured and reachable without doing real work. It powers the settings panel's "test connection" affordance. Return `ServiceError.ConfigurationError` when required settings are missing and `ServiceError.AuthenticationError` when they're present but rejected — the host words these differently. Defaults to success, which is correct for services that need no configuration.

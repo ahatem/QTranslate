@@ -21,6 +21,13 @@ sealed interface DroppedContent {
     data object None : DroppedContent
 }
 
+/** The image-bearing part of a clipboard payload, resolved before any file read. */
+internal sealed interface ClipboardImageCandidate {
+    data class Picture(val image: Image) : ClipboardImageCandidate
+    data class ImageFile(val file: File) : ClipboardImageCandidate
+    data object None : ClipboardImageCandidate
+}
+
 /**
  * Decides what a [Transferable] holds.
  *
@@ -58,6 +65,16 @@ object DroppedContentClassifier {
         return DroppedContent.None
     }
 
+    /** Resolves only transferable metadata; safe to call on the EDT and cheap. */
+    internal fun imageCandidate(transferable: Transferable): ClipboardImageCandidate {
+        rawImageFrom(transferable)?.let { return ClipboardImageCandidate.Picture(it) }
+        val file = filesFrom(transferable)?.firstOrNull { it.isImageFile() }
+        return if (file != null) ClipboardImageCandidate.ImageFile(file) else ClipboardImageCandidate.None
+    }
+
+    /** Reads an image file; call off the EDT. */
+    internal fun readImageFile(file: File): BufferedImage? = readImage(file)
+
     /**
      * Whether [transferable] is worth accepting, judged **only** by the flavours it advertises.
      *
@@ -75,12 +92,13 @@ object DroppedContentClassifier {
         transferable.isDataFlavorSupported(DataFlavor.imageFlavor) ||
             transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)
 
-    private fun imageFrom(transferable: Transferable): BufferedImage? {
+    private fun imageFrom(transferable: Transferable): BufferedImage? = rawImageFrom(transferable)?.toBuffered()
+
+    private fun rawImageFrom(transferable: Transferable): Image? {
         if (!transferable.isDataFlavorSupported(DataFlavor.imageFlavor)) return null
-        val image = runCatching {
+        return runCatching {
             transferable.getTransferData(DataFlavor.imageFlavor) as? Image
-        }.getOrNull() ?: return null
-        return image.toBuffered()
+        }.getOrNull()
     }
 
     @Suppress("UNCHECKED_CAST")

@@ -1,6 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.main
 
 import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.core.ocr.OcrWorkflowCommand
+import com.github.ahatem.qtranslate.core.ocr.ocrWorkflowCommand
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
@@ -57,6 +59,7 @@ class MainGlobalKeyListener(
     private val onShowQuickTranslate: (String) -> Unit,
     private val onListenToText: (String) -> Unit,
     private val onOpenSnippingTool: () -> Unit,
+    private val onOpenOcrWorkflow: (OcrWorkflowCommand) -> Unit = { onOpenSnippingTool() },
     private val onReplaceWithTranslation: (String) -> Unit,
     private val onCycleTargetLanguage: () -> Unit,
     private val onShowDictionary: (String) -> Unit = {},
@@ -729,9 +732,11 @@ class MainGlobalKeyListener(
      * neutral.
      */
     private fun dispatchImmediate(action: HotkeyAction) {
+        action.ocrWorkflowCommand()?.let { command ->
+            onOpenOcrWorkflow(command)
+            return
+        }
         when (action) {
-            HotkeyAction.OPEN_OCR ->
-                onOpenSnippingTool()
             HotkeyAction.CYCLE_TARGET_LANGUAGE ->
                 onCycleTargetLanguage()
             HotkeyAction.TRANSLATE ->
@@ -752,7 +757,23 @@ class MainGlobalKeyListener(
             HotkeyAction.SWAP_LANGUAGES,
             HotkeyAction.OPEN_SETTINGS,
             HotkeyAction.SHOW_HISTORY,
-            HotkeyAction.TRANSLATE_DOCUMENT -> Unit
+            HotkeyAction.TRANSLATE_DOCUMENT,
+            // OCR workflow actions are dispatched above; capture-local actions never reach this
+            // dispatcher because their scope is excluded from both global and local registration.
+            HotkeyAction.OPEN_OCR,
+            HotkeyAction.OCR_SHOW_ACTIONS,
+            HotkeyAction.OCR_TRANSLATE,
+            HotkeyAction.OCR_TRANSLATE_QUICK,
+            HotkeyAction.OCR_TRANSLATE_MAIN,
+            HotkeyAction.OCR_OPEN_WORKSPACE,
+            HotkeyAction.OCR_COPY_TEXT,
+            HotkeyAction.OCR_COPY_IMAGE,
+            HotkeyAction.OCR_ACTION_TRANSLATE,
+            HotkeyAction.OCR_ACTION_COPY_TEXT,
+            HotkeyAction.OCR_ACTION_COPY_IMAGE,
+            HotkeyAction.OCR_ACTION_SAVE_IMAGE,
+            HotkeyAction.OCR_ACTION_RECROP,
+            HotkeyAction.OCR_ACTION_CANCEL -> Unit
         }
     }
 

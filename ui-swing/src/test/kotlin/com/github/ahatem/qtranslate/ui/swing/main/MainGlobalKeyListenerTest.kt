@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main
 
+import com.github.ahatem.qtranslate.core.ocr.OcrWorkflowCommand
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
@@ -62,6 +63,7 @@ class MainGlobalKeyListenerTest {
         val logger: RecordingLogger = RecordingLogger(),
         var shows: Int = 0,
         var ocrCalls: Int = 0,
+        val ocrCommands: MutableList<OcrWorkflowCommand> = mutableListOf(),
         val presses: MutableList<Point> = mutableListOf(),
         var selections: Int = 0,
         val imageQueries: MutableList<String> = mutableListOf(),
@@ -89,7 +91,12 @@ class MainGlobalKeyListenerTest {
             scope = scope, logger = logger,
             onShowApp = { shows++ }, onShowQuickTranslate = { quickQueries += it },
             onListenToText = { listened += it },
-            onOpenSnippingTool = { ocrCalls++ }, onReplaceWithTranslation = { replaced += it },
+            onOpenSnippingTool = { ocrCalls++ },
+            onOpenOcrWorkflow = { command ->
+                ocrCommands += command
+                ocrCalls++
+            },
+            onReplaceWithTranslation = { replaced += it },
             onCycleTargetLanguage = { cycles++ },
             onShowDictionary = { dictionaryQueries += it },
             onShowImages = { imageQueries += it },
@@ -565,6 +572,61 @@ class MainGlobalKeyListenerTest {
         harness.backend.emit(GlobalInputEvent.Hotkey(9999L))
         advanceUntilIdle()
         assertEquals(1, harness.ocrCalls)
+    }
+
+    @Test
+    fun `explicit OCR workflow hotkeys dispatch their own command`() = runTest {
+        val harness = harness()
+        harness.set(
+            InputRuntimeState(
+                bindings = bindings(
+                    global(
+                        HotkeyAction.OCR_OPEN_WORKSPACE,
+                        KeyEvent.VK_O,
+                        InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK,
+                    )
+                )
+            )
+        )
+        harness.listener.initialize()
+        advanceUntilIdle()
+
+        harness.emitHotkey(HotkeyAction.OCR_OPEN_WORKSPACE)
+        advanceUntilIdle()
+
+        assertEquals(listOf(OcrWorkflowCommand.OPEN_WORKSPACE), harness.ocrCommands)
+        assertEquals(1, harness.ocrCalls, "the workflow reaches the frame's capture entry point")
+    }
+
+    @Test
+    fun `capture-scope shortcuts are never registered globally or in the main window`() = runTest {
+        val harness = harness()
+        harness.set(
+            InputRuntimeState(
+                bindings = bindings(
+                    HotkeyBinding(
+                        HotkeyAction.OCR_ACTION_COPY_TEXT,
+                        keyCode = KeyEvent.VK_C,
+                        modifiers = InputEvent.CTRL_DOWN_MASK,
+                        scope = HotkeyScope.CAPTURE,
+                    ),
+                    global(
+                        HotkeyAction.OCR_COPY_IMAGE,
+                        KeyEvent.VK_I,
+                        InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK,
+                    ),
+                )
+            )
+        )
+        harness.listener.initialize()
+        advanceUntilIdle()
+
+        assertTrue(harness.listener.getLocalBindings().isEmpty())
+        assertEquals(
+            1,
+            harness.backend.applied.lastOrNull().orEmpty().size,
+            "only the global OCR action may reach the native backend",
+        )
     }
 
     @Test

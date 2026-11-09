@@ -1,4 +1,6 @@
-version = "2.1.0"  // only bump when the API interface changes
+import org.jetbrains.kotlin.gradle.dsl.abi.ExperimentalAbiValidation
+
+version = "2.2.0"  // only bump when the API interface changes
 
 plugins {
     id("buildsrc.convention.kotlin-jvm")
@@ -10,6 +12,12 @@ plugins {
 // and refuses to let a helper become part of the published surface by omission.
 kotlin {
     explicitApi()
+    // ABI validation guards the binary contract third-party plugins compile against. The committed
+    // reference dump (api/api.api) is the baseline: checkKotlinAbi runs with `check` and fails on
+    // any public-surface change, compatible ones included; updateKotlinAbi regenerates it after an
+    // agreed API change.
+    @OptIn(ExperimentalAbiValidation::class)
+    abiValidation()
 }
 
 dependencies {

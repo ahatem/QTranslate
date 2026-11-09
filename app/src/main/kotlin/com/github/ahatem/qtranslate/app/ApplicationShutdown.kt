@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -33,7 +34,7 @@ class ApplicationShutdown(
     private val shutdownMainStore: suspend () -> Unit,
     private val shutdownPluginManager: suspend () -> Unit,
     private val closeHostHttpClient: () -> Unit,
-    private val cancelAppScope: () -> Unit,
+    private val cancelAppScope: suspend () -> Unit,
     private val logger: Logger,
     private val exit: () -> Unit,
     /** Finishes a conversation recording in progress, so it is saved rather than cut off. */
@@ -69,8 +70,13 @@ class ApplicationShutdown(
             runCatching { closeHostHttpClient() }
                 .onFailure { logger.error("Failed to close host HTTP client", it) }
 
-            runCatching { cancelAppScope() }
-                .onFailure { logger.error("Failed to cancel application scope", it) }
+            runCatching {
+                if (withTimeoutOrNull(cancelScopeTimeoutMs) { cancelAppScope() } == null) {
+                    logger.warn(
+                        "Application scope did not stop within ${cancelScopeTimeoutMs}ms; exiting anyway"
+                    )
+                }
+            }.onFailure { logger.error("Failed to cancel application scope", it) }
 
             exit()
         }

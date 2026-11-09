@@ -116,7 +116,7 @@ class AIVisionOcrService(
                 )
             )
         } catch (e: Exception) {
-            Err(ServiceError.InvalidResponseError("Failed to parse AI OCR response: $raw", e))
+            Err(ServiceError.InvalidResponseError("Failed to parse AI OCR response.", e))
         }
 
     // ─── Private DTOs ────────────────────────────────────────────────────────

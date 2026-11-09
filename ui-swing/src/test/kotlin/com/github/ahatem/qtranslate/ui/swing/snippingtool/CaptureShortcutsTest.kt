@@ -1,0 +1,115 @@
+package com.github.ahatem.qtranslate.ui.swing.snippingtool
+
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
+import java.awt.event.InputEvent
+import java.awt.event.KeyEvent
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+class CaptureShortcutsTest {
+
+    @Test
+    fun `only capture-scope bindings are projected`() {
+        val bindings = listOf(
+            binding(HotkeyAction.OCR_ACTION_COPY_TEXT, KeyEvent.VK_C),
+            binding(HotkeyAction.OPEN_OCR, KeyEvent.VK_I, scope = HotkeyScope.GLOBAL),
+            binding(HotkeyAction.COPY_TRANSLATION, KeyEvent.VK_C, scope = HotkeyScope.LOCAL),
+        )
+
+        val projected = captureShortcutBindings(bindings)
+
+        assertEquals(setOf(HotkeyAction.OCR_ACTION_COPY_TEXT), projected.keys)
+    }
+
+    @Test
+    fun `disabled and unassigned capture actions are not installed`() {
+        val bindings = listOf(
+            binding(HotkeyAction.OCR_ACTION_SAVE_IMAGE, 0),
+            binding(HotkeyAction.OCR_ACTION_RECROP, KeyEvent.VK_R, enabled = false),
+        )
+
+        assertTrue(installableCaptureShortcuts(bindings).isEmpty())
+    }
+
+    @Test
+    fun `enter and escape stay reserved for the primary and cancel actions`() {
+        val bindings = listOf(
+            binding(HotkeyAction.OCR_ACTION_TRANSLATE, KeyEvent.VK_ENTER, modifiers = 0),
+            binding(HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE, modifiers = 0),
+            binding(HotkeyAction.OCR_ACTION_COPY_IMAGE, KeyEvent.VK_C),
+        )
+
+        val installed = installableCaptureShortcuts(bindings)
+
+        assertEquals(listOf(HotkeyAction.OCR_ACTION_COPY_IMAGE), installed.map { it.first.action })
+        assertEquals(CaptureToolbarAction.COPY_IMAGE, installed.single().second)
+    }
+
+    @Test
+    fun `a modified enter or escape remains available as a capture shortcut`() {
+        val bindings = listOf(
+            binding(HotkeyAction.OCR_ACTION_TRANSLATE, KeyEvent.VK_ENTER),
+            binding(HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE),
+        )
+
+        assertEquals(
+            listOf(HotkeyAction.OCR_ACTION_TRANSLATE, HotkeyAction.OCR_ACTION_CANCEL),
+            installableCaptureShortcuts(bindings).map { it.first.action },
+        )
+    }
+
+    @Test
+    fun `bare enter and escape are reserved for capture actions only`() {
+        // Settings must reject these at recording time; the runtime filter stays
+        // as the last resort for already-saved configs.
+        assertTrue(isReservedBareCaptureKey(HotkeyAction.OCR_ACTION_COPY_IMAGE, KeyEvent.VK_ENTER, 0))
+        assertTrue(isReservedBareCaptureKey(HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE, 0))
+        // Modified Enter/Escape are intentionally supported.
+        assertTrue(!isReservedBareCaptureKey(HotkeyAction.OCR_ACTION_COPY_IMAGE, KeyEvent.VK_ENTER, InputEvent.CTRL_DOWN_MASK))
+        assertTrue(!isReservedBareCaptureKey(HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE, InputEvent.CTRL_DOWN_MASK))
+        // Non-capture actions keep bare Enter/Escape available.
+        assertTrue(!isReservedBareCaptureKey(HotkeyAction.TRANSLATE, KeyEvent.VK_ENTER, 0))
+        assertTrue(!isReservedBareCaptureKey(HotkeyAction.OPEN_OCR, KeyEvent.VK_ESCAPE, 0))
+    }
+
+    @Test
+    fun `capture actions map to their toolbar actions`() {
+        val bindings = listOf(
+            binding(HotkeyAction.OCR_ACTION_TRANSLATE, KeyEvent.VK_T),
+            binding(HotkeyAction.OCR_ACTION_COPY_TEXT, KeyEvent.VK_C),
+            binding(HotkeyAction.OCR_ACTION_COPY_IMAGE, KeyEvent.VK_I),
+            binding(HotkeyAction.OCR_ACTION_SAVE_IMAGE, KeyEvent.VK_S),
+            binding(HotkeyAction.OCR_ACTION_RECROP, KeyEvent.VK_R),
+            binding(HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_X),
+        )
+
+        assertEquals(
+            listOf(
+                CaptureToolbarAction.TRANSLATE,
+                CaptureToolbarAction.COPY_TEXT,
+                CaptureToolbarAction.COPY_IMAGE,
+                CaptureToolbarAction.SAVE_IMAGE,
+                CaptureToolbarAction.RECROP,
+                CaptureToolbarAction.CANCEL,
+            ),
+            installableCaptureShortcuts(bindings).map { it.second }.sortedBy { it.ordinal },
+        )
+    }
+
+    private fun binding(
+        action: HotkeyAction,
+        keyCode: Int,
+        scope: HotkeyScope = HotkeyScope.CAPTURE,
+        enabled: Boolean = true,
+        modifiers: Int = InputEvent.CTRL_DOWN_MASK,
+    ) = HotkeyBinding(
+        action = action,
+        keyCode = keyCode,
+        modifiers = modifiers,
+        isEnabled = enabled,
+        scope = scope,
+    )
+}

@@ -1,6 +1,15 @@
 package com.github.ahatem.qtranslate.core.main.mvi
 
 import com.github.ahatem.qtranslate.api.core.Logger
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.mutablePreferencesOf
+import androidx.datastore.preferences.core.stringPreferencesKey
+import com.github.ahatem.qtranslate.core.history.HistorySnapshot
+import kotlinx.coroutines.flow.Flow
+import java.io.IOException
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
@@ -13,17 +22,17 @@ import com.github.ahatem.qtranslate.core.audio.AudioPlayer
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 import com.github.ahatem.qtranslate.core.history.HistoryRepository
 import com.github.ahatem.qtranslate.core.main.domain.usecase.CheckForUpdatesUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.FetchInlineDefinitionUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.HandleTextToSpeechUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.LookupWordUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.OcrAndTranslateUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.LookupWordUseCase
+import com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.PerformSpellCheckUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.RewriteUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.SearchImagesUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.RewriteUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.SearchImagesUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SelectActiveServiceUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.SummarizeUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.SummarizeUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SwapLanguagesUseCase
-import com.github.ahatem.qtranslate.core.main.domain.usecase.TranslateTextUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslateTextUseCase
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.AutoCopyTranslation
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
@@ -183,6 +192,39 @@ class MainStoreAutoCopyTest {
         }
     }
 
+    @Test fun `failed history clear keeps persisted and visible entries`() = runTest {
+        val entry = HistorySnapshot("input", "output", "en", "fr", "translator", 1L)
+        val data = FailingHistoryStore(listOf(entry))
+        val fixture = Fixture(this, AutoCopyTranslation.OFF, historyData = data)
+        try {
+            advanceUntilIdle()
+            assertEquals(listOf(entry), fixture.store.state.value.history)
+            fixture.store.dispatch(MainIntent.ClearHistory)
+            advanceUntilIdle()
+            assertEquals(listOf(entry), fixture.store.state.value.history)
+            assertEquals(listOf(entry), Json.decodeFromString(data.preferences[stringPreferencesKey("translation_history_json")]!!))
+        } finally { fixture.cleanUp() }
+    }
+
+    @Test fun `history write failure does not fail successful translation`() = runTest {
+        val fixture = Fixture(this, AutoCopyTranslation.OFF, historyData = FailingHistoryStore(emptyList()))
+        try {
+            advanceUntilIdle()
+            fixture.store.dispatch(MainIntent.UpdateInputText("hello"))
+            fixture.store.dispatch(MainIntent.Translate())
+            advanceUntilIdle()
+            assertEquals("t:hello", fixture.store.state.value.translatedText)
+            assertFalse(fixture.store.state.value.translationFailed)
+            assertTrue(fixture.store.state.value.history.isNotEmpty())
+        } finally { fixture.cleanUp() }
+    }
+
+    private class FailingHistoryStore(entries: List<HistorySnapshot>) : DataStore<Preferences> {
+        val preferences: Preferences = mutablePreferencesOf(stringPreferencesKey("translation_history_json") to Json.encodeToString(entries))
+        override val data: Flow<Preferences> = MutableStateFlow(preferences)
+        override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences = throw IOException("disk unavailable")
+    }
+
     /**
      * A MainStore wired to one translator. Auto-update checks are off and no TTS or OCR service
      * is registered, so nothing reaches the network.
@@ -195,7 +237,8 @@ class MainStoreAutoCopyTest {
         autoCopy: AutoCopyTranslation,
         failing: Boolean = false,
         blank: Boolean = false,
-        instant: Boolean = false
+        instant: Boolean = false,
+        historyData: DataStore<Preferences>? = null
     ) {
         private val scope = CoroutineScope(
             SupervisorJob() + testScope.coroutineContext[ContinuationInterceptor]!!
@@ -222,10 +265,12 @@ class MainStoreAutoCopyTest {
             settings
         )
 
+        private val historyRepository = HistoryRepository(directory, SILENT_LOGGER, Json, historyData)
+
         val store = MainStore(
             scope = scope,
             settingsState = settings,
-            historyRepository = HistoryRepository(directory, SILENT_LOGGER, Json),
+            historyRepository = historyRepository,
             checkForUpdatesUseCase = CheckForUpdatesUseCase(
                 currentVersion = "0.0.0",
                 settingsState = settings,
@@ -246,17 +291,17 @@ class MainStoreAutoCopyTest {
                 scope = scope,
                 settingsState = settings,
                 activeServiceManager = manager,
-                historyRepository = HistoryRepository(directory, SILENT_LOGGER, Json),
+                historyRepository = historyRepository,
                 summarizeUseCase = SummarizeUseCase(manager, SILENT_FACTORY),
                 rewriteUseCase = RewriteUseCase(manager, SILENT_FACTORY),
                 loggerFactory = SILENT_FACTORY,
             ),
             swapLanguagesUseCase = SwapLanguagesUseCase(),
-            ocrAndTranslateUseCase = OcrAndTranslateUseCase(manager, SILENT_FACTORY),
+            ocrExtractionUseCase = OcrExtractionUseCase(manager, SILENT_FACTORY),
             summarizeUseCase = SummarizeUseCase(manager, SILENT_FACTORY),
             rewriteUseCase = RewriteUseCase(manager, SILENT_FACTORY),
-            lookupWordUseCase = LookupWordUseCase(scope, manager, SILENT_FACTORY),
-            searchImagesUseCase = SearchImagesUseCase(scope, manager, SILENT_FACTORY),
+            lookupWordUseCase = LookupWordUseCase(manager, SILENT_FACTORY),
+            searchImagesUseCase = SearchImagesUseCase(manager, SILENT_FACTORY),
             fetchInlineDefinitionUseCase = FetchInlineDefinitionUseCase(scope, manager, SILENT_FACTORY),
             documentTranslationUseCase = DocumentTranslationUseCase(manager, SILENT_FACTORY),
         )

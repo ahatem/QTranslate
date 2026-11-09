@@ -11,7 +11,9 @@ enum class HotkeyPresetKind {
 
 object HotkeyPresets {
 
-    val LEGACY: List<HotkeyBinding> = HotkeyBinding.DEFAULTS.map { it.copy() }
+    // Presets describe only the pre-OCR vocabulary. OCR rows are never part
+    // of a preset and must not make legacy-customization read as CUSTOM here.
+    val LEGACY: List<HotkeyBinding> = HotkeyBinding.LEGACY_DEFAULTS.map { it.copy() }
 
     val MODERN: List<HotkeyBinding> = LEGACY.map { binding ->
         when (binding.action) {

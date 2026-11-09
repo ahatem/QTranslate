@@ -4,25 +4,52 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
-import com.github.ahatem.qtranslate.core.document.DocumentTranslationException
+import com.github.ahatem.qtranslate.core.document.DocumentTranslationSession
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationRequest
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 import com.github.ahatem.qtranslate.core.history.HistoryRepository
+import com.github.ahatem.qtranslate.core.history.previousHistory
+import com.github.ahatem.qtranslate.core.history.nextHistory
+import com.github.ahatem.qtranslate.core.history.restoredHistoryIndex
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
 import com.github.ahatem.qtranslate.core.main.domain.language.LanguageSelectionCompat
 import com.github.ahatem.qtranslate.core.main.domain.usecase.*
+import com.github.ahatem.qtranslate.core.ocr.OcrExtractionOutcome
+import com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase
+import com.github.ahatem.qtranslate.core.ocr.OcrRequestOwner
+import com.github.ahatem.qtranslate.core.ocr.preprocessOcrText
+import com.github.ahatem.qtranslate.core.ocr.resolveOcrLanguage
+import com.github.ahatem.qtranslate.core.workspace.translation.ComparisonPolicy
+import com.github.ahatem.qtranslate.core.workspace.translation.RewriteUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.SummarizeUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslateTextUseCase
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslationCompletion
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslationCoordinator
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslationStart
+import com.github.ahatem.qtranslate.core.workspace.translation.TranslationOrigin
+import com.github.ahatem.qtranslate.core.workspace.lookup.DictionaryLookupRequest
+import com.github.ahatem.qtranslate.core.workspace.lookup.DictionaryLookupSession
+import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.ImageLookupRequest
+import com.github.ahatem.qtranslate.core.workspace.lookup.ImageLookupSession
+import com.github.ahatem.qtranslate.core.workspace.lookup.LookupWordUseCase
+import com.github.ahatem.qtranslate.core.workspace.lookup.SearchImagesUseCase
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import com.github.ahatem.qtranslate.core.settings.data.effectiveLayoutPresetId
 import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
+import com.github.ahatem.qtranslate.core.settings.data.OcrPostSelectionAction
+import com.github.ahatem.qtranslate.core.settings.data.OcrSettings
+import com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination
 import com.github.ahatem.qtranslate.core.settings.data.SelectionReadSource
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.shared.arch.Store
+import com.github.michaelbull.result.fold
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -81,7 +108,7 @@ internal fun MainState.clearSpellCorrectionsForInputChange(previous: SpellCheckI
  * This prevents out-of-order state updates from rapid synchronous dispatches.
  *
  * ### OCR flow
- * [MainIntent.OcrAndTranslateImage] extracts text via [OcrAndTranslateUseCase],
+ * [MainIntent.OcrAndTranslateImage] extracts text via [OcrExtractionUseCase],
  * writes the result into [MainState.inputText], then triggers translation — the
  * same path as if the user had typed the text manually.
  */
@@ -95,7 +122,7 @@ class MainStore(
     private val selectActiveServiceUseCase: SelectActiveServiceUseCase,
     private val translateTextUseCase: TranslateTextUseCase,
     private val swapLanguagesUseCase: SwapLanguagesUseCase,
-    private val ocrAndTranslateUseCase: OcrAndTranslateUseCase,
+    private val ocrExtractionUseCase: OcrExtractionUseCase,
     private val summarizeUseCase: SummarizeUseCase,
     private val rewriteUseCase: RewriteUseCase,
     private val lookupWordUseCase: LookupWordUseCase,
@@ -104,9 +131,41 @@ class MainStore(
     private val documentTranslationUseCase: DocumentTranslationUseCase
 ) : Store<MainState, MainIntent, MainEvent> {
 
-    private var documentTranslationJob: Job? = null
-    private var documentTranslationGeneration = 0L
     private val quickTranslateGenerations = AtomicLong()
+
+    /**
+     * Screen OCR has its own publication owner. Ownership and every OCR-derived state/event
+     * decision share one lock, so a superseded capture can never become externally visible after
+     * a newer one has taken over. Cancellation alone is not the contract: a coroutine may already
+     * be inside publication.
+     */
+    private val ocrOwner = OcrRequestOwner()
+
+    /**
+     * The translation request this OCR workflow started, if any. A newer capture cancels it by
+     * identity, not by touching whatever translation happens to be current.
+     */
+    @Volatile
+    private var ocrTranslation: OcrTranslation? = null
+
+    private data class OcrTranslation(val requestId: Long, val quick: Boolean)
+
+    /**
+     * Test seam at the point where an older OCR request has returned but has not published yet.
+     * Production leaves it null. A deterministic race test holds one request there and lets a
+     * newer workflow take ownership.
+     */
+    internal var beforeOcrPublication: ((token: Long) -> Unit)? = null
+    internal var afterOcrPublication: ((token: Long) -> Unit)? = null
+
+    /**
+     * The input text a non-typing workflow just placed in the editor. The instant-translation
+     * observer skips exactly this value once: otherwise enabling instant translation could
+     * schedule a second request that supersedes the OCR/Quick/Replace translation that owns it.
+     * Any user edit clears the marker by differing from it.
+     */
+    @Volatile
+    private var programmaticInputText: String? = null
 
     private val _state = MutableStateFlow(
         MainState(
@@ -118,8 +177,65 @@ class MainStore(
     )
     override val state: StateFlow<MainState> = _state.asStateFlow()
 
-    private val _eventChannel = Channel<MainEvent>(Channel.BUFFERED)
-    override val events: Flow<MainEvent> = _eventChannel.receiveAsFlow()
+    private val _eventChannel = Channel<MainEventDelivery>(Channel.BUFFERED)
+    private val translationCoordinator = TranslationCoordinator(
+        useCase = translateTextUseCase,
+        settingsState = settingsState,
+        getState = { _state.value },
+        updateState = { transform -> _state.update(transform) },
+        onStatusUpdate = { code, type, isTemporary -> updateStatusBar(code, type, isTemporary) },
+        emitCopy = { text, requestId ->
+            sendEvent(MainEvent.CopyToClipboard(text)) { publish ->
+                translateTextUseCase.withCurrentRequest(requestId, publish)
+            }
+        }
+    )
+
+    /**
+     * The single UI consumer transports these envelopes to Swing before accepting effects.
+     * Collect either this flow or [events], never both: they share the same one-shot channel.
+     */
+    val eventDeliveries: Flow<MainEventDelivery> = _eventChannel.receiveAsFlow()
+
+    /** Compatibility view for consumers that deliver immediately on their collection dispatcher. */
+    override val events: Flow<MainEvent> = eventDeliveries.mapNotNull { it.accept() }
+
+    private val documentSession = DocumentTranslationSession(
+        scope = scope,
+        translate = { request, progress -> documentTranslationUseCase(request, progress) },
+        onProgress = { progress -> _state.update { it.copy(documentTranslationProgress = progress) } },
+        onCompleted = { output, publish -> sendEvent(MainEvent.DocumentTranslationCompleted(output), publish) },
+        onFailed = { message, publish -> sendEvent(MainEvent.DocumentTranslationFailed(message), publish) }
+    )
+
+    private val dictionarySession = DictionaryLookupSession(
+        scope, { request, started -> lookupWordUseCase(request, started) },
+        onStarted = { request, publish ->
+            sendEvent(MainEvent.UpdateStatusBar(StatusCode.LookingUpWord, NotificationType.INFO, false), publish)
+            publish { _state.update { it.copy(isDictionaryLoading = true, dictionaryWord = request.word,
+                dictionaryLanguage = request.language, dictionaryFailed = false) } }
+        },
+        onResult = { outcome, publish ->
+            sendEvent(MainEvent.UpdateStatusBar(outcome.status, outcome.type, true), publish)
+            if (outcome.entries != null) publish { _state.update { it.copy(
+                isDictionaryLoading = false, dictionaryEntries = outcome.entries,
+                dictionaryFailed = outcome.failed ?: it.dictionaryFailed) } }
+        }
+    )
+    private val imageSession = ImageLookupSession(
+        scope, { request, started -> searchImagesUseCase(request, started) },
+        onStarted = { request, publish ->
+            sendEvent(MainEvent.UpdateStatusBar(StatusCode.SearchingImages, NotificationType.INFO, false), publish)
+            publish { _state.update { it.copy(isImageSearchLoading = true, imageSearchTerm = request.term,
+                imageSearchFailed = false) } }
+        },
+        onResult = { outcome, publish ->
+            sendEvent(MainEvent.UpdateStatusBar(outcome.status, outcome.type, true), publish)
+            if (outcome.results != null) publish { _state.update { it.copy(
+                isImageSearchLoading = false, imageResults = outcome.results,
+                imageSearchFailed = outcome.failed ?: it.imageSearchFailed) } }
+        }
+    )
 
     init {
         loadInitialHistory()
@@ -185,13 +301,15 @@ class MainStore(
                 .distinctUntilChanged()
                 .collect { text ->
                     if (settingsState.value.isInstantTranslationEnabled && text.isBlank()) {
-                        translateTextUseCase.cancel()
+                        cancelTranslationWork()
                         _state.update {
                             it.copy(
                                 translatedText = "",
                                 translationFailed = false,
                                 comparisonResults = emptyList(),
                                 extraOutputText = "",
+                                extraOutputFailed = false,
+                                extraOutputFailure = null,
                                 detectedSourceLanguage = null,
                                 isLoading = false
                             )
@@ -206,6 +324,13 @@ class MainStore(
                 .debounce(AppConstants.INSTANT_TRANSLATION_DEBOUNCE_MS)
                 .distinctUntilChanged()
                 .collect { text ->
+                    if (text == programmaticInputText) {
+                        // One workflow owns this text. Consume the marker so a later identical
+                        // user edit is not suppressed as well.
+                        programmaticInputText = null
+                        return@collect
+                    }
+                    programmaticInputText = null
                     if (settingsState.value.isInstantTranslationEnabled
                         && text.length >= AppConstants.INSTANT_TRANSLATE_MIN_CHARS
                     ) {
@@ -325,6 +450,9 @@ class MainStore(
             // ---- Synchronous state mutations — no coroutine needed ----
 
             is MainIntent.UpdateInputText -> {
+                // The user is editing the input themselves; a previous programmatic write no
+                // longer owns the instant-translation suppression slot.
+                programmaticInputText = null
                 // Remove line breaks if enabled — replaces \n with space so
                 // PDF-copied text translates as complete sentences (Mohamed's request)
                 val cleaned = prepareInputText(intent.text, settingsState.value.isRemoveLineBreaksEnabled)
@@ -337,7 +465,7 @@ class MainStore(
                 // text effectively waits in line behind the old result.
                 // Capture state once to avoid reading _state.value twice (TOCTOU race).
                 if (settingsState.value.isInstantTranslationEnabled && _state.value.isLoading) {
-                    translateTextUseCase.cancel()
+                    cancelTranslationWork()
                     _state.update { s -> s.copy(isLoading = false) }
                 }
             }
@@ -376,7 +504,7 @@ class MainStore(
                 // are cleared only while the primary or a comparison is unfinished: extra output
                 // alone is published after them and does not make a finished set incomplete.
                 val close = _state.value.quickCloseActions()
-                if (close.cancelWork) translateTextUseCase.cancel()
+                if (close.cancelWork) cancelTranslationWork()
                 if (close.clearComparisons) clearComparisonState()
                 _state.update { it.afterQuickClose() }
             }
@@ -387,7 +515,7 @@ class MainStore(
                 _state.update { it.copy(isQuickTranslateDialogPinned = !it.isQuickTranslateDialogPinned) }
 
             MainIntent.RetranslateQuickTranslate -> {
-                translateTextUseCase.cancel()
+                cancelTranslationWork()
                 clearComparisonState()
                 scope.launch { translateText(TranslationOrigin.QUICK, comparisonPolicy = quickComparisonPolicy()) }
             }
@@ -409,9 +537,63 @@ class MainStore(
             }
 
             is MainIntent.Translate -> {
-                translateTextUseCase.cancel()
+                val workspaceToken = intent.ocrWorkspaceToken
+                if (workspaceToken != null && !ocrOwner.isCurrent(workspaceToken)) return
+                // An explicit translation of externally supplied text owns the input for this
+                // pass; with instant translation enabled, the debounced observer must not replace
+                // it with an otherwise identical secondary request.
+                if (intent.text != null) {
+                    val currentInput = _state.value.inputText
+                    programmaticInputText = if (intent.text == currentInput) {
+                        // Canonical sequence UpdateInputText -> Translate: the editor already
+                        // holds the normalized value, so the marker must match it exactly.
+                        currentInput
+                    } else {
+                        prepareInputText(
+                            intent.text,
+                            settingsState.value.isRemoveLineBreaksEnabled,
+                        )
+                    }
+                }
+                cancelTranslationWork()
                 clearComparisonState()
-                scope.launch { translateText(TranslationOrigin.MAIN, intent.text, comparisonPolicy = mainComparisonPolicy()) }
+                // Workspace intents (onTranslationClaimed set) claim their TranslationStart
+                // synchronously, before dispatch returns. The previous async-only claim left
+                // a window where a replacement could not cancel the translation because its
+                // identity was still unknown. After reserveStart the caller owns the exact
+                // requestId: a subsequent CancelTranslationIfCurrent aborts the launched
+                // coroutine at the use case's isCurrent gate, before any provider call,
+                // publication or auto-copy.
+                if (intent.onTranslationClaimed != null) {
+                    val start = translationCoordinator.reserveStart()
+                    if (workspaceToken != null) {
+                        val filed = ocrOwner.withCurrent(workspaceToken) {
+                            ocrTranslation = OcrTranslation(start.requestId, quick = false)
+                        }
+                        if (filed == null) {
+                            // Stale under the OCR owner: never start the orphan.
+                            translationCoordinator.cancelIfCurrent(start.requestId)
+                            return
+                        }
+                    }
+                    intent.onTranslationClaimed.invoke(start.requestId)
+                    scope.launch {
+                        translateText(
+                            TranslationOrigin.MAIN,
+                            intent.text,
+                            comparisonPolicy = mainComparisonPolicy(),
+                            start = start,
+                        )
+                    }
+                } else {
+                    scope.launch {
+                        translateText(
+                            TranslationOrigin.MAIN,
+                            intent.text,
+                            comparisonPolicy = mainComparisonPolicy(),
+                        )
+                    }
+                }
             }
 
             is MainIntent.RefreshExtraOutput -> scope.launch {
@@ -419,13 +601,23 @@ class MainStore(
             }
 
             MainIntent.CancelTranslation -> {
-                translateTextUseCase.cancel()
+                cancelTranslationWork()
                 clearComparisonState()
                 // Both flags, because cancelling can land while the extra panel is still waiting
                 // on its own request and only the main one was ever cleared here.
-                _state.update { it.copy(isLoading = false, isExtraOutputLoading = false) }
+                _state.update { it.copy(isLoading = false) }
                 scope.launch {
                     updateStatusBar(StatusCode.TranslationCancelled, NotificationType.INFO, true)
+                }
+            }
+
+            is MainIntent.CancelTranslationIfCurrent -> {
+                // Ownership-gated cleanup: only the named request may be cancelled.
+                // A null result means a newer owner holds the result, so do nothing —
+                // never infer ownership from input text or loading state.
+                val cancellation = translationCoordinator.cancelIfCurrent(intent.requestId) ?: return
+                translationCoordinator.withCurrentRequest(cancellation) {
+                    _state.update { it.copy(isLoading = false) }
                 }
             }
 
@@ -444,23 +636,25 @@ class MainStore(
                 handleListen(intent.textSource, intent.text, intent.language)
             }
 
-            is MainIntent.OcrAndTranslateImage -> {
-                clearComparisonState()
-                scope.launch { handleOcrAndTranslate(intent) }
-            }
+            is MainIntent.OcrWorkflowImage -> startOcrWorkflow(
+                image = intent.image,
+                action = intent.action,
+                destinationOverride = intent.destinationOverride,
+            )
 
-            is MainIntent.OcrAndCopyText -> scope.launch {
-                handleOcrAndCopyText(intent)
-            }
+            is MainIntent.OcrAndTranslateImage -> startOcrWorkflow(
+                image = intent.image,
+                action = OcrPostSelectionAction.TRANSLATE,
+                destinationOverride = intent.destination,
+            )
 
-            is MainIntent.ShowQuickTranslate -> {
-                val generation = quickTranslateGenerations.incrementAndGet()
-                // Invalidate a previous auto-read before its handler coroutine gets a chance to
-                // finish TTS setup. The handler also checks the request token after translation.
-                translateTextUseCase.cancel()
-                clearComparisonState()
-                scope.launch { handleShowQuickTranslate(intent, generation) }
-            }
+            is MainIntent.OcrAndCopyText -> startOcrWorkflow(
+                image = intent.image,
+                action = OcrPostSelectionAction.COPY_TEXT,
+                destinationOverride = null,
+            )
+
+            is MainIntent.ShowQuickTranslate -> startQuickTranslate(intent)
 
             is MainIntent.LookupWord -> scope.launch { handleLookupWord(intent) }
 
@@ -547,91 +741,291 @@ class MainStore(
     // -------------------------------------------------------------------------
 
     private fun startDocumentTranslation(intent: MainIntent.TranslateDocument) {
-        documentTranslationJob?.cancel()
-        val generation = ++documentTranslationGeneration
-        documentTranslationJob = scope.launch {
-            val state = _state.value
-            try {
-                val output = documentTranslationUseCase(
-                    DocumentTranslationRequest(
-                        inputFile = intent.inputFile,
-                        outputFile = intent.outputFile,
-                        sourceLanguage = state.sourceLanguage,
-                        targetLanguage = state.targetLanguage,
-                        pdfMode = intent.pdfMode
-                    )
-                ) { progress ->
-                    if (generation == documentTranslationGeneration) {
-                        _state.update { it.copy(documentTranslationProgress = progress) }
-                    }
-                }
-                if (generation != documentTranslationGeneration) return@launch
-                _state.update { it.copy(documentTranslationProgress = null) }
-                _eventChannel.send(MainEvent.DocumentTranslationCompleted(output))
-            } catch (error: CancellationException) {
-                if (generation == documentTranslationGeneration) {
-                    _state.update { it.copy(documentTranslationProgress = null) }
-                }
-                throw error
-            } catch (error: DocumentTranslationException) {
-                if (generation != documentTranslationGeneration) return@launch
-                _state.update { it.copy(documentTranslationProgress = null) }
-                _eventChannel.send(MainEvent.DocumentTranslationFailed(error.message))
-            } catch (error: Exception) {
-                if (generation != documentTranslationGeneration) return@launch
-                _state.update { it.copy(documentTranslationProgress = null) }
-                _eventChannel.send(
-                    MainEvent.DocumentTranslationFailed(error.message ?: "Document translation failed.")
+        val state = _state.value
+        documentSession.start(
+            DocumentTranslationRequest(
+                inputFile = intent.inputFile,
+                outputFile = intent.outputFile,
+                sourceLanguage = state.sourceLanguage,
+                targetLanguage = state.targetLanguage,
+                pdfMode = intent.pdfMode
+            )
+        )
+    }
+
+    private fun cancelDocumentTranslation() = documentSession.cancel()
+
+    /**
+     * Starts one capture workflow and makes it the only OCR request allowed to publish.
+     *
+     * Copy Image never waits for a provider, but it still runs through the same fenced event
+     * owner: choosing it is a new workflow action, and an older capture must not publish after it.
+     */
+    private fun startOcrWorkflow(
+        image: com.github.ahatem.qtranslate.api.ocr.ImageData,
+        action: OcrPostSelectionAction,
+        destinationOverride: OcrTranslationDestination?,
+    ) {
+        var previousTranslation: OcrTranslation? = null
+        val claim = ocrOwner.claim {
+            previousTranslation = ocrTranslation
+            ocrTranslation = null
+        } ?: return
+        // Only identities detached by this claim may be cancelled. A newer claim can install
+        // its translation while cancellation invokes handlers, so never reread the shared slot.
+        claim.previousJob?.cancel()
+        cancelOcrTranslation(previousTranslation)
+        val token = claim.token
+
+        when (action) {
+            OcrPostSelectionAction.COPY_IMAGE -> startOwnedOcrJob(token) {
+                publishOcrEvent(token, MainEvent.CopyImageToClipboard(image))
+                publishOcrStatus(token, StatusCode.OcrImageCopied, NotificationType.SUCCESS, true)
+            }
+            OcrPostSelectionAction.OPEN_WORKSPACE -> startOwnedOcrJob(token) {
+                publishOcrEvent(
+                    token,
+                    MainEvent.OpenOcrWorkspace(image = image, autoTranslate = false, ocrToken = token),
                 )
-            } finally {
-                if (generation == documentTranslationGeneration) {
-                    documentTranslationJob = null
-                }
+            }
+            OcrPostSelectionAction.SHOW_ACTIONS -> Unit
+            OcrPostSelectionAction.TRANSLATE,
+            OcrPostSelectionAction.COPY_TEXT -> startOwnedOcrJob(token) {
+                handleOcrWorkflow(image, action, destinationOverride, token)
             }
         }
     }
 
-    private fun cancelDocumentTranslation() {
-        documentTranslationGeneration++
-        documentTranslationJob?.cancel(CancellationException("Document translation cancelled"))
-        documentTranslationJob = null
-        _state.update { it.copy(documentTranslationProgress = null) }
+    /**
+     * Installs the job slot before the lazy body runs. If a newer workflow already owns OCR by
+     * the time the job is created, the candidate is detached and never starts.
+     */
+    private fun startOwnedOcrJob(token: Long, block: suspend () -> Unit): Job {
+        val candidate = scope.launch(start = CoroutineStart.LAZY) { block() }
+        if (!ocrOwner.install(token, candidate)) {
+            candidate.cancel()
+            return candidate
+        }
+        candidate.start()
+        return candidate
     }
 
-    private suspend fun handleOcrAndTranslate(intent: MainIntent.OcrAndTranslateImage) {
-        val extractedText = ocrAndTranslateUseCase(
-            image = intent.image,
-            currentState = _state.value,
-            onStatusUpdate = ::updateStatusBar
+    private suspend fun handleOcrWorkflow(
+        image: com.github.ahatem.qtranslate.api.ocr.ImageData,
+        action: OcrPostSelectionAction,
+        destinationOverride: OcrTranslationDestination?,
+        token: Long,
+    ) {
+        val settings = settingsState.value.ocr
+        val language = resolveOcrLanguage(settings.recognitionLanguage, _state.value.sourceLanguage)
+        val outcome = ocrExtractionUseCase.extract(
+            image = image,
+            language = language,
+            onStatusUpdate = { code, type, isTemporary ->
+                publishOcrStatus(token, code, type, isTemporary)
+            },
         )
 
-        if (extractedText.isBlank()) return
+        beforeOcrPublication?.invoke(token)
+        val publication = ocrOwner.withCurrent(token) {
+            publishOcrOutcome(
+                image = image,
+                action = action,
+                destinationOverride = destinationOverride,
+                settings = settings,
+                language = language,
+                outcome = outcome,
+                token = token,
+            )
+        }
+        if (publication == null) {
+            afterOcrPublication?.invoke(token)
+            return
+        }
+        // Admission detached old jobs. Release them before any test hook, queue send or other
+        // suspension can cancel this coroutine and strand work outside its owner's job slot.
+        publication.translationStart?.cancelPrevious()
+        afterOcrPublication?.invoke(token)
 
-        // Write extracted text into input then translate — same path as manual typing.
-        clearComparisonState()
-        _state.update { it.copy(inputText = extractedText) }
-        translateText(TranslationOrigin.OCR, comparisonPolicy = ComparisonPolicy.DISABLED)
+        publication.events.forEach { event ->
+            publishOcrEvent(token, event)
+        }
+        val start = publication.translationStart ?: return
+        if (publication.quickText != null) {
+            startQuickTranslate(MainIntent.ShowQuickTranslate(publication.quickText), start)
+        } else {
+            scope.launch {
+                translateText(
+                    origin = TranslationOrigin.OCR,
+                    textOverride = publication.mainText,
+                    comparisonPolicy = ComparisonPolicy.DISABLED,
+                    start = start,
+                )
+            }
+        }
     }
 
     /**
-     * OCR-only path: extracts text from [intent.image] and emits [MainEvent.CopyToClipboard]
-     * so the UI layer can write it to the system clipboard.
-     * Does NOT translate — the user chose "Copy Text", not "Translate".
+     * The publication decision and every main-state write it owns happen while [token] is still
+     * current. Events are returned and only queued after the ownership block, still fenced by the
+     * same token so a newer workflow drops them at consumption time too.
      */
-    private suspend fun handleOcrAndCopyText(intent: MainIntent.OcrAndCopyText) {
-        val extractedText = ocrAndTranslateUseCase(
-            image = intent.image,
-            currentState = _state.value,
-            onStatusUpdate = ::updateStatusBar
-        )
-        if (extractedText.isBlank()) return
-        _eventChannel.send(MainEvent.CopyToClipboard(extractedText))
-        updateStatusBar(StatusCode.OcrTextCopied, NotificationType.INFO, true)
+    private fun publishOcrOutcome(
+        image: com.github.ahatem.qtranslate.api.ocr.ImageData,
+        action: OcrPostSelectionAction,
+        destinationOverride: OcrTranslationDestination?,
+        settings: OcrSettings,
+        language: LanguageCode,
+        outcome: OcrExtractionOutcome,
+        token: Long,
+    ): OcrPublication {
+        val result = (outcome as? OcrExtractionOutcome.Success)?.result
+        val preparedText = result?.let { preprocessOcrText(it.text, settings) }.orEmpty()
+        if (preparedText.isBlank()) {
+            // The capture overlay has already closed and the main window was hidden for it.
+            // A recognition failure must not strand the user on an invisible window with only
+            // a hidden status-bar message. Workspace actions restore their own window.
+            return if (action == OcrPostSelectionAction.TRANSLATE ||
+                action == OcrPostSelectionAction.COPY_TEXT
+            ) {
+                OcrPublication(events = listOf(MainEvent.ShowMainWindow))
+            } else {
+                OcrPublication()
+            }
+        }
+        val recognized = requireNotNull(result)
+
+        return when (action) {
+            OcrPostSelectionAction.COPY_TEXT -> OcrPublication(
+                events = listOf(
+                    MainEvent.CopyToClipboard(preparedText),
+                    MainEvent.UpdateStatusBar(StatusCode.OcrTextCopied, NotificationType.INFO, true),
+                )
+            )
+            OcrPostSelectionAction.TRANSLATE -> when (destinationOverride ?: settings.translationDestination) {
+                OcrTranslationDestination.QUICK_TRANSLATE -> {
+                    val start = translationCoordinator.reserveStart()
+                    ocrTranslation = OcrTranslation(start.requestId, quick = true)
+                    OcrPublication(translationStart = start, quickText = preparedText)
+                }
+
+                OcrTranslationDestination.OCR_WORKSPACE -> OcrPublication(
+                    events = listOf(
+                        MainEvent.OpenOcrWorkspace(
+                            image = image,
+                            autoTranslate = true,
+                            initialText = preparedText,
+                            initialRegions = recognized.regions,
+                            initialLanguage = recognized.detectedLanguage
+                                ?.takeIf { it != LanguageCode.AUTO }
+                                ?: language.takeIf { it != LanguageCode.AUTO },
+                            ocrToken = token,
+                        )
+                    )
+                )
+                OcrTranslationDestination.MAIN_WINDOW -> {
+                    // The main input's own line-break policy still applies, exactly as it
+                    // does to text typed or pasted there. Quick Translate applies it too.
+                    val mainText = prepareInputText(
+                        preparedText,
+                        settingsState.value.isRemoveLineBreaksEnabled,
+                    )
+                    val start = translationCoordinator.reserveStart()
+                    ocrTranslation = OcrTranslation(start.requestId, quick = false)
+                    programmaticInputText = mainText
+                    _state.update {
+                        it.copy(
+                            comparisonResults = emptyList(),
+                            inputText = mainText,
+                            detectedSourceLanguage = null,
+                            spellCheckCorrections = emptyList(),
+                        )
+                    }
+                    OcrPublication(
+                        events = listOf(MainEvent.ShowMainWindow),
+                        translationStart = start,
+                        mainText = mainText,
+                    )
+                }
+            }
+            OcrPostSelectionAction.COPY_IMAGE,
+            OcrPostSelectionAction.OPEN_WORKSPACE,
+            OcrPostSelectionAction.SHOW_ACTIONS -> OcrPublication()
+        }
+    }
+
+    private data class OcrPublication(
+        val events: List<MainEvent> = emptyList(),
+        val translationStart: TranslationStart? = null,
+        val quickText: String? = null,
+        val mainText: String? = null,
+    )
+
+    /**
+     * Queues an OCR-derived event behind an ownership check at consumption time. Even if the
+     * event was buffered before a newer workflow claimed OCR, the newer claim makes the publish
+     * action a no-op and the event is dropped instead of reaching the UI.
+     */
+    private suspend fun publishOcrEvent(token: Long, event: MainEvent) {
+        sendEvent(event) { publish ->
+            ocrOwner.withCurrent(token) { publish() }
+        }
+    }
+
+    private suspend fun publishOcrStatus(
+        token: Long,
+        code: StatusCode,
+        type: NotificationType,
+        isTemporary: Boolean,
+    ) {
+        publishOcrEvent(token, MainEvent.UpdateStatusBar(code, type, isTemporary))
+    }
+
+    /**
+     * Cancels a translation only while the OCR workflow that started it still owns it. A manual
+     * translation that has since claimed the workspace is left alone, and the loading/comparison
+     * state the OCR path owned is normalized even when no replacement translation starts.
+     */
+    private fun cancelOcrTranslation(translation: OcrTranslation?) {
+        if (translation == null) return
+        val wasLoading = _state.value.isLoading
+        val cancellation = translationCoordinator.cancelIfCurrent(translation.requestId) ?: return
+        // A cancellation handler may have admitted a manual request. Only the cancellation's
+        // replacement identity may normalize flags; it cannot hide or clear a newer popup.
+        translationCoordinator.withCurrentRequest(cancellation) {
+            _state.update { current ->
+                current.copy(
+                    comparisonResults = if (translation.quick) emptyList() else current.comparisonResults,
+                    isLoading = false,
+                    isQuickTranslateDialogVisible = if (wasLoading && translation.quick) false else current.isQuickTranslateDialogVisible,
+                    isQuickTranslateDialogPinned = if (wasLoading && translation.quick) false else current.isQuickTranslateDialogPinned,
+                )
+            }
+        }
+    }
+
+    /** Reuses canonical Quick startup; an OCR admission has already claimed translation. */
+    private fun startQuickTranslate(intent: MainIntent.ShowQuickTranslate, start: TranslationStart? = null) {
+        val generation: Long
+        if (start == null) {
+            programmaticInputText = prepareInputText(intent.selectedText, settingsState.value.isRemoveLineBreaksEnabled)
+            generation = quickTranslateGenerations.incrementAndGet()
+            cancelTranslationWork()
+            clearComparisonState()
+        } else {
+            start.cancelPrevious()
+            generation = translationCoordinator.withCurrentRequest(start.requestId) {
+                programmaticInputText = prepareInputText(intent.selectedText, settingsState.value.isRemoveLineBreaksEnabled)
+                quickTranslateGenerations.incrementAndGet()
+            } ?: return
+        }
+        scope.launch { handleShowQuickTranslate(intent, generation, start) }
     }
 
     private suspend fun handleShowQuickTranslate(
         intent: MainIntent.ShowQuickTranslate,
-        generation: Long
+        generation: Long,
+        start: TranslationStart? = null,
     ) {
         if (intent.selectedText.isBlank()) return
 
@@ -642,37 +1036,41 @@ class MainStore(
         // is intentionally left untouched below.
         val preparedText = prepareInputText(intent.selectedText, settingsState.value.isRemoveLineBreaksEnabled)
 
-        if (_state.value.isQuickTranslateDialogVisible) {
-            // Already open, pinned or not: replace the text and count the trigger, so the popup
-            // refreshes in place and restarts its countdown. Hiding and re-showing it would
-            // flicker, move it, and throw away a pin the user had set.
-            _state.update {
-                it.copy(
-                    inputText = preparedText,
-                    quickTranslateTriggerCount = it.quickTranslateTriggerCount + 1
-                )
-            }
-        } else {
-            // Open a fresh popup — never pinned, whatever the last one was left as.
-            //
-            // isLoading and the cleared text are set here rather than left to the use case that
-            // follows. The popup withholds itself until there is something to show, and it decides
-            // that from this state; without it the popup saw "not loading, no text" for the moment
-            // between being asked for and the request starting, took that for a finished result,
-            // and opened empty — which is the loading state the user was seeing inside the popup
-            // instead of the marker that should have covered the wait.
-            _state.update {
-                it.copy(
-                    inputText = preparedText,
-                    translatedText = "",
-                    translationFailed = false,
-                    isLoading = true,
-                    isQuickTranslateDialogPinned = false,
-                    isQuickTranslateDialogVisible = true,
-                    quickTranslateTriggerCount = it.quickTranslateTriggerCount + 1
-                )
+        val showPopup = {
+            if (_state.value.isQuickTranslateDialogVisible) {
+                // Already open, pinned or not: replace the text and count the trigger, so the popup
+                // refreshes in place and restarts its countdown. Hiding and re-showing it would
+                // flicker, move it, and throw away a pin the user had set.
+                _state.update {
+                    it.copy(
+                        inputText = preparedText,
+                        quickTranslateTriggerCount = it.quickTranslateTriggerCount + 1
+                    )
+                }
+            } else {
+                // Open a fresh popup — never pinned, whatever the last one was left as.
+                //
+                // isLoading and the cleared text are set here rather than left to the use case that
+                // follows. The popup withholds itself until there is something to show, and it decides
+                // that from this state; without it the popup saw "not loading, no text" for the moment
+                // between being asked for and the request starting, took that for a finished result,
+                // and opened empty — which is the loading state the user was seeing inside the popup
+                // instead of the marker that should have covered the wait.
+                _state.update {
+                    it.copy(
+                        inputText = preparedText,
+                        translatedText = "",
+                        translationFailed = false,
+                        isLoading = true,
+                        isQuickTranslateDialogPinned = false,
+                        isQuickTranslateDialogVisible = true,
+                        quickTranslateTriggerCount = it.quickTranslateTriggerCount + 1
+                    )
+                }
             }
         }
+        if (start == null) showPopup()
+        else if (translationCoordinator.withCurrentRequest(start.requestId, showPopup) == null) return
 
         val readSource = settingsState.value.selectionReadSource
         if (intent.readSelectionAloud && readSource == SelectionReadSource.SOURCE) {
@@ -703,14 +1101,19 @@ class MainStore(
         }
 
         // Let TranslateTextUseCase own isLoading — it sets it at the start of the job.
-        val completion = translateText(TranslationOrigin.QUICK, comparisonPolicy = quickComparisonPolicy())
+        val completion = translateText(
+            origin = TranslationOrigin.QUICK,
+            comparisonPolicy = quickComparisonPolicy(),
+            onRequestClaimed = intent.onTranslationClaimed,
+            start = start,
+        )
         if (readSource != SelectionReadSource.TRANSLATION ||
             !SelectionTranslationReadGuard.shouldRead(
                 readRequested = intent.readSelectionAloud,
                 selectionGeneration = generation,
                 currentSelectionGeneration = quickTranslateGenerations.get(),
                 completion = completion,
-                translationStillCurrent = completion?.let { translateTextUseCase.isCurrent(it.requestId) } == true
+                translationStillCurrent = completion?.let { translationCoordinator.isCurrent(it.requestId) } == true
             )) return
 
         val speechPlan = selectionSpeechPlan(
@@ -728,7 +1131,7 @@ class MainStore(
             languageOverride = speechPlan.languageOverride,
             requestStillCurrent = {
                 generation == quickTranslateGenerations.get() &&
-                    completion?.let { translateTextUseCase.isCurrent(it.requestId) } == true
+                    completion?.let { translationCoordinator.isCurrent(it.requestId) } == true
             }
         )
     }
@@ -745,27 +1148,17 @@ class MainStore(
         textOverride: String? = null,
         extraOutputRequest: ExtraOutputRequest? = null,
         comparisonPolicy: ComparisonPolicy = ComparisonPolicy.DISABLED,
+        onRequestClaimed: ((Long) -> Unit)? = null,
+        start: TranslationStart? = null,
     ): TranslationCompletion? {
-        val completion = translateTextUseCase(
-            getState    = { _state.value },
-            updateState = { transform -> _state.update(transform) },
-            onStatusUpdate = ::updateStatusBar,
+        return translationCoordinator.translate(
+            origin = origin,
             textOverride = textOverride,
             extraOutputRequest = extraOutputRequest,
             comparisonPolicy = comparisonPolicy,
+            onRequestClaimed = onRequestClaimed,
+            start = start,
         )
-
-        val textToCopy = AutoCopyGuard.textToCopy(
-            setting = settingsState.value.autoCopyTranslation,
-            origin = origin,
-            completion = completion,
-            translationStillCurrent = completion?.let { translateTextUseCase.isCurrent(it.requestId) } == true
-        )
-        if (textToCopy != null) {
-            _eventChannel.send(MainEvent.CopyToClipboard(textToCopy))
-        }
-
-        return completion
     }
 
     /**
@@ -773,40 +1166,17 @@ class MainStore(
      * translation yet to derive one from.
      */
     private suspend fun refreshExtraOutput(extraOutputRequest: ExtraOutputRequest?) {
-        val refreshed = translateTextUseCase.refreshExtraOutput(
-            extraOutputRequest = extraOutputRequest,
-            getState = { _state.value },
-            updateState = { transform -> _state.update(transform) },
-            onStatusUpdate = ::updateStatusBar
-        )
-        if (!refreshed) {
-            translateText(
-                TranslationOrigin.INTERNAL,
-                extraOutputRequest = extraOutputRequest,
-                comparisonPolicy = ComparisonPolicy.DISABLED
-            )
-        }
+        translationCoordinator.refreshExtraOutput(extraOutputRequest)
     }
 
-    private suspend fun handleLookupWord(intent: MainIntent.LookupWord) {
-        lookupWordUseCase(
-            word = intent.word,
-            language = intent.language,
-            // Auto lookup says which side of the pair the word is not; a manual search does not,
-            // and keeps asking in the window's translation direction.
-            targetLanguage = intent.targetLanguage ?: _state.value.targetLanguage,
-            updateState = { transform -> _state.update(transform) },
-            onStatusUpdate = ::updateStatusBar
-        )
+    private fun handleLookupWord(intent: MainIntent.LookupWord) {
+        dictionarySession.start(DictionaryLookupRequest(
+            intent.word, intent.language, intent.targetLanguage ?: _state.value.targetLanguage
+        ))
     }
 
-    private suspend fun handleSearchImages(intent: MainIntent.SearchImages) {
-        searchImagesUseCase(
-            term = intent.term,
-            language = intent.language,
-            updateState = { transform -> _state.update(transform) },
-            onStatusUpdate = ::updateStatusBar
-        )
+    private fun handleSearchImages(intent: MainIntent.SearchImages) {
+        imageSession.start(ImageLookupRequest(intent.term, intent.language))
     }
 
     private suspend fun handleListen(
@@ -864,12 +1234,12 @@ class MainStore(
 
     private fun handleUndo() {
         val current = _state.value
-        if (!current.canUndo) return
-
+        val selection = previousHistory(current.history, current.historyIndex) ?: return
+        translationCoordinator.cancelExtraOutput()
         clearComparisonState()
 
-        val newIndex = current.historyIndex - 1
-        val snapshot = current.history[newIndex]
+        val newIndex = selection.index
+        val snapshot = requireNotNull(selection.snapshot)
 
         _state.update {
             it.copy(
@@ -881,6 +1251,9 @@ class MainStore(
                 historyIndex           = newIndex,
                 isLoading              = false,
                 extraOutputText        = snapshot.extraOutputText,
+                extraOutputFailed      = false,
+                extraOutputFailure    = null,
+                isExtraOutputLoading   = false,
                 detectedSourceLanguage = snapshot.detectedSourceLanguage?.let { tag -> LanguageCode(tag) },
                 spellCheckCorrections  = emptyList()
             )
@@ -894,11 +1267,11 @@ class MainStore(
      */
     private fun handleRedo() {
         val current = _state.value
-        if (!current.canRedo) return
-
+        val selection = nextHistory(current.history, current.historyIndex) ?: return
+        translationCoordinator.cancelExtraOutput()
         clearComparisonState()
 
-        val newIndex = current.historyIndex + 1
+        val newIndex = selection.index
 
         if (newIndex == current.history.size) {
             // Past the last snapshot — restore blank state.
@@ -908,13 +1281,16 @@ class MainStore(
                     translatedText         = "",
                     translationFailed      = false,
                     extraOutputText        = "",
+                    extraOutputFailed      = false,
+                    extraOutputFailure     = null,
+                    isExtraOutputLoading   = false,
                     detectedSourceLanguage = null,
                     spellCheckCorrections  = emptyList(),
                     historyIndex           = newIndex
                 )
             }
         } else {
-            val snapshot = current.history[newIndex]
+            val snapshot = requireNotNull(selection.snapshot)
             _state.update {
                 it.copy(
                     inputText              = snapshot.inputText,
@@ -925,6 +1301,9 @@ class MainStore(
                     historyIndex           = newIndex,
                     isLoading              = false,
                     extraOutputText        = snapshot.extraOutputText,
+                    extraOutputFailed      = false,
+                    extraOutputFailure     = null,
+                    isExtraOutputLoading   = false,
                     detectedSourceLanguage = snapshot.detectedSourceLanguage?.let { tag -> LanguageCode(tag) },
                     spellCheckCorrections  = emptyList()
                 )
@@ -934,7 +1313,8 @@ class MainStore(
 
     private fun handleRestoreHistoryEntry(intent: MainIntent.RestoreHistoryEntry) {
         val snapshot = intent.snapshot
-        val idx = _state.value.history.indexOf(snapshot)
+        val current = _state.value
+        translationCoordinator.cancelExtraOutput()
         clearComparisonState()
         _state.update {
             it.copy(
@@ -943,18 +1323,30 @@ class MainStore(
                 translationFailed      = false,
                 sourceLanguage         = LanguageCode(snapshot.sourceLanguage),
                 targetLanguage         = LanguageCode(snapshot.targetLanguage),
-                historyIndex           = if (idx >= 0) idx + 1 else it.historyIndex,
+                historyIndex           = restoredHistoryIndex(current.history, it.historyIndex, snapshot),
                 isLoading              = false,
                 extraOutputText        = snapshot.extraOutputText,
+                extraOutputFailed      = false,
+                extraOutputFailure    = null,
+                isExtraOutputLoading   = false,
                 detectedSourceLanguage = snapshot.detectedSourceLanguage?.let { tag -> LanguageCode(tag) },
                 spellCheckCorrections  = emptyList()
             )
         }
     }
 
+    /**
+     * Cancels the primary and every secondary request, normalizing the panel flags the request
+     * owned. Cancel paths otherwise leave a spinner or an old failure placeholder behind.
+     */
+    private fun cancelTranslationWork() = translationCoordinator.cancel()
+
     private suspend fun handleClearHistory() {
-        historyRepository.clearHistory()
-        _state.update { it.copy(history = emptyList(), historyIndex = 0) }
+        historyRepository.clearHistory().fold(
+            success = { _state.update { it.copy(history = emptyList(), historyIndex = 0) } },
+            // The repository already records the failure; retain the visible history for retry.
+            failure = { }
+        )
     }
 
     private suspend fun handleReplaceWithTranslation(selectedText: String) {
@@ -970,18 +1362,18 @@ class MainStore(
         // even when the main window is visible. focusableWindowState=false on
         // LoadingIndicator means it never steals focus from the source app.
         clearComparisonState()
+        programmaticInputText = preparedText
         _state.update { it.copy(inputText = preparedText, isReplacingSelection = true) }
-        translateTextUseCase(
-            getState       = { _state.value },
-            updateState    = { transform -> _state.update(transform) },
-            onStatusUpdate = ::updateStatusBar,
-            textOverride   = preparedText,
-            comparisonPolicy = ComparisonPolicy.DISABLED
+        translationCoordinator.translate(
+            origin = TranslationOrigin.MAIN,
+            textOverride = preparedText,
+            comparisonPolicy = ComparisonPolicy.DISABLED,
+            autoCopy = false,
         )
         val result = _state.value.translatedText
         _state.update { it.copy(isReplacingSelection = false) }
         if (result.isNotBlank()) {
-            _eventChannel.send(MainEvent.PasteTranslation(result))
+            sendEvent(MainEvent.PasteTranslation(result))
         }
     }
 
@@ -996,7 +1388,7 @@ class MainStore(
     }
 
     private fun clearComparisonState() {
-        translateTextUseCase.invalidateComparisons()
+        translationCoordinator.invalidateComparisons()
         _state.update { it.copy(comparisonResults = emptyList()) }
     }
 
@@ -1004,10 +1396,14 @@ class MainStore(
         // First: a normal translation or comparison request still in flight uses plugin
         // services, and application shutdown disables plugins and closes their resources
         // right after this returns.
-        translateTextUseCase.cancel()
+        cancelTranslationWork()
         cancelDocumentTranslation()
+        ocrOwner.close()?.previousJob?.cancel()
+        dictionarySession.cancel()
+        imageSession.cancel()
         if (settingsState.value.clearHistoryOnExit) {
-            historyRepository.clearHistory()
+            // A failure is recorded by the repository; shutdown must still release resources.
+            historyRepository.clearHistory().fold(success = { }, failure = { })
         }
         handleTextToSpeechUseCase.shutdown()
     }
@@ -1017,7 +1413,11 @@ class MainStore(
         type: NotificationType,
         isTemporary: Boolean
     ) {
-        _eventChannel.send(MainEvent.UpdateStatusBar(code, type, isTemporary))
+        sendEvent(MainEvent.UpdateStatusBar(code, type, isTemporary))
+    }
+
+    private suspend fun sendEvent(event: MainEvent, publish: ((() -> Unit) -> Unit)? = null) {
+        _eventChannel.send(MainEventDelivery(event, publish))
     }
 }
 

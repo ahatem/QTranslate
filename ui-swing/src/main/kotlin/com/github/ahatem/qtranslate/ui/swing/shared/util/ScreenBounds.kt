@@ -1,7 +1,9 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.util
 
 import java.awt.GraphicsEnvironment
+import java.awt.Insets
 import java.awt.Rectangle
+import java.awt.Toolkit
 
 /**
  * Whether a window restored to [bounds] would land somewhere the user can still reach it.
@@ -42,6 +44,35 @@ fun connectedScreenBounds(): List<Rectangle> = runCatching {
         .screenDevices
         .map { it.defaultConfiguration.bounds }
 }.getOrDefault(emptyList())
+
+/**
+ * The usable rectangle of every connected display, with OS-reserved insets removed.
+ *
+ * Capture toolbar placement uses these instead of the virtual-desktop union: the union includes
+ * gaps between irregularly arranged monitors, which belong to no display at all.
+ */
+fun connectedUsableScreenBounds(): List<Rectangle> = runCatching {
+    val toolkit = Toolkit.getDefaultToolkit()
+    GraphicsEnvironment.getLocalGraphicsEnvironment()
+        .screenDevices
+        .map { device ->
+            val configuration = device.defaultConfiguration
+            usableBounds(configuration.bounds, toolkit.getScreenInsets(configuration))
+        }
+}.getOrDefault(emptyList())
+
+/**
+ * The usable part of a display after subtracting the OS-reserved insets.
+ *
+ * [screen] is in virtual-screen coordinates, so its origin may be negative. Insets such as a
+ * Windows taskbar or a macOS menu bar are removed before the rectangle is used for dragging.
+ */
+internal fun usableBounds(screen: Rectangle, insets: Insets): Rectangle = Rectangle(
+    screen.x + insets.left,
+    screen.y + insets.top,
+    (screen.width - insets.left - insets.right).coerceAtLeast(0),
+    (screen.height - insets.top - insets.bottom).coerceAtLeast(0),
+)
 
 /** Roughly a grabbable corner: enough to see the window and drag it somewhere better. */
 private const val MIN_VISIBLE_WIDTH = 120

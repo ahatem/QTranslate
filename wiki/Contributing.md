@@ -127,8 +127,9 @@ CI runs the suite on every push and a failure blocks the PR.
 - `ktor-client-mock` for scripting HTTP responses
 - `FakePluginContext`, published as a test fixture from `:plugins:common`, for plugin tests
 
-**Where coverage is thin:** most use cases in `core/main/domain/usecase`, the Swing panels, and
-both MVI stores. Good places to start.
+**Where coverage is thin:** the use cases still in `core/main/domain/usecase`, the Swing panels, and
+both MVI stores. Translation and lookup use cases live under `core/workspace/{translation,lookup}`.
+Good places to start.
 
 **How to contribute a test:**
 
@@ -153,7 +154,7 @@ If you want to add a completely new service category (e.g. a grammar checker) ra
 1. Add the interface to `:api` — discuss in an issue first since this is a breaking change surface
 2. Add the `ServiceRole` enum entry in `:api`, pointing `contract` at that interface. Roles are
    derived from the interfaces a service implements, so there is no separate mapping to keep in step
-3. Add the use case in `:core/main/domain/usecase/`
+3. Add the use case under `:core` — `core/workspace/<feature>/` for a workspace feature, otherwise `core/main/domain/usecase/`
 5. Add the intent and state fields to `MainStore`
 6. Add the UI surface in `:ui-swing`
 
