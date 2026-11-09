@@ -1400,7 +1400,13 @@ class MainAppFrame(
             showStatusBar = localizer.getString("main_window_main_menu.show_status_bar")
         )
 
-        return MainMenuPopup(currentConfig, actions, strings, layouts)
+        return MainMenuPopup(
+            config = currentConfig,
+            actions = actions,
+            strings = strings,
+            availableLayouts = layouts,
+            shortcutHints = CommandShortcutHints.fromBindings(currentConfig.effectiveHotkeys),
+        )
     }
 
     private fun setupTrayMenu() {
@@ -1482,6 +1488,7 @@ class MainAppFrame(
             strings = strings,
             isHotkeysEnabled = currentConfig.isGlobalHotkeysEnabled,
             selectionBehavior = currentConfig.selectionBehavior,
+            shortcutHints = CommandShortcutHints.fromBindings(currentConfig.effectiveHotkeys),
         )
     }
 
