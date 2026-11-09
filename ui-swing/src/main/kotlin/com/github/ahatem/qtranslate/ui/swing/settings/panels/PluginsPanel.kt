@@ -871,9 +871,7 @@ class PluginsPanel(
                         localizationManager = localizationManager,
                         settingsModel       = model,
                         settingsInstance    = instance,
-                        onSave = { map ->
-                            scope.launch { pluginManager.applySettingsFromMap(plugin.manifest.id, map) }
-                        }
+                        onSave = { map -> pluginManager.applySettingsFromMap(plugin.manifest.id, map) }
                     ).isVisible = true
                 } else {
                     JOptionPane.showMessageDialog(this@PluginsPanel,
