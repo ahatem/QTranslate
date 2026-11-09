@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.main
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
+import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -105,11 +106,12 @@ class MainStateRenderObserverTest {
     @Test
     fun `background collection reproduces the stale echo the EDT dispatcher prevents`() {
         val main = MutableStateFlow(MainState(inputText = "seed"))
-        val rendered = mutableListOf<String>()
+        val rendered = Collections.synchronizedList(mutableListOf<String>())
         val editorText = AtomicReference("")
         val staleOverwrite = AtomicBoolean(false)
         val seedRendered = CountDownLatch(1)
         val staleRenderStarted = CountDownLatch(1)
+        val staleRenderEvaluated = CountDownLatch(1)
         val releaseStaleRender = CountDownLatch(1)
         val latestRendered = CountDownLatch(1)
         val scope = scope()
@@ -129,6 +131,9 @@ class MainStateRenderObserverTest {
                     staleRenderStarted.countDown()
                     releaseStaleRender.await(5, TimeUnit.SECONDS)
                     if (editorText.get() == "ab") staleOverwrite.set(true)
+                    // Rendering "ab" may finish on another thread before this callback resumes,
+                    // so the control is only established once this line has run.
+                    staleRenderEvaluated.countDown()
                 }
                 "ab" -> latestRendered.countDown()
             }
@@ -141,17 +146,28 @@ class MainStateRenderObserverTest {
             main.value = MainState(inputText = "a")
             await(staleRenderStarted, "the stale snapshot was not collected")
 
-            // The user's next edit and its state update happen while the older render is in
-            // flight. The pane already contains "ab" when the stale callback resumes.
+            // The user's edit lands while the older render is still in flight. The pane already
+            // contains "ab" when the stale callback resumes.
             editorText.set("ab")
-            main.value = MainState(inputText = "ab")
             releaseStaleRender.countDown()
 
-            await(latestRendered, "the newer snapshot was not rendered")
+            // Wait for the stale callback to finish before the newer state is published: rendering
+            // it any earlier lets it complete on another worker thread while the stale callback is
+            // still parked, and the two orders are not equivalent.
+            await(staleRenderEvaluated, "the stale render never resumed after the edit landed")
             assertTrue(
                 staleOverwrite.get(),
                 "the control did not reproduce the stale overwrite; it no longer proves anything",
             )
+            assertEquals(
+                "a",
+                editorText.get(),
+                "the stale snapshot must have overwritten the text the user already had",
+            )
+
+            // The newer snapshot is what puts the user's edit back.
+            main.value = MainState(inputText = "ab")
+            await(latestRendered, "the newer snapshot was not rendered")
             assertEquals(listOf("seed", "a", "ab"), rendered)
             assertEquals(
                 "ab",
