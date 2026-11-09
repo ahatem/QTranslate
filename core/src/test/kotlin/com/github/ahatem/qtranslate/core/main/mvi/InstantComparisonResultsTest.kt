@@ -39,6 +39,7 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
@@ -377,9 +378,9 @@ class InstantComparisonResultsTest {
         val comparisonTranslators: List<Translator> = listOf(EchoTranslator("bing")),
         disabledServices: Set<String> = emptySet(),
     ) {
-        private val scope = CoroutineScope(
-            SupervisorJob() + testScope.coroutineContext[ContinuationInterceptor]!!
-        )
+        private val testDispatcher =
+            testScope.coroutineContext[ContinuationInterceptor] as CoroutineDispatcher
+        private val scope = CoroutineScope(SupervisorJob() + testDispatcher)
         private val directory = Files.createTempDirectory("qtranslate-instant-comparison").toFile()
         private val httpClient = HttpClient()
         private val primary = EchoTranslator("t", fail = primaryFails)
@@ -406,7 +407,14 @@ class InstantComparisonResultsTest {
         val store = MainStore(
             scope = scope,
             settingsState = settings,
-            historyRepository = HistoryRepository(directory, SILENT_LOGGER, Json),
+            historyRepository = HistoryRepository(
+                directory,
+                SILENT_LOGGER,
+                Json,
+                // History persistence runs on the storage dispatcher; without this the save escapes
+                // the test scheduler and advanceUntilIdle() returns before the entry is recorded.
+                persistenceDispatcher = testDispatcher,
+            ),
             checkForUpdatesUseCase = CheckForUpdatesUseCase(
                 currentVersion = "0.0.0",
                 settingsState = settings,
@@ -427,7 +435,12 @@ class InstantComparisonResultsTest {
                 scope = scope,
                 settingsState = settings,
                 activeServiceManager = manager,
-                historyRepository = HistoryRepository(directory, SILENT_LOGGER, Json),
+                historyRepository = HistoryRepository(
+                    directory,
+                    SILENT_LOGGER,
+                    Json,
+                    persistenceDispatcher = testDispatcher,
+                ),
                 summarizeUseCase = SummarizeUseCase(manager, SILENT_FACTORY),
                 rewriteUseCase = RewriteUseCase(manager, SILENT_FACTORY),
                 loggerFactory = SILENT_FACTORY,

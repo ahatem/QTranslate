@@ -10,9 +10,12 @@ import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -22,6 +25,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.test.*
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SettingsSaveReceiptTest {
     private val logger = object : Logger {
         override fun debug(message: String) = Unit
@@ -66,11 +70,17 @@ class SettingsSaveReceiptTest {
         try {
             val store = SettingsStore(SettingsRepository(File("."), Json, logger, data), logger, scope, Configuration.DEFAULT)
             store.dispatch(SettingsIntent.TransformDraft { it.copy(uiScale = 125) })
-            val pending = launch { store.saveDraftAndAwait() }
+            // The save is accepted in the store's own scope, so its own completion hook is the only
+            // signal that the write landed. Waiting for state instead races that write, and a
+            // `withTimeout` here would be virtual time: the store runs on a real dispatcher, so the
+            // scheduler sees no work of its own and fires the timeout before the write finishes.
+            val committed = CompletableDeferred<Unit>()
+            val pending = launch { store.submitDraftSave { committed.complete(Unit) }.await() }
             data.entered.await()
             pending.cancelAndJoin()
             data.release.complete(Unit)
-            withTimeout(10_000) { store.state.first { it.originalConfiguration.uiScale == 125 && !it.isSaving } }
+            committed.await()
+            assertEquals(125, store.state.value.originalConfiguration.uiScale)
             assertFalse(store.state.value.isDirty)
         } finally { scope.cancel() }
     }
@@ -174,6 +184,79 @@ class SettingsSaveReceiptTest {
             assertEquals(Ok(Unit), second.await())
             assertEquals(150, store.state.value.originalConfiguration.uiScale)
         } finally { scope.cancel() }
+    }
+
+    @Test fun `a late echo of an earlier write does not revert a newer commit`() = runTest {
+        // The repository delivers its flow on its own dispatcher, so the echo of write #1 can be
+        // collected after write #2 has already been committed. Applying it then would report the
+        // older configuration as the saved one and recompute isDirty against it.
+        val data = ControlledStore()
+        val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        try {
+            val store = SettingsStore(SettingsRepository(File("."), Json, logger, data), logger, scope, Configuration.DEFAULT)
+            store.dispatch(SettingsIntent.TransformDraft { it.copy(uiScale = 125) })
+            assertEquals(Ok(Unit), store.submitDraftSave().await())
+            store.dispatch(SettingsIntent.TransformDraft { it.copy(uiScale = 150) })
+            assertEquals(Ok(Unit), store.submitDraftSave().await())
+            advanceUntilIdle()
+            assertEquals(150, store.state.value.originalConfiguration.uiScale)
+
+            // Only now does the first write reach the observer.
+            data.publish(0)
+            advanceUntilIdle()
+
+            assertEquals(
+                150,
+                store.state.value.originalConfiguration.uiScale,
+                "a late echo of the first write must not revert the second"
+            )
+            assertEquals(150, store.state.value.workingConfiguration.uiScale)
+            assertFalse(store.state.value.isDirty)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun `an external repository change still syncs an idle store`() = runTest {
+        // Suppressing the store's own echoes must not stop it from adopting a change it did not
+        // make, which is the reason the observer exists.
+        val data = ControlledStore()
+        val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        try {
+            val store = SettingsStore(SettingsRepository(File("."), Json, logger, data), logger, scope, Configuration.DEFAULT)
+            // Written by something other than this store, then delivered through the flow.
+            SettingsRepository(File("."), Json, logger, data)
+                .updateConfiguration(Configuration.DEFAULT.copy(uiScale = 130))
+            data.publish(0)
+            advanceUntilIdle()
+
+            assertEquals(130, store.state.value.originalConfiguration.uiScale)
+            assertEquals(130, store.state.value.workingConfiguration.uiScale)
+            assertFalse(store.state.value.isDirty)
+        } finally { scope.cancel() }
+    }
+
+    /**
+     * A store whose flow is delivered on demand, so a test can choose the order in which the
+     * repository's emissions reach the observer.
+     */
+    private class ControlledStore : DataStore<Preferences> {
+        private val published = MutableStateFlow<Preferences?>(null)
+        private val current = MutableStateFlow(emptyPreferences())
+        private val written = mutableListOf<Preferences>()
+
+        override val data: Flow<Preferences> = published.filterNotNull()
+
+        override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences {
+            val updated = transform(current.value)
+            current.value = updated
+            written += updated
+            // Deliberately not published: the test decides when the flow emits.
+            return updated
+        }
+
+        /** Delivers the echo of the write at [index], counting from the first write. */
+        fun publish(index: Int) {
+            published.value = written[index]
+        }
     }
 
 }
