@@ -12,6 +12,7 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
@@ -34,10 +35,16 @@ class HistoryRepository(
     private val logger: Logger,
     private val json: Json,
     dataStore: DataStore<Preferences>? = null,
-    val storageScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    val storageScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    /**
+     * Dispatcher the preference store writes on. File-backed persistence belongs off the UI thread,
+     * which is why the default is [Dispatchers.IO]; a test that drives the store on a test scheduler
+     * passes its own dispatcher so a save completes inside virtual time instead of racing it.
+     */
+    persistenceDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val dataStore: DataStore<Preferences> = dataStore ?: PreferenceDataStoreFactory.create(
-        scope = CoroutineScope(storageScope.coroutineContext + Dispatchers.IO),
+        scope = CoroutineScope(storageScope.coroutineContext + persistenceDispatcher),
         produceFile = { File(appDataDirectory, "datastore/${AppConstants.DATASTORE_HISTORY_FILE}") }
     )
 
