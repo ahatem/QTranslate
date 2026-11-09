@@ -68,6 +68,15 @@ class MainGlobalKeyListener(
     private val onSelectionDetected: (String, Point) -> Unit = { _, _ -> },
     private val onPointerPressed: (Point) -> Unit = {},
     private val shouldTrackSelectionAt: (Point) -> Boolean = { true },
+    /**
+     * Invoked after every reconciliation transaction with the global hotkeys the
+     * native backend refused to register (empty when the whole set applied), so
+     * the host can surface them to the user. The log alone is invisible to the
+     * user; a rejected binding means the shortcut silently does nothing and the
+     * user needs to know which one, and why, to rebind it. Runs on the
+     * reconciling thread, never on the EDT — the host routes to the UI thread.
+     */
+    private val onGlobalHotkeysRejected: (List<RejectedGlobalHotkey>) -> Unit = {},
     private val backendFactory: (() -> GlobalInputBackend)? = null,
     private val selectionCaptureFactory: ((
         clipboard: SystemClipboard,
@@ -334,16 +343,22 @@ class MainGlobalKeyListener(
                 description = planned.registration.action.name
             )
         }
+        var appliedCleanly = false
         val outcome: ApplyResult = try {
             target.applyHotkeys(native).also {
                 registrations.accept(plan)
                 lastApplied = native
+                appliedCleanly = true
             }
         } catch (e: Exception) {
             logger.error("Failed to apply global hotkeys, restoring previous set", e)
             runCatching { target.applyHotkeys(lastApplied) }
                 .onFailure { logger.error("Failed to restore previous global hotkeys", it) }
             isolateRejectedBindings(target, plan) ?: return
+        }
+        if (appliedCleanly) {
+            // Whole-set apply succeeded: nothing is rejected anymore.
+            onGlobalHotkeysRejected(emptyList())
         }
         recordApplyOutcome(outcome, lastApplied.size)
         runCatching {
@@ -386,6 +401,7 @@ class MainGlobalKeyListener(
         plan: List<PlannedRegistration>,
     ): ApplyResult? {
         val kept = ArrayList<PlannedRegistration>()
+        val rejected = ArrayList<RejectedGlobalHotkey>()
         var outcome: ApplyResult? = null
         for (candidate in plan) {
             val prefix = kept.map { planned ->
@@ -410,10 +426,18 @@ class MainGlobalKeyListener(
                         "(${candidate.registration.accelerator}) was not registered: ${e.message}. " +
                         "The remaining global hotkeys stay active."
                 )
+                rejected += RejectedGlobalHotkey(
+                    action = candidate.registration.action,
+                    accelerator = candidate.registration.accelerator,
+                    reason = e.message ?: "registration failed",
+                )
                 continue
             }
             kept += candidate
         }
+        // Surfaced even when every binding was refused: the user still needs to
+        // know their shortcuts are dead, and the previous set stands as before.
+        onGlobalHotkeysRejected(rejected)
         if (kept.isEmpty()) return null
         registrations.accept(kept)
         lastApplied = kept.map { planned ->
@@ -854,3 +878,16 @@ class MainGlobalKeyListener(
         const val SELECTION_SETTLE_DELAY_MS = 80L
     }
 }
+
+/**
+ * One global hotkey the native backend refused to register.
+ *
+ * [reason] is the backend's refusal text verbatim: it distinguishes a shortcut
+ * another application already owns from a transient transport failure, so it is
+ * shown to the user as the cause and must not be editorialized.
+ */
+data class RejectedGlobalHotkey(
+    val action: HotkeyAction,
+    val accelerator: String,
+    val reason: String,
+)

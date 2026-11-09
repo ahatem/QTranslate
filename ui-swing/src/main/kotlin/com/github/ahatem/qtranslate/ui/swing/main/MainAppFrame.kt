@@ -362,9 +362,19 @@ class MainAppFrame(
         return Window.getWindows().any { it === activeWindow && it.isShowing }
     }
 
+    /**
+     * Rejected global hotkeys already surfaced in the notification popover, keyed by
+     * action + accelerator. Replaced wholesale with each reconciliation report, so a
+     * binding that recovers and is refused again is reported again (rather than being
+     * silenced forever), while a persistently refused binding is reported once.
+     */
+    private val surfacedRejectedHotkeys: MutableSet<Pair<com.github.ahatem.qtranslate.core.settings.data.HotkeyAction, String>> =
+        mutableSetOf()
+
     private val globalKeyListener = MainGlobalKeyListener(
         scope = appScope,
         logger = logger,
+        onGlobalHotkeysRejected = { rejected -> surfaceRejectedGlobalHotkeys(rejected) },
         onShowApp = { text ->
             mainStore.dispatch(MainIntent.UpdateInputText(text))
             mainStore.dispatch(MainIntent.Translate(text))
@@ -1806,6 +1816,39 @@ class MainAppFrame(
         )
 
         runOnUi { aboutDialog.showDialog(state) }
+    }
+
+    /**
+     * Surfaces global hotkeys the native backend refused to register in the
+     * notification popover (the status bar bell), so the user can rebind them.
+     * Only newly refused bindings notify; the reported set replaces
+     * [surfacedRejectedHotkeys], so a binding that applies cleanly again is
+     * eligible to be reported if it is refused later.
+     */
+    private fun surfaceRejectedGlobalHotkeys(rejected: List<RejectedGlobalHotkey>) {
+        val reported = rejected.map { it.action to it.accelerator }.toSet()
+        val fresh = reported - surfacedRejectedHotkeys
+        surfacedRejectedHotkeys.clear()
+        surfacedRejectedHotkeys.addAll(reported)
+        if (fresh.isEmpty()) return
+        runOnUi {
+            fresh.forEach { key ->
+                val entry = rejected.first { it.action to it.accelerator == key }
+                statusBarController.addToPopover(
+                    AppNotification(
+                        type = NotificationType.WARNING,
+                        code = NotificationCode.Custom(
+                            title = "",
+                            body = localizer.getString(
+                                "notifications.hotkey_rejected_format",
+                                entry.accelerator,
+                                entry.reason,
+                            ),
+                        ),
+                    ),
+                )
+            }
+        }
     }
 
     /** Shows a one-time donation nudge in the notification popover. */

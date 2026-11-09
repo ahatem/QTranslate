@@ -628,6 +628,7 @@ error_unknown = "The extra output request failed."
 # ===================================================================
 [notifications]
 language_not_supported_format = "The language '%s' is not supported by %s."
+hotkey_rejected_format = "Global hotkey %s was not registered: %s. The remaining global hotkeys stay active."
 tts_not_supported_format = "Text-to-speech is not supported by %s."
 unknown_error = "An unknown error occurred."
 
