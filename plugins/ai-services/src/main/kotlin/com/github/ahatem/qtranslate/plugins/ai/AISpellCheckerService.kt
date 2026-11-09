@@ -15,15 +15,16 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 class AISpellCheckerService(
-    private val client: AIServiceClient
+    private val client: AIServiceClient,
+    private val profileProvider: () -> AiProfile
 ) : SpellChecker {
 
 
-    // Nothing this plugin offers works until a key is set, which is what makes a connection
-    // test worth offering here. The check itself is shared: one key, one endpoint, one model.
+    // Nothing this profile offers works until a key is set, which is what makes a connection
+    // test worth offering here. The check uses this capability's resolved profile.
     override val metadata = ServiceMetadata(requiresConfiguration = true)
 
-    override suspend fun validate() = client.validate()
+    override suspend fun validate() = client.validate(profileProvider())
 
     override val key: String = "ai-spell-checker"
     override val name: String = "AI Spell Checker"
@@ -74,7 +75,7 @@ class AISpellCheckerService(
             IMPORTANT: 'start_index' and 'end_index' must reference the character offsets in the ORIGINAL input string.
         """.trimIndent()
 
-            val raw = client.complete(system, request.text).bind()
+            val raw = client.complete(system, request.text, profileProvider()).bind()
             parseSpellCheckResponse(raw, request.text).bind()
         }
 
@@ -83,7 +84,7 @@ class AISpellCheckerService(
         originalText: String
     ): Result<SpellCheckResponse, ServiceError> {
         return try {
-            val clean = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+            val clean = AiJson.extractJson(raw)
             val dto = json.decodeFromString<SpellCheckResponseDto>(clean)
 
             val corrections = dto.corrections.mapNotNull { item ->
