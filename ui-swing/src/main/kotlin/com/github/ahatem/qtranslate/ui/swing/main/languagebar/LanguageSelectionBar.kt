@@ -67,7 +67,9 @@ class LanguageSelectionBar(
         // While loading: morph the Translate button into a Cancel button.
         // The single action listener checks isInCancelMode to route correctly.
         isInCancelMode = state.isLoading
-        translateButton.isEnabled = true
+        // Disabled on a guaranteed no-op (blank input); while loading this is Cancel, which must
+        // stay actionable so a running translation can always be stopped.
+        translateButton.isEnabled = state.isLoading || state.canTranslate
         if (state.isLoading) {
             translateButton.text = state.strings.cancelButtonText
             translateButton.toolTipText = state.strings.cancelButtonText

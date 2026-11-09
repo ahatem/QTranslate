@@ -622,6 +622,7 @@ class MainContentView(
                 isLoading = mainState.isLoading,
                 canClear = mainState.inputText.isNotBlank(),
                 canSwap = mainState.translatedText.isNotBlank(),
+                canTranslate = mainState.inputText.isNotBlank(),
                 allSourceLanguages = allLanguages,
                 allTargetLanguages = allLanguages - setOf(LanguageCode.AUTO),
                 selectedSourceLanguage = mainState.sourceLanguage,
@@ -785,28 +786,40 @@ class MainContentView(
                 optionChoices = extraOutputOption?.choices(localizer).orEmpty(),
                 selectedOptionId = extraOutputOption?.selectedIdOr(extraOutputSelection),
 
+                // Scoped auto-save, like every other quick action (menu toggles, tray
+                // checkboxes): the in-panel toggles take effect immediately AND persist.
+                // UpdateDraft here would leave the choice only in the working copy, so it
+                // was silently lost on restart unless the user also saved in Settings.
                 onTypeChanged = { type ->
-                    val updated = config.copy(extraOutputType = type)
                     dispatchSettings(
-                        SettingsIntent.UpdateDraft(
-                            updated
+                        SettingsIntent.ToggleSetting(
+                            update = { it.copy(extraOutputType = type) },
+                            onSuccess = { saved ->
+                                // Only this panel changed. The translation beside it is
+                                // still correct, so asking for a new one would discard what
+                                // the user is reading and pay for the same text twice.
+                                dispatch(MainIntent.RefreshExtraOutput(ExtraOutputRequest.from(saved)))
+                            }
                         )
                     )
-                    // Only this panel changed. The translation beside it is still correct, so
-                    // asking for a new one would discard what the user is reading and pay for
-                    // the same text twice.
-                    dispatch(MainIntent.RefreshExtraOutput(ExtraOutputRequest.from(updated)))
                 },
                 onOptionSelected = { id ->
                     // Which setting the id belongs to follows from the active type; the panel
                     // itself never learns that, so a new option kind only touches this branch.
-                    val updated = when (config.extraOutputType) {
-                        ExtraOutputType.Summarize -> config.copy(summaryLength = id)
-                        ExtraOutputType.Rewrite -> config.copy(rewriteStyle = id)
-                        else -> config
-                    }
-                    dispatchSettings(SettingsIntent.UpdateDraft(updated))
-                    dispatch(MainIntent.RefreshExtraOutput(ExtraOutputRequest.from(updated)))
+                    dispatchSettings(
+                        SettingsIntent.ToggleSetting(
+                            update = { current ->
+                                when (current.extraOutputType) {
+                                    ExtraOutputType.Summarize -> current.copy(summaryLength = id)
+                                    ExtraOutputType.Rewrite -> current.copy(rewriteStyle = id)
+                                    else -> current
+                                }
+                            },
+                            onSuccess = { saved ->
+                                dispatch(MainIntent.RefreshExtraOutput(ExtraOutputRequest.from(saved)))
+                            }
+                        )
+                    )
                 },
 
                 actionsState = TextActionsState(
