@@ -3,14 +3,21 @@ package com.github.ahatem.qtranslate.core.main.mvi
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.rewriter.RewriteResponse
 import com.github.ahatem.qtranslate.api.summarizer.SummarizeResponse
+import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.CoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -91,8 +98,17 @@ class WritingSelectionTest {
         val fixture = WritingSelectionFixture(dispatcher = Dispatchers.IO, includeRewriter = false)
         try {
             fixture.store.dispatch(MainIntent.ReplaceWithRewrite("text"))
-            // No provider call should happen; the no-service path returns synchronously
+            // The visible no-service failure is the completion signal for this path.
+            val status = withTimeout(5_000) {
+                fixture.awaitEvent {
+                    it is MainEvent.UpdateStatusBar && it.code == StatusCode.NoRewriterActive
+                } as MainEvent.UpdateStatusBar
+            }
+            assertEquals(StatusCode.NoRewriterActive, status.code)
             assertEquals(0, fixture.events.filterIsInstance<MainEvent.PasteTranslation>().size)
+            withTimeout(5_000) {
+                fixture.store.state.first { !it.isReplacingSelection }
+            }
             assertFalse(fixture.store.state.value.isReplacingSelection)
         } finally {
             fixture.cleanUp()
@@ -151,9 +167,11 @@ class WritingSelectionTest {
             }
             assertEquals(0, fixture.events.filterIsInstance<MainEvent.PasteTranslation>().size)
             assertFalse(fixture.store.state.value.isReplacingSelection)
-            // Unexpected error status should be visible (not raw exception text)
+            // Unexpected error status should be visible with safe class metadata only, never
+            // raw exception text and never an internal identifier.
             val statusEvents = fixture.events.filterIsInstance<MainEvent.UpdateStatusBar>()
-            assertTrue(statusEvents.any { it.code.toString().contains("writing_failed") })
+            assertTrue(statusEvents.any { it.code == StatusCode.UnexpectedError("IllegalStateException") })
+            assertTrue(statusEvents.none { it.code.toString().contains("writing_failed") })
         } finally {
             fixture.cleanUp()
         }
@@ -359,6 +377,209 @@ class WritingSelectionTest {
     }
 
     // ------------------------------------------------------------------
+    // Non-cooperative stale-publication races
+    //
+    // These make no cooperative-cancellation assumption: the stale request has already computed
+    // its result (or already buffered its paste), and a newer request claims ownership before the
+    // UI accepts the stale delivery. Without the delivery-time ownership gate these tests fail.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `a buffered rewrite paste is rejected when summary claims before UI accepts it`() = runBlocking {
+        val fixture = WritingSelectionFixture(dispatcher = Dispatchers.IO, collectEvents = false)
+        try {
+            fixture.rewriter.result = Ok(RewriteResponse("rewrite A"))
+            fixture.summarizer.result = Ok(SummarizeResponse("summary B"))
+            val queued = java.util.concurrent.CountDownLatch(1)
+            fixture.store.afterWritingPublication = { queued.countDown() }
+
+            fixture.store.dispatch(MainIntent.ReplaceWithRewrite("A"))
+            // A has finished computing and its paste is already buffered in the event channel.
+            assertTrue(queued.await(5, TimeUnit.SECONDS), "A never reached its publication attempt")
+
+            // B claims ownership synchronously before any UI delivery is accepted.
+            fixture.store.dispatch(MainIntent.ReplaceWithSummary("B"))
+
+            // Only now does the UI start accepting deliveries: the stale buffered paste must lose.
+            val accepted = withTimeout(5_000) {
+                fixture.store.events.filterIsInstance<MainEvent.PasteTranslation>().first()
+            }
+            assertEquals("summary B", accepted.translatedText)
+        } finally {
+            fixture.cleanUp()
+        }
+    }
+
+    @Test
+    fun `a buffered summary paste is rejected when rewrite claims before UI accepts it`() = runBlocking {
+        val fixture = WritingSelectionFixture(dispatcher = Dispatchers.IO, collectEvents = false)
+        try {
+            fixture.summarizer.result = Ok(SummarizeResponse("summary A"))
+            fixture.rewriter.result = Ok(RewriteResponse("rewrite B"))
+            val queued = java.util.concurrent.CountDownLatch(1)
+            fixture.store.afterWritingPublication = { queued.countDown() }
+
+            fixture.store.dispatch(MainIntent.ReplaceWithSummary("A"))
+            assertTrue(queued.await(5, TimeUnit.SECONDS), "A never reached its publication attempt")
+
+            fixture.store.dispatch(MainIntent.ReplaceWithRewrite("B"))
+
+            val accepted = withTimeout(5_000) {
+                fixture.store.events.filterIsInstance<MainEvent.PasteTranslation>().first()
+            }
+            assertEquals("rewrite B", accepted.translatedText)
+        } finally {
+            fixture.cleanUp()
+        }
+    }
+
+    @Test
+    fun `a rewrite paused before publication cannot publish after summary claims`() = runBlocking {
+        val fixture = WritingSelectionFixture(dispatcher = Dispatchers.IO)
+        try {
+            fixture.rewriter.result = Ok(RewriteResponse("rewrite A"))
+            fixture.summarizer.result = Ok(SummarizeResponse("summary B"))
+
+            val atPublication = java.util.concurrent.CountDownLatch(1)
+            val releaseA = java.util.concurrent.Semaphore(0)
+            val calls = java.util.concurrent.atomic.AtomicInteger()
+            fixture.store.beforeWritingPublication = {
+                // Pause only the first (stale) request at the publication boundary.
+                if (calls.getAndIncrement() == 0) {
+                    atPublication.countDown()
+                    releaseA.acquireUninterruptibly()
+                }
+            }
+            val attempts = java.util.concurrent.CountDownLatch(2)
+            fixture.store.afterWritingPublication = { attempts.countDown() }
+
+            fixture.store.dispatch(MainIntent.ReplaceWithRewrite("A"))
+            assertTrue(atPublication.await(5, TimeUnit.SECONDS), "A never reached the publication boundary")
+
+            // B claims ownership while A is paused there.
+            fixture.store.dispatch(MainIntent.ReplaceWithSummary("B"))
+            releaseA.release()
+
+            assertTrue(attempts.await(5, TimeUnit.SECONDS), "both publication attempts should have ended")
+            val accepted = withTimeout(5_000) {
+                fixture.awaitEvent { it is MainEvent.PasteTranslation } as MainEvent.PasteTranslation
+            }
+            assertEquals("summary B", accepted.translatedText)
+            assertEquals(
+                emptyList(),
+                fixture.events.filterIsInstance<MainEvent.PasteTranslation>()
+                    .filter { it.translatedText == "rewrite A" },
+                "stale rewrite must never reach paste-back",
+            )
+        } finally {
+            fixture.cleanUp()
+        }
+    }
+
+    @Test
+    fun `a summary paused before publication cannot publish after rewrite claims`() = runBlocking {
+        val fixture = WritingSelectionFixture(dispatcher = Dispatchers.IO)
+        try {
+            fixture.summarizer.result = Ok(SummarizeResponse("summary A"))
+            fixture.rewriter.result = Ok(RewriteResponse("rewrite B"))
+
+            val atPublication = java.util.concurrent.CountDownLatch(1)
+            val releaseA = java.util.concurrent.Semaphore(0)
+            val calls = java.util.concurrent.atomic.AtomicInteger()
+            fixture.store.beforeWritingPublication = {
+                if (calls.getAndIncrement() == 0) {
+                    atPublication.countDown()
+                    releaseA.acquireUninterruptibly()
+                }
+            }
+            val attempts = java.util.concurrent.CountDownLatch(2)
+            fixture.store.afterWritingPublication = { attempts.countDown() }
+
+            fixture.store.dispatch(MainIntent.ReplaceWithSummary("A"))
+            assertTrue(atPublication.await(5, TimeUnit.SECONDS), "A never reached the publication boundary")
+
+            fixture.store.dispatch(MainIntent.ReplaceWithRewrite("B"))
+            releaseA.release()
+
+            assertTrue(attempts.await(5, TimeUnit.SECONDS), "both publication attempts should have ended")
+            val accepted = withTimeout(5_000) {
+                fixture.awaitEvent { it is MainEvent.PasteTranslation } as MainEvent.PasteTranslation
+            }
+            assertEquals("rewrite B", accepted.translatedText)
+            assertEquals(
+                emptyList(),
+                fixture.events.filterIsInstance<MainEvent.PasteTranslation>()
+                    .filter { it.translatedText == "summary A" },
+                "stale summary must never reach paste-back",
+            )
+        } finally {
+            fixture.cleanUp()
+        }
+    }
+
+    /**
+     * Ownership admission must follow [MainStore.dispatch] order, not the order the scheduler runs
+     * the launched bodies in. [LifoDispatcher] runs queued coroutine bodies newest-first, so if the
+     * claim were still made inside the launched coroutine (the pre-fix shape) the second intent's
+     * body would run first and the first intent would wrongly become the current owner.
+     */
+    @Test
+    fun `ownership follows dispatch order even when coroutine bodies run newest-first`() = runBlocking {
+        val dispatcher = LifoDispatcher()
+        val fixture = WritingSelectionFixture(dispatcher = dispatcher)
+        try {
+            fixture.rewriter.result = Ok(RewriteResponse("rewrite A"))
+            fixture.summarizer.result = Ok(SummarizeResponse("summary B"))
+            // Let fixture startup bodies run and settle first.
+            dispatcher.runAllLifo()
+
+            fixture.store.dispatch(MainIntent.ReplaceWithRewrite("A"))
+            fixture.store.dispatch(MainIntent.ReplaceWithSummary("B"))
+
+            // The summary body runs before the rewrite body because of the LIFO dispatcher.
+            dispatcher.runAllLifo()
+
+            val accepted = withTimeout(5_000) {
+                fixture.awaitEvent { it is MainEvent.PasteTranslation } as MainEvent.PasteTranslation
+            }
+            assertEquals("summary B", accepted.translatedText, "the later dispatch must own publication")
+            assertTrue(
+                fixture.events.filterIsInstance<MainEvent.PasteTranslation>()
+                    .none { it.translatedText == "rewrite A" },
+                "the earlier dispatch must not survive reversed scheduling",
+            )
+        } finally {
+            fixture.cleanUp()
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Unexpected-error presentation
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `unexpected writing failure surfaces only safe class metadata`() = runBlocking {
+        val fixture = WritingSelectionFixture(dispatcher = Dispatchers.IO)
+        try {
+            fixture.rewriter.throws = true
+            fixture.store.dispatch(MainIntent.ReplaceWithRewrite("text"))
+            fixture.rewriter.started.await()
+
+            val status = withTimeout(5_000) {
+                fixture.awaitEvent {
+                    it is MainEvent.UpdateStatusBar && it.code is StatusCode.UnexpectedError
+                } as MainEvent.UpdateStatusBar
+            }
+            assertEquals(StatusCode.UnexpectedError("IllegalStateException"), status.code)
+            assertTrue(fixture.events.none {
+                it is MainEvent.UpdateStatusBar && it.code.toString().contains("writing_failed")
+            }, "the internal identifier must not be interpolated into user-visible status")
+        } finally {
+            fixture.cleanUp()
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Shutdown invalidates writing work
     // ------------------------------------------------------------------
 
@@ -383,6 +604,29 @@ class WritingSelectionTest {
             assertFalse(fixture.store.state.value.isReplacingSelection)
         } finally {
             fixture.cleanUp()
+        }
+    }
+}
+
+/**
+ * A deterministic dispatcher that queues every dispatched body and runs them newest-first.
+ *
+ * Used to prove that writing ownership admission follows [MainStore.dispatch] order rather than
+ * coroutine scheduling order: with a pre-fix implementation that claimed ownership inside the
+ * launched body, the second intent's body would run first and wrongly take the older token.
+ */
+private class LifoDispatcher : CoroutineDispatcher() {
+    private val tasks = ArrayDeque<Runnable>()
+
+    override fun dispatch(context: CoroutineContext, block: Runnable) {
+        synchronized(tasks) { tasks.addLast(block) }
+    }
+
+    /** Runs every currently queued body in LIFO order until the queue drains. */
+    fun runAllLifo() {
+        while (true) {
+            val next = synchronized(tasks) { tasks.removeLastOrNull() } ?: return
+            next.run()
         }
     }
 }

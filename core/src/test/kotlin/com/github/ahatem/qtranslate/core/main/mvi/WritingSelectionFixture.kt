@@ -49,7 +49,6 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
 
@@ -61,6 +60,11 @@ internal class WritingSelectionFixture(
     dispatcher: kotlinx.coroutines.CoroutineDispatcher? = null,
     includeRewriter: Boolean = true,
     includeSummarizer: Boolean = true,
+    /**
+     * When false the single-consumer [MainStore.events] channel is left uncollected so a test can
+     * first buffer deliveries and only then start accepting them, proving delivery-time gating.
+     */
+    collectEvents: Boolean = true,
 ) {
     private val scope = CoroutineScope(
         SupervisorJob() + (dispatcher ?: Dispatchers.IO)
@@ -74,7 +78,7 @@ internal class WritingSelectionFixture(
         if (includeRewriter) services[rewriter.key] = rewriter
         if (includeSummarizer) services[summarizer.key] = summarizer
     }
-    val settings = MutableStateFlow(Configuration.DEFAULT)
+    val settings = MutableStateFlow(Configuration.DEFAULT.copy(autoCheckForUpdates = false))
     private val manager = ActiveServiceManager(MutableStateFlow(services), settings)
     private val historyRepository = HistoryRepository(directory, SilentLogger, Json)
 
@@ -84,10 +88,12 @@ internal class WritingSelectionFixture(
     private val emittedEvents = emitted.receiveAsFlow()
 
     init {
-        scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
-            store.events.collect {
-                events += it
-                emitted.send(it)
+        if (collectEvents) {
+            scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                store.events.collect {
+                    events += it
+                    emitted.send(it)
+                }
             }
         }
     }

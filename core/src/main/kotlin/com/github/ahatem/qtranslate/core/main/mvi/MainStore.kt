@@ -68,6 +68,9 @@ private data class ComparisonConfigKey(
     val disabledServices: Set<String>
 )
 
+/** The provider operation a selection-writing action performs. */
+private enum class WritingOperation { REWRITE, SUMMARY }
+
 internal data class SpellCheckInput(
     val text: String,
     val sourceLanguage: LanguageCode,
@@ -167,6 +170,16 @@ class MainStore(
      */
     internal var beforeOcrPublication: ((token: Long) -> Unit)? = null
     internal var afterOcrPublication: ((token: Long) -> Unit)? = null
+
+    /**
+     * Test seams around selection-writing publication. [beforeWritingPublication] runs after the
+     * provider returned a usable result and before the replacement event is queued, so a race test
+     * can pause stale work exactly at the publication boundary. [afterWritingPublication] runs once
+     * that publication attempt has ended (queued, or aborted by cancellation), so a test can prove
+     * a superseded buffered paste is still rejected. Production leaves both null.
+     */
+    internal var beforeWritingPublication: ((token: Long) -> Unit)? = null
+    internal var afterWritingPublication: ((token: Long) -> Unit)? = null
 
     /**
      * The input text a non-typing workflow just placed in the editor. The instant-translation
@@ -642,13 +655,11 @@ class MainStore(
                 scope.launch { handleReplaceWithTranslation(intent.selectedText) }
             }
 
-            is MainIntent.ReplaceWithRewrite -> {
-                scope.launch { handleReplaceWithRewrite(intent.selectedText) }
-            }
+            is MainIntent.ReplaceWithRewrite ->
+                startWritingSelection(intent.selectedText, WritingOperation.REWRITE)
 
-            is MainIntent.ReplaceWithSummary -> {
-                scope.launch { handleReplaceWithSummary(intent.selectedText) }
-            }
+            is MainIntent.ReplaceWithSummary ->
+                startWritingSelection(intent.selectedText, WritingOperation.SUMMARY)
 
             is MainIntent.ListenToText -> scope.launch {
                 handleListen(intent.textSource, intent.text, intent.language)
@@ -1395,70 +1406,66 @@ class MainStore(
         }
     }
 
-    private suspend fun handleReplaceWithRewrite(selectedText: String) {
-        if (selectedText.isBlank()) return
-        val preparedText = prepareInputText(selectedText, settingsState.value.isRemoveLineBreaksEnabled)
-        runOwnedWritingJob(token = writingOwner.claim()?.let { claim ->
-            claim.previousJob?.cancel()
-            claim.token
-        } ?: return) {
-            val result = rewriteUseCase(
-                text = preparedText,
-                rewriteStyle = settingsState.value.rewriteStyle,
-                onStatusUpdate = ::updateStatusBar,
-            )
-            if (result is ExtraOutputResult.Success && result.text.isNotBlank()) {
-                sendEvent(MainEvent.PasteTranslation(result.text))
-            }
-        }
-    }
-
-    private suspend fun handleReplaceWithSummary(selectedText: String) {
-        if (selectedText.isBlank()) return
-        val preparedText = prepareInputText(selectedText, settingsState.value.isRemoveLineBreaksEnabled)
-        runOwnedWritingJob(token = writingOwner.claim()?.let { claim ->
-            claim.previousJob?.cancel()
-            claim.token
-        } ?: return) {
-            val result = summarizeUseCase(
-                text = preparedText,
-                summaryLength = settingsState.value.summaryLength,
-                onStatusUpdate = ::updateStatusBar,
-            )
-            if (result is ExtraOutputResult.Success && result.text.isNotBlank()) {
-                sendEvent(MainEvent.PasteTranslation(result.text))
-            }
-        }
-    }
-
     /**
-     * Runs one writing-selection job under [writingOwner] so only the current owner can publish.
+     * Admits one selection-writing action and starts its provider work.
      *
-     * - The claim is made synchronously before launch, so ownership is established without a
-     *   claim gap.
-     * - The previous owned job is cancelled by the claim holder.
-     * - The candidate is installed under its token; if a newer claim already took over, the
-     *   candidate is cancelled and never starts.
-     * - The coroutine body sets `isReplacingSelection = true` and clears it in `finally`, but
-     *   only while still current — stale work never clears a newer request's loading state.
-     * - `CancellationException` rethrows; unexpected exceptions are contained and reported as
-     *   a sanitized status, never as a paste.
+     * ### Synchronous ownership admission
+     * Ownership admission — claiming the writing token and cancelling the previously owned job —
+     * happens synchronously inside [dispatch], in the order the intents are accepted. Only the
+     * provider call and publication run asynchronously. Two intents dispatched back-to-back
+     * therefore cannot invert ownership because of coroutine scheduling: the later intent always
+     * claims the newer token, whatever order the scheduler happens to run the launched bodies in.
+     *
+     * ### Publication gate
+     * The replacement event is queued through [publishWritingEvent], which re-checks the writing
+     * owner at `MainEventDelivery.accept()` time. A result computed by work that has since been
+     * superseded — even one already buffered in the event channel — is dropped before it reaches
+     * the UI, so stale work can never paste.
      */
-    private suspend fun runOwnedWritingJob(
-        token: Long,
-        block: suspend () -> Unit,
-    ) {
+    private fun startWritingSelection(selectedText: String, operation: WritingOperation) {
+        if (selectedText.isBlank()) return
+        val preparedText = prepareInputText(selectedText, settingsState.value.isRemoveLineBreaksEnabled)
+
+        val claim = writingOwner.claim() ?: return
+        claim.previousJob?.cancel()
+        val token = claim.token
+
         val candidate = scope.launch(start = CoroutineStart.LAZY) {
             try {
                 _state.update { it.copy(isReplacingSelection = true) }
-                block()
+                val result = when (operation) {
+                    WritingOperation.REWRITE -> rewriteUseCase(
+                        text = preparedText,
+                        rewriteStyle = settingsState.value.rewriteStyle,
+                        onStatusUpdate = { code, type, isTemporary ->
+                            publishWritingStatus(token, code, type, isTemporary)
+                        },
+                    )
+                    WritingOperation.SUMMARY -> summarizeUseCase(
+                        text = preparedText,
+                        summaryLength = settingsState.value.summaryLength,
+                        onStatusUpdate = { code, type, isTemporary ->
+                            publishWritingStatus(token, code, type, isTemporary)
+                        },
+                    )
+                }
+                if (result is ExtraOutputResult.Success && result.text.isNotBlank()) {
+                    beforeWritingPublication?.invoke(token)
+                    try {
+                        publishWritingEvent(token, MainEvent.PasteTranslation(result.text))
+                    } finally {
+                        // Fires once the publication attempt (queued or cancelled) has ended.
+                        afterWritingPublication?.invoke(token)
+                    }
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // Privacy: never surface raw exception text, which may carry provider URLs,
-                // bodies, Authorization headers, or user text.
-                updateStatusBar(
-                    StatusCode.UnexpectedError("writing_failed"),
+                // Privacy: surface safe exception-class metadata only — never the raw message,
+                // which may carry provider URLs, bodies, Authorization headers, or user text.
+                publishWritingStatus(
+                    token,
+                    StatusCode.UnexpectedError(e::class.simpleName ?: "Unexpected error"),
                     NotificationType.ERROR,
                     true,
                 )
@@ -1480,6 +1487,27 @@ class MainStore(
             return
         }
         candidate.start()
+    }
+
+    /**
+     * Queues an event gated by the writing owner at delivery time. The gate runs on the UI
+     * delivery dispatcher in `MainEventDelivery.accept()`, so a queued paste or status that has
+     * been superseded is rejected even if it was buffered before the newer action claimed.
+     */
+    private suspend fun publishWritingEvent(token: Long, event: MainEvent) {
+        sendEvent(event) { publish ->
+            writingOwner.withCurrent(token) { publish() }
+        }
+    }
+
+    /** Request-owned writing status, gated so a superseded request cannot overwrite current status. */
+    private suspend fun publishWritingStatus(
+        token: Long,
+        code: StatusCode,
+        type: NotificationType,
+        isTemporary: Boolean,
+    ) {
+        publishWritingEvent(token, MainEvent.UpdateStatusBar(code, type, isTemporary))
     }
 
     private fun handleCycleTargetLanguage() {
