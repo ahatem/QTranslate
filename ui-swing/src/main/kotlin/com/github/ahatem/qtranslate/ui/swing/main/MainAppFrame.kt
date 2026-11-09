@@ -414,6 +414,12 @@ class MainAppFrame(
         onReplaceWithTranslation = { text ->
             mainStore.dispatch(MainIntent.ReplaceWithTranslation(text))
         },
+        onReplaceWithRewrite = { text ->
+            mainStore.dispatch(MainIntent.ReplaceWithRewrite(text))
+        },
+        onReplaceWithSummary = { text ->
+            mainStore.dispatch(MainIntent.ReplaceWithSummary(text))
+        },
         onCycleTargetLanguage = {
             mainStore.dispatch(MainIntent.CycleTargetLanguage)
         },

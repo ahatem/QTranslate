@@ -201,6 +201,12 @@ sealed interface MainIntent : UiIntent {
     /** User triggered inline translation — selected text will be replaced with its translation. */
     data class ReplaceWithTranslation(val selectedText: String) : MainIntent
 
+    /** User triggered inline rewrite — selected text will be replaced with a rewritten version. */
+    data class ReplaceWithRewrite(val selectedText: String) : MainIntent
+
+    /** User triggered inline summary — selected text will be replaced with a summary. */
+    data class ReplaceWithSummary(val selectedText: String) : MainIntent
+
     /** User cycled to the next available target language. */
     data object CycleTargetLanguage : MainIntent
 

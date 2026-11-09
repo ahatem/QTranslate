@@ -20,6 +20,7 @@ import com.github.ahatem.qtranslate.core.ocr.OcrRequestOwner
 import com.github.ahatem.qtranslate.core.ocr.preprocessOcrText
 import com.github.ahatem.qtranslate.core.ocr.resolveOcrLanguage
 import com.github.ahatem.qtranslate.core.workspace.translation.ComparisonPolicy
+import com.github.ahatem.qtranslate.core.workspace.translation.ExtraOutputResult
 import com.github.ahatem.qtranslate.core.workspace.translation.RewriteUseCase
 import com.github.ahatem.qtranslate.core.workspace.translation.SummarizeUseCase
 import com.github.ahatem.qtranslate.core.workspace.translation.TranslateTextUseCase
@@ -630,6 +631,16 @@ class MainStore(
             is MainIntent.ReplaceWithTranslation -> {
                 clearComparisonState()
                 scope.launch { handleReplaceWithTranslation(intent.selectedText) }
+            }
+
+            is MainIntent.ReplaceWithRewrite -> {
+                clearComparisonState()
+                scope.launch { handleReplaceWithRewrite(intent.selectedText) }
+            }
+
+            is MainIntent.ReplaceWithSummary -> {
+                clearComparisonState()
+                scope.launch { handleReplaceWithSummary(intent.selectedText) }
             }
 
             is MainIntent.ListenToText -> scope.launch {
@@ -1374,6 +1385,36 @@ class MainStore(
         _state.update { it.copy(isReplacingSelection = false) }
         if (result.isNotBlank()) {
             sendEvent(MainEvent.PasteTranslation(result))
+        }
+    }
+
+    private suspend fun handleReplaceWithRewrite(selectedText: String) {
+        if (selectedText.isBlank()) return
+        val preparedText = prepareInputText(selectedText, settingsState.value.isRemoveLineBreaksEnabled)
+        _state.update { it.copy(isReplacingSelection = true) }
+        val result = rewriteUseCase(
+            text = preparedText,
+            rewriteStyle = "FORMAL",
+            onStatusUpdate = { _, _, _ -> }
+        )
+        _state.update { it.copy(isReplacingSelection = false) }
+        if (result is ExtraOutputResult.Success && result.text.isNotBlank()) {
+            sendEvent(MainEvent.PasteTranslation(result.text))
+        }
+    }
+
+    private suspend fun handleReplaceWithSummary(selectedText: String) {
+        if (selectedText.isBlank()) return
+        val preparedText = prepareInputText(selectedText, settingsState.value.isRemoveLineBreaksEnabled)
+        _state.update { it.copy(isReplacingSelection = true) }
+        val result = summarizeUseCase(
+            text = preparedText,
+            summaryLength = "MEDIUM",
+            onStatusUpdate = { _, _, _ -> }
+        )
+        _state.update { it.copy(isReplacingSelection = false) }
+        if (result is ExtraOutputResult.Success && result.text.isNotBlank()) {
+            sendEvent(MainEvent.PasteTranslation(result.text))
         }
     }
 
