@@ -11,14 +11,13 @@ import javax.swing.KeyStroke
  * The shortcut chords shown beside menu items, derived from the user's configured
  * hotkey bindings.
  *
- * ### Integration seam
- *
- * CommandSpec (Workstream B) will become the single command-metadata source for
- * menus. Until it lands, this class is the one place that turns bindings into
- * display hints: menus consume [chordFor]/[keyStrokeFor] and never hardcode a
- * chord, and no new defaults are introduced. Re-pointing at CommandSpec means
- * rebuilding these hints from the command metadata (same action keys) and
- * deleting [fromBindings]/[formatChord] — the menu call sites do not change.
+ * Presentation-only: command identity, names, categories, surfaces, default
+ * bindings, and eligibility live in [CommandRegistry][com.github.ahatem.qtranslate.core.settings.data.CommandRegistry]
+ * (one [com.github.ahatem.qtranslate.core.settings.data.CommandSpec] per
+ * [HotkeyAction]) and are never duplicated here. This class takes the effective
+ * user bindings for those actions and turns them into display chords: menus
+ * consume [chordFor]/[keyStrokeFor] and never hardcode a chord, and no new
+ * defaults are introduced.
  *
  * Chords are display-only: hotkey delivery stays with the QInput backend
  * (GLOBAL) and the root-pane InputMap (LOCAL), exactly as configured. A hint is

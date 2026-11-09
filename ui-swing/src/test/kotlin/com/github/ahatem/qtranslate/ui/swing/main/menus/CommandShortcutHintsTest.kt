@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main.menus
 
+import com.github.ahatem.qtranslate.core.settings.data.CommandRegistry
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
@@ -72,5 +73,23 @@ class CommandShortcutHintsTest {
 
         assertNull(item.accelerator)
         assertNull(item.toolTipText)
+    }
+
+    @Test
+    fun `every hinted action is backed by the command registry`() {
+        // Drift guard: hints must not grow a parallel command vocabulary. Any
+        // action with a hint comes from HotkeyAction, which CommandRegistry
+        // covers 1:1 (see CommandRegistryCompletenessTest) — adding an action
+        // without a spec fails there, and this fails if a hint ever references
+        // something the registry does not know.
+        val hints = CommandShortcutHints.fromBindings(
+            listOf(binding(HotkeyAction.SHOW_DICTIONARY, KeyEvent.VK_X, InputEvent.ALT_DOWN_MASK))
+        )
+
+        assertEquals("Alt+X", hints.chordFor(HotkeyAction.SHOW_DICTIONARY))
+        assertEquals(
+            HotkeyAction.SHOW_DICTIONARY,
+            CommandRegistry.specFor(HotkeyAction.SHOW_DICTIONARY)?.action,
+        )
     }
 }

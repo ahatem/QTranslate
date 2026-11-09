@@ -378,8 +378,12 @@ class TranslateTextUseCase(
             } catch (e: Exception) {
                 logger.error("Unexpected error during translation: ${e::class.simpleName}")
                 publishPrimaryFailure(extraClaim.generation, publish, updateState)
-                val summary = e.shortSummary()
-                onStatusUpdate(StatusCode.UnexpectedError(summary), NotificationType.ERROR, true)
+                // An unexpected exception's message is untrusted provider/host text and
+                // may carry request URLs (embedded keys) or echoed request content, so
+                // the user-visible summary carries metadata only — exactly like the log
+                // line above. Typed provider failures keep their message through the
+                // Result path; this catch covers contract violations it does not.
+                onStatusUpdate(StatusCode.UnexpectedError(e::class.simpleName ?: "Unexpected error"), NotificationType.ERROR, true)
             }
         }
         if (requestOwner.install(claim, job)) {
