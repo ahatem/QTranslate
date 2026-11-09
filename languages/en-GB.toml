@@ -403,6 +403,7 @@ scope_fixed_hint = "Capture shortcuts are active only while the selection overla
 
 
 edit_hint = "Double-click a row or select it and click Edit to change a binding."
+conflict_warning = "Some hotkeys conflict with each other (same combination used by more than one action):"
 edit_button = "Edit…"
 clear_button = "Clear"
 reset_button = "Reset All to Defaults"
@@ -628,6 +629,7 @@ error_unknown = "The extra output request failed."
 # ===================================================================
 [notifications]
 language_not_supported_format = "The language '%s' is not supported by %s."
+hotkey_rejected_format = "Global hotkey %s was not registered: %s. The remaining global hotkeys stay active."
 tts_not_supported_format = "Text-to-speech is not supported by %s."
 unknown_error = "An unknown error occurred."
 

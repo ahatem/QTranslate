@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main.menus
 
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.SelectionBehavior
 import java.awt.event.ItemEvent
 import javax.swing.ButtonGroup
@@ -45,6 +46,7 @@ class TrayMenuPopup(
     private val strings: TrayMenuStrings,
     private val isHotkeysEnabled: Boolean,
     private val selectionBehavior: SelectionBehavior,
+    private val shortcutHints: CommandShortcutHints = CommandShortcutHints.EMPTY,
 ) : JPopupMenu() {
     init {
         add(JMenuItem(strings.showApplication).apply {
@@ -54,22 +56,27 @@ class TrayMenuPopup(
         add(JSeparator())
 
         add(JMenuItem(strings.dictionary).apply {
+            applyShortcutHint(shortcutHints, HotkeyAction.SHOW_DICTIONARY)
             addActionListener { actions.onShowDictionary() }
         })
 
         add(JMenuItem(strings.imageSearch).apply {
+            applyShortcutHint(shortcutHints, HotkeyAction.SHOW_IMAGES)
             addActionListener { actions.onShowImageSearch() }
         })
 
         add(JMenuItem(strings.textRecognition).apply {
+            applyShortcutHint(shortcutHints, HotkeyAction.OPEN_OCR)
             addActionListener { actions.onRecognizeText() }
         })
 
         add(JMenuItem(strings.translateDocument).apply {
+            applyShortcutHint(shortcutHints, HotkeyAction.TRANSLATE_DOCUMENT)
             addActionListener { actions.onTranslateDocument() }
         })
 
         add(JMenuItem(strings.history).apply {
+            applyShortcutHint(shortcutHints, HotkeyAction.SHOW_HISTORY)
             addActionListener { actions.onShowHistory() }
         })
 
@@ -96,6 +103,7 @@ class TrayMenuPopup(
         })
 
         add(JMenuItem(strings.settings).apply {
+            applyShortcutHint(shortcutHints, HotkeyAction.OPEN_SETTINGS)
             addActionListener { actions.onShowSettings() }
         })
 

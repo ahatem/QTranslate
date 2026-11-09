@@ -2,8 +2,10 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.core.settings.data.CommandRegistry
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyConflictDetector
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyPresetKind
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyPresets
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
@@ -42,49 +44,22 @@ class KeyboardPanel(
     private lateinit var clearButton: JButton
     private lateinit var resetButton: JButton
     private lateinit var presetCombo: JComboBox<HotkeyPresetKind>
+    /** Warning line under the table; visible only while enabled bindings conflict. */
+    private lateinit var conflictHint: JLabel
 
     /**
      * Every action listed here gets a row, and therefore can be rebound from this panel.
+     * This is the registry's editable set ([CommandRegistry.editableActions]) rather than a
+     * hand-maintained list, so a new [HotkeyAction] that ships without a [CommandSpec] fails
+     * the core registry completeness test instead of silently having no row — the window-local
+     * group added in #159 was bound, migrated and localized, but never listed, so it ran on its
+     * defaults while being unconfigurable.
      *
-     * SHOW_MAIN_WINDOW is deliberately absent: it has its own row above the table with Edit/Clear
-     * buttons and the Double Ctrl option, so a second row for it would edit the same binding twice.
+     * SHOW_MAIN_WINDOW is deliberately excluded from the editable set: it has its own row
+     * above the table with Edit/Clear buttons and the Double Ctrl option, so a second row for
+     * it would edit the same binding twice.
      */
-    private val actionOrder = listOf(
-        HotkeyAction.SHOW_QUICK_TRANSLATE,
-        HotkeyAction.LISTEN_TO_TEXT,
-        HotkeyAction.OPEN_OCR,
-        HotkeyAction.OCR_SHOW_ACTIONS,
-        HotkeyAction.OCR_TRANSLATE,
-        HotkeyAction.OCR_TRANSLATE_QUICK,
-        HotkeyAction.OCR_TRANSLATE_MAIN,
-        HotkeyAction.OCR_OPEN_WORKSPACE,
-        HotkeyAction.OCR_COPY_TEXT,
-        HotkeyAction.OCR_COPY_IMAGE,
-        HotkeyAction.REPLACE_WITH_TRANSLATION,
-        HotkeyAction.CYCLE_TARGET_LANGUAGE,
-        HotkeyAction.SHOW_DICTIONARY,
-        HotkeyAction.SHOW_IMAGES,
-        HotkeyAction.TRANSLATE,
-        HotkeyAction.FOCUS_INPUT,
-        HotkeyAction.FOCUS_OUTPUT,
-        HotkeyAction.FOCUS_EXTRA_OUTPUT,
-        // The window-local actions added in #159. They were bound, migrated and localized, but
-        // never listed here, so they worked on their defaults while being unconfigurable.
-        HotkeyAction.COPY_TRANSLATION,
-        HotkeyAction.CLEAR_INPUT,
-        HotkeyAction.SWAP_LANGUAGES,
-        HotkeyAction.OPEN_SETTINGS,
-        HotkeyAction.SHOW_HISTORY,
-        HotkeyAction.TRANSLATE_DOCUMENT,
-        // Capture-local actions. Their scope is fixed to CAPTURE; they are installed only on
-        // the snipping overlay and never in the main window or the global registry.
-        HotkeyAction.OCR_ACTION_TRANSLATE,
-        HotkeyAction.OCR_ACTION_COPY_TEXT,
-        HotkeyAction.OCR_ACTION_COPY_IMAGE,
-        HotkeyAction.OCR_ACTION_SAVE_IMAGE,
-        HotkeyAction.OCR_ACTION_RECROP,
-        HotkeyAction.OCR_ACTION_CANCEL,
-    )
+    private val actionOrder: List<HotkeyAction> = CommandRegistry.editableActions
 
     private val nonEditableActions    = emptySet<HotkeyAction>()
 
@@ -273,6 +248,16 @@ class KeyboardPanel(
                 add(resetButton)
             })
 
+        conflictHint = JLabel("").apply {
+            isOpaque = false
+            isVisible = false
+            foreground = UIManager.getColor("Label.warningForeground")
+                ?: UIManager.getColor("Component.errorColor")
+        }
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+            .insets(UIScale.scale(4), 0, 0, 0)
+            .add(conflictHint)
+
         finishLayout()
     }
 
@@ -443,44 +428,33 @@ class KeyboardPanel(
             // cell is the one exception — it stays clickable in both directions, because that
             // is how a global shortcut is turned into a local one.
             doubleCtrlCheck.isEnabled = c.isGlobalHotkeysEnabled
+
+            // Minimal conflict surface: enabled bindings contending for the same combination.
+            // Detection only — the bindings still save and register as before; the line names
+            // the actions in conflict so the user can resolve them.
+            val conflicts = HotkeyConflictDetector.findConflicts(c.effectiveHotkeys)
+            conflictHint.text = if (conflicts.isEmpty()) {
+                ""
+            } else {
+                val names = conflicts.flatMap { it.actions }.distinct().joinToString(", ") { actionDisplayName(it) }
+                "${localizationManager.getString("settings_hotkeys.conflict_warning")} $names"
+            }
+            conflictHint.isVisible = conflicts.isNotEmpty()
+
             updateButtonStates()
         }
     }
 
+    /** Active binding conflicts for the current draft, for tests. */
+    internal fun conflictsForTest(): List<com.github.ahatem.qtranslate.core.settings.data.HotkeyConflict> =
+        HotkeyConflictDetector.findConflicts(
+            store.state.value.workingConfiguration.effectiveHotkeys
+        )
 
-    private fun actionDisplayName(action: HotkeyAction): String = when (action) {
-        HotkeyAction.SHOW_MAIN_WINDOW         -> localizationManager.getString("settings_hotkeys.action_show_main")
-        HotkeyAction.SHOW_QUICK_TRANSLATE     -> localizationManager.getString("settings_hotkeys.action_quick_translate")
-        HotkeyAction.LISTEN_TO_TEXT           -> localizationManager.getString("settings_hotkeys.action_listen")
-        HotkeyAction.OPEN_OCR                 -> localizationManager.getString("settings_hotkeys.action_ocr")
-        HotkeyAction.OCR_SHOW_ACTIONS         -> localizationManager.getString("settings_hotkeys.action_ocr_show_actions")
-        HotkeyAction.OCR_TRANSLATE            -> localizationManager.getString("settings_hotkeys.action_ocr_translate")
-        HotkeyAction.OCR_TRANSLATE_QUICK      -> localizationManager.getString("settings_hotkeys.action_ocr_translate_quick")
-        HotkeyAction.OCR_TRANSLATE_MAIN       -> localizationManager.getString("settings_hotkeys.action_ocr_translate_main")
-        HotkeyAction.OCR_OPEN_WORKSPACE       -> localizationManager.getString("settings_hotkeys.action_ocr_workspace")
-        HotkeyAction.OCR_COPY_TEXT            -> localizationManager.getString("settings_hotkeys.action_ocr_copy_text")
-        HotkeyAction.OCR_COPY_IMAGE           -> localizationManager.getString("settings_hotkeys.action_ocr_copy_image")
-        HotkeyAction.REPLACE_WITH_TRANSLATION -> localizationManager.getString("settings_hotkeys.action_replace")
-        HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizationManager.getString("settings_hotkeys.action_cycle_language")
-        HotkeyAction.SHOW_DICTIONARY          -> localizationManager.getString("settings_hotkeys.action_show_dictionary")
-        HotkeyAction.SHOW_IMAGES              -> localizationManager.getString("settings_hotkeys.action_show_images")
-        HotkeyAction.TRANSLATE                -> localizationManager.getString("settings_hotkeys.action_translate")
-        HotkeyAction.FOCUS_INPUT              -> localizationManager.getString("settings_hotkeys.action_focus_input")
-        HotkeyAction.FOCUS_OUTPUT             -> localizationManager.getString("settings_hotkeys.action_focus_output")
-        HotkeyAction.FOCUS_EXTRA_OUTPUT       -> localizationManager.getString("settings_hotkeys.action_focus_extra_output")
-        HotkeyAction.COPY_TRANSLATION         -> localizationManager.getString("settings_hotkeys.action_copy_translation")
-        HotkeyAction.CLEAR_INPUT              -> localizationManager.getString("settings_hotkeys.action_clear_input")
-        HotkeyAction.SWAP_LANGUAGES           -> localizationManager.getString("settings_hotkeys.action_swap_languages")
-        HotkeyAction.OPEN_SETTINGS            -> localizationManager.getString("settings_hotkeys.action_open_settings")
-        HotkeyAction.SHOW_HISTORY             -> localizationManager.getString("settings_hotkeys.action_show_history")
-        HotkeyAction.TRANSLATE_DOCUMENT       -> localizationManager.getString("settings_hotkeys.action_translate_document")
-        HotkeyAction.OCR_ACTION_TRANSLATE     -> localizationManager.getString("settings_hotkeys.action_capture_translate")
-        HotkeyAction.OCR_ACTION_COPY_TEXT     -> localizationManager.getString("settings_hotkeys.action_capture_copy_text")
-        HotkeyAction.OCR_ACTION_COPY_IMAGE    -> localizationManager.getString("settings_hotkeys.action_capture_copy_image")
-        HotkeyAction.OCR_ACTION_SAVE_IMAGE    -> localizationManager.getString("settings_hotkeys.action_capture_save_image")
-        HotkeyAction.OCR_ACTION_RECROP        -> localizationManager.getString("settings_hotkeys.action_capture_recrop")
-        HotkeyAction.OCR_ACTION_CANCEL        -> localizationManager.getString("settings_hotkeys.action_capture_cancel")
-    }
+
+    /** Display name from the registry's localization key; falls back to the enum name if unregistered. */
+    private fun actionDisplayName(action: HotkeyAction): String =
+        CommandRegistry.specFor(action)?.let { localizationManager.getString(it.nameKey) } ?: action.name
 
     private fun scopeLabel(scope: HotkeyScope): String = when (scope) {
         HotkeyScope.GLOBAL -> localizationManager.getString("settings_hotkeys.scope_global")

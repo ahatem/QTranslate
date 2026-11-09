@@ -7,8 +7,11 @@ import com.github.ahatem.qtranslate.api.settings.Setting
 import com.github.ahatem.qtranslate.api.settings.SettingGroup
 import com.github.ahatem.qtranslate.api.settings.SettingGroups
 import com.github.ahatem.qtranslate.api.settings.SettingType
+import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
+import com.github.ahatem.qtranslate.core.plugin.storage.ScopedSecretStore
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
+import kotlinx.coroutines.CancellationException
 import java.lang.reflect.Field
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -16,8 +19,10 @@ import java.nio.file.Paths
 /**
  * Builds a [PluginSettingsModel] by introspecting a plugin's settings class.
  *
- * This is a pure read operation — it reads persisted values from [PluginKeyValueStore]
- * and annotation metadata from the settings class, but never writes anything.
+ * This is a read operation — it reads persisted values from [PluginKeyValueStore]
+ * and annotation metadata from the settings class. Its only write is the one-time
+ * migration of a legacy [SettingType.PASSWORD] value from the normal settings store
+ * into the secret store (see [readPasswordValue]); nothing else is written.
  *
  * ### Why Java reflection instead of Kotlin reflection
  * The [@Setting][com.github.ahatem.qtranslate.api.settings.Setting] annotation targets
@@ -56,9 +61,36 @@ internal class PluginSettingsSchemaBuilder(
             val groups  = buildGroups(settingsClass, schema, actions)
             PluginSettingsModel(settingsClass, schema, groups)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             logger.error("Failed to build settings schema for plugin '$pluginId' (${e::class.simpleName})")
             null
         }
+    }
+
+    /**
+     * Reads a [SettingType.PASSWORD] value from the secret store, never from the normal
+     * settings store, so a credential can be exported or logged with settings without
+     * carrying the secret along.
+     *
+     * Smallest idempotent migration: if no secret exists yet but a value is still sitting
+     * in the normal settings store (written there before passwords moved to the secret
+     * store), the value is copied into the secret store and then removed from the normal
+     * store. A later call finds only the secret and changes nothing. The value itself is
+     * never logged — only the field name, which is not sensitive.
+     */
+    private suspend fun readPasswordValue(pluginId: String, fieldName: String, annotation: Setting): String {
+        val secrets = ScopedSecretStore(pluginId, ServiceId.DEFAULT_INSTANCE, pluginKeyValueStore)
+        secrets.get(fieldName)?.let { return it }
+
+        val legacy = pluginKeyValueStore.getValue(pluginId, fieldName)
+        if (legacy != null) {
+            secrets.put(fieldName, legacy)
+            pluginKeyValueStore.deleteValue(pluginId, fieldName)
+            logger.info("Migrated stored value of field '$fieldName' for plugin '$pluginId' to the secret store")
+            return legacy
+        }
+
+        return annotation.defaultValue.takeIf { it.isNotBlank() } ?: ""
     }
 
     // -------------------------------------------------------------------------
@@ -77,9 +109,13 @@ internal class PluginSettingsSchemaBuilder(
         annotation: Setting,
         pluginId: String
     ): SettingSchema? {
-        val currentValue = pluginKeyValueStore.getValue(pluginId, field.name)
-            ?: annotation.defaultValue.takeIf { it.isNotBlank() }
-            ?: ""
+        val currentValue = if (annotation.type == SettingType.PASSWORD) {
+            readPasswordValue(pluginId, field.name, annotation)
+        } else {
+            pluginKeyValueStore.getValue(pluginId, field.name)
+                ?: annotation.defaultValue.takeIf { it.isNotBlank() }
+                ?: ""
+        }
 
         val showIf = if (annotation.showIf.isBlank()) null else {
             val parts = annotation.showIf.split("=", limit = 2)

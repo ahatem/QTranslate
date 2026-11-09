@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.core.settings.data.CommandRegistry
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
@@ -60,39 +61,9 @@ internal object HotkeyRecorderDialog {
         dialog.defaultCloseOperation = JDialog.DISPOSE_ON_CLOSE
         dialog.isResizable = false
 
-        val actionName = when (action) {
-            HotkeyAction.SHOW_MAIN_WINDOW         -> localizer.getString("settings_hotkeys.action_show_main")
-            HotkeyAction.SHOW_QUICK_TRANSLATE     -> localizer.getString("settings_hotkeys.action_quick_translate")
-            HotkeyAction.LISTEN_TO_TEXT           -> localizer.getString("settings_hotkeys.action_listen")
-            HotkeyAction.OPEN_OCR                 -> localizer.getString("settings_hotkeys.action_ocr")
-            HotkeyAction.OCR_SHOW_ACTIONS         -> localizer.getString("settings_hotkeys.action_ocr_show_actions")
-            HotkeyAction.OCR_TRANSLATE            -> localizer.getString("settings_hotkeys.action_ocr_translate")
-            HotkeyAction.OCR_TRANSLATE_QUICK      -> localizer.getString("settings_hotkeys.action_ocr_translate_quick")
-            HotkeyAction.OCR_TRANSLATE_MAIN       -> localizer.getString("settings_hotkeys.action_ocr_translate_main")
-            HotkeyAction.OCR_OPEN_WORKSPACE       -> localizer.getString("settings_hotkeys.action_ocr_workspace")
-            HotkeyAction.OCR_COPY_TEXT            -> localizer.getString("settings_hotkeys.action_ocr_copy_text")
-            HotkeyAction.OCR_COPY_IMAGE           -> localizer.getString("settings_hotkeys.action_ocr_copy_image")
-            HotkeyAction.REPLACE_WITH_TRANSLATION -> localizer.getString("settings_hotkeys.action_replace")
-            HotkeyAction.CYCLE_TARGET_LANGUAGE    -> localizer.getString("settings_hotkeys.action_cycle_language")
-            HotkeyAction.SHOW_DICTIONARY          -> localizer.getString("settings_hotkeys.action_show_dictionary")
-            HotkeyAction.SHOW_IMAGES              -> localizer.getString("settings_hotkeys.action_show_images")
-            HotkeyAction.TRANSLATE                -> localizer.getString("settings_hotkeys.action_translate")
-            HotkeyAction.FOCUS_INPUT              -> localizer.getString("settings_hotkeys.action_focus_input")
-            HotkeyAction.FOCUS_OUTPUT             -> localizer.getString("settings_hotkeys.action_focus_output")
-            HotkeyAction.FOCUS_EXTRA_OUTPUT       -> localizer.getString("settings_hotkeys.action_focus_extra_output")
-            HotkeyAction.COPY_TRANSLATION         -> localizer.getString("settings_hotkeys.action_copy_translation")
-            HotkeyAction.CLEAR_INPUT              -> localizer.getString("settings_hotkeys.action_clear_input")
-            HotkeyAction.SWAP_LANGUAGES           -> localizer.getString("settings_hotkeys.action_swap_languages")
-            HotkeyAction.OPEN_SETTINGS            -> localizer.getString("settings_hotkeys.action_open_settings")
-            HotkeyAction.SHOW_HISTORY             -> localizer.getString("settings_hotkeys.action_show_history")
-            HotkeyAction.TRANSLATE_DOCUMENT       -> localizer.getString("settings_hotkeys.action_translate_document")
-            HotkeyAction.OCR_ACTION_TRANSLATE     -> localizer.getString("settings_hotkeys.action_capture_translate")
-            HotkeyAction.OCR_ACTION_COPY_TEXT     -> localizer.getString("settings_hotkeys.action_capture_copy_text")
-            HotkeyAction.OCR_ACTION_COPY_IMAGE    -> localizer.getString("settings_hotkeys.action_capture_copy_image")
-            HotkeyAction.OCR_ACTION_SAVE_IMAGE    -> localizer.getString("settings_hotkeys.action_capture_save_image")
-            HotkeyAction.OCR_ACTION_RECROP        -> localizer.getString("settings_hotkeys.action_capture_recrop")
-            HotkeyAction.OCR_ACTION_CANCEL        -> localizer.getString("settings_hotkeys.action_capture_cancel")
-        }
+        // The display name comes from the command registry; the fallback keeps an action that
+        // somehow reaches here without a spec visible (as its enum name) instead of crashing.
+        val actionName = CommandRegistry.specFor(action)?.let { localizer.getString(it.nameKey) } ?: action.name
 
         // ── colours ──────────────────────────────────────────────────────────
         val mutedFg   = UIManager.getColor("Label.disabledForeground") ?: Color.GRAY

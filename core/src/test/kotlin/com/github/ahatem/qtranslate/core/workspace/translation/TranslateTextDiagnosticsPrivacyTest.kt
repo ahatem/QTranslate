@@ -11,6 +11,7 @@ import com.github.ahatem.qtranslate.api.translator.TranslationResponse
 import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.core.history.HistoryRepository
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
+import com.github.ahatem.qtranslate.core.shared.StatusCode
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
@@ -23,6 +24,7 @@ import com.github.ahatem.qtranslate.core.shared.logging.CapturingLoggerFactory
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -31,6 +33,9 @@ import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import kotlin.test.AfterTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -112,6 +117,60 @@ class TranslateTextDiagnosticsPrivacyTest {
         assertTrue(
             logger.messages.any { it.contains("Unexpected error during translation: IllegalStateException") },
             "the diagnostic keeps the exception class: ${logger.messages}"
+        )
+    }
+
+    @Test
+    fun `an unexpected provider throw becomes a failed state, releases loading and surfaces without leaking`() = runTest {
+        val logger = CapturingLogger()
+        // ThrowingTranslator throws instead of returning Result (the contract
+        // violation the host boundary must absorb: no strand, no stuck spinner).
+        val translator = ThrowingTranslator(
+            IllegalStateException("SENTINEL-ZQ42-EXC-71f0 blew up")
+        )
+        var state = state("hello")
+        val statuses = mutableListOf<StatusCode>()
+        val completion = harness(this, logger, translator).invoke(
+            getState = { state },
+            updateState = { transform -> state = state.transform() },
+            onStatusUpdate = { code, _, _ -> statuses += code },
+        )
+        advanceUntilIdle()
+
+        assertNull(completion, "no completion may be published for a throwing provider")
+        assertTrue(state.translationFailed, "failure must be recorded")
+        assertFalse(state.isLoading, "busy/loading ownership must be released")
+        assertTrue(state.translatedText.isBlank(), "the stale/partial output must not be presented")
+        val surfaced = statuses.filterIsInstance<StatusCode.UnexpectedError>()
+        assertEquals(1, surfaced.size, "the throw must surface as one user-visible failure: $statuses")
+        assertFalse(
+            surfaced.single().summary.contains("SENTINEL-ZQ42-EXC-71f0"),
+            "the surfaced summary must not leak the exception message",
+        )
+        assertNoSentinel(logger, "SENTINEL-ZQ42-EXC-71f0")
+    }
+
+    @Test
+    fun `a cancelled provider is propagated and never converted into an ordinary failure`() = runTest {
+        val logger = CapturingLogger()
+        val translator = ThrowingTranslator(CancellationException("SENTINEL-ZQ42-CANCEL-92ac"))
+        var state = state("hello")
+        val statuses = mutableListOf<StatusCode>()
+        val completion = harness(this, logger, translator).invoke(
+            getState = { state },
+            updateState = { transform -> state = state.transform() },
+            onStatusUpdate = { code, _, _ -> statuses += code },
+        )
+        advanceUntilIdle()
+
+        assertNull(completion)
+        assertFalse(
+            state.translationFailed,
+            "cancellation must not be recorded as a translation failure",
+        )
+        assertTrue(
+            statuses.none { it is StatusCode.UnexpectedError || it is StatusCode.TranslationFailed },
+            "cancellation must not be announced as a failure: $statuses",
         )
     }
 
