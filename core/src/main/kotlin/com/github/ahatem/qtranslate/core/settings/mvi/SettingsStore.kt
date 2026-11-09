@@ -66,6 +66,23 @@ class SettingsStore(
     private var closing = false
     private var lastAccepted: Job? = null
 
+    /**
+     * Configurations this store wrote and whose echo [observeRepositoryChanges] still expects.
+     *
+     * The repository delivers its flow on the storage dispatcher, so the echo of an older write can
+     * be collected after a newer save has already been committed. Applying it then would move
+     * `originalConfiguration` — the value the UI treats as saved — backwards, and recompute
+     * `isDirty` against a configuration that no longer exists. A save already writes the same state
+     * itself, so its own echo has nothing to teach the store and is consumed here instead.
+     *
+     * DataStore emits in write order, so a matching entry can be dropped together with everything
+     * before it; any other emission is an external change and is applied as before.
+     */
+    private val ownWriteEchoes = ArrayDeque<Configuration>()
+
+    // Bounds the queue if the repository conflates emissions and some echoes never arrive.
+    private val ownWriteEchoLimit = 8
+
     private fun <T> accept(block: suspend () -> T): Deferred<T> = synchronized(acceptedLock) {
         check(!closing) { "Settings persistence is shutting down" }
         val previous = lastAccepted
@@ -78,6 +95,25 @@ class SettingsStore(
         job.invokeOnCompletion { synchronized(acceptedLock) { accepted.remove(job) } }
         job.start()
         job
+    }
+
+    private fun rememberOwnWrite(config: Configuration) = synchronized(ownWriteEchoes) {
+        ownWriteEchoes.addLast(config)
+        while (ownWriteEchoes.size > ownWriteEchoLimit) ownWriteEchoes.removeFirst()
+    }
+
+    /** Whether an emission is the echo of a write this store already applied itself. */
+    private fun consumeOwnWriteEcho(persisted: Configuration): Boolean {
+        synchronized(ownWriteEchoes) {
+            val index = ownWriteEchoes.indexOfFirst { it == persisted }
+            if (index < 0) {
+                // Not ours: everything still queued is older than this external change.
+                ownWriteEchoes.clear()
+                return false
+            }
+            repeat(index + 1) { ownWriteEchoes.removeFirst() }
+            return true
+        }
     }
 
     /** Stop accepting saves and wait for accepted operations before cancelling storage. */
@@ -128,6 +164,8 @@ class SettingsStore(
                     val observedRevision = committedRevision.get()
                     saveMutex.withLock {
                     if (observedRevision != committedRevision.get()) return@withLock
+                    // A late echo of our own write must not overwrite a newer commit.
+                    if (consumeOwnWriteEcho(persisted)) return@withLock
                     _state.update { current ->
                         current.copy(
                             originalConfiguration = persisted,
@@ -282,6 +320,7 @@ class SettingsStore(
                     saved.fold(
                         success = {
                             committedRevision.incrementAndGet()
+                            rememberOwnWrite(configToSave)
                             _state.update { it.copy(originalConfiguration = configToSave,
                                 isDirty = it.workingConfiguration != configToSave, isSaving = false) }
                         },
@@ -334,6 +373,7 @@ class SettingsStore(
         return settingsRepository.updateConfiguration(configToSave).fold(
             success = {
                 committedRevision.incrementAndGet()
+                rememberOwnWrite(configToSave)
                 _state.update { current ->
                     val workingConfiguration = if (current.isDirty) {
                         update(current.workingConfiguration)
