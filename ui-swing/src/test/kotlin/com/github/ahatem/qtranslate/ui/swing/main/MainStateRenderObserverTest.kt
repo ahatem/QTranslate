@@ -146,18 +146,28 @@ class MainStateRenderObserverTest {
             main.value = MainState(inputText = "a")
             await(staleRenderStarted, "the stale snapshot was not collected")
 
-            // The user's next edit and its state update happen while the older render is in
-            // flight. The pane already contains "ab" when the stale callback resumes.
+            // The user's edit lands while the older render is still in flight. The pane already
+            // contains "ab" when the stale callback resumes.
             editorText.set("ab")
-            main.value = MainState(inputText = "ab")
             releaseStaleRender.countDown()
 
+            // Wait for the stale callback to finish before the newer state is published: rendering
+            // it any earlier lets it complete on another worker thread while the stale callback is
+            // still parked, and the two orders are not equivalent.
             await(staleRenderEvaluated, "the stale render never resumed after the edit landed")
-            await(latestRendered, "the newer snapshot was not rendered")
             assertTrue(
                 staleOverwrite.get(),
                 "the control did not reproduce the stale overwrite; it no longer proves anything",
             )
+            assertEquals(
+                "a",
+                editorText.get(),
+                "the stale snapshot must have overwritten the text the user already had",
+            )
+
+            // The newer snapshot is what puts the user's edit back.
+            main.value = MainState(inputText = "ab")
+            await(latestRendered, "the newer snapshot was not rendered")
             assertEquals(listOf("seed", "a", "ab"), rendered)
             assertEquals(
                 "ab",
