@@ -19,7 +19,9 @@ import com.github.ahatem.qtranslate.core.ocr.OcrWorkflowCommand
 import com.github.ahatem.qtranslate.core.ocr.ocrWorkflowCommand
 import com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceStore
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
+import com.github.ahatem.qtranslate.core.plugin.ServiceValidation
 import com.github.ahatem.qtranslate.core.plugin.storage.AppSecretStore
+import com.github.michaelbull.result.getError
 import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
 import com.github.ahatem.qtranslate.core.settings.data.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
@@ -343,12 +345,24 @@ class MainAppFrame(
                     localizationManager = localizer,
                     settingsModel = model,
                     settingsInstance = instance,
-                    onSave = { values -> appScope.launch { pluginManager.applySettingsFromMap(plugin.id, values) } },
+                    onSave = { values -> pluginManager.applySettingsFromMap(plugin.id, values) },
                     onTestConnection = if (!canTest) null else { values ->
                         // Applied first so the test uses what is on screen, not what was saved
                         // last time — testing a key you have just typed is the whole point.
-                        pluginManager.applySettingsFromMap(plugin.id, values)
-                        pluginManager.validateServices(plugin.id)
+                        // A failed apply is reported as the test result instead of being
+                        // silently ignored and validating the values saved earlier.
+                        val applyError = pluginManager.applySettingsFromMap(plugin.id, values).getError()
+                        if (applyError != null) {
+                            listOf(
+                                ServiceValidation(
+                                    serviceId = "",
+                                    serviceName = plugin.manifest.name,
+                                    error = applyError
+                                )
+                            )
+                        } else {
+                            pluginManager.validateServices(plugin.id)
+                        }
                     }
                 ).isVisible = true
             }

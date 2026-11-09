@@ -374,6 +374,12 @@ class PluginManager(
         val discoveryFailure = discoveryFailureStates.firstOrNull { it.id == pluginId }
         if (discoveryFailure != null) {
             transitions.transition(pluginId) {
+                // A broken plugin still owns its sandbox: uninstalling it removes settings
+                // and secrets alike, exactly as the normal uninstall path does.
+                pluginKeyValueStore.deleteAllData(pluginId)
+                pluginKeyValueStore.deleteAllData("$pluginId.secrets")
+                val dataDir = File(appDataDirectory, "plugins_data/$pluginId")
+                if (dataDir.exists()) dataDir.deleteRecursively()
                 val jar = File(discoveryFailure.jarPath)
                 // A JAR the distribution shipped is not the user's to remove, so removing the broken
                 // one is limited to the user's own folder exactly as the normal uninstall path is.

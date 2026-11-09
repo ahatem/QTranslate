@@ -337,7 +337,12 @@ internal class PluginInstaller(
     }
 
     private suspend fun purgePluginSandbox(pluginId: String) {
+        // Settings and secrets are separate DataStore files; both must go, or an uninstall
+        // would leave the credentials of a removed plugin on disk (and a reinstall of a
+        // same-id plugin would silently inherit them). Disabling, failed loads and reloads
+        // never call this — only the uninstall and pending-installer removal paths do.
         pluginKeyValueStore.deleteAllData(pluginId)
+        pluginKeyValueStore.deleteAllData("$pluginId.secrets")
         val dataDir = File(appDataDirectory, "plugins_data/$pluginId")
         if (dataDir.exists()) dataDir.deleteRecursively()
         logger.info("Purged data sandbox for plugin '$pluginId'")
