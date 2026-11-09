@@ -28,6 +28,7 @@ import com.github.ahatem.qtranslate.core.workspace.translation.TranslationComple
 import com.github.ahatem.qtranslate.core.workspace.translation.TranslationCoordinator
 import com.github.ahatem.qtranslate.core.workspace.translation.TranslationStart
 import com.github.ahatem.qtranslate.core.workspace.translation.TranslationOrigin
+import com.github.ahatem.qtranslate.core.writing.SelectionTextWorkOwner
 import com.github.ahatem.qtranslate.core.workspace.lookup.DictionaryLookupRequest
 import com.github.ahatem.qtranslate.core.workspace.lookup.DictionaryLookupSession
 import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase
@@ -57,6 +58,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CancellationException
 
 private data class ComparisonConfigKey(
     val activePresetId: String?,
@@ -141,6 +143,13 @@ class MainStore(
      * be inside publication.
      */
     private val ocrOwner = OcrRequestOwner()
+
+    /**
+     * Single shared ownership domain for all selection-writing actions (Rewrite, Summary).
+     * The latest accepted action owns publication/delivery; a superseded request can never
+     * paste or clear another request's loading state.
+     */
+    private val writingOwner = SelectionTextWorkOwner()
 
     /**
      * The translation request this OCR workflow started, if any. A newer capture cancels it by
@@ -634,12 +643,10 @@ class MainStore(
             }
 
             is MainIntent.ReplaceWithRewrite -> {
-                clearComparisonState()
                 scope.launch { handleReplaceWithRewrite(intent.selectedText) }
             }
 
             is MainIntent.ReplaceWithSummary -> {
-                clearComparisonState()
                 scope.launch { handleReplaceWithSummary(intent.selectedText) }
             }
 
@@ -1391,31 +1398,88 @@ class MainStore(
     private suspend fun handleReplaceWithRewrite(selectedText: String) {
         if (selectedText.isBlank()) return
         val preparedText = prepareInputText(selectedText, settingsState.value.isRemoveLineBreaksEnabled)
-        _state.update { it.copy(isReplacingSelection = true) }
-        val result = rewriteUseCase(
-            text = preparedText,
-            rewriteStyle = "FORMAL",
-            onStatusUpdate = { _, _, _ -> }
-        )
-        _state.update { it.copy(isReplacingSelection = false) }
-        if (result is ExtraOutputResult.Success && result.text.isNotBlank()) {
-            sendEvent(MainEvent.PasteTranslation(result.text))
+        runOwnedWritingJob(token = writingOwner.claim()?.let { claim ->
+            claim.previousJob?.cancel()
+            claim.token
+        } ?: return) {
+            val result = rewriteUseCase(
+                text = preparedText,
+                rewriteStyle = settingsState.value.rewriteStyle,
+                onStatusUpdate = ::updateStatusBar,
+            )
+            if (result is ExtraOutputResult.Success && result.text.isNotBlank()) {
+                sendEvent(MainEvent.PasteTranslation(result.text))
+            }
         }
     }
 
     private suspend fun handleReplaceWithSummary(selectedText: String) {
         if (selectedText.isBlank()) return
         val preparedText = prepareInputText(selectedText, settingsState.value.isRemoveLineBreaksEnabled)
-        _state.update { it.copy(isReplacingSelection = true) }
-        val result = summarizeUseCase(
-            text = preparedText,
-            summaryLength = "MEDIUM",
-            onStatusUpdate = { _, _, _ -> }
-        )
-        _state.update { it.copy(isReplacingSelection = false) }
-        if (result is ExtraOutputResult.Success && result.text.isNotBlank()) {
-            sendEvent(MainEvent.PasteTranslation(result.text))
+        runOwnedWritingJob(token = writingOwner.claim()?.let { claim ->
+            claim.previousJob?.cancel()
+            claim.token
+        } ?: return) {
+            val result = summarizeUseCase(
+                text = preparedText,
+                summaryLength = settingsState.value.summaryLength,
+                onStatusUpdate = ::updateStatusBar,
+            )
+            if (result is ExtraOutputResult.Success && result.text.isNotBlank()) {
+                sendEvent(MainEvent.PasteTranslation(result.text))
+            }
         }
+    }
+
+    /**
+     * Runs one writing-selection job under [writingOwner] so only the current owner can publish.
+     *
+     * - The claim is made synchronously before launch, so ownership is established without a
+     *   claim gap.
+     * - The previous owned job is cancelled by the claim holder.
+     * - The candidate is installed under its token; if a newer claim already took over, the
+     *   candidate is cancelled and never starts.
+     * - The coroutine body sets `isReplacingSelection = true` and clears it in `finally`, but
+     *   only while still current — stale work never clears a newer request's loading state.
+     * - `CancellationException` rethrows; unexpected exceptions are contained and reported as
+     *   a sanitized status, never as a paste.
+     */
+    private suspend fun runOwnedWritingJob(
+        token: Long,
+        block: suspend () -> Unit,
+    ) {
+        val candidate = scope.launch(start = CoroutineStart.LAZY) {
+            try {
+                _state.update { it.copy(isReplacingSelection = true) }
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Privacy: never surface raw exception text, which may carry provider URLs,
+                // bodies, Authorization headers, or user text.
+                updateStatusBar(
+                    StatusCode.UnexpectedError("writing_failed"),
+                    NotificationType.ERROR,
+                    true,
+                )
+            } finally {
+                // Clear loading only if we still own the result, or if the owner was closed
+                // (shutdown — no newer work exists, so loading must be released). If a newer
+                // request superseded us, its loading state is left untouched.
+                if (writingOwner.currentToken() == null) {
+                    _state.update { it.copy(isReplacingSelection = false) }
+                } else {
+                    writingOwner.withCurrent(token) {
+                        _state.update { it.copy(isReplacingSelection = false) }
+                    }
+                }
+            }
+        }
+        if (!writingOwner.install(token, candidate)) {
+            candidate.cancel()
+            return
+        }
+        candidate.start()
     }
 
     private fun handleCycleTargetLanguage() {
@@ -1440,6 +1504,7 @@ class MainStore(
         cancelTranslationWork()
         cancelDocumentTranslation()
         ocrOwner.close()?.previousJob?.cancel()
+        writingOwner.close()?.previousJob?.cancel()
         dictionarySession.cancel()
         imageSession.cancel()
         if (settingsState.value.clearHistoryOnExit) {
