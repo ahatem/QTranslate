@@ -73,6 +73,7 @@ class MainGlobalKeyListenerTest {
         val quickQueries: MutableList<String> = mutableListOf(),
         var cycles: Int = 0,
         var translates: Int = 0,
+        val rejectedReports: MutableList<List<RejectedGlobalHotkey>> = mutableListOf(),
         val selectionGestureAllowedAt: (Point) -> Boolean = { true },
         /**
          * The platform whose Copy chord the listener assumes. Fixed to the Windows chord by
@@ -103,6 +104,7 @@ class MainGlobalKeyListenerTest {
             onSelectionDetected = { _, _ -> selections++ },
             onPointerPressed = { presses += it },
             onTranslate = { translates++ },
+            onGlobalHotkeysRejected = { rejectedReports += it },
             shouldTrackSelectionAt = selectionGestureAllowedAt,
             backendFactory = { backend },
             isMac = isMac,
@@ -340,6 +342,35 @@ class MainGlobalKeyListenerTest {
             harness.logger.warns.any { it.contains("SHOW_IMAGES") && it.contains("control+shift+KeyQ") },
             "the conflicting binding must be reported by action and accelerator"
         )
+    }
+
+    /** The refused binding reaches the host callback, with the backend's refusal text as the reason. */
+    @Test
+    fun `refused global hotkeys are reported to the host`() = runTest {
+        val harness = imageHarness()
+        harness.backend.conflictingAccelerators += "control+shift+KeyQ"
+        harness.set(
+            InputRuntimeState(
+                bindings = bindings(
+                    global(HotkeyAction.SHOW_IMAGES, KeyEvent.VK_Q, InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK),
+                    global(HotkeyAction.SHOW_DICTIONARY, KeyEvent.VK_D, InputEvent.CTRL_DOWN_MASK)
+                )
+            )
+        )
+        harness.listener.initialize()
+        advanceUntilIdle()
+
+        val reported = harness.rejectedReports.flatten()
+        assertEquals(1, reported.size, "exactly the refused binding must be reported")
+        assertEquals(HotkeyAction.SHOW_IMAGES, reported.single().action)
+        assertEquals("control+shift+KeyQ", reported.single().accelerator)
+        assertTrue(reported.single().reason.isNotBlank(), "the refusal reason must reach the host")
+
+        // A later cleanly-applied set reports that nothing is rejected anymore.
+        harness.backend.conflictingAccelerators.clear()
+        harness.set(harness.applied)
+        advanceUntilIdle()
+        assertEquals(emptyList(), harness.rejectedReports.last())
     }
 
     /** Same isolation on an update: the unchanged registration keeps its token, only the conflict drops. */

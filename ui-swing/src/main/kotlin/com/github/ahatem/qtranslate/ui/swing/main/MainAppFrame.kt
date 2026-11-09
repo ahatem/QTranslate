@@ -159,6 +159,15 @@ class MainAppFrame(
 
     private var ocrWorkspaceDialog: OcrWorkspaceDialog? = null
 
+    /**
+     * True while an OCR-capture restore is being applied. Restoring the frame's
+     * extended state posts a deiconified event for the restore itself; the
+     * handler must not treat that restore as a user deiconify (which would pop a
+     * tray-hidden frame back into view and move input focus to it). Cleared by a
+     * task queued after the restore, so it outlives the posted event.
+     */
+    private var suppressDeiconifiedFocus = false
+
     private val documentTranslationDialog by lazy {
         DocumentTranslationDialog(
             owner = this,
@@ -376,9 +385,19 @@ class MainAppFrame(
         return Window.getWindows().any { it === activeWindow && it.isShowing }
     }
 
+    /**
+     * Rejected global hotkeys already surfaced in the notification popover, keyed by
+     * action + accelerator. Replaced wholesale with each reconciliation report, so a
+     * binding that recovers and is refused again is reported again (rather than being
+     * silenced forever), while a persistently refused binding is reported once.
+     */
+    private val surfacedRejectedHotkeys: MutableSet<Pair<com.github.ahatem.qtranslate.core.settings.data.HotkeyAction, String>> =
+        mutableSetOf()
+
     private val globalKeyListener = MainGlobalKeyListener(
         scope = appScope,
         logger = logger,
+        onGlobalHotkeysRejected = { rejected -> surfaceRejectedGlobalHotkeys(rejected) },
         onShowApp = { text ->
             mainStore.dispatch(MainIntent.UpdateInputText(text))
             mainStore.dispatch(MainIntent.Translate(text))
@@ -1185,10 +1204,14 @@ class MainAppFrame(
                 extraction = extraction,
                 catalog = ocrServiceCatalog,
                 onCaptureRequested = {
+                    // Snapshot focus before hiding: a dismissed capture must return
+                    // focus to the workspace only if it had focus before the capture.
                     val workspace = ocrWorkspaceDialog
+                    val workspaceFocused = workspace?.isFocused == true
                     workspace?.isVisible = false
                     openSnippingTool(
                         command = OcrWorkflowCommand.OPEN_WORKSPACE,
+                        workspaceWasFocused = workspaceFocused,
                         onCapturedImage = { captured ->
                             ocrWorkspaceDialog
                                 ?.takeIf { !it.isWorkspaceClosed() }
@@ -1196,13 +1219,6 @@ class MainAppFrame(
                                     image = captured,
                                     label = localizer.getString("ocr_workspace.captured_label"),
                                 )
-                        },
-                        onDismissedWithoutWorkspace = {
-                            val target = ocrWorkspaceDialog
-                            if (target != null && !target.isWorkspaceClosed() && target.isVisible.not()) {
-                                target.isVisible = true
-                                target.toFront()
-                            }
                         },
                     )
                 },
@@ -1255,13 +1271,38 @@ class MainAppFrame(
         }
     }
 
+    /**
+     * Hides the windows for the capture screenshot and opens the overlay.
+     *
+     * The pre-capture window state is snapshotted first (see
+     * [PriorCaptureState]): when the overlay is dismissed without starting a
+     * workflow, [restorePriorCaptureState] puts the windows back exactly as they
+     * were — a tray-hidden frame stays hidden, an iconified one stays iconified,
+     * and only the window that was focused before the capture is raised again.
+     * A capture that starts a workflow never restores: the workflow's own output
+     * window owns the window state from there.
+     *
+     * @param workspaceWasFocused whether the OCR workspace was the focused window
+     * when the capture was requested; snapshotted by the caller, which hides the
+     * workspace before calling here.
+     */
     private fun openSnippingTool(
         command: OcrWorkflowCommand = OcrWorkflowCommand.DEFAULT,
-        onDismissedWithoutWorkspace: () -> Unit = {},
+        workspaceWasFocused: Boolean = false,
         onCapturedImage: ((java.awt.image.BufferedImage) -> Unit)? = null,
     ) {
         val workspaceToRestore = ocrWorkspaceDialog?.takeIf { it.isVisible }
+        var prior: PriorCaptureState? = null
         runOnUi {
+            prior = PriorCaptureState(
+                frameVisible = isVisible,
+                frameExtendedState = extendedState,
+                focusOwner = when {
+                    isFocused -> CaptureFocusOwner.FRAME
+                    workspaceWasFocused -> CaptureFocusOwner.WORKSPACE
+                    else -> CaptureFocusOwner.OTHER
+                },
+            )
             workspaceToRestore?.isVisible = false
             isVisible = false
             state = ICONIFIED
@@ -1278,14 +1319,32 @@ class MainAppFrame(
                     localizer = localizer,
                     command = command,
                     onDismissedWithoutWorkspace = {
-                        onDismissedWithoutWorkspace()
-                        if (workspaceToRestore?.isDisplayable == true) {
-                            workspaceToRestore.isVisible = true
-                            workspaceToRestore.toFront()
-                        }
+                        prior?.let { restorePriorCaptureState(it, workspaceToRestore) }
                     },
                     onCapturedImage = onCapturedImage,
                 )
+            }
+        }
+    }
+
+    /** Puts the windows back after a capture dismissed without a captured image. */
+    private fun restorePriorCaptureState(prior: PriorCaptureState, workspaceToRestore: OcrWorkspaceDialog?) {
+        val plan = captureRestorePlan(prior)
+        runOnUi {
+            if (workspaceToRestore != null && workspaceToRestore.isDisplayable) {
+                workspaceToRestore.isVisible = true
+                if (plan.raiseWorkspace) workspaceToRestore.toFront()
+            }
+            // Restoring the extended state posts a deiconified event on the EDT; the
+            // handler must not treat the restore itself as a user deiconify. The
+            // clearing task is queued after that event, so the flag outlives it.
+            suppressDeiconifiedFocus = true
+            isVisible = plan.frameVisible
+            state = plan.frameExtendedState
+            SwingUtilities.invokeLater { suppressDeiconifiedFocus = false }
+            if (plan.raiseFrame) {
+                toFront()
+                if (plan.focusFrameInput) mainContentView.requestFocusOnInput()
             }
         }
     }
@@ -1404,7 +1463,13 @@ class MainAppFrame(
             showStatusBar = localizer.getString("main_window_main_menu.show_status_bar")
         )
 
-        return MainMenuPopup(currentConfig, actions, strings, layouts)
+        return MainMenuPopup(
+            config = currentConfig,
+            actions = actions,
+            strings = strings,
+            availableLayouts = layouts,
+            shortcutHints = CommandShortcutHints.fromBindings(currentConfig.effectiveHotkeys),
+        )
     }
 
     private fun setupTrayMenu() {
@@ -1486,6 +1551,7 @@ class MainAppFrame(
             strings = strings,
             isHotkeysEnabled = currentConfig.isGlobalHotkeysEnabled,
             selectionBehavior = currentConfig.selectionBehavior,
+            shortcutHints = CommandShortcutHints.fromBindings(currentConfig.effectiveHotkeys),
         )
     }
 
@@ -1518,6 +1584,8 @@ class MainAppFrame(
             }
 
             override fun windowDeiconified(e: WindowEvent?) {
+                // A capture restore impersonates a deiconify; it is not one.
+                if (suppressDeiconifiedFocus) return
                 // The OS raises and activates the frame on taskbar restore; only a still-hidden
                 // frame needs forcing back into view.
                 if (!isVisible) {
@@ -1820,6 +1888,39 @@ class MainAppFrame(
         )
 
         runOnUi { aboutDialog.showDialog(state) }
+    }
+
+    /**
+     * Surfaces global hotkeys the native backend refused to register in the
+     * notification popover (the status bar bell), so the user can rebind them.
+     * Only newly refused bindings notify; the reported set replaces
+     * [surfacedRejectedHotkeys], so a binding that applies cleanly again is
+     * eligible to be reported if it is refused later.
+     */
+    private fun surfaceRejectedGlobalHotkeys(rejected: List<RejectedGlobalHotkey>) {
+        val reported = rejected.map { it.action to it.accelerator }.toSet()
+        val fresh = reported - surfacedRejectedHotkeys
+        surfacedRejectedHotkeys.clear()
+        surfacedRejectedHotkeys.addAll(reported)
+        if (fresh.isEmpty()) return
+        runOnUi {
+            fresh.forEach { key ->
+                val entry = rejected.first { it.action to it.accelerator == key }
+                statusBarController.addToPopover(
+                    AppNotification(
+                        type = NotificationType.WARNING,
+                        code = NotificationCode.Custom(
+                            title = "",
+                            body = localizer.getString(
+                                "notifications.hotkey_rejected_format",
+                                entry.accelerator,
+                                entry.reason,
+                            ),
+                        ),
+                    ),
+                )
+            }
+        }
     }
 
     /** Shows a one-time donation nudge in the notification popover. */
