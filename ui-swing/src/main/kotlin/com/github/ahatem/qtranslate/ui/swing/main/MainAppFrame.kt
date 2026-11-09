@@ -157,6 +157,15 @@ class MainAppFrame(
 
     private var ocrWorkspaceDialog: OcrWorkspaceDialog? = null
 
+    /**
+     * True while an OCR-capture restore is being applied. Restoring the frame's
+     * extended state posts a deiconified event for the restore itself; the
+     * handler must not treat that restore as a user deiconify (which would pop a
+     * tray-hidden frame back into view and move input focus to it). Cleared by a
+     * task queued after the restore, so it outlives the posted event.
+     */
+    private var suppressDeiconifiedFocus = false
+
     private val documentTranslationDialog by lazy {
         DocumentTranslationDialog(
             owner = this,
@@ -1181,10 +1190,14 @@ class MainAppFrame(
                 extraction = extraction,
                 catalog = ocrServiceCatalog,
                 onCaptureRequested = {
+                    // Snapshot focus before hiding: a dismissed capture must return
+                    // focus to the workspace only if it had focus before the capture.
                     val workspace = ocrWorkspaceDialog
+                    val workspaceFocused = workspace?.isFocused == true
                     workspace?.isVisible = false
                     openSnippingTool(
                         command = OcrWorkflowCommand.OPEN_WORKSPACE,
+                        workspaceWasFocused = workspaceFocused,
                         onCapturedImage = { captured ->
                             ocrWorkspaceDialog
                                 ?.takeIf { !it.isWorkspaceClosed() }
@@ -1192,13 +1205,6 @@ class MainAppFrame(
                                     image = captured,
                                     label = localizer.getString("ocr_workspace.captured_label"),
                                 )
-                        },
-                        onDismissedWithoutWorkspace = {
-                            val target = ocrWorkspaceDialog
-                            if (target != null && !target.isWorkspaceClosed() && target.isVisible.not()) {
-                                target.isVisible = true
-                                target.toFront()
-                            }
                         },
                     )
                 },
@@ -1251,13 +1257,38 @@ class MainAppFrame(
         }
     }
 
+    /**
+     * Hides the windows for the capture screenshot and opens the overlay.
+     *
+     * The pre-capture window state is snapshotted first (see
+     * [PriorCaptureState]): when the overlay is dismissed without starting a
+     * workflow, [restorePriorCaptureState] puts the windows back exactly as they
+     * were — a tray-hidden frame stays hidden, an iconified one stays iconified,
+     * and only the window that was focused before the capture is raised again.
+     * A capture that starts a workflow never restores: the workflow's own output
+     * window owns the window state from there.
+     *
+     * @param workspaceWasFocused whether the OCR workspace was the focused window
+     * when the capture was requested; snapshotted by the caller, which hides the
+     * workspace before calling here.
+     */
     private fun openSnippingTool(
         command: OcrWorkflowCommand = OcrWorkflowCommand.DEFAULT,
-        onDismissedWithoutWorkspace: () -> Unit = {},
+        workspaceWasFocused: Boolean = false,
         onCapturedImage: ((java.awt.image.BufferedImage) -> Unit)? = null,
     ) {
         val workspaceToRestore = ocrWorkspaceDialog?.takeIf { it.isVisible }
+        var prior: PriorCaptureState? = null
         runOnUi {
+            prior = PriorCaptureState(
+                frameVisible = isVisible,
+                frameExtendedState = extendedState,
+                focusOwner = when {
+                    isFocused -> CaptureFocusOwner.FRAME
+                    workspaceWasFocused -> CaptureFocusOwner.WORKSPACE
+                    else -> CaptureFocusOwner.OTHER
+                },
+            )
             workspaceToRestore?.isVisible = false
             isVisible = false
             state = ICONIFIED
@@ -1274,14 +1305,32 @@ class MainAppFrame(
                     localizer = localizer,
                     command = command,
                     onDismissedWithoutWorkspace = {
-                        onDismissedWithoutWorkspace()
-                        if (workspaceToRestore?.isDisplayable == true) {
-                            workspaceToRestore.isVisible = true
-                            workspaceToRestore.toFront()
-                        }
+                        prior?.let { restorePriorCaptureState(it, workspaceToRestore) }
                     },
                     onCapturedImage = onCapturedImage,
                 )
+            }
+        }
+    }
+
+    /** Puts the windows back after a capture dismissed without a captured image. */
+    private fun restorePriorCaptureState(prior: PriorCaptureState, workspaceToRestore: OcrWorkspaceDialog?) {
+        val plan = captureRestorePlan(prior)
+        runOnUi {
+            if (workspaceToRestore != null && workspaceToRestore.isDisplayable) {
+                workspaceToRestore.isVisible = true
+                if (plan.raiseWorkspace) workspaceToRestore.toFront()
+            }
+            // Restoring the extended state posts a deiconified event on the EDT; the
+            // handler must not treat the restore itself as a user deiconify. The
+            // clearing task is queued after that event, so the flag outlives it.
+            suppressDeiconifiedFocus = true
+            isVisible = plan.frameVisible
+            state = plan.frameExtendedState
+            SwingUtilities.invokeLater { suppressDeiconifiedFocus = false }
+            if (plan.raiseFrame) {
+                toFront()
+                if (plan.focusFrameInput) mainContentView.requestFocusOnInput()
             }
         }
     }
@@ -1521,6 +1570,8 @@ class MainAppFrame(
             }
 
             override fun windowDeiconified(e: WindowEvent?) {
+                // A capture restore impersonates a deiconify; it is not one.
+                if (suppressDeiconifiedFocus) return
                 // The OS raises and activates the frame on taskbar restore; only a still-hidden
                 // frame needs forcing back into view.
                 if (!isVisible) {

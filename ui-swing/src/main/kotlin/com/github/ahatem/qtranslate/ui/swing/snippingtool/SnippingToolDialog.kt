@@ -41,8 +41,11 @@ class SnippingToolDialog(
     private val localizer: LocalizationManager,
     command: OcrWorkflowCommand = OcrWorkflowCommand.DEFAULT,
     /**
-     * Called when the dialog closes without starting a workspace workflow. Used by the Workspace
-     * when it hid itself to capture again, so a cancelled capture does not leave it invisible.
+     * Called when the dialog closes without starting a workflow — a genuine
+     * cancel/dismiss. Used by the host to restore the window state it hid for
+     * the capture. Once a workflow starts (or the image is handed to the
+     * workspace), the workflow's own output owns the window state and this is
+     * not called.
      */
     private val onDismissedWithoutWorkspace: () -> Unit = {},
     /**
@@ -58,6 +61,9 @@ class SnippingToolDialog(
     private val usableDisplays: List<Rectangle> = connectedUsableScreenBounds()
     private val panel: ScreenCapturePanel
     private val controller: ScreenCaptureController
+
+    /** True once a workflow has started; the dismiss restore must then stay out of the way. */
+    private var workflowStarted = false
 
     init {
         defaultCloseOperation = DISPOSE_ON_CLOSE
@@ -133,7 +139,9 @@ class SnippingToolDialog(
         panel.render(initialState)
         addWindowListener(object : WindowAdapter() {
             override fun windowClosed(e: WindowEvent?) {
-                onDismissedWithoutWorkspace()
+                // windowClosed fires for every close, including after a workflow
+                // started; only a genuine dismiss hands the windows back.
+                if (!workflowStarted) onDismissedWithoutWorkspace()
             }
         })
 
@@ -155,6 +163,9 @@ class SnippingToolDialog(
 
     private fun performWorkflow(action: OcrPostSelectionAction, image: BufferedImage) {
         if (action == OcrPostSelectionAction.SHOW_ACTIONS) return
+        // From here the workflow owns the window state; a dismissed restore must
+        // not run against it when the dialog closes.
+        workflowStarted = true
         if (action == OcrPostSelectionAction.OPEN_WORKSPACE && onCapturedImage != null) {
             onCapturedImage.invoke(image)
             dispose()
