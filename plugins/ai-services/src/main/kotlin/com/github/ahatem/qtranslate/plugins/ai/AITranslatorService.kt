@@ -23,15 +23,16 @@ val LanguageCode.displayName: String
     else Locale.forLanguageTag(tag).getDisplayLanguage(Locale.ENGLISH)
 
 class AITranslatorService(
-    private val client: AIServiceClient
+    private val client: AIServiceClient,
+    private val profileProvider: () -> AiProfile
 ) : Translator {
 
 
-    // Nothing this plugin offers works until a key is set, which is what makes a connection
-    // test worth offering here. The check itself is shared: one key, one endpoint, one model.
+    // Nothing this profile offers works until a key is set, which is what makes a connection
+    // test worth offering here. The check uses this capability's resolved profile.
     override val metadata = ServiceMetadata(requiresConfiguration = true)
 
-    override suspend fun validate() = client.validate()
+    override suspend fun validate() = client.validate(profileProvider())
 
     override val key: String = "ai-translator"
     override val name: String = "AI Translate"
@@ -61,7 +62,7 @@ class AITranslatorService(
             Preserve the original formatting and line breaks.
         """.trimIndent()
 
-        return client.complete(system, request.text).map { translatedText ->
+        return client.complete(system, request.text, profileProvider()).map { translatedText ->
             TranslationResponse(translatedText = translatedText.trim())
         }
     }
@@ -86,16 +87,14 @@ class AITranslatorService(
                 Preserve formatting, line breaks, and punctuation.
             """.trimIndent()
 
-            val raw = client.complete(system, request.text).bind()
+            val raw = client.complete(system, request.text, profileProvider()).bind()
             parseAutoDetectResponse(raw).bind()
         }
 
     private fun parseAutoDetectResponse(raw: String): Result<TranslationResponse, ServiceError> =
         try {
-            // Strip optional markdown code fences some models add despite instructions
-            val clean = raw.trim()
-                .removePrefix("```json").removePrefix("```")
-                .removeSuffix("```").trim()
+            // Strip optional markdown code fences / prose some models add despite instructions
+            val clean = AiJson.extractJson(raw)
 
             val dto = json.decodeFromString<AutoDetectResponseDto>(clean)
 

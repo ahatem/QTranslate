@@ -12,15 +12,16 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.map
 
 class AIRewriterService(
-    private val client: AIServiceClient
+    private val client: AIServiceClient,
+    private val profileProvider: () -> AiProfile
 ) : Rewriter {
 
 
-    // Nothing this plugin offers works until a key is set, which is what makes a connection
-    // test worth offering here. The check itself is shared: one key, one endpoint, one model.
+    // Nothing this profile offers works until a key is set, which is what makes a connection
+    // test worth offering here. The check uses this capability's resolved profile.
     override val metadata = ServiceMetadata(requiresConfiguration = true)
 
-    override suspend fun validate() = client.validate()
+    override suspend fun validate() = client.validate(profileProvider())
 
     override val key: String = "ai-rewriter"
     override val name: String = "AI Rewriter"
@@ -62,7 +63,7 @@ class AIRewriterService(
         ---
     """.trimIndent()
 
-        return client.complete(system, request.text).map { rewritten ->
+        return client.complete(system, request.text, profileProvider()).map { rewritten ->
             RewriteResponse(rewrittenText = rewritten.trim().removeSurrounding("\""))
         }
     }

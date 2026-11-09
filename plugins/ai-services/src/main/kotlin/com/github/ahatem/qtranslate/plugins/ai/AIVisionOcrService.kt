@@ -36,15 +36,16 @@ import java.util.Locale
  * - Does not return a confidence score (language models don't produce calibrated confidence).
  */
 class AIVisionOcrService(
-    private val client: AIServiceClient
+    private val client: AIServiceClient,
+    private val profileProvider: () -> AiProfile
 ) : OCR {
 
 
-    // Nothing this plugin offers works until a key is set, which is what makes a connection
-    // test worth offering here. The check itself is shared: one key, one endpoint, one model.
+    // Nothing this profile offers works until a key is set, which is what makes a connection
+    // test worth offering here. The check uses this capability's resolved profile.
     override val metadata = ServiceMetadata(requiresConfiguration = true)
 
-    override suspend fun validate() = client.validate()
+    override suspend fun validate() = client.validate(profileProvider())
 
     override val key: String = "ai-ocr"
     override val name: String = "AI Vision OCR"
@@ -82,7 +83,8 @@ class AIVisionOcrService(
             val raw = client.completeWithImage(
                 system    = system,
                 image     = request.image,
-                userText  = "Extract all text from this image."
+                userText  = "Extract all text from this image.",
+                profile   = profileProvider()
             ).bind()
 
             parseOcrResponse(raw).bind()
@@ -98,9 +100,7 @@ class AIVisionOcrService(
 
     private fun parseOcrResponse(raw: String): Result<OCRResponse, ServiceError> =
         try {
-            val clean = raw.trim()
-                .removePrefix("```json").removePrefix("```")
-                .removeSuffix("```").trim()
+            val clean = AiJson.extractJson(raw)
 
             val dto = json.decodeFromString<OcrResponseDto>(clean)
 

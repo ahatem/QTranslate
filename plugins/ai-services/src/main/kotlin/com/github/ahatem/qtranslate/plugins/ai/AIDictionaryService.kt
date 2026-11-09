@@ -15,15 +15,16 @@ import kotlinx.serialization.json.Json
 import java.util.Locale
 
 class AIDictionaryService(
-    private val client: AIServiceClient
+    private val client: AIServiceClient,
+    private val profileProvider: () -> AiProfile
 ) : Dictionary {
 
 
-    // Nothing this plugin offers works until a key is set, which is what makes a connection
-    // test worth offering here. The check itself is shared: one key, one endpoint, one model.
+    // Nothing this profile offers works until a key is set, which is what makes a connection
+    // test worth offering here. The check uses this capability's resolved profile.
     override val metadata = ServiceMetadata(requiresConfiguration = true)
 
-    override suspend fun validate() = client.validate()
+    override suspend fun validate() = client.validate(profileProvider())
 
     override val key: String = "ai-dictionary"
     override val name: String = "AI Dictionary"
@@ -71,15 +72,13 @@ class AIDictionaryService(
                 - Do NOT include antonyms, translations, or any fields not in the schema.
             """.trimIndent()
 
-            val raw = client.complete(system, request.word).bind()
+            val raw = client.complete(system, request.word, profileProvider()).bind()
             parseDictionaryResponse(raw).bind()
         }
 
     private fun parseDictionaryResponse(raw: String): Result<DictionaryResponse, ServiceError> =
         try {
-            val clean = raw.trim()
-                .removePrefix("```json").removePrefix("```")
-                .removeSuffix("```").trim()
+            val clean = AiJson.extractJson(raw)
 
             val dto = json.decodeFromString<DictionaryResponseDto>(clean)
 

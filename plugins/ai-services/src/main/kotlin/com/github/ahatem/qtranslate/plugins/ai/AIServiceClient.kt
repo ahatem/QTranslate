@@ -23,23 +23,35 @@ import java.util.Base64
 /**
  * Shared HTTP wrapper for the OpenAI-compatible chat completions API.
  *
- * A single code path handles every supported endpoint:
- * OpenRouter · OpenAI · Mistral · Gemini OpenAI-compat · Ollama · Azure OpenAI · etc.
+ * This client implements exactly one provider shape:
+ * `POST {baseUrl}/chat/completions` (chat/completions style). It does NOT
+ * implement the Responses API (`/v1/responses`), model listing (`/models`),
+ * audio endpoints, embeddings, Assistants, or Azure deployment routes
+ * — those need their own clients if ever supported.
  *
- * The [baseUrl] is read from [AISettings] on every call so endpoint changes in
- * Settings → Plugins take effect without restarting the app.
+ * A single code path handles every supported endpoint that speaks that
+ * shape: OpenRouter · OpenAI · Mistral · Gemini OpenAI-compat · Ollama ·
+ * Azure OpenAI · etc. The resolved [AiProfile] is passed per call, so
+ * endpoint, key, model, temperature and max tokens are all per-profile
+ * and changes in Settings → Plugins take effect without restarting the app.
  *
  * ### Custom headers
- * [AISettings.customHeaders] is a JSON object string merged into every request.
- * The defaults include OpenRouter's optional site-attribution headers
- * (`HTTP-Referer`, `X-Title`), which are harmless with other providers.
+ * [AiProfile.customHeaders] is a JSON object string merged into every
+ * request. It may never override `Authorization` or `Content-Type` —
+ * those entries are skipped case-insensitively so a malformed or hostile
+ * custom-header blob cannot silently break auth.
  *
- * @param settings Lambda returning live [AISettings] — picks up changes without rebuild.
+ * ### Privacy
+ * Debug logs carry metadata only (model name). Keys, `Authorization`
+ * values, header values, request bodies, response bodies, and user text
+ * are never logged, and provider error surfaces never echo raw bodies.
+ *
+ * @param pluginContext Provides logging and the JSON response parser.
+ * @param httpClient HTTP transport; its errors pass through untouched.
  */
 class AIServiceClient(
     private val pluginContext: PluginContext,
-    private val httpClient: HttpClient,
-    private val settings: () -> AISettings
+    private val httpClient: HttpClient
 ) {
     private val responseParser = createJsonParser<ChatCompletionResponse>(pluginContext)
     private val headersJson = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -51,74 +63,52 @@ class AIServiceClient(
      * rejects the key, or a model name the provider does not have, both look perfectly valid on
      * paper and only fail when the user tries to translate something.
      */
-    suspend fun validate(): Result<Unit, ServiceError> {
-        val current = settings()
-        current.missingKeyError()?.let { return Err(it) }
-        return complete(system = "Reply with the single character: 1", userContent = "1")
+    suspend fun validate(profile: AiProfile): Result<Unit, ServiceError> {
+        profile.missingKeyError()?.let { return Err(it) }
+        return complete(system = "Reply with the single character: 1", userContent = "1", profile = profile)
             .map { }
     }
 
     /**
      * Sends a chat-completion request and returns the model's text response.
      *
+     * HTTP transport errors from [httpClient] pass through untouched — they
+     * are never re-mapped or wrapped here.
+     *
      * @param system      The system-level instruction (becomes the first "system" message).
      * @param userContent The user turn content.
+     * @param profile     The resolved profile supplying endpoint, key, model and limits.
      */
     suspend fun complete(
         system: String,
-        userContent: String
+        userContent: String,
+        profile: AiProfile
     ): Result<String, ServiceError> {
-        val current = settings()
+        profile.missingKeyError()?.let { return Err(it) }
 
-        current.missingKeyError()?.let { return Err(it) }
+        val endpoint = profile.chatCompletionsUrl()
 
-        val baseUrl = current.baseUrl.trimEnd('/')
-        val endpoint = "$baseUrl/chat/completions"
-
-        pluginContext.logger.debug("AIServiceClient chat completion: model=${current.model}")
+        pluginContext.logger.debug("AIServiceClient chat completion: model=${profile.model}")
 
         val requestBody = ChatCompletionRequest(
-            model               = current.model,
+            model               = profile.model,
             messages            = listOf(
                 ChatMessage(role = "system", content = system),
                 ChatMessage(role = "user",   content = userContent)
             ),
-            temperature         = current.temperature,
-            maxCompletionTokens = current.maxTokens
+            temperature         = profile.temperature,
+            maxCompletionTokens = profile.maxTokens
         )
-
-        val headers = buildMap<String, String> {
-            put("Authorization", "Bearer ${current.apiKey}")
-            put("Content-Type",  "application/json")
-            // Merge user-supplied custom headers (e.g. OpenRouter attribution headers)
-            if (current.customHeaders.isNotBlank()) {
-                runCatching {
-                    headersJson.decodeFromString<Map<String, String>>(current.customHeaders)
-                }.onSuccess { extra ->
-                    putAll(extra)
-                }.onFailure { e ->
-                    pluginContext.logger.warn(
-                        "AI Plugin: Could not parse Custom Headers JSON — skipping: ${e::class.simpleName}"
-                    )
-                }
-            }
-        }
 
         return httpClient.sendJson(
             url         = endpoint,
-            headers     = headers,
+            headers     = buildHeaders(profile),
             body        = requestBody,
             queryParams = emptyMap()
         ).andThen { responseString ->
             responseParser.parse(responseString)
         }.andThen { response ->
-            response.error?.let { return@andThen Err(mapError(it)) }
-            response.choices.firstOrNull()?.message?.content
-                .toResultOr {
-                    ServiceError.InvalidResponseError(
-                        "AI service returned an empty response (no choices).", null
-                    )
-                }
+            extractContent(response, "AI service returned an empty response (no choices).")
         }
     }
 
@@ -136,24 +126,20 @@ class AIServiceClient(
      * @param system        System-level instruction for the model.
      * @param image         Raw image data to send. Bytes are base64-encoded internally.
      * @param userText      Optional text prompt shown alongside the image in the user turn.
+     * @param profile       The resolved profile supplying endpoint, key, model and limits.
      */
     suspend fun completeWithImage(
         system: String,
         image: ImageData,
-        userText: String = ""
+        userText: String,
+        profile: AiProfile
     ): Result<String, ServiceError> {
-        val current = settings()
+        profile.missingKeyError()?.let { return Err(it) }
 
-        // The same rule as every other call. This one used to have its own check, which meant
-        // Vision OCR still refused to run against a local endpoint after the others had been
-        // fixed — and reported it as an authentication failure rather than a missing setting.
-        current.missingKeyError()?.let { return Err(it) }
-
-        val baseUrl  = current.baseUrl.trimEnd('/')
-        val endpoint = "$baseUrl/chat/completions"
+        val endpoint = profile.chatCompletionsUrl()
 
         pluginContext.logger.debug(
-            "AIServiceClient (vision): model=${current.model}, " +
+            "AIServiceClient (vision): model=${profile.model}, " +
                     "image=${image.width}×${image.height} ${image.format}"
         )
 
@@ -176,23 +162,57 @@ class AIServiceClient(
         }
 
         val requestBody = VisionChatCompletionRequest(
-            model               = current.model,
+            model               = profile.model,
             messages            = listOf(
                 VisionMessage(role = "system", content = JsonPrimitive(system)),
                 VisionMessage(role = "user",   content = userContent)
             ),
-            temperature         = current.temperature,
-            maxCompletionTokens = current.maxTokens
+            temperature         = profile.temperature,
+            maxCompletionTokens = profile.maxTokens
         )
 
-        val headers = buildMap<String, String> {
-            put("Authorization", "Bearer ${current.apiKey}")
-            put("Content-Type",  "application/json")
-            if (current.customHeaders.isNotBlank()) {
+        return httpClient.sendJson(
+            url         = endpoint,
+            headers     = buildHeaders(profile),
+            body        = requestBody,
+            queryParams = emptyMap()
+        ).andThen { responseString ->
+            responseParser.parse(responseString)
+        }.andThen { response ->
+            extractContent(response, "AI vision service returned an empty response (no choices).")
+        }
+    }
+
+    /**
+     * Builds request headers from [profile].
+     *
+     * - A blank key (local, no-key endpoint) omits `Authorization` entirely —
+     *   sending `Bearer ` with an empty token would trip strict servers.
+     * - `Content-Type: application/json` is always present.
+     * - [AiProfile.customHeaders] (a JSON object string) is merged, except
+     *   `Authorization`/`Content-Type` entries which are skipped
+     *   case-insensitively so custom headers cannot silently break auth.
+     * - On parse failure, warn with the exception class name only — header
+     *   values are never logged.
+     */
+    private fun buildHeaders(profile: AiProfile): Map<String, String> =
+        buildMap {
+            if (profile.apiKey.isNotBlank()) {
+                put("Authorization", "Bearer ${profile.apiKey}")
+            }
+            put("Content-Type", "application/json")
+            if (profile.customHeaders.isNotBlank()) {
                 runCatching {
-                    headersJson.decodeFromString<Map<String, String>>(current.customHeaders)
-                }.onSuccess { putAll(it) }
-                 .onFailure { e ->
+                    headersJson.decodeFromString<Map<String, String>>(profile.customHeaders)
+                }.onSuccess { extra ->
+                    extra.forEach { (key, value) ->
+                        if (!key.equals("Authorization", ignoreCase = true) &&
+                            !key.equals("Content-Type", ignoreCase = true)
+                        ) {
+                            put(key, value)
+                        }
+                    }
+                }.onFailure { e ->
                     pluginContext.logger.warn(
                         "AI Plugin: Could not parse Custom Headers JSON — skipping: ${e::class.simpleName}"
                     )
@@ -200,22 +220,37 @@ class AIServiceClient(
             }
         }
 
-        return httpClient.sendJson(
-            url         = endpoint,
-            headers     = headers,
-            body        = requestBody,
-            queryParams = emptyMap()
-        ).andThen { responseString ->
-            responseParser.parse(responseString)
-        }.andThen { response ->
-            response.error?.let { return@andThen Err(mapError(it)) }
-            response.choices.firstOrNull()?.message?.content
-                .toResultOr {
-                    ServiceError.InvalidResponseError(
-                        "AI vision service returned an empty response (no choices).", null
-                    )
-                }
+    /**
+     * Extracts assistant text from a parsed completion, applying the
+     * `finish_reason` contract:
+     *
+     * - `"length"` means the model hit the token cap and the text is
+     *   truncated — surfaced as a distinct [ServiceError.InvalidResponseError]
+     *   telling the user to raise Max Tokens, never leaking the body.
+     * - `null`/any other value passes through as before.
+     * - Empty choices/message is an [ServiceError.InvalidResponseError]
+     *   with no response body attached.
+     * - In-band provider errors map via [mapError] as before.
+     */
+    private fun extractContent(
+        response: ChatCompletionResponse,
+        emptyMessage: String
+    ): Result<String, ServiceError> {
+        response.error?.let { return Err(mapError(it)) }
+        val choice = response.choices.firstOrNull()
+            ?: return Err(ServiceError.InvalidResponseError(emptyMessage, null))
+        if (choice.finishReason == "length") {
+            return Err(
+                ServiceError.InvalidResponseError(
+                    "AI output was truncated because it reached the max token limit. " +
+                        "Increase Max Tokens for this profile and retry.", null
+                )
+            )
         }
+        return choice.message.content
+            .toResultOr {
+                ServiceError.InvalidResponseError(emptyMessage, null)
+            }
     }
 
     private fun mapError(error: ChatError): ServiceError {

@@ -315,8 +315,10 @@ val validateReleaseSizes by tasks.registering(ValidateReleaseSizesTask::class) {
     // Raised for the bundled Inter typeface (P10-C2), a deliberate ~1.4 MiB of packaged product
     // functionality rather than accidental bloat. Budgets stay tight enough to catch a real
     // regression on top of it.
+    // Portable also raised (55 -> 56 MiB) for AI Plugin 2.0 per-capability profiles
+    // (~0.05 MiB of compiled plugin bytecode), which tipped the portable bundle over the old cap.
     maxAppBytes.set(58L * 1024 * 1024)
-    maxPortableBytes.set(55L * 1024 * 1024)
+    maxPortableBytes.set(56L * 1024 * 1024)
     maxBundledPluginsBytes.set(3L * 1024 * 1024)
     reportFile.set(releaseOutputDirectory.map { it.file("SIZE_REPORT.md") })
 }
