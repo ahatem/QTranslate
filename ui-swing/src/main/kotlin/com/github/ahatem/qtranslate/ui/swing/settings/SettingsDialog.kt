@@ -272,7 +272,21 @@ class SettingsDialog(
      * have a specific reason to send the user to that page -- today, Comparison's unavailable
      * state telling the user where to go set up a second translator.
      */
-    fun showServicesPage() = navigator.selectPage(label("services"))
+    fun showServicesPage() = selectPage(label("services"))
+
+    fun showPluginsPage() = selectPage(label("plugins"))
+
+    /** Moves the sidebar selection to [pageLabel], which in turn shows its panel. */
+    private fun selectPage(pageLabel: String) {
+        for (row in 0 until tree.rowCount) {
+            val node = tree.getPathForRow(row).lastPathComponent as? DefaultMutableTreeNode
+            if (node?.userObject == pageLabel) {
+                tree.setSelectionRow(row)
+                tree.scrollRowToVisible(row)
+                return
+            }
+        }
+    }
 
     fun showOcrPage() = navigator.selectPage(label("ocr"))
 

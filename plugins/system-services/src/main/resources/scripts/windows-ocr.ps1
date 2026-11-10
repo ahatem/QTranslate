@@ -129,12 +129,14 @@ try {
             }
         }
 
+        $lineTexts = @($lines | ForEach-Object { $_.text })
+        $fullText = if ($lineTexts.Count -gt 0) { [string]::Join("`n", $lineTexts) } else { "" }
+
         Write-Result @{
-            ok        = $true
-            lines     = $lines
-            text      = [string]::Join("`n", ($lines | ForEach-Object { $_.text }))
-            language  = $engine.RecognizerLanguage.LanguageTag
-            textAngle = $ocr.TextAngle
+            ok       = $true
+            lines    = $lines
+            text     = $fullText
+            language = $engine.RecognizerLanguage.LanguageTag
         }
     }
     finally {

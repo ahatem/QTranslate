@@ -22,7 +22,8 @@ data class PluginActionSchema(
     val label: String,
     val tooltip: String,
     val order: Int,
-    val group: String
+    val group: String,
+    val showIf: ShowIfRule? = null
 )
 
 // =============================================================================
@@ -216,7 +217,8 @@ data class DropdownSetting(
     override val defaultValue: String,
     override val group: String = "",
     override val showIf: ShowIfRule? = null,
-    val options: List<String>
+    val options: List<String>,
+    val isEditable: Boolean = false
 ) : SettingSchema()
 
 // ---- Path-based ----
@@ -278,6 +280,7 @@ internal data class SettingArgs(
     val defaultValue: String,
     val validation: String,
     val options: String,
+    val editable: Boolean = false,
     // New
     val group: String = "",
     val showIf: ShowIfRule? = null,
@@ -347,7 +350,8 @@ internal fun buildBooleanSetting(a: SettingArgs) = BooleanSetting(
 internal fun buildDropdownSetting(a: SettingArgs) = DropdownSetting(
     a.propertyName, a.label, a.description, a.order, a.required,
     a.currentValue, a.defaultValue, a.group, a.showIf,
-    a.options.split(',').map { it.trim() }.filter { it.isNotBlank() }
+    a.options.split(',').map { it.trim() }.filter { it.isNotBlank() },
+    a.editable
 )
 
 internal fun buildFilePathSetting(a: SettingArgs) = FilePathSetting(

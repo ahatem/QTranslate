@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.api.plugin
 import com.github.ahatem.qtranslate.api.dictionary.Dictionary
 import com.github.ahatem.qtranslate.api.imagesearch.ImageSearch
 import com.github.ahatem.qtranslate.api.rewriter.Rewriter
+import com.github.ahatem.qtranslate.api.speech.SpeechRecognizer
 import com.github.ahatem.qtranslate.api.spellchecker.SpellChecker
 import com.github.ahatem.qtranslate.api.summarizer.Summarizer
 import com.github.ahatem.qtranslate.api.translator.Translator
@@ -58,7 +59,13 @@ public enum class ServiceRole(
     REWRITER(Rewriter::class),
 
     /** Looks up images for a term, so a learner can see what it refers to. */
-    IMAGE_SEARCH(ImageSearch::class);
+    IMAGE_SEARCH(ImageSearch::class),
+
+    /** Transcribes recorded speech, so a spoken conversation can be read and translated. */
+    SPEECH_RECOGNIZER(SpeechRecognizer::class),
+
+    /** Transcribes speech while it is spoken, so text appears before the speaker pauses. */
+    LIVE_SPEECH_RECOGNIZER(com.github.ahatem.qtranslate.api.speech.LiveSpeechRecognizer::class);
 
     /** Whether [service] fulfils this role's contract. */
     public fun isHeldBy(service: Service): Boolean = contract.isInstance(service)

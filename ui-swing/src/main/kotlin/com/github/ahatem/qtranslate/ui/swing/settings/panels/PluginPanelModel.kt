@@ -31,6 +31,8 @@ internal object PluginPanelModel {
                     // Filed under Other rather than given a category of its own, since Wikimedia
                     // is the only source and it already appears under Dictionaries.
                     ServiceRole.IMAGE_SEARCH -> PluginCategory.OTHER
+                    // Transcription is an AI service in every plugin that offers it so far.
+                    ServiceRole.SPEECH_RECOGNIZER, ServiceRole.LIVE_SPEECH_RECOGNIZER -> PluginCategory.AI
                 }
             }
         }.toSet()

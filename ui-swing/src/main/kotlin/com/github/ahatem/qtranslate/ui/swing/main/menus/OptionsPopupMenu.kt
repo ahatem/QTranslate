@@ -49,6 +49,8 @@ data class MenuStrings(
     val showLanguageBar: String,
     val showServicesPanel: String,
     val showStatusBar: String,
+    /** Empty hides the item, for a frame built without the conversation feature. */
+    val conversations: String = "",
 )
 
 data class MenuActions(
@@ -74,7 +76,8 @@ data class MenuActions(
     val onToggleLanguageBar: (Boolean) -> Unit,
     val onToggleServicesPanel: (Boolean) -> Unit,
     val onToggleStatusBar: (Boolean) -> Unit,
-    val onOpenServicesSettings: () -> Unit = {}
+    val onOpenServicesSettings: () -> Unit = {},
+    val onShowConversations: () -> Unit = {}
 )
 
 class LayoutPresetsMenu(
@@ -210,6 +213,11 @@ class MainMenuPopup(
             applyShortcutHint(shortcutHints, HotkeyAction.TRANSLATE_DOCUMENT)
             addActionListener { actions.onTranslateDocument() }
         })
+        if (strings.conversations.isNotEmpty()) {
+            add(JMenuItem(strings.conversations).apply {
+                addActionListener { actions.onShowConversations() }
+            })
+        }
         add(JMenuItem(strings.history).apply {
             applyShortcutHint(shortcutHints, HotkeyAction.SHOW_HISTORY)
             addActionListener { actions.onShowHistory() }
