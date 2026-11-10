@@ -46,7 +46,11 @@ enum class HotkeyAction {
     OCR_ACTION_COPY_IMAGE,
     OCR_ACTION_SAVE_IMAGE,
     OCR_ACTION_RECROP,
-    OCR_ACTION_CANCEL
+    OCR_ACTION_CANCEL,
+
+    // Writing selection actions (Workstream B). Persisted under `writingHotkeys`.
+    REPLACE_WITH_REWRITE,
+    REPLACE_WITH_SUMMARY,
 }
 
 /**
@@ -139,7 +143,16 @@ data class HotkeyBinding(
             HotkeyAction.OCR_ACTION_CANCEL,
         )
 
-        /** Legacy-only defaults (v7 vocabulary), persisted under `hotkeys`. */
+        /** Writing selection actions, persisted under `writingHotkeys`. No default binding (UNASSIGNED). */
+        val WRITING_ACTIONS: Set<HotkeyAction> = setOf(
+            HotkeyAction.REPLACE_WITH_REWRITE,
+            HotkeyAction.REPLACE_WITH_SUMMARY,
+        )
+
+        /** Writing-only defaults, persisted under `writingHotkeys`. */
+        val WRITING_DEFAULTS: List<HotkeyBinding>
+            get() = DEFAULTS.filter { it.action in WRITING_ACTIONS }
+
         val LEGACY_DEFAULTS: List<HotkeyBinding>
             get() = DEFAULTS.filter { it.action in LEGACY_ACTIONS }
 
@@ -191,6 +204,10 @@ data class HotkeyBinding(
             HotkeyBinding(HotkeyAction.OCR_ACTION_SAVE_IMAGE,    keyCode = 0, modifiers = 0, scope = HotkeyScope.CAPTURE),
             HotkeyBinding(HotkeyAction.OCR_ACTION_RECROP,        keyCode = 0, modifiers = 0, scope = HotkeyScope.CAPTURE),
             HotkeyBinding(HotkeyAction.OCR_ACTION_CANCEL,        keyCode = 0, modifiers = 0, scope = HotkeyScope.CAPTURE),
+
+            // Writing selection actions: deliberately unassigned.
+            HotkeyBinding(HotkeyAction.REPLACE_WITH_REWRITE,    keyCode = 0, modifiers = 0, scope = HotkeyScope.GLOBAL),
+            HotkeyBinding(HotkeyAction.REPLACE_WITH_SUMMARY,    keyCode = 0, modifiers = 0, scope = HotkeyScope.GLOBAL),
         )
     }
 }

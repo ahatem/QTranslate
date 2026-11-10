@@ -61,6 +61,8 @@ class MainGlobalKeyListener(
     private val onOpenSnippingTool: () -> Unit,
     private val onOpenOcrWorkflow: (OcrWorkflowCommand) -> Unit = { onOpenSnippingTool() },
     private val onReplaceWithTranslation: (String) -> Unit,
+    private val onReplaceWithRewrite: (String) -> Unit = {},
+    private val onReplaceWithSummary: (String) -> Unit = {},
     private val onCycleTargetLanguage: () -> Unit,
     private val onShowDictionary: (String) -> Unit = {},
     private val onShowImages: (String) -> Unit = {},
@@ -770,6 +772,8 @@ class MainGlobalKeyListener(
             HotkeyAction.LISTEN_TO_TEXT,
             HotkeyAction.SHOW_MAIN_WINDOW,
             HotkeyAction.REPLACE_WITH_TRANSLATION,
+            HotkeyAction.REPLACE_WITH_REWRITE,
+            HotkeyAction.REPLACE_WITH_SUMMARY,
             HotkeyAction.SHOW_DICTIONARY,
             HotkeyAction.SHOW_IMAGES,
             // LOCAL-only, handled by MainAppFrame/MainContentView's InputMap.
@@ -834,6 +838,8 @@ class MainGlobalKeyListener(
             HotkeyAction.LISTEN_TO_TEXT -> onListenToText(text)
             HotkeyAction.SHOW_MAIN_WINDOW -> onShowApp(text)
             HotkeyAction.REPLACE_WITH_TRANSLATION -> onReplaceWithTranslation(text)
+            HotkeyAction.REPLACE_WITH_REWRITE -> onReplaceWithRewrite(text)
+            HotkeyAction.REPLACE_WITH_SUMMARY -> onReplaceWithSummary(text)
             HotkeyAction.SHOW_DICTIONARY -> onShowDictionary(text)
             HotkeyAction.SHOW_IMAGES -> onShowImages(text)
             else -> Unit
@@ -853,6 +859,8 @@ class MainGlobalKeyListener(
             HotkeyAction.LISTEN_TO_TEXT,
             HotkeyAction.SHOW_MAIN_WINDOW,
             HotkeyAction.REPLACE_WITH_TRANSLATION,
+            HotkeyAction.REPLACE_WITH_REWRITE,
+            HotkeyAction.REPLACE_WITH_SUMMARY,
             HotkeyAction.SHOW_DICTIONARY,
             HotkeyAction.SHOW_IMAGES
         )

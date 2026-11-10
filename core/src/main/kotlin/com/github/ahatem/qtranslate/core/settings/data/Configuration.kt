@@ -180,6 +180,10 @@ data class Configuration(
      * silently ignored — never half-read — by older builds.
      */
     val ocrHotkeys: List<HotkeyBinding> = HotkeyBinding.OCR_DEFAULTS,
+    /**
+     * Post-v7 writing selection actions. Unknown to older builds.
+     */
+    val writingHotkeys: List<HotkeyBinding> = HotkeyBinding.WRITING_DEFAULTS,
 
     // ---- General Behaviour ----
     val launchOnSystemStartup: Boolean = false,
@@ -363,7 +367,7 @@ data class Configuration(
 ) {
     /** All bindable rows (legacy + OCR), ordered as [HotkeyBinding.DEFAULTS]. */
     val effectiveHotkeys: List<HotkeyBinding>
-        get() = hotkeys + ocrHotkeys
+        get() = hotkeys + ocrHotkeys + writingHotkeys
 
     fun getActivePreset(): ServicePreset? =
         servicePresets.find { it.id == activeServicePresetId }
@@ -378,6 +382,7 @@ data class Configuration(
                 disabledServices             = emptySet(),
                 hotkeys                      = HotkeyBinding.LEGACY_DEFAULTS,
                 ocrHotkeys                   = HotkeyBinding.OCR_DEFAULTS,
+                 writingHotkeys               = HotkeyBinding.WRITING_DEFAULTS,
                 launchOnSystemStartup        = false,
                 isGlobalHotkeysEnabled       = true,
                 selectionBehavior            = SelectionBehavior.OFF,
