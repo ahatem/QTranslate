@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckRequest
+import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckResponse
 import com.github.ahatem.qtranslate.api.spellchecker.SpellChecker
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
@@ -47,18 +48,37 @@ class PerformSpellCheckUseCase(
         text: String,
         onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
     ): List<Correction> {
+        return check(currentState, text, onStatusUpdate).corrections
+    }
+
+    /**
+     * Spell-checks [text] and returns the full [SpellCheckResponse], including the
+     * fully corrected text ([SpellCheckResponse.correctedText]) alongside the
+     * individual corrections.
+     *
+     * This is the entry point for writing-action domains (e.g. a future grammar-correction
+     * replacement) that need the corrected full text rather than only the correction list.
+     * Existing inline spell-check behavior ([invoke]) is unchanged.
+     *
+     * Returns `null` when text is blank, no spell checker is active, or the check fails.
+     */
+    suspend fun check(
+        currentState: MainState,
+        text: String,
+        onStatusUpdate: suspend (code: StatusCode, type: NotificationType, isTemporary: Boolean) -> Unit
+    ): SpellCheckResponse {
         if (text.isBlank()) {
             logger.debug("Spell check skipped: text is blank")
-            return emptyList()
+            return SpellCheckResponse(correctedText = "", corrections = emptyList())
         }
 
         val spellChecker = activeServiceManager.getActiveService<SpellChecker>(ServiceRole.SPELL_CHECKER)
         if (spellChecker == null) {
             logger.debug("No spell checker service available — skipping")
-            return emptyList()
+            return SpellCheckResponse(correctedText = text, corrections = emptyList())
         }
 
-        val language = resolveSpellCheckLanguage(currentState, spellChecker) ?: return emptyList()
+        val language = resolveSpellCheckLanguage(currentState, spellChecker) ?: return SpellCheckResponse(correctedText = text, corrections = emptyList())
         logger.debug("Performing spell check with '${spellChecker.name}'")
         val request = SpellCheckRequest(text = text, language = language)
 
@@ -69,19 +89,19 @@ class PerformSpellCheckUseCase(
         if (result == null) {
             logger.warn("Spell check timed out after ${SPELL_CHECK_TIMEOUT_MS}ms")
             onStatusUpdate(StatusCode.SpellCheckTimeout, NotificationType.WARNING, true)
-            return emptyList()
+            return SpellCheckResponse(correctedText = text, corrections = emptyList())
         }
 
         return result.fold(
             success = { response ->
                 logger.debug("Spell check found ${response.corrections.size} correction(s)")
-                response.corrections
+                response
             },
             failure = { error ->
                 logger.error("Spell check failed: ${error::class.simpleName}")
                 val summary = error.shortSummary()
                 onStatusUpdate(StatusCode.SpellCheckFailed(summary), NotificationType.WARNING, true)
-                emptyList()
+                SpellCheckResponse(correctedText = text, corrections = emptyList())
             }
         )
     }

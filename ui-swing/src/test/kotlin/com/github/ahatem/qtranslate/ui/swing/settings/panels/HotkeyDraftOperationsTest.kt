@@ -269,6 +269,88 @@ class HotkeyDraftOperationsTest {
         assertEquals(before.modifiers, after.modifiers)
     }
 
+    // ---- Batch-3 writing selection actions ----
+
+    @Test
+    fun `assigning a rewrite shortcut updates writingHotkeys, never legacy hotkeys`() {
+        val rewrite = HotkeyBinding(
+            action = HotkeyAction.REPLACE_WITH_REWRITE,
+            keyCode = KeyEvent.VK_R,
+            modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.ALT_DOWN_MASK,
+        )
+        val configured = HotkeyDraftOperations.replaceBinding(Configuration.DEFAULT, rewrite)
+
+        assertEquals(rewrite, configured.writingHotkeys.single { it.action == rewrite.action })
+        assertEquals(Configuration.DEFAULT.hotkeys, configured.hotkeys)
+        assertEquals(Configuration.DEFAULT.ocrHotkeys, configured.ocrHotkeys)
+        assertTrue(configured.hotkeys.none { it.action in HotkeyBinding.WRITING_ACTIONS })
+    }
+
+    @Test
+    fun `assigning a summary shortcut updates writingHotkeys, never legacy hotkeys`() {
+        val summary = HotkeyBinding(
+            action = HotkeyAction.REPLACE_WITH_SUMMARY,
+            keyCode = KeyEvent.VK_S,
+            modifiers = InputEvent.CTRL_DOWN_MASK or InputEvent.ALT_DOWN_MASK,
+        )
+        val configured = HotkeyDraftOperations.replaceBinding(Configuration.DEFAULT, summary)
+
+        assertEquals(summary, configured.writingHotkeys.single { it.action == summary.action })
+        assertEquals(Configuration.DEFAULT.hotkeys, configured.hotkeys)
+        assertTrue(configured.hotkeys.none { it.action in HotkeyBinding.WRITING_ACTIONS })
+    }
+
+    @Test
+    fun `clearing a writing shortcut stays in writingHotkeys`() {
+        val assigned = HotkeyDraftOperations.replaceBinding(
+            Configuration.DEFAULT,
+            HotkeyBinding(HotkeyAction.REPLACE_WITH_SUMMARY, KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK),
+        )
+        val current = assigned.writingHotkeys.single { it.action == HotkeyAction.REPLACE_WITH_SUMMARY }
+        val cleared = HotkeyDraftOperations.replaceBinding(
+            assigned,
+            current.copy(keyCode = 0, modifiers = 0),
+        )
+
+        assertFalse(cleared.writingHotkeys.single { it.action == HotkeyAction.REPLACE_WITH_SUMMARY }.hasBinding)
+        assertEquals(assigned.hotkeys, cleared.hotkeys)
+        assertEquals(assigned.ocrHotkeys, cleared.ocrHotkeys)
+        assertTrue(cleared.hotkeys.none { it.action in HotkeyBinding.WRITING_ACTIONS })
+    }
+
+    @Test
+    fun `writing scope toggle stays in writingHotkeys`() {
+        val assigned = HotkeyDraftOperations.replaceBinding(
+            Configuration.DEFAULT,
+            HotkeyBinding(
+                HotkeyAction.REPLACE_WITH_REWRITE,
+                KeyEvent.VK_R,
+                InputEvent.CTRL_DOWN_MASK,
+                scope = HotkeyScope.GLOBAL,
+            ),
+        )
+        val toggled = HotkeyDraftOperations.toggleScope(assigned, HotkeyAction.REPLACE_WITH_REWRITE)
+        val binding = toggled.writingHotkeys.single { it.action == HotkeyAction.REPLACE_WITH_REWRITE }
+
+        assertEquals(HotkeyScope.LOCAL, binding.scope)
+        assertEquals(KeyEvent.VK_R, binding.keyCode)
+        assertEquals(assigned.hotkeys, toggled.hotkeys)
+        assertTrue(toggled.hotkeys.none { it.action in HotkeyBinding.WRITING_ACTIONS })
+    }
+
+    @Test
+    fun `custom reset clears writing rows without moving them into legacy hotkeys`() {
+        val assigned = HotkeyDraftOperations.replaceBinding(
+            Configuration.DEFAULT,
+            HotkeyBinding(HotkeyAction.REPLACE_WITH_REWRITE, KeyEvent.VK_R, InputEvent.CTRL_DOWN_MASK),
+        )
+        val custom = HotkeyDraftOperations.clearForCustom(assigned)
+
+        assertTrue(custom.writingHotkeys.all { !it.hasBinding })
+        assertEquals(HotkeyBinding.WRITING_ACTIONS, custom.writingHotkeys.map { it.action }.toSet())
+        assertTrue(custom.hotkeys.none { it.action in HotkeyBinding.WRITING_ACTIONS })
+    }
+
     private fun showMain(configuration: Configuration) =
         configuration.hotkeys.first { it.action == HotkeyAction.SHOW_MAIN_WINDOW }
 }

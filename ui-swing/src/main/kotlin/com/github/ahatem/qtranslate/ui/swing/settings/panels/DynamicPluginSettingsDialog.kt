@@ -8,8 +8,13 @@ import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.core.plugin.ServiceValidation
 import com.github.ahatem.qtranslate.core.plugin.settings.*
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.fold
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -51,7 +56,13 @@ class DynamicPluginSettingsDialog(
     private val settingsModel: PluginSettingsModel,
     /** Live settings instance for @PluginAction invocation. May be null for plugins without actions. */
     private val settingsInstance: PluginSettings.Configurable? = null,
-    private val onSave: (Map<String, String>) -> Unit,
+    /**
+     * Applies the values on screen. Suspends so the dialog can wait for the outcome:
+     * on `Ok` the dialog closes, on `Err` it stays open with every field value intact
+     * and the error shown. A fire-and-forget save could neither report a failure nor
+     * keep the user in front of the values that failed to save.
+     */
+    private val onSave: suspend (Map<String, String>) -> Result<Unit, ServiceError>,
     /**
      * Applies the values on screen and then asks each service whether it works, reporting one
      * line per service.
@@ -927,6 +938,7 @@ class DynamicPluginSettingsDialog(
 
         dialogScope.launch {
             val results = runCatching { test(values) }.getOrElse { thrown ->
+                if (thrown is CancellationException) throw thrown
                 listOf(
                     ServiceValidation(
                         serviceId = "",
@@ -998,7 +1010,10 @@ class DynamicPluginSettingsDialog(
     private fun onSaveClicked() {
         val values = components.mapValues { it.value.getValue() }
         val missing = settingsModel.schema.filter { s ->
-            s.isRequired && values[s.propertyName].isNullOrBlank()
+            s.isRequired && values[s.propertyName].isNullOrBlank() &&
+                // A blank password edit keeps the stored secret (the field is pre-filled
+                // with it), so it is not a missing required field when a secret exists.
+                !(s is PasswordSetting && s.currentValue.isNotBlank())
         }
 
         if (missing.isNotEmpty()) {
@@ -1017,8 +1032,42 @@ class DynamicPluginSettingsDialog(
             return
         }
 
-        onSave(values)
-        dispose()
+        setBusy(true)
+        dialogScope.launch {
+            try {
+                val outcome = runCatching { onSave(values) }.getOrElse { thrown ->
+                    if (thrown is CancellationException) throw thrown
+                    Err(ServiceError.UnknownError(thrown.message ?: "Unknown error", thrown))
+                }
+                withContext(Dispatchers.Swing) {
+                    outcome.fold(
+                        success = { dispose() },
+                        failure = { error ->
+                            // The dialog stays open with every field value intact: the
+                            // failure has to be correctable in place, not by retyping.
+                            showTestStatus(
+                                error.message ?: localizationManager.getString("plugin_config.test_failed"),
+                                UIManager.getColor("Actions.Red") ?: Color.RED
+                            )
+                            JOptionPane.showMessageDialog(
+                                this@DynamicPluginSettingsDialog,
+                                error.message ?: localizationManager.getString("plugin_config.test_failed"),
+                                localizationManager.getString("settings_dialog.save_failed_title"),
+                                JOptionPane.ERROR_MESSAGE
+                            )
+                        }
+                    )
+                }
+            } finally {
+                withContext(NonCancellable + Dispatchers.Swing) { setBusy(false) }
+            }
+        }
+    }
+
+    /** Save/test in flight: buttons go quiet and come back on every outcome, including cancellation. */
+    private fun setBusy(busy: Boolean) {
+        saveButton.isEnabled = !busy
+        testButton.isEnabled = !busy && onTestConnection != null
     }
 
     fun getActionButton(actionMethodName: String): JButton? =

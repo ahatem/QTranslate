@@ -116,6 +116,8 @@ class KeyboardPanelActionListTest {
             HotkeyAction.OCR_COPY_TEXT,
             HotkeyAction.OCR_COPY_IMAGE,
             HotkeyAction.REPLACE_WITH_TRANSLATION,
+            HotkeyAction.REPLACE_WITH_REWRITE,
+            HotkeyAction.REPLACE_WITH_SUMMARY,
             HotkeyAction.CYCLE_TARGET_LANGUAGE,
             HotkeyAction.SHOW_DICTIONARY,
             HotkeyAction.SHOW_IMAGES,
@@ -174,6 +176,8 @@ class KeyboardPanelActionListTest {
             HotkeyAction.OCR_ACTION_SAVE_IMAGE,
             HotkeyAction.OCR_ACTION_RECROP,
             HotkeyAction.OCR_ACTION_CANCEL,
+            HotkeyAction.REPLACE_WITH_REWRITE,
+            HotkeyAction.REPLACE_WITH_SUMMARY,
         )
         val unbound = bindings.indices.filter { index ->
             bindings[index]?.action !in intentionallyUnassigned && bindings[index]?.hasBinding != true

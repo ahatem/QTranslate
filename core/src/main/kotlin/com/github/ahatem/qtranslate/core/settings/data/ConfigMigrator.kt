@@ -24,7 +24,7 @@ object ConfigMigrator {
      * would skip every migration it needs. A configuration this build creates from scratch is
      * stamped with this value instead.
      */
-    internal const val CURRENT_VERSION = 9
+    internal const val CURRENT_VERSION = 10
 
     /** The old defaults, frozen: this is what "the user never changed it" looked like. */
     private const val LEGACY_POPUP_IDLE_SECONDS = 3
@@ -202,6 +202,15 @@ object ConfigMigrator {
                     configVersion = 9,
                     hotkeys = legacy,
                     ocrHotkeys = mergedOcr + missing,
+                )
+            }
+            9 -> {
+                logger.info("ConfigMigrator: migrating v9 → v10 — publishing writing hotkey defaults")
+                val existing = config.writingHotkeys.map { it.action }.toSet()
+                val missing = HotkeyBinding.WRITING_DEFAULTS.filter { it.action !in existing }
+                config.copy(
+                    configVersion = 10,
+                    writingHotkeys = config.writingHotkeys + missing,
                 )
             }
             else -> {

@@ -10,11 +10,17 @@ import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
 internal object HotkeyDraftOperations {
 
     fun replaceBinding(configuration: Configuration, binding: HotkeyBinding): Configuration {
-        // Post-v7 OCR rows persist under ocrHotkeys, legacy rows under hotkeys,
-        // so a downgrade never sees an unknown enum value in the legacy list.
+        // Post-v7 rows must never leak into the legacy `hotkeys` list, so a downgrade
+        // never sees an unknown enum value there. OCR rows → ocrHotkeys, writing rows →
+        // writingHotkeys, everything else → legacy hotkeys.
         return if (binding.action in HotkeyBinding.OCR_ACTIONS) {
             configuration.copy(
                 ocrHotkeys = configuration.ocrHotkeys
+                    .filterNot { it.action == binding.action } + binding
+            )
+        } else if (binding.action in HotkeyBinding.WRITING_ACTIONS) {
+            configuration.copy(
+                writingHotkeys = configuration.writingHotkeys
                     .filterNot { it.action == binding.action } + binding
             )
         } else {
@@ -35,7 +41,10 @@ internal object HotkeyDraftOperations {
     fun clearForCustom(configuration: Configuration): Configuration = configuration.copy(
         hotkeys = configuration.hotkeys.map {
             it.copy(keyCode = 0, modifiers = 0, isDoubleCtrlEnabled = false)
-        }
+        },
+        writingHotkeys = configuration.writingHotkeys.map {
+            it.copy(keyCode = 0, modifiers = 0, isDoubleCtrlEnabled = false)
+        },
     )
 
     fun clearShowMainWindow(configuration: Configuration): Configuration {
