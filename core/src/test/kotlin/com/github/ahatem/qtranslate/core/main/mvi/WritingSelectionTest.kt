@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.core.main.mvi
 
+import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.rewriter.RewriteResponse
 import com.github.ahatem.qtranslate.api.summarizer.SummarizeResponse
@@ -162,16 +163,26 @@ class WritingSelectionTest {
             fixture.rewriter.started.await()
             fixture.rewriter.release?.complete(Unit)
 
+            // Loading clearing and event collection are scheduled independently: observing
+            // !isReplacingSelection does NOT imply the collector has already received the queued
+            // status event. Synchronize on the exact event this test asserts instead.
+            val status = withTimeout(5_000) {
+                fixture.awaitEvent {
+                    it is MainEvent.UpdateStatusBar &&
+                        it.code == StatusCode.UnexpectedError("IllegalStateException")
+                } as MainEvent.UpdateStatusBar
+            }
+            assertEquals(StatusCode.UnexpectedError("IllegalStateException"), status.code)
+            assertEquals(NotificationType.ERROR, status.type)
+            assertTrue(status.isTemporary)
+            // Safe class metadata only: never raw exception text, never an internal identifier.
+            assertFalse(status.code.toString().contains("provider exploded"))
+            assertFalse(status.code.toString().contains("writing_failed"))
+            assertEquals(0, fixture.events.filterIsInstance<MainEvent.PasteTranslation>().size)
             withTimeout(5_000) {
                 fixture.store.state.first { !it.isReplacingSelection }
             }
-            assertEquals(0, fixture.events.filterIsInstance<MainEvent.PasteTranslation>().size)
             assertFalse(fixture.store.state.value.isReplacingSelection)
-            // Unexpected error status should be visible with safe class metadata only, never
-            // raw exception text and never an internal identifier.
-            val statusEvents = fixture.events.filterIsInstance<MainEvent.UpdateStatusBar>()
-            assertTrue(statusEvents.any { it.code == StatusCode.UnexpectedError("IllegalStateException") })
-            assertTrue(statusEvents.none { it.code.toString().contains("writing_failed") })
         } finally {
             fixture.cleanUp()
         }
