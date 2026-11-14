@@ -125,19 +125,23 @@ class MainStateRenderObserverTest {
         val job = observer.start(handler()) { state, _ ->
             rendered += state.inputText
             when (state.inputText) {
-                "seed" -> seedRendered.countDown()
                 "a" -> {
                     // Hold the stale render so the newer edit can land first.
                     staleRenderStarted.countDown()
                     releaseStaleRender.await(5, TimeUnit.SECONDS)
+                    // The user's edit is already in the pane when the stale callback resumes.
                     if (editorText.get() == "ab") staleOverwrite.set(true)
-                    // Rendering "ab" may finish on another thread before this callback resumes,
-                    // so the control is only established once this line has run.
-                    staleRenderEvaluated.countDown()
                 }
+            }
+            // The document write is part of this render, so completion is signalled only after
+            // it lands. Signalling first let a waiter wake up and assert the text this render
+            // had not written yet, which is what made the assertions below non-deterministic.
+            editorText.set(state.inputText)
+            when (state.inputText) {
+                "seed" -> seedRendered.countDown()
+                "a" -> staleRenderEvaluated.countDown()
                 "ab" -> latestRendered.countDown()
             }
-            editorText.set(state.inputText)
         }
 
         try {
