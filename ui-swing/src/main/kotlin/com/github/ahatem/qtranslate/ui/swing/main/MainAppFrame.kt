@@ -1794,9 +1794,14 @@ class MainAppFrame(
     }
 
     private fun setupMenuBar() {
-        val settingsButton = createButtonWithIcon(iconManager, Icons.SETTINGS, 18).apply {
+        // A menu, not a settings shortcut. This button opens the popup that holds most of the
+        // window's commands (dictionary, OCR, history, document translation…), and only one of
+        // its entries opens Settings. A gear promised the smaller half of what it does.
+        val menuLabel = localizer.getString("main_window_main_menu.menu")
+        val menuButton = createButtonWithIcon(iconManager, Icons.MORE, 18).apply {
             buttonType = FlatButton.ButtonType.toolBarButton
-            toolTipText = localizer.getString("main_window_main_menu.settings")
+            toolTipText = menuLabel
+            accessibleContext.accessibleName = menuLabel
             addActionListener {
                 val popupMenu = createOptionsPopupMenu()
                 popupMenu.show(this, 0, height)
@@ -1807,7 +1812,7 @@ class MainAppFrame(
         jMenuBar = JMenuBar().apply {
             add(Box.createHorizontalGlue())
             add(pinButton)
-            add(settingsButton)
+            add(menuButton)
         }
     }
 

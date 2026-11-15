@@ -340,12 +340,14 @@ class QuickTranslateDialog(
             )
         )
 
-        pinButton.toolTipText = withShortcut(
-            if (state.isPinned) state.strings.unpinTooltip else state.strings.pinTooltip,
-            KeyEvent.VK_P
-        )
-        copyButton.toolTipText = withShortcut(state.strings.copyTooltip, KeyEvent.VK_C)
-        swapButton.toolTipText = withShortcut(state.strings.swapTooltip, KeyEvent.VK_S)
+        // No chords on these four. The popup registers its own Ctrl+C/E/S/P, but they are its own
+        // gestures rather than configured commands: the copy chord is not COPY_TRANSLATION (which
+        // is bound on the main window), and the swap/listen chords are not SWAP_LANGUAGES or
+        // LISTEN_TO_TEXT. Advertising a chord the configuration cannot change, and that reads like
+        // the command of the same name, is worse than saying nothing.
+        pinButton.toolTipText = if (state.isPinned) state.strings.unpinTooltip else state.strings.pinTooltip
+        copyButton.toolTipText = state.strings.copyTooltip
+        swapButton.toolTipText = state.strings.swapTooltip
         closeButton.toolTipText = state.strings.closeTooltip
 
         // Becomes a stop button while speech is playing, as it does in the main window. Pressing
@@ -358,10 +360,7 @@ class QuickTranslateDialog(
             14,
             14
         )
-        listenButton.toolTipText = withShortcut(
-            if (playing) state.strings.stopListeningTooltip else state.strings.listenTooltip,
-            KeyEvent.VK_E
-        )
+        listenButton.toolTipText = if (playing) state.strings.stopListeningTooltip else state.strings.listenTooltip
 
         listenButton.isEnabled = playing || (state.actionsState.canListen && !state.isLoading)
         copyButton.isEnabled = state.actionsState.canCopy && !state.isLoading
@@ -813,20 +812,6 @@ class QuickTranslateDialog(
             KeyStroke.getKeyStroke(KeyEvent.VK_P, menuMask),
             JComponent.WHEN_IN_FOCUSED_WINDOW
         )
-    }
-
-    /**
-     * Appends a shortcut to a tooltip, in the platform's own notation.
-     *
-     * Shown on the control rather than left to be discovered, since a shortcut nobody knows about
-     * is the same as no shortcut. Built from the KeyStroke so it reads Cmd on macOS without a
-     * second string to keep in step.
-     */
-    private fun withShortcut(tooltip: String, keyCode: Int): String {
-        val stroke = KeyStroke.getKeyStroke(keyCode, Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx)
-        val modifiers = InputEvent.getModifiersExText(stroke.modifiers)
-        val key = KeyEvent.getKeyText(stroke.keyCode)
-        return "$tooltip  ($modifiers+$key)"
     }
 
     private fun autoHideStopForDrag() {

@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.core.settings.data.CommandRegistry
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
+import com.github.ahatem.qtranslate.ui.swing.shared.util.formatChord
 import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
 import javax.swing.JMenuItem
@@ -73,6 +74,29 @@ class CommandShortcutHintsTest {
 
         assertNull(item.accelerator)
         assertNull(item.toolTipText)
+    }
+
+    @Test
+    fun `the shared formatter writes a chord the same way everywhere`() {
+        // One formatter, so a menu, a tooltip and the settings table cannot disagree about the
+        // same combination. A bare modifier mask is the recorder's live preview.
+        assertEquals("Ctrl+Shift+X", formatChord(KeyEvent.VK_X, InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK))
+        assertEquals("Ctrl+Shift", formatChord(0, InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK))
+        assertEquals("" , formatChord(0, 0))
+    }
+
+    @Test
+    fun `tooltips gain the configured chord only when one exists`() {
+        val hints = CommandShortcutHints.fromBindings(
+            listOf(binding(HotkeyAction.SHOW_DICTIONARY, KeyEvent.VK_X, InputEvent.ALT_DOWN_MASK))
+        )
+
+        assertEquals("Copy (Alt+X)", "Copy".withShortcutChord(hints, HotkeyAction.SHOW_DICTIONARY))
+        assertEquals(
+            "Copy",
+            "Copy".withShortcutChord(hints, HotkeyAction.COPY_TRANSLATION),
+            "an unbound command adds nothing rather than advertising a key that does nothing",
+        )
     }
 
     @Test
