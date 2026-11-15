@@ -865,6 +865,16 @@ class MainGlobalKeyListener(
             HotkeyAction.SHOW_IMAGES
         )
 
+        /**
+         * The actions above, for the surfaces that have to explain a command rather than
+         * dispatch it.
+         *
+         * The selection-capture set is owned here, by the code that actually injects the
+         * Copy, so a panel that describes these commands reads the same list instead of
+         * keeping a second one that could drift from the dispatch path.
+         */
+        internal val selectionCaptureActions: Set<HotkeyAction> get() = SELECTIVE_ACTIONS
+
         /** Actions whose UX tolerates genuinely empty input (dialogs the user can type into). */
         private val LENIENT_ACTIONS = setOf(
             HotkeyAction.SHOW_QUICK_TRANSLATE,

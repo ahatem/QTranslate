@@ -46,6 +46,16 @@ internal class TextPaneKeyBindings(
     private val onDocumentPasted: ((File) -> Unit)?,
 ) {
 
+    /**
+     * The stroke currently installed for the translate action, or null when it has none.
+     *
+     * Kept here because this class owns the install/uninstall. The context menu reads it to show
+     * the same chord the pane actually answers to, so a rebind reaches the menu without the menu
+     * needing the configuration.
+     */
+    var currentTranslateStroke: KeyStroke? = null
+        private set
+
     fun install() {
         val menuMask = MenuShortcutModifier.current()
 
@@ -171,6 +181,7 @@ internal class TextPaneKeyBindings(
         if (new != null && new != old) {
             pane.inputMap.put(new, TRANSLATE_ACTION)
         }
+        currentTranslateStroke = new
         return true
     }
 

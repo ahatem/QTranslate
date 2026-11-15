@@ -135,9 +135,12 @@ class KeyboardPanelScalingTest {
         val table = tableAt(2f)
         layOut(table, UIScale.scale(600))
 
-        val binding = table.model.getValueAt(0, 1)
-        val renderer = table.getCellRenderer(0, 1)
-        val rendered = onEdt { renderer.getTableCellRendererComponent(table, binding, false, false, 0, 1) as Container }
+        // The list opens with a category heading, which carries no chips; the first command row
+        // is where a key chip is actually drawn.
+        val row = (0 until table.rowCount).first { table.model.getValueAt(it, 1) != null }
+        val binding = table.model.getValueAt(row, 1)
+        val renderer = table.getCellRenderer(row, 1)
+        val rendered = onEdt { renderer.getTableCellRendererComponent(table, binding, false, false, row, 1) as Container }
         onEdt {
             rendered.setSize(table.columnModel.getColumn(1).width, table.rowHeight)
             layoutTree(rendered)

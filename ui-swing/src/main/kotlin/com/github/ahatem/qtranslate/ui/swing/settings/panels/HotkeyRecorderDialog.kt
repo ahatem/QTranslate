@@ -6,7 +6,9 @@ import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.CommandRegistry
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyConflictDetector
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
+import com.github.ahatem.qtranslate.ui.swing.shared.util.formatChord
 import com.github.ahatem.qtranslate.ui.swing.snippingtool.isReservedBareCaptureKey
 import java.awt.*
 import java.awt.event.*
@@ -39,6 +41,14 @@ internal object HotkeyRecorderDialog {
         localizer: LocalizationManager,
         pauseGlobalHotkeys:  (() -> Unit)? = null,
         resumeGlobalHotkeys: (() -> Unit)? = null,
+        /**
+         * The bindings already configured, so a combination that is taken can be named while
+         * it is being recorded rather than only after the panel redraws.
+         *
+         * Advisory only: a conflicting combination is still saved, because a duplicate is a
+         * decision the user is allowed to make.
+         */
+        existingBindings: List<HotkeyBinding> = emptyList(),
     ): HotkeyBinding? {
 
         // ── mutable recorder state ──────────────────────────────────────────
@@ -63,7 +73,9 @@ internal object HotkeyRecorderDialog {
 
         // The display name comes from the command registry; the fallback keeps an action that
         // somehow reaches here without a spec visible (as its enum name) instead of crashing.
-        val actionName = CommandRegistry.specFor(action)?.let { localizer.getString(it.nameKey) } ?: action.name
+        fun actionDisplayName(target: HotkeyAction): String =
+            CommandRegistry.specFor(target)?.let { localizer.getString(it.nameKey) } ?: target.name
+        val actionName = actionDisplayName(action)
 
         // ── colours ──────────────────────────────────────────────────────────
         val mutedFg   = UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
@@ -149,6 +161,21 @@ internal object HotkeyRecorderDialog {
             font = font.deriveFont(font.size - 1f)
         }
 
+        /**
+         * Names what else already uses the combination that was just captured.
+         *
+         * Separate from [hintLabel] because it answers a different question — the hint says
+         * "now confirm", this says "but this combination is already spoken for" — and it must
+         * survive the hint returning to its idle text. Never blocks OK: two actions sharing a
+         * combination is the user's call, and the settings table already reports it afterwards.
+         */
+        val warningFg = UIManager.getColor("Actions.Yellow") ?: errorFg
+        val conflictLabel = JLabel("").apply {
+            font = font.deriveFont(font.size - 1f)
+            foreground = warningFg
+            isVisible = false
+        }
+
         val okButton     = JButton(localizer.getString("common.ok"))
         val cancelButton = JButton(localizer.getString("common.cancel"))
         var confirmed = false
@@ -157,18 +184,43 @@ internal object HotkeyRecorderDialog {
         dialog.rootPane.defaultButton = okButton
 
         // ── helpers ──────────────────────────────────────────────────────────
-        /** Formats a key combo as "Ctrl + Alt + T".  keyCode < 0 renders "?" for live preview. */
-        fun formatCombo(mods: Int, keyCode: Int): String = buildList {
-            if (mods and InputEvent.CTRL_DOWN_MASK  != 0) add("Ctrl")
-            if (mods and InputEvent.ALT_DOWN_MASK   != 0) add("Alt")
-            if (mods and InputEvent.SHIFT_DOWN_MASK != 0) add("Shift")
-            if (mods and InputEvent.META_DOWN_MASK  != 0) add("⌘")
-            add(if (keyCode < 0) "?" else KeyEvent.getKeyText(keyCode))
-        }.joinToString(" + ")
+        /**
+         * Formats the combination with the one shared formatter, so it reads exactly as the
+         * settings table and the menu hints spell it.
+         *
+         * A negative [keyCode] is the live preview before a non-modifier key is pressed: the
+         * modifiers so far, then a `?` standing in for the key still to come.
+         */
+        fun formatCombo(mods: Int, keyCode: Int): String {
+            if (keyCode >= 0) return formatChord(keyCode, mods)
+            val modifiers = formatChord(0, mods)
+            return if (modifiers.isEmpty()) "?" else "$modifiers+?"
+        }
 
         // ── updateUI ─────────────────────────────────────────────────────────
         // The input field always shows plain normal text — only hintLabel changes colour.
+        /** Actions already bound to the captured combination, so the warning can name them. */
+        fun conflictingNames(): List<String> =
+            if (!isCaptureDone) emptyList() else conflictingActions(
+                action = action,
+                keyCode = capturedKeyCode,
+                modifiers = capturedModifiers,
+                current = current,
+                bindings = existingBindings,
+            ).map(::actionDisplayName)
+
         fun updateUI() {
+            val conflictNames = conflictingNames()
+            conflictLabel.text = if (conflictNames.isEmpty()) {
+                ""
+            } else {
+                "⚠  " + localizer.getString(
+                    "settings_hotkeys.recorder_conflict",
+                    conflictNames.joinToString(", "),
+                )
+            }
+            conflictLabel.isVisible = conflictNames.isNotEmpty()
+
             when {
                 isErrorState || isReservedError -> {
                     inputField.font = captureFont
@@ -337,6 +389,8 @@ internal object HotkeyRecorderDialog {
             add(inputField)
             add(Box.createVerticalStrut(6))
             add(hintLabel)
+            add(Box.createVerticalStrut(4))
+            add(conflictLabel)
         }
 
         dialog.contentPane.add(mainPanel, BorderLayout.CENTER)
@@ -361,6 +415,32 @@ internal object HotkeyRecorderDialog {
         if (!confirmed) return null
 
         return recordedBinding(action, current, capturedKeyCode, capturedModifiers)
+    }
+
+    /**
+     * The actions that already hold the recorded combination.
+     *
+     * Pure so the warning can be tested without a display. The candidate is built exactly as
+     * [recordedBinding] will build it — same scope, same enabled state — because a duplicate is
+     * only a duplicate within one scope, and the scope is what makes the recorded binding
+     * global, local or capture-local.
+     *
+     * [action] itself is excluded: rebinding an action to the combination it already has is not a
+     * conflict with itself.
+     */
+    internal fun conflictingActions(
+        action: HotkeyAction,
+        keyCode: Int,
+        modifiers: Int,
+        current: HotkeyBinding?,
+        bindings: List<HotkeyBinding>,
+    ): Set<HotkeyAction> {
+        if (keyCode == 0) return emptySet()
+        val candidate = recordedBinding(action, current, keyCode, modifiers)
+        val others = bindings.filterNot { it.action == action }
+        return HotkeyConflictDetector.findConflicts(others + candidate)
+            .flatMap { it.actions }
+            .toSet() - action
     }
 
     /**

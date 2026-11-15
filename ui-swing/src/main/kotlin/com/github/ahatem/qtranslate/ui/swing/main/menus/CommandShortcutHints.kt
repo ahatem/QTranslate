@@ -2,8 +2,6 @@ package com.github.ahatem.qtranslate.ui.swing.main.menus
 
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
-import java.awt.event.InputEvent
-import java.awt.event.KeyEvent
 import javax.swing.JMenuItem
 import javax.swing.KeyStroke
 
@@ -43,15 +41,22 @@ class CommandShortcutHints private constructor(
         fun fromBindings(bindings: List<HotkeyBinding>): CommandShortcutHints =
             CommandShortcutHints(bindings.associateBy { it.action })
 
-        internal fun formatChord(binding: HotkeyBinding): String = buildList {
-            if (binding.modifiers and InputEvent.CTRL_DOWN_MASK != 0) add("Ctrl")
-            if (binding.modifiers and InputEvent.ALT_DOWN_MASK != 0) add("Alt")
-            if (binding.modifiers and InputEvent.SHIFT_DOWN_MASK != 0) add("Shift")
-            if (binding.modifiers and InputEvent.META_DOWN_MASK != 0) add("Meta")
-            add(KeyEvent.getKeyText(binding.keyCode))
-        }.joinToString("+")
+        /** The chord for one of these bindings, in the shared notation. */
+        internal fun formatChord(binding: HotkeyBinding): String =
+            com.github.ahatem.qtranslate.ui.swing.shared.util.formatChord(binding.keyCode, binding.modifiers)
     }
 }
+
+/**
+ * [this] label with [action]'s configured chord appended, or unchanged when the action has no
+ * enabled binding.
+ *
+ * For tooltips on controls that trigger a command: the control is found by its icon, so the
+ * chord is the only place the keyboard route to the same action is written down. An unbound
+ * action stays silent rather than advertising a key that does nothing.
+ */
+internal fun String.withShortcutChord(hints: CommandShortcutHints, action: HotkeyAction): String =
+    hints.chordFor(action)?.let { "$this ($it)" } ?: this
 
 /**
  * Shows [action]'s configured chord as the menu item's accelerator (right-aligned
