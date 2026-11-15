@@ -432,56 +432,62 @@ class OcrWorkspaceDialog(
         imageCards.add(empty, "empty")
         (imageCards.layout as CardLayout).show(imageCards, "empty")
 
-        // The zoom controls float in the bottom centre *over the image*
-        // instead of taking a strip underneath it. A layered pane with
-        // explicit layers (not add order) keeps the opaque image from
-        // covering the card, and doLayout() positions both children
-        // declaratively — no listeners to chase pointer movement.
-        var overflow = false
-        val overlay = object : JLayeredPane() {
+        // The zoom controls float in the bottom centre *over the image*.
+        //
+        // This is a plain panel with one layout manager and no layering. The previous version
+        // was a JLayeredPane whose doLayout() also decided which controls were visible; a
+        // layout manager must not change the components it is laying out, because the change
+        // invalidates them and can re-enter the layout that made it. Visibility is now decided
+        // in one place, on resize, and the layout only positions what is already visible.
+        val overlay = object : JPanel(OverlayPlacement()) {
+            /** True once the bar is wide enough for the full row of controls. */
+            private var full = false
+
             init {
                 isOpaque = false
                 add(imageCards)
                 add(zoom)
-                setLayer(imageCards, JLayeredPane.DEFAULT_LAYER)
-                setLayer(zoom, JLayeredPane.POPUP_LAYER)
+                // Decided on resize, never from inside layout.
+                addComponentListener(object : java.awt.event.ComponentAdapter() {
+                    override fun componentResized(e: java.awt.event.ComponentEvent?) = applyWidth()
+                })
+            }
+
+            override fun addNotify() {
+                super.addNotify()
+                // The first real width arrives with the first layout, not with construction,
+                // so the decision is repeated once the panel exists on screen.
+                javax.swing.SwingUtilities.invokeLater { applyWidth() }
             }
 
             /**
-             * Positions the floating zoom bar and decides which controls fit on it.
+             * Chooses which controls fit, then lays the bar out once.
              *
-             * The visibility decisions are derived from the available width and applied once.
-             * The bar is then laid out and measured before it is positioned, so it centres on
-             * the controls it actually shows rather than on the width it had before they
-             * changed — otherwise the bar jumps sideways whenever a control appears or goes.
+             * Separate from [doLayout] on purpose: assigning `isVisible` invalidates the child,
+             * and doing that while laying the parent out is what made the bar repaint in a loop
+             * and stay blank until the pointer moved over it.
              */
-            override fun doLayout() {
-                imageCards.setBounds(0, 0, width, height)
-                if (!zoom.isVisible) return
-                val margin = UIScale.scale(8)
-                val available = width - 2 * margin
+            fun applyWidth() {
+                val available = width - 2 * UIScale.scale(8)
                 val essential = listOf(zoomOut, zoomLabel, zoomIn).sumOf { it.preferredSize.width }
-                val fullWidth = essential + fit.preferredSize.width + annotationsCheck.preferredSize.width + UIScale.scale(24)
-                val fitWidth = essential + fit.preferredSize.width + more.preferredSize.width + UIScale.scale(20)
-                // Hysteresis: once overflowing, need extra room before going
-                // full again, so a pixel of scrollbar/hover jitter cannot flip it.
-                val hysteresis = UIScale.scale(24)
-                overflow = if (overflow) available < fullWidth - hysteresis else available < fullWidth
-                val full = !overflow
-                // Both flags come from the same decision. `more` is the alternative to the full
-                // row, not an addition to it, so it follows the opposite of `full` exactly.
-                annotationsCheck.isVisible = full
-                fit.isVisible = full || available >= fitWidth
-                more.isVisible = !full
-                // Measured after the visibility above, so the bar centres on the controls it
-                // actually shows rather than on the width it had before they changed. A
-                // FlowLayout ignores hidden children, so its preferred size is exactly that.
-                zoom.doLayout()
-                val barSize = zoom.preferredSize
-                val x = (width - barSize.width) / 2
-                val y = height - barSize.height - margin
-                zoom.setBounds(x, y, barSize.width, barSize.height)
-                zoom.doLayout()
+                val fullWidth = essential + fit.preferredSize.width +
+                    annotationsCheck.preferredSize.width + UIScale.scale(24)
+                val fitWidth = essential + fit.preferredSize.width + more.preferredSize.width +
+                    UIScale.scale(20)
+                // Hysteresis: once overflowing, need extra room before going full again, so a
+                // pixel of scrollbar or hover jitter cannot flip the bar between two shapes.
+                full = if (full) {
+                    available >= fullWidth - UIScale.scale(24)
+                } else {
+                    available >= fullWidth
+                }
+                val showFit = full || available >= fitWidth
+                if (annotationsCheck.isVisible != full) annotationsCheck.isVisible = full
+                if (fit.isVisible != showFit) fit.isVisible = showFit
+                if (more.isVisible != full) more.isVisible = !full
+                // The visibility just changed, so the bar's preferred size did too. Revalidate
+                // now, outside any layout pass, and let the normal layout cycle position it.
+                revalidate()
             }
         }
         return JPanel(BorderLayout()).apply {
