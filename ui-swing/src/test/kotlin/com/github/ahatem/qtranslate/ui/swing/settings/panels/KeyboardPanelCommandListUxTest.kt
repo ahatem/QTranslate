@@ -18,9 +18,18 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import java.awt.Component
 import java.awt.ComponentOrientation
+import java.awt.Container
+import java.awt.Dimension
+import java.awt.Graphics
+import java.awt.Point
+import java.awt.image.BufferedImage
+import javax.swing.CellRendererPane
 import java.awt.event.MouseEvent
 import java.awt.event.MouseWheelEvent
 import java.nio.file.Files
+import javax.accessibility.Accessible
+import javax.accessibility.AccessibleRole
+import javax.accessibility.AccessibleState
 import javax.swing.JScrollBar
 import javax.swing.JScrollPane
 import javax.swing.JTable
@@ -29,6 +38,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -112,7 +122,34 @@ class KeyboardPanelCommandListUxTest {
             }
         }
         onEdt { outer.updateUI() }
+        onEdt { if (withOuter) layOut(outer, panel) }
         return Page(settings, panel, outer)
+    }
+
+    /**
+     * Gives [outer]'s hierarchy the bounds a visible window would give it.
+     *
+     * Offscreen components stay 0x0 even after `validate()`: a wheel over a zero-sized view finds
+     * nothing, and an inner viewport with no height cannot scroll regardless of its model. These
+     * sizes are set by hand so the gesture routing is exercised against real geometry.
+     */
+    private fun layOut(outer: JScrollPane, panel: KeyboardPanel) {
+        outer.viewport.size = outer.size
+        panel.setSize(outer.viewport.extentSize)
+        panel.doLayout()
+        val list = panel.listScrollForTest()
+        list.setSize(list.preferredSize)
+        list.doLayout()
+        list.viewport.size = Dimension(
+            list.width - list.verticalScrollBar.preferredSize.width,
+            list.height,
+        )
+        val view = list.viewport.view
+        view.setSize(
+            view.preferredSize.width.coerceAtLeast(list.viewport.width),
+            view.preferredSize.height,
+        )
+        list.viewport.doLayout()
     }
 
     private fun scrollBar(min: Int, max: Int, visible: Int, value: Int): JScrollBar =
@@ -226,9 +263,8 @@ class KeyboardPanelCommandListUxTest {
     @Test
     fun `the wheel leaves the list at its top`() {
         val page = page()
-        val forwarded = mutableListOf<MouseWheelEvent>()
+        val before = onEdt { page.outer.verticalScrollBar.value }
         onEdt {
-            page.outer.addMouseWheelListener { forwarded += it }
             page.list.verticalScrollBar.apply {
                 minimum = 0
                 maximum = 2000
@@ -237,36 +273,38 @@ class KeyboardPanelCommandListUxTest {
             }
         }
 
-        onEdt { wheel(page.table, rotation = -1) }
+        onEdt { wheelOver(page.list.viewport.view, rotation = -1) }
 
-        assertEquals(1, forwarded.size, "the page receives the gesture the list cannot use")
-        assertEquals(-1, forwarded.single().wheelRotation, "and it is the same gesture, same direction")
-        assertEquals(0, page.list.verticalScrollBar.value, "the list does not move as well")
+        assertTrue(
+            onEdt { page.outer.verticalScrollBar.value } < before,
+            "the page takes the gesture the list cannot use",
+        )
+        assertEquals(0, onEdt { page.list.verticalScrollBar.value }, "the list does not move as well")
     }
 
     @Test
     fun `the wheel leaves the list at its bottom`() {
         val page = page()
-        val forwarded = mutableListOf<MouseWheelEvent>()
-        onEdt {
-            page.outer.addMouseWheelListener { forwarded += it }
+        val before = onEdt { page.outer.verticalScrollBar.value }
+        val atBottom = onEdt {
             page.list.verticalScrollBar.apply {
-                minimum = 0
-                maximum = 2000
-                visibleAmount = 400
-                value = 1600
-            }
+                value = maximum - visibleAmount - minimum
+            }.value
         }
 
-        onEdt { wheel(page.table, rotation = 1) }
+        onEdt { wheelOver(page.list.viewport.view, rotation = 1) }
 
-        assertEquals(1, forwarded.size, "the page receives the gesture the list cannot use")
-        assertEquals(1, forwarded.single().wheelRotation, "and it is the same gesture, same direction")
+        assertTrue(
+            onEdt { page.outer.verticalScrollBar.value } > before,
+            "at the bottom, downward belongs to the page",
+        )
+        assertEquals(atBottom, onEdt { page.list.verticalScrollBar.value }, "and the list stays put")
     }
 
     @Test
     fun `the page itself scrolls from a wheel over the list`() {
         val page = page()
+        val before = onEdt { page.outer.verticalScrollBar.value }
         onEdt {
             page.list.verticalScrollBar.apply {
                 minimum = 0
@@ -278,19 +316,18 @@ class KeyboardPanelCommandListUxTest {
 
         onEdt { wheel(page.table, rotation = -1) }
 
-        val after = page.outer.verticalScrollBar.value
+        val after = onEdt { page.outer.verticalScrollBar.value }
         assertTrue(
-            after < 400,
-            "the forwarded gesture is one the page acts on, not just a message ($after)",
+            after < before,
+            "the page acts on the gesture, not merely a message ($before -> $after)",
         )
     }
 
     @Test
-    fun `a wheel over the list scroll bar also reaches the page`() {
+    fun `a wheel over the list scroll bar also moves the page`() {
         val page = page()
-        val forwarded = mutableListOf<MouseWheelEvent>()
+        val before = onEdt { page.outer.verticalScrollBar.value }
         onEdt {
-            page.outer.addMouseWheelListener { forwarded += it }
             page.list.verticalScrollBar.apply {
                 minimum = 0
                 maximum = 2000
@@ -299,9 +336,198 @@ class KeyboardPanelCommandListUxTest {
             }
         }
 
-        onEdt { wheel(page.list.verticalScrollBar, rotation = 1) }
+        onEdt { wheelOver(page.list.verticalScrollBar, rotation = 1) }
 
-        assertEquals(1, forwarded.size, "the scroll bar does not swallow a gesture it cannot use either")
+        assertTrue(
+            onEdt { page.outer.verticalScrollBar.value } > before,
+            "the scroll bar does not swallow a gesture it cannot use either",
+        )
+    }
+
+    /**
+     * The wheel as the window toolkit delivers it: posted at the table, then handled by whatever
+     * component in the chain takes it. Pointer position is the table's own centre converted to the
+     * page, so the page has a real point over the list to work out which pane should move.
+     */
+    @Test
+    fun `a wheel over the list moves the page without hovering anything else`() {
+        val page = page()
+        onEdt {
+            page.list.verticalScrollBar.apply {
+                minimum = 0
+                maximum = 2000
+                visibleAmount = 400
+                value = 0
+            }
+        }
+        val before = onEdt { page.outer.verticalScrollBar.value }
+
+        onEdt { wheelOver(page.table, rotation = -1) }
+
+        val after = onEdt { page.outer.verticalScrollBar.value }
+        assertTrue(
+            after < before,
+            "the page must move while the pointer is over the list ($before -> $after)",
+        )
+    }
+
+    /**
+     * The regression that survived the first attempt: the gesture reached the page's own listener
+     * but not the page's scroll bar, so nothing actually moved. Nothing is asserted about a
+     * forwarded event — the page is brought up to date by moving its bar — so this checks the bar,
+     * which is the only thing the user can see.
+     */
+    @Test
+    fun `the page scroll bar moves rather than merely receiving the event`() {
+        val page = page()
+        val before = onEdt { page.outer.verticalScrollBar.value }
+        val atTop = onEdt {
+            page.list.verticalScrollBar.apply { value = minimum }.value
+        }
+
+        onEdt { wheelOver(page.list.verticalScrollBar, rotation = -1) }
+
+        assertTrue(
+            onEdt { page.outer.verticalScrollBar.value } < before,
+            "the page's scroll bar is what moves",
+        )
+        assertEquals(atTop, onEdt { page.list.verticalScrollBar.value }, "the list stays where it was")
+    }
+
+    /** A wheel the list can still use must move the list and leave the page where it was. */
+    @Test
+    fun `one wheel notch moves a predictable distance in both panes`() {
+        // Three rows per notch scrolled the list far faster than the page, so crossing the
+        // boundary made the gesture visibly lurch. Both panes must move at the same rate.
+        val page = page()
+        val listBefore = onEdt { page.list.verticalScrollBar.value }
+        onEdt {
+            page.list.verticalScrollBar.apply { value = minimum + 100 }
+        }
+        val start = onEdt { page.list.verticalScrollBar.value }
+
+        onEdt { wheelOver(page.list.viewport.view, rotation = 1) }
+        val listDelta = onEdt { page.list.verticalScrollBar.value } - start
+
+        assertTrue(listBefore >= 0, "sanity")
+        assertTrue(
+            listDelta in 1..(UIScale.scale(60) + 1),
+            "a notch moves a modest distance, not several rows ($listDelta)",
+        )
+    }
+
+    @Test
+    fun `a wheel the list can use moves the list and not the page`() {
+        val page = page()
+        onEdt {
+            page.list.verticalScrollBar.apply {
+                minimum = 0
+                maximum = 2000
+                visibleAmount = 400
+                value = 400
+            }
+        }
+        val pageBefore = onEdt { page.outer.verticalScrollBar.value }
+        val listBefore = onEdt { page.list.verticalScrollBar.value }
+
+        onEdt { wheelOver(page.list.viewport.view, rotation = 1) }
+
+        assertTrue(
+            onEdt { page.list.verticalScrollBar.value } > listBefore,
+            "the list takes the gesture it has room for",
+        )
+        assertEquals(
+            pageBefore,
+            onEdt { page.outer.verticalScrollBar.value },
+            "and the page does not move as well",
+        )
+    }
+
+    // -------------------------------------------------------------------------
+    // Chip alignment
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `the shortcut chips sit in the middle of their row, not at its top`() {
+        val page = page()
+        val rowHeight = onEdt { page.table.rowHeight }
+        val cell = renderChips(page, UIScale.scale(220), rowHeight)
+        val chip = onEdt { (cell as Container).getComponent(0) }
+
+        val overflow = (rowHeight - onEdt { chip.height }) / 2
+        assertTrue(
+            Math.abs(onEdt { chip.y } - overflow) <= UIScale.scale(1),
+            "the chips are vertically centred: y=${onEdt { chip.y }} of $rowHeight",
+        )
+    }
+
+    @Test
+    fun `the chips are centred horizontally as well`() {
+        val page = page()
+        val width = UIScale.scale(260)
+        val cell = renderChips(page, width, onEdt { page.table.rowHeight })
+        val chips = onEdt { (cell as Container).components }
+
+        val leftGap = onEdt { chips.first().x }
+        val rightGap = onEdt { cell.width - (chips.last().x + chips.last().width) }
+        assertTrue(
+            Math.abs(leftGap - rightGap) <= UIScale.scale(2),
+            "equal space either side: left=$leftGap right=$rightGap",
+        )
+    }
+
+    @Test
+    fun `the chips stay centred when the table paints the cell directly`() {
+        // The table sizes a renderer component and paints it without validating it, which is how
+        // the chips ended up off-centre in the running app while these tests still passed: they
+        // laid the cell out by hand first. Painting through a CellRendererPane is the real path.
+        val page = page()
+        val columnWidth = onEdt { page.table.columnModel.getColumn(COL_HOTKEY).width }
+        val row = onEdt { rowOf(page.table, HotkeyAction.TRANSLATE) }
+        val rowHeight = onEdt { page.table.rowHeight }
+
+        // Measured during the paint: the pane restores the component's previous bounds once it
+        // is done, so only the geometry seen inside the paint says where the chips really land.
+        var gaps: Pair<Int, Int>? = null
+        onEdt {
+            val renderer = page.table.getCellRenderer(row, COL_HOTKEY)
+            val cell = renderer.getTableCellRendererComponent(
+                page.table, page.table.getValueAt(row, COL_HOTKEY), false, false, row, COL_HOTKEY,
+            )
+            val probe = object : Container() {
+                override fun paint(g: Graphics) {
+                    cell.setSize(columnWidth, rowHeight)
+                    cell.doLayout()
+                    val band = cell as Container
+                    val chips = band.components
+                    gaps = chips.first().x to band.width - (chips.last().x + chips.last().width)
+                }
+            }
+            val image = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
+            val g = image.createGraphics()
+            try {
+                CellRendererPane().paintComponent(g, probe, page.table, 0, 0, columnWidth, rowHeight, true)
+            } finally {
+                g.dispose()
+            }
+        }
+
+        val (leftGap, rightGap) = assertNotNull(gaps, "the cell was never painted")
+        assertTrue(
+            Math.abs(leftGap - rightGap) <= UIScale.scale(2),
+            "equal space either side after a real paint: left=$leftGap right=$rightGap",
+        )
+    }
+
+    /** The hotkey cell for a bound command, laid out at [width] by [height]. */
+    private fun renderChips(page: Page, width: Int, height: Int): Component = onEdt {
+        val row = rowOf(page.table, HotkeyAction.TRANSLATE)
+        page.table.getCellRenderer(row, COL_HOTKEY)
+            .getTableCellRendererComponent(
+                page.table, page.table.getValueAt(row, COL_HOTKEY), false, false, row, COL_HOTKEY,
+            )
+            .apply { setSize(width, height) }
+            .also { it.doLayout() }
     }
 
     // -------------------------------------------------------------------------
@@ -363,6 +589,105 @@ class KeyboardPanelCommandListUxTest {
                 )
             }
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Accessibility
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `the actions column is named for the accessibility tree`() {
+        val page = page()
+        assertEquals(
+            localizer.getString("settings_hotkeys.column_actions"),
+            onEdt { page.table.getColumnName(COL_ACTIONS) },
+            "an unnamed column is announced as nothing, so its cells have no context",
+        )
+        assertEquals(
+            localizer.getString("settings_hotkeys.command_list_accessible_name"),
+            onEdt { page.table.accessibleContext.accessibleName },
+            "the table says what it is before any of its cells are read",
+        )
+    }
+
+    @Test
+    fun `the row actions are exposed as two named buttons`() {
+        val page = page()
+        val cell = actionsCell(page, HotkeyAction.TRANSLATE)
+        val context = cell.accessibleContext
+
+        assertEquals(
+            localizer.getString("settings_hotkeys.row_actions_accessible_name"),
+            context.accessibleName,
+            "the cell says what the two squares are",
+        )
+        assertTrue(
+            context.accessibleDescription.contains(localizer.getString("settings_hotkeys.action_translate")),
+            "and which command they belong to: ${context.accessibleDescription}",
+        )
+        assertEquals(2, context.accessibleChildrenCount, "one child per action")
+        assertEquals(
+            localizer.getString("settings_hotkeys.row_edit_tooltip"),
+            context.getAccessibleChild(0)!!.accessibleContext.accessibleName,
+        )
+        assertEquals(
+            localizer.getString("settings_hotkeys.row_clear_tooltip"),
+            context.getAccessibleChild(1)!!.accessibleContext.accessibleName,
+        )
+        assertEquals(AccessibleRole.PUSH_BUTTON, context.getAccessibleChild(0)!!.accessibleContext.accessibleRole)
+        assertTrue(
+            context.getAccessibleChild(0)!!.accessibleContext.accessibleStateSet.contains(AccessibleState.ENABLED),
+            "an editable command's actions are enabled",
+        )
+    }
+
+    @Test
+    fun `a shortcut can be changed and cleared through the accessibility tree`() {
+        val recorded = mutableListOf<HotkeyAction>()
+        val page = page(recorder = { action, _ -> recorded += action; null })
+
+        assertTrue(
+            actionButton(page, HotkeyAction.TRANSLATE, CommandRowAction.EDIT)
+                .accessibleContext.accessibleAction.doAccessibleAction(0),
+            "the action reports that it ran",
+        )
+        assertEquals(listOf(HotkeyAction.TRANSLATE), recorded, "and it edits the command it belongs to")
+
+        actionButton(page, HotkeyAction.SWAP_LANGUAGES, CommandRowAction.CLEAR)
+            .accessibleContext.accessibleAction.doAccessibleAction(0)
+        assertFalse(
+            page.settings.state.value.workingConfiguration.hotkeys
+                .first { it.action == HotkeyAction.SWAP_LANGUAGES }.hasBinding,
+            "the clear action clears its own command",
+        )
+    }
+
+    @Test
+    fun `the actions are not offered while the command cannot be edited`() {
+        val page = page(configuration = Configuration.DEFAULT.copy(isGlobalHotkeysEnabled = false))
+        val button = actionButton(page, HotkeyAction.SHOW_QUICK_TRANSLATE, CommandRowAction.EDIT)
+
+        assertFalse(
+            button.accessibleContext.accessibleStateSet.contains(AccessibleState.ENABLED),
+            "a global shortcut is announced as unavailable while its registration is off",
+        )
+        assertFalse(
+            button.accessibleContext.accessibleAction.doAccessibleAction(0),
+            "and the action declines rather than doing nothing silently",
+        )
+    }
+
+    @Test
+    fun `a heading exposes no actions of its own`() {
+        val page = page()
+        val child: Accessible? = onEdt {
+            val headingRow = (0 until page.table.rowCount)
+                .first { page.table.getValueAt(it, COL_HOTKEY) == null }
+            page.table.accessibleContext
+                ?.getAccessibleChild(headingRow * page.table.columnCount + COL_ACTIONS)
+        }
+        assertNotNull(child, "a heading still has a cell")
+        assertEquals(0, child.accessibleContext.accessibleChildrenCount, "but there is nothing to change or clear")
     }
 
     @Test
@@ -468,6 +793,28 @@ class KeyboardPanelCommandListUxTest {
                 rotation,
             )
         )
+    }
+
+    /**
+     * A wheel as the toolkit delivers it to [source]: the pointer is at the middle of that
+     * component, and the event travels up the real component chain.
+     */
+    private fun wheelOver(source: Component, rotation: Int) = wheel(source, rotation)
+
+    /** The accessibility tree's view of [action]'s row actions. */
+    private fun actionsCell(page: Page, action: HotkeyAction): Accessible = onEdt {
+        val table = page.table
+        val row = rowOf(table, action)
+        table.accessibleContext?.getAccessibleChild(row * table.columnCount + COL_ACTIONS)
+            ?: error("no accessible cell for $action")
+    }
+
+    /** One of the two buttons the accessibility tree offers for [action]. */
+    private fun actionButton(page: Page, action: HotkeyAction, kind: CommandRowAction): Accessible {
+        val cell = actionsCell(page, action)
+        val index = if (kind == CommandRowAction.EDIT) 0 else 1
+        return cell.accessibleContext?.getAccessibleChild(index)
+            ?: error("$action has no $kind action")
     }
 
     private fun rowOf(table: JTable, action: HotkeyAction): Int =

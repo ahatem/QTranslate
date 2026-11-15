@@ -15,14 +15,22 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.main.MainGlobalKeyListener
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
-import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import com.github.ahatem.qtranslate.ui.swing.shared.util.formatChord
 import java.awt.*
+import java.awt.image.BufferedImage
+import java.util.Locale
+import javax.accessibility.Accessible
+import javax.accessibility.AccessibleAction
+import javax.accessibility.AccessibleContext
+import javax.accessibility.AccessibleRole
+import javax.accessibility.AccessibleState
+import javax.accessibility.AccessibleStateSet
 import java.awt.event.*
 import javax.swing.*
 import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 import javax.swing.table.TableCellRenderer
+import javax.swing.table.TableModel
 
 /**
  * The words the command list uses, keyed by stable names rather than assembled from them.
@@ -143,6 +151,52 @@ internal object CommandRowActions {
 }
 
 /**
+ * One glyph drawn in one colour, rendered once and kept.
+ *
+ * The row-action squares are painted for every visible row on every repaint, and between them only
+ * the colour varies — disabled, idle, selected, hovered. Rasterising the glyph and recolouring it
+ * for every square allocated a fresh image dozens of times per scroll of the list, which is
+ * wasteful in exactly the situation the list is used in.
+ *
+ * Tinting is [AlphaComposite.SrcIn] rather than a pixel walk: it keeps the glyph's own antialiased
+ * coverage and replaces only its colour, so a 14-pixel icon needs one fill and no per-pixel maths.
+ */
+internal class TintedGlyph(private val icon: Icon) {
+
+    /** Colour (ARGB) to the glyph drawn in it. Five states per row, at most, ever seen. */
+    private val cache = HashMap<Int, Icon>()
+
+    /** Only an image observer for the icon, never shown. */
+    private val host = JLabel()
+
+    /** [icon] in [color], rendered the first time this colour is asked for. */
+    fun forColor(color: Color): Icon {
+        val argb = (color.alpha shl 24) or (color.rgb and 0xFFFFFF)
+        return cache.getOrPut(argb) { render(color) }
+    }
+
+    /** Drops every cached copy: a new theme or display scale means new colours and sizes. */
+    fun invalidate() = cache.clear()
+
+    private fun render(color: Color): Icon {
+        val width = icon.iconWidth.coerceAtLeast(1)
+        val height = icon.iconHeight.coerceAtLeast(1)
+        val image = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
+        val g = image.createGraphics()
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            icon.paintIcon(host, g, 0, 0)
+            g.composite = AlphaComposite.SrcIn
+            g.color = color
+            g.fillRect(0, 0, width, height)
+        } finally {
+            g.dispose()
+        }
+        return ImageIcon(image)
+    }
+}
+
+/**
  * Whether a wheel gesture can still move [bar] in the direction [rotation] asks for.
  *
  * The check that makes nested scrolling behave: a scroll bar at either end reports no room, and
@@ -219,6 +273,10 @@ class KeyboardPanel(
     private var hoveredRow: Int = -1
     private var hoveredAction: CommandRowAction? = null
 
+    /** The two row-action glyphs, each keeping the colour variants it has been asked for. */
+    private lateinit var editGlyph: TintedGlyph
+    private lateinit var clearGlyph: TintedGlyph
+
     private val filterButtons = LinkedHashMap<CommandFilter, JToggleButton>()
     private var activeFilter: CommandFilter = CommandFilter.ALL
 
@@ -277,6 +335,14 @@ class KeyboardPanel(
          * list the tallest thing on the page while leaving the page itself scrollable.
          */
         const val LIST_VISIBLE_ROWS = 11
+
+        /**
+         * Pixels a wheel notch scrolls, before the display scale.
+         *
+         * Three notches move a little under 50 pixels, which is the pace the settings page itself
+         * uses; a faster rate is what made the gesture feel jumpy when it crossed panels.
+         */
+        const val WHEEL_UNIT = 16
         /** A category heading is shorter than a command: it is a label, not a control. */
         const val GROUP_ROW_HEIGHT = 28
         /** The row-action column: two squares and their margins, and nothing to resize. */
@@ -326,7 +392,22 @@ class KeyboardPanel(
 
     init { buildUI() }
 
+    /**
+     * Glyphs are cached at the theme's colours and the display's scale, so a change to either
+     * invalidates them. Called by Swing before [buildUI] has run, hence the initialisation check.
+     */
+    override fun updateUI() {
+        super.updateUI()
+        if (::editGlyph.isInitialized) {
+            editGlyph.invalidate()
+            clearGlyph.invalidate()
+        }
+    }
+
     private fun buildUI() {
+        editGlyph  = TintedGlyph(IconSet.load(Icons.EDIT, ICON_GLYPH, ICON_GLYPH))
+        clearGlyph = TintedGlyph(IconSet.load(Icons.DELETE, ICON_GLYPH, ICON_GLYPH))
+
         addSeparator(localizationManager.getString("settings_hotkeys.global_group"))
 
         enableCheck = addCheckbox(
@@ -401,43 +482,14 @@ class KeyboardPanel(
                 localizationManager.getString("settings_hotkeys.column_action"),
                 localizationManager.getString("settings_hotkeys.column_hotkey"),
                 localizationManager.getString("settings_hotkeys.column_scope"),
-                // Deliberately blank: the two squares below say what they do through their
-                // tooltips, and a heading over them would be the widest word in a narrow column.
-                ""
+                localizationManager.getString("settings_hotkeys.column_actions")
             ), 0
         ) {
             override fun isCellEditable(row: Int, column: Int) = false
             override fun getColumnClass(col: Int) = String::class.java
         }
 
-        table = object : JTable(model) {
-            /**
-             * Draws the hairline above each category heading.
-             *
-             * A heading only reads as a break if something separates it from the commands of the
-             * group before it. Drawn after the cells rather than as a cell border because the row
-             * renderers are opaque and would paint over a line drawn underneath them.
-             */
-            override fun paintComponent(g: Graphics) {
-                super.paintComponent(g)
-                val lineColor = UIManager.getColor("Separator.foreground")
-                    ?: UIManager.getColor("Component.borderColor")
-                    ?: return
-                val g2 = g.create() as Graphics2D
-                try {
-                    g2.color = Color(lineColor.red, lineColor.green, lineColor.blue, 110)
-                    var y = 0
-                    for (index in 0 until rowCount) {
-                        if (rows.getOrNull(index) is CommandRow.Group && index > 0) {
-                            g2.drawLine(0, y, width - 1, y)
-                        }
-                        y += getRowHeight(index)
-                    }
-                } finally {
-                    g2.dispose()
-                }
-            }
-        }.apply {
+        table = CommandsTable(model).apply {
             fillsViewportHeight = true
             rowHeight           = UIScale.scale(ROW_HEIGHT)
             autoResizeMode      = JTable.AUTO_RESIZE_ALL_COLUMNS
@@ -457,8 +509,11 @@ class KeyboardPanel(
                     // UNKNOWN and "leading" would resolve leftwards even in a right-to-left
                     // dialog. The panel's orientation is the one the row actually uses.
                     val leftToRight = componentOrientation.isLeftToRight
+                    // The Hotkey heading centres because the key chips under it centre; a
+                    // left-aligned heading over centred chips reads as a different column.
                     horizontalAlignment = when {
-                        col != COL_ACTION && col != COL_HOTKEY -> SwingConstants.CENTER
+                        col == COL_HOTKEY -> SwingConstants.CENTER
+                        col != COL_ACTION -> SwingConstants.CENTER
                         leftToRight -> SwingConstants.LEFT
                         else -> SwingConstants.RIGHT
                     }
@@ -554,6 +609,11 @@ class KeyboardPanel(
             actionMap.put("editSelectedCommand", object : AbstractAction() {
                 override fun actionPerformed(e: ActionEvent?) = onEditSelected()
             })
+
+            // Named before its cells: a screen reader announces the table before reading into it,
+            // and the default would be the settings page's own name.
+            accessibleContext.accessibleName =
+                localizationManager.getString("settings_hotkeys.command_list_accessible_name")
 
             selectionModel.addListSelectionListener {
                 updateButtonStates()
@@ -731,18 +791,68 @@ class KeyboardPanel(
      * page is forwarded and consumed here, while an event the list can still use is left alone to
      * scroll the list.
      */
+    /**
+     * Hands the wheel to the page when the list has nothing left to scroll.
+     *
+     * Swing's scroll pane consumes every wheel event it receives, including ones it cannot act
+     * on, which is how a list with nothing left to scroll kept the page from moving. The old
+     * remedy re-dispatched the event at the enclosing scroll pane, but a `JScrollPane` does not
+     * itself handle wheels — its `BasicScrollPaneUI` listens on the viewport and the bars — so
+     * the gesture only reached the page when the converted coordinates happened to fall inside
+     * the page's viewport, and was dropped otherwise. That is the "cannot scroll over the list"
+     * report.
+     *
+     * Moving the scroll bars directly is coordinate-free and cannot land on the wrong pane: the
+     * list takes the gesture when it has room for it, and the page takes it, by exactly the same
+     * distance, when the list is at the end it is being pushed against. The gesture is consumed
+     * either way, so only one pane ever moves.
+     */
     private fun installWheelForwarding(list: JScrollPane) {
         val forward = MouseWheelListener { event ->
             if (event.isConsumed) return@MouseWheelListener
-            if (scrollBarCanMove(list.verticalScrollBar, event.wheelRotation)) return@MouseWheelListener
-            val outer = SwingUtilities.getAncestorOfClass(JScrollPane::class.java, list)
+            val inner = list.verticalScrollBar
+            val rotation = event.wheelRotation
+            if (rotation == 0) return@MouseWheelListener
+
+            if (scrollBarCanMove(inner, rotation)) {
+                // The list has room: it scrolls, and the page stays where it is.
+                scrollBarBy(inner, rotation * wheelStep(event))
+                event.consume()
+                return@MouseWheelListener
+            }
+
+            val outer = SwingUtilities.getAncestorOfClass(JScrollPane::class.java, list) as? JScrollPane
                 ?: return@MouseWheelListener
-            val source = event.component ?: list
-            outer.dispatchEvent(SwingUtilities.convertMouseEvent(source, event, outer))
+            scrollBarBy(outer.verticalScrollBar, rotation * wheelStep(event))
             event.consume()
         }
+        // Installed on the view, the viewport and the bar. A `JTable` is a `Scrollable`, so its
+        // own viewport handler would consume the gesture before anything here ran; listening on
+        // the view first is what lets the decision above be the one that is made.
         list.viewport.view.addMouseWheelListener(forward)
+        list.viewport.addMouseWheelListener(forward)
         list.verticalScrollBar.addMouseWheelListener(forward)
+    }
+
+    /**
+     * How far one wheel notch moves [bar].
+     *
+     * This deliberately does not use the bar's `unitIncrement`. That is set to a whole row so
+     * arrow-key scrolling moves by rows, and a wheel notch carries three units, so reusing it
+     * scrolled three rows per notch — noticeably faster than the page's own 16 pixels, which made
+     * the gesture lurch exactly when it crossed from one pane to the other. The wheel uses the
+     * toolkit's own scroll distance instead, which is what every other scroll pane here does and
+     * what a trackpad's fine-grained deltas are scaled against.
+     */
+    private fun wheelStep(event: MouseWheelEvent): Int {
+        val unit = UIScale.scale(WHEEL_UNIT)
+        return unit * event.scrollAmount.coerceAtLeast(1)
+    }
+
+    /** Moves [bar] by [delta], staying inside its travel. */
+    private fun scrollBarBy(bar: JScrollBar, delta: Int) {
+        val travel = (bar.maximum - bar.visibleAmount - bar.minimum).coerceAtLeast(0)
+        bar.value = (bar.value + delta).coerceIn(bar.minimum, bar.minimum + travel)
     }
 
     /** The action square under [point] in [row], or null when the point is between them. */
@@ -1346,29 +1456,75 @@ class KeyboardPanel(
         }
 
         /**
-         * Builds a row of key chips against the leading edge of the cell.
+         * Builds a row of key chips in the middle of the cell.
          *
-         * The chips used to be centred, which put a two-key shortcut and a four-key one on
-         * different x positions and left the column looking scattered. Anchored, every shortcut in
-         * the list starts at the same place, and the eye can compare them down the column.
+         * The band is centred against the row so the shortcut reads as the cell's content rather
+         * than as text resting on its top edge; the chips sit flush against each other inside it,
+         * so a two-key and a four-key shortcut stay comparable down the column.
          */
         private fun chipRow(
             tokens: List<String>,
             bg: Color,
             muted: Boolean,
             tooltip: String? = null
-        ): JPanel = JPanel(BorderLayout()).apply {
+        ): JPanel = object : JPanel(ChipBandLayout()) {
+            /**
+             * A table sizes a renderer component and paints it without ever validating it, so the
+             * layout never runs against the width the row actually has and the chips were placed
+             * for a stale one. Laying out here, against the real size, is what centres them.
+             */
+            override fun paintComponent(g: Graphics) {
+                doLayout()
+                super.paintComponent(g)
+            }
+        }.apply {
             background  = bg
             isOpaque    = true
             toolTipText = tooltip
             // Built by the renderer, so it has no parent to inherit a reading direction from.
             applyComponentOrientation(this@KeyboardPanel.componentOrientation)
-            val inner = JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(CHIP_GAP), 0)).apply {
-                isOpaque = false
-                border = leadingInset(UIScale.scale(2), UIScale.scale(4))
-                tokens.forEach { add(KeyChip(it, muted)) }
+            tokens.forEach { add(KeyChip(it, muted)) }
+        }
+
+        /**
+         * Centres the chips in the exact middle of whatever width the cell is given.
+         *
+         * `FlowLayout` sizes a panel to its preferred width, and a table cell then renders that
+         * narrow panel against the edge it happens to land on, so the chips sat off-centre no
+         * matter what the column was worth. Measuring inside the panel itself and placing the
+         * chips around the halfway mark centres them by construction: a two-key and a four-key
+         * shortcut both read as the cell's content, at any scale and either reading direction.
+         */
+        private inner class ChipBandLayout : LayoutManager {
+            private val gap = UIScale.scale(CHIP_GAP)
+
+            override fun addLayoutComponent(name: String?, comp: Component) = Unit
+            override fun removeLayoutComponent(comp: Component) = Unit
+
+            private val Container.bandWidth: Int
+                get() = (0 until componentCount).sumOf { index ->
+                    getComponent(index).preferredSize.width + if (index > 0) gap else 0
+                }
+
+            private val Container.bandHeight: Int
+                get() = (0 until componentCount).maxOfOrNull { getComponent(it).preferredSize.height } ?: 0
+
+            override fun preferredLayoutSize(parent: Container) =
+                Dimension(parent.bandWidth, parent.bandHeight)
+
+            override fun minimumLayoutSize(parent: Container) = preferredLayoutSize(parent)
+
+            override fun layoutContainer(parent: Container) {
+                val mirrored = !parent.componentOrientation.isLeftToRight
+                var x = ((parent.width - parent.bandWidth) / 2).coerceAtLeast(0)
+                val y = ((parent.height - parent.bandHeight) / 2).coerceAtLeast(0)
+                for (index in 0 until parent.componentCount) {
+                    val child = parent.getComponent(index)
+                    val size = child.preferredSize
+                    child.setBounds(x, y, size.width, size.height)
+                    x += if (mirrored) -(size.width + gap) else size.width + gap
+                }
             }
-            add(inner, BorderLayout.LINE_START)
         }
 
         /** Splits a binding into individual displayable key tokens. */
@@ -1558,6 +1714,174 @@ class KeyboardPanel(
     }
 
     /**
+     * The commands table.
+     *
+     * It differs from a plain table in two ways: the group separators are painted over the rows,
+     * and the row actions are drawn rather than built from components. The second is why its
+     * accessibility tree is not the default one — see [getAccessibleContext].
+     */
+    private inner class CommandsTable(model: TableModel) : JTable(model) {
+
+        private var commandsAccessible: AccessibleContext? = null
+
+        /**
+         * Draws the hairline above each category heading.
+         *
+         * A heading only reads as a break if something separates it from the commands of the
+         * group before it. Drawn after the cells rather than as a cell border because the row
+         * renderers are opaque and would paint over a line drawn underneath them.
+         */
+        override fun paintComponent(g: Graphics) {
+            super.paintComponent(g)
+            val lineColor = UIManager.getColor("Separator.foreground")
+                ?: UIManager.getColor("Component.borderColor")
+                ?: return
+            val g2 = g.create() as Graphics2D
+            try {
+                g2.color = Color(lineColor.red, lineColor.green, lineColor.blue, 110)
+                var y = 0
+                for (index in 0 until rowCount) {
+                    if (rows.getOrNull(index) is CommandRow.Group && index > 0) {
+                        g2.drawLine(0, y, width - 1, y)
+                    }
+                    y += getRowHeight(index)
+                }
+            } finally {
+                g2.dispose()
+            }
+        }
+
+        /**
+         * The default table accessibility, with the painted row actions added.
+         *
+         * A cell is announced from its column and its value, and this column has one word of
+         * heading and no value at all — the squares are paint. Left alone, a screen reader would
+         * report an empty cell and never reach "change" or "clear". For each command row the
+         * actions cell is replaced with an object that names those two actions and performs them.
+         */
+        override fun getAccessibleContext(): AccessibleContext {
+            commandsAccessible?.let { return it }
+            val created = object : AccessibleJTable() {
+                override fun getAccessibleChild(i: Int): Accessible? {
+                    val columns = columnCount
+                    if (columns <= 0) return super.getAccessibleChild(i)
+                    val row = i / columns
+                    val column = i % columns
+                    val command = actionAt(row)
+                    if (column == COL_ACTIONS && command != null) return RowActionsAccessible(command)
+                    return super.getAccessibleChild(i)
+                }
+            }
+            commandsAccessible = created
+            return created
+        }
+    }
+
+    /**
+     * One command's row actions, as the accessibility tree sees them.
+     *
+     * It stands in for the two painted squares: it says which command's actions these are, and
+     * holds one button per action, so each is announced and can be used without a pointer.
+     */
+    private inner class RowActionsAccessible(
+        private val action: HotkeyAction,
+    ) : AccessibleContext(), Accessible {
+
+        private val buttons: List<RowActionAccessibleButton> by lazy {
+            listOf(CommandRowAction.EDIT, CommandRowAction.CLEAR).map { kind ->
+                RowActionAccessibleButton(action, kind, this)
+            }
+        }
+
+        override fun getAccessibleContext(): AccessibleContext = this
+
+        override fun getAccessibleName(): String =
+            localizationManager.getString("settings_hotkeys.row_actions_accessible_name")
+
+        override fun getAccessibleDescription(): String = localizationManager.getString(
+            "settings_hotkeys.row_actions_accessible_description",
+            actionDisplayName(action),
+        )
+
+        override fun getAccessibleRole(): AccessibleRole = AccessibleRole.PANEL
+        override fun getAccessibleParent(): Accessible = table
+        override fun getAccessibleIndexInParent(): Int = -1
+        override fun getAccessibleChildrenCount(): Int = buttons.size
+        override fun getAccessibleChild(i: Int): Accessible? = buttons.getOrNull(i)
+        override fun getLocale(): Locale = table.locale
+
+        override fun getAccessibleStateSet(): AccessibleStateSet = AccessibleStateSet().apply {
+            if (isEditable(action)) add(AccessibleState.ENABLED)
+            add(AccessibleState.SHOWING)
+            add(AccessibleState.VISIBLE)
+        }
+    }
+
+    /**
+     * One row action, as a button for assistive technology.
+     *
+     * It cannot be a component either — a table cell renderer cannot hold one per row — but it
+     * answers what a screen reader asks of a button: what it is called, whether it can be used
+     * now, and what activating it does.
+     */
+    private inner class RowActionAccessibleButton(
+        private val command: HotkeyAction,
+        private val kind: CommandRowAction,
+        private val parentCell: Accessible,
+    ) : AccessibleContext(), Accessible, AccessibleAction {
+
+        private val label: String
+            get() = localizationManager.getString(
+                if (kind == CommandRowAction.EDIT) "settings_hotkeys.row_edit_tooltip"
+                else "settings_hotkeys.row_clear_tooltip"
+            )
+
+        override fun getAccessibleContext(): AccessibleContext = this
+        override fun getAccessibleName(): String = label
+
+        override fun getAccessibleDescription(): String = localizationManager.getString(
+            "settings_hotkeys.row_actions_accessible_description",
+            actionDisplayName(command),
+        )
+
+        override fun getAccessibleRole(): AccessibleRole = AccessibleRole.PUSH_BUTTON
+        override fun getAccessibleParent(): Accessible = parentCell
+        override fun getAccessibleIndexInParent(): Int =
+            if (kind == CommandRowAction.EDIT) 0 else 1
+
+        override fun getAccessibleChildrenCount(): Int = 0
+        override fun getAccessibleChild(i: Int): Accessible? = null
+        override fun getLocale(): Locale = table.locale
+
+        override fun getAccessibleStateSet(): AccessibleStateSet = AccessibleStateSet().apply {
+            // A global shortcut is not editable while the global switch is off, and the row says
+            // so in its own way; the accessibility state has to agree rather than offer an action
+            // that will refuse to run.
+            if (isEditable(command)) add(AccessibleState.ENABLED)
+            add(AccessibleState.SHOWING)
+            add(AccessibleState.VISIBLE)
+            add(AccessibleState.FOCUSABLE)
+        }
+
+        override fun getAccessibleAction(): AccessibleAction = this
+        override fun getAccessibleActionCount(): Int = 1
+        override fun getAccessibleActionDescription(i: Int): String? = if (i == 0) label else null
+
+        override fun doAccessibleAction(i: Int): Boolean {
+            if (i != 0) return false
+            if (!isEditable(command)) return false
+            val row = rows.indexOfFirst { it.action == command }
+            if (row < 0) return false
+            table.setRowSelectionInterval(row, row)
+            when (kind) {
+                CommandRowAction.EDIT -> onEditSelected()
+                CommandRowAction.CLEAR -> onClearSelected()
+            }
+            return true
+        }
+    }
+
+    /**
      * The two actions a row offers: change its shortcut, or clear it.
      *
      * Drawn rather than built from buttons because a table cell cannot hold live components per
@@ -1566,9 +1890,6 @@ class KeyboardPanel(
      * still give each action its own click target.
      */
     private inner class RowActionsRenderer : TableCellRenderer {
-        private val editIcon = IconSet.load(Icons.EDIT, ICON_GLYPH, ICON_GLYPH).applyForegroundColorFilter()
-        private val clearIcon = IconSet.load(Icons.DELETE, ICON_GLYPH, ICON_GLYPH).applyForegroundColorFilter()
-
         override fun getTableCellRendererComponent(
             t: JTable, value: Any?, sel: Boolean, focus: Boolean, row: Int, col: Int
         ): Component {
@@ -1584,8 +1905,6 @@ class KeyboardPanel(
                 selected = sel,
                 backgroundIsGroup = action == null,
                 hovered = if (row == hoveredRow) hoveredAction else null,
-                editIcon = editIcon,
-                clearIcon = clearIcon,
             )
         }
     }
@@ -1603,8 +1922,6 @@ class KeyboardPanel(
         private val selected: Boolean,
         private val backgroundIsGroup: Boolean,
         private val hovered: CommandRowAction?,
-        private val editIcon: javax.swing.Icon,
-        private val clearIcon: javax.swing.Icon,
     ) : JComponent() {
 
         init {
@@ -1654,66 +1971,34 @@ class KeyboardPanel(
                     // Clearing is the destructive half, so it is tinted with the warning colour
                     // rather than matching the edit square exactly.
                     val base = if (target == CommandRowAction.EDIT) editColor else clearColor
-                    if (isHovered) {
-                        g2.color = Color(base.red, base.green, base.blue, if (target == CommandRowAction.EDIT) 34 else 42)
+                    val fill = when {
+                        !editable -> 0
+                        isHovered -> if (target == CommandRowAction.EDIT) 34 else 42
+                        // A resting hint of the hover wash, so the pair reads as buttons at a
+                        // glance instead of as two faint marks discovered by accident.
+                        else -> if (selected) 24 else 14
+                    }
+                    if (fill > 0) {
+                        g2.color = Color(base.red, base.green, base.blue, fill)
                         g2.fillRoundRect(rect.x, rect.y, rect.width, rect.height, arc, arc)
                     }
                     val alpha = when {
-                        !editable -> 55
+                        !editable -> 70
                         isHovered -> 255
-                        selected -> 235
-                        else -> 175
+                        selected -> 245
+                        else -> 210
                     }
-                    val icon = if (target == CommandRowAction.EDIT) editIcon else clearIcon
-                    tintIcon(icon, Color(base.red, base.green, base.blue, alpha)).paintIcon(
+                    // Every visible row is repainted on a scroll, so the coloured glyph comes
+                    // from the cache rather than being rendered again.
+                    val glyphs = if (target == CommandRowAction.EDIT) editGlyph else clearGlyph
+                    val glyph = glyphs.forColor(Color(base.red, base.green, base.blue, alpha))
+                    glyph.paintIcon(
                         this,
                         g2,
-                        rect.x + (rect.width - icon.iconWidth) / 2,
-                        rect.y + (rect.height - icon.iconHeight) / 2,
+                        rect.x + (rect.width - glyph.iconWidth) / 2,
+                        rect.y + (rect.height - glyph.iconHeight) / 2,
                     )
                 }
-            } finally {
-                g2.dispose()
-            }
-        }
-    }
-
-    /**
-     * The same SVG, recoloured for one paint.
-     *
-     * [IconSet] icons are shared and cached, so the colour that shows whether a square is
-     * hovered, disabled or selected cannot be set on the icon itself — it would be the last state
-     * of whichever row painted last.
-     */
-    private fun tintIcon(icon: javax.swing.Icon, color: Color): javax.swing.Icon = object : javax.swing.Icon {
-        override fun getIconWidth() = icon.iconWidth
-        override fun getIconHeight() = icon.iconHeight
-        override fun paintIcon(c: Component, g: Graphics, x: Int, y: Int) {
-            val g2 = g.create() as Graphics2D
-            try {
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                val image = java.awt.image.BufferedImage(
-                    icon.iconWidth.coerceAtLeast(1),
-                    icon.iconHeight.coerceAtLeast(1),
-                    java.awt.image.BufferedImage.TYPE_INT_ARGB,
-                )
-                val ig = image.createGraphics()
-                try {
-                    icon.paintIcon(c, ig, 0, 0)
-                } finally {
-                    ig.dispose()
-                }
-                // Keep the glyph's shape, replace its colour: the source icons are solid black.
-                for (py in 0 until image.height) {
-                    for (px in 0 until image.width) {
-                        val argb = image.getRGB(px, py)
-                        val coverage = (argb ushr 24) and 0xFF
-                        if (coverage == 0) continue
-                        val alpha = (coverage * (color.alpha / 255f)).toInt().coerceIn(0, 255)
-                        image.setRGB(px, py, (alpha shl 24) or (color.rgb and 0xFFFFFF))
-                    }
-                }
-                g2.drawImage(image, x, y, null)
             } finally {
                 g2.dispose()
             }
