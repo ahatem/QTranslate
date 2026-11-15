@@ -56,6 +56,11 @@ class WritingSelectionTest {
             assertEquals("text to rewrite", fixture.rewriter.calls.single().text)
             assertEquals("FORMAL", fixture.rewriter.calls.single().style)
             assertEquals(1, fixture.events.filterIsInstance<MainEvent.PasteTranslation>().size)
+            // The paste is queued before loading clears, so delivery does not imply the flag
+            // has been released yet. Wait for the state the assertion below checks.
+            withTimeout(5_000) {
+                fixture.store.state.first { !it.isReplacingSelection }
+            }
             assertFalse(fixture.store.state.value.isReplacingSelection)
         } finally {
             fixture.cleanUp()
@@ -208,6 +213,11 @@ class WritingSelectionTest {
             assertEquals("text to summarize", fixture.summarizer.calls.single().text)
             assertEquals("MEDIUM", fixture.summarizer.calls.single().length)
             assertEquals(1, fixture.events.filterIsInstance<MainEvent.PasteTranslation>().size)
+            // The paste is queued before loading clears, so delivery does not imply the flag
+            // has been released yet. Wait for the state the assertion below checks.
+            withTimeout(5_000) {
+                fixture.store.state.first { !it.isReplacingSelection }
+            }
             assertFalse(fixture.store.state.value.isReplacingSelection)
         } finally {
             fixture.cleanUp()
@@ -314,6 +324,11 @@ class WritingSelectionTest {
             }
             assertEquals("summary text", (paste as MainEvent.PasteTranslation).translatedText)
             assertEquals(1, fixture.events.filterIsInstance<MainEvent.PasteTranslation>().size)
+            // The paste is queued before loading clears, so delivery does not imply the flag
+            // has been released yet. Wait for the state the assertion below checks.
+            withTimeout(5_000) {
+                fixture.store.state.first { !it.isReplacingSelection }
+            }
             assertFalse(fixture.store.state.value.isReplacingSelection)
         } finally {
             fixture.cleanUp()
@@ -344,6 +359,11 @@ class WritingSelectionTest {
             }
             assertEquals("rewritten text", (paste as MainEvent.PasteTranslation).translatedText)
             assertEquals(1, fixture.events.filterIsInstance<MainEvent.PasteTranslation>().size)
+            // The paste is queued before loading clears, so delivery does not imply the flag
+            // has been released yet. Wait for the state the assertion below checks.
+            withTimeout(5_000) {
+                fixture.store.state.first { !it.isReplacingSelection }
+            }
             assertFalse(fixture.store.state.value.isReplacingSelection)
         } finally {
             fixture.cleanUp()
