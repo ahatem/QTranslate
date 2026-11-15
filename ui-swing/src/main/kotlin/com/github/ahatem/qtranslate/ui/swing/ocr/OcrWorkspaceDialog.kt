@@ -447,6 +447,14 @@ class OcrWorkspaceDialog(
                 setLayer(zoom, JLayeredPane.POPUP_LAYER)
             }
 
+            /**
+             * Positions the floating zoom bar and decides which controls fit on it.
+             *
+             * The visibility decisions are derived from the available width and applied once.
+             * The bar is then laid out and measured before it is positioned, so it centres on
+             * the controls it actually shows rather than on the width it had before they
+             * changed — otherwise the bar jumps sideways whenever a control appears or goes.
+             */
             override fun doLayout() {
                 imageCards.setBounds(0, 0, width, height)
                 if (!zoom.isVisible) return
@@ -460,23 +468,20 @@ class OcrWorkspaceDialog(
                 val hysteresis = UIScale.scale(24)
                 overflow = if (overflow) available < fullWidth - hysteresis else available < fullWidth
                 val full = !overflow
-                if (annotationsCheck.isVisible != full) {
-                    annotationsCheck.isVisible = full
-                }
-                val fitVisible = full || available >= fitWidth
-                if (fit.isVisible != fitVisible) {
-                    fit.isVisible = fitVisible
-                }
-                if (more.isVisible == full) {
-                    more.isVisible = !full
-                }
-                if (annotationsCheck.isVisible != full || fit.isVisible != fitVisible) {
-                    invalidate()
-                }
+                // Both flags come from the same decision. `more` is the alternative to the full
+                // row, not an addition to it, so it follows the opposite of `full` exactly.
+                annotationsCheck.isVisible = full
+                fit.isVisible = full || available >= fitWidth
+                more.isVisible = !full
+                // Measured after the visibility above, so the bar centres on the controls it
+                // actually shows rather than on the width it had before they changed. A
+                // FlowLayout ignores hidden children, so its preferred size is exactly that.
+                zoom.doLayout()
                 val barSize = zoom.preferredSize
                 val x = (width - barSize.width) / 2
                 val y = height - barSize.height - margin
                 zoom.setBounds(x, y, barSize.width, barSize.height)
+                zoom.doLayout()
             }
         }
         return JPanel(BorderLayout()).apply {
@@ -698,7 +703,9 @@ class OcrWorkspaceDialog(
         imagePanel.onFileDropped = ::openImageFile
         imageScroll.viewport.addComponentListener(object : java.awt.event.ComponentAdapter() {
             override fun componentResized(e: java.awt.event.ComponentEvent?) {
-                // A fitted image stays fitted when the window is resized; manual zoom is left alone.
+                // A fitted image stays fitted when the window is resized; manual zoom is left
+                // alone. The refit only revalidates when the scale actually moved, so this
+                // listener cannot drive the viewport into resizing itself again.
                 if (lastOcrState?.image != null) {
                     imagePanel.refitIfFitted(imageScroll.viewport.extentSize)
                     zoomLabel.text = "${(imagePanel.zoomScale() * 100).toInt()}%"

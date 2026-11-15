@@ -10,6 +10,42 @@ import org.junit.jupiter.api.Test
 
 class OcrImagePanelTest {
     @Test
+    fun `refitting at the same size does not schedule another layout`() {
+        // The workspace refits on every viewport resize. When the scale does not move, asking
+        // for a new preferred size re-enters that resize and the control surfaces flicker
+        // without ever settling, so an unchanged fit has to stay quiet — no revalidating, and
+        // no zoom notification for the bar to repaint on.
+        SwingUtilities.invokeAndWait {
+            val panel = OcrImagePanel()
+            var notifications = 0
+            panel.onZoomChanged = { notifications++ }
+            panel.setImage(BufferedImage(400, 300, BufferedImage.TYPE_INT_RGB))
+            panel.fitToWindow(Dimension(200, 150))
+            val fitted = panel.zoomScale()
+            notifications = 0
+
+            panel.fitToWindow(Dimension(200, 150))
+
+            assertEquals(fitted, panel.zoomScale(), "the fit is unchanged")
+            assertEquals(0, notifications, "an unchanged fit does not notify for a repaint")
+        }
+    }
+
+    @Test
+    fun `refitting at a new size still updates the scale`() {
+        SwingUtilities.invokeAndWait {
+            val panel = OcrImagePanel()
+            panel.setImage(BufferedImage(400, 300, BufferedImage.TYPE_INT_RGB))
+            panel.fitToWindow(Dimension(200, 150))
+            val fitted = panel.zoomScale()
+
+            panel.fitToWindow(Dimension(400, 300))
+
+            assertNotEquals(fitted, panel.zoomScale(), "a real resize refits")
+        }
+    }
+
+    @Test
     fun `fit limits enlargement and manual zoom survives resize`() {
         SwingUtilities.invokeAndWait {
             val panel = OcrImagePanel()

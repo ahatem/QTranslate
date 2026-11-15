@@ -173,7 +173,18 @@ internal class OcrImagePanel : JPanel(), Scrollable {
         fitMode = true
         val current = image ?: return
         if (viewport.width <= 0 || viewport.height <= 0) return
-        scale = minOf(viewport.width.toDouble() / current.width, viewport.height.toDouble() / current.height, 1.5)
+        val fitted = minOf(
+            viewport.width.toDouble() / current.width,
+            viewport.height.toDouble() / current.height,
+            1.5,
+        ).coerceIn(MIN_SCALE, MAX_SCALE)
+        // Fitting again at the scale already in use is a no-op, and must not revalidate: the
+        // preferred size it would ask for is the one it already has, so revalidating re-enters
+        // the viewport resize that asked for the fit — viewport-resize → refit → revalidate →
+        // viewport-resize. That cycle is left behind here; a fit that changes nothing does
+        // nothing.
+        if (fitted == scale) return
+        scale = fitted
         updatePreferredSize()
         onZoomChanged?.invoke(scale)
     }
