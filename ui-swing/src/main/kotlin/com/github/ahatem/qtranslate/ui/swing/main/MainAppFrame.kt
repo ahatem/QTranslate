@@ -746,8 +746,17 @@ class MainAppFrame(
                         // that a visible main window shows its own progress. But Ctrl+Q opens the
                         // popup either way, and in that case the main window is not where the user
                         // is looking.
+                        //
+                        // A replace does not raise `isLoading` — that flag belongs to the
+                        // translation form, and a selection-writing action never fills it — so
+                        // requiring it here meant the marker could never appear for Rewrite or
+                        // Summary. The two conditions are read separately for that reason.
                         val popupPending = popupRequested && !quickTranslateDialog.isVisible
-                        val shouldShow = isLoading && (isReplacing || popupPending)
+                        val shouldShow = showsLoadingIndicator(
+                            isLoading = isLoading,
+                            popupPending = popupPending,
+                            isReplacing = isReplacing,
+                        )
                         loadingIndicator.render(LoadingIndicatorState(isVisible = shouldShow))
                     }
                 }
@@ -2135,3 +2144,20 @@ private class TextPaneCycleFocusPolicy(
     override fun getDefaultComponent(aContainer: Container): Component =
         panes().firstOrNull() ?: fallback.getDefaultComponent(aContainer)
 }
+
+/**
+ * Whether the shared loading marker should be on screen.
+ *
+ * A popup translation shows the marker while the popup has nothing to display yet. An inline
+ * replace — Rewrite and Summary — shows it for the whole of the provider call, which is a wait
+ * with no other feedback anywhere on screen.
+ *
+ * The two are deliberately separate rather than one conjunction. A replace never raises
+ * [MainState.isLoading], which belongs to the translation form, so requiring it kept the marker
+ * from ever appearing for a writing action at all.
+ */
+internal fun showsLoadingIndicator(
+    isLoading: Boolean,
+    popupPending: Boolean,
+    isReplacing: Boolean,
+): Boolean = isReplacing || (isLoading && popupPending)
