@@ -471,12 +471,15 @@ scope_toggle_hint = "Click to toggle between Global and Local"
 scope_fixed_hint = "Capture shortcuts are active only while the selection overlay is open"
 
 
-edit_hint = "Double-click a row or select it and click Edit to change a binding."
+edit_hint = "Double-click a command, or use the pencil at the end of its row, to change its shortcut."
 conflict_warning = "Some hotkeys conflict with each other (same combination used by more than one action):"
 edit_button = "Edit…"
 clear_button = "Clear"
 reset_button = "Reset All to Defaults"
 no_binding = "(none)"
+# The two actions at the end of every command row.
+row_edit_tooltip = "Change this shortcut"
+row_clear_tooltip = "Clear this shortcut"
 reset_confirmation = "Reset all hotkeys to their default values?"
 reset_title = "Reset Hotkeys"
 recorder_title = "Record Hotkey"
