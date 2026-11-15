@@ -28,6 +28,10 @@ Hotkeys if you don't want it.
 are for: translation, writing, dictionary, screen OCR, the capture overlay, focus and navigation,
 editing, documents, and window controls.
 
+The list is a window onto the commands rather than the whole list at once: it scrolls inside the
+page, and the wheel keeps working on the page once the list has reached the end that the pointer
+is heading for.
+
 Select a row to read what that command does and, where it matters, what it needs. Three things are
 worth knowing before you bind a key:
 
@@ -81,9 +85,12 @@ with the system, so the other silently stops firing.
 ## Changing a binding
 
 1. Open **Settings → Keyboard & Hotkeys**
-2. Select the command, then click **Edit…** (or double-click its hotkey cell)
+2. On the command's own row, click the pencil; or select the row and press Enter, double-click its
+   hotkey cell, or use **Edit…** above the list
 3. Press the new key combination
 4. Click **Apply**
+
+The bin at the end of a row clears that command's shortcut, leaving its scope as it was.
 
 The **Scope** cell toggles a binding between Global and App-local, and says which one it is now.
 That cell stays clickable even while global hotkeys are switched off, because turning a global

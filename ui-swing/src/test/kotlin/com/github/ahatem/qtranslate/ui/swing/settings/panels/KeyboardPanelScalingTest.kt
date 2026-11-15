@@ -114,17 +114,23 @@ class KeyboardPanelScalingTest {
         val action = table.columnModel.getColumn(0).width
         val hotkey = table.columnModel.getColumn(1).width
         val scope = table.columnModel.getColumn(2).width
+        val actions = table.columnModel.getColumn(3).width
         assertTrue(scope <= UIScale.scale(120), "scope stays a narrow column ($scope)")
         assertTrue(hotkey <= UIScale.scale(320), "hotkey stays capped ($hotkey)")
+        assertEquals(
+            UIScale.scale(78),
+            actions,
+            "the row-action column keeps the fixed width its squares are hit-tested against",
+        )
         assertTrue(action > hotkey && action > scope, "action has the useful remaining width ($action)")
-        assertEquals(1000, action + hotkey + scope, "the columns fill the table")
+        assertEquals(1000, action + hotkey + scope + actions, "the columns fill the table")
     }
 
     @Test
     fun `a narrow viewport still leaves every column usable`() {
         val table = tableAt(1f)
         layOut(table, UIScale.scale(420))
-        (0 until 3).forEach { index ->
+        (0 until table.columnCount).forEach { index ->
             val column = table.columnModel.getColumn(index)
             assertTrue(column.width >= column.minWidth, "column $index keeps its minimum (${column.width})")
         }
