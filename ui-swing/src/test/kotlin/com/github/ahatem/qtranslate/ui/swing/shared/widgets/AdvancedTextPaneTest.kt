@@ -889,4 +889,61 @@ class AdvancedTextPaneTest {
         }
         assertEquals(before, after)
     }
+    // -----------------------------------------------------------------------
+    // Result surfaces
+    // -----------------------------------------------------------------------
+
+    /**
+     * A window that fills a read-only pane from its own state must not leave undo steps behind:
+     * "Undo" in a result that the user never typed is a control that cannot mean anything.
+     */
+    @Test
+    fun `showText leaves no undo history and reports no edit`() {
+        val edits = mutableListOf<String>()
+        val pane = newPane(onTextChanged = { edits += it })
+        onEdt {
+            pane.isEditable = false
+            pane.showText("recognized text")
+            pane.showText("recognized text again")
+        }
+        onEdt { }
+        assertEquals("recognized text again", onEdt { pane.text })
+        assertFalse(onEdt { pane.undoManager.canUndo() }, "a state-driven write is not an undoable edit")
+        assertTrue(edits.isEmpty(), "a read-only result surface reports no edit: $edits")
+    }
+
+    /** Rewriting the same text must not disturb the caret or selection. */
+    @Test
+    fun `showText with unchanged text keeps the selection`() {
+        val pane = newPane()
+        val (start, end) = onEdt {
+            pane.showText("alpha beta")
+            pane.select(6, 10)
+            pane.showText("alpha beta")
+            pane.selectionStart to pane.selectionEnd
+        }
+        assertEquals(6, start)
+        assertEquals(10, end)
+    }
+
+    /**
+     * "Copy" beside a result means that result. Requiring Select All first is the stock
+     * behaviour these panes replace, and it is what a user hits on every copy.
+     */
+    @Test
+    fun `copyTextOrAll falls back to the whole document`() {
+        val pane = newPane()
+        onEdt { pane.showText("line one\nline two") }
+        assertEquals("line one\nline two", onEdt { pane.copyTextOrAll() })
+    }
+
+    @Test
+    fun `copyTextOrAll prefers the selection`() {
+        val pane = newPane()
+        onEdt {
+            pane.showText("line one\nline two")
+            pane.select(9, 17)
+        }
+        assertEquals("line two", onEdt { pane.copyTextOrAll() })
+    }
 }

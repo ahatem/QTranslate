@@ -6,6 +6,7 @@ import javax.swing.JPanel
 import javax.swing.SwingUtilities
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
@@ -33,11 +34,15 @@ class OverlayPlacementTest {
             preferredSize = size
         }
 
+    /** The floating bar, marked the way the workspace marks its zoom controls. */
+    private fun overlay(name: String, size: Dimension) =
+        component(name, size).apply { putClientProperty(OverlayPlacement.OVERLAY_KEY, true) }
+
     @Test
     fun `layout positions without touching visibility`() {
         SwingUtilities.invokeAndWait {
             val content = component("content", Dimension(100, 100))
-            val bar = component("bar", Dimension(80, 20))
+            val bar = overlay("bar", Dimension(80, 20))
             val parent = Probe().apply {
                 layout = OverlayPlacement()
                 add(content)
@@ -47,10 +52,11 @@ class OverlayPlacementTest {
 
             parent.doLayout()
 
-            assertEquals(Rectangle(0, 0, 400, 300), content.bounds, "the first child fills the panel")
+            assertEquals(Rectangle(0, 0, 400, 300), content.bounds, "the content fills the panel")
             assertEquals(Rectangle(160, 280, 80, 20), bar.bounds, "the bar is centred along the bottom")
-            // Every recorded state is the one the test set; layout changed nothing.
-            assertEquals(listOf("content:true", "bar:true"), parent.visibilityChanges)
+            // Every recorded state is the one the test set; layout changed nothing. The list is in
+            // paint order because the bar was raised to index 0.
+            assertEquals(listOf("bar:true", "content:true"), parent.visibilityChanges)
         }
     }
 
@@ -58,7 +64,7 @@ class OverlayPlacementTest {
     fun `a hidden bar keeps its bounds untouched`() {
         SwingUtilities.invokeAndWait {
             val content = component("content", Dimension(100, 100))
-            val bar = component("bar", Dimension(80, 20)).apply { isVisible = false }
+            val bar = overlay("bar", Dimension(80, 20)).apply { isVisible = false }
             val parent = Probe().apply {
                 layout = OverlayPlacement()
                 add(content)
@@ -75,11 +81,83 @@ class OverlayPlacementTest {
     }
 
     @Test
+    fun `the bar is painted above a full-size sibling`() {
+        // Swing paints siblings in ascending child order, so a full-size panel added after the
+        // bar hides it. The bar was laid out correctly and invisible for exactly that reason.
+        lateinit var parent: JPanel
+        SwingUtilities.invokeAndWait {
+            val content = component("content", Dimension(100, 100))
+            val bar = overlay("bar", Dimension(80, 20))
+            parent = JPanel(OverlayPlacement()).apply {
+                // Deliberately the wrong order: the bar first, the panel that covers it second.
+                add(bar)
+                add(content)
+                setSize(400, 300)
+                doLayout()
+            }
+        }
+        // The reorder happens during the layout pass above; read the settled state here.
+        SwingUtilities.invokeAndWait { }
+
+        // Index 0 is the top of Swing's paint stack.
+        assertEquals(0, parent.getComponentZOrder(parent.getComponent(0)), "the bar paints on top")
+        assertEquals("bar", parent.getComponent(0).name, "the top child is the bar")
+        assertEquals("content", parent.getComponent(1).name, "the full-size panel paints below")
+        assertEquals(Rectangle(0, 0, 400, 300), parent.getComponent(1).bounds, "it still fills")
+        assertEquals(Rectangle(160, 280, 80, 20), parent.getComponent(0).bounds, "the bar still floats")
+    }
+
+    /**
+     * The dialog marks the bar instead of relying on add order, because the order that paints
+     * correctly (bar first, cards second) is the opposite of the order the old layout expected.
+     * Getting that wrong laid the bar out full-size and left the image a strip at the bottom.
+     */
+    @Test
+    fun `a marked overlay is the floating child whatever the add order`() {
+        SwingUtilities.invokeAndWait {
+            val bar = overlay("bar", Dimension(80, 20)).apply {
+                putClientProperty(OverlayPlacement.OVERLAY_KEY, true)
+            }
+            val cards = component("cards", Dimension(100, 100))
+            val parent = JPanel(OverlayPlacement()).apply {
+                add(bar)
+                add(cards)
+                setSize(400, 300)
+            }
+
+            parent.doLayout()
+
+            assertEquals(Rectangle(0, 0, 400, 300), cards.bounds, "the unmarked child fills")
+            assertEquals(Rectangle(160, 280, 80, 20), bar.bounds, "the marked child floats")
+        }
+    }
+
+    @Test
+    fun `an unmarked container is left alone`() {
+        // There is no reliable way to tell content from overlay without the mark, and guessing by
+        // position laid the bar out full-size. Refusing to position is the safe outcome.
+        SwingUtilities.invokeAndWait {
+            val content = component("content", Dimension(100, 100))
+            val bar = component("bar", Dimension(80, 20))
+            val parent = JPanel(OverlayPlacement()).apply {
+                add(content)
+                add(bar)
+                setSize(400, 300)
+            }
+
+            parent.doLayout()
+
+            assertEquals(Rectangle(0, 0, 0, 0), content.bounds)
+            assertEquals(Rectangle(0, 0, 0, 0), bar.bounds)
+        }
+    }
+
+    @Test
     fun `laying out repeatedly is stable`() {
         // The defect was a layout that could not settle. Two identical passes must agree.
         SwingUtilities.invokeAndWait {
             val content = component("content", Dimension(100, 100))
-            val bar = component("bar", Dimension(80, 20))
+            val bar = overlay("bar", Dimension(80, 20))
             val parent = JPanel(OverlayPlacement()).apply {
                 add(content)
                 add(bar)
@@ -100,7 +178,7 @@ class OverlayPlacementTest {
         // off-centre — the original bug, where the bar kept the width it had before the flip.
         SwingUtilities.invokeAndWait {
             val content = component("content", Dimension(100, 100))
-            val bar = component("bar", Dimension(80, 20))
+            val bar = overlay("bar", Dimension(80, 20))
             val parent = JPanel(OverlayPlacement()).apply {
                 add(content)
                 add(bar)

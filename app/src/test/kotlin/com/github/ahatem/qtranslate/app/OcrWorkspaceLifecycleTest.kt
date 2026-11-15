@@ -40,10 +40,11 @@ class OcrWorkspaceLifecycleTest {
         fun create(): OcrWorkspaceDialog {
             lateinit var dialog: OcrWorkspaceDialog
             dialog = OcrWorkspaceDialog(null, dependencies.mainStore, dependencies.settingsStore,
-                dependencies.localizationManager, dependencies.ocrExtractionUseCase, catalog, {}, {}, {}, {
+                dependencies.localizationManager, dependencies.ocrExtractionUseCase, catalog, {}, {}, {},
+                {
                     if (dialog === dialogs.firstOrNull()) oldCloseNotifications++
                     if (owned === dialog) owned = null
-                })
+                }, dependencies.iconManager, Logs)
             dialogs += dialog
             return dialog
         }

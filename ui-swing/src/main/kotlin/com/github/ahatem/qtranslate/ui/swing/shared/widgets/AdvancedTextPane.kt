@@ -113,6 +113,40 @@ class AdvancedTextPane(
     var showCharCount: Boolean = false
         set(value) { field = value; repaint() }
 
+    /**
+     * Sets the text without recording it in the undo history and without reporting it as an edit.
+     *
+     * For results the user does not author through this pane: a window that fills a read-only
+     * pane from its own state should not leave a stack of undo steps behind, and a pane the user
+     * cannot edit has no edit to report anyway.
+     */
+    fun showText(text: String) {
+        runOnEdt {
+            document.removeDocumentListener(documentListener)
+            if (this.text != text) {
+                this.text = text
+                directions.apply()
+            }
+            lastRenderedText = text
+            lastEmittedText = text
+            undoManager.discardAllEdits()
+            document.addDocumentListener(documentListener)
+        }
+    }
+
+    /**
+     * The selection, or the whole document when nothing is selected.
+     *
+     * Copy actions offered beside a result mean "this result"; asking the user to select all
+     * first is the stock behaviour this pane replaces.
+     */
+    fun copyTextOrAll(): String {
+        val start = selectionStart
+        val end = selectionEnd
+        val selected = if (end > start) text.substring(start, end) else ""
+        return selected.ifBlank { text }
+    }
+
     // Paint-path caches. This component repaints on every caret blink, so anything allocated in
     // paintComponent is allocated roughly twice a second per pane, forever.
     private var cachedCounterFont: Font? = null

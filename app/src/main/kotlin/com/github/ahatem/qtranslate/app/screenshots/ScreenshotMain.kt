@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.app.AppDependencies
 import com.github.ahatem.qtranslate.app.AppUiSetup
 import com.github.ahatem.qtranslate.app.ConsoleLoggerFactory
+import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.ahatem.qtranslate.app.buildDependencies
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.main.mvi.LookupTool
@@ -111,7 +112,7 @@ fun main(args: Array<String>): Unit = runBlocking {
         while (deps.mainStore.state.value.availableServices.isEmpty()) delay(100)
     } ?: logger.warn("No services became available; shots will show the empty state.")
 
-    with(Shots(deps, outputDir, logger)) {
+    with(Shots(deps, outputDir, logger, loggerFactory)) {
         if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "ocr-preview") {
             ocrPreview()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "document") {
@@ -158,6 +159,8 @@ private class Shots(
     private val deps: AppDependencies,
     private val outputDir: File,
     private val logger: Logger,
+    /** The workspace's OCR panes draw plugin-aware icons and its language fallback logs. */
+    private val loggerFactory: LoggerFactory,
 ) {
     private var frame: MainAppFrame? = null
     private var sceneScalePercent = Scenes.SCALE_PERCENT
@@ -211,6 +214,7 @@ private class Shots(
                 dialog = com.github.ahatem.qtranslate.ui.swing.ocr.OcrWorkspaceDialog(
                     null, deps.mainStore, deps.settingsStore, deps.localizationManager,
                     deps.ocrExtractionUseCase, ocrCatalog, {}, {}, {}, {},
+                    deps.iconManager, loggerFactory,
                 ).apply { size = Dimension(900, 600); isVisible = true }
             }
             delay(1000)
@@ -236,12 +240,14 @@ private class Shots(
             }
             delay(1000)
             onUi {
-                val field = dialog.javaClass.getDeclaredField("translationArea").apply { isAccessible = true }
-                (field.get(dialog) as javax.swing.JTextArea).text = "Bienvenue dans QTranslate\nTraduire le texte des images"
+                val field = dialog.javaClass.getDeclaredField("translationPane").apply { isAccessible = true }
+                (field.get(dialog) as com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane)
+                    .showText("Bienvenue dans QTranslate\nTraduire le texte des images")
             }
             onUi {
-                val field = dialog.javaClass.getDeclaredField("ocrTextArea").apply { isAccessible = true }
-                (field.get(dialog) as javax.swing.JTextArea).caretPosition = 5
+                val field = dialog.javaClass.getDeclaredField("ocrTextPane").apply { isAccessible = true }
+                (field.get(dialog) as com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane)
+                    .caretPosition = 5
             }
             write("ocr-result-$label", paintAfterLayout("ocr-result-$label", dialog.rootPane))
             if (label == "dark") {
@@ -283,6 +289,7 @@ private class Shots(
             rtlDialog = com.github.ahatem.qtranslate.ui.swing.ocr.OcrWorkspaceDialog(
                 null, deps.mainStore, deps.settingsStore, deps.localizationManager,
                 deps.ocrExtractionUseCase, ocrCatalog, {}, {}, {}, {},
+                deps.iconManager, loggerFactory,
             ).apply {
                 applyComponentOrientation(java.awt.ComponentOrientation.RIGHT_TO_LEFT)
                 size = Dimension(900, 600)
@@ -691,7 +698,8 @@ private class Shots(
                 localizer = deps.localizationManager,
                 pluginManager = deps.pluginManager,
                 notificationBus = deps.notificationBus,
-                logger = logger
+                logger = logger,
+                loggerFactory = loggerFactory,
             )
         }
         // The frame finishes building itself in a queued invokeLater (pack, listeners, visibility).

@@ -149,9 +149,19 @@ data class FullTextAnnotation(
     @SerialName("pages") val pages: List<Page>? = null
 )
 
+/**
+ * One recognized page.
+ *
+ * `width` and `height` are the dimensions of the image Vision actually analyzed, which is what
+ * every [BoundingBox] on the page is measured in. Vision may have rotated or scaled a large upload,
+ * so these usually match the upload but must not be assumed to.
+ */
 @Serializable
 data class Page(
-    @SerialName("property") val property: PageProperty? = null
+    @SerialName("property") val property: PageProperty? = null,
+    @SerialName("width") val width: Int = 0,
+    @SerialName("height") val height: Int = 0,
+    @SerialName("blocks") val blocks: List<VisionBlock>? = null
 )
 
 @Serializable
@@ -161,7 +171,58 @@ data class PageProperty(
 
 @Serializable
 data class DetectedLanguage(
-    @SerialName("languageCode") val languageCode: String
+    @SerialName("languageCode") val languageCode: String,
+    @SerialName("confidence") val confidence: Float? = null
+)
+
+/** A block is a block type (paragraph, table, picture, ...) plus the paragraphs it contains. */
+@Serializable
+data class VisionBlock(
+    @SerialName("boundingBox") val boundingBox: BoundingBox? = null,
+    @SerialName("paragraphs") val paragraphs: List<VisionParagraph>? = null,
+    @SerialName("blockType") val blockType: String? = null,
+    @SerialName("confidence") val confidence: Float? = null
+)
+
+@Serializable
+data class VisionParagraph(
+    @SerialName("boundingBox") val boundingBox: BoundingBox? = null,
+    @SerialName("words") val words: List<VisionWord>? = null,
+    @SerialName("confidence") val confidence: Float? = null
+)
+
+@Serializable
+data class VisionWord(
+    @SerialName("boundingBox") val boundingBox: BoundingBox? = null,
+    @SerialName("symbols") val symbols: List<VisionSymbol>? = null,
+    @SerialName("confidence") val confidence: Float? = null
+)
+
+@Serializable
+data class VisionSymbol(
+    @SerialName("text") val text: String = "",
+    @SerialName("property") val property: TextProperty? = null,
+    @SerialName("confidence") val confidence: Float? = null
+)
+
+@Serializable
+data class TextProperty(
+    @SerialName("detectedLanguages") val detectedLanguages: List<DetectedLanguage>? = null
+)
+
+/**
+ * A polygon in image pixels. Vision reports four corner vertices and repeats the first one to
+ * close the shape, so a rectangle is the extents of whatever vertices are present.
+ */
+@Serializable
+data class BoundingBox(
+    @SerialName("vertices") val vertices: List<Vertex>? = null
+)
+
+@Serializable
+data class Vertex(
+    @SerialName("x") val x: Int = 0,
+    @SerialName("y") val y: Int = 0
 )
 
 @Serializable

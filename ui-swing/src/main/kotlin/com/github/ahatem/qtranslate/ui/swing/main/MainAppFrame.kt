@@ -5,6 +5,7 @@ import com.formdev.flatlaf.extras.components.FlatButton
 import com.formdev.flatlaf.util.FontUtils
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
@@ -92,6 +93,11 @@ class MainAppFrame(
     private val localizer: LocalizationManager,
     private val notificationBus: NotificationBus,
     private val logger: Logger,
+    /**
+     * Passed to surfaces that build their own long-lived scopes (the OCR workspace's language
+     * fallback), which need a named logger rather than this frame's.
+     */
+    private val loggerFactory: LoggerFactory,
     /**
      * Shared OCR extraction for the Workspace. The main capture workflow goes through
      * [MainStore] instead. Null in screenshot-harness frames, which never open OCR.
@@ -1244,6 +1250,8 @@ class MainAppFrame(
                     // newer workspace reference.
                     if (ocrWorkspaceDialog === created) ocrWorkspaceDialog = null
                 },
+                iconManager = iconManager,
+                loggerFactory = loggerFactory,
             )
             created.applyComponentOrientation(
                 if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
