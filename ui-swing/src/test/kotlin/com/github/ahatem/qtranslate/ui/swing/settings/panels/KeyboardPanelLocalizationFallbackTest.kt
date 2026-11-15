@@ -13,14 +13,19 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
- * The command list's new strings are only written in English and `en-GB`. Every other shipped
+ * The command list's strings are written in English, `en-GB` and `ar-SA`. Every other shipped
  * locale has no entry for them, and must therefore show the embedded English text — never the raw
  * key, never an empty label, never a string left with an unsubstituted `%s`.
  *
  * The four keys are the ones the command list's redesign added: the actions column heading, the
- * table's accessible name, and the row actions' name and description.
+ * table's accessible name, and the row actions' name and description. `ar-SA` carries a
+ * translation for each, so it is expected to differ from English rather than fall back — the
+ * coverage is asserted in [KeyboardPanelArabicCoverageTest].
  */
 class KeyboardPanelLocalizationFallbackTest {
+
+    /** Locales that deliberately carry their own text for these keys. */
+    private val translated = setOf("ar-SA")
 
     private val logger = object : Logger {
         override fun debug(message: String) = Unit
@@ -95,11 +100,20 @@ class KeyboardPanelLocalizationFallbackTest {
         for (tag in shippedLanguageTags()) {
             val localizer = localizerFor(tag)
             for (key in keys) {
-                assertEquals(
-                    english.getString(key),
-                    localizer.getString(key),
-                    "$tag should fall back to the English text for $key",
-                )
+                val text = localizer.getString(key)
+                if (tag in translated) {
+                    assertNotEquals(
+                        english.getString(key),
+                        text,
+                        "$tag ships its own text for $key and should not fall back to English",
+                    )
+                } else {
+                    assertEquals(
+                        english.getString(key),
+                        text,
+                        "$tag should fall back to the English text for $key",
+                    )
+                }
             }
         }
     }
