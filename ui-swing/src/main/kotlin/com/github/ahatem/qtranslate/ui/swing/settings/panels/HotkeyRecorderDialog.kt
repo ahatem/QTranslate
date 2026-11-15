@@ -170,11 +170,7 @@ internal object HotkeyRecorderDialog {
          * combination is the user's call, and the settings table already reports it afterwards.
          */
         val warningFg = UIManager.getColor("Actions.Yellow") ?: errorFg
-        val conflictLabel = JLabel("").apply {
-            font = font.deriveFont(font.size - 1f)
-            foreground = warningFg
-            isVisible = false
-        }
+        val conflictRow = HotkeyConflictRow(warningFg, baseFont)
 
         val okButton     = JButton(localizer.getString("common.ok"))
         val cancelButton = JButton(localizer.getString("common.cancel"))
@@ -211,15 +207,14 @@ internal object HotkeyRecorderDialog {
 
         fun updateUI() {
             val conflictNames = conflictingNames()
-            conflictLabel.text = if (conflictNames.isEmpty()) {
-                ""
-            } else {
-                "⚠  " + localizer.getString(
-                    "settings_hotkeys.recorder_conflict",
-                    conflictNames.joinToString(", "),
-                )
-            }
-            conflictLabel.isVisible = conflictNames.isNotEmpty()
+            conflictRow.show(
+                if (conflictNames.isEmpty()) null else {
+                    "⚠  " + localizer.getString(
+                        "settings_hotkeys.recorder_conflict",
+                        conflictNames.joinToString(", "),
+                    )
+                }
+            )
 
             when {
                 isErrorState || isReservedError -> {
@@ -384,15 +379,19 @@ internal object HotkeyRecorderDialog {
             actionLabel.alignmentX = Component.LEFT_ALIGNMENT
             inputField.alignmentX  = Component.LEFT_ALIGNMENT
             hintLabel.alignmentX   = Component.LEFT_ALIGNMENT
+            conflictRow.alignmentX = Component.LEFT_ALIGNMENT
             add(actionLabel)
             add(Box.createVerticalStrut(8))
             add(inputField)
             add(Box.createVerticalStrut(6))
             add(hintLabel)
             add(Box.createVerticalStrut(4))
-            add(conflictLabel)
+            add(conflictRow)
         }
-
+        // A hidden component takes no room in a BoxLayout, so the packed dialog reserved nothing
+        // for the warning and the line was clipped mid-sentence the moment a combination
+        // collided. The row reserves its height instead of being hidden; see [HotkeyConflictRow].
+        // The dialog is then packed once and never resizes under the user.
         dialog.contentPane.add(mainPanel, BorderLayout.CENTER)
         dialog.contentPane.add(JPanel(FlowLayout(FlowLayout.TRAILING, 8, 8)).apply {
             add(cancelButton); add(okButton)
