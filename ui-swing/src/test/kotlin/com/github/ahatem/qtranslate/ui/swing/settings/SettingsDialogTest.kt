@@ -163,6 +163,31 @@ class SettingsDialogTest {
         assertTrue(onEdt { resetPage.isEnabled }, "General owns settings, so it can be reset")
     }
 
+    @Test
+    fun `the page reset is disabled where the page owns no settings`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        val dialog = newDialog()
+        val pluginsLabel = localizer.getString("settings_dialog_sidebar.plugins")
+        val resetPage = onEdt {
+            descendants<JButton>(dialog.contentPane)
+                .single { it.text == localizer.getString("settings_dialog.reset_page_button") }
+        }
+
+        onEdt {
+            val tree = descendants<JTree>(dialog.contentPane).single()
+            val row = (0 until tree.rowCount).first { index ->
+                (tree.getPathForRow(index).lastPathComponent as? DefaultMutableTreeNode)?.userObject == pluginsLabel
+            }
+            tree.setSelectionRow(row)
+        }
+        onEdt {}
+
+        assertFalse(
+            onEdt { resetPage.isEnabled },
+            "the Plugins page is a way in, not a page of settings to restore",
+        )
+    }
+
     // ── Behavior (needs a toolkit) ─────────────────────────────────────────────
 
     @Test
