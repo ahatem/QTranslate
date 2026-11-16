@@ -17,6 +17,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import com.github.ahatem.qtranslate.core.plugin.storage.AppSecretStore
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.NetworkConfig
+import com.github.ahatem.qtranslate.core.settings.data.SettingsPage
 import kotlinx.coroutines.*
 import kotlinx.coroutines.swing.Swing
 import java.awt.*
@@ -104,8 +105,24 @@ class SettingsDialog(
         font = font.deriveFont(Font.BOLD, font.size + 3f)
     }
 
+    /**
+     * Resets the page that is currently shown.
+     *
+     * Deliberately in the header rather than in the button bar: it resets one page, and the bar
+     * holds whole-dialog actions. It is disabled on a page that owns no settings of its own.
+     */
+    private val resetPageButton = JButton(
+        localizationManager.getString("settings_dialog.reset_page_button")
+    ).apply {
+        addActionListener { onResetPage() }
+    }
+
+    /** The page the reset-page action applies to; null where the page owns nothing to reset. */
+    private var currentSettingsPage: SettingsPage? = null
+
     private val headerStrip = JPanel(BorderLayout(12, 0)).apply {
         add(panelTitle, BorderLayout.LINE_START)
+        add(resetPageButton, BorderLayout.LINE_END)
     }
 
     /**
@@ -119,7 +136,10 @@ class SettingsDialog(
         contentArea = contentArea,
         panelFactory = ::buildPanel,
         orientation = { componentOrientation },
-        onPageShown = { name -> panelTitle.text = name },
+        onPageShown = { name ->
+            panelTitle.text = name
+            updateResetPageAction(name)
+        },
         renderPanel = ::renderPanel,
     )
 
@@ -499,7 +519,25 @@ class SettingsDialog(
             JOptionPane.YES_NO_OPTION,
             JOptionPane.WARNING_MESSAGE
         )
-        if (result == JOptionPane.YES_OPTION) settingsStore.dispatch(SettingsIntent.ResetToDefaults)
+        if (result == JOptionPane.YES_OPTION) settingsStore.dispatch(SettingsIntent.ResetPreferences)
+    }
+
+    /** Keeps the header action honest about what the shown page can reset. */
+    private fun updateResetPageAction(pageName: String) {
+        currentSettingsPage = navigation.settingsPageOf(pageName)
+        resetPageButton.isEnabled = currentSettingsPage != null
+    }
+
+    private fun onResetPage() {
+        val page = currentSettingsPage ?: return
+        val result = JOptionPane.showConfirmDialog(
+            this,
+            localizationManager.getString("settings_dialog.reset_page_confirmation_message"),
+            localizationManager.getString("settings_dialog.reset_page_confirmation_title"),
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE
+        )
+        if (result == JOptionPane.YES_OPTION) settingsStore.dispatch(SettingsIntent.ResetPage(page))
     }
 
     override fun dispose() {

@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.settings
 
+import com.github.ahatem.qtranslate.core.settings.data.SettingsPage
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 /** A sidebar entry. Groups own children and have no page of their own. */
@@ -57,6 +58,26 @@ internal class SettingsNavigation(private val label: (String) -> String) {
 
     /** Whether [name] labels a group heading rather than a selectable page. */
     fun isGroup(name: String): Boolean = tree.any { it is Nav.Group && it.label == name }
+
+    /**
+     * Which [SettingsPage] the page labelled [name] resets, or null when it has none.
+     *
+     * The mapping lives beside the navigation because the reset is defined by what a page shows:
+     * a page without settings of its own — a manager — has nothing to reset.
+     */
+    fun settingsPageOf(name: String): SettingsPage? = when (name) {
+        label("general") -> SettingsPage.GENERAL
+        label("appearance") -> SettingsPage.APPEARANCE
+        label("services") -> SettingsPage.SERVICES
+        label("behavior") -> SettingsPage.BEHAVIOUR
+        label("languages") -> SettingsPage.LANGUAGES
+        label("layout") -> SettingsPage.WINDOW
+        label("popups") -> SettingsPage.POPUPS
+        label("ocr") -> SettingsPage.OCR
+        label("hotkeys") -> SettingsPage.KEYBOARD
+        label("network") -> SettingsPage.NETWORK
+        else -> null
+    }
 
     /**
      * The first page under the group labelled [name], or null when [name] is a page or unknown.

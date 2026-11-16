@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
+import com.github.ahatem.qtranslate.core.settings.data.SettingsPage
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
 import com.github.ahatem.qtranslate.core.settings.data.TranslatorMove
@@ -207,17 +208,48 @@ class SettingsStoreDraftSemanticsTest {
     }
 
     @Test
-    fun `reset cancel keeps old configuration and apply persists defaults`() = runTest {
-        val initial = Configuration.DEFAULT.copy(interfaceLanguage = "ar")
+    fun `a preference reset is staged, cancellable, and keeps user data`() = runTest {
+        val initial = Configuration.DEFAULT.copy(
+            interfaceLanguage = "ar",
+            themeId = "dark",
+            pinnedLanguages = listOf("fr"),
+            translationRules = listOf(TranslationRule(sourceLanguage = "fr", targetLanguage = "ar")),
+        )
         val store = store(initial)
 
-        store.dispatch(SettingsIntent.ResetToDefaults)
+        store.dispatch(SettingsIntent.ResetPreferences)
         store.dispatch(SettingsIntent.CancelChanges)
-        assertEquals(initial, store.state.value.originalConfiguration)
+        assertEquals(initial, store.state.value.originalConfiguration, "a reset is a draft change")
 
-        store.dispatch(SettingsIntent.ResetToDefaults)
+        store.dispatch(SettingsIntent.ResetPreferences)
         awaitSave(store)
-        assertEquals(Configuration.DEFAULT, store.state.value.originalConfiguration)
+
+        val saved = store.state.value.originalConfiguration
+        assertEquals(Configuration.FRESH_INSTALL.interfaceLanguage, saved.interfaceLanguage)
+        assertEquals(Configuration.FRESH_INSTALL.themeId, saved.themeId)
+        assertEquals(initial.servicePresets, saved.servicePresets, "service presets survive")
+        assertEquals(initial.pinnedLanguages, saved.pinnedLanguages, "pinned languages survive")
+        assertEquals(initial.translationRules, saved.translationRules, "translation rules survive")
+    }
+
+    @Test
+    fun `a page reset restores that page and leaves another page alone`() = runTest {
+        val initial = Configuration.DEFAULT.copy(
+            themeId = "dark",
+            uiScale = 150,
+            isHistoryEnabled = false,
+            pinnedLanguages = listOf("fr"),
+        )
+        val store = store(initial)
+
+        store.dispatch(SettingsIntent.ResetPage(SettingsPage.APPEARANCE))
+        awaitSave(store)
+
+        val saved = store.state.value.originalConfiguration
+        assertEquals(Configuration.FRESH_INSTALL.themeId, saved.themeId)
+        assertEquals(Configuration.FRESH_INSTALL.uiScale, saved.uiScale)
+        assertFalse(saved.isHistoryEnabled, "the General page keeps its value")
+        assertEquals(listOf("fr"), saved.pinnedLanguages, "the Languages page keeps its list")
     }
 
     @Test

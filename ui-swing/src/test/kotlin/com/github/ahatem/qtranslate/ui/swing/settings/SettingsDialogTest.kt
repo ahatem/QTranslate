@@ -138,6 +138,30 @@ class SettingsDialogTest {
         assertFalse(source.contains("FlatSearchIcon"), "search presentation moved out")
     }
 
+    @Test
+    fun `reset is offered per page and for the whole dialog, with different intents`() {
+        val source = File(
+            "src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/settings/SettingsDialog.kt"
+        ).readText()
+
+        assertTrue(source.contains("resetPageButton"), "the header owns the page reset")
+        assertTrue(source.contains("SettingsIntent.ResetPage(page)"), "a page reset names its page")
+        assertTrue(source.contains("SettingsIntent.ResetPreferences"), "the bar resets ordinary preferences")
+        assertFalse(source.contains("ResetToDefaults"), "the unscoped reset is gone")
+    }
+
+    @Test
+    fun `the page reset is enabled where the page owns settings`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        val dialog = newDialog()
+        val resetPage = onEdt {
+            descendants<JButton>(dialog.contentPane)
+                .single { it.text == localizer.getString("settings_dialog.reset_page_button") }
+        }
+
+        assertTrue(onEdt { resetPage.isEnabled }, "General owns settings, so it can be reset")
+    }
+
     // ── Behavior (needs a toolkit) ─────────────────────────────────────────────
 
     @Test
