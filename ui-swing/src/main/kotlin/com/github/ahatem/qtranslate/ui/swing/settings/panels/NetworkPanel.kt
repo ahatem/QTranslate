@@ -195,7 +195,7 @@ class NetworkPanel(
             (editor as? JSpinner.NumberEditor)?.textField?.columns = 3
             addChangeListener { if (!isUpdatingFromState) { val edited = value as Int; applyNetwork { it.copy(maxRetries = edited) } } }
         }
-        addRow(localizationManager.getString("settings_network.max_retries"), compact(maxRetries, info("settings_network.max_retries_info")))
+        addRow(localizationManager.getString("settings_network.max_retries"), compact(explain(maxRetries, "settings_network.max_retries_info"), info("settings_network.max_retries_info")))
         retryDelay = JSpinner(SpinnerNumberModel(1, 1, 60, 1)).apply {
             (editor as? JSpinner.NumberEditor)?.textField?.columns = 3
             addChangeListener {
@@ -205,7 +205,7 @@ class NetworkPanel(
         addRow(
             localizationManager.getString("settings_network.retry_delay"),
             compact(
-                retryDelay,
+                explain(retryDelay, "settings_network.retry_delay_info"),
                 mutedLabel(localizationManager.getString("settings_network.seconds_suffix")),
                 info("settings_network.retry_delay_info")
             )
@@ -227,8 +227,8 @@ class NetworkPanel(
                 if (!isUpdatingFromState) { val edited = value as Int; applyNetwork { it.copy(maxConnectionsTotal = edited) } }
             }
         }
-        addRow(localizationManager.getString("settings_network.per_host_connections"), compact(perHostCap, info("settings_network.per_host_connections_info")))
-        addRow(localizationManager.getString("settings_network.total_connections"), compact(totalCap, info("settings_network.total_connections_info")))
+        addRow(localizationManager.getString("settings_network.per_host_connections"), compact(explain(perHostCap, "settings_network.per_host_connections_info"), info("settings_network.per_host_connections_info")))
+        addRow(localizationManager.getString("settings_network.total_connections"), compact(explain(totalCap, "settings_network.total_connections_info"), info("settings_network.total_connections_info")))
         addHint(localizationManager.getString("settings_network.connections_hint"))
 
         addSeparator(localizationManager.getString("settings_network.applies_group"))
@@ -262,8 +262,9 @@ class NetworkPanel(
      * no error either. The hint under each group says what the group is for; this says what the
      * individual number does, which is where the confusion actually lives.
      */
-    private fun info(key: String): JComponent =
-        JLabel(runCatching<javax.swing.Icon?> {
+    private fun info(key: String): JComponent {
+        val explanation = localizationManager.getString(key)
+        return JLabel(runCatching<javax.swing.Icon?> {
             // Ten, not the fourteen the toolbar icons use. This glyph is a circle filling its whole
             // viewBox where a pen or a plus leaves whitespace around itself, so at a matching
             // nominal size it reads as much larger than they do. Muted too: it is an aside, and it
@@ -276,12 +277,28 @@ class NetworkPanel(
                 }
         }.getOrNull()).apply {
             toolTipText = "<html><body style='width:280px'>" +
-                localizationManager.getString(key).replace("<", "&lt;") + "</body></html>"
+                explanation.replace("<", "&lt;") + "</body></html>"
+            // A tooltip is pointer-only. The same sentence is the glyph's accessible name, so it
+            // is not lost to a keyboard or screen-reader user; the control the glyph explains also
+            // carries it as a description, which is announced when that control takes focus.
+            accessibleContext.accessibleName = explanation
         }
+    }
+
+    /**
+     * Attaches an explanation to the control it explains.
+     *
+     * Tab order reaches the spinner, never the glyph beside it, so the sentence has to live on the
+     * control to be announced. This is the keyboard and screen-reader route to the same words the
+     * pointer gets from the tooltip.
+     */
+    private fun <T : JComponent> explain(control: T, infoKey: String): T = control.apply {
+        accessibleContext.accessibleDescription = localizationManager.getString(infoKey)
+    }
 
     private fun withSecondsSuffix(spinner: JSpinner, infoKey: String): JComponent =
         compact(
-            spinner,
+            explain(spinner, infoKey),
             mutedLabel(localizationManager.getString("settings_network.seconds_suffix")),
             info(infoKey)
         )

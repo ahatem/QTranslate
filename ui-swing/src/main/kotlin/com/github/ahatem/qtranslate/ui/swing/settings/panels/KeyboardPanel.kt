@@ -417,6 +417,9 @@ class KeyboardPanel(
                 applyDraft(store) { it.copy(isGlobalHotkeysEnabled = enabled) }
             }
         )
+        // "Global" reads like "all": a user who turns it off to stop shortcuts firing in other
+        // applications would otherwise believe the shortcuts inside QTranslate are gone too.
+        addHint(localizationManager.getString("settings_hotkeys.global_scope_hint"))
 
         addSeparator(localizationManager.getString("settings_hotkeys.show_main_group"))
 
@@ -454,13 +457,39 @@ class KeyboardPanel(
                 )
             }
             addActionListener {
-                if (!isUpdatingFromState) {
-                    val preset = selectedItem as? HotkeyPresetKind ?: return@addActionListener
-                    applyDraft(store) { HotkeyDraftOperations.replacePreset(it, preset) }
+                if (isUpdatingFromState) return@addActionListener
+                val preset = selectedItem as? HotkeyPresetKind ?: return@addActionListener
+                val current = store.state.value.workingConfiguration
+                val target = HotkeyDraftOperations.replacePreset(current, preset)
+                // Nothing to overwrite when the group already is that preset.
+                if (target.hotkeys == current.hotkeys) return@addActionListener
+
+                // A preset replaces whatever is there, including bindings the user made by hand.
+                // Asking first is the difference between applying a preset and losing an evening.
+                val confirmed = JOptionPane.showConfirmDialog(
+                    this@KeyboardPanel,
+                    localizationManager.getString("settings_hotkeys.preset_overwrite_confirmation"),
+                    localizationManager.getString("settings_hotkeys.preset_overwrite_title"),
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE
+                ) == JOptionPane.YES_OPTION
+                if (!confirmed) {
+                    // The picker must keep showing the scheme the bindings still are: a named
+                    // preset, or no selection at all when they are custom.
+                    withoutTrigger {
+                        val currentPreset = HotkeyPresets.identify(current.hotkeys)
+                        if (currentPreset == HotkeyPresetKind.CUSTOM) selectedIndex = -1
+                        else selectedItem = currentPreset
+                    }
+                    return@addActionListener
                 }
+                applyDraft(store) { HotkeyDraftOperations.replacePreset(it, preset) }
             }
         }
         addRow(localizationManager.getString("settings_hotkeys.preset_label"), presetCombo)
+        // The preset is a translation-scheme choice, not a whole-scheme reset. Saying which group
+        // it covers is what keeps the rows beneath it from looking like they follow it.
+        addHint(localizationManager.getString("settings_hotkeys.preset_scope_hint"))
 
         // Custom is a *description* of the current bindings, not an action. It used to be a
         // selectable entry, and picking it cleared every shortcut in the panel; now it is only
@@ -982,7 +1011,9 @@ class KeyboardPanel(
             JOptionPane.WARNING_MESSAGE
         ) == JOptionPane.YES_OPTION
         if (!confirmed) return
-        applyDraft(store) { it.copy(hotkeys = HotkeyPresets.LEGACY.map { binding -> binding.copy() }) }
+        // Every group the table shows, not just the legacy rows: a button that says "all" and
+        // leaves OCR and writing shortcuts untouched is the defect, not the fix.
+        applyDraft(store) { HotkeyDraftOperations.resetAllBindings(it) }
     }
 
     private fun saveBinding(binding: HotkeyBinding) {

@@ -264,6 +264,11 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
 
     /**
      * Adds a `label : component` row, with an optional trailing [suffix] label.
+     *
+     * The label is associated with the control through [JLabel.setLabelFor], which is what lets a
+     * screen reader say "Proxy address, text field" instead of reading a floating word and an
+     * unlabelled field. For a composite cell the association goes to its first focusable child, so
+     * the row still names the control the user lands on.
      */
     protected fun addRow(label: String, component: JComponent, suffix: String? = null) {
         val labelComponent = JLabel(label)
@@ -274,9 +279,22 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
         } else {
             gb.weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(component)
         }
+        labelComponent.labelFor = firstFocusable(component) ?: component
         // Anchored on the label, not the control: the label is what carries the words being
         // searched for, and revealing it brings the control beside it into view anyway.
         entries += SettingEntry(label, currentSection, hint = "", anchor = labelComponent)
+    }
+
+    /** The first focusable control inside [root], so a row can name the thing a user lands on. */
+    private fun firstFocusable(root: Component): JComponent? {
+        val queue = ArrayDeque<Component>()
+        queue.addLast(root)
+        while (queue.isNotEmpty()) {
+            val current = queue.removeFirst()
+            if (current is JComponent && current.isFocusable && current !is JLabel) return current
+            if (current is Container) queue.addAll(current.components)
+        }
+        return null
     }
 
     /**
@@ -330,6 +348,9 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
                 .applyForegroundColorFilter()
         ).apply {
             toolTipText = tooltip
+            // A glyph with a tooltip is unlabelled to a screen reader; the tooltip's own words are
+            // the only name this button has, so give them to the accessibility layer too.
+            accessibleContext.accessibleName = tooltip
             putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON)
             val side = UIScale.scale(PICKER_BUTTON)
             preferredSize = Dimension(side, side)

@@ -97,7 +97,9 @@ class GeneralPanel(
             ),
             SelectionReadSourceInfo(
                 SelectionReadSource.TRANSLATION,
-                localizationManager.getString("settings_dialog_sidebar.translation")
+                // Named for what is actually read out. The old label was the page's own name
+                // ("Translation"), so the value described a place rather than the content.
+                localizationManager.getString("settings_general.selection_read_translated")
             )
         )
         selectionReadSourceCombo = JComboBox(selectionReadSources.toTypedArray()).apply {
