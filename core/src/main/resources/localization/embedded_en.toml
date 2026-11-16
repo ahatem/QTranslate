@@ -546,6 +546,7 @@ pinned_languages_hint = "Select languages to show in the target language picker.
 pinned_languages_clear = "Clear Selection (Show All)"
 rules_group = "Translation Rules"
 rules_hint = "Automatically select a target language based on the detected source language. If no rule matches, the manually selected target is used."
+rules_empty = "No translation rules yet. Every source language uses the target selected above."
 rules_col_source = "Source Language"
 rules_col_target = "Target Language"
 rules_add_btn = "Add Rule"
