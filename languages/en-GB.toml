@@ -370,7 +370,6 @@ install_fail_title = "Installation Failed"
 uninstall_confirm_title = "Uninstall Plugin"
 uninstall_confirm_msg = "Uninstall \"%s\"?\nAll plugin data will be permanently deleted."
 no_settings_msg = "This plugin has no configurable settings."
-section_settings = "Plugin Settings"
 btn_settings = "Plugin Settings"
 settings_hint = "These settings belong to the plugin and save with the Save button below, not with Apply."
 search_shortcut_tooltip = "Search plugins (Ctrl+F)"
@@ -646,7 +645,7 @@ tray_unavailable_hint = "The system tray is not available on this system, so the
 # DYNAMIC PLUGIN CONFIGURATION
 # ===================================================================
 [plugin_config]
-title_format = "Configure — %s"
+title_format = "Plugin Settings — %s"
 required_fields_error_title = "Required Fields"
 required_fields_error_msg = "Please fill in the required fields:"
 test_connection = "Test connection"

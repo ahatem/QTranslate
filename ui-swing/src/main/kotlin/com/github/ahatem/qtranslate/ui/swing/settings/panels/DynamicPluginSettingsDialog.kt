@@ -18,6 +18,7 @@ import javax.swing.BorderFactory
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JDialog
+import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.KeyStroke
 
@@ -43,6 +44,13 @@ class DynamicPluginSettingsDialog(
     onSave: suspend (Map<String, String>, Set<String>) -> Result<Unit, ServiceError>,
     /** Applies the values and reports what each service answered. Null hides the Test button. */
     onTestConnection: (suspend (Map<String, String>) -> List<ServiceValidation>)? = null,
+    /**
+     * One line above the form, for a host that has something to say about how it saves.
+     *
+     * Settings says it: this window opens in front of a dialog whose Apply and Cancel govern that
+     * dialog's own draft and not a plugin's values, and the reader is looking at both at once.
+     */
+    notice: String? = null,
 ) : JDialog(
     owner,
     localizationManager.getString("plugin_config.title_format").format(pluginName),
@@ -78,6 +86,13 @@ class DynamicPluginSettingsDialog(
             border = BorderFactory.createEmptyBorder(
                 UIScale.scale(14), UIScale.scale(16), UIScale.scale(12), UIScale.scale(16)
             )
+            if (notice != null) {
+                add(JLabel(notice).apply {
+                    font       = SettingsVisuals.hintFont(font)
+                    foreground = SettingsVisuals.secondaryText()
+                    border     = BorderFactory.createEmptyBorder(0, 0, UIScale.scale(8), 0)
+                }, BorderLayout.NORTH)
+            }
             add(form, BorderLayout.CENTER)
         }
 
