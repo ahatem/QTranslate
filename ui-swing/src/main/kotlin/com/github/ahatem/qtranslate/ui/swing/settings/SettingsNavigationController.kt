@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.SettingsPanel
+import com.github.ahatem.qtranslate.ui.swing.settings.panels.UnscrolledSettingsPage
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
@@ -149,13 +150,21 @@ internal class SettingsNavigationController(
 
         val panel = panelCache.getOrPut(name) { createPanel(name) }
 
-        contentArea.components.filterIsInstance<JScrollPane>().forEach { contentArea.remove(it) }
-        contentArea.add(JScrollPane(panel).apply {
-            clearBorder()
-            horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-            verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
-            verticalScrollBar.unitIncrement = 16
-        }, BorderLayout.CENTER)
+        // A page that scrolls internally is mounted as it is; wrapping it would nest scrollbars and
+        // clip the fixed bars inside it.
+        contentArea.components
+            .filter { it is JScrollPane || it is UnscrolledSettingsPage }
+            .forEach { contentArea.remove(it) }
+        if (panel is UnscrolledSettingsPage) {
+            contentArea.add(panel, BorderLayout.CENTER)
+        } else {
+            contentArea.add(JScrollPane(panel).apply {
+                clearBorder()
+                horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+                verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+                verticalScrollBar.unitIncrement = 16
+            }, BorderLayout.CENTER)
+        }
 
         contentArea.revalidate()
         contentArea.repaint()

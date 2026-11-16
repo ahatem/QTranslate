@@ -15,7 +15,8 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.GeneralPanel
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.NetworkPanel
-import com.github.ahatem.qtranslate.ui.swing.settings.panels.PluginManagerLinkPanel
+import com.github.ahatem.qtranslate.ui.swing.settings.panels.PluginsPanel
+import com.github.ahatem.qtranslate.ui.swing.settings.panels.UnscrolledSettingsPage
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.ServicesPanel
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.SettingsPanel
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
@@ -274,34 +275,40 @@ class SettingsDialogTest {
     }
 
     @Test
-    fun `search reaches the plugin manager entry point`() {
+    fun `the plugins page is the manager, and says what Apply does not govern`() {
         assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
         val dialog = newDialog()
         val pluginsLabel = localizer.getString("settings_dialog_sidebar.plugins")
 
         val field = onEdt { descendants<JTextField>(dialog.contentPane).single() }
         onEdt { field.text = "plugin" }
-
-        val list = onEdt {
-            descendants<JList<*>>(dialog.contentPane)
-                .filter { it.model.size > 0 && it.model.getElementAt(0) is SearchHit }
-                .single()
-        }
-        val hits = onEdt { (0 until list.model.size).map { index -> list.model.getElementAt(index) as SearchHit } }
         assertTrue(
-            hits.any { it.pageLabel == pluginsLabel },
+            searchHits(dialog).any { it.pageLabel == pluginsLabel },
             "the plugin manager is reachable by name, not only by browsing the sidebar",
         )
 
-        val hit = hits.first { it.pageLabel == pluginsLabel }
-        onEdt { list.selectedIndex = (0 until list.model.size).first { list.model.getElementAt(it) == hit } }
-        onEdt {}
+        onEdt {
+            val tree = descendants<JTree>(dialog.contentPane).single()
+            val row = (0 until tree.rowCount).first { index ->
+                (tree.getPathForRow(index).lastPathComponent as? DefaultMutableTreeNode)?.userObject == pluginsLabel
+            }
+            tree.setSelectionRow(row)
+        }
         onEdt {}
 
         onEdt {
             assertTrue(
-                currentPagePanel(dialog) is PluginManagerLinkPanel,
-                "the page says where plugin lifecycle lives instead of being the manager itself",
+                descendants<PluginsPanel>(dialog.contentPane).size == 1,
+                "the page is the manager itself, not a signpost to one in another window",
+            )
+            assertTrue(
+                descendants<JLabel>(dialog.contentPane)
+                    .any { it.text == localizer.getString("settings_plugins.manager_hint") },
+                "and it states, on the page, that its changes are immediate and unaffected by Apply or Cancel",
+            )
+            assertTrue(
+                descendants<JScrollPane>(dialog.contentPane).none { it.viewport.view is UnscrolledSettingsPage },
+                "mounted directly, so the manager's own scrolling is not nested inside another",
             )
         }
     }
@@ -374,37 +381,6 @@ class SettingsDialogTest {
             onEdt { resetPage.toolTipText },
             "and on a page without settings it says so instead of leaving a dead button",
         )
-    }
-
-    /**
-     * The Plugin Manager's footer is built like the Settings footer.
-     *
-     * It used to be a bare `FlowLayout` strip: no separator above it and no padding round the
-     * button, so when the manager was opened from Settings the two footers — one directly above
-     * the other — visibly disagreed about where the dialog ends. Both now carry a one-pixel rule in
-     * `Component.borderColor` and ten pixels of padding.
-     */
-    @Test
-    fun `the plugin manager footer matches the settings footer`() {
-        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
-        val manager = onEdt {
-            PluginManagerDialog(owner, IconManager(pluginManager), pluginManager, localizer, storeScope)
-        }
-        try {
-            val footer = onEdt {
-                manager.contentPane.components
-                    .filterIsInstance<JPanel>()
-                    .single { it.insets.top >= 10 }
-            }
-
-            val insets = onEdt { footer.insets }
-            assertTrue(insets.top == 11, "a one-pixel rule plus ten pixels of padding above the button (${insets.top})")
-            assertTrue(insets.left == 10, "and the same padding at the leading edge (${insets.left})")
-            assertTrue(insets.bottom == 10, "and below (${insets.bottom})")
-            assertTrue(insets.right == 10, "and at the trailing edge (${insets.right})")
-        } finally {
-            onEdt { manager.dispose() }
-        }
     }
 
     @Test

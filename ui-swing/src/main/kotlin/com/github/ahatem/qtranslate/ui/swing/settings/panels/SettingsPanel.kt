@@ -526,28 +526,6 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
     )
 
     /**
-     * Adds the page's one action, full width.
-     *
-     * Deliberately an ordinary FlatLaf button: no client properties, no style string, no painted
-     * colours. An earlier version froze the theme's default-button colours into a style string so
-     * the action would look "primary", and the result was a button that stayed gold after the user
-     * changed theme, because those colours had been read once, at build time. Leaving the appearance
-     * to the look and feel keeps it right in every theme — including ones this application has never
-     * seen — and full width plus the space around it already mark it as the page's action.
-     */
-    protected fun addPageAction(text: String, onClick: () -> Unit): JButton {
-        val button = JButton(text).apply { addActionListener { onClick() } }
-        gb.nextRow()
-            .spanLine()
-            .weightX(1.0)
-            .fill(GridBagConstraints.HORIZONTAL)
-            .insets(UIScale.scale(BUTTON_GAP_TOP), 0, UIScale.scale(BUTTON_GAP_BOTTOM), 0)
-            .add(button)
-        entries += SettingEntry(text, currentSection, hint = "", anchor = button)
-        return button
-    }
-
-    /**
      * One wrapped block of text, drawn by a `JLabel`.
      *
      * The breaks are computed here and given to the label as explicit `<br>`s, for two reasons.

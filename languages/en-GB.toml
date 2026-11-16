@@ -310,11 +310,7 @@ delete_preset_title = "Delete Preset"
 delete_preset_confirm = "Delete preset \"%s\"?\nThis cannot be undone."
 
 [settings_plugins]
-manager_title = "Plugin Manager"
-manager_hint = "Plugins are managed outside this dialog's Apply and Cancel: installing, enabling, disabling, updating and removing one take effect immediately and cannot be undone by cancelling Settings."
-manager_open = "Open Plugin Manager..."
-page_description = "Plugins add translators, dictionaries, OCR engines and AI tools to QTranslate. Installing, updating, enabling and configuring them happens in the Plugin Manager, which opens over these settings."
-page_status = "%1$d installed · %2$d enabled"
+manager_hint = "Plugin changes apply immediately; Apply and Cancel in this dialog do not affect them."
 install_plugin = "Install Plugin..."
 browse_on_github = "Browse plugins on GitHub ↗"
 search_placeholder = "Search plugins"

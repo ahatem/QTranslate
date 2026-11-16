@@ -6,7 +6,6 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
-import com.github.ahatem.qtranslate.core.plugin.PluginStatus
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
@@ -333,36 +332,6 @@ class SettingsDialog(
     fun showOcrPage() = navigator.selectPage(label("ocr"))
 
     /**
-     * Opens the plugin manager over this dialog.
-     *
-     * Plugin lifecycle is immediate, so it is not part of the draft this dialog edits; the page
-     * that opens it holds no settings and therefore no Apply/Cancel implication.
-     */
-    private fun openPluginManager() {
-        PluginManagerDialog(
-            owner = owner,
-            iconManager = iconManager,
-            pluginManager = pluginManager,
-            localizationManager = localizationManager,
-            scope = scope,
-        ).isVisible = true
-    }
-
-    /**
-     * One line describing what is installed, for the Plugins page.
-     *
-     * The page is a way in rather than a list, so it has no content of its own; a live count is the
-     * cheapest thing that makes it feel like part of the application rather than a redirect. Read
-     * from the manager's own state on every render, so it is right after the manager has been used.
-     */
-    private fun pluginSummary(): String {
-        val plugins = pluginManager.plugins.value
-        if (plugins.isEmpty()) return ""
-        val enabled = plugins.count { it.status == PluginStatus.ENABLED }
-        return localizationManager.getString("settings_plugins.page_status", plugins.size, enabled)
-    }
-
-    /**
      * The actions a page offers to search.
      *
      * Reset is the dialog's own action on a page — it acts on whichever page is showing — so it
@@ -399,11 +368,7 @@ class SettingsDialog(
             ServicesPanel(settingsStore, pluginManager.activeServices, localizationManager, scope)
 
         label("plugins") ->
-            PluginManagerLinkPanel(
-                localizationManager,
-                onOpenPluginManager = ::openPluginManager,
-                pluginSummary = ::pluginSummary,
-            )
+            PluginsSettingsPage(localizationManager, iconManager, pluginManager, scope)
 
         label("ocr") ->
             ocrServiceCatalog?.let { catalog ->

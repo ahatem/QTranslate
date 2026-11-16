@@ -402,7 +402,8 @@ class SettingsHierarchyTest {
                 "Network" to NetworkPanel(store, localizer),
                 "Translation" to TranslationPanel(store, localizer),
                 "Languages" to LanguagesPanel(store, localizer) { emptyList() },
-                "Plugins" to PluginManagerLinkPanel(localizer, onOpenPluginManager = {}),
+                // The Plugins page is the plugin manager itself (a master–detail panel, not a
+                // column of settings rows), so it has no hierarchy to compare here.
             ).onEach { (_, panel) ->
                 panel.render(store.state.value)
                 panel.setSize(900, 900)
