@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.localization.TranslationCoverage
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
+import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
@@ -121,6 +122,12 @@ class AppearancePanel(
             languageCombo,
             actions
         )
+
+        // These actions write files, not settings: importing, creating, editing and deleting a
+        // translation take effect at once and Cancel cannot undo them. Saying so is the honest
+        // minimum until language management has a surface of its own; a Cancel button that looked
+        // like a way back was the misleading part.
+        addHint(localizationManager.getString("settings_appearance.language_files_immediate"))
 
         // One line under the picker, and only when there is something to say.
         //
@@ -804,10 +811,14 @@ class AppearancePanel(
             }
             withContext(Dispatchers.Swing) {
                 localizationManager.forget(LanguageCode(info.code))
-                // Falls back to the built-in rather than leaving the interface pointed at a
-                // translation that is no longer on disk.
-                if (selectedLanguageCode(store.state.value.workingConfiguration.interfaceLanguage) == info.code) {
-                    applyDraft(store) { it.copy(interfaceLanguage = "en") }
+                // The file is gone, so the interface cannot stay pointed at it. The fallback is
+                // persisted rather than staged: it describes what is now on disk, and leaving it in
+                // an unsaved draft would keep a deleted translation selected until someone pressed
+                // Apply — or lose the correction entirely if they pressed Cancel.
+                if (localizationManager.activeLanguage.tag == info.code ||
+                    selectedLanguageCode(store.state.value.originalConfiguration.interfaceLanguage) == info.code
+                ) {
+                    store.dispatch(SettingsIntent.ToggleSetting { it.copy(interfaceLanguage = "en") })
                 }
                 loadLanguageListAsync()
             }

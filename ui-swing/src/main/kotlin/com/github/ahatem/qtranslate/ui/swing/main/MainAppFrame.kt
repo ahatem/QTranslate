@@ -357,7 +357,9 @@ class MainAppFrame(
                     localizationManager = localizer,
                     settingsModel = model,
                     settingsInstance = instance,
-                    onSave = { values -> pluginManager.applySettingsFromMap(plugin.id, values) },
+                    onSave = { values, clearedSecrets ->
+                        pluginManager.applySettingsFromMap(plugin.id, values, clearedSecrets)
+                    },
                     onTestConnection = if (!canTest) null else { values ->
                         // Applied first so the test uses what is on screen, not what was saved
                         // last time — testing a key you have just typed is the whole point.

@@ -217,6 +217,7 @@ clear_history_hint = "Saved translations are permanently deleted on exit when th
 [settings_appearance]
 language_group = "Language"
 interface_language = "Interface Language:"
+language_files_immediate = "Creating, editing, importing and deleting translation files take effect immediately; Apply and Cancel do not affect them."
 edit_tooltip = "Edit this translation"
 edit_button = "Edit…"
 # %1$s = how many further translators are credited
@@ -302,6 +303,9 @@ delete_preset_title = "Delete Preset"
 delete_preset_confirm = "Delete preset \"%s\"?\nThis cannot be undone."
 
 [settings_plugins]
+manager_title = "Plugin Manager"
+manager_hint = "Plugins are managed outside this dialog's Apply and Cancel: installing, enabling, disabling, updating and removing one take effect immediately and cannot be undone by cancelling Settings."
+manager_open = "Open Plugin Manager..."
 install_plugin = "Install Plugin..."
 browse_on_github = "Browse plugins on GitHub ↗"
 search_placeholder = "Search plugins"
@@ -621,6 +625,7 @@ testing = "Testing…"
 test_ok = "Ready — %d service(s) responded"
 test_failed = "Test failed"
 test_nothing_to_check = "Nothing to check"
+clear_secret = "Clear stored value"
 
 # ===================================================================
 # OTHER DIALOGS

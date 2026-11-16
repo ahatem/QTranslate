@@ -61,7 +61,7 @@ class DynamicPluginSettingsDialog(
      * and the error shown. A fire-and-forget save could neither report a failure nor
      * keep the user in front of the values that failed to save.
      */
-    private val onSave: suspend (Map<String, String>) -> Result<Unit, ServiceError>,
+    private val onSave: suspend (Map<String, String>, Set<String>) -> Result<Unit, ServiceError>,
     /**
      * Applies the values on screen and then asks each service whether it works, reporting one
      * line per service.
@@ -85,6 +85,9 @@ class DynamicPluginSettingsDialog(
     )
 
     private val components = mutableMapOf<String, SettingComponent>()
+
+    /** Password fields the user explicitly asked to remove, passed to the save callback. */
+    private val clearedSecrets = mutableSetOf<String>()
 
     /** A field rather than an inline lambda, so [dispose] can detach it again. */
     private val themeListener = java.beans.PropertyChangeListener { event ->
@@ -372,9 +375,47 @@ class DynamicPluginSettingsDialog(
         // Description / hint
         if (setting.description.isNotBlank()) addSubRow(buildHintArea(setting.description), 3)
 
+        // A stored credential can only be removed on purpose: the field is pre-filled with it and
+        // a blank field means "keep the current secret", so nothing in the text box can express
+        // "delete it". Offered only when there is something stored.
+        if (setting is PasswordSetting && setting.currentValue.isNotBlank()) {
+            addSubRow(buildClearSecretRow(setting), 3)
+        }
+
         // block itself is the showIf-toggle target
         components[setting.propertyName] = comp.copy(fieldBlock = block)
         return block
+    }
+
+    /**
+     * The explicit "remove the stored value" action for one password field.
+     *
+     * Pressing it empties the box and records the field as cleared; typing a replacement value
+     * afterwards withdraws the request, because the user has evidently changed their mind.
+     */
+    private fun buildClearSecretRow(setting: PasswordSetting): JPanel {
+        val field = components[setting.propertyName]?.component as? JPasswordField
+        return JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)).apply {
+            isOpaque = false
+            add(
+                JButton(localizationManager.getString("plugin_config.clear_secret")).apply {
+                    addActionListener {
+                        clearedSecrets += setting.propertyName
+                        field?.text = ""
+                        applyErrorHighlight(null)
+                    }
+                }
+            )
+        }.also {
+            field?.document?.addDocumentListener(object : DocumentListener {
+                private fun edited() {
+                    if ((field.password.isNotEmpty())) clearedSecrets -= setting.propertyName
+                }
+                override fun insertUpdate(e: DocumentEvent) = edited()
+                override fun removeUpdate(e: DocumentEvent) = edited()
+                override fun changedUpdate(e: DocumentEvent) = edited()
+            })
+        }
     }
 
     private fun buildLabelRow(setting: SettingSchema, comp: SettingComponent): JPanel {
@@ -811,9 +852,10 @@ class DynamicPluginSettingsDialog(
         val values = components.mapValues { it.value.getValue() }
         val missing = settingsModel.schema.filter { s ->
             s.isRequired && values[s.propertyName].isNullOrBlank() &&
-                // A blank password edit keeps the stored secret (the field is pre-filled
-                // with it), so it is not a missing required field when a secret exists.
-                !(s is PasswordSetting && s.currentValue.isNotBlank())
+                // A blank password edit keeps the stored secret (the field is pre-filled with it),
+                // so it is not a missing required field when a secret exists — unless the user
+                // asked for that secret to be removed, which leaves a required field genuinely empty.
+                !(s is PasswordSetting && s.currentValue.isNotBlank() && s.propertyName !in clearedSecrets)
         }
 
         if (missing.isNotEmpty()) {
@@ -835,7 +877,7 @@ class DynamicPluginSettingsDialog(
         setBusy(true)
         dialogScope.launch {
             try {
-                val outcome = runCatching { onSave(values) }.getOrElse { thrown ->
+                val outcome = runCatching { onSave(values, clearedSecrets.toSet()) }.getOrElse { thrown ->
                     if (thrown is CancellationException) throw thrown
                     Err(ServiceError.UnknownError(thrown.message ?: "Unknown error", thrown))
                 }

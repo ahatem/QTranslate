@@ -15,6 +15,7 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.GeneralPanel
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.NetworkPanel
+import com.github.ahatem.qtranslate.ui.swing.settings.panels.PluginManagerLinkPanel
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.ServicesPanel
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.SettingsPanel
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
@@ -231,7 +232,6 @@ class SettingsDialogTest {
         val hits = onEdt { (0 until list.model.size).map { index -> list.model.getElementAt(index) as SearchHit } }
 
         assertTrue(hits.isNotEmpty(), "the proxy query finds hits")
-        assertTrue(hits.none { it.pageLabel == pluginsLabel }, "Plugins is deliberately not indexed")
         val networkHit = hits.first { it.pageLabel == networkLabel }
 
         onEdt { list.selectedIndex = (0 until list.model.size).first { list.model.getElementAt(it) == networkHit } }
@@ -243,6 +243,39 @@ class SettingsDialogTest {
         onEdt {
             assertTrue(currentPagePanel(dialog) is NetworkPanel, "the hit's page is shown")
             assertTrue(dialog.glassPane.isVisible, "the flash marker is up on the glass pane")
+        }
+    }
+
+    @Test
+    fun `search reaches the plugin manager entry point`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        val dialog = newDialog()
+        val pluginsLabel = localizer.getString("settings_dialog_sidebar.plugins")
+
+        val field = onEdt { descendants<JTextField>(dialog.contentPane).single() }
+        onEdt { field.text = "plugin" }
+
+        val list = onEdt {
+            descendants<JList<*>>(dialog.contentPane)
+                .filter { it.model.size > 0 && it.model.getElementAt(0) is SearchHit }
+                .single()
+        }
+        val hits = onEdt { (0 until list.model.size).map { index -> list.model.getElementAt(index) as SearchHit } }
+        assertTrue(
+            hits.any { it.pageLabel == pluginsLabel },
+            "the plugin manager is reachable by name, not only by browsing the sidebar",
+        )
+
+        val hit = hits.first { it.pageLabel == pluginsLabel }
+        onEdt { list.selectedIndex = (0 until list.model.size).first { list.model.getElementAt(it) == hit } }
+        onEdt {}
+        onEdt {}
+
+        onEdt {
+            assertTrue(
+                currentPagePanel(dialog) is PluginManagerLinkPanel,
+                "the page says where plugin lifecycle lives instead of being the manager itself",
+            )
         }
     }
 

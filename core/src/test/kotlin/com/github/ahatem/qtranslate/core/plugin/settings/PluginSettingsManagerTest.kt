@@ -202,4 +202,60 @@ class PluginSettingsManagerTest {
             directory.deleteRecursively()
         }
     }
+
+    @Test
+    fun `an explicitly cleared secret is removed and the plugin sees an empty value`() = runBlocking {
+        val directory = Files.createTempDirectory("qtranslate-settings-secret-clear").toFile()
+        try {
+            val store = PluginKeyValueStore(directory)
+            val plugin = FakePlugin()
+
+            managerFor(store).applySettings(pluginId, plugin, mapOf("apiKey" to "stored-key-7"))
+            assertEquals("stored-key-7", secretsFor(store).get("apiKey"))
+
+            // Clearing is the only way to remove a stored credential: a blank field alone means
+            // "keep the current secret", and the field is pre-filled, so nothing else can express it.
+            val cleared = managerFor(store).applySettings(
+                pluginId,
+                plugin,
+                mapOf("apiKey" to "", "label" to "hello"),
+                clearedSecrets = setOf("apiKey"),
+            )
+
+            assertTrue(cleared.isOk)
+            assertNull(secretsFor(store).get("apiKey"), "the stored credential is gone")
+            assertEquals("", plugin.received?.apiKey, "the plugin is handed an empty value, not a stale one")
+            assertEquals("hello", store.getValue(pluginId, "label"), "the rest of the form still saves")
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `a clear that the plugin rejects leaves the stored secret in place`() = runBlocking {
+        val directory = Files.createTempDirectory("qtranslate-settings-secret-clear-reject").toFile()
+        try {
+            val store = PluginKeyValueStore(directory)
+            val plugin = FakePlugin()
+
+            managerFor(store).applySettings(pluginId, plugin, mapOf("apiKey" to "stored-key-8"))
+            plugin.onChanged = { Err(ServiceError.InvalidInputError("synthetic rejection")) }
+
+            val rejected = managerFor(store).applySettings(
+                pluginId,
+                plugin,
+                mapOf("apiKey" to ""),
+                clearedSecrets = setOf("apiKey"),
+            )
+
+            assertTrue(rejected.isErr)
+            assertEquals(
+                "stored-key-8",
+                secretsFor(store).get("apiKey"),
+                "a rejected save changes nothing, including the credential",
+            )
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
 }

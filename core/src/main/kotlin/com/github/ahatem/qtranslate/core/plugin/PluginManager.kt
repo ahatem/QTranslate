@@ -498,16 +498,23 @@ class PluginManager(
      * Applies [settingsMap] to the plugin identified by [pluginId].
      * On success, rebuilds the plugin's service list and updates flows.
      *
+     * [clearedSecrets] names password fields the user explicitly cleared; they are removed from
+     * the secret store on success rather than being kept as a blank-looking current value.
+     *
      * Serialized with the plugin's other transitions: applying settings calls back into the
      * plugin (`onSettingsChanged`) and swaps its service list.
      */
-    suspend fun applySettingsFromMap(pluginId: String, settingsMap: Map<String, String>): Result<Unit, ServiceError> {
+    suspend fun applySettingsFromMap(
+        pluginId: String,
+        settingsMap: Map<String, String>,
+        clearedSecrets: Set<String> = emptySet(),
+    ): Result<Unit, ServiceError> {
         return transitions.transition(pluginId) {
             val container = registry.mutex.withLock { registry.get(pluginId) }
                 ?: return@transition Err(ServiceError.UnknownError("Plugin '$pluginId' not found", null))
 
             val result = withTimeoutOrNull(SETTINGS_APPLY_TIMEOUT_MS) {
-                settingsManager.applySettings(pluginId, container.plugin, settingsMap)
+                settingsManager.applySettings(pluginId, container.plugin, settingsMap, clearedSecrets)
             } ?: Err(ServiceError.TimeoutError("Applying settings to '$pluginId' timed out"))
 
             if (result.isOk) {

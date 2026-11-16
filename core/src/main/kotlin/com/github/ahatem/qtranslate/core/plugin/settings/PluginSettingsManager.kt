@@ -74,10 +74,22 @@ internal class PluginSettingsManager(
      * @return `Ok(Unit)` if the plugin accepted the settings, or an `Err` if the plugin
      *         rejected them or an unexpected exception occurred.
      */
+    /**
+     * Applies [settingsMap] to [plugin] and persists the values on success.
+     *
+     * @param clearedSecrets [SettingType.PASSWORD] fields the user explicitly asked to remove. They
+     *   are handed to the plugin as empty and deleted from the secret store on success. Without
+     *   this, a stored credential could never be removed: a blank field means "keep the current
+     *   secret", which is the only sane reading of a pre-filled password box.
+     *
+     * Everything else is unchanged: blank password values keep the current secret, and invalid
+     * values are skipped rather than persisted.
+     */
     suspend fun applySettings(
         pluginId: String,
         plugin: Plugin<*>,
-        settingsMap: Map<String, String>
+        settingsMap: Map<String, String>,
+        clearedSecrets: Set<String> = emptySet(),
     ): Result<Unit, ServiceError> {
         val currentSettings = plugin.getSettings()
 
@@ -96,7 +108,8 @@ internal class PluginSettingsManager(
 
             val applied = applyMapToInstance(
                 settingsClass, newInstance, settingsMap,
-                ScopedSecretStore(pluginId, ServiceId.DEFAULT_INSTANCE, pluginKeyValueStore)
+                ScopedSecretStore(pluginId, ServiceId.DEFAULT_INSTANCE, pluginKeyValueStore),
+                clearedSecrets,
             )
 
             @Suppress("UNCHECKED_CAST")
@@ -107,6 +120,7 @@ internal class PluginSettingsManager(
                 pluginKeyValueStore.storeValues(pluginId, applied.normal)
                 val secrets = ScopedSecretStore(pluginId, ServiceId.DEFAULT_INSTANCE, pluginKeyValueStore)
                 applied.secrets.forEach { (key, value) -> secrets.put(key, value) }
+                applied.secretRemovals.forEach { key -> secrets.remove(key) }
                 // Invalidate cache — next getSettingsModel call rebuilds with new values
                 cacheMutex.withLock { cache.remove(pluginId) }
             }
@@ -126,7 +140,9 @@ internal class PluginSettingsManager(
         /** Non-secret values, persisted to the normal settings store. */
         val normal: Map<String, String>,
         /** [SettingType.PASSWORD] values, persisted to the secret store only. */
-        val secrets: Map<String, String>
+        val secrets: Map<String, String>,
+        /** Password fields the user explicitly cleared, deleted from the secret store. */
+        val secretRemovals: Set<String> = emptySet(),
     )
 
     /**
@@ -137,23 +153,33 @@ internal class PluginSettingsManager(
      * [SettingType.PASSWORD] fields never land in the normal map: a non-blank value goes to the
      * secret map (which the caller persists to the secret store), and a blank value keeps the
      * current secret — the stored value is injected into [instance] so the plugin sees the real
-     * key, and nothing is scheduled for persistence. There is no way to clear a stored secret
-     * yet; a future explicit remove action will be the only path that does so.
+     * key, and nothing is scheduled for persistence. A field named in [clearedSecrets] is the
+     * explicit exception: the plugin receives an empty value and the stored secret is removed.
      */
     private suspend fun applyMapToInstance(
         settingsClass: Class<*>,
         instance: Any,
         map: Map<String, String>,
-        secretStore: ScopedSecretStore
+        secretStore: ScopedSecretStore,
+        clearedSecrets: Set<String>,
     ): AppliedValues {
         val applied = mutableMapOf<String, String>()
         val secretApplied = mutableMapOf<String, String>()
+        val secretRemovals = mutableSetOf<String>()
 
         settingsClass.declaredFields.forEach { field ->
             field.isAccessible = true
             val annotation = field.getAnnotation(Setting::class.java) ?: return@forEach
 
             if (annotation.type == SettingType.PASSWORD) {
+                // An explicit clear wins over everything: the user asked for the stored value to go
+                // away, so the plugin is handed an empty one and the secret is deleted on success.
+                if (field.name in clearedSecrets) {
+                    if (field.type == String::class.java) field.set(instance, "")
+                    secretRemovals += field.name
+                    return@forEach
+                }
+
                 val raw = map[field.name]
                 if (raw.isNullOrBlank()) {
                     // Blank edit keeps the current secret. The plugin receives the real key
@@ -188,7 +214,7 @@ internal class PluginSettingsManager(
             applied[field.name] = raw
         }
 
-        return AppliedValues(applied, secretApplied)
+        return AppliedValues(applied, secretApplied, secretRemovals)
     }
 }
 

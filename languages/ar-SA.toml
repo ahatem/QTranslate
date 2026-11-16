@@ -219,6 +219,7 @@ selection_read_original = "النص الأصلي"
 [settings_appearance]
 language_group = "اللغة"
 interface_language = "لغة الواجهة:"
+language_files_immediate = "إنشاء ملفات الترجمة وتحريرها واستيرادها وحذفها يسري فورًا؛ ولا يؤثر فيه «تطبيق» أو «إلغاء»."
 theme_group = "السمة"
 theme_label = "السمة:"
 theme_sync_os = "مزامنة مع النظام (اتباع الوضع الفاتح/الداكن)"
@@ -300,6 +301,9 @@ other_services_group = "خدمات أخرى"
 automatic = "تلقائي"
 
 [settings_plugins]
+manager_title = "مدير الإضافات"
+manager_hint = "تُدار الإضافات خارج «تطبيق» و«إلغاء» في هذا الحوار: تثبيت الإضافة أو تفعيلها أو تعطيلها أو تحديثها أو إزالتها يسري فورًا، ولا يمكن التراجع عنه بإلغاء الإعدادات."
+manager_open = "فتح مدير الإضافات..."
 install_plugin = "تثبيت إضافة..."
 browse_on_github = "تصفح الإضافات على GitHub ↗"
 search_placeholder = "البحث في الإضافات"
@@ -603,6 +607,7 @@ testing = "جارٍ الاختبار…"
 test_ok = "جاهز — استجابت %d خدمة"
 test_failed = "فشل الاختبار"
 test_nothing_to_check = "لا شيء للفحص"
+clear_secret = "مسح القيمة المحفوظة"
 
 # ===================================================================
 # OTHER DIALOGS

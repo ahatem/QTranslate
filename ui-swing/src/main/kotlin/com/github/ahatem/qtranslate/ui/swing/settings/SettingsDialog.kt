@@ -146,13 +146,12 @@ class SettingsDialog(
     /**
      * Every setting on every page, indexed from panel search metadata.
      *
-     * Built once on the first search and reused; Plugins is excluded deliberately — it is a
-     * manager for a list that changes at runtime, not a page of settings, and it is the one
-     * panel whose construction does real work.
+     * Built once on the first search and reused. The Plugins page is indexed like any other page:
+     * it is now a link to the plugin manager rather than the manager itself, so finding it costs
+     * nothing and lands on a page that says what it does.
      */
     private val searchIndex = SettingsSearchIndex(
         pageLabels = navigation.pages.map { it.label },
-        excludedPageLabels = setOf(label("plugins")),
         entriesForPage = navigator::searchEntries,
     )
 
@@ -308,6 +307,22 @@ class SettingsDialog(
 
     fun showOcrPage() = navigator.selectPage(label("ocr"))
 
+    /**
+     * Opens the plugin manager over this dialog.
+     *
+     * Plugin lifecycle is immediate, so it is not part of the draft this dialog edits; the page
+     * that opens it holds no settings and therefore no Apply/Cancel implication.
+     */
+    private fun openPluginManager() {
+        PluginManagerDialog(
+            owner = owner,
+            iconManager = iconManager,
+            pluginManager = pluginManager,
+            localizationManager = localizationManager,
+            scope = scope,
+        ).isVisible = true
+    }
+
     private fun buildPanel(name: String): JPanel = when (name) {
         label("general") ->
             GeneralPanel(settingsStore, localizationManager)
@@ -322,7 +337,7 @@ class SettingsDialog(
             ServicesPanel(settingsStore, pluginManager.activeServices, localizationManager, scope)
 
         label("plugins") ->
-            PluginsPanel(iconManager, pluginManager, localizationManager, scope)
+            PluginManagerLinkPanel(localizationManager, onOpenPluginManager = ::openPluginManager)
 
         label("ocr") ->
             ocrServiceCatalog?.let { catalog ->

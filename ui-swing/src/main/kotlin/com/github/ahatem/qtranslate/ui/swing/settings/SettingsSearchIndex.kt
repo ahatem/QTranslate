@@ -31,14 +31,14 @@ internal data class SearchHit(
  * reads the same panel cache the pages are shown from.
  *
  * @param pageLabels every selectable page, flattened, in sidebar order.
- * @param excludedPageLabels pages deliberately left unindexed. Plugins is one: it is a manager
- * for a list that changes at runtime, not a page of settings, and it is the one panel whose
- * construction does real work.
+ * @param excludedPageLabels pages deliberately left unindexed. Empty today: the former Plugins
+ *   exclusion existed because that page hosted a live manager, and it is a link page now, so
+ *   finding it by name should work like any other page.
  * @param entriesForPage reads one page's searchable settings, constructing its panel on first use.
  */
 internal class SettingsSearchIndex(
     private val pageLabels: List<String>,
-    private val excludedPageLabels: Set<String>,
+    private val excludedPageLabels: Set<String> = emptySet(),
     private val entriesForPage: (String) -> List<SettingsPanel.SettingEntry>,
 ) {
     /** Built on the first search and reused; see class documentation. */
