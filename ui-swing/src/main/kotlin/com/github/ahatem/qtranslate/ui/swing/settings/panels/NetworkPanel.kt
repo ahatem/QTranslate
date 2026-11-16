@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.core.settings.data.NetworkConfig
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
+import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
 import javax.swing.JButton
@@ -59,6 +60,7 @@ class NetworkPanel(
     private lateinit var proxyUrlField: JTextField
     private lateinit var proxyUserField: JTextField
     private var proxyPasswordField: JPasswordField? = null
+    private var proxyPasswordClearButton: JButton? = null
 
     private lateinit var requestTimeout: JSpinner
     private lateinit var connectTimeout: JSpinner
@@ -109,7 +111,27 @@ class NetworkPanel(
                 text = access.read()
                 onEdit { access.write(String(password)) }
             }
-            addRow(localizationManager.getString("settings_network.proxy_password"), proxyPasswordField!!)
+            // A stored credential is not a setting, and it cannot be undone: clearing the field by
+            // hand already removed it on Apply, but nothing said so and nothing made it deliberate.
+            // The explicit action says what it does, and "empty means remove" is stated once in the
+            // hint rather than left to be guessed.
+            proxyPasswordClearButton = JButton(
+                localizationManager.getString("settings_network.proxy_password_clear")
+            ).apply {
+                addActionListener {
+                    proxyPasswordField?.text = ""
+                    access.write("")
+                }
+            }
+            addRow(
+                localizationManager.getString("settings_network.proxy_password"),
+                JPanel(BorderLayout(6, 0)).apply {
+                    isOpaque = false
+                    add(proxyPasswordField!!, BorderLayout.CENTER)
+                    add(proxyPasswordClearButton!!, BorderLayout.LINE_END)
+                },
+            )
+            addHint(localizationManager.getString("settings_network.proxy_password_hint"))
         }
         addHint(localizationManager.getString("settings_network.proxy_hint"))
 
@@ -287,6 +309,7 @@ class NetworkPanel(
         proxyUrlField.isEnabled = enabled
         proxyUserField.isEnabled = enabled
         proxyPasswordField?.isEnabled = enabled
+        proxyPasswordClearButton?.isEnabled = enabled
     }
 
 
