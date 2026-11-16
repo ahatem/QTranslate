@@ -35,7 +35,9 @@ import java.awt.Component
 import java.awt.Container
 import java.awt.Cursor
 import java.awt.Dimension
+import java.awt.Graphics2D
 import java.awt.RenderingHints
+import java.awt.Toolkit
 import java.awt.Window
 import java.awt.event.ActionEvent
 import java.awt.event.MouseEvent
@@ -999,9 +1001,7 @@ private class Shots(
         var image: BufferedImage? = null
         onUi {
             val captured = BufferedImage(content.width, content.height, BufferedImage.TYPE_INT_ARGB)
-            val g = captured.createGraphics()
-            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            val g = captureGraphics(captured)
             content.paint(g)
             g.dispose()
             image = captured
@@ -1020,6 +1020,31 @@ private class Shots(
         }
         ScreenshotCompositor.write(name, shot, sceneIsDark, outputDir)
     }
+}
+
+/**
+ * The graphics a window is captured through, set up so text measures as it does on screen.
+ *
+ * A fresh image graphics starts with no platform text hints. That changed glyph advances by enough
+ * to matter: at 13 pt, "Startup & Updates" measured 121 px through the label's own metrics and
+ * 131 px through the capture graphics, so Swing's paint was truncated at the label's bounds. Every
+ * Settings heading in the gallery lost its final character while the live window — painted through
+ * the screen graphics — was complete, which a Robot capture of the same dialog confirmed.
+ *
+ * Copying `awt.font.desktophints` (LCD text and its contrast) makes the capture resolve text
+ * exactly like the screen, which is what these images are supposed to show.
+ */
+internal fun captureGraphics(image: BufferedImage): Graphics2D {
+    val g = image.createGraphics()
+    g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+    @Suppress("UNCHECKED_CAST")
+    val desktopHints = Toolkit.getDefaultToolkit()
+        .getDesktopProperty("awt.font.desktophints") as? Map<Any?, Any?>
+    desktopHints?.forEach { (key, value) ->
+        if (key is RenderingHints.Key && value != null) g.setRenderingHint(key, value)
+    }
+    return g
 }
 
 /** First component of type [T] in [root]'s tree. Breadth-first, so shallower matches win. */
