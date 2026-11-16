@@ -399,6 +399,14 @@ class AdvancedTextPane(
     fun setTranslateKeyStroke(old: KeyStroke?, new: KeyStroke?): Boolean =
         keyBindings.setTranslateKeyStroke(old, new)
 
+    /**
+     * The chord this pane answers to for the translate action, or null when it has none.
+     *
+     * Installed by [setTranslateKeyStroke] from the configurable `TRANSLATE` command, which makes
+     * it the one chord this pane can honestly advertise.
+     */
+    val translateKeyStroke: KeyStroke? get() = keyBindings.currentTranslateStroke
+
     // -----------------------------------------------------------------------
     // Transfer handler (drag-and-drop images)
     // -----------------------------------------------------------------------
@@ -501,6 +509,14 @@ class AdvancedTextPane(
                     ctxTranslateItem.text = get("translate")
                     ctxListenItem.text    = get("listen")
                 }
+
+                // Translate is the pane's own binding for the configurable TRANSLATE command, so
+                // the item shows the chord this pane really answers to — re-read on every open,
+                // which is what makes a rebind reach a menu that already exists. Listen is
+                // deliberately left bare: the pane's Listen acts on this pane's text, while
+                // LISTEN_TO_TEXT captures a selection in another application, so advertising
+                // that chord here would promise something this item does not do.
+                ctxTranslateItem.accelerator = keyBindings.currentTranslateStroke
             }
             override fun popupMenuWillBecomeInvisible(e: PopupMenuEvent?) {}
             override fun popupMenuCanceled(e: PopupMenuEvent?) {}

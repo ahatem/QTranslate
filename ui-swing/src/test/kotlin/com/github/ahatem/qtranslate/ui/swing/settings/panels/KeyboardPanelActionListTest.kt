@@ -80,7 +80,13 @@ class KeyboardPanelActionListTest {
     /** The binding each row displays, which render() fills from the configuration for that row. */
     private fun JTable.bindings(): List<HotkeyBinding?> = column(COL_HOTKEY).map { it as? HotkeyBinding }
 
-    private fun JTable.actions(): List<HotkeyAction?> = bindings().map { it?.action }
+    /**
+     * The actions the table lists, in order.
+     *
+     * Category headings are rows too, but they carry no binding, so they are skipped here: the
+     * invariant under test is which commands have a row, not how the list is sectioned.
+     */
+    private fun JTable.actions(): List<HotkeyAction> = bindings().filterNotNull().map { it.action }
 
     private fun JTable.labels(): List<String> = column(COL_ACTION).map { it.toString() }
 
@@ -104,9 +110,26 @@ class KeyboardPanelActionListTest {
     fun `every bindable action is listed exactly once, in a stable order`() {
         // The invariant behind the bug. SHOW_MAIN_WINDOW is the one exclusion: it has its own row
         // above the table with Edit/Clear buttons and the Double Ctrl option.
+        //
+        // The order is the panel's category order (task order, not registry declaration order),
+        // and within a category it is the registry's own order. What this test holds is that the
+        // sequence is exactly this and covers everything — a row that disappears from a category
+        // fails here whichever heading it was under.
         val bindableInOrder = listOf(
+            // Translation
             HotkeyAction.SHOW_QUICK_TRANSLATE,
             HotkeyAction.LISTEN_TO_TEXT,
+            HotkeyAction.REPLACE_WITH_TRANSLATION,
+            HotkeyAction.CYCLE_TARGET_LANGUAGE,
+            HotkeyAction.TRANSLATE,
+            HotkeyAction.COPY_TRANSLATION,
+            // Writing
+            HotkeyAction.REPLACE_WITH_REWRITE,
+            HotkeyAction.REPLACE_WITH_SUMMARY,
+            // Dictionary & images
+            HotkeyAction.SHOW_DICTIONARY,
+            HotkeyAction.SHOW_IMAGES,
+            // Screen OCR
             HotkeyAction.OPEN_OCR,
             HotkeyAction.OCR_SHOW_ACTIONS,
             HotkeyAction.OCR_TRANSLATE,
@@ -115,28 +138,25 @@ class KeyboardPanelActionListTest {
             HotkeyAction.OCR_OPEN_WORKSPACE,
             HotkeyAction.OCR_COPY_TEXT,
             HotkeyAction.OCR_COPY_IMAGE,
-            HotkeyAction.REPLACE_WITH_TRANSLATION,
-            HotkeyAction.REPLACE_WITH_REWRITE,
-            HotkeyAction.REPLACE_WITH_SUMMARY,
-            HotkeyAction.CYCLE_TARGET_LANGUAGE,
-            HotkeyAction.SHOW_DICTIONARY,
-            HotkeyAction.SHOW_IMAGES,
-            HotkeyAction.TRANSLATE,
-            HotkeyAction.FOCUS_INPUT,
-            HotkeyAction.FOCUS_OUTPUT,
-            HotkeyAction.FOCUS_EXTRA_OUTPUT,
-            HotkeyAction.COPY_TRANSLATION,
-            HotkeyAction.CLEAR_INPUT,
-            HotkeyAction.SWAP_LANGUAGES,
-            HotkeyAction.OPEN_SETTINGS,
-            HotkeyAction.SHOW_HISTORY,
-            HotkeyAction.TRANSLATE_DOCUMENT,
+            // Capture overlay
             HotkeyAction.OCR_ACTION_TRANSLATE,
             HotkeyAction.OCR_ACTION_COPY_TEXT,
             HotkeyAction.OCR_ACTION_COPY_IMAGE,
             HotkeyAction.OCR_ACTION_SAVE_IMAGE,
             HotkeyAction.OCR_ACTION_RECROP,
             HotkeyAction.OCR_ACTION_CANCEL,
+            // Focus & navigation
+            HotkeyAction.FOCUS_INPUT,
+            HotkeyAction.FOCUS_OUTPUT,
+            HotkeyAction.FOCUS_EXTRA_OUTPUT,
+            // Editing
+            HotkeyAction.CLEAR_INPUT,
+            HotkeyAction.SWAP_LANGUAGES,
+            // Documents
+            HotkeyAction.TRANSLATE_DOCUMENT,
+            // Window & dialogs
+            HotkeyAction.OPEN_SETTINGS,
+            HotkeyAction.SHOW_HISTORY,
         )
 
         assertEquals(bindableInOrder, renderedTable().actions(), "row order is what a row index maps back to")
@@ -157,7 +177,7 @@ class KeyboardPanelActionListTest {
 
     @Test
     fun `every row arrives with the default binding for a distinct action`() {
-        val bindings = renderedTable().bindings()
+        val bindings = renderedTable().bindings().filterNotNull()
 
         // Specialized OCR workflows ship deliberately unassigned: they are screen-wide gestures
         // and must not take more key combinations from other applications by default. Every other
@@ -179,12 +199,12 @@ class KeyboardPanelActionListTest {
             HotkeyAction.REPLACE_WITH_REWRITE,
             HotkeyAction.REPLACE_WITH_SUMMARY,
         )
-        val unbound = bindings.indices.filter { index ->
-            bindings[index]?.action !in intentionallyUnassigned && bindings[index]?.hasBinding != true
+        val unbound = bindings.filter { binding ->
+            binding.action !in intentionallyUnassigned && !binding.hasBinding
         }
-        assertTrue(unbound.isEmpty(), "a listed action should arrive with a default binding: rows $unbound")
+        assertTrue(unbound.isEmpty(), "a listed action should arrive with a default binding: ${unbound.map { it.action }}")
 
-        val actions = bindings.map { it?.action }
+        val actions = bindings.map { it.action }
         assertEquals(actions.size, actions.toSet().size, "no action is bound by two rows: $actions")
     }
 

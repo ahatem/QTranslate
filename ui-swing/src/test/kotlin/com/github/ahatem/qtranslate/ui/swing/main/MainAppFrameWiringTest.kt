@@ -14,6 +14,17 @@ import kotlin.test.assertTrue
  * the ordered teardown losing a step, which no isolated test can see.
  */
 class MainAppFrameWiringTest {
+
+    @Test
+    fun `the command menu is presented as a menu, not as settings`() {
+        // It opens the popup that holds most of the window's commands, and only one of its entries
+        // is Settings. A gear icon promised the smaller half of what the button does.
+        assertContains(source, "val menuLabel = localizer.getString(\"main_window_main_menu.menu\")")
+        assertContains(source, "createButtonWithIcon(iconManager, Icons.MORE, 18)")
+        assertContains(source, "accessibleContext.accessibleName = menuLabel")
+        assertContains(source, "val popupMenu = createOptionsPopupMenu()")
+    }
+
     private val source: String =
         File("src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/main/MainAppFrame.kt")
             .readText()

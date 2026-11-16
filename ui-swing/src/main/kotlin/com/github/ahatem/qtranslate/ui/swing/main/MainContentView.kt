@@ -56,6 +56,8 @@ import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorSta
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorPopupButton
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryPanel
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryPanelState
+import com.github.ahatem.qtranslate.ui.swing.main.menus.CommandShortcutHints
+import com.github.ahatem.qtranslate.ui.swing.main.menus.withShortcutChord
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBar
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.Action
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsState
@@ -552,6 +554,10 @@ class MainContentView(
     }
 
     private fun renderComponents(mainState: MainState, config: Configuration, effectiveLayoutId: String, ocrDefault: OcrPostSelectionAction) {
+        // Every chord this view shows comes from the user's own bindings, so a rebind is reflected
+        // the next time state is rendered rather than in a copy stored somewhere else.
+        val shortcutHints = CommandShortcutHints.fromBindings(config.effectiveHotkeys)
+
         currentTargetLanguage = mainState.targetLanguage
 
         // BackwardTranslate output is in the source language; all other extra output types are in target.
@@ -631,8 +637,10 @@ class MainContentView(
                 strings = LanguageSelectionBarStrings(
                     translateButtonText = localizer.getString("main_window_language_bar.translate_button"),
                     cancelButtonText    = localizer.getString("main_window_language_bar.cancel_button"),
-                    clearTooltip        = localizer.getString("main_window_language_bar.clear_tooltip"),
+                    clearTooltip        = localizer.getString("main_window_language_bar.clear_tooltip")
+                        .withShortcutChord(shortcutHints, HotkeyAction.CLEAR_INPUT),
                     swapTooltip         = localizer.getString("main_window_language_bar.swap_languages_tooltip")
+                        .withShortcutChord(shortcutHints, HotkeyAction.SWAP_LANGUAGES)
                 )
             )
         )
@@ -706,7 +714,10 @@ class MainContentView(
                         Action(
                             id = "copy_output",
                             iconPath = Icons.COPY,
-                            tooltip = localizer.getString("main_window_editor_context_menu.copy"),
+                            // This button copies the finished translation, which is exactly what
+                            // COPY_TRANSLATION does, so it carries that command's chord.
+                            tooltip = localizer.getString("main_window_editor_context_menu.copy")
+                                .withShortcutChord(shortcutHints, HotkeyAction.COPY_TRANSLATION),
                             isEnabled = hasOutputText && !mainState.isLoading,
                             isVisible = true,
                             onClick = { mainState.translatedText.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) }
