@@ -121,6 +121,8 @@ fun main(args: Array<String>): Unit = runBlocking {
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "selector") {
             selectorAudit()
             selectorDensityAudit()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-matrix") {
+            settingsMatrix()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "presentation") {
             mainWindow()
             layouts()
@@ -554,6 +556,29 @@ private class Shots(
         capturePages(Scenes.DARK, "dark", listOf(3 to "services", 11 to "plugins"))
     }
 
+    /**
+     * The Settings matrix: every page at 100%, 150% and 200%, in English and in Arabic.
+     *
+     * The gallery captures each page once, at the app's 200% authoring zoom. That proves the pages
+     * read well but says nothing about the boundaries — where a label is clipped at 150%, where a
+     * control overlaps at 200%, or whether a right-to-left page mirrors its rows. This scene walks
+     * the combinations that the review is supposed to cover, at one theme, because the geometry
+     * question is the same in either.
+     */
+    suspend fun settingsMatrix() {
+        for (percent in listOf(100, 150, 200)) {
+            for ((language, tag) in listOf("en" to "en", "ar-SA" to "ar")) {
+                start(
+                    settingsConfig(Scenes.LIGHT).copy(
+                        uiScale = percent,
+                        interfaceLanguage = language,
+                    )
+                )
+                capturePages(Scenes.LIGHT, "$tag-$percent")
+            }
+        }
+    }
+
     private fun settingsConfig(theme: String): Configuration =
         comparisonConfig(theme, listOf("Bing Translate", "DeepL", "Yandex Web"))
             .copy(layoutPresetId = "classic", mainWindowSize = windowSize(Scenes.WINDOW))
@@ -575,6 +600,12 @@ private class Shots(
                 isModal = false // modal would block the event thread this harness drives
                 setSize(owner.width, owner.height)
                 setLocationRelativeTo(owner)
+                // The frame applies the interface's direction; a dialog built directly here has to
+                // be told, or the Arabic captures would show Arabic words laid out left to right.
+                applyComponentOrientation(
+                    if (deps.localizationManager.isRtl) java.awt.ComponentOrientation.RIGHT_TO_LEFT
+                    else java.awt.ComponentOrientation.LEFT_TO_RIGHT
+                )
                 isVisible = true
             }
         }
