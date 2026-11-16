@@ -245,6 +245,9 @@ class LanguagesPanel(
         val addRuleBtn = JButton(localizationManager.getString("settings_languages.rules_add_btn")).apply {
             addActionListener { showAddRuleDialog() }
         }
+        // An action is searched for by its own words too: someone who remembers "add rule" is
+        // looking for this button, and a search that only indexes settings would not find it.
+        registerSearchEntry(localizationManager.getString("settings_languages.rules_add_btn"), addRuleBtn)
         removeRuleBtn = JButton(localizationManager.getString("settings_languages.rules_remove_btn")).apply {
             isEnabled = false
             addActionListener {

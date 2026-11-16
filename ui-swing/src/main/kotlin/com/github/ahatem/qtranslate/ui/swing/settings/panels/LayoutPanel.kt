@@ -53,13 +53,11 @@ class LayoutPanel(
         localizationManager.getString("settings_window.tray_unavailable_hint")
 
     private lateinit var layoutCombo: JComboBox<LayoutInfo>
-    private lateinit var historyCheck: JCheckBox
     private lateinit var languageCheck: JCheckBox
     private lateinit var servicesCheck: JCheckBox
     private lateinit var selectorStyleCombo: JComboBox<ServiceSelectorStyleInfo>
     private lateinit var selectorAppearanceCombo: JComboBox<ServiceSelectorAppearanceInfo>
     private lateinit var statusCheck: JCheckBox
-    private lateinit var dictionaryPanelCheck: JCheckBox
     private lateinit var closeButtonCombo: JComboBox<CloseButtonBehaviorInfo>
     private lateinit var minimizeButtonCombo: JComboBox<MinimizeButtonBehaviorInfo>
 
@@ -97,15 +95,6 @@ class LayoutPanel(
         // ── Toolbars & panels ────────────────────────────────────────────────
         addSeparator(localizationManager.getString("settings_window.toolbars_group"))
 
-        historyCheck = addCheckbox(
-            localizationManager.getString("settings_window.show_history_bar"),
-            false
-        ) { enabled ->
-            applyDraft(store) {
-                it.copy(toolbarVisibility = it.toolbarVisibility.copy(isHistoryBarVisible = enabled))
-            }
-        }
-
         languageCheck = addCheckbox(
             localizationManager.getString("settings_window.show_language_bar"),
             false
@@ -122,13 +111,6 @@ class LayoutPanel(
             applyDraft(store) {
                 it.copy(toolbarVisibility = it.toolbarVisibility.copy(isStatusBarVisible = enabled))
             }
-        }
-
-        dictionaryPanelCheck = addCheckbox(
-            localizationManager.getString("settings_window.show_dictionary_panel"),
-            false
-        ) { enabled ->
-            applyDraft(store) { it.copy(showDictionaryPanel = enabled) }
         }
 
         // ── Service selector ─────────────────────────────────────────────────
@@ -294,11 +276,9 @@ class LayoutPanel(
             layoutCombo.selectedItem = layouts.find { it.id == LayoutPresetIds.resolve(c.layoutPresetId) }
             layoutCombo.toolTipText =
                 if (comparisonAvailable) null else comparisonUnavailableHint()
-            historyCheck.isSelected = c.toolbarVisibility.isHistoryBarVisible
             languageCheck.isSelected = c.toolbarVisibility.isLanguageBarVisible
             servicesCheck.isSelected = c.toolbarVisibility.isServicesPanelVisible
             statusCheck.isSelected = c.toolbarVisibility.isStatusBarVisible
-            dictionaryPanelCheck.isSelected = c.showDictionaryPanel
 
             selectorStyleCombo.selectedItem = (0 until selectorStyleCombo.itemCount)
                 .map(selectorStyleCombo::getItemAt)

@@ -135,6 +135,13 @@ class NetworkPanel(
         }
         addHint(localizationManager.getString("settings_network.proxy_hint"))
 
+        // Timeouts, retries, connection caps and per-host overrides are expert tuning. Every user
+        // needs the proxy fields; the numbers that make a slow or rate-limited service work are one
+        // disclosure away instead of filling the page for everyone who will never touch them.
+        addCollapsibleSection(
+            title = localizationManager.getString("settings_network.advanced_group"),
+            initiallyExpanded = false,
+        ) {
         // ── Timeouts ──────────────────────────────────────────────────────────
         addSeparator(localizationManager.getString("settings_network.timeouts_group"))
 
@@ -230,6 +237,7 @@ class NetworkPanel(
         addRow(localizationManager.getString("settings_network.per_host_connections"), compact(explain(perHostCap, "settings_network.per_host_connections_info"), info("settings_network.per_host_connections_info")))
         addRow(localizationManager.getString("settings_network.total_connections"), compact(explain(totalCap, "settings_network.total_connections_info"), info("settings_network.total_connections_info")))
         addHint(localizationManager.getString("settings_network.connections_hint"))
+        }
 
         addSeparator(localizationManager.getString("settings_network.applies_group"))
         addHint(localizationManager.getString("settings_network.applies_hint"))

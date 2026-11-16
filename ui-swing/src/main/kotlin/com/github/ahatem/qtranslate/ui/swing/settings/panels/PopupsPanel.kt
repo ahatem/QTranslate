@@ -164,7 +164,14 @@ class PopupsPanel(
     }
 
     private companion object {
-        const val TRANSPARENCY_MIN = 5
+        /**
+         * Full opacity is 0% transparency, and it is reachable.
+         *
+         * The range started at 5, so the most opaque a popup could be was still slightly
+         * see-through, which no control on the page explained and no user asked for. 0 makes the
+         * setting mean what it says at both ends.
+         */
+        const val TRANSPARENCY_MIN = 0
         const val TRANSPARENCY_MAX = 50
         const val IDLE_MIN = 2
         const val IDLE_MAX = 60

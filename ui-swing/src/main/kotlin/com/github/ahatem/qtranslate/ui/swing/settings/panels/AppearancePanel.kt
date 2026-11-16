@@ -221,7 +221,12 @@ class AppearancePanel(
         editorFontSize    = JSpinner(SpinnerNumberModel(15, 8, 32, 1))
         fallbackFontCombo = JComboBox(arrayOf(FallbackFontOption(loadingItem, loadingItem))).apply { isEnabled = false }
 
-        addRow(localizationManager.getString("settings_appearance.ui_font"),       createFontRow(uiFontCombo,     uiFontSize))
+        // The interface font size is no longer offered: it was a second, compounding zoom beside
+        // Interface Scale, and raising one quietly enlarged everything while the other stayed put.
+        // The stored size still applies (the spinner is kept, just not shown) so existing
+        // configurations render as they did, and choosing a family leaves the size alone.
+        addRow(localizationManager.getString("settings_appearance.ui_font"),       createFontRow(uiFontCombo,     null))
+        addHint(localizationManager.getString("settings_appearance.ui_font_size_note"))
         addRow(localizationManager.getString("settings_appearance.editor_font"),   createFontRow(editorFontCombo, editorFontSize))
         addRow(localizationManager.getString("settings_appearance.fallback_font"), fallbackFontCombo)
         addHint(localizationManager.getString("settings_appearance.fallback_hint"))
@@ -637,11 +642,11 @@ class AppearancePanel(
         fontPreview.font = FontConfig(name, size).toFont()
     }
 
-    private fun createFontRow(combo: JComboBox<String>, spinner: JSpinner) =
+    private fun createFontRow(combo: JComboBox<String>, spinner: JSpinner?) =
         JPanel(BorderLayout(8, 0)).apply {
             isOpaque = false
-            add(combo,   BorderLayout.CENTER)
-            add(spinner, BorderLayout.LINE_END)
+            add(combo, BorderLayout.CENTER)
+            if (spinner != null) add(spinner, BorderLayout.LINE_END)
         }
 
 

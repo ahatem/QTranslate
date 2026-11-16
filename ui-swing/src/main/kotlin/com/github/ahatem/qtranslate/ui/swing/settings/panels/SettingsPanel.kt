@@ -72,7 +72,12 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
     @Volatile
     protected var isUpdatingFromState = false
 
-    protected val gb = GridBag(this, horizontalGap = 8, verticalGap = ROW_GAP)
+    /**
+     * The layout receiving rows. Normally the panel itself; [addCollapsibleSection] points it at a
+     * child container while that section's rows are built, so the same helpers can fill an area
+     * that hides as a unit.
+     */
+    protected var gb = GridBag(this, horizontalGap = 8, verticalGap = ROW_GAP)
 
     init {
         border = BorderFactory.createEmptyBorder(UIScale.scale(EDGE), UIScale.scale(EDGE), UIScale.scale(EDGE), UIScale.scale(EDGE))
@@ -260,6 +265,58 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
             .add(cb)
         entries += SettingEntry(text, currentSection, hint = "", anchor = cb)
         return cb
+    }
+
+    /**
+     * Adds a section that can be expanded and collapsed.
+     *
+     * Expert controls belong on the page but not in everyone's way, and a section that folds away
+     * behind a named control says so without a second navigation level. Rows inside are built by
+     * [build] with the usual helpers; search entries registered there still work, because they are
+     * collected exactly as on any other page — the anchor simply lives in the folded area.
+     */
+    protected fun addCollapsibleSection(
+        title: String,
+        initiallyExpanded: Boolean = false,
+        build: () -> Unit,
+    ) {
+        val content = JPanel(GridBagLayout()).apply { isOpaque = false }
+        val outer = gb
+        gb = GridBag(content, horizontalGap = 8, verticalGap = ROW_GAP).apply {
+            defaultAnchor(GridBagConstraints.LINE_START)
+            defaultFill(GridBagConstraints.NONE)
+        }
+        try {
+            build()
+        } finally {
+            gb = outer
+        }
+
+        var expanded = initiallyExpanded
+        content.isVisible = expanded
+
+        val toggle = JCheckBox(title, expanded).apply {
+            isOpaque = false
+            addActionListener {
+                expanded = isSelected
+                content.isVisible = expanded
+                revalidate()
+                repaint()
+            }
+        }
+        gb.nextRow()
+            .spanLine()
+            .weightX(1.0)
+            .fill(GridBagConstraints.HORIZONTAL)
+            .insets(UIScale.scale(SECTION_GAP), 0, UIScale.scale(2), 0)
+            .add(toggle)
+        gb.nextRow()
+            .spanLine()
+            .weightX(1.0)
+            .fill(GridBagConstraints.HORIZONTAL)
+            .add(content)
+
+        entries += SettingEntry(title, currentSection, hint = "", anchor = toggle)
     }
 
     /**

@@ -47,9 +47,16 @@ class LanguageFileWriterTest {
     @Test
     fun `a fully translated file survives a round trip`() {
         val values = parser.parse(english).entries
-        val reparsed = parser.parse(writeAll(values))
+        val reparsed = parser.parse(writeAll(values)).entries
 
-        assertEquals(values, reparsed.entries)
+        // Reported per key: comparing two whole maps prints every entry and hides the one that
+        // changed, which is the only thing worth reading.
+        assertEquals(emptySet(), values.keys - reparsed.keys, "keys lost by the round trip")
+        assertEquals(
+            emptyList(),
+            values.keys.filter { reparsed[it] != values[it] },
+            "keys whose value changed on the way out and back",
+        )
     }
 
     @Test

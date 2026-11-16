@@ -46,6 +46,7 @@ class TranslationPanel(
     private lateinit var dictAutoLookupCheck: JCheckBox
     private lateinit var dictAutoUseTranslated: JRadioButton
     private lateinit var dictAutoUseSource: JRadioButton
+    private lateinit var dictionaryPanelCheck: JCheckBox
 
     /**
      * The standard vocabularies, not the active service's.
@@ -289,6 +290,15 @@ class TranslationPanel(
         }
         addRow(localizationManager.getString("settings_translation.dict_auto_lookup_source_label"), dictAutoSourceRow)
 
+        // Moved here from the Window page: the dictionary panel is dictionary behaviour rather than
+        // window chrome, and it belongs with the automatic-lookup controls that decide when a
+        // definition appears at all. Applying it opens or closes the dock without a restart.
+        dictionaryPanelCheck = addCheckbox(
+            text = localizationManager.getString("settings_window.show_dictionary_panel"),
+            selected = false,
+            onChange = { enabled -> applyDraft(store) { it.copy(showDictionaryPanel = enabled) } }
+        )
+
         // "Show floating popup for single words" used to sit here, indented under the checkbox as
         // if it were its own presentation choice. It never controlled a popup: the coordinator read
         // it as the master gate for every kind of automatic lookup, so unchecking it silently
@@ -349,6 +359,7 @@ class TranslationPanel(
             }
             dictAutoUseTranslated.isEnabled = autoLookupEnabled
             dictAutoUseSource.isEnabled     = autoLookupEnabled
+            dictionaryPanelCheck.isSelected = c.showDictionaryPanel
         }
     }
 
