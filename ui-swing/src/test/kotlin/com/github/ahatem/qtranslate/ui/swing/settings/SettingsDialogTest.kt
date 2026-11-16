@@ -32,6 +32,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Container
 import java.awt.GraphicsEnvironment
@@ -41,6 +42,7 @@ import javax.swing.JButton
 import javax.swing.JFrame
 import javax.swing.JLabel
 import javax.swing.JList
+import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JTextField
 import javax.swing.JTree
@@ -372,6 +374,37 @@ class SettingsDialogTest {
             onEdt { resetPage.toolTipText },
             "and on a page without settings it says so instead of leaving a dead button",
         )
+    }
+
+    /**
+     * The Plugin Manager's footer is built like the Settings footer.
+     *
+     * It used to be a bare `FlowLayout` strip: no separator above it and no padding round the
+     * button, so when the manager was opened from Settings the two footers — one directly above
+     * the other — visibly disagreed about where the dialog ends. Both now carry a one-pixel rule in
+     * `Component.borderColor` and ten pixels of padding.
+     */
+    @Test
+    fun `the plugin manager footer matches the settings footer`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        val manager = onEdt {
+            PluginManagerDialog(owner, IconManager(pluginManager), pluginManager, localizer, storeScope)
+        }
+        try {
+            val footer = onEdt {
+                manager.contentPane.components
+                    .filterIsInstance<JPanel>()
+                    .single { it.insets.top >= 10 }
+            }
+
+            val insets = onEdt { footer.insets }
+            assertTrue(insets.top == 11, "a one-pixel rule plus ten pixels of padding above the button (${insets.top})")
+            assertTrue(insets.left == 10, "and the same padding at the leading edge (${insets.left})")
+            assertTrue(insets.bottom == 10, "and below (${insets.bottom})")
+            assertTrue(insets.right == 10, "and at the trailing edge (${insets.right})")
+        } finally {
+            onEdt { manager.dispose() }
+        }
     }
 
     @Test

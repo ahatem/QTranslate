@@ -1,7 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
-import com.formdev.flatlaf.FlatLaf
-import com.formdev.flatlaf.IntelliJTheme
+import com.formdev.flatlaf.FlatDarkLaf
+import com.formdev.flatlaf.FlatLightLaf
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
@@ -16,7 +16,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import java.awt.Color
 import java.awt.Component
+import java.awt.ComponentOrientation
 import java.awt.Container
 import java.awt.image.BufferedImage
 import java.nio.file.Files
@@ -73,20 +75,17 @@ class SettingsHierarchyTest {
     }
 
     /**
-     * Installs one of the application's own themes.
+     * Installs a plain FlatLaf theme for the duration of a test.
      *
-     * The stock FlatLaf themes were tried first and made this test order-dependent: the whole test
-     * suite shares one JVM, and a class that leaves `UIManager` carrying its own colours made the
-     * measured contrast land at 1.17:1. Loading the identity theme replaces the keys the assertions
-     * are about — and it is the theme the hierarchy has to look right in anyway.
+     * Deliberately *not* one of the application's own themes: those set the bundled Inter family as
+     * the UI font, and loading it registers "Inter Light" and friends as separate families, which
+     * changes the font list `AppearancePanelFontListTest` asserts on later in the same JVM. Nothing
+     * here depends on the identity palette — the type scale and the geometry are theme-independent,
+     * and the colours are pinned in `SettingsVisualsTest` against explicit palettes.
      */
     private fun useTheme(light: Boolean) {
         onEdt {
-            val resource = if (light) "themes/qtranslate-light.theme.json" else "themes/qtranslate-dark.theme.json"
-            val stream = requireNotNull(javaClass.classLoader.getResourceAsStream(resource)) {
-                "theme resource not found: $resource"
-            }
-            stream.use { FlatLaf.setup(IntelliJTheme.createLaf(it)) }
+            if (light) UIManager.setLookAndFeel(FlatLightLaf()) else UIManager.setLookAndFeel(FlatDarkLaf())
         }
     }
 
@@ -194,8 +193,8 @@ class SettingsHierarchyTest {
         val panel = builtPopups()
         val hintText = localizer.getString("settings_window.popup_idle_hint")
         val hint = descendants(panel)
-            .filterIsInstance<SettingsTextBlock>()
-            .first { it.sourceText.contains(hintText.take(24)) }
+            .filterIsInstance<JLabel>()
+            .first { it.plainText().contains(hintText.take(24)) }
         val setting = label(panel, localizer.getString("settings_window.transparency"))
 
         assertTrue(hint.font.isItalic, "the explanation keeps its italics")
@@ -206,12 +205,12 @@ class SettingsHierarchyTest {
     fun `a page builds under the light theme as well as the dark one`() {
         useTheme(light = true)
         val panel = builtPopups()
-        val hints = descendants(panel).filterIsInstance<SettingsTextBlock>()
+        val hints = descendants(panel).filterIsInstance<JLabel>().filter { it.font.isItalic }
 
-        assertTrue(hints.isNotEmpty(), "the explanations are drawn by the text block under either theme")
+        assertTrue(hints.isNotEmpty(), "the explanations are drawn as labels under either theme")
         assertTrue(
-            hints.all { it.font.isItalic },
-            "and they keep the italic treatment that marks them as explanations",
+            hints.all { it.text.startsWith("<html>") },
+            "with their breaks in the markup, so the look and feel draws them like any other label",
         )
     }
 
@@ -235,15 +234,15 @@ class SettingsHierarchyTest {
                 override fun render(state: com.github.ahatem.qtranslate.core.settings.mvi.SettingsState) = Unit
             }
         }
-        val hint = onEdt { descendants(panel).filterIsInstance<SettingsTextBlock>().single() }
+        val hint = onEdt { descendants(panel).filterIsInstance<JLabel>().single() }
 
         assertTrue(
-            onEdt { hint.renderedLines().size } >= 2,
-            "the sentence is broken into lines (${onEdt { hint.renderedLines() }})",
+            onEdt { hint.text.contains("<br>") },
+            "the sentence is broken into lines (${onEdt { hint.text }})",
         )
         assertEquals(
             arabic,
-            onEdt { hint.sourceText },
+            onEdt { hint.plainText() },
             "and the reader still gets every word of it",
         )
         // The exact pixel measure is not asserted here: Swing scales lengths inside HTML by the
@@ -353,7 +352,7 @@ class SettingsHierarchyTest {
         val expectedColor = SettingsVisuals.secondaryText()
         val expectedSize = SettingsVisuals.hintFont(JLabel().font).size
         val explanations = panels.flatMap { (name, panel) ->
-            descendants(panel).filterIsInstance<SettingsTextBlock>()
+            descendants(panel).filterIsInstance<JLabel>()
                 .filter { it.font.isItalic && it.font.size == expectedSize }
                 .map { name to it }
         }
@@ -361,7 +360,7 @@ class SettingsHierarchyTest {
         assertTrue(explanations.size > 10, "the pages have explanations to compare (${explanations.size})")
         val offenders = explanations
             .filter { (_, label) -> label.foreground != expectedColor }
-            .map { (name, block) -> "$name: '${block.sourceText.take(30)}' is ${block.foreground}" }
+            .map { (name, label) -> "$name: '${label.plainText().take(30)}' is ${label.foreground}" }
 
         assertTrue(
             offenders.isEmpty(),
@@ -410,6 +409,48 @@ class SettingsHierarchyTest {
                 layoutTree(panel)
             }
         }
+    }
+
+    /**
+     * The accent tick never lands on the heading's text.
+     *
+     * `FlowLayout` honours a border's leading inset in a left-to-right interface and ignores it in
+     * a right-to-left one, so the Arabic heading sat flush against the right edge while the tick
+     * was still drawn in the margin — on top of the last letters. The indent is a layout child now,
+     * and this measures the margin the tick is drawn in, from the right in Arabic.
+     */
+    @Test
+    fun `a sub-section heading keeps its margin in a right-to-left interface`() {
+        useTheme(light = false)
+        val store = store()
+        val panel = onEdt {
+            PopupsPanel(store, localizer).also {
+                it.applyComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT)
+                it.render(store.state.value)
+                it.setSize(900, 900)
+                layoutTree(it)
+            }
+        }
+        val heading = label(panel, localizer.getString("settings_window.translation_popup_sub"))
+        val header = heading.parent
+        val margin = header.width - (heading.x + heading.width)
+
+        assertEquals(
+            SettingsPanel.NESTED_INDENT,
+            margin,
+            "the heading leaves the tick's margin on the right, instead of sitting on it",
+        )
+        assertTrue(
+            margin >= SettingsPanel.MARK_WIDTH + SettingsPanel.MARK_GAP,
+            "and the margin is wide enough for the tick and its gap ($margin)",
+        )
+        // The rows below share that edge, so the heading still names the block.
+        val setting = label(panel, localizer.getString("settings_window.transparency"))
+        assertEquals(
+            SettingsPanel.NESTED_INDENT,
+            setting.parent.width - (setting.x + setting.width),
+            "the nested rows are indented to the same edge",
+        )
     }
 
     /** Walks up from [component] to the panel, excluding the component itself. */

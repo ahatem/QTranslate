@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.ui.swing.settings.panels.PluginsPanel
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import kotlinx.coroutines.CoroutineScope
 import java.awt.BorderLayout
+import java.awt.Color
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Dialog.ModalityType
@@ -16,6 +17,8 @@ import javax.swing.JButton
 import javax.swing.JDialog
 import javax.swing.JPanel
 import javax.swing.JScrollPane
+import javax.swing.UIManager
+import javax.swing.border.MatteBorder
 
 /**
  * Plugin management, deliberately outside the Apply/Cancel flow.
@@ -49,13 +52,7 @@ class PluginManagerDialog(
         )
 
         add(
-            JPanel(FlowLayout(FlowLayout.TRAILING)).apply {
-                add(
-                    JButton(localizationManager.getString("common.close")).apply {
-                        addActionListener { dispose() }
-                    }
-                )
-            },
+            buildButtonBar(localizationManager.getString("common.close")),
             BorderLayout.SOUTH,
         )
 
@@ -63,5 +60,32 @@ class PluginManagerDialog(
         preferredSize = Dimension(UIScale.scale(980), UIScale.scale(700))
         pack()
         setLocationRelativeTo(owner)
+    }
+
+    /**
+     * The dialog's action bar, built the way the Settings dialog builds its own.
+     *
+     * It used to be a bare `FlowLayout` panel: no separator above it and no padding round the
+     * button, so the bar read as part of the plugin list rather than as the dialog's footer, and
+     * the two dialogs — one opened from the other — had visibly different bottoms. The rule uses
+     * `Component.borderColor` and the padding matches the Settings bar, so the two line up as the
+     * same piece of chrome in whichever theme is active.
+     */
+    private fun buildButtonBar(closeLabel: String): JPanel = JPanel(BorderLayout()).apply {
+        border = BorderFactory.createCompoundBorder(
+            MatteBorder(1, 0, 0, 0, UIManager.getColor("Component.borderColor") ?: Color.GRAY),
+            BorderFactory.createEmptyBorder(10, 10, 10, 10),
+        )
+        add(
+            JPanel(FlowLayout(FlowLayout.TRAILING, 8, 0)).apply {
+                isOpaque = false
+                add(
+                    JButton(closeLabel).apply {
+                        addActionListener { dispose() }
+                    }
+                )
+            },
+            BorderLayout.CENTER,
+        )
     }
 }

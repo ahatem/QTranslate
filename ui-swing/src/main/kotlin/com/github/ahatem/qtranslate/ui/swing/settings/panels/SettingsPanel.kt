@@ -66,8 +66,8 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
     private val entries = mutableListOf<SettingEntry>()
     private var currentSection: String = ""
 
-    /** Every text block on the page, so a layout-direction change can repaint them. */
-    private val textBlocks = mutableListOf<SettingsTextBlock>()
+    /** Each explanation and lead paragraph, with the lines it was broken into. */
+    private val textLabels = mutableListOf<TextEntry>()
 
     @Volatile
     protected var isUpdatingFromState = false
@@ -498,25 +498,15 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      *
      * Uses an HTML width constraint so long text wraps instead of growing the dialog.
      */
-    protected fun addHint(text: String) {
-        val hint = SettingsTextBlock(
-            sourceText = text,
-            textFont = SettingsVisuals.hintFont(font),
-            color = SettingsVisuals.secondaryText(),
-            measure = UIScale.scale(HINT_WIDTH),
-        )
-        textBlocks += hint
-        gb.nextRow()
-            .spanLine()
-            .weightX(1.0)
-            .fill(GridBagConstraints.HORIZONTAL)
-            .insets(UIScale.scale(HINT_GAP_TOP), UIScale.scale(2), UIScale.scale(HINT_GAP_BOTTOM), 0)
-            .add(hint)
-
-        // Attached to the setting above rather than indexed on its own, so searching for a word
-        // that only appears in the explanation still finds the control it explains.
-        entries.lastOrNull()?.let { entries[entries.lastIndex] = it.copy(hint = text) }
-    }
+    protected fun addHint(text: String) = addTextRow(
+        text = text,
+        textFont = SettingsVisuals.hintFont(font),
+        color = SettingsVisuals.secondaryText(),
+        measure = HINT_WIDTH,
+        gapTop = HINT_GAP_TOP,
+        gapBottom = HINT_GAP_BOTTOM,
+        explainedSetting = true,
+    )
 
     /**
      * Adds running text: a page's opening explanation, set as prose.
@@ -525,50 +515,28 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      * A lead paragraph is the primary thing on the page — the reason the page exists — so it takes
      * the body color and upright type, and only the measure is constrained.
      */
-    protected fun addParagraph(text: String) {
-        val paragraph = SettingsTextBlock(
-            sourceText = text,
-            textFont = SettingsVisuals.paragraphFont(font),
-            color = SettingsVisuals.primaryText(),
-            measure = UIScale.scale(PARAGRAPH_WIDTH),
-        )
-        textBlocks += paragraph
-        gb.nextRow()
-            .spanLine()
-            .weightX(1.0)
-            .fill(GridBagConstraints.HORIZONTAL)
-            .insets(UIScale.scale(PARAGRAPH_GAP_TOP), 0, UIScale.scale(PARAGRAPH_GAP_BOTTOM), 0)
-            .add(paragraph)
-        // Deliberately not registered with search: a result row is a label, and a whole paragraph
-        // of prose in one is unreadable. Pages that need to be findable register a short entry of
-        // their own for the thing the paragraph is about.
-    }
+    protected fun addParagraph(text: String) = addTextRow(
+        text = text,
+        textFont = SettingsVisuals.paragraphFont(font),
+        color = SettingsVisuals.primaryText(),
+        measure = PARAGRAPH_WIDTH,
+        gapTop = PARAGRAPH_GAP_TOP,
+        gapBottom = PARAGRAPH_GAP_BOTTOM,
+        explainedSetting = false,
+    )
 
     /**
-     * Adds the page's one prominent action, full width and in the theme's accent.
+     * Adds the page's one action, full width.
      *
-     * A page whose whole purpose is one action should not make the reader hunt for the one
-     * ordinary-looking button on it, so the action takes the theme's *default button* colors —
-     * the gold in the QTranslate themes — and a full-width, taller shape.
-     *
-     * `FlatClientProperties.BUTTON_TYPE` does not do this. FlatLaf accepts "toolBarButton",
-     * "borderless", "roundRect" and "tab" there and silently ignores anything else, so
-     * `BUTTON_TYPE = "default"` — which this codebase uses in a few places — paints an ordinary
-     * button. Measured, not assumed: the painted fill was the page background until the colors
-     * were applied through a style string instead. The style keys below are FlatLaf's own, taken
-     * from the active theme, which is why this stays gold in the identity themes and simply adopts
-     * whatever a third-party theme defines for its primary button.
+     * Deliberately an ordinary FlatLaf button: no client properties, no style string, no painted
+     * colours. An earlier version froze the theme's default-button colours into a style string so
+     * the action would look "primary", and the result was a button that stayed gold after the user
+     * changed theme, because those colours had been read once, at build time. Leaving the appearance
+     * to the look and feel keeps it right in every theme — including ones this application has never
+     * seen — and full width plus the space around it already mark it as the page's action.
      */
-    protected fun addPrimaryButton(text: String, onClick: () -> Unit): JButton {
-        val button = JButton(text).apply {
-            putClientProperty(FlatClientProperties.STYLE, primaryButtonStyle())
-            addActionListener { onClick() }
-        }
-        // Comfortable to hit, and visibly more than a row-height control.
-        button.preferredSize = Dimension(
-            button.preferredSize.width,
-            UIScale.scale(PRIMARY_BUTTON_HEIGHT),
-        )
+    protected fun addPageAction(text: String, onClick: () -> Unit): JButton {
+        val button = JButton(text).apply { addActionListener { onClick() } }
         gb.nextRow()
             .spanLine()
             .weightX(1.0)
@@ -580,35 +548,116 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
     }
 
     /**
-     * The active theme's default-button colors, as a FlatLaf style string.
+     * One wrapped block of text, drawn by a `JLabel`.
      *
-     * Read from `UIManager` rather than written as hex so the action follows the theme: the two
-     * QTranslate themes define a gold default button, and a community theme that defines its own
-     * gets that instead of our guess.
+     * The breaks are computed here and given to the label as explicit `<br>`s, for two reasons.
+     * Swing's HTML renderer does not break *italic* Arabic at all — measured: the same sentence
+     * wraps as upright text and stays on one line in italics, whatever width the body declares —
+     * so long Arabic explanations were drawn wider than their row and clipped at both ends. And
+     * relying on the renderer's own wrapping tied the text to a CSS width that it scales by the
+     * display scale while the measurement had used `UIScale`, so at 150% the two disagreed by a
+     * few pixels and clipped the first glyph.
+     *
+     * With the breaks already in the markup, the label only has to draw them — and drawing is what
+     * the look and feel is good at. The text is antialiased exactly like every other label, because
+     * it *is* every other label, rather than by hand.
+     *
+     * The row is a `FlowLayout(LEADING)` strip: the block sits at the leading edge and mirrors by
+     * itself in a right-to-left interface.
      */
-    private fun primaryButtonStyle(): String {
-        val background = UIManager.getColor("Button.default.background") ?: SettingsVisuals.accent()
-        val foreground = UIManager.getColor("Button.default.foreground")
-            ?: UIManager.getColor("Label.foreground")
-            ?: Color.BLACK
-        val hover = UIManager.getColor("Button.default.hoverBackground") ?: background.darker()
-        val border = UIManager.getColor("Button.default.startBorderColor")
-            ?: UIManager.getColor("Button.default.borderColor")
-            ?: background
-        return "background: ${background.asHex()}; foreground: ${foreground.asHex()}; " +
-            "hoverBackground: ${hover.asHex()}; borderColor: ${border.asHex()}"
+    private fun addTextRow(
+        text: String,
+        textFont: Font,
+        color: Color,
+        measure: Int,
+        gapTop: Int,
+        gapBottom: Int,
+        explainedSetting: Boolean,
+    ): JLabel {
+        val lines = wrapToMeasure(text, textFont, UIScale.scale(measure))
+        val label = JLabel(textHtml(lines)).apply {
+            font = textFont
+            foreground = color
+        }
+        textLabels += TextEntry(label, lines)
+        val row = JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)).apply {
+            isOpaque = false
+            add(label)
+        }
+        gb.nextRow()
+            .spanLine()
+            .weightX(1.0)
+            .fill(GridBagConstraints.HORIZONTAL)
+            .insets(UIScale.scale(gapTop), 0, UIScale.scale(gapBottom), 0)
+            .add(row)
+
+        // Attached to the setting above rather than indexed on its own, so searching for a word
+        // that only appears in the explanation still finds the control it explains.
+        if (explainedSetting) {
+            entries.lastOrNull()?.let { entries[entries.lastIndex] = it.copy(hint = text) }
+        }
+        return label
     }
 
-    private fun Color.asHex(): String = String.format("#%02x%02x%02x", red, green, blue)
+    /** A block of text and the lines it was broken into, so the markup can be rebuilt. */
+    private data class TextEntry(val label: JLabel, val lines: List<String>)
+
     /**
-     * Repaints the page when the layout direction changes.
+     * The markup for [lines]: the breaks are literal, the base direction follows the interface.
      *
-     * The text blocks align their lines to the leading edge while painting, so a mirrored
-     * interface needs no rebuild — only a repaint.
+     * `dir` is set so punctuation and any embedded Latin resolve against the right base direction
+     * instead of being reordered to the wrong end of the line.
+     */
+    private fun textHtml(lines: List<String>): String {
+        val body = lines.joinToString("<br>") { escapeHtml(it) }
+        val dir = if (componentOrientation.isLeftToRight) "ltr" else "rtl"
+        return "<html><body dir='$dir'>$body</body></html>"
+    }
+
+    /**
+     * Breaks [text] into lines that fit [measure] when measured in [measureFont].
+     *
+     * A single word wider than the measure is left long: breaking inside a word would be wrong in
+     * every language, and one long word is better than a mangled one.
+     */
+    private fun wrapToMeasure(text: String, measureFont: Font, measure: Int): List<String> {
+        val metrics = getFontMetrics(measureFont)
+        val lines = mutableListOf<String>()
+        for (paragraph in text.split("\n")) {
+            val words = paragraph.split(' ').filter { it.isNotEmpty() }
+            if (words.isEmpty()) {
+                lines += ""
+                continue
+            }
+            var current = words.first()
+            for (word in words.drop(1)) {
+                val candidate = "$current $word"
+                if (metrics.stringWidth(candidate) <= measure) {
+                    current = candidate
+                } else {
+                    lines += current
+                    current = word
+                }
+            }
+            lines += current
+        }
+        return lines
+    }
+
+    /** Escapes the three characters Swing's HTML renderer would otherwise read as markup. */
+    private fun escapeHtml(text: String): String = text
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    /**
+     * Rebuilds the markup whose base direction was baked in, when the interface mirrors.
+     *
+     * Panels are built before the dialog applies its orientation, so every block is first laid out
+     * left-to-right. The line breaks are direction-independent and are reused as measured.
      */
     override fun applyComponentOrientation(orientation: ComponentOrientation) {
         super.applyComponentOrientation(orientation)
-        textBlocks.forEach { it.repaint() }
+        textLabels.forEach { entry -> entry.label.text = textHtml(entry.lines) }
     }
 
     /**
@@ -636,9 +685,14 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      * was what the page already had. The tick is accent-colored, which ties the grouping to the
      * application's own gold rather than introducing a second visual language.
      *
-     * Drawn in [paintComponent] and read from [SettingsVisuals] at paint time, so it survives a
-     * theme switch; positioned from [componentOrientation] at the same moment, so it moves to the
-     * right edge in a right-to-left interface without being rebuilt.
+     * Two things about the geometry are deliberate. The indent is a *child* rather than a border:
+     * `FlowLayout` honours a border's leading inset in a left-to-right interface and ignores it in
+     * a right-to-left one, which left the Arabic heading flush against the right edge with the tick
+     * drawn on top of the last letters. A spacer is ordered by the layout itself, so it indents the
+     * same way in both directions. And the tick is placed from the label's own bounds rather than
+     * from the panel's edge, so it lands in the margin even if the layout moves the text.
+     *
+     * Both are read at paint time, so a theme or direction change needs no rebuild.
      */
     private inner class SubSectionHeader(title: String) : JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)) {
         private val titleLabel = JLabel(title).apply {
@@ -649,8 +703,8 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
         init {
             isOpaque = false
             // The heading's own text starts where its settings start, so the group reads as one
-            // block: the tick sits in the margin to the left of both.
-            border = leadingInset(NESTED_INDENT)
+            // block: the tick sits in the margin beside both.
+            add(Box.createHorizontalStrut(UIScale.scale(NESTED_INDENT)))
             add(titleLabel)
         }
 
@@ -660,10 +714,11 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
             try {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
                 val markWidth = UIScale.scale(MARK_WIDTH)
+                val gap = UIScale.scale(MARK_GAP)
                 val markX = if (componentOrientation.isLeftToRight) {
-                    UIScale.scale(MARK_INSET)
+                    titleLabel.x - gap - markWidth
                 } else {
-                    width - UIScale.scale(MARK_INSET) - markWidth
+                    titleLabel.x + titleLabel.width + gap
                 }
                 // Sized to the text it names, so it reads as a marker for the heading rather than
                 // as a stray rule running the height of the row.
@@ -775,8 +830,8 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
         /** The accent tick's width, and the corner radius that keeps it from looking like a bar. */
         const val MARK_WIDTH = 3
 
-        /** Where the tick starts, inside [NESTED_INDENT]. */
-        const val MARK_INSET = 4
+        /** Gap between the tick and the heading's text. */
+        const val MARK_GAP = 8
 
         /** A tick is drawn at least this tall when the heading's own row is shorter. */
         const val MARK_MIN_HEIGHT = 12
@@ -801,8 +856,6 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
         const val BUTTON_GAP_TOP = 10
         const val BUTTON_GAP_BOTTOM = 4
 
-        /** Height of that action, before scaling. Taller than a row control, on purpose. */
-        const val PRIMARY_BUTTON_HEIGHT = 34
 
         /** Padding around the page itself. */
         const val EDGE = 10

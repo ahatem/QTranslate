@@ -60,7 +60,7 @@ class PluginManagerLinkPanel(
             .insets(0, 0, UIScale.scale(2), 0)
             .add(statusLabel)
 
-        addPrimaryButton(localizationManager.getString("settings_plugins.manager_open")) {
+        addPageAction(localizationManager.getString("settings_plugins.manager_open")) {
             onOpenPluginManager()
         }
 

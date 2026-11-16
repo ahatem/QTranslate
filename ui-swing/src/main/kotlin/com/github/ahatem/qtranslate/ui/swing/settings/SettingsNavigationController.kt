@@ -54,6 +54,29 @@ internal class SettingsNavigationController(
     val markerOverlay = MarkerOverlay()
 
     /**
+     * An icon slot with nothing drawn in it, for the sidebar's group headings.
+     *
+     * It exists so a heading's text lines up with the text of the pages it labels: those are
+     * indented by their icon and the gap after it, and a heading with no icon at all started a
+     * column further out, at the panel's edge.
+     *
+     * Sized from a real sidebar icon rather than from the nominal 14 pixels: `FlatSVGIcon` reports
+     * its own scaled size, which is wider than `UIScale.scale(14)` on a HiDPI display, and a blank
+     * slot that was a few pixels narrow left the headings slightly out of line — visible only as
+     * "the headings look off" until measured.
+     */
+    private val blankSidebarIcon: Icon by lazy {
+        val sample = sidebarIcons.values.firstOrNull()
+        val width = sample?.iconWidth ?: UIScale.scale(SIDEBAR_ICON_SIZE)
+        val height = sample?.iconHeight ?: UIScale.scale(SIDEBAR_ICON_SIZE)
+        object : Icon {
+            override fun getIconWidth() = width
+            override fun getIconHeight() = height
+            override fun paintIcon(c: Component?, g: Graphics?, x: Int, y: Int) = Unit
+        }
+    }
+
+    /**
      * Theme-aware sidebar icons: 14 × 14 [FlatSVGIcon] with a [FlatSVGIcon.ColorFilter]
      * that remaps every SVG color to `Label.disabledForeground` at paint time, so icons
      * always match the active FlatLaf theme without any manual update.
@@ -64,7 +87,7 @@ internal class SettingsNavigationController(
     private val sidebarIcons: Map<String, Icon> by lazy {
         navigation.iconPaths.mapNotNull { (name, path) ->
             runCatching {
-                val icon = IconSet.load(path, 14, 14)
+                val icon = IconSet.load(path, SIDEBAR_ICON_SIZE, SIDEBAR_ICON_SIZE)
                 icon.colorFilter =
                     FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") ?: Color.GRAY }
                 name to (icon as Icon)
@@ -363,7 +386,6 @@ internal class SettingsNavigationController(
                     text = name
                     icon = sidebarIcons[name]
                     iconTextGap = 8
-
                     // A group is a heading for the rows beneath it, so it is styled as one
                     // rather than competing with the pages it labels.
                     val isGroup = navigation.isGroup(name)
@@ -403,9 +425,12 @@ internal class SettingsNavigationController(
                         )
                     }
 
-                    // Headings carry no icon. Giving them one made them look selectable, and the
-                    // blank space where an icon would be is what tells the eye they are not.
-                    if (isGroup) icon = null
+                    // Headings keep the icon *slot* but leave it blank. Setting no icon at all —
+                    // what this used to do — moved the heading's text out to the panel edge, a
+                    // step past the pages it labels, so the sidebar read as two ragged columns.
+                    // A blank slot of the same size keeps the text aligned with the pages and
+                    // still leaves the gutter empty, so headings do not look selectable.
+                    if (isGroup) icon = blankSidebarIcon
 
                     return this
                 }
@@ -517,6 +542,9 @@ internal class SettingsNavigationController(
     }
 
     internal companion object {
+        /** Sidebar glyph size, before scaling. */
+        const val SIDEBAR_ICON_SIZE = 14
+
         const val FLASH_MILLIS = 2200f
         const val FLASH_TICK_MILLIS = 30
 

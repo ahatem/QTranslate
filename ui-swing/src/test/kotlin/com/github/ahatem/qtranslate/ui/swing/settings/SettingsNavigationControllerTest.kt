@@ -7,11 +7,14 @@ import java.awt.Rectangle
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JScrollPane
+import javax.swing.Icon
 import javax.swing.JTree
 import javax.swing.SwingUtilities
 import javax.swing.tree.DefaultMutableTreeNode
+import javax.swing.tree.DefaultTreeCellRenderer
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -63,6 +66,43 @@ class SettingsNavigationControllerTest {
         (0 until tree.rowCount).first { row ->
             (tree.getPathForRow(row).lastPathComponent as? DefaultMutableTreeNode)?.userObject == label
         }
+
+    /**
+     * A group heading keeps the icon slot, so its text starts where the pages' text does.
+     *
+     * Headings used to have no icon at all, which put their text a column further out at the
+     * panel's edge — the sidebar read as two ragged columns. The slot is now kept but left blank,
+     * and sized from a real icon: `FlatSVGIcon` reports its own scaled size, so a nominal 14 was a
+     * few pixels narrow on a HiDPI display and the headings were still slightly out of line.
+     */
+    @Test
+    fun `a group heading keeps an icon slot sized like a page's`() {
+        val fixture = newFixture()
+
+        val (groupIcon, pageIcon) = onEdt {
+            val tree = fixture.controller.tree
+            val renderer = tree.cellRenderer as DefaultTreeCellRenderer
+            fun iconFor(label: String): Icon? {
+                val row = rowOfLabel(tree, label)
+                renderer.getTreeCellRendererComponent(
+                    tree,
+                    tree.getPathForRow(row).lastPathComponent,
+                    false, false, false, row, false,
+                )
+                return renderer.icon
+            }
+            iconFor("sidebar.group_translation") to iconFor("sidebar.general")
+        }
+
+        // If the SVG resources are not loadable here there is nothing to compare against.
+        val reference = pageIcon ?: return
+        val slot = assertNotNull(groupIcon, "a group heading keeps the icon slot")
+        assertEquals(
+            reference.iconWidth,
+            slot.iconWidth,
+            "sized like a page's icon, so the heading's text starts at the same edge",
+        )
+    }
 
     @Test
     fun `pages are built lazily, once, and swapped in place`() {

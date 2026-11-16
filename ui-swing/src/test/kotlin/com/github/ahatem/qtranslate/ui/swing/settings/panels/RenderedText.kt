@@ -4,14 +4,18 @@ import java.awt.Component
 import javax.swing.JLabel
 
 /**
- * The text a Settings page shows, wherever it lives.
+ * A label's text as the reader sees it: markup and measured line breaks removed.
  *
- * Explanations and lead paragraphs are drawn by [SettingsTextBlock] rather than by a `JLabel` —
- * Swing's HTML renderer cannot break italic Arabic, which is why the block measures its own lines —
- * so an assertion about wording has to look in both kinds of component.
+ * Settings explains itself through labels whose text is HTML, and since the panel computes the
+ * breaks itself (Swing will not break italic Arabic) the raw `text` carries `<br>`s and escaped
+ * entities that no assertion about wording should have to know about.
  */
-internal fun Component.textOf(): String? = when (this) {
-    is JLabel -> text
-    is SettingsTextBlock -> sourceText
-    else -> null
-}
+internal fun JLabel.plainText(): String = (text ?: "")
+    .replace("<br>", " ")
+    .replace(Regex("<[^>]*>"), "")
+    .replace("&amp;", "&")
+    .replace("&lt;", "<")
+    .replace("&gt;", ">")
+
+/** The text a component shows, with markup removed, if it shows any. */
+internal fun Component.textOf(): String? = (this as? JLabel)?.plainText()
