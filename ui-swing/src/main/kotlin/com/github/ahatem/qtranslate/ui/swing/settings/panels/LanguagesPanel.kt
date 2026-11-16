@@ -63,10 +63,18 @@ class LanguagesPanel(
     // Individual checkboxes — see class-level doc for why not JList
     private val languageCheckBoxes = mutableListOf<Pair<String, JCheckBox>>()
 
+    // The list's viewport is sized to whole rows; see buildUI.
+    private lateinit var pinnedScroll: JScrollPane
+    private var pinnedRowPitch = 0
+    private var pinnedContentInset = 0
+
     // Translation rules table
     private lateinit var rulesTable: JTable
     private lateinit var rulesTableModel: DefaultTableModel
     private lateinit var removeRuleBtn: JButton
+    private lateinit var rulesScroll: JScrollPane
+    private lateinit var rulesEmptyPanel: JPanel
+    private lateinit var rulesEmptyLabel: JLabel
 
     init { buildUI() }
 
@@ -116,18 +124,34 @@ class LanguagesPanel(
             }
             languageCheckBoxes.add(code to cb)
             checkBoxPanel.add(cb)
-            checkBoxPanel.add(Box.createVerticalStrut(1))
+            checkBoxPanel.add(Box.createVerticalStrut(PINNED_ROW_GAP))
+        }
+
+        // A fixed height that is not a multiple of the row pitch bisects whatever row lands on
+        // the boundary: the viewport showed a half-height checkbox at the default size, which
+        // reads as a rendering fault rather than as "there is more below". The pitch is measured
+        // from the rows themselves (checkbox height plus the strut between them), and the height
+        // becomes exactly the number of rows below, so no boundary can fall inside a row. The
+        // list still scrolls: the languages outnumber the rows shown.
+        pinnedRowPitch = languageCheckBoxes.maxOf { (_, box) -> box.preferredSize.height } + PINNED_ROW_GAP
+        pinnedScroll = JScrollPane(checkBoxPanel).apply {
+            verticalScrollBarPolicy   = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+            horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+            border = themeAwareBorder()
+            verticalScrollBar.unitIncrement = 16
+            // Scroll pane chrome plus the view's own top padding sit above the first row, so
+            // they are part of the budget rather than eating into the last one.
+            pinnedContentInset = insets.top + insets.bottom +
+                viewport.insets.top + viewport.insets.bottom + checkBoxPanel.insets.top
+            preferredSize = Dimension(
+                UIScale.scale(580),
+                pinnedContentInset + PINNED_VISIBLE_ROWS * pinnedRowPitch
+            )
         }
 
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
             .insets(4, 0, 0, 0)
-            .add(JScrollPane(checkBoxPanel).apply {
-                preferredSize = Dimension(UIScale.scale(580), UIScale.scale(200))
-                verticalScrollBarPolicy   = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
-                horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-                border = themeAwareBorder()
-                verticalScrollBar.unitIncrement = 16
-            })
+            .add(pinnedScroll)
 
         val clearBtn = JButton(localizationManager.getString("settings_languages.pinned_languages_clear")).apply {
             addActionListener {
@@ -177,17 +201,49 @@ class LanguagesPanel(
             }
         }
 
+        // An empty grid under two column headings looks like a table that failed to load. This
+        // replaces the grid — headings included — with a sentence that says the empty state is the
+        // expected one; it is swapped back out as soon as a rule exists.
+        rulesEmptyLabel = JLabel(
+            localizationManager.getString("settings_languages.rules_empty"),
+            SwingConstants.CENTER
+        ).apply {
+            foreground = UIManager.getColor("Label.disabledForeground")
+            border = BorderFactory.createEmptyBorder(
+                UIScale.scale(16), UIScale.scale(12), UIScale.scale(16), UIScale.scale(12)
+            )
+        }
+        rulesEmptyPanel = object : JPanel(BorderLayout()), Scrollable {
+            init {
+                isOpaque = false
+                add(rulesEmptyLabel, BorderLayout.CENTER)
+            }
+
+            // The message is a state of the same area, not a small component pinned to its corner:
+            // fill the viewport so the sentence sits in the middle of the rules box.
+            override fun getPreferredScrollableViewportSize(): Dimension =
+                Dimension(UIScale.scale(580), UIScale.scale(150))
+
+            override fun getScrollableUnitIncrement(visibleRect: Rectangle, orientation: Int, direction: Int) = 16
+            override fun getScrollableBlockIncrement(visibleRect: Rectangle, orientation: Int, direction: Int) =
+                visibleRect.height
+            override fun getScrollableTracksViewportWidth() = true
+            override fun getScrollableTracksViewportHeight() = true
+        }
+
+        rulesScroll = JScrollPane(rulesTable).apply {
+            preferredSize             = Dimension(580, 150)
+            verticalScrollBarPolicy   = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+            horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+            border = themeAwareBorder()
+        }
+
         gb.nextRow()
             .spanLine()
             .weightX(1.0)
             .fill(GridBagConstraints.HORIZONTAL)
             .insets(4, 0, 4, 0)
-            .add(JScrollPane(rulesTable).apply {
-                preferredSize             = Dimension(580, 150)
-                verticalScrollBarPolicy   = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
-                horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-                border = themeAwareBorder()
-            })
+            .add(rulesScroll)
 
         val addRuleBtn = JButton(localizationManager.getString("settings_languages.rules_add_btn")).apply {
             addActionListener { showAddRuleDialog() }
@@ -284,6 +340,16 @@ class LanguagesPanel(
 
             // Translation rules table
             val selectedRow = rulesTable.selectedRow
+            val hasRules = c.translationRules.isNotEmpty()
+            if (hasRules) {
+                if (rulesScroll.viewport.view !== rulesTable) {
+                    rulesScroll.setColumnHeaderView(rulesTable.tableHeader)
+                    rulesScroll.setViewportView(rulesTable)
+                }
+            } else if (rulesScroll.viewport.view !== rulesEmptyPanel) {
+                rulesScroll.setColumnHeaderView(null)
+                rulesScroll.setViewportView(rulesEmptyPanel)
+            }
             rulesTableModel.rowCount = 0
             c.translationRules.forEach { rule ->
                 rulesTableModel.addRow(arrayOf(rule.sourceLanguage, rule.targetLanguage))
@@ -318,10 +384,26 @@ class LanguagesPanel(
 
     private fun localizedName(code: String): String = settingsPanelLocalizedName(code)
 
+    // ── Test hooks ────────────────────────────────────────────────────────────
+    // The pinned list and the rules empty state are geometry and swapped-view facts, not values a
+    // render test can read off the store, so they are exposed the way KeyboardPanel exposes its table.
 
+    internal fun pinnedListForTest(): JScrollPane = pinnedScroll
+    internal fun pinnedRowPitchForTest(): Int = pinnedRowPitch
+    internal fun pinnedContentInsetForTest(): Int = pinnedContentInset
+    internal fun rulesScrollForTest(): JScrollPane = rulesScroll
+    internal fun rulesTableForTest(): JTable = rulesTable
+    internal fun rulesEmptyLabelForTest(): JLabel = rulesEmptyLabel
+    internal fun isShowingRulesEmptyState(): Boolean = rulesScroll.viewport.view === rulesEmptyPanel
 
     companion object {
         val COMMON_LANGUAGES = LanguageCode.all().toTypedArray()
+
+        /** The strut between two checkboxes; part of the row pitch the list is sized to. */
+        private const val PINNED_ROW_GAP = 1
+
+        /** Whole rows the pinned list shows before it scrolls. */
+        private const val PINNED_VISIBLE_ROWS = 9
     }
 }
 
