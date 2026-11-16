@@ -53,6 +53,7 @@ internal fun serviceRoleIcon(role: ServiceRole): Icon? {
         ServiceRole.SUMMARIZER -> Icons.SUMMARIZE
         ServiceRole.REWRITER -> Icons.EDIT
         ServiceRole.IMAGE_SEARCH -> Icons.SEARCH
+        ServiceRole.SPEECH_RECOGNIZER, ServiceRole.LIVE_SPEECH_RECOGNIZER -> Icons.SPEAK
     }
     return runCatching {
         val icon = IconSet.load(path, 14, 14)

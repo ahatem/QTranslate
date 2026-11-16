@@ -9,6 +9,7 @@ flatlafFontsInter = "4.1"
 
 jna = "5.19.1"
 qinput = "0.2.0"
+vosk = "0.3.45"
 
 jlayer = "1.0.3"
 jsoup = "1.23.2"
@@ -55,6 +56,7 @@ miglayout = { module = "com.miglayout:miglayout-swing", version.ref = "miglayout
 # Global input is QInput only: JNativeHook/JKeyMaster removed.
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 qinput = { module = "io.github.ahatem:qinput", version.ref = "qinput" }
+vosk = { module = "com.alphacephei:vosk", version.ref = "vosk" }
 
 
 # Data store

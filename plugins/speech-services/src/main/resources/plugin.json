@@ -1,0 +1,9 @@
+{
+  "id": "speech-services",
+  "name": "Speech Recognition",
+  "version": "1.0.0",
+  "author": "QTranslate",
+  "description": "Speech-to-text for Conversation Sessions through Groq, OpenAI, Deepgram, a local Whisper server, or any OpenAI-compatible endpoint.",
+  "minApiVersion": "2.2.0",
+  "icon": "assets/speech.svg"
+}

@@ -17,11 +17,19 @@ import javax.swing.UIManager
 object AppUiSetup {
 
     fun setSystemProperties() {
-        if (System.getProperty("os.name").startsWith("Linux", ignoreCase = true)) {
+        val os = System.getProperty("os.name").orEmpty()
+        if (os.startsWith("Linux", ignoreCase = true)) {
             System.setProperty("sun.awt.xembedserver", "true")
+        } else if (os.startsWith("Windows", ignoreCase = true)) {
+            // Java2D Direct3D pipeline causes rendering artifacts (white blocks, tearing, duplicated toolbars)
+            // on certain GPU drivers (especially NVIDIA). Disable Direct3D acceleration by default unless overridden.
+            if (System.getProperty("sun.java2d.d3d") == null) {
+                System.setProperty("sun.java2d.d3d", "false")
+            }
         }
         System.setProperty("awt.useSystemAAFontSettings", "lcd")
         System.setProperty("swing.aatext", "true")
+        System.setProperty("jna.encoding", "UTF-8")
     }
 
     fun setRenderingHints() {

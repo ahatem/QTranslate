@@ -37,13 +37,8 @@ class ApplicationShutdown(
     private val cancelAppScope: suspend () -> Unit,
     private val logger: Logger,
     private val exit: () -> Unit,
-    /**
-     * Bound on waiting for the application scope to finish. Accepted plugin transitions run
-     * under [kotlinx.coroutines.NonCancellable], so a genuinely blocked lifecycle callback can
-     * outlive the plugin settle bound; joining it without a limit would make the process
-     * impossible to exit.
-     */
-    private val cancelScopeTimeoutMs: Long = 5_000L
+    /** Finishes a conversation recording in progress, so it is saved rather than cut off. */
+    private val stopRecording: () -> Unit = {}
 ) {
     private val shutdownScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val started = AtomicBoolean(false)
@@ -62,6 +57,9 @@ class ApplicationShutdown(
         shutdownScope.launch {
             runCatching { persistWindowBounds(windowSize, windowPosition) }
                 .onFailure { logger.error("Failed to persist final window bounds", it) }
+
+            runCatching { stopRecording() }
+                .onFailure { logger.error("Failed to stop the conversation recording", it) }
 
             runCatching { shutdownMainStore() }
                 .onFailure { logger.error("Main store shutdown failed", it) }
