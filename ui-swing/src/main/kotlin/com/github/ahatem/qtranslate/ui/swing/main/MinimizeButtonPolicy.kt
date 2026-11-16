@@ -12,13 +12,23 @@ internal enum class MinimizeButtonAction {
 
 /** Pure decision behind MainAppFrame's windowIconified override, kept free of Swing. */
 internal object MinimizeButtonPolicy {
+    /**
+     * Resolves one minimize event.
+     *
+     * @param trayAvailable whether a tray icon is actually installed. Hiding the window is only
+     *   recoverable through that icon, so with none installed "hide to tray" would make the window
+     *   disappear from every surface the user can see; it minimizes to the taskbar instead.
+     */
     fun decide(
         behavior: MinimizeButtonBehavior,
-        windowCurrentlyVisible: Boolean
+        windowCurrentlyVisible: Boolean,
+        trayAvailable: Boolean = true,
     ): MinimizeButtonAction {
         if (!windowCurrentlyVisible) return MinimizeButtonAction.IGNORE
         return when (behavior) {
-            MinimizeButtonBehavior.HIDE_TO_TRAY -> MinimizeButtonAction.HIDE_TO_TRAY
+            MinimizeButtonBehavior.HIDE_TO_TRAY ->
+                if (trayAvailable) MinimizeButtonAction.HIDE_TO_TRAY
+                else MinimizeButtonAction.MINIMIZE_TO_TASKBAR
             MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR -> MinimizeButtonAction.MINIMIZE_TO_TASKBAR
         }
     }

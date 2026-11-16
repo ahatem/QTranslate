@@ -11,6 +11,7 @@ import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.main.mvi.MainEvent
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
+import com.github.ahatem.qtranslate.core.main.mvi.LookupTool
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.main.mvi.MainStore
 import com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase
@@ -289,6 +290,8 @@ class MainAppFrame(
         appSecrets = appSecrets,
         pauseGlobalHotkeys  = { globalKeyListener.setPaused(true) },
         resumeGlobalHotkeys = { globalKeyListener.setPaused(false) },
+        isTrayAvailable = { isTrayAvailable() },
+        onSettingsApplied = { config -> applyCommittedSettings(config) },
     )
 
     private val mainContentView: MainContentView = MainContentView(
@@ -1016,16 +1019,14 @@ class MainAppFrame(
      */
     private fun renderMainState(mainState: MainState, settingsState: SettingsState) {
         try {
-            // Filter available languages by pinned list (Yan's request), for the
-            // main window and the quick translate popup alike.
-            val filteredState = mainState.withPinnedLanguages(
-                settingsState.workingConfiguration.pinnedLanguages
-            )
-            mainContentView.render(filteredState, settingsState)
+            // Pinned Languages is applied inside the views that own the pickers: it narrows the
+            // target picker only, so the main window and Quick Translate can narrow the target
+            // without also hiding source languages.
+            mainContentView.render(mainState, settingsState)
 
             if (mainState.isQuickTranslateDialogVisible || quickTranslateDialog.isVisible) {
                 val dialogState = buildQuickTranslateDialogState(
-                    filteredState,
+                    mainState,
                     settingsState.workingConfiguration,
                     localizer
                 )
@@ -1589,7 +1590,8 @@ class MainAppFrame(
                 when (
                     MinimizeButtonPolicy.decide(
                         settingsStore.state.value.originalConfiguration.minimizeButtonBehavior,
-                        isVisible
+                        isVisible,
+                        trayAvailable = isTrayAvailable()
                     )
                 ) {
                     MinimizeButtonAction.HIDE_TO_TRAY -> isVisible = false
@@ -1666,9 +1668,18 @@ class MainAppFrame(
      */
     private fun handleCloseButton() {
         applyCloseAction(
-            CloseButtonPolicy.decide(settingsStore.state.value.originalConfiguration.closeButtonBehavior)
+            CloseButtonPolicy.decide(
+                settingsStore.state.value.originalConfiguration.closeButtonBehavior,
+                trayAvailable = isTrayAvailable()
+            )
         )
     }
+
+    /**
+     * Whether hiding the window is recoverable: the tray icon is the only way back besides
+     * relaunching, so "available" means one is actually installed, not merely supported.
+     */
+    private fun isTrayAvailable(): Boolean = SystemTray.isSupported() && trayBinding.isInstalled
 
     /**
      * Applies one close decision. [CloseButtonAction.EXIT] disposes the frame, which fires
@@ -1677,6 +1688,10 @@ class MainAppFrame(
     private fun applyCloseAction(action: CloseButtonAction) {
         when (action) {
             CloseButtonAction.HIDE_TO_TRAY -> isVisible = false
+            // No tray to hide into: keep the window reachable on the taskbar instead of letting it
+            // vanish from every visible surface. The maximize bits are preserved so restoring it
+            // returns the window to the shape it had.
+            CloseButtonAction.MINIMIZE_TO_TASKBAR -> extendedState = extendedState or ICONIFIED
             CloseButtonAction.EXIT -> dispose()
             CloseButtonAction.ASK -> showCloseDialog()
         }
@@ -1701,6 +1716,13 @@ class MainAppFrame(
 
         val minimizeBtn = JButton(localizer.getString("close_dialog.minimize_to_tray")).apply {
             maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
+            // Hiding is only recoverable through the tray icon, so an unavailable tray makes this
+            // choice a vanishing act rather than a background action. It is offered greyed out with
+            // the reason rather than silently doing something else.
+            if (!isTrayAvailable()) {
+                isEnabled = false
+                toolTipText = localizer.getString("settings_window.tray_unavailable_hint")
+            }
             addActionListener {
                 result = CloseButtonBehavior.MINIMIZE_TO_TRAY
                 dialog.dispose()
@@ -1846,6 +1868,31 @@ class MainAppFrame(
         if (openToServices) dialog.showServicesPage()
         if (openToOcr) dialog.showOcrPage()
         dialog.isVisible = true
+    }
+
+    /**
+     * Runs after Settings commits a change: the preferences that describe live window state take
+     * effect on the window that is already open, rather than on the next launch.
+     */
+    private fun applyCommittedSettings(config: Configuration) {
+        syncDictionaryPanel(config.showDictionaryPanel)
+    }
+
+    /**
+     * Opens or closes the lookup dock to match a committed "Show dictionary panel".
+     *
+     * That preference used to be read once, when the main store was constructed, so ticking it
+     * appeared to do nothing until the application was restarted. The dock still persists its own
+     * open state back into the same key, so both directions converge on one value.
+     */
+    private fun syncDictionaryPanel(shouldShow: Boolean) {
+        if (shouldShow == mainStore.state.value.isDictionaryPanelVisible) return
+        if (shouldShow) {
+            ensureRoomForLookupDock()
+            mainStore.dispatch(MainIntent.OpenLookupDock(LookupTool.DICTIONARY))
+        } else {
+            mainStore.dispatch(MainIntent.CloseLookupDock)
+        }
     }
 
     /**

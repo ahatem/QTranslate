@@ -463,7 +463,6 @@ rules_error_duplicate = "'%s' için zaten bir kural var."
 dict_auto_lookup_group = "Sözlük Otomatik Arama"
 dict_auto_lookup_source = "Otomatik arama kaynağı:"
 dict_auto_lookup_hint = "Çevirirken sözlükteki tek kelimeleri otomatik olarak ara."
-dict_auto_popup_enabled = "Tek kelimeler için gezinen pencere göster"
 
 [settings_window]
 layout_group = "Düzen"

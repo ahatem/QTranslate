@@ -26,7 +26,12 @@ class LayoutPanel(
     private val localizationManager: LocalizationManager,
     private val availableTranslatorIds: () -> List<String> = { emptyList() },
     /** Invoked when the user acts on the unavailable-Comparison entry, to send them to fix it. */
-    private val onOpenServicesSettings: () -> Unit = {}
+    private val onOpenServicesSettings: () -> Unit = {},
+    /**
+     * Whether the window can actually be hidden into a tray. Evaluated when the page is built
+     * and on each render, because the tray icon is installed during frame construction.
+     */
+    private val isTrayAvailable: () -> Boolean = { true },
 ) : SettingsPanel() {
 
     private val layouts = LayoutManager.getAvailableLayouts().map {
@@ -42,6 +47,10 @@ class LayoutPanel(
     /** The unavailable entry's own display text -- an action, not just a disabled label. */
     private fun comparisonConfigureLabel(): String =
         localizationManager.getString("settings_window.layout_comparison_configure")
+
+    /** Why hiding to the tray is not on offer here. */
+    private fun trayUnavailableHint(): String =
+        localizationManager.getString("settings_window.tray_unavailable_hint")
 
     private lateinit var layoutCombo: JComboBox<LayoutInfo>
     private lateinit var historyCheck: JCheckBox
@@ -227,17 +236,40 @@ class LayoutPanel(
                 localizationManager.getString("settings_window.minimize_behavior_taskbar")
             )
         )
+        val trayAvailable = isTrayAvailable()
+        val trayUnavailable = !trayAvailable
         minimizeButtonCombo = JComboBox(minimizeOptions.toTypedArray()).apply {
-            renderer = DisplayValueRenderer<MinimizeButtonBehaviorInfo>(text = { it?.displayName.orEmpty() })
+            renderer = DisplayValueRenderer<MinimizeButtonBehaviorInfo>(
+                text = { it?.displayName.orEmpty() },
+                // Hiding needs somewhere to hide into. Without a tray icon the window would be
+                // gone from every visible surface, so the choice is shown as unavailable and the
+                // runtime falls back to the taskbar if it is already stored.
+                isDisabled = { trayUnavailable && it?.behavior == MinimizeButtonBehavior.HIDE_TO_TRAY },
+                tooltip = {
+                    if (trayUnavailable && it?.behavior == MinimizeButtonBehavior.HIDE_TO_TRAY)
+                        trayUnavailableHint()
+                    else null
+                },
+            )
             addActionListener {
-                if (!isUpdatingFromState) {
-                    val selected = selectedItem as? MinimizeButtonBehaviorInfo ?: return@addActionListener
-                    applyDraft(store) { it.copy(minimizeButtonBehavior = selected.behavior) }
+                if (isUpdatingFromState) return@addActionListener
+                val selected = selectedItem as? MinimizeButtonBehaviorInfo ?: return@addActionListener
+                if (trayUnavailable && selected.behavior == MinimizeButtonBehavior.HIDE_TO_TRAY) {
+                    // A preference this system cannot honour: keep the saved one rather than
+                    // writing a value the window would have to ignore at runtime.
+                    withoutTrigger {
+                        selectedItem = minimizeOptions.find {
+                            it.behavior == store.state.value.workingConfiguration.minimizeButtonBehavior
+                        }
+                    }
+                    return@addActionListener
                 }
+                applyDraft(store) { it.copy(minimizeButtonBehavior = selected.behavior) }
             }
         }
         addRow(localizationManager.getString("settings_window.minimize_button"), minimizeButtonCombo)
         addHint(localizationManager.getString("settings_window.minimize_behavior_hint"))
+        if (trayUnavailable) addHint(trayUnavailableHint())
 
         finishLayout()
     }
@@ -275,10 +307,13 @@ class LayoutPanel(
                 .map(selectorAppearanceCombo::getItemAt)
                 .find { it.value == c.serviceSelectorAppearance }
 
-            // The selector's own options are meaningless while it is hidden.
+            // The selector's own options are meaningless while it is hidden, and the classic
+            // appearance only exists for the classic selector: under the Enhanced selector it was
+            // a live control that changed nothing at all.
             val selectorShown = c.toolbarVisibility.isServicesPanelVisible
+            val classicSelector = c.serviceSelectorStyle == ServiceSelectorStyle.CLASSIC
             selectorStyleCombo.isEnabled = selectorShown
-            selectorAppearanceCombo.isEnabled = selectorShown
+            selectorAppearanceCombo.isEnabled = selectorShown && classicSelector
 
             closeButtonCombo.selectedItem = (0 until closeButtonCombo.itemCount)
                 .map { closeButtonCombo.getItemAt(it) }

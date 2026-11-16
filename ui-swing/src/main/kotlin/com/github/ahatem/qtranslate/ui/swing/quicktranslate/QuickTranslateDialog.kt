@@ -320,8 +320,9 @@ class QuickTranslateDialog(
                 autoDetectedLanguage = state.detectedSourceLanguage,
                 isEnabled            = state.availableLanguages.isNotEmpty()
             )
-            // A target of Auto means nothing, so it is not offered on that side.
-            val targets = state.availableLanguages.filter { it != LanguageCode.AUTO }
+            // Auto is never a meaningful target; the pinned list comes from the state so this
+            // picker and the main window's agree about which targets are offered.
+            val targets = state.targetLanguages
             targetLanguageCombo.render(
                 availableLanguages   = targets,
                 selectedLanguage     = state.targetLanguage,

@@ -470,7 +470,6 @@ rules_error_duplicate = "'%s' 的規則已存在。"
 dict_auto_lookup_group = "字典自動查詢"
 dict_auto_lookup_source = "自動查詢來源："
 dict_auto_lookup_hint = "翻譯時自動在字典中查詢單一詞彙。"
-dict_auto_popup_enabled = "顯示單一詞彙的浮動彈出視窗"
 
 [settings_window]
 layout_group = "版面配置"

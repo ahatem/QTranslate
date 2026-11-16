@@ -11,6 +11,7 @@ import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.NetworkConfig
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
+import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.GeneralPanel
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.NetworkPanel
@@ -235,7 +236,53 @@ class SettingsDialogTest {
         assertFalse(onEdt { dialog.isDisplayable }, "cancel disposes the dialog")
     }
 
+    @Test
+    fun `applying settings hands the committed configuration to the owner`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        val applied = mutableListOf<Configuration>()
+        val dialog = onEdt {
+            SettingsDialog(
+                owner = owner,
+                settingsStore = store,
+                pluginManager = pluginManager,
+                iconManager = IconManager(pluginManager),
+                themeManager = ThemeManager(directory, SilentLogger),
+                localizationManager = localizer,
+                onSettingsApplied = { committed -> applied += committed },
+            ).also { dialogs += it }
+        }
+        val apply = onEdt {
+            descendants<JButton>(dialog.contentPane).single { it.text == localizer.getString("common.apply") }
+        }
+
+        onEdt { store.dispatch(SettingsIntent.TransformDraft { it.copy(isHistoryEnabled = false) }) }
+        // The button reflects store state through a coroutine, so wait for it rather than assume.
+        waitUntil { onEdt { apply.isEnabled } }
+        onEdt { apply.doClick() }
+        waitUntil { applied.isNotEmpty() }
+
+        assertFalse(
+            applied.single().isHistoryEnabled,
+            "the owner receives the configuration that was actually saved",
+        )
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
+
+    /**
+     * Spins the event queue until [condition] holds.
+     *
+     * The dialog's button state and the save receipt both arrive from coroutines, so a test that
+     * clicked straight away would race them; a fixed sleep would be a guess.
+     */
+    private fun waitUntil(timeoutMillis: Long = 10_000, condition: () -> Boolean) {
+        val deadline = System.nanoTime() + timeoutMillis * 1_000_000
+        while (!condition()) {
+            check(System.nanoTime() < deadline) { "condition not met within ${timeoutMillis}ms" }
+            onEdt {}
+            Thread.sleep(10)
+        }
+    }
 
     /** The page currently in the content area; cached-but-hidden pages are not descendants. */
     private fun currentPagePanel(dialog: SettingsDialog): SettingsPanel =

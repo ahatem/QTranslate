@@ -15,6 +15,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import com.github.ahatem.qtranslate.core.plugin.storage.AppSecretStore
+import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.NetworkConfig
 import kotlinx.coroutines.*
 import kotlinx.coroutines.swing.Swing
@@ -60,6 +61,17 @@ class SettingsDialog(
      * store, which hides the field rather than offering one that forgets what is typed in it.
      */
     private val appSecrets: AppSecretStore? = null,
+    /**
+     * Whether the window can actually be hidden into a tray. Evaluated lazily: the tray icon is
+     * installed during frame construction, which may finish after the first dialog is built.
+     */
+    private val isTrayAvailable: () -> Boolean = { true },
+    /**
+     * Invoked on the event thread after a successful commit, with the configuration that is now
+     * saved. Lets the owner apply preferences that describe live window state — the lookup dock —
+     * without waiting for a restart.
+     */
+    private val onSettingsApplied: ((Configuration) -> Unit)? = null,
 ) : JDialog(owner, "Settings", true) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -313,7 +325,13 @@ class SettingsDialog(
             LanguagesPanel(settingsStore, localizationManager, availableLanguages)
 
         label("layout") ->
-            LayoutPanel(settingsStore, localizationManager, availableTranslatorIds, onOpenServicesSettings = ::showServicesPage)
+            LayoutPanel(
+                settingsStore,
+                localizationManager,
+                availableTranslatorIds,
+                onOpenServicesSettings = ::showServicesPage,
+                isTrayAvailable = isTrayAvailable,
+            )
 
         label("popups") ->
             PopupsPanel(settingsStore, localizationManager)
@@ -431,10 +449,16 @@ class SettingsDialog(
                     savePending = false
                     okButton.isEnabled = true
                     okButton.text = localizationManager.getString("common.ok")
-                    if (error != null) showSaveError(error)
-                    else if (close && !settingsStore.state.value.isDirty && !proxyPassword.hasPendingChanges()) {
-                        dispose()
-                        return@withContext
+                    if (error != null) {
+                        showSaveError(error)
+                    } else {
+                        // The commit landed: let the owner apply preferences that describe live
+                        // window state, so they take effect now rather than after a restart.
+                        onSettingsApplied?.invoke(settingsStore.state.value.originalConfiguration)
+                        if (close && !settingsStore.state.value.isDirty && !proxyPassword.hasPendingChanges()) {
+                            dispose()
+                            return@withContext
+                        }
                     }
                     updateApplyButton()
                 }

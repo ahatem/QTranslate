@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
-import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.AutoCopyTranslation
@@ -39,7 +38,6 @@ class TranslationPanel(
     private lateinit var dictAutoLookupCheck: JCheckBox
     private lateinit var dictAutoUseTranslated: JRadioButton
     private lateinit var dictAutoUseSource: JRadioButton
-    private lateinit var dictAutoPopupCheck: JCheckBox
 
     /**
      * The standard vocabularies, not the active service's.
@@ -261,20 +259,15 @@ class TranslationPanel(
         }
         addRow(localizationManager.getString("settings_translation.dict_auto_lookup_source_label"), dictAutoSourceRow)
 
-        // Visually subordinate to the checkbox above it -- it only matters when auto-lookup is on,
-        // and indenting says so without another line of copy.
-        dictAutoPopupCheck = JCheckBox(localizationManager.getString("settings_languages.dict_auto_popup_enabled")).apply {
-            addActionListener {
-                if (!isUpdatingFromState) {
-                    val enabled = isSelected
-                    applyDraft(store) { it.copy(isDictionaryAutoPopupEnabled = enabled) }
-                }
-            }
-        }
-        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
-            .insets(0, UIScale.scale(20), 0, 0).add(dictAutoPopupCheck)
-        registerSearchEntry(localizationManager.getString("settings_languages.dict_auto_popup_enabled"), dictAutoPopupCheck)
-
+        // "Show floating popup for single words" used to sit here, indented under the checkbox as
+        // if it were its own presentation choice. It never controlled a popup: the coordinator read
+        // it as the master gate for every kind of automatic lookup, so unchecking it silently
+        // disabled inline and docked lookup too, while checking it did nothing visible unless the
+        // main checkbox happened to be on. The popup itself has not opened automatically since
+        // 1.4.0 ("The dictionary popup no longer opens by itself whenever a single word is
+        // translated"), and it still opens on request with its own hotkey. The control that
+        // promised the removed behaviour is gone; Configuration.isDictionaryAutoPopupEnabled stays
+        // in the file so old configurations keep loading unchanged.
         finishLayout()
     }
 
@@ -316,8 +309,6 @@ class TranslationPanel(
             }
             dictAutoUseTranslated.isEnabled = autoLookupEnabled
             dictAutoUseSource.isEnabled     = autoLookupEnabled
-            dictAutoPopupCheck.isSelected   = c.isDictionaryAutoPopupEnabled
-            dictAutoPopupCheck.isEnabled    = autoLookupEnabled
         }
     }
 

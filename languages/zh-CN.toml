@@ -465,7 +465,6 @@ rules_error_duplicate = "'%s' 的规则已存在。"
 dict_auto_lookup_group = "词典自动查询"
 dict_auto_lookup_source = "自动查询来源："
 dict_auto_lookup_hint = "翻译时自动在词典中查询单个词语。"
-dict_auto_popup_enabled = "显示单个词语的浮动弹窗"
 
 [settings_window]
 layout_group = "布局"

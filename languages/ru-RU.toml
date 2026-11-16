@@ -465,7 +465,6 @@ rules_error_duplicate = "Правило для '%s' уже существует.
 dict_auto_lookup_group = "Автопоиск в словаре"
 dict_auto_lookup_source = "Источник автопоиска:"
 dict_auto_lookup_hint = "Автоматически искать отдельные слова в словаре во время перевода."
-dict_auto_popup_enabled = "Показывать всплывающее окно для отдельных слов"
 
 [settings_window]
 layout_group = "Интерфейс"

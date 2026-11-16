@@ -439,7 +439,6 @@ rules_error_duplicate_title = "Duplicitní pravidlo"
 rules_error_duplicate = "Pravidlo pro jazyk '%s' již existuje."
 dict_auto_lookup_group = "Automatické vyhledávání ve slovníku"
 dict_auto_lookup_hint = "Automaticky vyhledávat jednotlivá slova ve slovníku během překladu."
-dict_auto_popup_enabled = "Zobrazit plovoucí okno pro jednotlivá slova"
 
 [settings_window]
 layout_group = "Rozvržení"

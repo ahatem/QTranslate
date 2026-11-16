@@ -12,6 +12,15 @@ import java.awt.image.BaseMultiResolutionImage
 internal class TrayIconBinding(private val logger: Logger) {
     private var icon: TrayIcon? = null
 
+    /**
+     * True when an icon is actually installed.
+     *
+     * Support and installation are different questions: `SystemTray.isSupported()` being true
+     * proves the platform has a tray, not that this process put anything in it — adding the icon
+     * can still fail, and then a hidden window has no way back.
+     */
+    val isInstalled: Boolean get() = icon != null
+
     fun install(images: List<Image>, listener: MouseListener) {
         if (!SystemTray.isSupported()) return
         val tray = SystemTray.getSystemTray()

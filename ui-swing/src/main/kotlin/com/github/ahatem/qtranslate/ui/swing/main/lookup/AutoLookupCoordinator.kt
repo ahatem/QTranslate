@@ -16,6 +16,28 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.withContext
 
+/**
+ * Keeps the dictionary in step with the translation on screen.
+ *
+ * ### What switches this on
+ * [com.github.ahatem.qtranslate.core.settings.data.Configuration.dictionaryAutoSource] is the only
+ * master switch: `OFF` means no automatic lookup of any kind, and the other two values choose which
+ * side of the translation is looked up. Nothing else may gate this. The floating Quick Dictionary
+ * popup used to gate it — the checkbox labelled "show floating popup for single words" silently
+ * disabled inline and docked lookup — which made the master checkbox on that page decorative and
+ * turned a presentation choice into a hidden kill switch.
+ *
+ * ### What it produces
+ * 1. A one-line inline definition for a single word, shown under the translation.
+ * 2. A refresh of the dictionary dock when one is already showing the dictionary. It never opens
+ *    the dock: an automatic lookup must not rearrange the window the user is working in.
+ *
+ * ### What it deliberately does not do
+ * It never opens the floating dictionary popup. That popup opens on request (`Ctrl+D`) and nothing
+ * else, which is the behaviour the 1.4.0 release notes describe: "The dictionary popup no longer
+ * opens by itself whenever a single word is translated." Reviving it here would reinstate a
+ * removed behaviour rather than fix a broken one.
+ */
 class AutoLookupCoordinator(
     private val mainState: StateFlow<MainState>,
     private val settingsState: StateFlow<SettingsState>,
@@ -36,9 +58,9 @@ class AutoLookupCoordinator(
                     resolvedSourceLang = m.resolvedSourceLanguage,
                     autoSource = s.workingConfiguration.dictionaryAutoSource,
                     mainVisible = isMainVisible(),
+                    dictionaryWord = m.dictionaryWord,
                     isQuickDictionaryVisible = m.isQuickDictionaryVisible,
                     isQuickDictionaryPinned = m.isQuickDictionaryPinned,
-                    isDictionaryAutoPopupEnabled = s.workingConfiguration.isDictionaryAutoPopupEnabled,
                 )
             }
             .scan(Pair<AutoLookupKey?, AutoLookupKey?>(null, null)) { (_, prev), curr -> prev to curr }
@@ -48,12 +70,10 @@ class AutoLookupCoordinator(
                     // Let loading through so an in-flight translation can dismiss an unpinned stale Quick Dictionary.
                     curr.isLoading -> true
                     prev == null -> false
-                    !curr.isDictionaryAutoPopupEnabled -> false
                     else -> {
                         val justFinishedLoading = prev.isLoading && !curr.isLoading
                         val settingChangedIdle = curr.translatedText.isNotBlank() && (
                             prev.autoSource != curr.autoSource ||
-                                prev.isDictionaryAutoPopupEnabled != curr.isDictionaryAutoPopupEnabled ||
                                 (!prev.panelVisible && curr.panelVisible)
                             )
                         justFinishedLoading || settingChangedIdle
@@ -66,6 +86,13 @@ class AutoLookupCoordinator(
                     if (key.isQuickDictionaryVisible && !key.isQuickDictionaryPinned) {
                         dispatch(MainIntent.HideQuickDictionary)
                     }
+                    return@collect
+                }
+
+                // The master switch, and the only one. Turning automatic lookup off must leave no
+                // definition behind from the translation before it either.
+                if (key.autoSource == DictionaryAutoSource.OFF) {
+                    dispatch(MainIntent.UpdateInlineDefinition(""))
                     return@collect
                 }
 
@@ -90,8 +117,7 @@ class AutoLookupCoordinator(
                         alternateLanguage = alternateLang
                     )
                 )
-                val current = mainState.value.dictionaryWord
-                if (word.equals(current, ignoreCase = true)) return@collect
+                if (word.equals(key.dictionaryWord, ignoreCase = true)) return@collect
 
                 // Automatic lookup only refreshes a dictionary already visible in the main window; it never opens one.
                 if (key.panelVisible && key.mainVisible) {
@@ -114,7 +140,7 @@ private data class AutoLookupKey(
     val resolvedSourceLang: LanguageCode,
     val autoSource: DictionaryAutoSource,
     val mainVisible: Boolean,
+    val dictionaryWord: String,
     val isQuickDictionaryVisible: Boolean,
     val isQuickDictionaryPinned: Boolean,
-    val isDictionaryAutoPopupEnabled: Boolean,
 )

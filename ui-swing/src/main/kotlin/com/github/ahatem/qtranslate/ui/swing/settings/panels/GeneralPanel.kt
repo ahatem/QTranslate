@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.core.settings.data.SelectionBehavior
 import com.github.ahatem.qtranslate.core.settings.data.SelectionReadSource
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
+import com.github.ahatem.qtranslate.core.settings.system.WindowsStartupRegistration
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
@@ -18,7 +19,13 @@ import javax.swing.JComboBox
  */
 class GeneralPanel(
     private val store: SettingsStore,
-    private val localizationManager: LocalizationManager
+    private val localizationManager: LocalizationManager,
+    /**
+     * Whether "Launch on system startup" can do anything here. The registration is a Windows
+     * feature (an `HKCU\...\Run` value); showing the toggle on other platforms promised a
+     * preference the application could not keep.
+     */
+    private val isLaunchOnStartupSupported: Boolean = WindowsStartupRegistration.isSupported(),
 ) : SettingsPanel() {
 
     private lateinit var launchCheckbox:  JCheckBox
@@ -47,8 +54,15 @@ class GeneralPanel(
         launchCheckbox = addCheckbox(
             text = localizationManager.getString("settings_general.launch_on_startup"),
             selected = false,
+            enabled = isLaunchOnStartupSupported,
             onChange = { enabled -> applyDraft(store) { it.copy(launchOnSystemStartup = enabled) } }
         )
+        // A platform-specific capability is not a universal one: off Windows this toggle could
+        // never take effect, so it is disabled and says why instead of storing a preference the
+        // application would silently ignore.
+        if (!isLaunchOnStartupSupported) {
+            addHint(localizationManager.getString("settings_general.launch_on_startup_windows_only"))
+        }
         updatesCheckbox = addCheckbox(
             text = localizationManager.getString("settings_general.auto_check_updates"),
             selected = false,

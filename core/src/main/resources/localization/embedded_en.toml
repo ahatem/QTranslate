@@ -195,6 +195,7 @@ popups = "Popups"
 [settings_general]
 startup_updates_group = "Startup & Updates"
 launch_on_startup = "Launch on system startup"
+launch_on_startup_windows_only = "Only available on Windows."
 auto_check_updates = "Automatically check for updates"
 selection_group = "Text Selection"
 selection_behavior = "After selecting text"
@@ -560,7 +561,6 @@ rules_error_duplicate_title = "Duplicate Rule"
 rules_error_duplicate = "A rule for '%s' already exists."
 dict_auto_lookup_group = "Dictionary Auto-Lookup"
 dict_auto_lookup_hint = "Automatically look up single words in the dictionary while translating."
-dict_auto_popup_enabled = "Show floating popup for single words"
 
 [settings_ocr]
 workflow_group = "Workflow"
@@ -638,6 +638,7 @@ minimize_button = "Minimize button:"
 minimize_behavior_hide = "Hide to tray"
 minimize_behavior_taskbar = "Minimize to taskbar"
 minimize_behavior_hint = "Controls what happens when you click the minimize (–) button. Independent of the × (close) setting above."
+tray_unavailable_hint = "The system tray is not available on this system, so the window cannot be hidden there. It minimizes to the taskbar instead."
 
 # ===================================================================
 # DYNAMIC PLUGIN CONFIGURATION

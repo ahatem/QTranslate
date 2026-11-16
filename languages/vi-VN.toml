@@ -468,7 +468,6 @@ rules_error_duplicate = "Quy tắc cho '%s' đã tồn tại."
 dict_auto_lookup_group = "Tự động tra từ điển"
 dict_auto_lookup_source = "Nguồn tự động tra:"
 dict_auto_lookup_hint = "Tự động tra các từ đơn trong từ điển trong khi dịch."
-dict_auto_popup_enabled = "Hiển thị cửa sổ nổi cho các từ đơn"
 
 [settings_window]
 layout_group = "Bố cục"

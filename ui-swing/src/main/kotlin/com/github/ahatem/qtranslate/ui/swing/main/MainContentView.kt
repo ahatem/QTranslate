@@ -567,7 +567,7 @@ class MainContentView(
             mainState.targetLanguage
         }
 
-        val allLanguages = mainState.availableLanguages
+        val languageChoices = mainState.languageChoices(config.pinnedLanguages)
 
         val activePreset = config.getActivePreset()
         val selectedTranslatorId = activePreset?.selectedServices?.get(ServiceRole.TRANSLATOR)
@@ -629,8 +629,8 @@ class MainContentView(
                 canClear = mainState.inputText.isNotBlank(),
                 canSwap = mainState.translatedText.isNotBlank(),
                 canTranslate = mainState.inputText.isNotBlank(),
-                allSourceLanguages = allLanguages,
-                allTargetLanguages = allLanguages - setOf(LanguageCode.AUTO),
+                allSourceLanguages = languageChoices.sourceLanguages,
+                allTargetLanguages = languageChoices.targetLanguages,
                 selectedSourceLanguage = mainState.sourceLanguage,
                 detectedSourceLanguage = mainState.detectedSourceLanguage,
                 selectedTargetLanguage = mainState.targetLanguage,
