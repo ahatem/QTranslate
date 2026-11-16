@@ -241,6 +241,13 @@ class KeyboardPanel(
      * which needs a display. Left null, the recorder dialog does the recording.
      */
     private val recorder: ((HotkeyAction, HotkeyBinding?) -> HotkeyBinding?)? = null,
+    /**
+     * Asks the user to confirm replacing hand-made bindings.
+     *
+     * Tests substitute this so the paths that confirm can be driven without a modal dialog,
+     * which needs a display and would block the event thread.
+     */
+    private val confirm: ((title: String, message: String) -> Boolean)? = null,
 ) : SettingsPanel() {
 
     private lateinit var enableCheck: JCheckBox
@@ -466,14 +473,11 @@ class KeyboardPanel(
 
                 // A preset replaces whatever is there, including bindings the user made by hand.
                 // Asking first is the difference between applying a preset and losing an evening.
-                val confirmed = JOptionPane.showConfirmDialog(
-                    this@KeyboardPanel,
-                    localizationManager.getString("settings_hotkeys.preset_overwrite_confirmation"),
-                    localizationManager.getString("settings_hotkeys.preset_overwrite_title"),
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE
-                ) == JOptionPane.YES_OPTION
-                if (!confirmed) {
+                if (!ask(
+                        titleKey = "settings_hotkeys.preset_overwrite_title",
+                        messageKey = "settings_hotkeys.preset_overwrite_confirmation",
+                    )
+                ) {
                     // The picker must keep showing the scheme the bindings still are: a named
                     // preset, or no selection at all when they are custom.
                     withoutTrigger {
@@ -1003,17 +1007,26 @@ class KeyboardPanel(
     }
 
     private fun onResetAll() {
-        val confirmed = JOptionPane.showConfirmDialog(
-            this,
-            localizationManager.getString("settings_hotkeys.reset_confirmation"),
-            localizationManager.getString("settings_hotkeys.reset_title"),
-            JOptionPane.YES_NO_OPTION,
-            JOptionPane.WARNING_MESSAGE
-        ) == JOptionPane.YES_OPTION
-        if (!confirmed) return
+        if (!ask(
+                titleKey = "settings_hotkeys.reset_title",
+                messageKey = "settings_hotkeys.reset_confirmation",
+            )
+        ) return
         // Every group the table shows, not just the legacy rows: a button that says "all" and
         // leaves OCR and writing shortcuts untouched is the defect, not the fix.
         applyDraft(store) { HotkeyDraftOperations.resetAllBindings(it) }
+    }
+
+    /**
+     * Asks one yes/no question, through the injected seam when there is one.
+     */
+    private fun ask(titleKey: String, messageKey: String): Boolean {
+        val title = localizationManager.getString(titleKey)
+        val message = localizationManager.getString(messageKey)
+        confirm?.let { return it(title, message) }
+        return JOptionPane.showConfirmDialog(
+            this, message, title, JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE
+        ) == JOptionPane.YES_OPTION
     }
 
     private fun saveBinding(binding: HotkeyBinding) {

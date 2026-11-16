@@ -71,7 +71,7 @@ class KeyboardPanelCommandExplorerTest {
 
     private fun panelFor(configuration: Configuration = Configuration.DEFAULT): Pair<SettingsStore, KeyboardPanel> {
         val settings = store(configuration)
-        val panel = onEdt { KeyboardPanel(settings, localizer) }
+        val panel = onEdt { KeyboardPanel(settings, localizer, confirm = { _, _ -> true }) }
         onEdt { panel.render(settings.state.value) }
         return settings to panel
     }
