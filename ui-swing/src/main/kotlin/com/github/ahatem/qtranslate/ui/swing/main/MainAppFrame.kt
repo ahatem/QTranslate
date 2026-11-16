@@ -293,7 +293,19 @@ class MainAppFrame(
         resumeGlobalHotkeys = { globalKeyListener.setPaused(false) },
         isTrayAvailable = { isTrayAvailable() },
         onSettingsApplied = { config -> applyCommittedSettings(config) },
+        rememberedPage = { lastSettingsPage },
+        onPageVisited = { lastSettingsPage = it },
     )
+
+    /**
+     * The page Settings was last closed on, for this run of the application.
+     *
+     * Held by the frame rather than by the dialog, which is built fresh on every open and owns
+     * nothing that outlives it. Not written to the configuration file on purpose: "which page was
+     * I looking at" is not a setting, and persisting it would mean a config migration for a
+     * convenience the session already provides.
+     */
+    private var lastSettingsPage: String? = null
 
     private val mainContentView: MainContentView = MainContentView(
         iconManager = iconManager,

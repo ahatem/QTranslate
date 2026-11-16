@@ -50,6 +50,12 @@ internal class SettingsNavigationController(
     private val orientation: () -> ComponentOrientation,
     private val onPageShown: (String) -> Unit,
     private val renderPanel: (JPanel) -> Unit,
+    /**
+     * Text appended to a row's label in the sidebar, for a count that belongs beside the page
+     * name. Display only: the tree's own value stays the page label, so search, navigation and
+     * the reset action all keep matching on the name alone.
+     */
+    private val rowSuffix: (String) -> String = { "" },
 ) {
     /** The dashed marker's overlay; the dialog installs it as its glass pane. */
     val markerOverlay = MarkerOverlay()
@@ -102,6 +108,9 @@ internal class SettingsNavigationController(
     private val panelCache = mutableMapOf<String, JPanel>()
     private var currentPanelName: String? = null
 
+    /** The page a search interrupted; see [rememberPageBeforeSearch]. */
+    private var pageBeforeSearch: String? = null
+
     /** Row under the pointer, or -1. Drives the sidebar's hover shape. */
     private var hoveredRow: Int = -1
 
@@ -132,16 +141,52 @@ internal class SettingsNavigationController(
         tree.setSelectionRow(0)
     }
 
+    /**
+     * Opens the page this session left off on, or the first page when there is none to go back to.
+     *
+     * Opening Settings on the same page every time makes the sidebar's order the only way to reach
+     * anything past the first item, when the reader usually came back for the page they closed.
+     * A page that is no longer there — renamed by a language change mid-session — falls back rather
+     * than leaving the content area blank.
+     */
+    fun selectStartPage(pageLabel: String?) {
+        if (pageLabel != null && hasPage(pageLabel)) selectPage(pageLabel) else selectFirstPage()
+    }
+
     /** Moves the sidebar selection to [pageLabel], which in turn shows its panel. */
     fun selectPage(pageLabel: String) {
+        val row = rowOf(pageLabel) ?: return
+        tree.setSelectionRow(row)
+        tree.scrollRowToVisible(row)
+    }
+
+    private fun hasPage(pageLabel: String): Boolean = rowOf(pageLabel) != null
+
+    private fun rowOf(pageLabel: String): Int? {
         for (row in 0 until tree.rowCount) {
             val node = tree.getPathForRow(row).lastPathComponent as? DefaultMutableTreeNode
-            if (node?.userObject == pageLabel) {
-                tree.setSelectionRow(row)
-                tree.scrollRowToVisible(row)
-                return
-            }
+            if (node?.userObject == pageLabel) return row
         }
+        return null
+    }
+
+    /**
+     * Remembers the page that was showing when a search began.
+     *
+     * Cleared by [restorePageAfterSearch]; held across the search itself, because a result may
+     * open one page and the reader may then open another before clearing the query.
+     */
+    fun rememberPageBeforeSearch() {
+        pageBeforeSearch = currentPanelName
+    }
+
+    /** Puts the remembered page back when the sidebar leaves search mode. */
+    fun restorePageAfterSearch() {
+        val page = pageBeforeSearch ?: return
+        pageBeforeSearch = null
+        // Nothing moved if the search was typed and cleared without a hit being opened, and
+        // re-selecting the page that is already showing would only reset its scrolling.
+        if (page != currentPanelName) selectPage(page)
     }
 
     fun showPanel(name: String) {
@@ -392,7 +437,7 @@ internal class SettingsNavigationController(
                     )
 
                     val name = (value as? DefaultMutableTreeNode)?.userObject as? String ?: ""
-                    text = name
+                    text = name + rowSuffix(name)
                     icon = sidebarIcons[name]
                     iconTextGap = 8
                     // A group is a heading for the rows beneath it, so it is styled as one

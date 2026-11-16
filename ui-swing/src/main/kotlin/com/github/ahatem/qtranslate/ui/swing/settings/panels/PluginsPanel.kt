@@ -5,9 +5,11 @@ import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
+import com.github.ahatem.qtranslate.api.plugin.PluginSettings
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.*
+import com.github.ahatem.qtranslate.core.plugin.settings.PluginSettingsModel
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.util.role
@@ -15,9 +17,12 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import com.github.ahatem.qtranslate.ui.swing.shared.util.GridBag
 import com.github.michaelbull.result.fold
+import com.github.michaelbull.result.getError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.awt.*
+import java.awt.event.InputEvent
+import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.beans.PropertyChangeListener
@@ -91,6 +96,24 @@ class PluginsPanel(
     private var selectedPlugin: PluginState? = null
     private var allPlugins: List<PluginState> = emptyList()
 
+    /** The anchor the settings section starts at, for scrolling to it; null when it has none. */
+    private var settingsSection: JComponent? = null
+
+    /** The inline form for the selected plugin, once its schema has loaded. */
+    private var settingsForm: PluginSettingsForm? = null
+
+    /** Guards against an older schema fetch landing on a plugin the user has since moved off. */
+    private var settingsRequest = 0
+
+    /**
+     * Set when the user asked for the settings by name — the row's button, or the action bar.
+     * The form is built asynchronously, so the scroll has to wait for it to exist.
+     */
+    private var revealSettingsWhenReady = false
+
+    /** Whether the plugin flow has produced anything yet, so the first page is always built. */
+    private var hasEmittedPlugins = false
+
     private val themeListener = PropertyChangeListener { event ->
         if (event.propertyName == "lookAndFeel") SwingUtilities.invokeLater {
             refreshLeftBorder()
@@ -137,6 +160,19 @@ class PluginsPanel(
                 override fun changedUpdate(e: DocumentEvent?) = refreshPluginRows()
             })
         }
+        searchField.toolTipText = localizationManager.getString("settings_plugins.search_shortcut_tooltip")
+
+        // Ctrl+F puts the caret in the list's filter from anywhere on this page. Registered on the
+        // page rather than on the dialog, so that here it searches plugins — the page's own
+        // subject — while on every other page the dialog's binding searches the settings.
+        registerKeyboardAction(
+            {
+                searchField.requestFocusInWindow()
+                searchField.selectAll()
+            },
+            KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK),
+            JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT
+        )
         categoryCombo.apply {
             renderer = object : DefaultListCellRenderer() {
                 override fun getListCellRendererComponent(
@@ -251,10 +287,19 @@ class PluginsPanel(
         scope.launch {
             pluginManager.plugins.collect { plugins ->
                 SwingUtilities.invokeLater {
+                    val previous = allPlugins
                     val prevId = selectedPlugin?.manifest?.id
                     allPlugins = plugins
                     selectedPlugin = plugins.firstOrNull { it.id == prevId } ?: plugins.firstOrNull()
-                    refreshPluginRows()
+
+                    // Saving a plugin's own settings pushes the whole plugin list through this flow.
+                    // Rebuilding the page for that would throw away the values just typed, the
+                    // confirmation that they were saved, and the reader's scroll position — so the
+                    // rebuild is spent only on a change the page can actually show.
+                    val changed = !hasEmittedPlugins ||
+                        previous.map(::signatureOf) != plugins.map(::signatureOf)
+                    hasEmittedPlugins = true
+                    if (changed) refreshPluginRows()
                 }
             }
         }
@@ -431,8 +476,8 @@ class PluginsPanel(
                 })
                 add(JButton(themedAppIcon(Icons.SETTINGS, 15)).apply {
                     putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
-                    toolTipText = localizationManager.getString("settings_plugins.btn_configure")
-                    addActionListener { onConfigure(plugin) }
+                    toolTipText = localizationManager.getString("settings_plugins.btn_settings")
+                    addActionListener { onShowSettings(plugin) }
                 })
             } else {
                 add(buildStatusBadge(plugin.status))
@@ -464,6 +509,10 @@ class PluginsPanel(
     private fun rebuildDetail() {
         val plugin = selectedPlugin
         if (plugin == null) { showEmptyState(); return }
+
+        // The pane is built from scratch, so the previous build's form and anchor are gone with it.
+        settingsSection = null
+        settingsForm = null
 
         // ── Scrollable info panel ─────────────────────────────────────────────
         // Implementing Scrollable with tracksViewportWidth=true is the critical
@@ -544,6 +593,40 @@ class PluginsPanel(
             }
             g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
                 .insets(10, 0, 0, 0).add(desc)
+        }
+
+        // ─ Plugin settings ────────────────────────────────────────────────────
+        // Inline, not behind a dialog: the page already has room for the form, and a modal would
+        // be a step between the user and the thing they asked for. Only a plugin that is loaded,
+        // or deliberately switched off, has settings to edit; one that is awaiting verification or
+        // failed to start has nothing running to configure.
+        if (plugin.status == PluginStatus.ENABLED || plugin.status == PluginStatus.DISABLED) {
+            g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+                .insets(14, 0, 0, 0)
+                .add(buildDivider())
+
+            val settingsTitle = JLabel(localizationManager.getString("settings_plugins.section_settings")).apply {
+                font       = SettingsVisuals.subSectionTitleFont(font)
+                foreground = SettingsVisuals.primaryText()
+            }
+            g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+                .insets(10, 0, 2, 0).add(settingsTitle)
+
+            // Says what the Save button in the form belongs to. Without it the page's own notice
+            // ("Apply and Cancel do not affect plugins") reads as if the form below it were exempt
+            // from saving, rather than governed by its own button.
+            val settingsHint = JLabel(localizationManager.getString("settings_plugins.settings_hint")).apply {
+                font       = SettingsVisuals.hintFont(font)
+                foreground = SettingsVisuals.secondaryText()
+            }
+            g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+                .insets(0, 0, 2, 0).add(settingsHint)
+
+            val settingsHost = JPanel(BorderLayout()).apply { isOpaque = false }
+            settingsSection = settingsTitle
+            g.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+                .insets(4, 0, 0, 0).add(settingsHost)
+            loadSettings(plugin, settingsHost)
         }
 
         // ─ Services ───────────────────────────────────────────────────────────
@@ -659,16 +742,16 @@ class PluginsPanel(
 
         when (plugin.status) {
             PluginStatus.ENABLED -> {
-                leftGroup.add(JButton(localizationManager.getString("settings_plugins.btn_configure")).apply {
-                    addActionListener { onConfigure(plugin) }
+                leftGroup.add(JButton(localizationManager.getString("settings_plugins.btn_settings")).apply {
+                    addActionListener { onShowSettings(plugin) }
                 })
                 rightGroup.add(JButton(localizationManager.getString("settings_plugins.btn_disable")).apply {
                     addActionListener { scope.launch { pluginManager.disablePlugin(plugin.manifest.id) } }
                 })
             }
             PluginStatus.DISABLED -> {
-                leftGroup.add(JButton(localizationManager.getString("settings_plugins.btn_configure")).apply {
-                    addActionListener { onConfigure(plugin) }
+                leftGroup.add(JButton(localizationManager.getString("settings_plugins.btn_settings")).apply {
+                    addActionListener { onShowSettings(plugin) }
                 })
                 rightGroup.add(JButton(localizationManager.getString("settings_plugins.btn_enable")).apply {
                     addActionListener { scope.launch { pluginManager.enablePlugin(plugin.manifest.id) } }
@@ -859,30 +942,132 @@ class PluginsPanel(
         if (confirmed) scope.launch { pluginManager.uninstallPlugin(plugin.manifest.id) }
     }
 
-    private fun onConfigure(plugin: PluginState) {
+    // ── Inline plugin settings ────────────────────────────────────────────────
+
+    /**
+     * Brings the settings section into view and puts the caret in its first field.
+     *
+     * The form is built after its schema has been read, so on a first visit there is nothing to
+     * scroll to yet; [revealSettingsWhenReady] carries the request until there is.
+     */
+    private fun onShowSettings(plugin: PluginState) {
+        if (plugin.id != selectedPlugin?.id) {
+            revealSettingsWhenReady = true
+            selectedPlugin = plugin
+            refreshPluginRows()
+            return
+        }
+        if (settingsForm != null) revealSettingsSection() else revealSettingsWhenReady = true
+    }
+
+    private fun revealSettingsSection() {
+        val anchor = settingsSection ?: return
+        val view = detailScroll.viewport.view ?: return
+        detailScroll.viewport.scrollRectToVisible(
+            SwingUtilities.convertRectangle(anchor.parent, anchor.bounds, view)
+        )
+        settingsForm?.focusFirstInput()
+    }
+
+    /**
+     * Reads the plugin's settings schema — it lives in the plugin's own key-value store, so it has
+     * to be fetched off the event thread — and builds the form into [host] when it arrives.
+     */
+    private fun loadSettings(plugin: PluginState, host: JPanel) {
+        val pluginId = plugin.manifest.id
+        val request = ++settingsRequest
         scope.launch {
-            val model    = pluginManager.getPluginSettingsModel(plugin.manifest.id)
-            val instance = pluginManager.getPluginSettingsInstance(plugin.manifest.id)
+            val model = pluginManager.getPluginSettingsModel(pluginId)
+            val instance = pluginManager.getPluginSettingsInstance(pluginId)
             SwingUtilities.invokeLater {
-                if (model != null) {
-                    DynamicPluginSettingsDialog(
-                        owner               = SwingUtilities.getWindowAncestor(this@PluginsPanel),
-                        pluginName          = plugin.manifest.name,
-                        localizationManager = localizationManager,
-                        settingsModel       = model,
-                        settingsInstance    = instance,
-                        onSave = { map, clearedSecrets ->
-                            pluginManager.applySettingsFromMap(plugin.manifest.id, map, clearedSecrets)
-                        }
-                    ).isVisible = true
-                } else {
-                    JOptionPane.showMessageDialog(this@PluginsPanel,
-                        localizationManager.getString("settings_plugins.no_settings_msg"),
-                        plugin.manifest.name, JOptionPane.INFORMATION_MESSAGE)
+                // The user moved to another plugin, or the pane was rebuilt, while this was in
+                // flight; landing this answer would put one plugin's fields under another's name.
+                if (request != settingsRequest || selectedPlugin?.manifest?.id != pluginId) {
+                    return@invokeLater
                 }
+                fillSettings(pluginId, plugin, host, model, instance)
             }
         }
     }
+
+    private fun fillSettings(
+        pluginId: String,
+        plugin: PluginState,
+        host: JPanel,
+        model: PluginSettingsModel?,
+        instance: PluginSettings.Configurable?,
+    ) {
+        host.removeAll()
+        if (model == null || model.schema.isEmpty()) {
+            // Said here rather than behind a button: a plugin with nothing to configure should
+            // read as "nothing to configure", not as a control that opens an empty window.
+            host.add(JLabel(localizationManager.getString("settings_plugins.no_settings_msg")).apply {
+                font       = SettingsVisuals.hintFont(font)
+                foreground = SettingsVisuals.secondaryText()
+            }, BorderLayout.CENTER)
+        } else {
+            val form = PluginSettingsForm(
+                localizationManager = localizationManager,
+                settingsModel       = model,
+                settingsInstance    = instance,
+                scope               = scope,
+                onSave              = { values, cleared ->
+                    pluginManager.applySettingsFromMap(pluginId, values, cleared)
+                },
+                // A full rebuild, not a reset of the fields: the schema this form was built from
+                // predates the last save and still carries the values from before it.
+                onRevert            = { rebuildDetail() },
+                onTestConnection    = if (plugin.services.isEmpty()) null else { values ->
+                    testConnection(pluginId, plugin.manifest.name, values)
+                },
+            )
+            settingsForm = form
+            host.add(form, BorderLayout.CENTER)
+        }
+        host.revalidate()
+        host.repaint()
+
+        if (revealSettingsWhenReady) {
+            revealSettingsWhenReady = false
+            SwingUtilities.invokeLater { revealSettingsSection() }
+        }
+    }
+
+    /**
+     * Applies what is on screen, then asks each service whether it works.
+     *
+     * Applied first so the check uses the key that was just typed rather than the one saved last
+     * time; a failed apply is reported as the result instead of validating the stored values and
+     * presenting that as a test of what the reader can see.
+     */
+    private suspend fun testConnection(
+        pluginId: String,
+        pluginName: String,
+        values: Map<String, String>,
+    ): List<ServiceValidation> {
+        val error = pluginManager.applySettingsFromMap(pluginId, values).getError()
+        if (error != null) {
+            return listOf(ServiceValidation(serviceId = "", serviceName = pluginName, error = error))
+        }
+        return pluginManager.validateServices(pluginId)
+    }
+
+    /**
+     * Everything this page displays about a plugin, in one string.
+     *
+     * A settings save pushes the whole plugin list through the flow again with nothing about the
+     * list actually changed. Rebuilding the page for that would cost the reader the values they
+     * just typed, the confirmation that they were saved, and their place in the form, so the
+     * rebuild is spent only where something visible really moved.
+     */
+    private fun signatureOf(plugin: PluginState): String = listOf(
+        plugin.id,
+        plugin.manifest.version,
+        plugin.status.name,
+        plugin.jarPath,
+        plugin.lastError?.message.orEmpty(),
+        plugin.services.joinToString(",") { "${it.name}|${it.role}" },
+    ).joinToString("|")
 
     override fun render(state: SettingsState) = Unit
 

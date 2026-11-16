@@ -45,10 +45,23 @@ internal class SettingsSearchController(
     tree: JTree,
     private val localizationManager: LocalizationManager,
     private val onHitActivated: (SearchHit) -> Unit,
+    /** Called when a query opens: whichever page is showing is the one to come back to. */
+    private val onSearchStarted: () -> Unit = {},
+    /**
+     * Called when the query is cleared and the section tree takes the sidebar back.
+     *
+     * Searching is a temporary mode over the sidebar: the reader types to find one thing, and
+     * deleting the query should return them to the page they were on rather than leave them on
+     * the last page the last result happened to open.
+     */
+    private val onSearchEnded: () -> Unit = {},
 ) {
     /** Which of the three sidebar cards is showing — the search mode. */
     internal var visibleCard: String = NAV_TREE
         private set
+
+    /** Whether a query is currently open, so the edges of that mode are reported exactly once. */
+    private var queryOpen: Boolean = false
 
     val searchField = JTextField()
     val resultsList = JList<SearchHit>()
@@ -148,6 +161,9 @@ internal class SettingsSearchController(
             )
             putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true)
             putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON, FlatSearchIcon())
+            // The field is chrome in the sidebar rather than a row on a page, so the shortcut is
+            // the only thing that tells a reader it can be reached without the mouse.
+            toolTipText = localizationManager.getString("settings_dialog.search_tooltip")
             // Border applied by the dialog's updateBorders() so the rule follows the theme.
 
             document.addDocumentListener(object : DocumentListener {
@@ -200,11 +216,22 @@ internal class SettingsSearchController(
     fun onQueryChanged() {
         val query = searchField.text.trim()
         if (query.isEmpty()) {
+            // Leaving search mode: tell the dialog before the tree comes back, so the page it
+            // restores is the one the sidebar is already showing.
+            if (queryOpen) {
+                queryOpen = false
+                onSearchEnded()
+            }
             // Drop the previous hits too: the tree is showing, and a later no-hit query must not
             // leave a stale row for the Down key to select.
             resultsList.setListData(emptyArray())
             showCard(NAV_TREE)
             return
+        }
+
+        if (!queryOpen) {
+            queryOpen = true
+            onSearchStarted()
         }
 
         val hits = searchIndex.search(query)

@@ -177,6 +177,16 @@ reset_page_tooltip = "إعادة ضبط إعدادات هذه الصفحة إل�
 reset_page_unavailable_tooltip = "لا تملك هذه الصفحة إعدادات خاصة بها لإعادة ضبطها."
 search_placeholder = "تصفية الإعدادات..."
 search_no_results = "لا توجد إعدادات مطابقة لـ '%s'"
+discard_title = "تغييرات غير محفوظة"
+discard_message = "لم تُحفظ تغييراتك بعد. أتريد تجاهلها وإغلاق الإعدادات؟"
+discard_button = "تجاهل التغييرات"
+keep_editing_button = "متابعة التحرير"
+apply_tooltip = "احفظ التغييرات المعلّقة في هذا الحوار"
+apply_nothing_tooltip = "لم يتغيّر شيء بعد"
+cancel_tooltip = "أغلق الحوار وتجاهل التغييرات المعلّقة"
+cancel_clean_tooltip = "أغلق دون تجاهل أي شيء"
+ok_tooltip = "احفظ التغييرات المعلّقة وأغلق"
+search_tooltip = "ابحث عن أي صفحة أو إعداد في هذا الحوار (Ctrl+F)"
 
 [settings_dialog_sidebar]
 general = "عام"
@@ -193,6 +203,7 @@ group_interface = "الواجهة"
 behavior = "السلوك"
 layout = "التخطيط"
 popups = "النوافذ المنبثقة"
+count_format = "(%d)"
 
 # ===================================================================
 # SETTINGS PAGES
@@ -343,7 +354,6 @@ status_verification = "في انتظار التحقق"
 # Actions
 btn_disable = "تعطيل"
 btn_enable = "تفعيل"
-btn_configure = "تكوين..."
 btn_accept_update = "قبول التحديث"
 btn_clean_install = "تثبيت نظيف"
 btn_uninstall = "إلغاء التثبيت"
@@ -358,6 +368,10 @@ install_fail_title = "فشل التثبيت"
 uninstall_confirm_title = "إلغاء تثبيت الإضافة"
 uninstall_confirm_msg = "هل تريد إلغاء تثبيت \"%s\"؟\nسيتم حذف كافة بيانات الإضافة نهائيًا."
 no_settings_msg = "هذه الإضافة لا تملك إعدادات قابلة للتكوين."
+section_settings = "إعدادات الإضافة"
+btn_settings = "إعدادات الإضافة"
+settings_hint = "هذه الإعدادات تخص الإضافة وتُحفظ بزر حفظ أدناه، وليس بزر تطبيق."
+search_shortcut_tooltip = "ابحث في الإضافات (Ctrl+F)"
 
 [settings_hotkeys]
 global_group = "مفاتيح الاختصار العالمية"
@@ -623,6 +637,8 @@ test_ok = "جاهز — استجابت %d خدمة"
 test_failed = "فشل الاختبار"
 test_nothing_to_check = "لا شيء للفحص"
 clear_secret = "مسح القيمة المحفوظة"
+revert = "تراجع"
+saved = "تم الحفظ"
 
 # ===================================================================
 # OTHER DIALOGS

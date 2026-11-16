@@ -1,9 +1,14 @@
 package com.github.ahatem.qtranslate.ui.swing.settings
 
 import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.api.plugin.Service
+import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
+import com.github.ahatem.qtranslate.core.plugin.PluginManifest
+import com.github.ahatem.qtranslate.core.plugin.PluginState
+import com.github.ahatem.qtranslate.core.plugin.PluginStatus
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprintRepository
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
@@ -15,6 +20,7 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.GeneralPanel
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.NetworkPanel
+import com.github.ahatem.qtranslate.ui.swing.settings.panels.PluginsSettingsPage
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.PluginsPanel
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.UnscrolledSettingsPage
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.ServicesPanel
@@ -25,6 +31,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assumptions.assumeFalse
@@ -32,14 +39,19 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Container
 import java.awt.GraphicsEnvironment
+import java.awt.event.ActionEvent
+import java.awt.event.InputEvent
+import java.awt.event.KeyEvent
 import java.io.File
 import java.nio.file.Files
 import javax.swing.JButton
+import javax.swing.JComponent
 import javax.swing.JFrame
 import javax.swing.JLabel
 import javax.swing.JList
@@ -47,6 +59,7 @@ import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JTextField
 import javax.swing.JTree
+import javax.swing.KeyStroke
 import javax.swing.SwingUtilities
 import javax.swing.tree.DefaultMutableTreeNode
 
@@ -97,7 +110,10 @@ class SettingsDialogTest {
     private val owner by lazy { onEdt { JFrame() } }
     private val dialogs = mutableListOf<SettingsDialog>()
 
-    private fun newDialog(): SettingsDialog = onEdt {
+    private fun newDialog(
+        rememberedPage: () -> String? = { null },
+        onPageVisited: (String) -> Unit = {},
+    ): SettingsDialog = onEdt {
         SettingsDialog(
             owner = owner,
             settingsStore = store,
@@ -105,6 +121,8 @@ class SettingsDialogTest {
             iconManager = IconManager(pluginManager),
             themeManager = ThemeManager(directory, SilentLogger),
             localizationManager = localizer,
+            rememberedPage = rememberedPage,
+            onPageVisited = onPageVisited,
         ).also { dialogs += it }
     }
 
@@ -132,7 +150,10 @@ class SettingsDialogTest {
         assertTrue(source.contains("onHitActivated = navigator::openHit"), "hit activation routes to navigation")
         assertTrue(source.contains("entriesForPage = navigator::searchEntries"), "indexing reads the navigation panel cache")
         assertTrue(source.contains("glassPane = navigator.markerOverlay"), "the flash overlay stays the dialog's glass pane")
-        assertTrue(source.contains("navigator.selectFirstPage()"), "the initial page selection is delegated")
+        assertTrue(
+            source.contains("navigator.selectStartPage(rememberedPage())"),
+            "the initial page selection is delegated, and honours the page the caller remembered"
+        )
         assertTrue(source.contains("navigator.selectPage(label(\"services\"))"), "external page selection is delegated")
         assertTrue(source.contains("navigator.renderCurrentPanel()"), "state re-render is delegated")
 
@@ -428,7 +449,255 @@ class SettingsDialogTest {
         )
     }
 
+    @Test
+    fun `the footer says what Cancel and Apply will do in the state they are in`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        val dialog = newDialog()
+        val cancel = footerButton(dialog, "common.cancel")
+        val apply = footerButton(dialog, "common.apply")
+
+        assertEquals(
+            localizer.getString("settings_dialog.cancel_clean_tooltip"),
+            onEdt { cancel.toolTipText },
+            "with nothing staged, Cancel says it is not throwing anything away",
+        )
+        assertEquals(
+            localizer.getString("settings_dialog.apply_nothing_tooltip"),
+            onEdt { apply.toolTipText },
+            "and Apply says there is nothing for it to save",
+        )
+
+        onEdt { store.dispatch(SettingsIntent.TransformDraft { it.copy(isHistoryEnabled = false) }) }
+        // The tooltips are refreshed by the same store emission that enables Apply, so waiting for
+        // the button to become clickable is enough rather than guessing at a delay.
+        waitUntil { onEdt { apply.isEnabled } }
+
+        assertEquals(
+            localizer.getString("settings_dialog.cancel_tooltip"),
+            onEdt { cancel.toolTipText },
+            "once something is staged, Cancel says it would discard it",
+        )
+        assertEquals(
+            localizer.getString("settings_dialog.apply_tooltip"),
+            onEdt { apply.toolTipText },
+            "and Apply says what it would save",
+        )
+    }
+
+    @Test
+    fun `cancel asks before throwing away what was staged`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        val dialog = newDialog()
+        val cancel = footerButton(dialog, "common.cancel")
+        val apply = footerButton(dialog, "common.apply")
+        var asked = 0
+
+        onEdt { store.dispatch(SettingsIntent.TransformDraft { it.copy(isHistoryEnabled = false) }) }
+        waitUntil { onEdt { apply.isEnabled } }
+
+        onEdt { dialog.confirmDiscard = { asked += 1; false } }
+        onEdt { cancel.doClick() }
+
+        assertEquals(1, asked, "a staged change is worth a question before it is lost")
+        assertTrue(onEdt { dialog.isDisplayable }, "declining the question leaves the dialog open")
+        assertTrue(store.state.value.isDirty, "and leaves the draft exactly where it was")
+
+        onEdt { dialog.confirmDiscard = { asked += 1; true } }
+        onEdt { cancel.doClick() }
+
+        assertEquals(2, asked, "and it asks again the next time Cancel is pressed")
+        assertFalse(store.state.value.isDirty, "agreeing throws the draft away")
+        assertFalse(onEdt { dialog.isDisplayable }, "and closes the dialog")
+    }
+
+    @Test
+    fun `cancel does not ask when nothing was staged`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        val dialog = newDialog()
+        val cancel = footerButton(dialog, "common.cancel")
+        var asked = false
+
+        onEdt { dialog.confirmDiscard = { asked = true; true } }
+        onEdt { cancel.doClick() }
+
+        assertFalse(asked, "there is nothing to lose, so there is nothing to ask about")
+        assertFalse(onEdt { dialog.isDisplayable }, "Cancel closes a clean dialog without ceremony")
+    }
+
+    @Test
+    fun `Ctrl+F reaches the search field from anywhere in the dialog`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        val dialog = newDialog()
+        val stroke = KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK)
+
+        val binding = assertNotNull(
+            onEdt { dialog.rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).get(stroke) },
+            "Ctrl+F is bound at window scope, so no control has to hold focus first",
+        )
+        val action = assertNotNull(
+            onEdt { dialog.rootPane.actionMap.get(binding) },
+            "'$binding' resolves to a real action rather than a dead binding",
+        )
+
+        val field = onEdt { descendants<JTextField>(dialog.contentPane).single() }
+        onEdt { field.text = "proxy" }
+
+        onEdt { action.actionPerformed(ActionEvent(dialog, ActionEvent.ACTION_PERFORMED, "")) }
+
+        assertEquals(
+            "proxy",
+            onEdt { field.selectedText },
+            "the shortcut selects the query, so the reader can type over it",
+        )
+    }
+
+    @Test
+    fun `the dialog opens on the page the caller remembered`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        val pluginsLabel = localizer.getString("settings_dialog_sidebar.plugins")
+        val visited = mutableListOf<String>()
+        val dialog = newDialog(rememberedPage = { pluginsLabel }, onPageVisited = { visited += it })
+
+        assertEquals(
+            listOf(pluginsLabel),
+            onEdt { visited.toList() },
+            "the caller is told which page is showing, so it can remember it for the next open",
+        )
+        onEdt {
+            assertEquals(
+                1,
+                descendants<PluginsSettingsPage>(dialog.contentPane).size,
+                "the remembered page is mounted, not merely selected in the sidebar",
+            )
+            val tree = descendants<JTree>(dialog.contentPane).single()
+            assertEquals(
+                pluginsLabel,
+                (tree.selectionPath.lastPathComponent as? DefaultMutableTreeNode)?.userObject,
+                "and the sidebar shows it as the selected row",
+            )
+        }
+    }
+
+    @Test
+    fun `the sidebar counts plugins and services beside their page names`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        seedSidebarCounts(plugins = 3, services = 2)
+        val dialog = newDialog()
+        val pluginsLabel = localizer.getString("settings_dialog_sidebar.plugins")
+        val servicesLabel = localizer.getString("settings_dialog_sidebar.services")
+        val tree = onEdt { descendants<JTree>(dialog.contentPane).single() }
+
+        assertEquals(
+            countedRow(pluginsLabel, 3),
+            onEdt { renderedRowText(tree, sidebarRow(tree, pluginsLabel)) },
+            "the Plugins row says how many are installed",
+        )
+        assertEquals(
+            countedRow(servicesLabel, 2),
+            onEdt { renderedRowText(tree, sidebarRow(tree, servicesLabel)) },
+            "and the Services row says how many are live",
+        )
+        assertEquals(
+            pluginsLabel,
+            onEdt {
+                (tree.getPathForRow(sidebarRow(tree, pluginsLabel)).lastPathComponent
+                    as? DefaultMutableTreeNode)?.userObject
+            },
+            "the count is decoration: the row still means the page, so search and navigation keep matching the name",
+        )
+    }
+
+    @Test
+    fun `a page without a count keeps its plain name in the sidebar`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        val dialog = newDialog()
+        val generalLabel = localizer.getString("settings_dialog_sidebar.general")
+        val tree = onEdt { descendants<JTree>(dialog.contentPane).single() }
+
+        assertEquals(
+            generalLabel,
+            onEdt { renderedRowText(tree, sidebarRow(tree, generalLabel)) },
+            "General is a page of settings, not a list with a total, so nothing is appended to its name",
+        )
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
+
+    /** The footer button labelled by the localization [key]. */
+    private fun footerButton(dialog: SettingsDialog, key: String): JButton =
+        onEdt { descendants<JButton>(dialog.contentPane).single { it.text == localizer.getString(key) } }
+
+    /** The sidebar row that stands for the page labelled [pageLabel]. */
+    private fun sidebarRow(tree: JTree, pageLabel: String): Int =
+        (0 until tree.rowCount).first { row ->
+            (tree.getPathForRow(row).lastPathComponent as? DefaultMutableTreeNode)?.userObject == pageLabel
+        }
+
+    /**
+     * What the sidebar actually draws for [row].
+     *
+     * The page label lives on the tree node; the text on screen is the renderer's business, and
+     * asking the renderer is the only way to see the decoration it adds to that label.
+     */
+    private fun renderedRowText(tree: JTree, row: Int): String =
+        (tree.cellRenderer.getTreeCellRendererComponent(
+            tree,
+            tree.getPathForRow(row).lastPathComponent,
+            false,
+            true,
+            false,
+            row,
+            false,
+        ) as JLabel).text
+
+    /** A sidebar row's text when [count] items sit behind the page: the name, then the total. */
+    private fun countedRow(pageLabel: String, count: Int): String =
+        "$pageLabel " + localizer.getString("settings_dialog_sidebar.count_format").format(count)
+
+    /**
+     * Puts plugin and service counts in front of the sidebar.
+     *
+     * Both counts come from state the plugin manager only fills by discovering real plugin JARs,
+     * which a rendering test has none of; the flows are seeded instead. What is under test is the
+     * sidebar's decoration, and it reads the same two values either way.
+     */
+    private fun seedSidebarCounts(plugins: Int, services: Int) {
+        val plugin = PluginState(
+            manifest = PluginManifest(
+                id = "test.plugin",
+                name = "Test Plugin",
+                version = "1.0.0",
+                author = "Test",
+                description = "Synthetic plugin, for the sidebar's counts",
+                minApiVersion = "1.0.0",
+            ),
+            status = PluginStatus.ENABLED,
+            jarPath = "plugin.jar",
+        )
+        seedFlow<List<PluginState>>("_plugins", List(plugins) { plugin })
+        seedFlow("_activeServices", buildMap<String, Service> {
+            repeat(services) { index -> put("service-$index", ServiceStub) }
+        })
+    }
+
+    private fun <T> seedFlow(fieldName: String, value: T) {
+        val field = try {
+            PluginManager::class.java.getDeclaredField(fieldName)
+        } catch (error: NoSuchFieldException) {
+            throw AssertionError("PluginManager has no '$fieldName' flow for the sidebar counts to read", error)
+        }
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        (field.get(pluginManager) as MutableStateFlow<T>).value = value
+    }
+
+    /** Stands in for a plugin's service; only its presence is counted here. */
+    private object ServiceStub : Service {
+        override val key = "service-stub"
+        override val name = "Service Stub"
+        override val version = "1.0.0"
+        override val supportedLanguages = SupportedLanguages.All
+    }
 
     /** Every row currently listed by the sidebar's search results. */
     private fun searchHits(dialog: SettingsDialog): List<SearchHit> {

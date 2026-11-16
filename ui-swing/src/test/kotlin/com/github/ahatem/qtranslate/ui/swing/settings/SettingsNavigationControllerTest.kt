@@ -20,7 +20,9 @@ import kotlin.test.assertTrue
 
 /**
  * Page navigation and hit activation: lazy one-shot panel construction shared by navigation and
- * search, group selection, external page selection, and the flash that marks an activated hit.
+ * search, group selection, external page selection, the flash that marks an activated hit, the
+ * count drawn beside a page name in the sidebar, and the page Settings opens on and comes back to
+ * after a search.
  */
 class SettingsNavigationControllerTest {
 
@@ -39,6 +41,7 @@ class SettingsNavigationControllerTest {
         val contentArea: JPanel = JPanel(BorderLayout()),
         orientation: () -> ComponentOrientation,
         panelFactory: (String) -> JPanel,
+        rowSuffix: (String) -> String = { "" },
     ) {
         val controller: SettingsNavigationController = SettingsNavigationController(
             navigation = SettingsNavigation { "sidebar.$it" },
@@ -47,6 +50,7 @@ class SettingsNavigationControllerTest {
             orientation = orientation,
             onPageShown = { shown += it },
             renderPanel = { rendered += it },
+            rowSuffix = rowSuffix,
         )
     }
 
@@ -60,7 +64,15 @@ class SettingsNavigationControllerTest {
             built += name
             JPanel().apply { this.name = name }.also { created += it }
         },
-    ): Fixture = onEdt { Fixture(built, created, shown, rendered, orientation = orientation, panelFactory = panelFactory) }
+        rowSuffix: (String) -> String = { "" },
+    ): Fixture = onEdt {
+        Fixture(
+            built, created, shown, rendered,
+            orientation = orientation,
+            panelFactory = panelFactory,
+            rowSuffix = rowSuffix,
+        )
+    }
 
     private fun rowOfLabel(tree: JTree, label: String): Int =
         (0 until tree.rowCount).first { row ->
@@ -179,6 +191,124 @@ class SettingsNavigationControllerTest {
         assertTrue(onEdt { fixture.controller.tree.isSelectionEmpty })
     }
 
+    // ── The row suffix ────────────────────────────────────────────────────────
+
+    @Test
+    fun `a row suffix is drawn beside the page name while the row keeps the plain label`() {
+        val fixture = newFixture(rowSuffix = { name -> if (name == "sidebar.hotkeys") " (12)" else "" })
+
+        assertEquals(
+            "sidebar.hotkeys (12)",
+            renderedRowText(fixture.controller, "sidebar.hotkeys"),
+            "the count sits beside the page name, where the row shows it",
+        )
+        assertEquals(
+            "sidebar.general",
+            renderedRowText(fixture.controller, "sidebar.general"),
+            "a row without a count is drawn as before",
+        )
+        assertEquals(
+            "sidebar.hotkeys",
+            onEdt {
+                val tree = fixture.controller.tree
+                val node = tree.getPathForRow(rowOfLabel(tree, "sidebar.hotkeys")).lastPathComponent
+                (node as DefaultMutableTreeNode).userObject
+            },
+            "the tree's own value stays the plain page label, so matching is unaffected",
+        )
+
+        // The suffix is display only: everything that matches on the name still does.
+        onEdt { fixture.controller.selectPage("sidebar.hotkeys") }
+        assertEquals(listOf("sidebar.hotkeys"), fixture.built, "navigation still matches the plain label")
+    }
+
+    // ── The page to open when Settings starts ─────────────────────────────────
+
+    @Test
+    fun `selectStartPage opens the page the session left off on`() {
+        val fixture = newFixture()
+
+        onEdt { fixture.controller.selectStartPage("sidebar.network") }
+
+        assertEquals(listOf("sidebar.network"), fixture.built)
+        assertEquals("sidebar.network", selectedLabel(fixture.controller.tree))
+    }
+
+    @Test
+    fun `selectStartPage falls back to the first page with nothing to return to`() {
+        val fixture = newFixture()
+
+        onEdt { fixture.controller.selectStartPage(null) }
+
+        assertEquals(listOf("sidebar.general"), fixture.built, "the first read of Settings opens the first page")
+        assertEquals("sidebar.general", selectedLabel(fixture.controller.tree))
+    }
+
+    @Test
+    fun `selectStartPage falls back to the first page when the remembered page is gone`() {
+        val fixture = newFixture()
+
+        onEdt { fixture.controller.selectStartPage("sidebar.renamed-away") }
+
+        assertEquals(
+            listOf("sidebar.general"),
+            fixture.built,
+            "a page renamed by a language change must not leave the content area blank",
+        )
+        assertEquals("sidebar.general", selectedLabel(fixture.controller.tree))
+    }
+
+    // ── Coming back from a search ─────────────────────────────────────────────
+
+    @Test
+    fun `restoring after a search returns to the page that was showing`() {
+        val fixture = newFixture()
+        onEdt { fixture.controller.showPanel("sidebar.network") }
+        onEdt { fixture.controller.rememberPageBeforeSearch() }
+
+        // The reader opens another page from a result, then clears the query.
+        onEdt { fixture.controller.openHit(SearchHit.Page("sidebar.general")) }
+        assertEquals("sidebar.general", selectedLabel(fixture.controller.tree))
+
+        onEdt { fixture.controller.restorePageAfterSearch() }
+
+        assertEquals(
+            "sidebar.network",
+            selectedLabel(fixture.controller.tree),
+            "the sidebar returns to the page the reader was on when the search interrupted them",
+        )
+        assertEquals("sidebar.network", onEdt { fixture.controller.currentPanel?.name })
+    }
+
+    @Test
+    fun `restoring without a remembered page leaves the page alone`() {
+        val fixture = newFixture()
+        onEdt { fixture.controller.showPanel("sidebar.network") }
+        val showing = fixture.controller.currentPanel
+        val shownBefore = fixture.shown.size
+
+        onEdt { fixture.controller.restorePageAfterSearch() }
+
+        assertSame(showing, fixture.controller.currentPanel, "nothing was remembered, so nothing is restored")
+        assertEquals(shownBefore, fixture.shown.size, "and nothing is shown again")
+    }
+
+    @Test
+    fun `restoring when the page never changed does not reopen it`() {
+        val fixture = newFixture()
+        onEdt { fixture.controller.showPanel("sidebar.network") }
+        onEdt { fixture.controller.rememberPageBeforeSearch() }
+        val shownBefore = fixture.shown.size
+
+        onEdt { fixture.controller.restorePageAfterSearch() }
+
+        // Re-selecting the page already showing would move the sidebar's selection onto it and
+        // reset its scroll position, which is the work of losing the reader's place for nothing.
+        assertTrue(onEdt { fixture.controller.tree.isSelectionEmpty }, "no navigation was issued")
+        assertEquals(shownBefore, fixture.shown.size, "the page is not shown a second time")
+        assertEquals("sidebar.network", onEdt { fixture.controller.currentPanel?.name })
+    }
+
     @Test
     fun `pages are built with the dialog's orientation`() {
         val fixture = newFixture(orientation = { ComponentOrientation.RIGHT_TO_LEFT })
@@ -265,5 +395,18 @@ class SettingsNavigationControllerTest {
 
     private fun selectedLabel(tree: JTree): String? = onEdt {
         (tree.selectionPath?.lastPathComponent as? DefaultMutableTreeNode)?.userObject as? String
+    }
+
+    /** The text the sidebar's renderer draws for the row holding [label]. */
+    private fun renderedRowText(controller: SettingsNavigationController, label: String): String = onEdt {
+        val tree = controller.tree
+        val row = rowOfLabel(tree, label)
+        val renderer = tree.cellRenderer as DefaultTreeCellRenderer
+        renderer.getTreeCellRendererComponent(
+            tree,
+            tree.getPathForRow(row).lastPathComponent,
+            false, false, true, row, false,
+        )
+        renderer.text
     }
 }

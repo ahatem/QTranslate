@@ -22,6 +22,7 @@ import com.github.ahatem.qtranslate.core.settings.data.SettingsPage
 import kotlinx.coroutines.*
 import kotlinx.coroutines.swing.Swing
 import java.awt.*
+import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
@@ -82,6 +83,13 @@ class SettingsDialog(
      * without waiting for a restart.
      */
     private val onSettingsApplied: ((Configuration) -> Unit)? = null,
+    /**
+     * The page to open on — the one this session closed on, when the caller remembers it. Supplied
+     * by the caller rather than kept here, so a dialog owns no state that outlives it.
+     */
+    private val rememberedPage: () -> String? = { null },
+    /** Told which page is showing, so the caller can remember it for the next open. */
+    private val onPageVisited: (String) -> Unit = {},
 ) : JDialog(owner, "Settings", true) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -155,8 +163,10 @@ class SettingsDialog(
         onPageShown = { name ->
             panelTitle.text = name
             updateResetPageAction(name)
+            onPageVisited(name)
         },
         renderPanel = ::renderPanel,
+        rowSuffix = ::sidebarSuffix,
     )
 
     /**
@@ -185,12 +195,24 @@ class SettingsDialog(
         tree = navigator.tree,
         localizationManager = localizationManager,
         onHitActivated = navigator::openHit,
+        onSearchStarted = navigator::rememberPageBeforeSearch,
+        onSearchEnded = navigator::restorePageAfterSearch,
     )
 
     private val sidebarPanel: JPanel = searchController.component
 
     private lateinit var okButton: JButton
     private lateinit var applyButton: JButton
+    private lateinit var cancelButton: JButton
+
+    /**
+     * Asked before Cancel throws staged changes away.
+     *
+     * A field rather than a call, so the decision can be exercised without a real dialog on
+     * screen: the interesting part is that Cancel asks at all, and that it asks only when there is
+     * something to lose.
+     */
+    internal var confirmDiscard: () -> Boolean = ::askDiscardConfirmation
 
     // Panels that own theme-sensitive borders (refreshed in updateBorders)
     private val buttonBarPanel: JPanel = buildButtonBar()
@@ -259,7 +281,54 @@ class SettingsDialog(
         pack()
         setLocationRelativeTo(owner)
 
-        navigator.selectFirstPage()
+        // Ctrl+F reaches the search field from anywhere in the dialog, which is otherwise only
+        // reachable with the mouse: it is chrome in the sidebar, not a row on a page. A page that
+        // registers the same shortcut closer to its own controls — the Plugins list filter — wins,
+        // because ancestor bindings are consulted before window-wide ones.
+        rootPane.registerKeyboardAction(
+            {
+                searchController.searchField.requestFocusInWindow()
+                searchController.searchField.selectAll()
+            },
+            KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK),
+            JComponent.WHEN_IN_FOCUSED_WINDOW
+        )
+
+        watchSidebarCounts()
+
+        // Back to where the reader left off, rather than to the top of the sidebar every time.
+        navigator.selectStartPage(rememberedPage())
+    }
+
+    /**
+     * Keeps the sidebar's counts honest while the dialog is open.
+     *
+     * Enabling a plugin changes how many services are live and installing one changes how many
+     * plugins there are; neither goes through the configuration draft, so nothing else in the
+     * dialog would repaint the sidebar when they change.
+     */
+    private fun watchSidebarCounts() {
+        scope.launch {
+            pluginManager.plugins.collect { SwingUtilities.invokeLater { navigator.tree.repaint() } }
+        }
+        scope.launch {
+            pluginManager.activeServices.collect { SwingUtilities.invokeLater { navigator.tree.repaint() } }
+        }
+    }
+
+    /**
+     * The count shown after a page's name, where a number says something the name cannot: how many
+     * plugins are installed, how many services are live. Pages that are lists of their own already
+     * report their own totals, so they carry nothing here.
+     */
+    private fun sidebarSuffix(pageLabel: String): String {
+        val count = when (pageLabel) {
+            label("plugins")  -> pluginManager.plugins.value.size
+            label("services") -> pluginManager.activeServices.value.size
+            else -> return ""
+        }
+        if (count <= 0) return ""
+        return " " + localizationManager.getString("settings_dialog_sidebar.count_format").format(count)
     }
 
     /**
@@ -444,6 +513,7 @@ class SettingsDialog(
             mnemonic = KeyEvent.VK_C
             addActionListener { cancelAndClose() }
         }
+        this.cancelButton = cancelButton
         applyButton = JButton(localizationManager.getString("common.apply")).apply {
             mnemonic = KeyEvent.VK_A
             isEnabled = false
@@ -465,7 +535,30 @@ class SettingsDialog(
             add(okButton, gbc)
             gbc.gridx = 2; add(cancelButton, gbc)
             gbc.gridx = 3; gbc.insets = Insets(10, 4, 10, 10); add(applyButton, gbc)
-        }
+        }.also { updateFooterHelp() }
+    }
+
+    /**
+     * Says what each footer button will do, in the state it will do it in.
+     *
+     * On a page that owns no settings of its own — Plugins — the footer looks like it governs the
+     * page, and it does not: plugin lifecycle and plugin settings take effect where they are
+     * clicked. A tooltip that names the draft is what keeps the bar from reading as a lie, and it
+     * is also the only description a screen reader gets of a button whose label is one word.
+     */
+    private fun updateFooterHelp(state: SettingsState = settingsStore.state.value) {
+        if (!::okButton.isInitialized || !::applyButton.isInitialized || !::cancelButton.isInitialized) return
+        val staged = hasStagedChanges(state)
+        okButton.toolTipText = localizationManager.getString("settings_dialog.ok_tooltip")
+        applyButton.toolTipText = localizationManager.getString(
+            if (staged) "settings_dialog.apply_tooltip" else "settings_dialog.apply_nothing_tooltip"
+        )
+        cancelButton.toolTipText = localizationManager.getString(
+            if (staged) "settings_dialog.cancel_tooltip" else "settings_dialog.cancel_clean_tooltip"
+        )
+        okButton.accessibleContext.accessibleDescription = okButton.toolTipText
+        applyButton.accessibleContext.accessibleDescription = applyButton.toolTipText
+        cancelButton.accessibleContext.accessibleDescription = cancelButton.toolTipText
     }
 
     // ── State observation ─────────────────────────────────────────────────────
@@ -478,6 +571,7 @@ class SettingsDialog(
                     title = if (state.isDirty) "● $baseTitle" else baseTitle
 
                     updateApplyButton(state)
+                    updateFooterHelp(state)
 
                     navigator.renderCurrentPanel()
                 }
@@ -492,6 +586,10 @@ class SettingsDialog(
     private fun updateApplyButton(state: SettingsState = settingsStore.state.value) {
         applyButton.isEnabled = (state.isDirty || proxyPassword.hasPendingChanges()) && !state.isSaving && !savePending
     }
+
+    /** Whether closing without saving would keep something back that the reader typed. */
+    private fun hasStagedChanges(state: SettingsState = settingsStore.state.value): Boolean =
+        state.isDirty || proxyPassword.hasPendingChanges()
 
     private fun onApply() = saveAndMaybeClose(close = false)
 
@@ -558,9 +656,34 @@ class SettingsDialog(
     }
 
     private fun cancelAndClose() {
+        // The only warning that edits would be lost is a dot in the title, which is nothing beside
+        // a Cancel button one pixel from OK. Esc and the window's close box take the same path:
+        // all three mean "leave without saving", so all three ask the same question.
+        if (hasStagedChanges() && !confirmDiscard()) return
         settingsStore.dispatch(SettingsIntent.CancelChanges)
         proxyPassword.discard()
         dispose()
+    }
+
+    /**
+     * Asks whether to throw the staged changes away, and answers for the safer choice when the
+     * window is dismissed without a button being pressed.
+     */
+    private fun askDiscardConfirmation(): Boolean {
+        val choice = JOptionPane.showOptionDialog(
+            this,
+            localizationManager.getString("settings_dialog.discard_message"),
+            localizationManager.getString("settings_dialog.discard_title"),
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.WARNING_MESSAGE,
+            null,
+            arrayOf(
+                localizationManager.getString("settings_dialog.discard_button"),
+                localizationManager.getString("settings_dialog.keep_editing_button"),
+            ),
+            localizationManager.getString("settings_dialog.keep_editing_button"),
+        )
+        return choice == 0
     }
 
     private fun onReset() {

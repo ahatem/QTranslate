@@ -176,6 +176,16 @@ reset_page_tooltip = "Reset this page's settings to their defaults. Lists the pa
 reset_page_unavailable_tooltip = "This page has no settings of its own to reset."
 search_placeholder = "Filter settings..."
 search_no_results = "No settings match '%s'"
+discard_title = "Unsaved Changes"
+discard_message = "Your changes are not saved yet. Discard them and close Settings?"
+discard_button = "Discard Changes"
+keep_editing_button = "Keep Editing"
+apply_tooltip = "Save the changes staged in this dialog"
+apply_nothing_tooltip = "Nothing has changed yet"
+cancel_tooltip = "Close and discard the staged changes"
+cancel_clean_tooltip = "Close without discarding anything"
+ok_tooltip = "Save the staged changes and close"
+search_tooltip = "Find any page or setting in this dialog (Ctrl+F)"
 
 [settings_dialog_sidebar]
 network = "Network"
@@ -194,6 +204,7 @@ group_interface = "Interface"
 behavior = "Behaviour"
 layout = "Window"
 popups = "Popups"
+count_format = "(%d)"
 
 # ===================================================================
 # SETTINGS PAGES
@@ -345,7 +356,6 @@ status_verification = "Awaiting Verification"
 # Actions
 btn_disable = "Disable"
 btn_enable = "Enable"
-btn_configure = "Configure..."
 btn_accept_update = "Accept Update"
 btn_clean_install = "Clean Install"
 btn_uninstall = "Uninstall"
@@ -360,6 +370,10 @@ install_fail_title = "Installation Failed"
 uninstall_confirm_title = "Uninstall Plugin"
 uninstall_confirm_msg = "Uninstall \"%s\"?\nAll plugin data will be permanently deleted."
 no_settings_msg = "This plugin has no configurable settings."
+section_settings = "Plugin Settings"
+btn_settings = "Plugin Settings"
+settings_hint = "These settings belong to the plugin and save with the Save button below, not with Apply."
+search_shortcut_tooltip = "Search plugins (Ctrl+F)"
 
 [settings_hotkeys]
 global_group = "Global Hotkeys"
@@ -676,6 +690,8 @@ test_ok = "Ready — %d service(s) responded"
 test_failed = "Test failed"
 test_nothing_to_check = "Nothing to check"
 clear_secret = "Clear stored value"
+revert = "Revert"
+saved = "Saved"
 
 # ===================================================================
 # OTHER DIALOGS
