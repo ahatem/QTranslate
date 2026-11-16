@@ -157,7 +157,7 @@ class LayoutPanelCapabilityTest {
         val panel = panel(store, trayAvailable = false)
 
         assertTrue(
-            descendants(panel).filterIsInstance<JLabel>().any { it.text?.contains(hint) == true },
+            descendants(panel).mapNotNull { it.textOf() }.any { it.contains(hint) },
             "a disabled choice has to say why",
         )
     }

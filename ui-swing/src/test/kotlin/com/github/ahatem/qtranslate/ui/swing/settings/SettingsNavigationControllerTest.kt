@@ -155,7 +155,7 @@ class SettingsNavigationControllerTest {
     @Test
     fun `a search hit shows its page and flashes its anchor`() {
         val anchor = JLabel("proxy row")
-        val hit = SearchHit(
+        val hit = SearchHit.Setting(
             "sidebar.network",
             SettingsPanel.SettingEntry("Proxy address:", "Proxy", "", anchor),
         )

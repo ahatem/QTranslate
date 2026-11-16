@@ -111,11 +111,9 @@ class NetworkPanelPasswordTest {
         val panel = onEdt {
             NetworkPanel(store, localizer, proxyPassword = access).also { it.render(store.state.value) }
         }
-        val hintPresent = descendants(panel).any {
-            (it as? javax.swing.JLabel)?.text?.contains(
-                localizer.getString("settings_network.proxy_password_hint")
-            ) == true
-        }
+        val hintPresent = descendants(panel)
+            .mapNotNull { it.textOf() }
+            .any { it.contains(localizer.getString("settings_network.proxy_password_hint")) }
 
         assertTrue(hintPresent, "empty-means-none and the clear action are explained, not guessed")
     }

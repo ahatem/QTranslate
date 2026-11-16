@@ -73,7 +73,7 @@ class AppearancePanelFontListTest {
         val themeManager = ThemeManager(Files.createTempDirectory("qtranslate-appearance-themes").toFile(), logger)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         scopes += scope
-        val panel = onEdt { AppearancePanel(settings, themeManager, localizer, scope) }
+        val panel = onEdt { AppearancePanel(settings, themeManager, localizer) }
         awaitLoaded(panel)
         return panel
     }

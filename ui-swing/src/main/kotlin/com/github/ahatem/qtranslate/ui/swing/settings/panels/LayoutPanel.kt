@@ -115,68 +115,69 @@ class LayoutPanel(
 
         // ── Service selector ─────────────────────────────────────────────────
         // Its own sub-section rather than three unrelated-looking rows among the toolbars: the
-        // two combo boxes only mean anything when the selector itself is showing.
-        addSubSeparator(localizationManager.getString("settings_window.service_selector_sub"))
-
-        servicesCheck = addCheckbox(
-            localizationManager.getString("settings_window.show_services_panel"),
-            false
-        ) { enabled ->
-            applyDraft(store) {
-                it.copy(toolbarVisibility = it.toolbarVisibility.copy(isServicesPanelVisible = enabled))
+        // two combo boxes only mean anything when the selector itself is showing, so they are
+        // nested under it and joined to it by a rail.
+        addSubSection(localizationManager.getString("settings_window.service_selector_sub")) {
+            servicesCheck = addCheckbox(
+                localizationManager.getString("settings_window.show_services_panel"),
+                false
+            ) { enabled ->
+                applyDraft(store) {
+                    it.copy(toolbarVisibility = it.toolbarVisibility.copy(isServicesPanelVisible = enabled))
+                }
             }
-        }
 
-        val selectorStyles = listOf(
-            ServiceSelectorStyleInfo(
-                ServiceSelectorStyle.CLASSIC,
-                localizationManager.getString("settings_window.service_selector_classic")
-            ),
-            ServiceSelectorStyleInfo(
-                ServiceSelectorStyle.ENHANCED,
-                localizationManager.getString("settings_window.service_selector_enhanced")
+            val selectorStyles = listOf(
+                ServiceSelectorStyleInfo(
+                    ServiceSelectorStyle.CLASSIC,
+                    localizationManager.getString("settings_window.service_selector_classic")
+                ),
+                ServiceSelectorStyleInfo(
+                    ServiceSelectorStyle.ENHANCED,
+                    localizationManager.getString("settings_window.service_selector_enhanced")
+                )
             )
-        )
-        selectorStyleCombo = JComboBox(selectorStyles.toTypedArray()).apply {
-            renderer = DisplayValueRenderer<ServiceSelectorStyleInfo>(text = { it?.displayName.orEmpty() })
-            addActionListener {
-                if (!isUpdatingFromState) {
-                    (selectedItem as? ServiceSelectorStyleInfo)?.let { selected ->
-                        applyDraft(store) { it.copy(serviceSelectorStyle = selected.value) }
+            selectorStyleCombo = JComboBox(selectorStyles.toTypedArray()).apply {
+                renderer = DisplayValueRenderer<ServiceSelectorStyleInfo>(text = { it?.displayName.orEmpty() })
+                addActionListener {
+                    if (!isUpdatingFromState) {
+                        (selectedItem as? ServiceSelectorStyleInfo)?.let { selected ->
+                            applyDraft(store) { it.copy(serviceSelectorStyle = selected.value) }
+                        }
                     }
                 }
             }
-        }
-        addRow(localizationManager.getString("settings_window.service_selector_style"), selectorStyleCombo)
+            addRow(localizationManager.getString("settings_window.service_selector_style"), selectorStyleCombo)
 
-        val appearances = listOf(
-            ServiceSelectorAppearanceInfo(
-                ServiceSelectorAppearance.ICONS_ONLY,
-                localizationManager.getString("settings_window.service_selector_icons")
-            ),
-            ServiceSelectorAppearanceInfo(
-                ServiceSelectorAppearance.ICONS_AND_TEXT,
-                localizationManager.getString("settings_window.service_selector_icons_text")
-            ),
-            ServiceSelectorAppearanceInfo(
-                ServiceSelectorAppearance.TEXT_ONLY,
-                localizationManager.getString("settings_window.service_selector_text")
+            val appearances = listOf(
+                ServiceSelectorAppearanceInfo(
+                    ServiceSelectorAppearance.ICONS_ONLY,
+                    localizationManager.getString("settings_window.service_selector_icons")
+                ),
+                ServiceSelectorAppearanceInfo(
+                    ServiceSelectorAppearance.ICONS_AND_TEXT,
+                    localizationManager.getString("settings_window.service_selector_icons_text")
+                ),
+                ServiceSelectorAppearanceInfo(
+                    ServiceSelectorAppearance.TEXT_ONLY,
+                    localizationManager.getString("settings_window.service_selector_text")
+                )
             )
-        )
-        selectorAppearanceCombo = JComboBox(appearances.toTypedArray()).apply {
-            renderer = DisplayValueRenderer<ServiceSelectorAppearanceInfo>(text = { it?.displayName.orEmpty() })
-            addActionListener {
-                if (!isUpdatingFromState) {
-                    (selectedItem as? ServiceSelectorAppearanceInfo)?.let { selected ->
-                        applyDraft(store) { it.copy(serviceSelectorAppearance = selected.value) }
+            selectorAppearanceCombo = JComboBox(appearances.toTypedArray()).apply {
+                renderer = DisplayValueRenderer<ServiceSelectorAppearanceInfo>(text = { it?.displayName.orEmpty() })
+                addActionListener {
+                    if (!isUpdatingFromState) {
+                        (selectedItem as? ServiceSelectorAppearanceInfo)?.let { selected ->
+                            applyDraft(store) { it.copy(serviceSelectorAppearance = selected.value) }
+                        }
                     }
                 }
             }
+            addRow(
+                localizationManager.getString("settings_window.service_selector_appearance"),
+                selectorAppearanceCombo
+            )
         }
-        addRow(
-            localizationManager.getString("settings_window.service_selector_appearance"),
-            selectorAppearanceCombo
-        )
 
         // ── Close button ─────────────────────────────────────────────────────
         addSeparator(localizationManager.getString("settings_window.close_behavior_group"))

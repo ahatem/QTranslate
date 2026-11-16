@@ -72,7 +72,12 @@ class GeneralPanelPlatformTest {
     private fun panel(supported: Boolean): GeneralPanel {
         val store = store()
         return onEdt {
-            GeneralPanel(store, localizer, isLaunchOnStartupSupported = supported).also {
+            GeneralPanel(
+                store,
+                localizer,
+                CoroutineScope(SupervisorJob() + Dispatchers.Default).also { scopes += it },
+                isLaunchOnStartupSupported = supported,
+            ).also {
                 it.render(store.state.value)
             }
         }
@@ -98,8 +103,8 @@ class GeneralPanelPlatformTest {
         val hint = localizer.getString("settings_general.launch_on_startup_windows_only")
         assertTrue(
             descendants(panel(supported = false))
-                .filterIsInstance<JLabel>()
-                .any { it.text?.contains(hint) == true },
+                .mapNotNull { it.textOf() }
+                .any { it.contains(hint) },
             "a disabled platform-specific setting has to explain itself",
         )
     }

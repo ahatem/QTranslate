@@ -105,7 +105,13 @@ class SettingsInformationArchitectureTest {
     @Test
     fun `history bar visibility lives with the rest of history`() {
         val store = store()
-        val general = onEdt { GeneralPanel(store, localizer).also { it.render(store.state.value) } }
+        val general = onEdt {
+            GeneralPanel(
+                store,
+                localizer,
+                CoroutineScope(SupervisorJob() + Dispatchers.Default).also { scopes += it },
+            ).also { it.render(store.state.value) }
+        }
         val window = onEdt { LayoutPanel(store, localizer).also { it.render(store.state.value) } }
         val label = localizer.getString("settings_window.show_history_bar")
 

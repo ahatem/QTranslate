@@ -6,7 +6,6 @@ import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
-import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -79,7 +78,13 @@ class SettingsAccessibilityTest {
     @Test
     fun `a row label names the control beside it`() {
         val store = store()
-        val panel = onEdt { GeneralPanel(store, localizer).also { panel -> panel.render(store.state.value) } }
+        val panel = onEdt {
+            GeneralPanel(
+                store,
+                localizer,
+                CoroutineScope(SupervisorJob() + Dispatchers.Default).also { scopes += it },
+            ).also { panel -> panel.render(store.state.value) }
+        }
 
         val readAloud = labelText(panel, localizer.getString("settings_general.selection_read_aloud"))
         assertNotNull(readAloud.labelFor, "the label is associated with its picker")
@@ -105,11 +110,10 @@ class SettingsAccessibilityTest {
     fun `an icon-only row action carries a name for assistive technology`() {
         val store = store()
         val panel = onEdt {
-            AppearancePanel(
+            GeneralPanel(
                 store,
-                ThemeManager(directory, logger),
                 localizer,
-                scopes.first(),
+                CoroutineScope(SupervisorJob() + Dispatchers.Default).also { scopes += it },
                 openEditor = { },
             ).also { panel -> panel.render(store.state.value) }
         }

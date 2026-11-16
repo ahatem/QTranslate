@@ -17,6 +17,7 @@ import java.awt.ComponentOrientation
 import java.awt.Container
 import java.nio.file.Files
 import javax.swing.JComboBox
+import javax.swing.JLabel
 import javax.swing.SwingUtilities
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -24,9 +25,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The Layout page's controls all sit in the grid's second column, so the shared column edge is a
- * property of the layout helpers rather than of any one row. The audit reported per-row x values
- * that differed; measured here, every control starts at the same x in both directions.
+ * The Layout page keeps one control column for its own rows, and the service selector — nested
+ * under its sub-section heading — gets its own, indented past it. The audit reported per-row x
+ * values that differed; measured here, the difference is the hierarchy rather than drift: every
+ * row at a given level shares an edge, and the nested level is offset from it in both directions.
  */
 class LayoutPanelControlColumnTest {
 
@@ -86,24 +88,92 @@ class LayoutPanelControlColumnTest {
     }
 
     @Test
-    fun `every combo control starts on one column edge`() {
+    fun `the page's own pickers share one column edge`() {
         val edges = controlEdges(ComponentOrientation.LEFT_TO_RIGHT)
-        assertTrue(edges.size >= 5, "the page's five picker rows are measured (${edges.size})")
+        assertEquals(5, edges.size, "layout preset, both selector rows, close and minimise ($edges)")
+
+        val columns = edges.groupingBy { it }.eachCount()
         assertEquals(
-            listOf(edges.first()),
-            edges.distinct(),
-            "Layout Preset, both service-selector rows and both button rows share one control edge",
+            2,
+            columns.size,
+            "one column for the page's rows and one for the nested service selector: $columns",
+        )
+        assertEquals(
+            listOf(3, 2),
+            columns.values.sortedDescending(),
+            "three rows at page level, two inside the sub-section: $columns",
         )
     }
 
     @Test
-    fun `the column edge survives right-to-left mirroring`() {
-        val edges = controlEdges(ComponentOrientation.RIGHT_TO_LEFT)
-        assertTrue(edges.size >= 5)
-        assertEquals(
-            listOf(edges.first()),
-            edges.distinct(),
-            "mirroring moves the column but does not scatter the controls",
+    fun `the nested selector sits inside the page's control column`() {
+        val edges = controlEdges(ComponentOrientation.LEFT_TO_RIGHT)
+        val columns = edges.groupingBy { it }.eachCount()
+        val pageColumn = columns.entries.single { it.value == 3 }.key
+        val nestedColumn = columns.entries.single { it.value == 2 }.key
+
+        assertTrue(
+            nestedColumn > pageColumn,
+            "the sub-section's controls are indented past the page's ($nestedColumn vs $pageColumn)",
         )
+    }
+
+    @Test
+    fun `the column edges survive right-to-left mirroring`() {
+        val edges = controlEdges(ComponentOrientation.RIGHT_TO_LEFT)
+
+        // Not the same assertion as the left-to-right case. A control here is laid out with
+        // weightX and horizontal fill, so in a right-to-left interface it stretches back to the
+        // leading edge and every one of them starts at the same x whatever row it is on: the x of a
+        // control says nothing about nesting in that direction. The nesting is measured on the row
+        // labels in `the nesting indents from the leading edge in both directions` instead.
+        assertEquals(5, edges.size, "all five pickers are still on the page ($edges)")
+        assertEquals(1, edges.distinct().size, "controls fill from the leading edge in this direction ($edges)")
+    }
+
+    /**
+     * The nested level is offset from the leading (data) edge, whichever edge that is.
+     *
+     * Measured on the row *labels* rather than on the controls. A picker sits beside its label, so
+     * its coordinate also moves with the label's own width, and a right-to-left comparison of
+     * controls therefore reads as inverted even when the nesting is in the right place. A label
+     * starts at its row's leading edge, so its offset is the indentation itself.
+     */
+    @Test
+    fun `the nesting indents from the leading edge in both directions`() {
+        listOf(ComponentOrientation.LEFT_TO_RIGHT, ComponentOrientation.RIGHT_TO_LEFT).forEach { orientation ->
+            val (page, nested) = labelLeadingOffsets(orientation)
+            assertTrue(
+                nested > page,
+                "nested rows start further in than the page's own rows in $orientation ($nested vs $page)",
+            )
+            assertEquals(
+                SettingsPanel.NESTED_INDENT,
+                nested - page,
+                "the offset is the hierarchy's indent rather than an accident of label widths, in $orientation",
+            )
+        }
+    }
+
+    /** Leading-edge offsets of a page-level row's label and one inside the sub-section. */
+    private fun labelLeadingOffsets(orientation: ComponentOrientation): Pair<Int, Int> {
+        val store = store()
+        val panel = onEdt {
+            LayoutPanel(store, localizer).also {
+                it.applyComponentOrientation(orientation)
+                it.render(store.state.value)
+                it.setSize(900, 700)
+                layoutTree(it)
+            }
+        }
+        fun offsetOf(text: String): Int {
+            val label = descendants(panel)
+                .filterIsInstance<JLabel>()
+                .first { it.text == text }
+            val x = SwingUtilities.convertPoint(label, 0, 0, panel).x
+            return if (orientation.isLeftToRight) x else panel.width - (x + label.width)
+        }
+        return offsetOf(localizer.getString("settings_window.layout_preset")) to
+            offsetOf(localizer.getString("settings_window.service_selector_style"))
     }
 }

@@ -145,26 +145,34 @@ internal class SettingsNavigationController(
     /**
      * Shows the page a hit belongs to, reveals the hit's row, and flashes it.
      *
+     * A page hit opens its page and nothing else; an action hit opens its page and then runs the
+     * action, because "Reset Page" means nothing without the page it resets being the one on
+     * screen. Only a setting hit has a row to find, so only that case pays for the deferred layout:
+     *
      * The panel may have been built for the search index and never shown, in which case it has
      * no layout yet and every component in it measures zero; the deferred validate is what
      * gives the anchor a real size to scroll to and mark around.
      */
     fun openHit(hit: SearchHit) {
         selectPage(hit.pageLabel)
-        SwingUtilities.invokeLater {
-            // The panel may have been built for the search index and never shown, in which case
-            // it has no layout yet and every component in it measures zero. Scrolling to a
-            // zero-sized component lands at the top of the page and the marker is drawn around
-            // nothing, which is why results on unvisited pages appeared to do nothing at all.
-            contentArea.validate()
+        when (hit) {
+            is SearchHit.Page -> Unit
+            is SearchHit.Action -> SwingUtilities.invokeLater { hit.run() }
+            is SearchHit.Setting -> SwingUtilities.invokeLater {
+                // The panel may have been built for the search index and never shown, in which case
+                // it has no layout yet and every component in it measures zero. Scrolling to a
+                // zero-sized component lands at the top of the page and the marker is drawn around
+                // nothing, which is why results on unvisited pages appeared to do nothing at all.
+                contentArea.validate()
 
-            val anchor = hit.entry.anchor
-            anchor.scrollRectToVisible(Rectangle(0, 0, anchor.width, anchor.height))
+                val anchor = hit.entry.anchor
+                anchor.scrollRectToVisible(Rectangle(0, 0, anchor.width, anchor.height))
 
-            // Once more, after the scroll has settled: the marker is positioned in window
-            // coordinates, so it has to be placed where the row ended up rather than where it
-            // was before the viewport moved.
-            SwingUtilities.invokeLater { flash(anchor) }
+                // Once more, after the scroll has settled: the marker is positioned in window
+                // coordinates, so it has to be placed where the row ended up rather than where it
+                // was before the viewport moved.
+                SwingUtilities.invokeLater { flash(anchor) }
+            }
         }
     }
 

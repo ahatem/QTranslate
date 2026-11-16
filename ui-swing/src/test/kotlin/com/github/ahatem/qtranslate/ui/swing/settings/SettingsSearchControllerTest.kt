@@ -59,7 +59,9 @@ class SettingsSearchControllerTest {
                 SettingsPanel.SettingEntry("Proxy address:", "Proxy", "The proxy requests go through", JLabel()),
             ),
         )
-        val index = SettingsSearchIndex(listOf("General", "Network"), emptySet()) { entriesByPage.getValue(it) }
+        val index = SettingsSearchIndex(listOf(PageRef("General"), PageRef("Network"))) {
+            entriesByPage.getValue(it)
+        }
         return onEdt { SettingsSearchController(index, JTree(), localizer) { activated += it } }
     }
 
@@ -88,7 +90,10 @@ class SettingsSearchControllerTest {
         }
         assertEquals(SettingsSearchController.NAV_RESULTS, controller.visibleCard)
         val hits = hits(controller)
-        assertEquals(listOf("Proxy address:"), hits.map { it.entry.label })
+        assertEquals(
+            listOf("Proxy address:"),
+            hits.filterIsInstance<SearchHit.Setting>().map { it.entry.label },
+        )
         assertEquals("Network", hits.single().pageLabel)
     }
 
@@ -126,6 +131,7 @@ class SettingsSearchControllerTest {
             controller.onQueryChanged()
         }
         val hit = hits(controller).single()
+        assertTrue(hit is SearchHit.Setting, "a label query finds the setting")
         val rendered = onEdt {
             @Suppress("UNCHECKED_CAST")
             controller.resultsList.cellRenderer
@@ -150,8 +156,64 @@ class SettingsSearchControllerTest {
             controller.resultsList.selectedIndex = 0
         }
         assertEquals(1, activated.size)
-        assertEquals("Proxy address:", activated.single().entry.label)
-        assertEquals("Network", activated.single().pageLabel)
+        val hit = activated.single()
+        assertTrue(hit is SearchHit.Setting, "the hit is reported with its kind intact")
+        assertEquals("Proxy address:", hit.entry.label)
+        assertEquals("Network", hit.pageLabel)
+    }
+
+    @Test
+    fun `a page result says it is a page rather than a setting`() {
+        val controller = newController()
+        onEdt {
+            controller.searchField.text = "network"
+            controller.onQueryChanged()
+        }
+        val hit = hits(controller).single()
+
+        val rendered = onEdt {
+            @Suppress("UNCHECKED_CAST")
+            controller.resultsList.cellRenderer
+                ?.getListCellRendererComponent(controller.resultsList, hit, 0, false, false) as JPanel
+        }
+        val labels = onEdt { descendants<JLabel>(rendered) }
+
+        assertTrue(hit is SearchHit.Page, "a page name finds the page")
+        assertTrue(labels.any { it.text == "Network" }, "the row names the page")
+        assertEquals(
+            localizer.getString("settings_dialog.search_kind_page"),
+            labels.last().text,
+            "and says that choosing it navigates rather than opening a setting",
+        )
+    }
+
+    @Test
+    fun `an action result says what kind of result it is`() {
+        val index = SettingsSearchIndex(
+            pages = listOf(PageRef("Popups")),
+            entriesForPage = { emptyList() },
+            actionsForPage = { page -> listOf(SearchHit.Action(page, "Reset Page", run = {})) },
+        )
+        val controller = onEdt { SettingsSearchController(index, JTree(), localizer) {} }
+        onEdt {
+            controller.searchField.text = "reset"
+            controller.onQueryChanged()
+        }
+        val hit = hits(controller).single()
+
+        val rendered = onEdt {
+            @Suppress("UNCHECKED_CAST")
+            controller.resultsList.cellRenderer
+                ?.getListCellRendererComponent(controller.resultsList, hit, 0, false, false) as JPanel
+        }
+        val labels = onEdt { descendants<JLabel>(rendered) }
+
+        assertTrue(labels.any { it.text == "Reset Page" }, "the row names the action")
+        assertEquals(
+            "Popups › ${localizer.getString("settings_dialog.search_kind_action")}",
+            labels.last().text,
+            "the path says which page the action belongs to",
+        )
     }
 
     @Test

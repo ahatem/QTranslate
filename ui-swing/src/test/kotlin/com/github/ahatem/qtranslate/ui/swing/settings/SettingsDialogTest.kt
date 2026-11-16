@@ -305,6 +305,76 @@ class SettingsDialogTest {
     }
 
     @Test
+    fun `a page name is a navigation result of its own`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        val dialog = newDialog()
+        val popupsLabel = localizer.getString("settings_dialog_sidebar.popups")
+
+        val field = onEdt { descendants<JTextField>(dialog.contentPane).single() }
+        onEdt { field.text = "popups" }
+
+        val hits = searchHits(dialog)
+        val page = hits.firstOrNull() as? SearchHit.Page
+
+        assertEquals(popupsLabel, page?.pageLabel, "typing a page name offers the page first")
+        assertTrue(
+            hits.none { it is SearchHit.Page && it.pageLabel != popupsLabel },
+            "and nothing else claims to be a page for that query",
+        )
+    }
+
+    @Test
+    fun `reset is findable from search, on the pages that own settings`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        val dialog = newDialog()
+        val generalLabel = localizer.getString("settings_dialog_sidebar.general")
+        val pluginsLabel = localizer.getString("settings_dialog_sidebar.plugins")
+
+        val field = onEdt { descendants<JTextField>(dialog.contentPane).single() }
+        onEdt { field.text = localizer.getString("settings_dialog.reset_page_button") }
+
+        val actions = searchHits(dialog).filterIsInstance<SearchHit.Action>()
+
+        assertTrue(actions.any { it.pageLabel == generalLabel }, "General can be reset, so search offers it")
+        assertTrue(
+            actions.none { it.pageLabel == pluginsLabel },
+            "the page with no settings of its own offers no reset",
+        )
+    }
+
+    @Test
+    fun `the header reset says what it resets, and why it cannot on a page without settings`() {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
+        val dialog = newDialog()
+        val pluginsLabel = localizer.getString("settings_dialog_sidebar.plugins")
+        val resetPage = onEdt {
+            descendants<JButton>(dialog.contentPane)
+                .single { it.text == localizer.getString("settings_dialog.reset_page_button") }
+        }
+
+        assertEquals(
+            localizer.getString("settings_dialog.reset_page_tooltip"),
+            onEdt { resetPage.toolTipText },
+            "on a page that owns settings, the action explains its scope before it is clicked",
+        )
+
+        onEdt {
+            val tree = descendants<JTree>(dialog.contentPane).single()
+            val row = (0 until tree.rowCount).first { index ->
+                (tree.getPathForRow(index).lastPathComponent as? DefaultMutableTreeNode)?.userObject == pluginsLabel
+            }
+            tree.setSelectionRow(row)
+        }
+        onEdt {}
+
+        assertEquals(
+            localizer.getString("settings_dialog.reset_page_unavailable_tooltip"),
+            onEdt { resetPage.toolTipText },
+            "and on a page without settings it says so instead of leaving a dead button",
+        )
+    }
+
+    @Test
     fun `cancel closes the dialog`() {
         assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
         val dialog = newDialog()
@@ -350,6 +420,16 @@ class SettingsDialogTest {
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
+
+    /** Every row currently listed by the sidebar's search results. */
+    private fun searchHits(dialog: SettingsDialog): List<SearchHit> {
+        val list = onEdt {
+            descendants<JList<*>>(dialog.contentPane)
+                .filter { it.model.size > 0 && it.model.getElementAt(0) is SearchHit }
+                .single()
+        }
+        return onEdt { (0 until list.model.size).map { index -> list.model.getElementAt(index) as SearchHit } }
+    }
 
     /**
      * Spins the event queue until [condition] holds.

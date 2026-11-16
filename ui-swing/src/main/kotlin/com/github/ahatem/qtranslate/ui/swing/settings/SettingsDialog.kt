@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
 import com.github.ahatem.qtranslate.core.plugin.PluginManager
+import com.github.ahatem.qtranslate.core.plugin.PluginStatus
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
@@ -119,11 +120,18 @@ class SettingsDialog(
      *
      * Deliberately in the header rather than in the button bar: it resets one page, and the bar
      * holds whole-dialog actions. It is disabled on a page that owns no settings of its own.
+     *
+     * The tooltip spells out both what it resets and what it keeps, because "Reset Page" beside a
+     * "Reset All Settings" button is exactly the pair a user is most likely to confuse, and the
+     * difference between them is the whole point of having two.
      */
     private val resetPageButton = JButton(
         localizationManager.getString("settings_dialog.reset_page_button")
     ).apply {
         addActionListener { onResetPage() }
+        toolTipText = localizationManager.getString("settings_dialog.reset_page_tooltip")
+        accessibleContext.accessibleDescription =
+            localizationManager.getString("settings_dialog.reset_page_tooltip")
     }
 
     /** The page the reset-page action applies to; null where the page owns nothing to reset. */
@@ -153,15 +161,23 @@ class SettingsDialog(
     )
 
     /**
-     * Every setting on every page, indexed from panel search metadata.
+     * The search index: every page, every setting on it, and the actions the dialog itself offers
+     * on those pages.
      *
      * Built once on the first search and reused. The Plugins page is indexed like any other page:
-     * it is now a link to the plugin manager rather than the manager itself, so finding it costs
-     * nothing and lands on a page that says what it does.
+     * it is a real entry point with a real action now, so finding it by name costs nothing and
+     * lands on a page that explains itself.
      */
     private val searchIndex = SettingsSearchIndex(
-        pageLabels = navigation.pages.map { it.label },
+        pages = navigation.tree.flatMap { nav ->
+            when (nav) {
+                // An ungrouped page is its own result; a grouped one also answers to its heading.
+                is Nav.Page -> listOf(PageRef(nav.label))
+                is Nav.Group -> nav.children.map { PageRef(it.label, groupLabel = nav.label) }
+            }
+        },
         entriesForPage = navigator::searchEntries,
+        actionsForPage = ::searchActionsFor,
     )
 
     /** The search field and its results, swapping with the section tree in the sidebar. */
@@ -332,21 +348,62 @@ class SettingsDialog(
         ).isVisible = true
     }
 
+    /**
+     * One line describing what is installed, for the Plugins page.
+     *
+     * The page is a way in rather than a list, so it has no content of its own; a live count is the
+     * cheapest thing that makes it feel like part of the application rather than a redirect. Read
+     * from the manager's own state on every render, so it is right after the manager has been used.
+     */
+    private fun pluginSummary(): String {
+        val plugins = pluginManager.plugins.value
+        if (plugins.isEmpty()) return ""
+        val enabled = plugins.count { it.status == PluginStatus.ENABLED }
+        return localizationManager.getString("settings_plugins.page_status", plugins.size, enabled)
+    }
+
+    /**
+     * The actions a page offers to search.
+     *
+     * Reset is the dialog's own action on a page — it acts on whichever page is showing — so it
+     * cannot be registered by the panel, which knows nothing about the dialog. Offering it per
+     * page that has settings makes "reset" findable, and finding it on the Popups page means
+     * resetting Popups, which is what the header button does too.
+     */
+    private fun searchActionsFor(pageLabel: String): List<SearchHit.Action> {
+        if (navigation.settingsPageOf(pageLabel) == null) return emptyList()
+        return listOf(
+            SearchHit.Action(
+                pageLabel = pageLabel,
+                label = localizationManager.getString("settings_dialog.reset_page_button"),
+                // The page is already selected by the time a hit is activated, so the header action
+                // resets the right one without repeating the navigation here.
+                run = ::onResetPage,
+            )
+        )
+    }
+
     private fun buildPanel(name: String): JPanel = when (name) {
         label("general") ->
-            GeneralPanel(settingsStore, localizationManager)
+            GeneralPanel(
+                store = settingsStore,
+                localizationManager = localizationManager,
+                scope = scope,
+                openEditor = { code -> openLanguageEditor(code) },
+            )
 
         label("appearance") ->
-            AppearancePanel(
-                settingsStore, themeManager, localizationManager, scope,
-                openEditor = { code -> openLanguageEditor(code) }
-            )
+            AppearancePanel(settingsStore, themeManager, localizationManager)
 
         label("services") ->
             ServicesPanel(settingsStore, pluginManager.activeServices, localizationManager, scope)
 
         label("plugins") ->
-            PluginManagerLinkPanel(localizationManager, onOpenPluginManager = ::openPluginManager)
+            PluginManagerLinkPanel(
+                localizationManager,
+                onOpenPluginManager = ::openPluginManager,
+                pluginSummary = ::pluginSummary,
+            )
 
         label("ocr") ->
             ocrServiceCatalog?.let { catalog ->
@@ -552,10 +609,19 @@ class SettingsDialog(
         if (result == JOptionPane.YES_OPTION) settingsStore.dispatch(SettingsIntent.ResetPreferences)
     }
 
-    /** Keeps the header action honest about what the shown page can reset. */
+    /** Keeps the header action honest about what the shown page can reset, and why. */
     private fun updateResetPageAction(pageName: String) {
         currentSettingsPage = navigation.settingsPageOf(pageName)
-        resetPageButton.isEnabled = currentSettingsPage != null
+        val resettable = currentSettingsPage != null
+        resetPageButton.isEnabled = resettable
+        // A disabled button with no explanation is a dead end. On a page that owns no settings the
+        // tooltip says so instead of leaving the reader to guess whether the button is broken.
+        val explanation = localizationManager.getString(
+            if (resettable) "settings_dialog.reset_page_tooltip"
+            else "settings_dialog.reset_page_unavailable_tooltip"
+        )
+        resetPageButton.toolTipText = explanation
+        resetPageButton.accessibleContext.accessibleDescription = explanation
     }
 
     private fun onResetPage() {
