@@ -63,6 +63,12 @@ class LanguagesPanel(
     // Individual checkboxes — see class-level doc for why not JList
     private val languageCheckBoxes = mutableListOf<Pair<String, JCheckBox>>()
 
+    /** The column of pin checkboxes; rebuilt when the active translator's languages change. */
+    private lateinit var pinnedListPanel: JPanel
+
+    /** Which languages the current checklist was built from, so it is not rebuilt every render. */
+    private var pinnedSignature: List<String> = emptyList()
+
     // The list's viewport is sized to whole rows; see buildUI.
     private lateinit var pinnedScroll: JScrollPane
     private var pinnedRowPitch = 0
@@ -108,24 +114,14 @@ class LanguagesPanel(
             isOpaque = false
             border   = BorderFactory.createEmptyBorder(4, 8, 4, 4)
         }
+        pinnedListPanel = checkBoxPanel
 
-        COMMON_LANGUAGES.forEach { code ->
-            val name = localizedName(code)
-            val cb = JCheckBox("$name  ($code)").apply {
-                isOpaque = false
-                addActionListener {
-                    if (!isUpdatingFromState) {
-                        val selected = languageCheckBoxes
-                            .filter { (_, box) -> box.isSelected }
-                            .map { (c, _) -> c }
-                        applyDraft(store) { it.copy(pinnedLanguages = selected) }
-                    }
-                }
-            }
-            languageCheckBoxes.add(code to cb)
-            checkBoxPanel.add(cb)
-            checkBoxPanel.add(Box.createVerticalStrut(PINNED_ROW_GAP))
-        }
+        // The rows come from the active translator's own languages rather than from a hard-coded
+        // list: a language a plugin introduced can be pinned, and one the translator does not
+        // support is not offered as if it were.
+        rebuildPinnedList(
+            pinCodes(store.state.value.workingConfiguration.pinnedLanguages)
+        )
 
         // A fixed height that is not a multiple of the row pitch bisects whatever row lands on
         // the boundary: the viewport showed a half-height checkbox at the default size, which
@@ -133,7 +129,8 @@ class LanguagesPanel(
         // from the rows themselves (checkbox height plus the strut between them), and the height
         // becomes exactly the number of rows below, so no boundary can fall inside a row. The
         // list still scrolls: the languages outnumber the rows shown.
-        pinnedRowPitch = languageCheckBoxes.maxOf { (_, box) -> box.preferredSize.height } + PINNED_ROW_GAP
+        pinnedRowPitch = (languageCheckBoxes.maxOfOrNull { (_, box) -> box.preferredSize.height }
+            ?: UIScale.scale(20)) + PINNED_ROW_GAP
         pinnedScroll = JScrollPane(checkBoxPanel).apply {
             verticalScrollBarPolicy   = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
@@ -275,10 +272,10 @@ class LanguagesPanel(
     // -------------------------------------------------------------------------
 
     private fun showAddRuleDialog() {
-        val sourceCombo = JComboBox<String>(COMMON_LANGUAGES).apply {
+        val sourceCombo = JComboBox<String>(ruleLanguageCodes().toTypedArray()).apply {
             renderer = DisplayValueRenderer<String>(text = { localizedName(it ?: "") })
         }
-        val targetCombo = JComboBox<String>(COMMON_LANGUAGES).apply {
+        val targetCombo = JComboBox<String>(ruleLanguageCodes().toTypedArray()).apply {
             renderer = DisplayValueRenderer<String>(text = { localizedName(it ?: "") })
         }
 
@@ -333,7 +330,14 @@ class LanguagesPanel(
     override fun render(state: SettingsState) {
         val c = state.workingConfiguration
         withoutTrigger {
-            // Pinned languages
+            // Pinned languages. The rows follow the active translator, so they are rebuilt when
+            // that set changes. A pinned language it does not advertise stays visible and checked:
+            // silently dropping the row would silently drop the stored pin on the next save.
+            val codes = pinCodes(c.pinnedLanguages)
+            if (codes != pinnedSignature) {
+                pinnedSignature = codes
+                rebuildPinnedList(codes)
+            }
             languageCheckBoxes.forEach { (code, cb) ->
                 cb.isSelected = code in c.pinnedLanguages
             }
@@ -382,6 +386,64 @@ class LanguagesPanel(
     // Helpers
     // -------------------------------------------------------------------------
 
+    /**
+     * The languages the pin list shows: the active translator's own, then any pin it does not
+     * advertise, so a stored pin is never hidden from the user who set it.
+     */
+    private fun pinCodes(pinned: List<String>): List<String> {
+        val supported = availableLanguages()
+            .map { it.tag }
+            .filter { it != LanguageCode.AUTO.tag }
+        return supported + pinned.filter { it !in supported }
+    }
+
+    /** Rebuilds the pin rows, keeping the saved selection. */
+    private fun rebuildPinnedList(codes: List<String>) {
+        val pinned = store.state.value.workingConfiguration.pinnedLanguages.toSet()
+        val supported = availableLanguages().map { it.tag }.toSet()
+        pinnedListPanel.removeAll()
+        languageCheckBoxes.clear()
+        codes.forEach { code ->
+            val available = code in supported
+            val label = if (available) {
+                "${localizedName(code)}  ($code)"
+            } else {
+                "${localizedName(code)}  ($code) — " +
+                    localizationManager.getString("settings_languages.pin_unavailable")
+            }
+            val cb = JCheckBox(label).apply {
+                isOpaque = false
+                isSelected = code in pinned
+                addActionListener {
+                    if (!isUpdatingFromState) {
+                        val selected = languageCheckBoxes
+                            .filter { (_, box) -> box.isSelected }
+                            .map { (c, _) -> c }
+                        applyDraft(store) { it.copy(pinnedLanguages = selected) }
+                    }
+                }
+            }
+            languageCheckBoxes.add(code to cb)
+            pinnedListPanel.add(cb)
+            pinnedListPanel.add(Box.createVerticalStrut(PINNED_ROW_GAP))
+        }
+        pinnedListPanel.revalidate()
+        pinnedListPanel.repaint()
+    }
+
+    /**
+     * Languages a rule may name: the translator's own, plus any language an existing rule already
+     * uses. Restricting the list to what the translator supports is what makes a rule's target a
+     * real choice; keeping the used ones means an older rule can still be read and removed.
+     */
+    private fun ruleLanguageCodes(): List<String> {
+        val supported = availableLanguages().map { it.tag }.filter { it != LanguageCode.AUTO.tag }
+        val used = store.state.value.workingConfiguration.translationRules
+            .flatMap { listOf(it.sourceLanguage, it.targetLanguage) }
+            .filter { it !in supported }
+        return (supported + used).distinct()
+    }
+
     private fun localizedName(code: String): String = settingsPanelLocalizedName(code)
 
     // ── Test hooks ────────────────────────────────────────────────────────────
@@ -389,6 +451,7 @@ class LanguagesPanel(
     // render test can read off the store, so they are exposed the way KeyboardPanel exposes its table.
 
     internal fun pinnedListForTest(): JScrollPane = pinnedScroll
+    internal fun pinnedCodesForTest(): List<String> = languageCheckBoxes.map { it.first }
     internal fun pinnedRowPitchForTest(): Int = pinnedRowPitch
     internal fun pinnedContentInsetForTest(): Int = pinnedContentInset
     internal fun rulesScrollForTest(): JScrollPane = rulesScroll
@@ -397,8 +460,6 @@ class LanguagesPanel(
     internal fun isShowingRulesEmptyState(): Boolean = rulesScroll.viewport.view === rulesEmptyPanel
 
     companion object {
-        val COMMON_LANGUAGES = LanguageCode.all().toTypedArray()
-
         /** The strut between two checkboxes; part of the row pitch the list is sized to. */
         private const val PINNED_ROW_GAP = 1
 

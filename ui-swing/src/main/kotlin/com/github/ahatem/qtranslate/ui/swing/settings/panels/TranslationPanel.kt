@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
-import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.AutoCopyTranslation
 import com.github.ahatem.qtranslate.core.settings.data.DictionaryAutoSource
@@ -10,6 +9,7 @@ import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.util.ServiceOptionChoice
+import com.github.ahatem.qtranslate.ui.swing.shared.util.TranslationCapabilities
 import com.github.ahatem.qtranslate.ui.swing.shared.util.choices
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 import java.awt.*
@@ -32,7 +32,15 @@ import javax.swing.*
  */
 class TranslationPanel(
     private val store: SettingsStore,
-    private val localizationManager: LocalizationManager
+    private val localizationManager: LocalizationManager,
+    /**
+     * Which optional recipients are usable right now. Evaluated at render time so the page follows
+     * plugin changes made in the Plugin Manager, instead of freezing what was installed when the
+     * dialog opened.
+     */
+    private val translationCapabilities: () -> TranslationCapabilities = { TranslationCapabilities.UNKNOWN },
+    /** Opens Services & Presets, where a missing summarizer or rewriter is set up. */
+    private val onOpenServices: () -> Unit = {},
 ) : SettingsPanel() {
 
     private lateinit var dictAutoLookupCheck: JCheckBox
@@ -129,12 +137,31 @@ class TranslationPanel(
         addSeparator(localizationManager.getString("settings_translation.extra_output_group"))
 
         typeCombo = JComboBox<ExtraOutputTypeInfo>(types.toTypedArray()).apply {
-            renderer = DisplayValueRenderer<ExtraOutputTypeInfo>(text = { it?.displayName.orEmpty() })
+            renderer = DisplayValueRenderer<ExtraOutputTypeInfo>(
+                text = { info ->
+                    if (info != null && typeUnavailable(info.type)) unavailableLabel(info.type)
+                    else info?.displayName.orEmpty()
+                },
+                // A capability the application cannot perform is not a live choice. It stays
+                // visible and explains itself, mirroring how the layout picker treats an
+                // unavailable Comparison, rather than being selected and failing later.
+                isDisabled = { info -> info != null && typeUnavailable(info.type) },
+                tooltip = { info -> if (info != null && typeUnavailable(info.type)) unavailableHint() else null },
+            )
             addActionListener {
-                if (!isUpdatingFromState) {
-                    val type = (selectedItem as? ExtraOutputTypeInfo)?.type ?: return@addActionListener
-                    applyDraft(store) { it.copy(extraOutputType = type) }
+                if (isUpdatingFromState) return@addActionListener
+                val type = (selectedItem as? ExtraOutputTypeInfo)?.type ?: return@addActionListener
+                if (typeUnavailable(type)) {
+                    // Clicking a disabled choice is not wasted: it reads as "take me to fix this".
+                    withoutTrigger {
+                        selectedItem = types.find {
+                            it.type == store.state.value.workingConfiguration.extraOutputType
+                        }
+                    }
+                    onOpenServices()
+                    return@addActionListener
                 }
+                applyDraft(store) { it.copy(extraOutputType = type) }
             }
         }
         addRow(localizationManager.getString("settings_translation.extra_output_type"), typeCombo)
@@ -202,6 +229,9 @@ class TranslationPanel(
         }
         gb.nextRow().add(JLabel(localizationManager.getString("settings_translation.extra_output_source")))
         gb.weightX(1.0).fill(GridBagConstraints.HORIZONTAL).anchor(GridBagConstraints.LINE_START).add(radioPanel)
+        // The summary and rewrite vocabularies are the application's own names for options; a
+        // service applies the ones it declares, which is why the extra-output pane can offer more.
+        addHint(localizationManager.getString("settings_translation.standard_options_hint"))
 
         // ── Dictionary lookup ────────────────────────────────────────────────
         // Moved here from Languages. It decides what happens after a translation, which is
@@ -289,8 +319,18 @@ class TranslationPanel(
                 ExtraOutputSource.Input  -> useInput.isSelected      = true
             }
             val extraEnabled = c.extraOutputType != ExtraOutputType.None
+            val backward = c.extraOutputType == ExtraOutputType.BackwardTranslate
             useTranslated.isEnabled = extraEnabled
-            useInput.isEnabled      = extraEnabled
+            // Backward translation always produces the source language and reads the target text,
+            // so its own source choice never reaches the runtime. Offering it configured something
+            // that could not happen; it is disabled and says why.
+            useInput.isEnabled = extraEnabled && !backward
+            useInput.toolTipText = if (backward) {
+                localizationManager.getString("settings_translation.backward_input_unavailable")
+            } else {
+                null
+            }
+            if (backward) useTranslated.isSelected = true
 
             summaryLengthCombo.selectedItem = summaryLengths.find { it.id == c.summaryLength }
             rewriteStyleCombo.selectedItem  = rewriteStyles.find { it.id == c.rewriteStyle }
@@ -313,27 +353,39 @@ class TranslationPanel(
     }
 
     // -------------------------------------------------------------------------
+    // Capability checks
+    // -------------------------------------------------------------------------
+
+    /** Whether the application can currently run this extra output at all. */
+    private fun typeUnavailable(type: ExtraOutputType): Boolean = when (type) {
+        ExtraOutputType.Summarize -> !translationCapabilities().summarizerAvailable
+        ExtraOutputType.Rewrite -> !translationCapabilities().rewriterAvailable
+        else -> false
+    }
+
+    /** The unavailable entry's own text: an action, not just a dimmed label. */
+    private fun unavailableLabel(type: ExtraOutputType): String =
+        localizationManager.getString(
+            if (type == ExtraOutputType.Summarize) {
+                "settings_translation.type_summarize_unavailable"
+            } else {
+                "settings_translation.type_rewrite_unavailable"
+            }
+        )
+
+    private fun unavailableHint(): String =
+        localizationManager.getString("settings_translation.type_unavailable_hint")
+
+    // -------------------------------------------------------------------------
     // Data classes
     // -------------------------------------------------------------------------
 
     private data class ExtraOutputTypeInfo(val type: ExtraOutputType, val displayName: String)
 
     private data class AutoCopyTranslationInfo(val mode: AutoCopyTranslation, val displayName: String)
+
+    // Read access for tests, following the same convention as the OCR page's accessors.
+    internal fun typeComboForTest(): JComboBox<*> = typeCombo
+    internal fun useInputForTest(): JRadioButton = useInput
+    internal fun useTranslatedForTest(): JRadioButton = useTranslated
 }
-
-// ---------------------------------------------------------------------------
-// LanguageCode.all() — shared extension used by LanguagesPanel and others
-// ---------------------------------------------------------------------------
-
-fun LanguageCode.Companion.all(): List<String> = listOf(
-    ENGLISH, CHINESE_SIMPLIFIED, CHINESE_TRADITIONAL, HINDI, SPANISH, FRENCH,
-    ARABIC, BENGALI, RUSSIAN, PORTUGUESE_BRAZIL, PORTUGUESE_PORTUGAL, INDONESIAN, URDU, GERMAN, JAPANESE,
-    SWAHILI, MARATHI, TELUGU, TURKISH, TAMIL, VIETNAMESE, KOREAN, ITALIAN,
-    THAI, GUJARATI, JAVANESE, FARSI, HAUSA, BURMESE, POLISH, UKRAINIAN,
-    YORUBA, DUTCH, GREEK, HEBREW, HUNGARIAN, CZECH, SWEDISH, ROMANIAN,
-    DANISH, FINNISH, BULGARIAN, NORWEGIAN, SLOVAK, SLOVENIAN, CATALAN,
-    SERBIAN, CROATIAN, MALAY, NEPALI, SINHALA, KHMER, LAO, AMHARIC,
-    SOMALI, ZULU, AFRIKAANS, ALBANIAN, ARMENIAN, AZERBAIJANI, BASQUE,
-    BELARUSIAN, BOSNIAN, ESTONIAN, GEORGIAN, ICELANDIC, IRISH, LATVIAN,
-    LITHUANIAN, MACEDONIAN, MALTESE, MONGOLIAN, WELSH
-).map { it.tag }

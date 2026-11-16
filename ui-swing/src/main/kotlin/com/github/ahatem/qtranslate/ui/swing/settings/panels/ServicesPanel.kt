@@ -97,6 +97,10 @@ class ServicesPanel(
         // the Primary, and Comparison is what the set becomes once two of its members are usable.
         val translatorsTitle = localizationManager.getString("settings_services.translators_group")
         addSeparator(translatorsTitle, trailing = buildEnabledCheck(ServiceRole.TRANSLATOR))
+        // The Enabled checkbox next to a heading reads as part of this preset, but it switches the
+        // role off for every preset at once. Saying so is the difference between a preference and
+        // an accident.
+        addHint(localizationManager.getString("settings_services.role_enabled_scope"))
         translatorSection = TranslatorSetSection(localizationManager, ::pickerAction) { store.dispatch(it) }
         registerSearchEntry(translatorsTitle, translatorSection)
         registerSearchEntry(
@@ -110,6 +114,7 @@ class ServicesPanel(
 
         // ── Every other role: one service each ────────────────────────────────
         addSeparator(localizationManager.getString("settings_services.other_services_group"))
+        addHint(localizationManager.getString("settings_services.role_enabled_scope"))
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
             .insets(4, 0, 0, 0)
             .add(buildOtherServices())

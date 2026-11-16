@@ -13,6 +13,7 @@ import com.github.ahatem.qtranslate.ui.swing.settings.panels.*
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons
+import com.github.ahatem.qtranslate.ui.swing.shared.util.TranslationCapabilities
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import com.github.ahatem.qtranslate.core.plugin.storage.AppSecretStore
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
@@ -48,6 +49,14 @@ class SettingsDialog(
      * not whatever was available when the dialog was constructed.
      */
     private val availableTranslatorIds: () -> List<String> = { emptyList() },
+    /**
+     * Which optional translation recipients the application can actually run, so the Translation
+     * page never offers a summarizer or rewriter that is not there. Evaluated lazily: plugins can
+     * be enabled or installed while this dialog is open.
+     */
+    private val translationCapabilities: () -> TranslationCapabilities = {
+        TranslationCapabilities.UNKNOWN
+    },
     /** Invoked just before the hotkey recorder opens; should disable global hotkeys. */
     private val pauseGlobalHotkeys:  (() -> Unit)? = null,
     /** Invoked after the recorder closes; should restore the global hotkey state. */
@@ -347,6 +356,7 @@ class SettingsDialog(
                     catalog = catalog,
                     scope = scope,
                     onOpenHotkeys = { navigator.selectPage(label("hotkeys")) },
+                    onOpenServices = ::showServicesPage,
                 )
             } ?: JPanel()
 
@@ -354,7 +364,12 @@ class SettingsDialog(
             KeyboardPanel(settingsStore, localizationManager, pauseGlobalHotkeys, resumeGlobalHotkeys)
 
         label("behavior") ->
-            TranslationPanel(settingsStore, localizationManager)
+            TranslationPanel(
+                settingsStore,
+                localizationManager,
+                translationCapabilities = translationCapabilities,
+                onOpenServices = ::showServicesPage,
+            )
 
         label("languages") ->
             LanguagesPanel(settingsStore, localizationManager, availableLanguages)

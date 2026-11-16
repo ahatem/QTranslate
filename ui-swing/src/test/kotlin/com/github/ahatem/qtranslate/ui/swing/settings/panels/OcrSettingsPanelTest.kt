@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
+import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.SwingUtilities
 import kotlin.test.AfterTest
@@ -53,7 +54,11 @@ class OcrSettingsPanelTest {
             fixture.panel.render(fixture.store.state.value)
             assertEquals(0, fixture.panel.postActionComboForTest().selectedIndex)
             assertTrue(fixture.panel.destinationComboForTest().isEnabled, "explicit translate hotkeys need this destination")
-            assertTrue(fixture.panel.providerComboForTest().itemCount >= 2)
+            assertEquals(
+                "First OCR",
+                fixture.panel.providerSummaryForTest().text,
+                "the active preset's OCR service is shown, read-only",
+            )
             assertTrue(fixture.panel.languageComboForTest().itemCount >= 2)
             assertFalse(fixture.panel.removeLineBreaksForTest().isSelected)
 
@@ -77,35 +82,39 @@ class OcrSettingsPanelTest {
 
             fixture.panel.annotationsForTest().doClick()
             assertFalse(fixture.store.state.value.workingConfiguration.ocr.showWorkspaceAnnotations)
-
-            fixture.panel.providerComboForTest().selectedIndex = 0
-            assertEquals(
-                null,
-                fixture.store.state.value.workingConfiguration.getActivePreset()
-                    ?.selectedServices?.get(ServiceRole.OCR),
-            )
         }
     }
 
     @Test
-    fun `changing the provider writes the existing preset OCR selection`() {
-        val fixture = onEdt { fixture() }
-        onEdt {
-            fixture.panel.render(fixture.store.state.value)
-            fixture.panel.providerComboForTest().selectedIndex = 2
-            fixture.panel.render(fixture.store.state.value)
-        }
+    fun `the OCR service is shown read-only, with the way to its single owner`() {
+        var openedServices = 0
+        val fixture = onEdt { fixture(onOpenServices = { openedServices++ }) }
+        onEdt { fixture.panel.render(fixture.store.state.value) }
 
         assertEquals(
-            "second-ocr",
+            "First OCR",
+            fixture.panel.providerSummaryForTest().text,
+            "the page says which service is in force",
+        )
+        assertEquals(
+            "first-ocr",
             fixture.store.state.value.workingConfiguration.getActivePreset()
                 ?.selectedServices?.get(ServiceRole.OCR),
+            "rendering the page never rewrites the preset's choice",
         )
+
+        val change = onEdt {
+            descendants(fixture.panel).filterIsInstance<JButton>()
+                .single { it.text == localizer.getString("settings_ocr.provider_change_in_services") }
+        }
+        onEdt { change.doClick() }
+
+        assertEquals(1, openedServices, "the only editor is Services & Presets, and this is the way to it")
     }
 
     private data class Fixture(val panel: OcrSettingsPanel, val store: SettingsStore)
 
-    private fun fixture(): Fixture = runBlocking {
+    private fun fixture(onOpenServices: () -> Unit = {}): Fixture = runBlocking {
         val directory = Files.createTempDirectory("qtranslate-ocr-settings-store").toFile()
         val repository = SettingsRepository(directory, Json { ignoreUnknownKeys = true }, logger)
         val preset = ServicePreset(
@@ -129,9 +138,16 @@ class OcrSettingsPanelTest {
             scope = scope,
             logger = logger,
         )
-        val panel = OcrSettingsPanel(store, localizer, catalog, scope, onOpenHotkeys = {})
+        val panel = OcrSettingsPanel(
+            store, localizer, catalog, scope,
+            onOpenHotkeys = {},
+            onOpenServices = onOpenServices,
+        )
         Fixture(panel, store)
     }
+
+    private fun descendants(root: java.awt.Container): List<java.awt.Component> =
+        root.components.flatMap { listOf(it) + if (it is java.awt.Container) descendants(it) else emptyList() }
 
     private fun <T> onEdt(block: () -> T): T {
         var result: Result<T>? = null

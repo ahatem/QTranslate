@@ -286,6 +286,7 @@ class MainAppFrame(
         ocrServiceCatalog = ocrServiceCatalog,
         availableLanguages = { mainStore.state.value.availableLanguages },
         availableTranslatorIds = { mainStore.state.value.availableTranslatorIds },
+        translationCapabilities = { settingsTranslationCapabilities() },
         translateString = translateString,
         appSecrets = appSecrets,
         pauseGlobalHotkeys  = { globalKeyListener.setPaused(true) },
@@ -1878,6 +1879,20 @@ class MainAppFrame(
      */
     private fun applyCommittedSettings(config: Configuration) {
         syncDictionaryPanel(config.showDictionaryPanel)
+    }
+
+    /**
+     * What the loaded, enabled services can actually do.
+     *
+     * The same source the runtime consults, so Settings offers Summarize and Rewrite only when a
+     * translation would find a service able to perform them.
+     */
+    private fun settingsTranslationCapabilities(): TranslationCapabilities {
+        val state = mainStore.state.value
+        return TranslationCapabilities(
+            summarizerAvailable = state.getAvailableServicesFor(ServiceRole.SUMMARIZER).isNotEmpty(),
+            rewriterAvailable = state.getAvailableServicesFor(ServiceRole.REWRITER).isNotEmpty(),
+        )
     }
 
     /**

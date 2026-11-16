@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
@@ -53,6 +54,11 @@ class LanguagesPanelLayoutTest {
         scopes.forEach { it.cancel() }
     }
 
+    /** Languages the "active translator" advertises for these tests. */
+    private fun availableLanguages(): List<LanguageCode> =
+        listOf("auto", "en", "fr", "de", "es", "it", "pt", "ru", "ja", "ko", "zh", "ar", "tr", "pl", "nl")
+            .map(::LanguageCode)
+
     private fun store(): SettingsStore = runBlocking {
         val directory = Files.createTempDirectory("qtranslate-languages-store").toFile()
         val repository = SettingsRepository(directory, Json { ignoreUnknownKeys = true }, logger)
@@ -76,7 +82,7 @@ class LanguagesPanelLayoutTest {
     private fun panelAt(zoom: Float): Pair<LanguagesPanel, SettingsStore> {
         UIScale.setZoomFactor(zoom)
         val store = store()
-        val panel = onEdt { LanguagesPanel(store, localizer).also { it.render(store.state.value) } }
+        val panel = onEdt { LanguagesPanel(store, localizer) { availableLanguages() }.also { it.render(store.state.value) } }
         return panel to store
     }
 
@@ -140,7 +146,7 @@ class LanguagesPanelLayoutTest {
             view.preferredSize.height > list.preferredSize.height - panel.pinnedContentInsetForTest(),
             "the content is taller than the visible rows, so the list scrolls",
         )
-        assertTrue(LanguagesPanel.COMMON_LANGUAGES.size > 9, "the pinned list has more languages than it shows")
+        assertTrue(panel.pinnedCodesForTest().size > 9, "the pinned list has more languages than it shows")
     }
 
     // ── Translation Rules ────────────────────────────────────────────────────
