@@ -10,11 +10,13 @@ import javax.swing.JScrollPane
 import javax.swing.Icon
 import javax.swing.JTree
 import javax.swing.SwingUtilities
+import javax.swing.border.EmptyBorder
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeCellRenderer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -80,39 +82,60 @@ class SettingsNavigationControllerTest {
         }
 
     /**
-     * A group heading keeps the icon slot, so its text starts where the pages' text does.
+     * A group heading is a label over the block beneath it, not an item in the list.
      *
-     * Headings used to have no icon at all, which put their text a column further out at the
-     * panel's edge — the sidebar read as two ragged columns. The slot is now kept but left blank,
-     * and sized from a real icon: `FlatSVGIcon` reports its own scaled size, so a nominal 14 was a
-     * few pixels narrow on a HiDPI display and the headings were still slightly out of line.
+     * So it carries no icon, starts at the row's leading edge, and names itself in upper case: the
+     * indented pages are what then reads as the list. Its rows are still indented past it, which is
+     * the hierarchy the sidebar is for.
+     *
+     * An earlier version kept a blank icon slot so the heading's text lined up with the pages'
+     * text. That is what made the two headings in the middle of the sidebar read as greyed-out
+     * pages — same column as the items, same face, only slightly quieter — which is how they were
+     * reported.
      */
     @Test
-    fun `a group heading keeps an icon slot sized like a page's`() {
+    fun `a group heading is upper case, has no icon, and sits left of the rows it labels`() {
         val fixture = newFixture()
 
-        val (groupIcon, pageIcon) = onEdt {
+        data class Rendered(val text: String, val icon: Icon?, val leading: Int)
+
+        val (heading, child, topLevel) = onEdt {
             val tree = fixture.controller.tree
             val renderer = tree.cellRenderer as DefaultTreeCellRenderer
-            fun iconFor(label: String): Icon? {
+            fun render(label: String): Rendered {
                 val row = rowOfLabel(tree, label)
                 renderer.getTreeCellRendererComponent(
                     tree,
                     tree.getPathForRow(row).lastPathComponent,
                     false, false, false, row, false,
                 )
-                return renderer.icon
+                val insets = (renderer.border as? EmptyBorder)?.borderInsets
+                val leading = if (tree.componentOrientation.isLeftToRight) {
+                    insets?.left ?: -1
+                } else {
+                    insets?.right ?: -1
+                }
+                return Rendered(renderer.text, renderer.icon, leading)
             }
-            iconFor("sidebar.group_translation") to iconFor("sidebar.general")
+            Triple(
+                render("sidebar.group_translation"),
+                render("sidebar.services"),
+                render("sidebar.general"),
+            )
         }
 
-        // If the SVG resources are not loadable here there is nothing to compare against.
-        val reference = pageIcon ?: return
-        val slot = assertNotNull(groupIcon, "a group heading keeps the icon slot")
         assertEquals(
-            reference.iconWidth,
-            slot.iconWidth,
-            "sized like a page's icon, so the heading's text starts at the same edge",
+            "sidebar.group_translation".uppercase(),
+            heading.text,
+            "a heading names itself in upper case so it cannot be read as one of the pages",
+        )
+        assertNull(heading.icon, "a heading carries no icon; the icon column belongs to the pages")
+        assertNotNull(topLevel.icon, "pages still carry their icons")
+
+        assertTrue(
+            heading.leading < child.leading,
+            "a heading sits left of the rows it labels, so the indented pages read as the list " +
+                "(heading ${heading.leading}, page ${child.leading})",
         )
     }
 

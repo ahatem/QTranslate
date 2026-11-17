@@ -23,6 +23,7 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JTree
+import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
 import javax.swing.Timer
 import javax.swing.UIManager
@@ -61,46 +62,33 @@ internal class SettingsNavigationController(
     val markerOverlay = MarkerOverlay()
 
     /**
-     * An icon slot with nothing drawn in it, for the sidebar's group headings.
+     * Theme-aware sidebar icons, keyed by localized page label.
      *
-     * It exists so a heading's text lines up with the text of the pages it labels: those are
-     * indented by their icon and the gap after it, and a heading with no icon at all started a
-     * column further out, at the panel's edge.
+     * Two sets, one per state: the page's own icon is drawn in the text colour so it belongs with
+     * its label, and the selected page's icon takes the accent. They used to be drawn in
+     * `Label.disabledForeground`, which is the colour a look and feel uses to say "this control
+     * cannot be used" — the sidebar looked faded rather than quiet.
      *
-     * Sized from a real sidebar icon rather than from the nominal 14 pixels: `FlatSVGIcon` reports
-     * its own scaled size, which is wider than `UIScale.scale(14)` on a HiDPI display, and a blank
-     * slot that was a few pixels narrow left the headings slightly out of line — visible only as
-     * "the headings look off" until measured.
+     * Each icon re-reads its colour at paint time, so a theme switch needs no update here.
+     * Declared before [tree]: building the tree already asks the renderer for a row icon.
      */
-    private val blankSidebarIcon: Icon by lazy {
-        val sample = sidebarIcons.values.firstOrNull()
-        val width = sample?.iconWidth ?: UIScale.scale(SIDEBAR_ICON_SIZE)
-        val height = sample?.iconHeight ?: UIScale.scale(SIDEBAR_ICON_SIZE)
-        object : Icon {
-            override fun getIconWidth() = width
-            override fun getIconHeight() = height
-            override fun paintIcon(c: Component?, g: Graphics?, x: Int, y: Int) = Unit
-        }
+    private val sidebarIcons: Map<String, Icon> by lazy { iconsColouredLike("Label.foreground") }
+
+    /** The selected row's icons, in the theme's accent, so "where am I" survives a dull selection. */
+    private val selectedSidebarIcons: Map<String, Icon> by lazy {
+        iconsColouredLike("Component.accentColor", fallback = "Label.foreground")
     }
 
-    /**
-     * Theme-aware sidebar icons: 14 × 14 [FlatSVGIcon] with a [FlatSVGIcon.ColorFilter]
-     * that remaps every SVG color to `Label.disabledForeground` at paint time, so icons
-     * always match the active FlatLaf theme without any manual update.
-     *
-     * Declared before [tree]: building the tree already asks the renderer for a row icon,
-     * and that renderer reads this map.
-     */
-    private val sidebarIcons: Map<String, Icon> by lazy {
+    private fun iconsColouredLike(colorKey: String, fallback: String = "Label.foreground"): Map<String, Icon> =
         navigation.iconPaths.mapNotNull { (name, path) ->
             runCatching {
                 val icon = IconSet.load(path, SIDEBAR_ICON_SIZE, SIDEBAR_ICON_SIZE)
-                icon.colorFilter =
-                    FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") ?: Color.GRAY }
+                icon.colorFilter = FlatSVGIcon.ColorFilter {
+                    UIManager.getColor(colorKey) ?: UIManager.getColor(fallback) ?: Color.GRAY
+                }
                 name to (icon as Icon)
             }.getOrNull()
         }.toMap()
-    }
 
     /** The sidebar's section tree; the search controller hosts it in its card space. */
     val tree: JTree = buildTree()
@@ -410,7 +398,7 @@ internal class SettingsNavigationController(
             putClientProperty(
                 "FlatLaf.style",
                 // Compact rows, and a selection shape the hover state matches exactly.
-                "rowHeight: 26; selectionArc: 8; selectionInsets: 1,5,1,5; " +
+                "rowHeight: 28; selectionArc: 8; selectionInsets: 1,5,1,5; " +
                         $$"selectionBackground: $Table.selectionBackground"
             )
 
@@ -437,12 +425,23 @@ internal class SettingsNavigationController(
                     )
 
                     val name = (value as? DefaultMutableTreeNode)?.userObject as? String ?: ""
-                    text = name + rowSuffix(name)
-                    icon = sidebarIcons[name]
-                    iconTextGap = 8
                     // A group is a heading for the rows beneath it, so it is styled as one
                     // rather than competing with the pages it labels.
                     val isGroup = navigation.isGroup(name)
+
+                    // A heading names the block beneath it; it is not an item in the block. So it
+                    // is upper case, a size down, muted, and flush with the row's leading edge —
+                    // the indented pages are then what reads as the list. Set in the same face and
+                    // colour as the rows and lined up with their text, "Translation" and
+                    // "Interface" read as two greyed-out pages sitting in the middle of the
+                    // sidebar, which is exactly how they were reported.
+                    text = if (isGroup) name.uppercase() else name + rowSuffix(name)
+                    icon = when {
+                        isGroup -> null
+                        sel     -> selectedSidebarIcons[name] ?: sidebarIcons[name]
+                        else    -> sidebarIcons[name]
+                    }
+                    iconTextGap = 9
 
                     // Headings and ungrouped pages sit at the base; a page inside a group sits
                     // further in, so the nesting is visible at a glance.
@@ -464,11 +463,17 @@ internal class SettingsNavigationController(
                     // the far end of the row in a right-to-left interface.
                     val base = UIScale.scale(ROW_INSET)
                     val leading = base + nesting
+                    // A heading gets air above it, inside its own row rather than by changing the
+                    // row height: it opens a group, and flush against the row above it read as one
+                    // more item. The text is pinned to the top of the row for that to show, since
+                    // a centred label just absorbs the padding.
+                    val airAbove = if (isGroup) UIScale.scale(HEADING_AIR) else 0
                     border = if (tree.componentOrientation.isLeftToRight) {
-                        BorderFactory.createEmptyBorder(0, leading, 0, base)
+                        BorderFactory.createEmptyBorder(airAbove, leading, 0, base)
                     } else {
-                        BorderFactory.createEmptyBorder(0, base, 0, leading)
+                        BorderFactory.createEmptyBorder(airAbove, base, 0, leading)
                     }
+                    verticalAlignment = if (isGroup) SwingConstants.TOP else SwingConstants.CENTER
                     // A heading labels the rows beneath it, so it is quieter and smaller than
                     // they are. Set at the same size and weight it competed with them, and the
                     // sidebar read as one long list with two odd entries in it.
@@ -478,13 +483,6 @@ internal class SettingsNavigationController(
                             if (isGroup) "Label.disabledForeground" else "Label.foreground"
                         )
                     }
-
-                    // Headings keep the icon *slot* but leave it blank. Setting no icon at all —
-                    // what this used to do — moved the heading's text out to the panel edge, a
-                    // step past the pages it labels, so the sidebar read as two ragged columns.
-                    // A blank slot of the same size keeps the text aligned with the pages and
-                    // still leaves the gutter empty, so headings do not look selectable.
-                    if (isGroup) icon = blankSidebarIcon
 
                     return this
                 }
@@ -607,6 +605,9 @@ internal class SettingsNavigationController(
 
         /** Breathing room at the leading and trailing edge of every sidebar row. */
         const val ROW_INSET = 8
+
+        /** Air above a group heading, inside its row, so it opens the group rather than joining it. */
+        const val HEADING_AIR = 7
 
         /**
          * Smallest gap between an ungrouped page and one nested under a heading.
