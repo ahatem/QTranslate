@@ -10,6 +10,9 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.*
+import com.github.ahatem.qtranslate.ui.swing.main.layout.BorderSplitPaneUI
+import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
+import com.github.ahatem.qtranslate.ui.swing.main.layout.UISpacing
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons
@@ -201,6 +204,17 @@ class SettingsDialog(
 
     private val sidebarPanel: JPanel = searchController.component
 
+    /**
+     * The sidebar and the page, separated by the workspace's border seam.
+     *
+     * The same split pane the workspace docks use: a hairline boundary rather than grip dots, and
+     * mirroring by exchanging children so the divider still drags the right way in Arabic. It
+     * replaces the matte border that used to be painted on the sidebar's content-facing edge, and
+     * it can be dragged — a page with wide content and a reader who wants the sidebar narrow are
+     * both reasonable.
+     */
+    private lateinit var mainSplit: MirroredSplitPane
+
     private lateinit var okButton: JButton
     private lateinit var applyButton: JButton
     private lateinit var cancelButton: JButton
@@ -237,13 +251,20 @@ class SettingsDialog(
         // ── Header strip ─────────────────────────────────────────────────────
         contentArea.add(headerStrip, BorderLayout.NORTH)
 
-        val mainPanel = JPanel(BorderLayout()).apply {
-            add(sidebarPanel, BorderLayout.LINE_START)
-            add(contentArea, BorderLayout.CENTER)
+        val mainPanel = MirroredSplitPane(
+            JSplitPane.HORIZONTAL_SPLIT, true, sidebarPanel, contentArea
+        ).apply {
+            leadingResizeWeight = SIDEBAR_SHARE
+            dividerSize         = UISpacing.DIVIDER_SIZE
+            setUI(BorderSplitPaneUI())
+            border              = BorderFactory.createEmptyBorder()
+            isMirrored          = !componentOrientation.isLeftToRight
         }
+        mainSplit = mainPanel
 
         add(mainPanel, BorderLayout.CENTER)
         add(buttonBarPanel, BorderLayout.SOUTH)
+        mainPanel.setLeadingProportion(SIDEBAR_SHARE)
 
         glassPane = navigator.markerOverlay
 
@@ -342,6 +363,9 @@ class SettingsDialog(
     override fun applyComponentOrientation(orientation: ComponentOrientation) {
         super.applyComponentOrientation(orientation)
         updateBorders()
+        // The split mirrors by exchanging its children, so it only needs telling which way round
+        // the interface now reads.
+        if (::mainSplit.isInitialized) mainSplit.isMirrored = !orientation.isLeftToRight
         // Pages already built were reached by super above; ones built later read the dialog's
         // orientation in their factory.
         revalidate()
@@ -353,18 +377,8 @@ class SettingsDialog(
     private fun updateBorders() {
         val bc = UIManager.getColor("Component.borderColor") ?: Color.GRAY
 
-        // The divider goes on whichever edge faces the content, which swaps with the layout
-        // direction: the sidebar sits on the right in a right-to-left interface, so a border
-        // fixed to its right edge ends up on the outside of the window against nothing.
-        // MatteBorder takes absolute sides and knows nothing about orientation, so the side is
-        // chosen here.
-        sidebarPanel.border = MatteBorder(
-            0,
-            if (componentOrientation.isLeftToRight) 0 else 1,
-            0,
-            if (componentOrientation.isLeftToRight) 1 else 0,
-            bc
-        )
+        // The line between the sidebar and the page is the split pane's own seam now, so there is
+        // nothing to paint on the sidebar's edge here.
 
         // Divides the search box from the sections it searches, matching the rule under the
         // header strip on the other side of the sidebar so the two line up as one row of chrome.
@@ -743,5 +757,10 @@ class SettingsDialog(
             translateString = translateString,
             initialCode = languageCode
         ).isVisible = true
+    }
+
+    private companion object {
+        /** The sidebar's share of the dialog's width, before the reader drags the divider. */
+        const val SIDEBAR_SHARE = 0.2
     }
 }
