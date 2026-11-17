@@ -11,6 +11,9 @@ import com.github.ahatem.qtranslate.core.plugin.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.util.role
+import com.github.ahatem.qtranslate.ui.swing.main.layout.BorderSplitPaneUI
+import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
+import com.github.ahatem.qtranslate.ui.swing.main.layout.UISpacing
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import com.github.ahatem.qtranslate.ui.swing.shared.util.GridBag
@@ -27,6 +30,7 @@ import java.beans.PropertyChangeListener
 import java.awt.datatransfer.DataFlavor
 import java.io.File
 import java.net.URI
+import javax.accessibility.AccessibleContext
 import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
@@ -90,7 +94,10 @@ class PluginsPanel(
     /** The filter row above the list; its underline is rebuilt on every theme change. */
     private lateinit var listHeaderPanel: JPanel
 
-    private val pluginRows = JPanel()
+    private val pluginListModel = DefaultListModel<PluginState>()
+    private lateinit var pluginList: SettingsRowList<PluginState>
+    private lateinit var listCards: JPanel
+    private val listEmptyLabel = JLabel("", SwingConstants.CENTER)
     private val searchField = JTextField()
     private val categoryCombo = JComboBox(PluginCategory.entries.toTypedArray())
     private val resultCount = JLabel()
@@ -98,6 +105,9 @@ class PluginsPanel(
     private val rightPanel: JPanel         // padded to sit clear of that line
     private val detailScroll: JScrollPane  // scrollable detail area
     private val actionBar = JPanel()       // fixed footer — never scrolls
+
+    /** The list/detail divider. Held so the two halves can be mirrored for a right-to-left layout. */
+    private lateinit var splitPane: MirroredSplitPane
     private var selectedPlugin: PluginState? = null
     private var allPlugins: List<PluginState> = emptyList()
 
@@ -128,6 +138,9 @@ class PluginsPanel(
         if (!::listHeaderPanel.isInitialized) return
         refreshLeftBorder()
         refreshPluginRows()
+        // The pane mirrors by exchanging its children, so it only has to be told which way round
+        // the interface now reads.
+        if (::splitPane.isInitialized) splitPane.isMirrored = !orientation.isLeftToRight
     }
 
     init {
@@ -186,20 +199,46 @@ class PluginsPanel(
                 font = font.deriveFont(font.size - 1f)
             }, BorderLayout.SOUTH)
         }
-        pluginRows.apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            background = UIManager.getColor("Panel.background")
-            border = BorderFactory.createEmptyBorder(2, 6, 2, 6)
+        pluginList = SettingsRowList(
+            model = pluginListModel,
+            trailingHotspot = TRAILING_CONTROL,
+            onRowActivated = { onConfigure(it) },
+            onTrailingPressed = { plugin, _ -> toggleEnabled(plugin) },
+        ).apply {
+            cellRenderer = PluginRowRenderer()
+            // Through the client property: `accessibleContext` is null until the component has one,
+            // and a list built before it is showing would throw on the property itself.
+            putClientProperty(
+                AccessibleContext.ACCESSIBLE_NAME_PROPERTY,
+                localizationManager.getString("settings_dialog_sidebar.plugins")
+            )
+            addListSelectionListener { event ->
+                if (event.valueIsAdjusting) return@addListSelectionListener
+                val plugin = selectedValue ?: return@addListSelectionListener
+                if (plugin.id == selectedPlugin?.id) return@addListSelectionListener
+                selectedPlugin = plugin
+                rebuildDetail()
+            }
         }
 
         val dropHandler = PluginJarTransferHandler()
-        val listScroll = JScrollPane(pluginRows).apply {
-            clearBorder()
-            viewportBorder = null
-            horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-            verticalScrollBar.unitIncrement = 16
+        val listScroll = SettingsRowList.scrollOf(pluginList).apply {
             transferHandler = dropHandler
             viewport.transferHandler = dropHandler
+        }
+        listEmptyLabel.apply {
+            foreground = UIManager.getColor("Label.disabledForeground")
+            verticalAlignment = SwingConstants.TOP
+            border = BorderFactory.createEmptyBorder(UIScale.scale(24), UIScale.scale(12), 0, UIScale.scale(12))
+        }
+        // The list and its "nothing here" message share the space: a `JList` with an empty model
+        // has nothing to say, and the message has to be a component of its own.
+        listCards = JPanel(CardLayout()).apply {
+            add(listScroll, CARD_LIST)
+            add(JPanel(BorderLayout()).apply {
+                isOpaque = false
+                add(listEmptyLabel, BorderLayout.NORTH)
+            }, CARD_NO_LIST)
         }
 
         val installBtn = JButton(
@@ -244,11 +283,11 @@ class PluginsPanel(
         }
 
         leftPanel = JPanel(BorderLayout()).apply {
-            preferredSize = Dimension(UIScale.scale(320), 0)
-            minimumSize   = Dimension(270, 0)
-            maximumSize   = Dimension(350, Int.MAX_VALUE)
+            preferredSize = Dimension(UIScale.scale(336), 0)
+            minimumSize   = Dimension(280, 0)
+            maximumSize   = Dimension(370, Int.MAX_VALUE)
             add(listHeaderPanel, BorderLayout.NORTH)
-            add(listScroll, BorderLayout.CENTER)
+            add(listCards, BorderLayout.CENTER)
             add(leftBottom, BorderLayout.SOUTH)
             transferHandler = dropHandler
         }
@@ -270,8 +309,29 @@ class PluginsPanel(
 
         refreshLeftBorder()
 
-        add(leftPanel,  BorderLayout.LINE_START)
-        add(rightPanel, BorderLayout.CENTER)
+        // A split pane rather than two panels side by side: how wide the list should be is the
+        // reader's call — a plugin name is long in one language and short in another — and the
+        // divider is also where the rule between the two halves is now drawn, instead of a matte
+        // border baked onto the list's edge. FlatLaf draws the divider and its grip, so it follows
+        // the theme like everything else.
+        // The same split pane the workspace docks use: `MirroredSplitPane` arranges a right-to-left
+        // interface by exchanging its children rather than by inverting the axis (which makes the
+        // divider drag the wrong way), and `BorderSplitPaneUI` draws the hairline seam a region
+        // boundary has instead of FlatLaf's grip dots. So the divider is also the rule between the
+        // list and the detail pane that a matte border was painting before — and it can be dragged,
+        // which is how a reader gives a long plugin name room in one language and takes it back in
+        // another.
+        splitPane = MirroredSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, leftPanel, rightPanel).apply {
+            leadingResizeWeight = LIST_SHARE
+            dividerSize         = UISpacing.DIVIDER_SIZE
+            setUI(BorderSplitPaneUI())
+            clearBorder()
+            isMirrored          = !componentOrientation.isLeftToRight
+        }
+        add(splitPane, BorderLayout.CENTER)
+        // Held until the pane has a width to divide: a proportion set on a zero-width split is
+        // silently ignored, which is how a list ends up pinned to its minimum instead.
+        splitPane.setLeadingProportion(LIST_SHARE)
 
         // Observe live plugin list
         scope.launch {
@@ -309,19 +369,20 @@ class PluginsPanel(
      * detail panel's padding on its leading edge, which puts both between the two panels whichever
      * way round the layout runs.
      */
+    /**
+     * Gives the two halves their padding and the filter row its rule.
+     *
+     * The line between the list and the detail pane used to be drawn here, as a matte border on
+     * whichever edge faced the other panel. The split pane's own divider draws it now, which is
+     * also what lets the divider be dragged; only the padding either side is left to set, and it
+     * still has to be restored on a theme change because a border keeps the colour it was given.
+     */
     private fun refreshLeftBorder() {
         val line = UIManager.getColor("Component.borderColor") ?: Color.GRAY
         val leftToRight = componentOrientation.isLeftToRight
         val gap = UIScale.scale(14)
 
-        // The list's contents carry their own insets, so the line sits at the panel edge.
-        leftPanel.border = BorderFactory.createMatteBorder(
-            0,
-            if (leftToRight) 0 else 1,
-            0,
-            if (leftToRight) 1 else 0,
-            line
-        )
+        leftPanel.border = BorderFactory.createEmptyBorder()
         rightPanel.border = BorderFactory.createEmptyBorder(
             0,
             if (leftToRight) gap else 0,
@@ -355,25 +416,28 @@ class PluginsPanel(
         val selectedId = selectedPlugin?.id
         if (visiblePlugins.none { it.id == selectedId }) selectedPlugin = visiblePlugins.firstOrNull()
 
-        pluginRows.removeAll()
-        if (visiblePlugins.isEmpty()) {
-            val messageKey = if (allPlugins.isEmpty()) "settings_plugins.empty_title" else "settings_plugins.no_results"
-            pluginRows.add(JLabel(localizationManager.getString(messageKey), SwingConstants.CENTER).apply {
-                alignmentX = Component.CENTER_ALIGNMENT
-                foreground = UIManager.getColor("Label.disabledForeground")
-                border = BorderFactory.createEmptyBorder(30, 12, 12, 12)
-            })
+        pluginListModel.clear()
+        visiblePlugins.forEach { pluginListModel.addElement(it) }
+
+        // The selection follows the model, not the other way round: the listener above would
+        // otherwise treat this write as the reader picking a row.
+        val row = visiblePlugins.indexOfFirst { it.id == selectedPlugin?.id }
+        if (row >= 0) {
+            pluginList.selectedIndex = row
+            pluginList.ensureIndexIsVisible(row)
         } else {
-            visiblePlugins.forEach {
-                pluginRows.add(buildPluginRow(it))
-                pluginRows.add(Box.createVerticalStrut(3))
-            }
-            pluginRows.add(Box.createVerticalGlue())
+            pluginList.clearSelection()
         }
+
+        val messageKey = if (allPlugins.isEmpty()) "settings_plugins.empty_title" else "settings_plugins.no_results"
+        listEmptyLabel.text = localizationManager.getString(messageKey)
+        (listCards.layout as CardLayout).show(
+            listCards,
+            if (visiblePlugins.isEmpty()) CARD_NO_LIST else CARD_LIST
+        )
+
         resultCount.text = localizationManager.getString("settings_plugins.result_count")
             .format(visiblePlugins.size, allPlugins.size)
-        pluginRows.revalidate()
-        pluginRows.repaint()
         rebuildDetail()
     }
 
@@ -388,93 +452,100 @@ class PluginsPanel(
         UIManager.addPropertyChangeListener(themeListener)
     }
 
-    private fun buildPluginRow(plugin: PluginState): JComponent {
-        val selected = plugin.id == selectedPlugin?.id
-        val row = object : JPanel(BorderLayout(8, 0)) {
-            override fun paintComponent(graphics: Graphics) {
-                if (selected) {
-                    val g2 = graphics.create() as Graphics2D
-                    g2.color = UIManager.getColor("List.selectionBackground")
-                        ?: UIManager.getColor("Component.focusColor")
-                        ?: Color(0x3D5A80)
-                    g2.fillRoundRect(0, 0, width, height, 8, 8)
-                    g2.dispose()
-                }
-                super.paintComponent(graphics)
-            }
-        }.apply {
-            maximumSize = Dimension(Int.MAX_VALUE, 62)
-            preferredSize = Dimension(UIScale.scale(290), UIScale.scale(62))
-            isOpaque = false
-            border = BorderFactory.createEmptyBorder(7, 9, 7, 7)
-            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-            addMouseListener(object : MouseAdapter() {
-                override fun mousePressed(e: MouseEvent) {
-                    selectedPlugin = plugin
-                    refreshPluginRows()
-                }
-            })
+    /** The switch at a row's trailing edge: enable or disable that plugin, where it is clicked. */
+    private fun toggleEnabled(plugin: PluginState) {
+        if (plugin.status != PluginStatus.ENABLED && plugin.status != PluginStatus.DISABLED) return
+        scope.launch {
+            if (plugin.status == PluginStatus.ENABLED) pluginManager.disablePlugin(plugin.id)
+            else pluginManager.enablePlugin(plugin.id)
         }
-        val foreground = if (selected) UIManager.getColor("List.selectionForeground") else UIManager.getColor("Label.foreground")
-        val serviceId = plugin.services.firstOrNull()?.let(plugin::serviceIdOf)
-        val icon = plugin.manifest.icon?.let { path -> serviceId?.let { iconManager.getIcon(it, path, 24, 24) } }
-            ?: themedAppIcon(Icons.PLUGIN, 24)
-        val categories = PluginPanelModel.categories(plugin).joinToString(" · ") { categoryName(it) }
-        val text = JPanel().apply {
+    }
+
+    /**
+     * One plugin as a list row.
+     *
+     * The components are built once and mutated: a renderer runs for every visible row on every
+     * repaint — including the repaints a hover causes — and allocating a component tree per call
+     * would make the list expensive for no benefit. Selection is not painted here at all; the list
+     * paints it from `List.selection*`, which is what keeps it right in both themes and when the
+     * list does not have the focus.
+     */
+    private inner class PluginRowRenderer : ListCellRenderer<PluginState> {
+        private val iconCell = JLabel()
+        private val nameLabel = JLabel().apply { font = font.deriveFont(Font.BOLD) }
+        private val versionLabel = JLabel().apply { font = font.deriveFont(font.size - 1f) }
+        private val switch = JCheckBox().apply { isOpaque = false }
+
+        private val textColumn = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             isOpaque = false
-            add(JLabel(plugin.manifest.name, icon, SwingConstants.LEADING).apply {
-                font = font.deriveFont(Font.BOLD)
-                this.foreground = foreground
-                iconTextGap = 8
-            })
-            add(JLabel("v${plugin.manifest.version} · $categories").apply {
-                font = font.deriveFont(font.size - 1f)
-                this.foreground = if (selected) foreground else UIManager.getColor("Label.disabledForeground")
-                // Indented to sit under the plugin's name rather than under its icon. That is a
-                // leading-edge inset, so it swaps sides with the layout: written absolutely, the
-                // line hung off the wrong edge in a right-to-left interface and stopped lining up
-                // with the name it belongs to.
-                //
-                // The direction is read from the panel, not from this label. A component that has
-                // not been added to anything yet reports ComponentOrientation.UNKNOWN, whose
-                // isLeftToRight is true, so asking the label always answered left-to-right and the
-                // indent never moved.
-                border = if (this@PluginsPanel.componentOrientation.isLeftToRight) {
-                    BorderFactory.createEmptyBorder(3, NAME_INDENT, 0, 0)
-                } else {
-                    BorderFactory.createEmptyBorder(3, 0, 0, NAME_INDENT)
-                }
-            })
+            add(nameLabel)
+            add(versionLabel)
         }
-        val controls = JPanel(FlowLayout(FlowLayout.TRAILING, 2, 0)).apply {
+        private val textRow = JPanel(BorderLayout(8, 0)).apply {
             isOpaque = false
-            if (plugin.status == PluginStatus.ENABLED || plugin.status == PluginStatus.DISABLED) {
-                add(JCheckBox().apply {
-                    isSelected = plugin.status == PluginStatus.ENABLED
-                    toolTipText = if (isSelected) localizationManager.getString("settings_plugins.btn_disable")
-                        else localizationManager.getString("settings_plugins.btn_enable")
-                    isOpaque = false
-                    addActionListener {
-                        isEnabled = false
-                        scope.launch {
-                            if (isSelected) pluginManager.enablePlugin(plugin.id) else pluginManager.disablePlugin(plugin.id)
-                        }
-                    }
-                })
-                add(JButton(themedAppIcon(Icons.SETTINGS, 15)).apply {
-                    putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
-                    toolTipText = localizationManager.getString("settings_plugins.btn_settings")
-                    addActionListener { onConfigure(plugin) }
-                })
-            } else {
-                add(buildStatusBadge(plugin.status))
-            }
+            add(iconCell, BorderLayout.LINE_START)
+            add(textColumn, BorderLayout.CENTER)
         }
-        row.add(text, BorderLayout.CENTER)
-        row.add(controls, BorderLayout.LINE_END)
-        return row
+        private val controls = JPanel(FlowLayout(FlowLayout.TRAILING, 2, 0)).apply { isOpaque = false }
+        private val row = JPanel(BorderLayout(8, 0)).apply {
+            isOpaque = false
+            border = BorderFactory.createEmptyBorder(
+                UIScale.scale(6), UIScale.scale(8), UIScale.scale(6), UIScale.scale(8)
+            )
+            add(textRow, BorderLayout.CENTER)
+            add(controls, BorderLayout.LINE_END)
+        }
+
+        override fun getListCellRendererComponent(
+            list: JList<out PluginState>,
+            value: PluginState,
+            index: Int,
+            isSelected: Boolean,
+            cellHasFocus: Boolean,
+        ): Component {
+            val primary = if (isSelected) UIManager.getColor("List.selectionForeground")
+            else UIManager.getColor("Label.foreground")
+            val secondary = if (isSelected) primary else SettingsRowList.secondaryForeground()
+
+            iconCell.icon = rowIconFor(value)
+            nameLabel.apply {
+                text = value.manifest.name
+                foreground = primary
+                // A name longer than the row still has somewhere to be read in full.
+                toolTipText = value.manifest.name
+            }
+            versionLabel.apply {
+                text = "v${value.manifest.version}"
+                foreground = secondary
+            }
+
+            controls.removeAll()
+            if (value.status == PluginStatus.ENABLED || value.status == PluginStatus.DISABLED) {
+                switch.apply {
+                    // `this.` because the renderer's own `isSelected` parameter is in scope here.
+                    this.isSelected = value.status == PluginStatus.ENABLED
+                    toolTipText = if (this.isSelected) localizationManager.getString("settings_plugins.btn_disable")
+                    else localizationManager.getString("settings_plugins.btn_enable")
+                }
+                controls.add(switch)
+            } else {
+                controls.add(buildStatusBadge(value.status))
+            }
+
+            row.toolTipText = null
+            return row
+        }
     }
+
+    /** The plugin's own icon, cached: a renderer asks for it on every repaint of every row. */
+    private fun rowIconFor(plugin: PluginState): Icon = rowIconCache.getOrPut(plugin.id) {
+        val serviceId = plugin.services.firstOrNull()?.let(plugin::serviceIdOf)
+        plugin.manifest.icon?.let { path -> serviceId?.let { iconManager.getIcon(it, path, 24, 24) } }
+            ?: themedAppIcon(Icons.PLUGIN, 24)
+    }
+
+    private val rowIconCache = mutableMapOf<String, Icon>()
 
     private fun categoryName(category: PluginCategory): String = localizationManager.getString(
         when (category) {
@@ -532,6 +603,13 @@ class PluginsPanel(
             isOpaque = false
             add(JLabel(headerIcon))
             add(nameLabel)
+            // What the plugin can do, where there is room to say it: a list row is 290 px wide and
+            // this was the text that used to be cut there mid-word.
+            plugin.services.mapNotNull { it.role }.distinct().forEach { role ->
+                add(JLabel(roleIcon(role, ROLE_GLYPH)).apply {
+                    toolTipText = role.readableName(localizationManager)
+                })
+            }
             add(statusBadge)
         }
         val metaLabel = JLabel("v${plugin.manifest.version}  ·  ${plugin.manifest.author}").apply {
@@ -761,15 +839,26 @@ class PluginsPanel(
     }
 
     private fun buildStatusBadge(status: PluginStatus): JLabel {
-        val (text, bg) = when (status) {
-            PluginStatus.ENABLED               -> localizationManager.getString("settings_plugins.status_enabled")      to Color(0x2E7D32)
-            PluginStatus.DISABLED              -> localizationManager.getString("settings_plugins.status_disabled")     to Color(0x757575)
-            PluginStatus.FAILED                -> localizationManager.getString("settings_plugins.status_failed")       to Color(0xC62828)
-            PluginStatus.AWAITING_VERIFICATION -> localizationManager.getString("settings_plugins.status_verification") to Color(0xE65100)
+        // The theme's own semantic colours where it has them. A badge is text on a tint of its own
+        // colour rather than white on a saturated fill: that keeps it legible in both the light and
+        // the dark theme, and it darkens or lightens with the theme instead of being frozen.
+        val (text, accent) = when (status) {
+            PluginStatus.ENABLED ->
+                localizationManager.getString("settings_plugins.status_enabled") to
+                    (UIManager.getColor("Actions.Green") ?: Color(0x2E7D32))
+            PluginStatus.DISABLED ->
+                localizationManager.getString("settings_plugins.status_disabled") to
+                    (UIManager.getColor("Component.borderColor") ?: Color(0x757575))
+            PluginStatus.FAILED ->
+                localizationManager.getString("settings_plugins.status_failed") to
+                    (UIManager.getColor("Actions.Red") ?: Color(0xC62828))
+            PluginStatus.AWAITING_VERIFICATION ->
+                localizationManager.getString("settings_plugins.status_verification") to
+                    (UIManager.getColor("Actions.Yellow") ?: Color(0xE65100))
         }
         return JLabel(" $text ").apply {
-            foreground = Color.WHITE
-            background = bg
+            foreground = SettingsVisuals.atLeast(accent, SettingsVisuals.background(), 4.5f)
+            background = SettingsVisuals.blend(accent, SettingsVisuals.background(), 0.85f)
             isOpaque   = true
             font       = font.deriveFont(Font.BOLD, font.size - 1.5f)
             border     = BorderFactory.createEmptyBorder(2, 6, 2, 6)
@@ -796,7 +885,7 @@ class PluginsPanel(
         }, BorderLayout.LINE_END)
     }
 
-    private fun roleIcon(type: ServiceRole): Icon = themedAppIcon(
+    private fun roleIcon(type: ServiceRole, size: Int = 15): Icon = themedAppIcon(
         when (type) {
             ServiceRole.TRANSLATOR -> Icons.TRANSLATE
             ServiceRole.TTS -> Icons.SPEAK
@@ -984,8 +1073,18 @@ class PluginsPanel(
     }
 
     private companion object {
-        /** Aligns a plugin's version line under its name rather than under its icon. */
-        const val NAME_INDENT = 32
+        /** Width reserved at a row's trailing edge for its enable switch, in logical pixels. */
+        const val TRAILING_CONTROL = 26
+
+        /** The list's share of the width: an honest starting point that the reader can drag. */
+        const val LIST_SHARE = 0.34
+
+        /** Size of the role glyphs drawn beside a plugin's name in the detail pane. */
+        const val ROLE_GLYPH = 13
+
+        /** Cards of the list area: the list itself, and the "nothing matches" message. */
+        const val CARD_LIST    = "list"
+        const val CARD_NO_LIST = "noList"
     }
 }
 
