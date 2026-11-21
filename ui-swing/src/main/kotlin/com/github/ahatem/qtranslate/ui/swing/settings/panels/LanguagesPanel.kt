@@ -12,6 +12,8 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.util.GridBag
 import java.awt.*
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import javax.swing.*
 import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
@@ -109,12 +111,17 @@ class LanguagesPanel(
         addSeparator(localizationManager.getString("settings_languages.pinned_languages_group"))
         addHint(localizationManager.getString("settings_languages.pinned_languages_hint"))
 
-        val checkBoxPanel = JPanel().apply {
-            layout   = BoxLayout(this, BoxLayout.Y_AXIS)
+        // A grid of tiles, not a column of checkboxes. Pinning a language is picking it out of a
+        // set, not reading a list down — and a grid shows a dozen of them at once where the column
+        // showed nine before it scrolled. The wrapping layout is what lets the number of columns
+        // follow the page's width, so the same grid reads well at 100% and at 200%.
+        val tileGrid = JPanel(
+            WrapLayout(FlowLayout.LEADING, UIScale.scale(PINNED_TILE_GAP), UIScale.scale(PINNED_TILE_GAP))
+        ).apply {
             isOpaque = false
-            border   = BorderFactory.createEmptyBorder(4, 8, 4, 4)
+            border   = BorderFactory.createEmptyBorder(4, 4, 4, 4)
         }
-        pinnedListPanel = checkBoxPanel
+        pinnedListPanel = tileGrid
 
         // The rows come from the active translator's own languages rather than from a hard-coded
         // list: a language a plugin introduced can be pinned, and one the translator does not
@@ -123,23 +130,20 @@ class LanguagesPanel(
             pinCodes(store.state.value.workingConfiguration.pinnedLanguages)
         )
 
-        // A fixed height that is not a multiple of the row pitch bisects whatever row lands on
-        // the boundary: the viewport showed a half-height checkbox at the default size, which
-        // reads as a rendering fault rather than as "there is more below". The pitch is measured
-        // from the rows themselves (checkbox height plus the strut between them), and the height
-        // becomes exactly the number of rows below, so no boundary can fall inside a row. The
-        // list still scrolls: the languages outnumber the rows shown.
-        pinnedRowPitch = (languageCheckBoxes.maxOfOrNull { (_, box) -> box.preferredSize.height }
-            ?: UIScale.scale(20)) + PINNED_ROW_GAP
-        pinnedScroll = JScrollPane(checkBoxPanel).apply {
+        // The list is sized in whole rows of tiles, so the viewport never ends halfway through one:
+        // a half tile reads as a rendering fault rather than as "there is more below". The pitch is
+        // measured from a real tile rather than assumed, so it follows the zoom and the theme's font.
+        pinnedRowPitch = (tileGrid.components.filterIsInstance<JComponent>()
+            .maxOfOrNull { it.preferredSize.height } ?: UIScale.scale(34)) + UIScale.scale(PINNED_TILE_GAP)
+        pinnedScroll = JScrollPane(tileGrid).apply {
             verticalScrollBarPolicy   = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
             horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
             border = themeAwareBorder()
             verticalScrollBar.unitIncrement = 16
-            // Scroll pane chrome plus the view's own top padding sit above the first row, so
-            // they are part of the budget rather than eating into the last one.
+            // Scroll pane chrome plus the grid's own padding sit above the first row of tiles, so
+            // they are part of the budget rather than eating into the last row.
             pinnedContentInset = insets.top + insets.bottom +
-                viewport.insets.top + viewport.insets.bottom + checkBoxPanel.insets.top
+                viewport.insets.top + viewport.insets.bottom + tileGrid.insets.top + tileGrid.insets.bottom
             preferredSize = Dimension(
                 UIScale.scale(580),
                 pinnedContentInset + PINNED_VISIBLE_ROWS * pinnedRowPitch
@@ -400,21 +404,14 @@ class LanguagesPanel(
         return supported + pinned.filter { it !in supported }
     }
 
-    /** Rebuilds the pin rows, keeping the saved selection. */
+    /** Rebuilds the pin tiles, keeping the saved selection. */
     private fun rebuildPinnedList(codes: List<String>) {
         val pinned = store.state.value.workingConfiguration.pinnedLanguages.toSet()
         val supported = availableLanguages().map { it.tag }.toSet()
         pinnedListPanel.removeAll()
         languageCheckBoxes.clear()
         codes.forEach { code ->
-            val available = code in supported
-            val label = if (available) {
-                "${localizedName(code)}  ($code)"
-            } else {
-                "${localizedName(code)}  ($code) — " +
-                    localizationManager.getString("settings_languages.pin_unavailable")
-            }
-            val cb = JCheckBox(label).apply {
+            val checkBox = JCheckBox().apply {
                 isOpaque = false
                 isSelected = code in pinned
                 addActionListener {
@@ -426,12 +423,93 @@ class LanguagesPanel(
                     }
                 }
             }
-            languageCheckBoxes.add(code to cb)
-            pinnedListPanel.add(cb)
-            pinnedListPanel.add(Box.createVerticalStrut(PINNED_ROW_GAP))
+            languageCheckBoxes.add(code to checkBox)
+            pinnedListPanel.add(PinnedTile(code, checkBox, available = code in supported))
         }
         pinnedListPanel.revalidate()
         pinnedListPanel.repaint()
+    }
+
+    /**
+     * One language as a tile in the pin grid.
+     *
+     * The language is a choice, so the whole tile is the target rather than the 12-pixel box: the
+     * checkbox is the state carrier — which is what the render path and the clear action read — and
+     * the tile forwards its own clicks to it.
+     *
+     * Every colour is read from the look and feel at paint time. A chosen tile takes the accent's
+     * own tint with an accent border; an untouched one keeps the ordinary border every other
+     * surface in this dialog has; hover takes the inactive selection colour the lists use. That
+     * way a theme change needs no work here, and a custom accent recolours the grid with it.
+     */
+    private inner class PinnedTile(
+        code: String,
+        private val checkBox: JCheckBox,
+        available: Boolean,
+    ) : JPanel(BorderLayout(UIScale.scale(8), 0)) {
+
+        private var hovered = false
+
+        init {
+            isOpaque = false
+            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+            border = BorderFactory.createEmptyBorder(
+                UIScale.scale(7), UIScale.scale(10), UIScale.scale(7), UIScale.scale(12)
+            )
+
+            val name = JLabel(localizedName(code)).apply {
+                font = font.deriveFont(Font.BOLD)
+                if (!available) {
+                    // Offered and checkable all the same: a stored pin the active translator does
+                    // not support is kept, and dropping its tile would drop the pin on the next save.
+                    foreground = UIManager.getColor("Label.disabledForeground")
+                    toolTipText = localizationManager.getString("settings_languages.pin_unavailable")
+                }
+            }
+            val tag = JLabel(code).apply {
+                font = font.deriveFont(font.size - 1f)
+                foreground = UIManager.getColor("Label.disabledForeground")
+            }
+            val labels = JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
+                isOpaque = false
+                add(name, BorderLayout.CENTER)
+                add(tag,  BorderLayout.LINE_END)
+            }
+
+            add(checkBox, BorderLayout.LINE_START)
+            add(labels,   BorderLayout.CENTER)
+
+            val toggle = object : MouseAdapter() {
+                override fun mousePressed(e: MouseEvent) = checkBox.doClick()
+                override fun mouseEntered(e: MouseEvent) { hovered = true; repaint() }
+                override fun mouseExited(e: MouseEvent)  { hovered = false; repaint() }
+            }
+            listOf(this, name, tag, labels, checkBox).forEach { it.addMouseListener(toggle) }
+        }
+
+        override fun paintComponent(g: Graphics) {
+            val accent = UIManager.getColor("Component.accentColor") ?: SettingsVisuals.accent()
+            val base   = SettingsVisuals.background()
+            val fill = when {
+                checkBox.isSelected -> SettingsVisuals.blend(accent, base, 0.82f)
+                hovered -> UIManager.getColor("List.selectionInactiveBackground") ?: base
+                else -> base
+            }
+
+            val g2 = g.create() as Graphics2D
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                val arc = UIScale.scale(9)
+                g2.color = fill
+                g2.fillRoundRect(0, 0, width - 1, height - 1, arc, arc)
+                g2.color = if (checkBox.isSelected) accent
+                else UIManager.getColor("Component.borderColor") ?: accent
+                g2.drawRoundRect(0, 0, width - 1, height - 1, arc, arc)
+            } finally {
+                g2.dispose()
+            }
+            super.paintComponent(g)
+        }
     }
 
     /**
@@ -463,11 +541,11 @@ class LanguagesPanel(
     internal fun isShowingRulesEmptyState(): Boolean = rulesScroll.viewport.view === rulesEmptyPanel
 
     companion object {
-        /** The strut between two checkboxes; part of the row pitch the list is sized to. */
-        private const val PINNED_ROW_GAP = 1
+        /** Gap between tiles, across a row and between rows; part of the pitch the grid is sized to. */
+        private const val PINNED_TILE_GAP = 6
 
-        /** Whole rows the pinned list shows before it scrolls. */
-        private const val PINNED_VISIBLE_ROWS = 9
+        /** Whole rows of tiles the grid shows before it scrolls. */
+        private const val PINNED_VISIBLE_ROWS = 3
     }
 }
 

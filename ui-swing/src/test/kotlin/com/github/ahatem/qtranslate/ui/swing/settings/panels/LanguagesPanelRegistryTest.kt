@@ -93,14 +93,29 @@ class LanguagesPanelRegistryTest {
             panel.pinnedCodesForTest(),
             "the stored pin is shown rather than silently dropped",
         )
-        val labels = onEdt {
+        // The reason is a tooltip on the tile's name now: the tile is a grid cell, so the sentence
+        // that used to trail the checkbox label would not fit in it.
+        val unavailableReason = localizer.getString("settings_languages.pin_unavailable")
+        val (tags, tooltips) = onEdt {
             val view = panel.pinnedListForTest().viewport.view as java.awt.Container
-            (0 until view.componentCount)
-                .mapNotNull { index -> view.getComponent(index) as? javax.swing.JCheckBox }
-                .map { it.text }
+            val tags = mutableListOf<String>()
+            val tooltips = mutableListOf<String?>()
+            fun walk(container: java.awt.Container) {
+                for (index in 0 until container.componentCount) {
+                    val child = container.getComponent(index)
+                    if (child is javax.swing.JLabel) {
+                        tags += child.text.orEmpty()
+                        tooltips += child.toolTipText
+                    }
+                    if (child is java.awt.Container) walk(child)
+                }
+            }
+            walk(view)
+            tags to tooltips
         }
+        assertTrue(tags.contains("de"), "the unavailable language's tile is still shown")
         assertTrue(
-            labels.any { it.contains("(de)") && it.contains(localizer.getString("settings_languages.pin_unavailable")) },
+            tooltips.contains(unavailableReason),
             "and it says why it is not offered by the active translator",
         )
     }

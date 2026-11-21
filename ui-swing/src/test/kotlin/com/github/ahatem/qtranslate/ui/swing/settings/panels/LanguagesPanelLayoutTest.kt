@@ -138,15 +138,20 @@ class LanguagesPanelLayoutTest {
     }
 
     @Test
-    fun `the list still scrolls because it holds more rows than it shows`() {
+    fun `the pinned grid flows tiles across a row instead of stacking them`() {
         val (panel, _) = panelAt(1f)
         val list = panel.pinnedListForTest()
-        val view = list.viewport.view
+        val tiles = (list.viewport.view as java.awt.Container).components.filter { it.isVisible }
+
+        assertTrue(panel.pinnedCodesForTest().size > 9, "the pinned grid holds more languages than a column did")
+
+        // The redesign's whole point: a set to pick from is scanned across, so tiles share a row
+        // rather than each taking a line of its own.
+        val firstRow = tiles.firstOrNull()?.y ?: 0
         assertTrue(
-            view.preferredSize.height > list.preferredSize.height - panel.pinnedContentInsetForTest(),
-            "the content is taller than the visible rows, so the list scrolls",
+            tiles.count { it.y == firstRow } > 1,
+            "tiles share a row, so the set is scanned across rather than read down",
         )
-        assertTrue(panel.pinnedCodesForTest().size > 9, "the pinned list has more languages than it shows")
     }
 
     // ── Translation Rules ────────────────────────────────────────────────────

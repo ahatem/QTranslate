@@ -557,7 +557,7 @@ private class Shots(
 
     suspend fun settingsShowcase() {
         start(settingsConfig(Scenes.DARK))
-        capturePages(Scenes.DARK, "dark", listOf(3 to "services", 11 to "plugins"))
+        capturePages(Scenes.DARK, "dark", listOf(3 to "services", 5 to "languages", 11 to "plugins"))
     }
 
     /**
