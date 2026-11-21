@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.SettingsError
+import com.github.ahatem.qtranslate.core.settings.data.SettingsReset
 import com.github.ahatem.qtranslate.core.settings.data.withoutPreset
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.Ok
@@ -197,7 +198,9 @@ class SettingsStore(
             is SettingsIntent.TransformDraft -> applyWorkingUpdate(intent.transform)
             SettingsIntent.SaveChanges       -> launchSave()
             SettingsIntent.CancelChanges     -> handleCancelChanges()
-            SettingsIntent.ResetToDefaults   -> handleResetToDefaults()
+            SettingsIntent.ResetPreferences  -> applyWorkingUpdate(SettingsReset::preferences)
+            is SettingsIntent.ResetPage      ->
+                applyWorkingUpdate { current -> SettingsReset.page(current, intent.page) }
 
             // Quick actions persist only their scoped update. A settings dialog may have a
             // separate dirty draft that must remain uncommitted.
@@ -259,16 +262,6 @@ class SettingsStore(
         logger.info("Cancelling changes — reverting to original")
         _state.update { it.copy(workingConfiguration = it.originalConfiguration, isDirty = false) }
         scope.launch { _eventChannel.send(SettingsEvent.CloseSettingsDialog) }
-    }
-
-    private fun handleResetToDefaults() {
-        logger.info("Resetting working configuration to defaults")
-        _state.update { current ->
-            current.copy(
-                workingConfiguration = Configuration.DEFAULT,
-                isDirty = Configuration.DEFAULT != current.originalConfiguration
-            )
-        }
     }
 
     // -------------------------------------------------------------------------

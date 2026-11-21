@@ -455,7 +455,6 @@ rules_error_duplicate = "'%s'에 대한 규칙이 이미 존재합니다."
 dict_auto_lookup_group = "사전 자동 검색"
 dict_auto_lookup_source = "자동 검색 소스:"
 dict_auto_lookup_hint = "번역하는 동안 단일 단어를 사전에 자동으로 검색합니다."
-dict_auto_popup_enabled = "단일 단어에 대해 플로팅 팝업 표시"
 
 [settings_window]
 layout_group = "레이아웃"

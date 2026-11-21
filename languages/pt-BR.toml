@@ -465,7 +465,6 @@ rules_error_duplicate = "Já existe uma regra para '%s'."
 dict_auto_lookup_group = "Consulta Automática ao Dicionário"
 dict_auto_lookup_source = "Origem da consulta automática:"
 dict_auto_lookup_hint = "Consultar automaticamente palavras isoladas no dicionário durante a tradução."
-dict_auto_popup_enabled = "Mostrar popup flutuante para palavras isoladas"
 
 [settings_window]
 layout_group = "Layout"

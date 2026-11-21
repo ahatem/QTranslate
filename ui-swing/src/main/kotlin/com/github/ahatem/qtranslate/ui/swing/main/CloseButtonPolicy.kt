@@ -12,6 +12,9 @@ internal enum class CloseButtonAction {
     /** Hide the window silently; tray, global hotkeys and window state survive. */
     HIDE_TO_TRAY,
 
+    /** Nothing to hide into, so keep the window reachable on the taskbar instead. */
+    MINIMIZE_TO_TASKBAR,
+
     /** Dispose the frame — the single convergence point for every exit route. */
     EXIT,
 
@@ -21,11 +24,19 @@ internal enum class CloseButtonAction {
 
 /** Pure decision behind MainAppFrame's close-button handling. */
 internal object CloseButtonPolicy {
-    fun decide(behavior: CloseButtonBehavior): CloseButtonAction = when (behavior) {
-        CloseButtonBehavior.MINIMIZE_TO_TRAY -> CloseButtonAction.HIDE_TO_TRAY
-        CloseButtonBehavior.EXIT -> CloseButtonAction.EXIT
-        CloseButtonBehavior.ASK -> CloseButtonAction.ASK
-    }
+    /**
+     * @param trayAvailable whether a tray icon is actually installed. Closing into a tray that is
+     *   not there leaves the window unreachable except by relaunching, so the choice degrades to
+     *   minimizing to the taskbar rather than hiding.
+     */
+    fun decide(behavior: CloseButtonBehavior, trayAvailable: Boolean = true): CloseButtonAction =
+        when (behavior) {
+            CloseButtonBehavior.MINIMIZE_TO_TRAY ->
+                if (trayAvailable) CloseButtonAction.HIDE_TO_TRAY
+                else CloseButtonAction.MINIMIZE_TO_TASKBAR
+            CloseButtonBehavior.EXIT -> CloseButtonAction.EXIT
+            CloseButtonBehavior.ASK -> CloseButtonAction.ASK
+        }
 }
 
 /** What the close-confirmation dialog's answer means. */

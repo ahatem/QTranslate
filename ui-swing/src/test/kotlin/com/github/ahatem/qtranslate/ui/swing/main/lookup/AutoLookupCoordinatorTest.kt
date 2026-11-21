@@ -94,11 +94,13 @@ class AutoLookupCoordinatorTest {
     }
 
     @Test
-    fun `disabled auto lookup ignores completion but still dismisses an unpinned popup`() =
-        check(Configuration.DEFAULT.copy(isDictionaryAutoPopupEnabled = false)) {
+    fun `off auto lookup ignores completion but still dismisses an unpinned popup`() =
+        check(Configuration.DEFAULT.copy(dictionaryAutoSource = DictionaryAutoSource.OFF)) {
             main.value = main.value.copy(isLoading = true, isQuickDictionaryVisible = true)
             assertEquals(MainIntent.HideQuickDictionary, nextIntent())
             main.value = main.value.copy(isLoading = false, inputText = "hello", translatedText = "hola")
+            // No word is looked up, and any definition left from an earlier translation goes away.
+            assertEquals(MainIntent.UpdateInlineDefinition(""), nextIntent())
             assertNoMoreActions()
         }
 
@@ -258,12 +260,19 @@ class AutoLookupCoordinatorTest {
 
     @Test
     fun `enabling auto lookup and opening the dictionary retrigger an idle result`() =
-        check(Configuration.DEFAULT.copy(isDictionaryAutoPopupEnabled = false)) {
+        check(Configuration.DEFAULT.copy(dictionaryAutoSource = DictionaryAutoSource.OFF)) {
             main.value = main.value.copy(inputText = "hello", translatedText = "hola")
             settings.value = settings.value.copy(
-                workingConfiguration = settings.value.workingConfiguration.copy(isDictionaryAutoPopupEnabled = true)
+                workingConfiguration = settings.value.workingConfiguration.copy(
+                    dictionaryAutoSource = DictionaryAutoSource.TRANSLATED
+                )
             )
-            assertTrue(nextIntent() is MainIntent.UpdateInlineDefinition)
+            // Turning automatic lookup on is a real state change now, so the word already on
+            // screen is looked up without waiting for the next translation.
+            assertEquals(
+                MainIntent.UpdateInlineDefinition("hola", LanguageCode.ARABIC, "hello", LanguageCode.ENGLISH),
+                nextIntent()
+            )
             assertNoMoreActions()
 
             main.value = main.value.copy(isLookupDockOpen = true)
@@ -274,13 +283,33 @@ class AutoLookupCoordinatorTest {
         }
 
     @Test
-    fun `off source setting retains translated word preference`() =
+    fun `off means no automatic lookup at all`() =
         check(Configuration.DEFAULT.copy(dictionaryAutoSource = DictionaryAutoSource.OFF)) {
+            finish()
+            assertEquals(MainIntent.UpdateInlineDefinition(""), nextIntent())
+            assertNoMoreActions()
+        }
+
+    @Test
+    fun `the floating popup preference does not gate automatic lookup`() =
+        check(Configuration.DEFAULT.copy(isDictionaryAutoPopupEnabled = false)) {
             finish()
             assertEquals(
                 MainIntent.UpdateInlineDefinition("hola", LanguageCode.ARABIC, "hello", LanguageCode.ENGLISH),
                 nextIntent()
             )
+            assertNoMoreActions()
+        }
+
+    @Test
+    fun `automatic lookup never opens the floating dictionary popup`() =
+        check(Configuration.DEFAULT) {
+            finish()
+            assertEquals(
+                MainIntent.UpdateInlineDefinition("hola", LanguageCode.ARABIC, "hello", LanguageCode.ENGLISH),
+                nextIntent()
+            )
+            // The popup opens on request (Ctrl+D) only; automatic lookup must not summon it.
             assertNoMoreActions()
         }
 }

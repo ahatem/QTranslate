@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.settings
 import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.SettingsPanel
+import com.github.ahatem.qtranslate.ui.swing.settings.panels.UnscrolledSettingsPage
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
@@ -22,6 +23,7 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JTree
+import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
 import javax.swing.Timer
 import javax.swing.UIManager
@@ -49,34 +51,53 @@ internal class SettingsNavigationController(
     private val orientation: () -> ComponentOrientation,
     private val onPageShown: (String) -> Unit,
     private val renderPanel: (JPanel) -> Unit,
+    /**
+     * Text appended to a row's label in the sidebar, for a count that belongs beside the page
+     * name. Display only: the tree's own value stays the page label, so search, navigation and
+     * the reset action all keep matching on the name alone.
+     */
+    private val rowSuffix: (String) -> String = { "" },
 ) {
     /** The dashed marker's overlay; the dialog installs it as its glass pane. */
     val markerOverlay = MarkerOverlay()
 
     /**
-     * Theme-aware sidebar icons: 14 × 14 [FlatSVGIcon] with a [FlatSVGIcon.ColorFilter]
-     * that remaps every SVG color to `Label.disabledForeground` at paint time, so icons
-     * always match the active FlatLaf theme without any manual update.
+     * Theme-aware sidebar icons, keyed by localized page label.
      *
-     * Declared before [tree]: building the tree already asks the renderer for a row icon,
-     * and that renderer reads this map.
+     * Two sets, one per state: the page's own icon is drawn in the text colour so it belongs with
+     * its label, and the selected page's icon takes the accent. They used to be drawn in
+     * `Label.disabledForeground`, which is the colour a look and feel uses to say "this control
+     * cannot be used" — the sidebar looked faded rather than quiet.
+     *
+     * Each icon re-reads its colour at paint time, so a theme switch needs no update here.
+     * Declared before [tree]: building the tree already asks the renderer for a row icon.
      */
-    private val sidebarIcons: Map<String, Icon> by lazy {
+    private val sidebarIcons: Map<String, Icon> by lazy { iconsColouredLike("Label.foreground") }
+
+    /** The selected row's icons, in the theme's accent, so "where am I" survives a dull selection. */
+    private val selectedSidebarIcons: Map<String, Icon> by lazy {
+        iconsColouredLike("Component.accentColor", fallback = "Label.foreground")
+    }
+
+    private fun iconsColouredLike(colorKey: String, fallback: String = "Label.foreground"): Map<String, Icon> =
         navigation.iconPaths.mapNotNull { (name, path) ->
             runCatching {
-                val icon = IconSet.load(path, 14, 14)
-                icon.colorFilter =
-                    FlatSVGIcon.ColorFilter { UIManager.getColor("Label.disabledForeground") ?: Color.GRAY }
+                val icon = IconSet.load(path, SIDEBAR_ICON_SIZE, SIDEBAR_ICON_SIZE)
+                icon.colorFilter = FlatSVGIcon.ColorFilter {
+                    UIManager.getColor(colorKey) ?: UIManager.getColor(fallback) ?: Color.GRAY
+                }
                 name to (icon as Icon)
             }.getOrNull()
         }.toMap()
-    }
 
     /** The sidebar's section tree; the search controller hosts it in its card space. */
     val tree: JTree = buildTree()
 
     private val panelCache = mutableMapOf<String, JPanel>()
     private var currentPanelName: String? = null
+
+    /** The page a search interrupted; see [rememberPageBeforeSearch]. */
+    private var pageBeforeSearch: String? = null
 
     /** Row under the pointer, or -1. Drives the sidebar's hover shape. */
     private var hoveredRow: Int = -1
@@ -108,16 +129,52 @@ internal class SettingsNavigationController(
         tree.setSelectionRow(0)
     }
 
+    /**
+     * Opens the page this session left off on, or the first page when there is none to go back to.
+     *
+     * Opening Settings on the same page every time makes the sidebar's order the only way to reach
+     * anything past the first item, when the reader usually came back for the page they closed.
+     * A page that is no longer there — renamed by a language change mid-session — falls back rather
+     * than leaving the content area blank.
+     */
+    fun selectStartPage(pageLabel: String?) {
+        if (pageLabel != null && hasPage(pageLabel)) selectPage(pageLabel) else selectFirstPage()
+    }
+
     /** Moves the sidebar selection to [pageLabel], which in turn shows its panel. */
     fun selectPage(pageLabel: String) {
+        val row = rowOf(pageLabel) ?: return
+        tree.setSelectionRow(row)
+        tree.scrollRowToVisible(row)
+    }
+
+    private fun hasPage(pageLabel: String): Boolean = rowOf(pageLabel) != null
+
+    private fun rowOf(pageLabel: String): Int? {
         for (row in 0 until tree.rowCount) {
             val node = tree.getPathForRow(row).lastPathComponent as? DefaultMutableTreeNode
-            if (node?.userObject == pageLabel) {
-                tree.setSelectionRow(row)
-                tree.scrollRowToVisible(row)
-                return
-            }
+            if (node?.userObject == pageLabel) return row
         }
+        return null
+    }
+
+    /**
+     * Remembers the page that was showing when a search began.
+     *
+     * Cleared by [restorePageAfterSearch]; held across the search itself, because a result may
+     * open one page and the reader may then open another before clearing the query.
+     */
+    fun rememberPageBeforeSearch() {
+        pageBeforeSearch = currentPanelName
+    }
+
+    /** Puts the remembered page back when the sidebar leaves search mode. */
+    fun restorePageAfterSearch() {
+        val page = pageBeforeSearch ?: return
+        pageBeforeSearch = null
+        // Nothing moved if the search was typed and cleared without a hit being opened, and
+        // re-selecting the page that is already showing would only reset its scrolling.
+        if (page != currentPanelName) selectPage(page)
     }
 
     fun showPanel(name: String) {
@@ -126,13 +183,21 @@ internal class SettingsNavigationController(
 
         val panel = panelCache.getOrPut(name) { createPanel(name) }
 
-        contentArea.components.filterIsInstance<JScrollPane>().forEach { contentArea.remove(it) }
-        contentArea.add(JScrollPane(panel).apply {
-            clearBorder()
-            horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-            verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
-            verticalScrollBar.unitIncrement = 16
-        }, BorderLayout.CENTER)
+        // A page that scrolls internally is mounted as it is; wrapping it would nest scrollbars and
+        // clip the fixed bars inside it.
+        contentArea.components
+            .filter { it is JScrollPane || it is UnscrolledSettingsPage }
+            .forEach { contentArea.remove(it) }
+        if (panel is UnscrolledSettingsPage) {
+            contentArea.add(panel, BorderLayout.CENTER)
+        } else {
+            contentArea.add(JScrollPane(panel).apply {
+                clearBorder()
+                horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+                verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+                verticalScrollBar.unitIncrement = 16
+            }, BorderLayout.CENTER)
+        }
 
         contentArea.revalidate()
         contentArea.repaint()
@@ -145,26 +210,34 @@ internal class SettingsNavigationController(
     /**
      * Shows the page a hit belongs to, reveals the hit's row, and flashes it.
      *
+     * A page hit opens its page and nothing else; an action hit opens its page and then runs the
+     * action, because "Reset Page" means nothing without the page it resets being the one on
+     * screen. Only a setting hit has a row to find, so only that case pays for the deferred layout:
+     *
      * The panel may have been built for the search index and never shown, in which case it has
      * no layout yet and every component in it measures zero; the deferred validate is what
      * gives the anchor a real size to scroll to and mark around.
      */
     fun openHit(hit: SearchHit) {
         selectPage(hit.pageLabel)
-        SwingUtilities.invokeLater {
-            // The panel may have been built for the search index and never shown, in which case
-            // it has no layout yet and every component in it measures zero. Scrolling to a
-            // zero-sized component lands at the top of the page and the marker is drawn around
-            // nothing, which is why results on unvisited pages appeared to do nothing at all.
-            contentArea.validate()
+        when (hit) {
+            is SearchHit.Page -> Unit
+            is SearchHit.Action -> SwingUtilities.invokeLater { hit.run() }
+            is SearchHit.Setting -> SwingUtilities.invokeLater {
+                // The panel may have been built for the search index and never shown, in which case
+                // it has no layout yet and every component in it measures zero. Scrolling to a
+                // zero-sized component lands at the top of the page and the marker is drawn around
+                // nothing, which is why results on unvisited pages appeared to do nothing at all.
+                contentArea.validate()
 
-            val anchor = hit.entry.anchor
-            anchor.scrollRectToVisible(Rectangle(0, 0, anchor.width, anchor.height))
+                val anchor = hit.entry.anchor
+                anchor.scrollRectToVisible(Rectangle(0, 0, anchor.width, anchor.height))
 
-            // Once more, after the scroll has settled: the marker is positioned in window
-            // coordinates, so it has to be placed where the row ended up rather than where it
-            // was before the viewport moved.
-            SwingUtilities.invokeLater { flash(anchor) }
+                // Once more, after the scroll has settled: the marker is positioned in window
+                // coordinates, so it has to be placed where the row ended up rather than where it
+                // was before the viewport moved.
+                SwingUtilities.invokeLater { flash(anchor) }
+            }
         }
     }
 
@@ -283,6 +356,38 @@ internal class SettingsNavigationController(
                     }
                 }
                 super.paintComponent(g)
+
+                // The page you are on carries the same square marker the rows in the content carry,
+                // painted in the gutter beside the selection pill: "where am I" should not look
+                // like two different ideas in the two halves of the dialog. It goes on after the
+                // look and feel has drawn the pill, and sits outside it, so nothing is covered.
+                val selectedRow = selectionModel.minSelectionRow
+                if (selectedRow >= 0) {
+                    val selectedNode =
+                        getPathForRow(selectedRow)?.lastPathComponent as? DefaultMutableTreeNode
+                    val selectedLabel = selectedNode?.userObject as? String
+                    val accent = UIManager.getColor("Component.accentColor")
+                    if (accent != null && selectedLabel != null && !navigation.isGroup(selectedLabel)) {
+                        getRowBounds(selectedRow)?.let { bounds ->
+                            val g2 = g.create() as Graphics2D
+                            try {
+                                val bar = UIScale.scale(3)
+                                val inset = UIScale.scale(1)
+                                val top = UIScale.scale(1)
+                                // The gutter on the leading side: the right in Arabic.
+                                val barX = if (componentOrientation.isLeftToRight) {
+                                    inset
+                                } else {
+                                    width - bar - inset
+                                }
+                                g2.color = accent
+                                g2.fillRect(barX, bounds.y + top, bar, bounds.height - top * 2)
+                            } finally {
+                                g2.dispose()
+                            }
+                        }
+                    }
+                }
             }
         }.apply {
             // Painted by hand above, so the look and feel must not fill it again.
@@ -325,7 +430,7 @@ internal class SettingsNavigationController(
             putClientProperty(
                 "FlatLaf.style",
                 // Compact rows, and a selection shape the hover state matches exactly.
-                "rowHeight: 26; selectionArc: 8; selectionInsets: 1,5,1,5; " +
+                "rowHeight: 28; selectionArc: 8; selectionInsets: 1,5,1,5; " +
                         $$"selectionBackground: $Table.selectionBackground"
             )
 
@@ -352,13 +457,23 @@ internal class SettingsNavigationController(
                     )
 
                     val name = (value as? DefaultMutableTreeNode)?.userObject as? String ?: ""
-                    text = name
-                    icon = sidebarIcons[name]
-                    iconTextGap = 8
-
                     // A group is a heading for the rows beneath it, so it is styled as one
                     // rather than competing with the pages it labels.
                     val isGroup = navigation.isGroup(name)
+
+                    // A heading names the block beneath it; it is not an item in the block. So it
+                    // is upper case, a size down, muted, and flush with the row's leading edge —
+                    // the indented pages are then what reads as the list. Set in the same face and
+                    // colour as the rows and lined up with their text, "Translation" and
+                    // "Interface" read as two greyed-out pages sitting in the middle of the
+                    // sidebar, which is exactly how they were reported.
+                    text = if (isGroup) name.uppercase() else name + rowSuffix(name)
+                    icon = when {
+                        isGroup -> null
+                        sel     -> selectedSidebarIcons[name] ?: sidebarIcons[name]
+                        else    -> sidebarIcons[name]
+                    }
+                    iconTextGap = 9
 
                     // Headings and ungrouped pages sit at the base; a page inside a group sits
                     // further in, so the nesting is visible at a glance.
@@ -380,11 +495,17 @@ internal class SettingsNavigationController(
                     // the far end of the row in a right-to-left interface.
                     val base = UIScale.scale(ROW_INSET)
                     val leading = base + nesting
+                    // A heading gets air above it, inside its own row rather than by changing the
+                    // row height: it opens a group, and flush against the row above it read as one
+                    // more item. The text is pinned to the top of the row for that to show, since
+                    // a centred label just absorbs the padding.
+                    val airAbove = if (isGroup) UIScale.scale(HEADING_AIR) else 0
                     border = if (tree.componentOrientation.isLeftToRight) {
-                        BorderFactory.createEmptyBorder(0, leading, 0, base)
+                        BorderFactory.createEmptyBorder(airAbove, leading, 0, base)
                     } else {
-                        BorderFactory.createEmptyBorder(0, base, 0, leading)
+                        BorderFactory.createEmptyBorder(airAbove, base, 0, leading)
                     }
+                    verticalAlignment = if (isGroup) SwingConstants.TOP else SwingConstants.CENTER
                     // A heading labels the rows beneath it, so it is quieter and smaller than
                     // they are. Set at the same size and weight it competed with them, and the
                     // sidebar read as one long list with two odd entries in it.
@@ -394,10 +515,6 @@ internal class SettingsNavigationController(
                             if (isGroup) "Label.disabledForeground" else "Label.foreground"
                         )
                     }
-
-                    // Headings carry no icon. Giving them one made them look selectable, and the
-                    // blank space where an icon would be is what tells the eye they are not.
-                    if (isGroup) icon = null
 
                     return this
                 }
@@ -509,6 +626,9 @@ internal class SettingsNavigationController(
     }
 
     internal companion object {
+        /** Sidebar glyph size, before scaling. */
+        const val SIDEBAR_ICON_SIZE = 14
+
         const val FLASH_MILLIS = 2200f
         const val FLASH_TICK_MILLIS = 30
 
@@ -517,6 +637,9 @@ internal class SettingsNavigationController(
 
         /** Breathing room at the leading and trailing edge of every sidebar row. */
         const val ROW_INSET = 8
+
+        /** Air above a group heading, inside its row, so it opens the group rather than joining it. */
+        const val HEADING_AIR = 7
 
         /**
          * Smallest gap between an ungrouped page and one nested under a heading.

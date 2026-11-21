@@ -465,7 +465,6 @@ rules_error_duplicate = "'%s' のルールは既に存在します。"
 dict_auto_lookup_group = "辞書の自動検索"
 dict_auto_lookup_source = "自動検索のソース："
 dict_auto_lookup_hint = "翻訳中に単語を自動的に辞書で検索します。"
-dict_auto_popup_enabled = "単語のフローティングポップアップを表示"
 
 [settings_window]
 layout_group = "レイアウト"

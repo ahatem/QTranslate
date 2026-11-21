@@ -459,7 +459,6 @@ rules_error_duplicate_title = "Ismétlődő szabály"
 rules_error_duplicate = "Már létezik szabály '%s' számára."
 dict_auto_lookup_group = "Szótár automatikus keresése"
 dict_auto_lookup_hint = "Automatikusan keressen egyes szavakat a szótárban fordítás közben."
-dict_auto_popup_enabled = "Lebegő felugró ablak megjelenítése egyes szavakhoz"
 
 [settings_window]
 layout_group = "Elrendezés"

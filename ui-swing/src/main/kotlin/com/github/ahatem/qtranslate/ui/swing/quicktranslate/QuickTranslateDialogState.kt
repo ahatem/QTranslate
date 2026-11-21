@@ -38,6 +38,13 @@ data class QuickTranslateDialogState(
      * main window — a context switch for the most common follow-up thought there is.
      */
     val availableLanguages: List<LanguageCode> = emptyList(),
+    /**
+     * Targets the target picker may offer, after Pinned Languages is applied.
+     *
+     * Separate from [availableLanguages] because pins narrow the target picker only; the source
+     * picker keeps every language the translator offers.
+     */
+    val targetLanguages: List<LanguageCode> = emptyList(),
     /** Detected source, shown beside Auto so the picker says what it settled on. */
     val detectedSourceLanguage: LanguageCode? = null,
 

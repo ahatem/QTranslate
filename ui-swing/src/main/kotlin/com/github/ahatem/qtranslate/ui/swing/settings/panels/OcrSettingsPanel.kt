@@ -8,24 +8,26 @@ import com.github.ahatem.qtranslate.core.ocr.OcrProviderInfo
 import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
 import com.github.ahatem.qtranslate.core.settings.data.OcrPostSelectionAction
 import com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination
-import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
+import java.awt.BorderLayout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JLabel
+import javax.swing.JPanel
 import javax.swing.SwingUtilities
 
 /**
  * The OCR settings page: workflow, recognition defaults, text cleanup and workspace presentation.
  *
- * Provider selection writes the existing active-preset OCR slot instead of introducing a second
- * provider preference. If more than one OCR service is installed, the same choice controls the
- * Workspace and the active OCR workflow.
+ * The OCR service itself is owned by Services & Presets, which is the page that configures every
+ * service role for the active preset. This page used to offer the same choice a second time, so
+ * one value had two editors — and whichever the user found first looked like the real one. Here
+ * it is a read-only summary with the way to change it.
  */
 class OcrSettingsPanel(
     private val store: SettingsStore,
@@ -33,11 +35,12 @@ class OcrSettingsPanel(
     private val catalog: OcrServiceCatalog,
     private val scope: CoroutineScope,
     private val onOpenHotkeys: () -> Unit,
+    private val onOpenServices: () -> Unit,
 ) : SettingsPanel() {
 
     private lateinit var postActionCombo: JComboBox<PostActionChoice>
     private lateinit var destinationCombo: JComboBox<DestinationChoice>
-    private lateinit var providerCombo: JComboBox<ProviderChoice>
+    private lateinit var providerSummary: JLabel
     private lateinit var languageCombo: JComboBox<LanguageChoice>
     private lateinit var removeLineBreaksCheck: JCheckBox
     private lateinit var annotationsCheck: JCheckBox
@@ -80,16 +83,20 @@ class OcrSettingsPanel(
         addHint(localizationManager.getString("settings_ocr.translation_destination_hint"))
 
         addSeparator(localizationManager.getString("settings_ocr.recognition_group"))
-        providerCombo = JComboBox<ProviderChoice>().apply {
-            renderer = DisplayValueRenderer<ProviderChoice>(text = { it?.label.orEmpty() })
-            addActionListener {
-                if (!isUpdatingFromState) {
-                    val id = (selectedItem as? ProviderChoice)?.id
-                    store.dispatch(SettingsIntent.UpdateServiceInActivePreset(ServiceRole.OCR, id))
-                }
-            }
+        providerSummary = JLabel()
+        val changeProvider = JButton(
+            localizationManager.getString("settings_ocr.provider_change_in_services")
+        ).apply {
+            addActionListener { onOpenServices() }
         }
-        addRow(localizationManager.getString("settings_ocr.provider"), providerCombo)
+        addRow(
+            localizationManager.getString("settings_ocr.provider"),
+            JPanel(BorderLayout(6, 0)).apply {
+                isOpaque = false
+                add(providerSummary, BorderLayout.CENTER)
+                add(changeProvider, BorderLayout.LINE_END)
+            },
+        )
         addHint(localizationManager.getString("settings_ocr.provider_hint"))
 
         languageCombo = JComboBox<LanguageChoice>().apply {
@@ -166,20 +173,16 @@ class OcrSettingsPanel(
             ?.selectedServices
             ?.get(ServiceRole.OCR)
             ?.takeIf { id -> providers.any { it.id == id } }
-        val choices = buildList {
-            add(ProviderChoice(null, localizationManager.getString("settings_ocr.provider_automatic")))
-            providers.forEach { add(ProviderChoice(it.id, it.name)) }
-        }
-        val model = providerCombo.model as javax.swing.DefaultComboBoxModel<ProviderChoice>
-        val previous = providerCombo.selectedItem
-        model.removeAllElements()
-        choices.forEach(model::addElement)
-        providerCombo.selectedItem = choices.firstOrNull { it.id == selectedId }
-            ?: choices.firstOrNull { it == previous }
-            ?: choices.first()
-        providerCombo.isEnabled = providers.isNotEmpty()
 
         val provider = providers.firstOrNull { it.id == (selectedId ?: providers.firstOrNull()?.id) }
+        // Read-only: the choice belongs to Services & Presets, which owns every role for the
+        // active preset. This page says which provider is in force and offers the way to change it.
+        providerSummary.text = if (selectedId == null) {
+            localizationManager.getString("settings_ocr.provider_automatic")
+        } else {
+            provider?.name ?: localizationManager.getString("settings_ocr.provider_automatic")
+        }
+
         val languageChoices = buildList {
             add(
                 LanguageChoice(
@@ -267,11 +270,10 @@ class OcrSettingsPanel(
     internal fun destinationComboForTest(): JComboBox<*> = destinationCombo
     internal fun removeLineBreaksForTest(): JCheckBox = removeLineBreaksCheck
     internal fun annotationsForTest(): JCheckBox = annotationsCheck
-    internal fun providerComboForTest(): JComboBox<*> = providerCombo
+    internal fun providerSummaryForTest(): JLabel = providerSummary
     internal fun languageComboForTest(): JComboBox<*> = languageCombo
 
     private data class PostActionChoice(val action: OcrPostSelectionAction, val label: String)
     private data class DestinationChoice(val destination: OcrTranslationDestination, val label: String)
-    private data class ProviderChoice(val id: String?, val label: String)
     private data class LanguageChoice(val tag: String, val label: String)
 }

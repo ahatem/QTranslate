@@ -23,7 +23,8 @@ import kotlin.test.assertTrue
 
 /**
  * Query handling and result presentation: which card shows for a query, what the rows carry,
- * and how a row is chosen.
+ * how a row is chosen, and the two edges of search mode the dialog hooks into to restore the
+ * page the reader came from.
  */
 class SettingsSearchControllerTest {
 
@@ -50,7 +51,11 @@ class SettingsSearchControllerTest {
     }
 
     /** One hit per page, on words only that page mentions. */
-    private fun newController(activated: MutableList<SearchHit> = mutableListOf()): SettingsSearchController {
+    private fun newController(
+        activated: MutableList<SearchHit> = mutableListOf(),
+        onSearchStarted: () -> Unit = {},
+        onSearchEnded: () -> Unit = {},
+    ): SettingsSearchController {
         val entriesByPage = mapOf(
             "General" to listOf(
                 SettingsPanel.SettingEntry("Launch on system startup", "Startup", "Opens with the system", JLabel()),
@@ -59,8 +64,19 @@ class SettingsSearchControllerTest {
                 SettingsPanel.SettingEntry("Proxy address:", "Proxy", "The proxy requests go through", JLabel()),
             ),
         )
-        val index = SettingsSearchIndex(listOf("General", "Network"), emptySet()) { entriesByPage.getValue(it) }
-        return onEdt { SettingsSearchController(index, JTree(), localizer) { activated += it } }
+        val index = SettingsSearchIndex(listOf(PageRef("General"), PageRef("Network"))) {
+            entriesByPage.getValue(it)
+        }
+        return onEdt {
+            SettingsSearchController(
+                index,
+                JTree(),
+                localizer,
+                onHitActivated = { activated += it },
+                onSearchStarted = onSearchStarted,
+                onSearchEnded = onSearchEnded,
+            )
+        }
     }
 
     private fun hits(controller: SettingsSearchController): List<SearchHit> = onEdt {
@@ -88,7 +104,10 @@ class SettingsSearchControllerTest {
         }
         assertEquals(SettingsSearchController.NAV_RESULTS, controller.visibleCard)
         val hits = hits(controller)
-        assertEquals(listOf("Proxy address:"), hits.map { it.entry.label })
+        assertEquals(
+            listOf("Proxy address:"),
+            hits.filterIsInstance<SearchHit.Setting>().map { it.entry.label },
+        )
         assertEquals("Network", hits.single().pageLabel)
     }
 
@@ -118,6 +137,91 @@ class SettingsSearchControllerTest {
         assertEquals(0, hits(controller).size)
     }
 
+    // ── The edges of search mode ──────────────────────────────────────────────
+    //
+    // Searching is a temporary mode over the sidebar: the dialog remembers the page that was
+    // showing when it opens and takes the reader back to it when it closes. Both edges therefore
+    // have to be reported exactly once — a second "started" would remember the page a result had
+    // already opened, and a second "ended" would restore a page nobody was on.
+
+    @Test
+    fun `opening a query reports the start of search exactly once`() {
+        var started = 0
+        var ended = 0
+        val controller = newController(
+            onSearchStarted = { started++ },
+            onSearchEnded = { ended++ },
+        )
+
+        onEdt { controller.searchField.text = "proxy" }
+        assertEquals(1, started, "the first keystroke opens search")
+
+        // More typing goes through the document, as real typing does. Assigning to the field
+        // would replace the whole query, which the controller rightly reads as closing and
+        // reopening search.
+        onEdt { appendToQuery(controller, " se") }
+        onEdt { appendToQuery(controller, "rver") }
+        assertEquals(1, started, "typing on inside an open query does not open it again")
+        assertEquals(0, ended, "and nothing has ended while the query is still up")
+    }
+
+    @Test
+    fun `clearing the query reports the end of search exactly once`() {
+        var started = 0
+        var ended = 0
+        val controller = newController(
+            onSearchStarted = { started++ },
+            onSearchEnded = { ended++ },
+        )
+
+        onEdt { controller.searchField.text = "proxy" }
+        onEdt { controller.searchField.text = "" }
+
+        assertEquals(1, ended, "emptying the field ends search")
+        assertEquals(SettingsSearchController.NAV_TREE, controller.visibleCard, "and the tree is back")
+
+        onEdt { controller.onQueryChanged() }
+        assertEquals(1, ended, "a further pass over the cleared field does not end it again")
+        assertEquals(1, started, "nor opens it again")
+    }
+
+    @Test
+    fun `a blank query typed into an empty field reports neither edge of search`() {
+        var started = 0
+        var ended = 0
+        val controller = newController(
+            onSearchStarted = { started++ },
+            onSearchEnded = { ended++ },
+        )
+
+        onEdt {
+            controller.searchField.text = "   "
+            controller.onQueryChanged()
+        }
+
+        assertEquals(0, started, "whitespace is not a query, so search never opened")
+        assertEquals(0, ended, "and there was nothing to close")
+        assertEquals(SettingsSearchController.NAV_TREE, controller.visibleCard)
+    }
+
+    @Test
+    fun `a query that matches nothing still opens search until it is cleared`() {
+        var started = 0
+        var ended = 0
+        val controller = newController(
+            onSearchStarted = { started++ },
+            onSearchEnded = { ended++ },
+        )
+
+        onEdt { controller.searchField.text = "zzz" }
+        assertEquals(1, started, "the empty card is still search mode, not the tree")
+        assertEquals(SettingsSearchController.NAV_EMPTY, controller.visibleCard)
+
+        onEdt { controller.searchField.text = "" }
+        assertEquals(1, ended, "clearing the empty card also leaves search mode")
+        assertEquals(SettingsSearchController.NAV_TREE, controller.visibleCard)
+    }
+
     @Test
     fun `a result row shows the setting label and its page path`() {
         val controller = newController()
@@ -126,6 +230,7 @@ class SettingsSearchControllerTest {
             controller.onQueryChanged()
         }
         val hit = hits(controller).single()
+        assertTrue(hit is SearchHit.Setting, "a label query finds the setting")
         val rendered = onEdt {
             @Suppress("UNCHECKED_CAST")
             controller.resultsList.cellRenderer
@@ -150,8 +255,66 @@ class SettingsSearchControllerTest {
             controller.resultsList.selectedIndex = 0
         }
         assertEquals(1, activated.size)
-        assertEquals("Proxy address:", activated.single().entry.label)
-        assertEquals("Network", activated.single().pageLabel)
+        val hit = activated.single()
+        assertTrue(hit is SearchHit.Setting, "the hit is reported with its kind intact")
+        assertEquals("Proxy address:", hit.entry.label)
+        assertEquals("Network", hit.pageLabel)
+    }
+
+    @Test
+    fun `a page result says it is a page rather than a setting`() {
+        val controller = newController()
+        onEdt {
+            controller.searchField.text = "network"
+            controller.onQueryChanged()
+        }
+        val hit = hits(controller).single()
+
+        val rendered = onEdt {
+            @Suppress("UNCHECKED_CAST")
+            controller.resultsList.cellRenderer
+                ?.getListCellRendererComponent(controller.resultsList, hit, 0, false, false) as JPanel
+        }
+        val labels = onEdt { descendants<JLabel>(rendered) }
+
+        assertTrue(hit is SearchHit.Page, "a page name finds the page")
+        assertTrue(labels.any { it.text == "Network" }, "the row names the page")
+        assertEquals(
+            localizer.getString("settings_dialog.search_kind_page"),
+            labels.last().text,
+            "and says that choosing it navigates rather than opening a setting",
+        )
+    }
+
+    @Test
+    fun `an action result says what kind of result it is`() {
+        val index = SettingsSearchIndex(
+            pages = listOf(PageRef("Popups")),
+            entriesForPage = { emptyList() },
+            actionsForPage = { page -> listOf(SearchHit.Action(page, "Reset Page", run = {})) },
+        )
+        val controller = onEdt {
+            SettingsSearchController(index, JTree(), localizer, onHitActivated = {})
+        }
+        onEdt {
+            controller.searchField.text = "reset"
+            controller.onQueryChanged()
+        }
+        val hit = hits(controller).single()
+
+        val rendered = onEdt {
+            @Suppress("UNCHECKED_CAST")
+            controller.resultsList.cellRenderer
+                ?.getListCellRendererComponent(controller.resultsList, hit, 0, false, false) as JPanel
+        }
+        val labels = onEdt { descendants<JLabel>(rendered) }
+
+        assertTrue(labels.any { it.text == "Reset Page" }, "the row names the action")
+        assertEquals(
+            "Popups › ${localizer.getString("settings_dialog.search_kind_action")}",
+            labels.last().text,
+            "the path says which page the action belongs to",
+        )
     }
 
     @Test
@@ -170,6 +333,12 @@ class SettingsSearchControllerTest {
             pressDown(controller)
         }
         assertEquals(-1, onEdt { controller.resultsList.selectedIndex })
+    }
+
+    /** Types [text] at the end of the query, the way the field's own document does. */
+    private fun appendToQuery(controller: SettingsSearchController, text: String) {
+        val document = controller.searchField.document
+        document.insertString(document.length, text, null)
     }
 
     private fun pressDown(controller: SettingsSearchController) {

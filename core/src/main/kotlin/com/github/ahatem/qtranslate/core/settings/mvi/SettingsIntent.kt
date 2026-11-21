@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.core.settings.mvi
 
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.SettingsPage
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
 import com.github.ahatem.qtranslate.core.settings.data.TranslatorMove
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
@@ -17,7 +18,8 @@ import com.github.ahatem.qtranslate.core.shared.arch.UiIntent
  * - [UpdateDraft] — updates the working copy without persisting
  * - [SaveChanges] — persists the working copy
  * - [CancelChanges] — reverts to the last saved configuration and closes the dialog
- * - [ResetToDefaults] — replaces the working copy with [Configuration.DEFAULT]
+ * - [ResetPreferences] — restores ordinary preferences in the working copy
+ * - [ResetPage] — restores the settings one page owns in the working copy
  *
  * ### Quick actions (scoped auto-save)
  * Used by toolbar toggles and menu items where changes take effect immediately
@@ -50,10 +52,20 @@ sealed interface SettingsIntent : UiIntent {
     data object CancelChanges : SettingsIntent
 
     /**
-     * Replaces the working configuration with [Configuration.DEFAULT].
-     * The user must still dispatch [SaveChanges] to persist.
+     * Restores ordinary preferences in the working configuration, keeping the data the
+     * application manages for the user (presets, custom bindings, pins, rules, geometry, nudge
+     * state). The user must still dispatch [SaveChanges] to persist, and may cancel the reset.
      */
-    data object ResetToDefaults : SettingsIntent
+    data object ResetPreferences : SettingsIntent
+
+    /**
+     * Restores every setting one page owns in the working copy.
+     *
+     * Unlike [ResetPreferences], this may remove lists the user built on that page — pinned
+     * languages, translation rules, custom bindings — because the request names the page they
+     * are shown on. It is staged like any other edit, so Cancel still undoes it.
+     */
+    data class ResetPage(val page: SettingsPage) : SettingsIntent
 
     // ---- External quick actions ----
 

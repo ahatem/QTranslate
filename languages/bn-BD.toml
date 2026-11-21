@@ -465,7 +465,6 @@ rules_error_duplicate = "'%s' এর জন্য একটি নিয়ম �
 dict_auto_lookup_group = "অভিধান স্বয়ংক্রিয়-অনুসন্ধান"
 dict_auto_lookup_source = "স্বয়ংক্রিয়-অনুসন্ধানের উৎস:"
 dict_auto_lookup_hint = "অনুবাদের সময় অভিধানে স্বয়ংক্রিয়ভাবে একক শব্দ অনুসন্ধান করুন।"
-dict_auto_popup_enabled = "একক শব্দের জন্য ভাসমান পপআপ দেখান"
 
 [settings_window]
 layout_group = "লেআউট"

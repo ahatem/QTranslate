@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
+import com.github.ahatem.qtranslate.ui.swing.main.languageChoices
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFallbackFont
 import com.github.ahatem.qtranslate.ui.swing.shared.util.scaledEditorFont
 
@@ -19,6 +20,9 @@ internal fun buildQuickTranslateDialogState(
     val selectedTranslatorId = activePreset?.selectedServices?.get(ServiceRole.TRANSLATOR)
     val selectedTranslator = mainState.availableServices.find { it.id == selectedTranslatorId }
 
+    // Pins narrow the target picker only, in the popup exactly as in the main window.
+    val languageChoices = mainState.languageChoices(config.pinnedLanguages)
+
     return QuickTranslateDialogState(
         isVisible = mainState.isQuickTranslateDialogVisible,
         isLoading = mainState.isLoading,
@@ -30,7 +34,8 @@ internal fun buildQuickTranslateDialogState(
 
         sourceLanguage = displaySourceLanguage,
         targetLanguage = mainState.targetLanguage,
-        availableLanguages = mainState.availableLanguages,
+        availableLanguages = languageChoices.sourceLanguages,
+        targetLanguages = languageChoices.targetLanguages,
         detectedSourceLanguage = mainState.detectedSourceLanguage,
 
         translatorSelectorState = QuickTranslateSelectorState(

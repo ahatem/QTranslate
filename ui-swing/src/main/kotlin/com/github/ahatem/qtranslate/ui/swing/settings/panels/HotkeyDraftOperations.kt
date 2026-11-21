@@ -47,6 +47,19 @@ internal object HotkeyDraftOperations {
         },
     )
 
+    /**
+     * Restores every binding group the panel shows.
+     *
+     * "Reset All to Defaults" used to restore only the legacy list, so OCR and writing shortcuts
+     * survived a reset that claimed to cover all of them. [HotkeyPresets] has no opinion about
+     * those groups; their defaults live on [HotkeyBinding], and this is where all three meet.
+     */
+    fun resetAllBindings(configuration: Configuration): Configuration = configuration.copy(
+        hotkeys = HotkeyPresets.LEGACY.map { it.copy() },
+        ocrHotkeys = HotkeyBinding.OCR_DEFAULTS.map { it.copy() },
+        writingHotkeys = HotkeyBinding.WRITING_DEFAULTS.map { it.copy() },
+    )
+
     fun clearShowMainWindow(configuration: Configuration): Configuration {
         val current = binding(configuration, HotkeyAction.SHOW_MAIN_WINDOW)
             ?: HotkeyBinding(HotkeyAction.SHOW_MAIN_WINDOW, scope = HotkeyScope.GLOBAL)

@@ -96,6 +96,11 @@ class SettingsComboRendererTest {
     private fun assertNativeRows(panel: SettingsPanel, expectedCombos: Int) {
         val found = onEdt { combos(panel) }
         assertTrue(found.size >= expectedCombos, "expected at least $expectedCombos combo boxes, found ${found.size}")
+        assertNativeRowsOf(found)
+    }
+
+    /** The row-rendering assertions, for a picker list the caller has already chosen. */
+    private fun assertNativeRowsOf(found: List<JComboBox<*>>) {
         found.forEach { combo ->
             onEdt {
                 assertTrue(combo.renderer is DisplayValueRenderer<*>, "combo must use the shared renderer")
@@ -112,8 +117,19 @@ class SettingsComboRendererTest {
 
     @Test
     fun `general page combos preserve native selection`() {
-        val panel = onEdt { GeneralPanel(newStore(), localizer) }
-        assertNativeRows(panel, expectedCombos = 2)
+        val panel = onEdt {
+            GeneralPanel(
+                newStore(),
+                localizer,
+                CoroutineScope(SupervisorJob() + Dispatchers.Default).also { scopes += it },
+            )
+        }
+        // Three now: the interface-language picker moved here from Appearance, and it renders
+        // translated language names through a renderer of its own rather than the shared one, so
+        // the shared-renderer check covers the two selection pickers.
+        val shared = onEdt { combos(panel).filter { it.renderer is DisplayValueRenderer<*> } }
+        assertEquals(2, shared.size, "the selection pickers use the shared renderer")
+        assertNativeRowsOf(shared)
     }
 
     @Test

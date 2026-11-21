@@ -465,7 +465,6 @@ rules_error_duplicate = "Une règle pour '%s' existe déjà."
 dict_auto_lookup_group = "Recherche automatique dans le dictionnaire"
 dict_auto_lookup_source = "Source de la recherche auto. :"
 dict_auto_lookup_hint = "Recherche automatiquement les mots isolés dans le dictionnaire pendant la traduction."
-dict_auto_popup_enabled = "Afficher une fenêtre flottante pour les mots isolés"
 
 [settings_window]
 layout_group = "Mise en page"

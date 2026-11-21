@@ -465,7 +465,6 @@ rules_error_duplicate = "Eine Regel für '%s' existiert bereits."
 dict_auto_lookup_group = "Wörterbuch-Autosuche"
 dict_auto_lookup_source = "Autosuche-Quelle:"
 dict_auto_lookup_hint = "Während der Übersetzung automatisch einzelne Wörter im Wörterbuch nachschlagen."
-dict_auto_popup_enabled = "Schwebendes Popup für einzelne Wörter anzeigen"
 
 [settings_window]
 layout_group = "Layout"

@@ -9,11 +9,16 @@ import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.ui.swing.quicktranslate.buildQuickTranslateDialogState
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 /**
- * Pinned Languages must narrow every language picker, not only the main window's: the quick
- * translate popup used to be handed the unfiltered state and listed every language.
+ * Pinned Languages is a target-language preference: it narrows what the user can translate
+ * *into*, and never what they can translate *from*.
+ *
+ * The hint on the settings page has always said "languages to show in the target language
+ * picker". The implementation used to narrow every picker instead, which hid source languages
+ * the user had not asked to hide, so the two now agree — in the main window and in Quick
+ * Translate, which must not disagree with it.
  */
 class PinnedLanguagesTest {
 
@@ -25,29 +30,56 @@ class PinnedLanguagesTest {
     }
 
     private val all = listOf("auto", "en", "es", "eu", "ru", "uk").map(::LanguageCode)
-    private val state = MainState(availableLanguages = all)
+    private val state = MainState(availableLanguages = all, targetLanguage = LanguageCode("en"))
 
     @Test
-    fun `no pinned languages keeps every language`() {
-        assertSame(state, state.withPinnedLanguages(emptyList()))
-    }
-
-    @Test
-    fun `pinned languages narrow the list and keep auto`() {
+    fun `no pinned languages offers every language`() {
+        val choices = state.languageChoices(emptyList())
+        assertEquals(all, choices.sourceLanguages, "the source picker offers everything, Auto included")
         assertEquals(
-            listOf("auto", "en", "ru").map(::LanguageCode),
-            state.withPinnedLanguages(listOf("ru", "en")).availableLanguages
+            all.filter { it != LanguageCode.AUTO },
+            choices.targetLanguages,
+            "Auto is never a target",
         )
     }
 
     @Test
-    fun `the quick translate popup offers only the pinned languages`() {
+    fun `pins narrow the target picker and leave the source picker alone`() {
+        val choices = state.languageChoices(listOf("ru", "es"))
+        assertEquals(all, choices.sourceLanguages, "pinning a language never removes a source language")
+        assertEquals(
+            listOf("en", "es", "ru").map(::LanguageCode),
+            choices.targetLanguages,
+            "pinned targets keep the translator's order, and the language in use stays available",
+        )
+    }
+
+    @Test
+    fun `the current target stays selectable even when it is not pinned`() {
+        val choices = MainState(availableLanguages = all, targetLanguage = LanguageCode("uk"))
+            .languageChoices(listOf("en"))
+        assertTrue(
+            LanguageCode("uk") in choices.targetLanguages,
+            "the picker must never hide the language the translation actually uses",
+        )
+        assertEquals(listOf("en", "uk").map(::LanguageCode), choices.targetLanguages)
+    }
+
+    @Test
+    fun `a pin the translator does not support contributes nothing`() {
+        val choices = state.languageChoices(listOf("ja", "en"))
+        assertEquals(listOf("en").map(::LanguageCode), choices.targetLanguages)
+    }
+
+    @Test
+    fun `the quick translate popup uses the same target semantics`() {
         val dir = java.nio.file.Files.createTempDirectory("qtranslate-pinned-test").toFile()
         val dialogState = buildQuickTranslateDialogState(
-            state.withPinnedLanguages(listOf("en", "es")),
-            Configuration(),
+            state,
+            Configuration(pinnedLanguages = listOf("en", "es")),
             LocalizationManager(dir, LanguageTomlParser(), SilentLogger())
         )
-        assertEquals(listOf("auto", "en", "es").map(::LanguageCode), dialogState.availableLanguages)
+        assertEquals(all, dialogState.availableLanguages, "the popup's source picker stays complete")
+        assertEquals(listOf("en", "es").map(::LanguageCode), dialogState.targetLanguages)
     }
 }

@@ -35,4 +35,28 @@ class MinimizeButtonPolicyTest {
             MinimizeButtonPolicy.decide(MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR, windowCurrentlyVisible = false),
         )
     }
+
+    @Test
+    fun `hide to tray without a tray icon minimizes to the taskbar instead`() {
+        assertEquals(
+            MinimizeButtonAction.MINIMIZE_TO_TASKBAR,
+            MinimizeButtonPolicy.decide(
+                MinimizeButtonBehavior.HIDE_TO_TRAY,
+                windowCurrentlyVisible = true,
+                trayAvailable = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `a tray icon keeps hide to tray available`() {
+        assertEquals(
+            MinimizeButtonAction.HIDE_TO_TRAY,
+            MinimizeButtonPolicy.decide(
+                MinimizeButtonBehavior.HIDE_TO_TRAY,
+                windowCurrentlyVisible = true,
+                trayAvailable = true,
+            ),
+        )
+    }
 }

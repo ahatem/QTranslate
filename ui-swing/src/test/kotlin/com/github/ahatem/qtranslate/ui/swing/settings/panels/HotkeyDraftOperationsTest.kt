@@ -353,4 +353,30 @@ class HotkeyDraftOperationsTest {
 
     private fun showMain(configuration: Configuration) =
         configuration.hotkeys.first { it.action == HotkeyAction.SHOW_MAIN_WINDOW }
+
+    @Test
+    fun `reset all restores every binding group the table shows`() {
+        val customised = Configuration.FRESH_INSTALL.copy(
+            hotkeys = HotkeyBinding.LEGACY_DEFAULTS.map { it.copy(keyCode = 0, modifiers = 0) },
+            ocrHotkeys = HotkeyBinding.OCR_DEFAULTS.map { it.copy(keyCode = 7, modifiers = 8) },
+            writingHotkeys = HotkeyBinding.WRITING_DEFAULTS.map { it.copy(keyCode = 9, modifiers = 10) },
+        )
+
+        val reset = HotkeyDraftOperations.resetAllBindings(customised)
+
+        assertEquals(HotkeyPresets.LEGACY, reset.hotkeys)
+        assertEquals(HotkeyBinding.OCR_DEFAULTS, reset.ocrHotkeys, "OCR shortcuts are reset too")
+        assertEquals(HotkeyBinding.WRITING_DEFAULTS, reset.writingHotkeys, "writing shortcuts are reset too")
+    }
+
+    @Test
+    fun `a preset restores the translation shortcuts and leaves the other groups alone`() {
+        val ocr = HotkeyBinding.OCR_DEFAULTS.map { it.copy(keyCode = 7, modifiers = 8) }
+        val config = Configuration.FRESH_INSTALL.copy(ocrHotkeys = ocr)
+
+        val applied = HotkeyDraftOperations.replacePreset(config, HotkeyPresetKind.MODERN)
+
+        assertEquals(HotkeyPresets.MODERN, applied.hotkeys)
+        assertEquals(ocr, applied.ocrHotkeys, "the preset names a translation scheme, not a whole reset")
+    }
 }

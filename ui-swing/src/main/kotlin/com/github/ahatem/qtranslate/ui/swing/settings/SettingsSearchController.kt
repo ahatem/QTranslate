@@ -4,6 +4,7 @@ import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.icons.FlatSearchIcon
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.ui.swing.settings.panels.SettingsVisuals
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import java.awt.BorderLayout
 import java.awt.CardLayout
@@ -44,10 +45,23 @@ internal class SettingsSearchController(
     tree: JTree,
     private val localizationManager: LocalizationManager,
     private val onHitActivated: (SearchHit) -> Unit,
+    /** Called when a query opens: whichever page is showing is the one to come back to. */
+    private val onSearchStarted: () -> Unit = {},
+    /**
+     * Called when the query is cleared and the section tree takes the sidebar back.
+     *
+     * Searching is a temporary mode over the sidebar: the reader types to find one thing, and
+     * deleting the query should return them to the page they were on rather than leave them on
+     * the last page the last result happened to open.
+     */
+    private val onSearchEnded: () -> Unit = {},
 ) {
     /** Which of the three sidebar cards is showing — the search mode. */
     internal var visibleCard: String = NAV_TREE
         private set
+
+    /** Whether a query is currently open, so the edges of that mode are reported exactly once. */
+    private var queryOpen: Boolean = false
 
     val searchField = JTextField()
     val resultsList = JList<SearchHit>()
@@ -100,7 +114,7 @@ internal class SettingsSearchController(
                     } else {
                         list.background
                     }
-                    add(JLabel(hit.entry.label).apply {
+                    add(JLabel(titleOf(hit)).apply {
                         foreground = if (selected) {
                             UIManager.getColor("List.selectionForeground")
                         } else {
@@ -108,13 +122,14 @@ internal class SettingsSearchController(
                         }
                     }, BorderLayout.NORTH)
                     // The path is what tells two identically-labelled rows apart, so it is always
-                    // shown rather than only on ambiguity.
-                    add(JLabel("${hit.pageLabel} $PATH_SEPARATOR ${hit.entry.section}").apply {
+                    // shown rather than only on ambiguity — and for a page or an action it is what
+                    // says which of the three kinds of result this row is.
+                    add(JLabel(subtitleOf(hit)).apply {
                         font = font.deriveFont(font.size - 2f)
                         foreground = if (selected) {
                             UIManager.getColor("List.selectionForeground")
                         } else {
-                            UIManager.getColor("Label.disabledForeground")
+                            SettingsVisuals.secondaryText()
                         }
                     }, BorderLayout.SOUTH)
                 }
@@ -146,6 +161,9 @@ internal class SettingsSearchController(
             )
             putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true)
             putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON, FlatSearchIcon())
+            // The field is chrome in the sidebar rather than a row on a page, so the shortcut is
+            // the only thing that tells a reader it can be reached without the mouse.
+            toolTipText = localizationManager.getString("settings_dialog.search_tooltip")
             // Border applied by the dialog's updateBorders() so the rule follows the theme.
 
             document.addDocumentListener(object : DocumentListener {
@@ -171,6 +189,26 @@ internal class SettingsSearchController(
         add(navCards, BorderLayout.CENTER)
     }
 
+    /** The row's own words: a setting's name, a page's name, or an action's name. */
+    private fun titleOf(hit: SearchHit): String = when (hit) {
+        is SearchHit.Page -> hit.pageLabel
+        is SearchHit.Setting -> hit.entry.label
+        is SearchHit.Action -> hit.label
+    }
+
+    /**
+     * What kind of result the row is, and where it lives.
+     *
+     * A page's own row and an action's row have no sub-section path to show, so the second line is
+     * what tells the reader that one of them navigates and the other does something.
+     */
+    private fun subtitleOf(hit: SearchHit): String = when (hit) {
+        is SearchHit.Page -> localizationManager.getString("settings_dialog.search_kind_page")
+        is SearchHit.Setting -> "${hit.pageLabel} $PATH_SEPARATOR ${hit.entry.section}"
+        is SearchHit.Action -> "${hit.pageLabel} $PATH_SEPARATOR " +
+            localizationManager.getString("settings_dialog.search_kind_action")
+    }
+
     /**
      * Reacts to a query change: no query shows the tree again, a matching query lists its hits,
      * and a query with no hits shows the empty card.
@@ -178,11 +216,22 @@ internal class SettingsSearchController(
     fun onQueryChanged() {
         val query = searchField.text.trim()
         if (query.isEmpty()) {
+            // Leaving search mode: tell the dialog before the tree comes back, so the page it
+            // restores is the one the sidebar is already showing.
+            if (queryOpen) {
+                queryOpen = false
+                onSearchEnded()
+            }
             // Drop the previous hits too: the tree is showing, and a later no-hit query must not
             // leave a stale row for the Down key to select.
             resultsList.setListData(emptyArray())
             showCard(NAV_TREE)
             return
+        }
+
+        if (!queryOpen) {
+            queryOpen = true
+            onSearchStarted()
         }
 
         val hits = searchIndex.search(query)

@@ -21,6 +21,7 @@ import javax.swing.SwingUtilities
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * The Appearance font pickers merge system families with every bundled family registered for lazy
@@ -73,7 +74,7 @@ class AppearancePanelFontListTest {
         val themeManager = ThemeManager(Files.createTempDirectory("qtranslate-appearance-themes").toFile(), logger)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         scopes += scope
-        val panel = onEdt { AppearancePanel(settings, themeManager, localizer, scope) }
+        val panel = onEdt { AppearancePanel(settings, themeManager, localizer) }
         awaitLoaded(panel)
         return panel
     }
@@ -100,13 +101,24 @@ class AppearancePanelFontListTest {
     fun `Inter, Rubik and Noto each appear exactly once in the UI and editor pickers`() {
         val p = panel()
         listOf(p.uiFontComboForTest(), p.editorFontComboForTest()).forEach { combo ->
-            val items = onEdt { (0 until combo.itemCount).map { combo.getItemAt(it) } }
-            assertEquals(1, items.count { it == "Inter" }, "Inter should appear exactly once, found: $items")
-            assertEquals(1, items.count { it == "Rubik" }, "Rubik should appear exactly once, found: $items")
-            assertEquals(
-                1, items.count { it == "Noto Naskh Arabic" },
-                "Noto Naskh Arabic should appear exactly once, found: $items"
-            )
+            val items = onEdt { (0 until combo.itemCount).map { combo.getItemAt(it).toString() } }
+
+            // The regression this guards is a family being listed more than once, which is what
+            // happened when the list was built by compounding a font that had already been
+            // derived. A duplicated entry is still a failure.
+            assertEquals(items.size, items.distinct().size, "no family is listed twice, found: $items")
+
+            // Presence is checked against the family's name and its style variants: the bundled
+            // fonts are registered lazily, and once anything in the JVM has constructed one, the
+            // JDK reports "Inter Light" and "Inter SemiBold" as families of their own instead of a
+            // single "Inter". Which of the two shapes appears depends on test order, so asserting
+            // the exact string tested the order rather than the picker.
+            listOf("Inter", "Rubik", "Noto Naskh Arabic").forEach { family ->
+                assertTrue(
+                    items.any { it == family || it.startsWith("$family ") },
+                    "$family should be offered, found: ${items.filter { it.startsWith(family.split(" ").first()) }}",
+                )
+            }
         }
     }
 

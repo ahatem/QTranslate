@@ -84,7 +84,7 @@ class SettingsRepository(
                     // handler below, which reached the same silent default by a longer route.
                     recoverFrom(stored, e)
                 }
-            } ?: Configuration.DEFAULT   // No stored config at all: a fresh install, not a failure.
+            } ?: Configuration.FRESH_INSTALL   // No stored config at all: a fresh install, not a failure.
         }
         .catch { e ->
             if (e is CancellationException) throw e

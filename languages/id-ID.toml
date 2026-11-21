@@ -470,7 +470,6 @@ rules_error_duplicate = "Aturan untuk '%s' sudah ada."
 dict_auto_lookup_group = "Pencarian Kamus Otomatis"
 dict_auto_lookup_source = "Sumber pencarian otomatis:"
 dict_auto_lookup_hint = "Cari kata tunggal di kamus secara otomatis saat menerjemahkan."
-dict_auto_popup_enabled = "Tampilkan pop-up mengambang untuk kata tunggal"
 
 [settings_window]
 layout_group = "Tata Letak"

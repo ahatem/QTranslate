@@ -59,55 +59,61 @@ class PopupsPanel(
         addHint(localizationManager.getString("settings_window.close_popup_on_click_outside_hint"))
 
         // ── Translation popup ────────────────────────────────────────────────
-        addSubSeparator(localizationManager.getString("settings_window.translation_popup_sub"))
-        translate = PopupControls(
-            autoSize = addCheckbox(
-                localizationManager.getString("settings_window.auto_size"), false
-            ) { enabled -> applyDraft(store) { it.copy(isPopupAutoSizeEnabled = enabled) } },
-            autoPosition = addCheckbox(
-                localizationManager.getString("settings_window.auto_position"), false
-            ) { enabled -> applyDraft(store) { it.copy(isPopupAutoPositionEnabled = enabled) } },
-            transparency = addTransparencyRow { value ->
-                applyDraft(store) { it.copy(popupTransparencyPercentage = value) }
-            },
-            idleTimeout = addIdleRow(Configuration.DEFAULT.popupIdleTimeoutSeconds) { value ->
-                applyDraft(store) { it.copy(popupIdleTimeoutSeconds = value) }
-            }
-        )
-        addHint(localizationManager.getString("settings_window.popup_idle_hint"))
+        // Each popup is a sub-section rather than a loose heading: its controls are nested inside
+        // it and joined to it by a rail, so "Transparency" under "Dictionary Popup" cannot be
+        // mistaken for the translation popup's transparency three rows above it.
+        addSubSection(localizationManager.getString("settings_window.translation_popup_sub")) {
+            translate = PopupControls(
+                autoSize = addCheckbox(
+                    localizationManager.getString("settings_window.auto_size"), false
+                ) { enabled -> applyDraft(store) { it.copy(isPopupAutoSizeEnabled = enabled) } },
+                autoPosition = addCheckbox(
+                    localizationManager.getString("settings_window.auto_position"), false
+                ) { enabled -> applyDraft(store) { it.copy(isPopupAutoPositionEnabled = enabled) } },
+                transparency = addTransparencyRow { value ->
+                    applyDraft(store) { it.copy(popupTransparencyPercentage = value) }
+                },
+                idleTimeout = addIdleRow(Configuration.DEFAULT.popupIdleTimeoutSeconds) { value ->
+                    applyDraft(store) { it.copy(popupIdleTimeoutSeconds = value) }
+                }
+            )
+            addHint(localizationManager.getString("settings_window.popup_idle_hint"))
+        }
 
         // ── Dictionary popup ─────────────────────────────────────────────────
-        addSubSeparator(localizationManager.getString("settings_window.dict_popup_sub"))
-        dictionary = PopupControls(
-            // No auto-size: the dictionary popup sizes itself to the definition it holds.
-            autoSize = null,
-            autoPosition = addCheckbox(
-                localizationManager.getString("settings_window.auto_position"), false
-            ) { enabled -> applyDraft(store) { it.copy(isQuickDictionaryAutoPositionEnabled = enabled) } },
-            transparency = addTransparencyRow { value ->
-                applyDraft(store) { it.copy(quickDictionaryTransparencyPercentage = value) }
-            },
-            idleTimeout = addIdleRow(Configuration.DEFAULT.quickDictionaryIdleTimeoutSeconds) { value ->
-                applyDraft(store) { it.copy(quickDictionaryIdleTimeoutSeconds = value) }
-            }
-        )
-        addHint(localizationManager.getString("settings_window.popup_idle_hint"))
+        addSubSection(localizationManager.getString("settings_window.dict_popup_sub")) {
+            dictionary = PopupControls(
+                // No auto-size: the dictionary popup sizes itself to the definition it holds.
+                autoSize = null,
+                autoPosition = addCheckbox(
+                    localizationManager.getString("settings_window.auto_position"), false
+                ) { enabled -> applyDraft(store) { it.copy(isQuickDictionaryAutoPositionEnabled = enabled) } },
+                transparency = addTransparencyRow { value ->
+                    applyDraft(store) { it.copy(quickDictionaryTransparencyPercentage = value) }
+                },
+                idleTimeout = addIdleRow(Configuration.DEFAULT.quickDictionaryIdleTimeoutSeconds) { value ->
+                    applyDraft(store) { it.copy(quickDictionaryIdleTimeoutSeconds = value) }
+                }
+            )
+            addHint(localizationManager.getString("settings_window.popup_idle_hint"))
+        }
 
         // ── Image search popup ───────────────────────────────────────────────
-        addSubSeparator(localizationManager.getString("settings_window.image_popup_sub"))
-        images = PopupControls(
-            autoSize = null,
-            autoPosition = addCheckbox(
-                localizationManager.getString("settings_window.auto_position"), false
-            ) { enabled -> applyDraft(store) { it.copy(isImageSearchAutoPositionEnabled = enabled) } },
-            transparency = addTransparencyRow { value ->
-                applyDraft(store) { it.copy(imageSearchTransparencyPercentage = value) }
-            },
-            // No idle timeout, deliberately: a grid of pictures is compared rather than read, and
-            // one that vanished mid-comparison would be worse than one closed by hand.
-            idleTimeout = null
-        )
-        addHint(localizationManager.getString("settings_window.image_popup_no_idle_hint"))
+        addSubSection(localizationManager.getString("settings_window.image_popup_sub")) {
+            images = PopupControls(
+                autoSize = null,
+                autoPosition = addCheckbox(
+                    localizationManager.getString("settings_window.auto_position"), false
+                ) { enabled -> applyDraft(store) { it.copy(isImageSearchAutoPositionEnabled = enabled) } },
+                transparency = addTransparencyRow { value ->
+                    applyDraft(store) { it.copy(imageSearchTransparencyPercentage = value) }
+                },
+                // No idle timeout, deliberately: a grid of pictures is compared rather than read, and
+                // one that vanished mid-comparison would be worse than one closed by hand.
+                idleTimeout = null
+            )
+            addHint(localizationManager.getString("settings_window.image_popup_no_idle_hint"))
+        }
 
         finishLayout()
     }
@@ -164,7 +170,14 @@ class PopupsPanel(
     }
 
     private companion object {
-        const val TRANSPARENCY_MIN = 5
+        /**
+         * Full opacity is 0% transparency, and it is reachable.
+         *
+         * The range started at 5, so the most opaque a popup could be was still slightly
+         * see-through, which no control on the page explained and no user asked for. 0 makes the
+         * setting mean what it says at both ends.
+         */
+        const val TRANSPARENCY_MIN = 0
         const val TRANSPARENCY_MAX = 50
         const val IDLE_MIN = 2
         const val IDLE_MAX = 60

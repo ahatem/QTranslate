@@ -131,8 +131,12 @@ enum class CloseButtonBehavior {
 
 /**
  * What the main window's native Minimize button does. Separate from [CloseButtonBehavior]
- * because the two buttons are independent user actions. The default keeps the historic
- * hide-to-tray behavior.
+ * because the two buttons are independent user actions.
+ *
+ * A fresh install starts on [MINIMIZE_TO_TASKBAR]: a window that vanishes into a tray the user
+ * does not know is there reads as a crash. A configuration stored before this default existed
+ * still means [HIDE_TO_TRAY], because the writer omits values equal to [Configuration.DEFAULT]
+ * and that is therefore what a missing field decodes to — see [Configuration.FRESH_INSTALL].
  */
 @Serializable
 enum class MinimizeButtonBehavior {
@@ -272,8 +276,18 @@ data class Configuration(
     val clearHistoryOnExit: Boolean = false,
 
     // ---- UI — Main Window ----
+    /** Whether the lookup dock shows the dictionary; a committed change opens or closes it. */
     val showDictionaryPanel: Boolean = false,
+    /** The master switch for automatic dictionary lookup: `OFF` disables it entirely. */
     val dictionaryAutoSource: DictionaryAutoSource = DictionaryAutoSource.TRANSLATED,
+    /**
+     * Retained for compatibility: no control writes this and nothing reads it.
+     *
+     * It used to gate every automatic lookup while its label promised a floating popup that the
+     * application stopped opening by itself in 1.4.0. The popup opens on request with its own
+     * hotkey, automatic lookup answers to [dictionaryAutoSource] alone, and the field stays so
+     * existing configuration files keep loading and round-tripping unchanged.
+     */
     val isDictionaryAutoPopupEnabled: Boolean = true,
 
     /**
@@ -373,6 +387,15 @@ data class Configuration(
         servicePresets.find { it.id == activeServicePresetId }
 
     companion object {
+        /**
+         * The value a stored configuration decodes to when a field is absent.
+         *
+         * This is not simply "the product defaults": the writer omits values equal to [DEFAULT],
+         * so this is also the meaning of every setting an existing user never changed. A field
+         * whose product default changes must keep its old meaning here, or every stored
+         * configuration that never touched it would silently change behaviour. [FRESH_INSTALL]
+         * carries the defaults a new installation starts from.
+         */
         val DEFAULT: Configuration by lazy {
             val defaultPreset = ServicePreset.createDefault()
             Configuration(
@@ -421,6 +444,17 @@ data class Configuration(
                 popupLastKnownSize           = Size(width = 450, height = 250),
                 popupLastKnownPosition       = Position(x = 0, y = 0)
             )
+        }
+
+        /**
+         * What a new installation starts from, where that differs from [DEFAULT].
+         *
+         * Only used when nothing has ever been stored. A stored configuration that lacks a field
+         * keeps meaning [DEFAULT]'s value for it, so a default that changes for new installs does
+         * not rewrite the behaviour of users who already have settings.
+         */
+        val FRESH_INSTALL: Configuration by lazy {
+            DEFAULT.copy(minimizeButtonBehavior = MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR)
         }
     }
 }

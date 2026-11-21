@@ -121,6 +121,12 @@ fun main(args: Array<String>): Unit = runBlocking {
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "selector") {
             selectorAudit()
             selectorDensityAudit()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-matrix") {
+            settingsMatrix()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-showcase") {
+            // Two pages, one theme: for checking a change to one of them without re-rendering the
+            // whole gallery, which is a couple of minutes of work for a single screenshot.
+            settingsShowcase()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "presentation") {
             mainWindow()
             layouts()
@@ -551,7 +557,30 @@ private class Shots(
 
     suspend fun settingsShowcase() {
         start(settingsConfig(Scenes.DARK))
-        capturePages(Scenes.DARK, "dark", listOf(3 to "services", 11 to "plugins"))
+        capturePages(Scenes.DARK, "dark", listOf(3 to "services", 5 to "languages", 11 to "plugins"))
+    }
+
+    /**
+     * The Settings matrix: every page at 100%, 150% and 200%, in English and in Arabic.
+     *
+     * The gallery captures each page once, at the app's 200% authoring zoom. That proves the pages
+     * read well but says nothing about the boundaries — where a label is clipped at 150%, where a
+     * control overlaps at 200%, or whether a right-to-left page mirrors its rows. This scene walks
+     * the combinations that the review is supposed to cover, at one theme, because the geometry
+     * question is the same in either.
+     */
+    suspend fun settingsMatrix() {
+        for (percent in listOf(100, 150, 200)) {
+            for ((language, tag) in listOf("en" to "en", "ar-SA" to "ar")) {
+                start(
+                    settingsConfig(Scenes.LIGHT).copy(
+                        uiScale = percent,
+                        interfaceLanguage = language,
+                    )
+                )
+                capturePages(Scenes.LIGHT, "$tag-$percent")
+            }
+        }
     }
 
     private fun settingsConfig(theme: String): Configuration =
@@ -575,6 +604,12 @@ private class Shots(
                 isModal = false // modal would block the event thread this harness drives
                 setSize(owner.width, owner.height)
                 setLocationRelativeTo(owner)
+                // The frame applies the interface's direction; a dialog built directly here has to
+                // be told, or the Arabic captures would show Arabic words laid out left to right.
+                applyComponentOrientation(
+                    if (deps.localizationManager.isRtl) java.awt.ComponentOrientation.RIGHT_TO_LEFT
+                    else java.awt.ComponentOrientation.LEFT_TO_RIGHT
+                )
                 isVisible = true
             }
         }
@@ -607,16 +642,17 @@ private class Shots(
         delay(400)
     }
 
-    /** Selects a settings page the way a user does, including the Plugins page's row choice. */
+    /**
+     * Selects a settings page the way a user does.
+     *
+     * The Plugins page needs no extra step: plugin management moved to its own dialog, so the page
+     * itself holds nothing but the explanation and the way in — which is what a capture should show.
+     */
     private suspend fun selectPage(dialog: SettingsDialog, row: Int, name: String) {
         onUi {
             val tree = find<JTree>(dialog)
                 ?: error("Settings page tree not found while capturing '$name' — dialog layout changed?")
             tree.setSelectionRow(row)
-        }
-        if (name == "plugins") {
-            delay(300)
-            onUi { selectPluginRow(dialog, "DeepL Services") }
         }
     }
 
@@ -823,30 +859,6 @@ private class Shots(
             }
         }
         delay(500)
-    }
-
-    private fun selectPluginRow(dialog: SettingsDialog, name: String) {
-        val queue = ArrayDeque<Container>().apply { add(dialog) }
-        while (queue.isNotEmpty()) {
-            for (child in queue.removeFirst().components) {
-                if (child is JPanel && child.cursor.type == Cursor.HAND_CURSOR) {
-                    val labels = ArrayDeque<Container>().apply { add(child) }
-                    var matches = false
-                    while (labels.isNotEmpty()) {
-                        for (part in labels.removeFirst().components) {
-                            if (part is JLabel && part.text == name) matches = true
-                            if (part is Container) labels.add(part)
-                        }
-                    }
-                    if (matches) {
-                        child.dispatchEvent(MouseEvent(child, MouseEvent.MOUSE_PRESSED, 0L, 0, 5, 5, 1, false))
-                        return
-                    }
-                }
-                if (child is Container) queue.add(child)
-            }
-        }
-        logger.warn("plugin row not found for screenshot: $name")
     }
 
     private suspend fun openDictionary(word: String) {

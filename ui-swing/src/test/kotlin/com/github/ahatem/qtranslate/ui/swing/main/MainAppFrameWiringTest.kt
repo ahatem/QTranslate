@@ -16,6 +16,28 @@ import kotlin.test.assertTrue
 class MainAppFrameWiringTest {
 
     @Test
+    fun `a committed dictionary panel preference reaches the dock without a restart`() {
+        // The preference was read only when the main store was built, so ticking it appeared to do
+        // nothing until the application was restarted. Applying Settings now hands the committed
+        // configuration to the frame, which opens or closes the dock itself.
+        assertContains(source, "onSettingsApplied = { config -> applyCommittedSettings(config) }")
+        assertContains(source, "private fun applyCommittedSettings(config: Configuration) {")
+        assertContains(source, "syncDictionaryPanel(config.showDictionaryPanel)")
+        assertContains(source, "mainStore.dispatch(MainIntent.OpenLookupDock(LookupTool.DICTIONARY))")
+        assertContains(source, "mainStore.dispatch(MainIntent.CloseLookupDock)")
+    }
+
+    @Test
+    fun `hiding the window requires an installed tray icon`() {
+        // Support and installation are different questions: the platform may have a tray and this
+        // process may still have failed to put an icon in it.
+        assertContains(
+            source,
+            "private fun isTrayAvailable(): Boolean = SystemTray.isSupported() && trayBinding.isInstalled"
+        )
+    }
+
+    @Test
     fun `the command menu is presented as a menu, not as settings`() {
         // It opens the popup that holds most of the window's commands, and only one of its entries
         // is Settings. A gear icon promised the smaller half of what the button does.

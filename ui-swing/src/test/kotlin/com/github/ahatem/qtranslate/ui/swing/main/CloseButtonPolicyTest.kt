@@ -21,6 +21,24 @@ class CloseButtonPolicyTest {
     }
 
     @Test
+    fun `closing to tray without a tray icon keeps the window on the taskbar`() {
+        assertEquals(
+            CloseButtonAction.MINIMIZE_TO_TASKBAR,
+            CloseButtonPolicy.decide(CloseButtonBehavior.MINIMIZE_TO_TRAY, trayAvailable = false),
+        )
+        assertEquals(
+            CloseButtonAction.HIDE_TO_TRAY,
+            CloseButtonPolicy.decide(CloseButtonBehavior.MINIMIZE_TO_TRAY, trayAvailable = true),
+        )
+    }
+
+    @Test
+    fun `an unavailable tray does not change what exit and ask mean`() {
+        assertEquals(CloseButtonAction.EXIT, CloseButtonPolicy.decide(CloseButtonBehavior.EXIT, trayAvailable = false))
+        assertEquals(CloseButtonAction.ASK, CloseButtonPolicy.decide(CloseButtonBehavior.ASK, trayAvailable = false))
+    }
+
+    @Test
     fun `an answer of minimize to tray applies that choice and can remember it`() {
         assertEquals(
             CloseDialogOutcome.Apply(CloseButtonBehavior.MINIMIZE_TO_TRAY, true),

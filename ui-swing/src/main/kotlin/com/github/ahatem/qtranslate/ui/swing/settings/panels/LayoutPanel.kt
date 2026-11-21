@@ -26,7 +26,12 @@ class LayoutPanel(
     private val localizationManager: LocalizationManager,
     private val availableTranslatorIds: () -> List<String> = { emptyList() },
     /** Invoked when the user acts on the unavailable-Comparison entry, to send them to fix it. */
-    private val onOpenServicesSettings: () -> Unit = {}
+    private val onOpenServicesSettings: () -> Unit = {},
+    /**
+     * Whether the window can actually be hidden into a tray. Evaluated when the page is built
+     * and on each render, because the tray icon is installed during frame construction.
+     */
+    private val isTrayAvailable: () -> Boolean = { true },
 ) : SettingsPanel() {
 
     private val layouts = LayoutManager.getAvailableLayouts().map {
@@ -43,14 +48,16 @@ class LayoutPanel(
     private fun comparisonConfigureLabel(): String =
         localizationManager.getString("settings_window.layout_comparison_configure")
 
+    /** Why hiding to the tray is not on offer here. */
+    private fun trayUnavailableHint(): String =
+        localizationManager.getString("settings_window.tray_unavailable_hint")
+
     private lateinit var layoutCombo: JComboBox<LayoutInfo>
-    private lateinit var historyCheck: JCheckBox
     private lateinit var languageCheck: JCheckBox
     private lateinit var servicesCheck: JCheckBox
     private lateinit var selectorStyleCombo: JComboBox<ServiceSelectorStyleInfo>
     private lateinit var selectorAppearanceCombo: JComboBox<ServiceSelectorAppearanceInfo>
     private lateinit var statusCheck: JCheckBox
-    private lateinit var dictionaryPanelCheck: JCheckBox
     private lateinit var closeButtonCombo: JComboBox<CloseButtonBehaviorInfo>
     private lateinit var minimizeButtonCombo: JComboBox<MinimizeButtonBehaviorInfo>
 
@@ -88,15 +95,6 @@ class LayoutPanel(
         // ── Toolbars & panels ────────────────────────────────────────────────
         addSeparator(localizationManager.getString("settings_window.toolbars_group"))
 
-        historyCheck = addCheckbox(
-            localizationManager.getString("settings_window.show_history_bar"),
-            false
-        ) { enabled ->
-            applyDraft(store) {
-                it.copy(toolbarVisibility = it.toolbarVisibility.copy(isHistoryBarVisible = enabled))
-            }
-        }
-
         languageCheck = addCheckbox(
             localizationManager.getString("settings_window.show_language_bar"),
             false
@@ -115,77 +113,71 @@ class LayoutPanel(
             }
         }
 
-        dictionaryPanelCheck = addCheckbox(
-            localizationManager.getString("settings_window.show_dictionary_panel"),
-            false
-        ) { enabled ->
-            applyDraft(store) { it.copy(showDictionaryPanel = enabled) }
-        }
-
         // ── Service selector ─────────────────────────────────────────────────
         // Its own sub-section rather than three unrelated-looking rows among the toolbars: the
-        // two combo boxes only mean anything when the selector itself is showing.
-        addSubSeparator(localizationManager.getString("settings_window.service_selector_sub"))
-
-        servicesCheck = addCheckbox(
-            localizationManager.getString("settings_window.show_services_panel"),
-            false
-        ) { enabled ->
-            applyDraft(store) {
-                it.copy(toolbarVisibility = it.toolbarVisibility.copy(isServicesPanelVisible = enabled))
+        // two combo boxes only mean anything when the selector itself is showing, so they are
+        // nested under it and joined to it by a rail.
+        addSubSection(localizationManager.getString("settings_window.service_selector_sub")) {
+            servicesCheck = addCheckbox(
+                localizationManager.getString("settings_window.show_services_panel"),
+                false
+            ) { enabled ->
+                applyDraft(store) {
+                    it.copy(toolbarVisibility = it.toolbarVisibility.copy(isServicesPanelVisible = enabled))
+                }
             }
-        }
 
-        val selectorStyles = listOf(
-            ServiceSelectorStyleInfo(
-                ServiceSelectorStyle.CLASSIC,
-                localizationManager.getString("settings_window.service_selector_classic")
-            ),
-            ServiceSelectorStyleInfo(
-                ServiceSelectorStyle.ENHANCED,
-                localizationManager.getString("settings_window.service_selector_enhanced")
+            val selectorStyles = listOf(
+                ServiceSelectorStyleInfo(
+                    ServiceSelectorStyle.CLASSIC,
+                    localizationManager.getString("settings_window.service_selector_classic")
+                ),
+                ServiceSelectorStyleInfo(
+                    ServiceSelectorStyle.ENHANCED,
+                    localizationManager.getString("settings_window.service_selector_enhanced")
+                )
             )
-        )
-        selectorStyleCombo = JComboBox(selectorStyles.toTypedArray()).apply {
-            renderer = DisplayValueRenderer<ServiceSelectorStyleInfo>(text = { it?.displayName.orEmpty() })
-            addActionListener {
-                if (!isUpdatingFromState) {
-                    (selectedItem as? ServiceSelectorStyleInfo)?.let { selected ->
-                        applyDraft(store) { it.copy(serviceSelectorStyle = selected.value) }
+            selectorStyleCombo = JComboBox(selectorStyles.toTypedArray()).apply {
+                renderer = DisplayValueRenderer<ServiceSelectorStyleInfo>(text = { it?.displayName.orEmpty() })
+                addActionListener {
+                    if (!isUpdatingFromState) {
+                        (selectedItem as? ServiceSelectorStyleInfo)?.let { selected ->
+                            applyDraft(store) { it.copy(serviceSelectorStyle = selected.value) }
+                        }
                     }
                 }
             }
-        }
-        addRow(localizationManager.getString("settings_window.service_selector_style"), selectorStyleCombo)
+            addRow(localizationManager.getString("settings_window.service_selector_style"), selectorStyleCombo)
 
-        val appearances = listOf(
-            ServiceSelectorAppearanceInfo(
-                ServiceSelectorAppearance.ICONS_ONLY,
-                localizationManager.getString("settings_window.service_selector_icons")
-            ),
-            ServiceSelectorAppearanceInfo(
-                ServiceSelectorAppearance.ICONS_AND_TEXT,
-                localizationManager.getString("settings_window.service_selector_icons_text")
-            ),
-            ServiceSelectorAppearanceInfo(
-                ServiceSelectorAppearance.TEXT_ONLY,
-                localizationManager.getString("settings_window.service_selector_text")
+            val appearances = listOf(
+                ServiceSelectorAppearanceInfo(
+                    ServiceSelectorAppearance.ICONS_ONLY,
+                    localizationManager.getString("settings_window.service_selector_icons")
+                ),
+                ServiceSelectorAppearanceInfo(
+                    ServiceSelectorAppearance.ICONS_AND_TEXT,
+                    localizationManager.getString("settings_window.service_selector_icons_text")
+                ),
+                ServiceSelectorAppearanceInfo(
+                    ServiceSelectorAppearance.TEXT_ONLY,
+                    localizationManager.getString("settings_window.service_selector_text")
+                )
             )
-        )
-        selectorAppearanceCombo = JComboBox(appearances.toTypedArray()).apply {
-            renderer = DisplayValueRenderer<ServiceSelectorAppearanceInfo>(text = { it?.displayName.orEmpty() })
-            addActionListener {
-                if (!isUpdatingFromState) {
-                    (selectedItem as? ServiceSelectorAppearanceInfo)?.let { selected ->
-                        applyDraft(store) { it.copy(serviceSelectorAppearance = selected.value) }
+            selectorAppearanceCombo = JComboBox(appearances.toTypedArray()).apply {
+                renderer = DisplayValueRenderer<ServiceSelectorAppearanceInfo>(text = { it?.displayName.orEmpty() })
+                addActionListener {
+                    if (!isUpdatingFromState) {
+                        (selectedItem as? ServiceSelectorAppearanceInfo)?.let { selected ->
+                            applyDraft(store) { it.copy(serviceSelectorAppearance = selected.value) }
+                        }
                     }
                 }
             }
+            addRow(
+                localizationManager.getString("settings_window.service_selector_appearance"),
+                selectorAppearanceCombo
+            )
         }
-        addRow(
-            localizationManager.getString("settings_window.service_selector_appearance"),
-            selectorAppearanceCombo
-        )
 
         // ── Close button ─────────────────────────────────────────────────────
         addSeparator(localizationManager.getString("settings_window.close_behavior_group"))
@@ -227,17 +219,40 @@ class LayoutPanel(
                 localizationManager.getString("settings_window.minimize_behavior_taskbar")
             )
         )
+        val trayAvailable = isTrayAvailable()
+        val trayUnavailable = !trayAvailable
         minimizeButtonCombo = JComboBox(minimizeOptions.toTypedArray()).apply {
-            renderer = DisplayValueRenderer<MinimizeButtonBehaviorInfo>(text = { it?.displayName.orEmpty() })
+            renderer = DisplayValueRenderer<MinimizeButtonBehaviorInfo>(
+                text = { it?.displayName.orEmpty() },
+                // Hiding needs somewhere to hide into. Without a tray icon the window would be
+                // gone from every visible surface, so the choice is shown as unavailable and the
+                // runtime falls back to the taskbar if it is already stored.
+                isDisabled = { trayUnavailable && it?.behavior == MinimizeButtonBehavior.HIDE_TO_TRAY },
+                tooltip = {
+                    if (trayUnavailable && it?.behavior == MinimizeButtonBehavior.HIDE_TO_TRAY)
+                        trayUnavailableHint()
+                    else null
+                },
+            )
             addActionListener {
-                if (!isUpdatingFromState) {
-                    val selected = selectedItem as? MinimizeButtonBehaviorInfo ?: return@addActionListener
-                    applyDraft(store) { it.copy(minimizeButtonBehavior = selected.behavior) }
+                if (isUpdatingFromState) return@addActionListener
+                val selected = selectedItem as? MinimizeButtonBehaviorInfo ?: return@addActionListener
+                if (trayUnavailable && selected.behavior == MinimizeButtonBehavior.HIDE_TO_TRAY) {
+                    // A preference this system cannot honour: keep the saved one rather than
+                    // writing a value the window would have to ignore at runtime.
+                    withoutTrigger {
+                        selectedItem = minimizeOptions.find {
+                            it.behavior == store.state.value.workingConfiguration.minimizeButtonBehavior
+                        }
+                    }
+                    return@addActionListener
                 }
+                applyDraft(store) { it.copy(minimizeButtonBehavior = selected.behavior) }
             }
         }
         addRow(localizationManager.getString("settings_window.minimize_button"), minimizeButtonCombo)
         addHint(localizationManager.getString("settings_window.minimize_behavior_hint"))
+        if (trayUnavailable) addHint(trayUnavailableHint())
 
         finishLayout()
     }
@@ -262,11 +277,9 @@ class LayoutPanel(
             layoutCombo.selectedItem = layouts.find { it.id == LayoutPresetIds.resolve(c.layoutPresetId) }
             layoutCombo.toolTipText =
                 if (comparisonAvailable) null else comparisonUnavailableHint()
-            historyCheck.isSelected = c.toolbarVisibility.isHistoryBarVisible
             languageCheck.isSelected = c.toolbarVisibility.isLanguageBarVisible
             servicesCheck.isSelected = c.toolbarVisibility.isServicesPanelVisible
             statusCheck.isSelected = c.toolbarVisibility.isStatusBarVisible
-            dictionaryPanelCheck.isSelected = c.showDictionaryPanel
 
             selectorStyleCombo.selectedItem = (0 until selectorStyleCombo.itemCount)
                 .map(selectorStyleCombo::getItemAt)
@@ -275,10 +288,13 @@ class LayoutPanel(
                 .map(selectorAppearanceCombo::getItemAt)
                 .find { it.value == c.serviceSelectorAppearance }
 
-            // The selector's own options are meaningless while it is hidden.
+            // The selector's own options are meaningless while it is hidden, and the classic
+            // appearance only exists for the classic selector: under the Enhanced selector it was
+            // a live control that changed nothing at all.
             val selectorShown = c.toolbarVisibility.isServicesPanelVisible
+            val classicSelector = c.serviceSelectorStyle == ServiceSelectorStyle.CLASSIC
             selectorStyleCombo.isEnabled = selectorShown
-            selectorAppearanceCombo.isEnabled = selectorShown
+            selectorAppearanceCombo.isEnabled = selectorShown && classicSelector
 
             closeButtonCombo.selectedItem = (0 until closeButtonCombo.itemCount)
                 .map { closeButtonCombo.getItemAt(it) }

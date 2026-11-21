@@ -464,7 +464,6 @@ rules_error_duplicate_title = "Regola duplicata"
 rules_error_duplicate = "Esiste già una regola per '%s'."
 dict_auto_lookup_group = "Ricerca automatica nel dizionario"
 dict_auto_lookup_hint = "Durante la traduzione cerca automaticamente singole parole nel dizionario."
-dict_auto_popup_enabled = "Visualizza popup fluttuante per singole parole"
 
 [settings_window]
 layout_group = "Layout"

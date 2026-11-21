@@ -470,7 +470,6 @@ rules_error_duplicate = "Правило для «%s» вже існує."
 dict_auto_lookup_group = "Автопошук у словнику"
 dict_auto_lookup_source = "Джерело автопошуку:"
 dict_auto_lookup_hint = "Автоматично шукати окремі слова в словнику під час перекладу."
-dict_auto_popup_enabled = "Показувати спливаюче вікно для окремих слів"
 
 [settings_window]
 layout_group = "Макет"
