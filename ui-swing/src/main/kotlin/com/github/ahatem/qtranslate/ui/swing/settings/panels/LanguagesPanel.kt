@@ -12,6 +12,8 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.util.GridBag
 import java.awt.*
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.*
@@ -153,6 +155,12 @@ class LanguagesPanel(
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
             .insets(4, 0, 0, 0)
             .add(pinnedScroll)
+
+        // The tile width is a share of this pane, so it is recomputed when the pane changes size:
+        // the dialog's own divider, a zoom change, or a resize of the window.
+        pinnedScroll.viewport.addComponentListener(object : ComponentAdapter() {
+            override fun componentResized(e: ComponentEvent) = equaliseTiles()
+        })
 
         val clearBtn = JButton(localizationManager.getString("settings_languages.pinned_languages_clear")).apply {
             addActionListener {
@@ -426,8 +434,53 @@ class LanguagesPanel(
             languageCheckBoxes.add(code to checkBox)
             pinnedListPanel.add(PinnedTile(code, checkBox, available = code in supported))
         }
+
+        equaliseTiles()
+
         pinnedListPanel.revalidate()
         pinnedListPanel.repaint()
+    }
+
+    /**
+     * Gives every tile the same width, and the width to the row.
+     *
+     * Equal cells are what makes a grid readable — the tags line up, the eye can skip down a column
+     * — but sizing them from the widest *name* in the set makes one long language widen every tile
+     * and drops the grid to two fat columns. So the width comes from the viewport instead: as many
+     * columns as fit at a comfortable tile width, then every tile the same share of the row. It
+     * runs again whenever the viewport resizes, which is what keeps the grid aligned after a drag of
+     * the dialog's own divider or a change of zoom.
+     */
+    private fun equaliseTiles() {
+        val tiles = pinnedListPanel.components.filterIsInstance<PinnedTile>()
+        if (tiles.isEmpty()) return
+
+        val gap = UIScale.scale(PINNED_TILE_GAP)
+        val insets = pinnedListPanel.insets
+        val viewportWidth = if (::pinnedScroll.isInitialized) pinnedScroll.viewport.extentSize.width else 0
+
+        val width = if (viewportWidth > 0) {
+            val usable = viewportWidth - insets.left - insets.right - gap * 2
+            val columns = (usable / (UIScale.scale(PINNED_TILE_MIN_WIDTH) + gap)).coerceIn(2, 5)
+            (usable - gap * (columns - 1)) / columns
+        } else {
+            // Before the pane has a size: as wide as the widest tile wants to be, so the first
+            // layout is not one tile per row.
+            tiles.maxOf { it.preferredSize.width }
+        }
+        if (width <= 0) return
+
+        val height = tiles.maxOf { it.preferredSize.height }
+        var changed = false
+        tiles.forEach { tile ->
+            val size = Dimension(width, height)
+            if (tile.preferredSize != size || tile.minimumSize != size) {
+                tile.preferredSize = size
+                tile.minimumSize   = size
+                changed = true
+            }
+        }
+        if (changed) pinnedListPanel.revalidate()
     }
 
     /**
@@ -543,6 +596,9 @@ class LanguagesPanel(
     companion object {
         /** Gap between tiles, across a row and between rows; part of the pitch the grid is sized to. */
         private const val PINNED_TILE_GAP = 6
+
+        /** The comfortable width a tile is fitted to; the grid takes as many columns as fit at it. */
+        private const val PINNED_TILE_MIN_WIDTH = 130
 
         /** Whole rows of tiles the grid shows before it scrolls. */
         private const val PINNED_VISIBLE_ROWS = 3

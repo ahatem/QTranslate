@@ -288,7 +288,10 @@ internal class PluginSettingsForm(
      */
     private fun buildSeparatorRow(title: String, gap: Int = 10): JPanel {
         val label = JLabel(title).apply {
-            font = font.deriveFont(Font.BOLD)
+            // The same weight and size a settings page gives its sections, so a plugin's form reads
+            // as another page of the same dialog rather than as a form in a window that happens to
+            // be nearby.
+            font = SettingsVisuals.sectionTitleFont(font)
             alignmentX = Component.LEFT_ALIGNMENT
         }
         return object : JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)) {

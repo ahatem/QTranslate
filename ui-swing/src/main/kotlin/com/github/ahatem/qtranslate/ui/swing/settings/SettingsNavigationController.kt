@@ -356,6 +356,32 @@ internal class SettingsNavigationController(
                     }
                 }
                 super.paintComponent(g)
+
+                // The page you are on carries the same square marker the rows in the content carry,
+                // painted in the gutter beside the selection pill: "where am I" should not look
+                // like two different ideas in the two halves of the dialog. It goes on after the
+                // look and feel has drawn the pill, and sits outside it, so nothing is covered.
+                val selectedRow = selectionModel.minSelectionRow
+                if (selectedRow >= 0) {
+                    val selectedNode =
+                        getPathForRow(selectedRow)?.lastPathComponent as? DefaultMutableTreeNode
+                    val selectedLabel = selectedNode?.userObject as? String
+                    val accent = UIManager.getColor("Component.accentColor")
+                    if (accent != null && selectedLabel != null && !navigation.isGroup(selectedLabel)) {
+                        getRowBounds(selectedRow)?.let { bounds ->
+                            val g2 = g.create() as Graphics2D
+                            try {
+                                val bar = UIScale.scale(3)
+                                val inset = UIScale.scale(1)
+                                val top = UIScale.scale(1)
+                                g2.color = accent
+                                g2.fillRect(inset, bounds.y + top, bar, bounds.height - top * 2)
+                            } finally {
+                                g2.dispose()
+                            }
+                        }
+                    }
+                }
             }
         }.apply {
             // Painted by hand above, so the look and feel must not fill it again.
