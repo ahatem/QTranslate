@@ -494,8 +494,10 @@ class PluginsPanel(
         private val controls = JPanel(FlowLayout(FlowLayout.TRAILING, 2, 0)).apply { isOpaque = false }
         private val row = JPanel(BorderLayout(8, 0)).apply {
             isOpaque = false
+            // The leading inset clears the selection pill *and* the accent bar inside it, so the
+            // icon never sits on the marker.
             border = BorderFactory.createEmptyBorder(
-                UIScale.scale(6), UIScale.scale(8), UIScale.scale(6), UIScale.scale(8)
+                UIScale.scale(6), UIScale.scale(14), UIScale.scale(6), UIScale.scale(10)
             )
             add(textRow, BorderLayout.CENTER)
             add(controls, BorderLayout.LINE_END)

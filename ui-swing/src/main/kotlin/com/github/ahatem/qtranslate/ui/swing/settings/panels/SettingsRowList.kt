@@ -199,10 +199,18 @@ internal class SettingsRowList<E : Any>(
 
             if (selected) {
                 val accent = UIManager.getColor("Component.accentColor") ?: return
+                // In the gutter beside the pill, not inside it: square ends, the pill's own height.
+                // A rounded bar next to a rounded pill reads as a second pill, and an accent bar
+                // drawn inside the pill would put its square corners across the pill's rounded ones.
+                // This is the marker a comparison result carries, so the two read as one idea.
                 val bar = UIScale.scale(3)
-                val barX = if (componentOrientation.isLeftToRight) x else x + width - bar
+                val barX = if (componentOrientation.isLeftToRight) {
+                    bounds.x + UIScale.scale(1)
+                } else {
+                    bounds.x + bounds.width - bar - UIScale.scale(1)
+                }
                 g2.color = accent
-                g2.fillRoundRect(barX, y, bar, height, arc, arc)
+                g2.fillRect(barX, y, bar, height)
             }
         } finally {
             g2.dispose()
