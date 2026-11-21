@@ -93,7 +93,6 @@ class GeneralPanel(
     private lateinit var launchCheckbox:  JCheckBox
     private lateinit var updatesCheckbox: JCheckBox
     private lateinit var historyCheckbox: JCheckBox
-    private lateinit var historyBarCheckbox: JCheckBox
     private lateinit var clearCheckbox:   JCheckBox
     private lateinit var selectionBehaviorCombo: JComboBox<SelectionBehaviorInfo>
     private lateinit var selectionReadSourceCombo: JComboBox<SelectionReadSourceInfo>
@@ -201,22 +200,9 @@ class GeneralPanel(
                 applyDraft(store) { it.copy(isHistoryEnabled = enabled) }
             }
         )
-        // Both of these only mean anything while history is being kept, so they sit under the
-        // switch that keeps it rather than beside it.
+        // Only means anything while history is being kept, so it sits under the switch that keeps
+        // it rather than beside it.
         addNested {
-            // Moved from the Window page, beside the panels it draws. The history bar is the visible
-            // half of the same feature as history storage, and the two sitting on different pages read
-            // as unrelated settings that happened to share a word.
-            historyBarCheckbox = addCheckbox(
-                text = localizationManager.getString("settings_window.show_history_bar"),
-                selected = false,
-                onChange = { enabled ->
-                    applyDraft(store) {
-                        it.copy(toolbarVisibility = it.toolbarVisibility.copy(isHistoryBarVisible = enabled))
-                    }
-                }
-            )
-
             clearCheckbox = addCheckbox(
                 text = localizationManager.getString("settings_general.clear_history_on_exit"),
                 selected = false,
@@ -719,7 +705,6 @@ class GeneralPanel(
             }
             selectionReadSourceCombo.isEnabled = c.selectionBehavior == SelectionBehavior.TRANSLATE_AND_READ
             historyCheckbox.isSelected = c.isHistoryEnabled
-            historyBarCheckbox.isSelected = c.toolbarVisibility.isHistoryBarVisible
             clearCheckbox.isSelected   = c.clearHistoryOnExit
             clearCheckbox.isEnabled    = c.isHistoryEnabled
         }

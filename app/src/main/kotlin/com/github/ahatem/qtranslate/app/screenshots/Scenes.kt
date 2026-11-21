@@ -4,8 +4,13 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
+import com.github.ahatem.qtranslate.core.settings.data.LayoutConfig
+import com.github.ahatem.qtranslate.core.settings.data.LayoutPreset
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.SelectionBehavior
-import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
+import com.github.ahatem.qtranslate.core.settings.data.ServiceSelector
+import com.github.ahatem.qtranslate.core.settings.data.ToolbarStyle
+import com.github.ahatem.qtranslate.core.settings.data.withLayoutConfig
 
 /**
  * The gallery of scenes, in the order they are captured.
@@ -156,34 +161,57 @@ internal object Scenes {
     )
 
     // ── configurations ────────────────────────────────────────────────────────
+    //
+    // Each scene states the window its subject needs as the model's four values, written with
+    // [withLayoutConfig]. The window reads that description, so a scene and the window it
+    // produces agree by construction rather than through a layout id the window ignores.
+
+    /**
+     * Classic panes with the bottom strip of adjacent service tabs instead of the picker.
+     *
+     * The one arrangement the selector scenes ask for that no preset card offers: Customize
+     * reaches it one value at a time, so it is spelled out here.
+     */
+    val CLASSIC_SELECTOR = LayoutConfig(
+        paneLayout = PaneLayout.STACKED,
+        toolbarStyle = ToolbarStyle.FULL,
+        serviceSelector = ServiceSelector.BOTTOM_STRIP,
+        showStatusBar = true
+    )
 
     fun classic(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
-        BASE.copy(themeId = theme, layoutPresetId = "classic", mainWindowSize = windowSize(size))
+        BASE.copy(themeId = theme, mainWindowSize = windowSize(size))
+            .withLayoutConfig(LayoutPreset.CLASSIC.config)
+
+    /** Classic panes with one combined toolbar row instead of two: the [LayoutPreset.COMPACT] card. */
+    fun classicCompact(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
+        BASE.copy(themeId = theme, mainWindowSize = windowSize(size))
+            .withLayoutConfig(LayoutPreset.COMPACT.config)
 
     fun classicSelector(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
-        classic(theme, size).copy(serviceSelectorStyle = ServiceSelectorStyle.CLASSIC)
+        classic(theme, size).withLayoutConfig(CLASSIC_SELECTOR)
 
     fun sideBySide(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
-        BASE.copy(themeId = theme, layoutPresetId = "side_by_side", mainWindowSize = windowSize(size))
+        BASE.copy(themeId = theme, mainWindowSize = windowSize(size))
+            .withLayoutConfig(LayoutPreset.SIDE_BY_SIDE.config)
 
     fun comparison(theme: String, size: Pair<Int, Int> = COMPARISON_WINDOW): Configuration =
-        BASE.copy(themeId = theme, layoutPresetId = "comparison", mainWindowSize = windowSize(size))
+        BASE.copy(themeId = theme, mainWindowSize = windowSize(size))
+            .withLayoutConfig(LayoutPreset.COMPARISON.config)
 
     fun hero(theme: String, size: Pair<Int, Int> = WINDOW): Configuration = BASE.copy(
         themeId = theme,
-        layoutPresetId = "classic",
         extraOutputType = ExtraOutputType.BackwardTranslate,
         mainWindowSize = windowSize(size)
-    )
+    ).withLayoutConfig(LayoutPreset.CLASSIC.config)
 
     /**
      * The bundled file is `ar-SA.toml`; a bare "ar" finds nothing and silently falls back to the
      * embedded English strings, leaving the window left-to-right.
      */
-    fun arabic(layout: String, theme: String = DARK, size: Pair<Int, Int> = WINDOW): Configuration = BASE.copy(
+    fun arabic(layout: LayoutConfig, theme: String = DARK, size: Pair<Int, Int> = WINDOW): Configuration = BASE.copy(
         themeId = theme,
-        layoutPresetId = layout,
         interfaceLanguage = "ar-SA",
         mainWindowSize = windowSize(size)
-    )
+    ).withLayoutConfig(layout)
 }

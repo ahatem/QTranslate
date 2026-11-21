@@ -1431,32 +1431,14 @@ class MainAppFrame(
                 )
             },
             onOpenServicesSettings = { openSettingsDialog(openToServices = true) },
-            onToggleHistoryControls = { enabled ->
+            onSelectToolbarStyle = { style ->
                 settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting {
-                        it.copy(toolbarVisibility = it.toolbarVisibility.copy(isHistoryBarVisible = enabled))
-                    }
+                    SettingsIntent.ToggleSetting { it.withLayoutConfig(it.layoutConfig.copy(toolbarStyle = style)) }
                 )
             },
-            onToggleLanguageBar = { enabled ->
+            onToggleStatusBar = { shown ->
                 settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting {
-                        it.copy(toolbarVisibility = it.toolbarVisibility.copy(isLanguageBarVisible = enabled))
-                    }
-                )
-            },
-            onToggleServicesPanel = { enabled ->
-                settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting {
-                        it.copy(toolbarVisibility = it.toolbarVisibility.copy(isServicesPanelVisible = enabled))
-                    }
-                )
-            },
-            onToggleStatusBar = { enabled ->
-                settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting {
-                        it.copy(toolbarVisibility = it.toolbarVisibility.copy(isStatusBarVisible = enabled))
-                    }
+                    SettingsIntent.ToggleSetting { it.withLayoutConfig(it.layoutConfig.copy(showStatusBar = shown)) }
                 )
             }
         )
@@ -1488,9 +1470,10 @@ class MainAppFrame(
             layoutComparisonAvailable = currentConfig.isComparisonEligible(mainStore.state.value.availableTranslatorIds),
             layoutComparisonUnavailableHint = localizer.getString("settings_window.layout_comparison_unavailable"),
             layoutComparisonConfigureLabel = localizer.getString("settings_window.layout_comparison_configure"),
-            showHistoryControls = localizer.getString("main_window_main_menu.show_history_bar"),
-            showLanguageBar = localizer.getString("main_window_main_menu.show_language_bar"),
-            showServicesPanel = localizer.getString("main_window_main_menu.show_services_panel"),
+            toolbarStyle = localizer.getString("main_window_main_menu.toolbar_style"),
+            toolbarFull = localizer.getString("main_window_main_menu.toolbar_full"),
+            toolbarCompact = localizer.getString("main_window_main_menu.toolbar_compact"),
+            toolbarMinimal = localizer.getString("main_window_main_menu.toolbar_minimal"),
             showStatusBar = localizer.getString("main_window_main_menu.show_status_bar")
         )
 

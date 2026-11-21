@@ -13,10 +13,11 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.LayoutPreset
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
-import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.Size
+import com.github.ahatem.qtranslate.core.settings.data.withLayoutConfig
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.ui.swing.main.MainAppFrame
 import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchPanel
@@ -121,6 +122,8 @@ fun main(args: Array<String>): Unit = runBlocking {
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "selector") {
             selectorAudit()
             selectorDensityAudit()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "compact-toolbar") {
+            compactToolbar()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-matrix") {
             settingsMatrix()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-showcase") {
@@ -341,6 +344,9 @@ private class Shots(
         translate(LanguageCode("ar"), Scenes.PERISTALSIS)
         capture("layout-classic-narrow-arabic-dark")
 
+        // The same Classic panes with one combined toolbar row instead of two.
+        compactToolbar()
+
         // Use the bundled named translators and give the board a taller scene of its own.
         for ((theme, suffix) in Scenes.THEMES) {
             start(comparisonConfig(theme, listOf("Bing Translate", "DeepL", "Yandex Web")))
@@ -390,6 +396,21 @@ private class Shots(
         }
     }
 
+    /**
+     * The Classic arrangement with a compact toolbar: the language controls and the history
+     * controls share one row instead of taking one each.
+     *
+     * Part of the layout set, and selectable on its own with
+     * `QTRANSLATE_SCREENSHOT_SCENES=compact-toolbar` when only this chrome is being checked.
+     */
+    suspend fun compactToolbar() {
+        for ((theme, suffix) in Scenes.THEMES) {
+            start(Scenes.classicCompact(theme))
+            translate(LanguageCode("fr"), Scenes.LIBRARY)
+            capture("layout-classic-compact-$suffix")
+        }
+    }
+
     suspend fun selectorAudit() {
         deps.mainStore.dispatch(MainIntent.CloseLookupDock)
         start(Scenes.classicSelector(Scenes.DARK))
@@ -409,7 +430,7 @@ private class Shots(
         resizeWindow(Scenes.NARROW_WINDOW)
         capture("classic-selector-narrow-100-dark")
 
-        start(Scenes.arabic("classic").copy(serviceSelectorStyle = ServiceSelectorStyle.CLASSIC))
+        start(Scenes.arabic(Scenes.CLASSIC_SELECTOR))
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
         capture("classic-selector-rtl-dark")
 
@@ -453,23 +474,23 @@ private class Shots(
 
     suspend fun rightToLeft() {
         for ((theme, suffix) in Scenes.THEMES) {
-            start(Scenes.arabic("classic", theme))
+            start(Scenes.arabic(LayoutPreset.CLASSIC.config, theme))
             translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
             // The dictionary is the panel that mirrors, so this shot is also the check that it
             // lands on the leading side rather than staying pinned to the right.
             openDictionary("peristalsis")
             capture("rtl-dictionary-$suffix")
 
-            start(Scenes.arabic("classic", theme))
+            start(Scenes.arabic(LayoutPreset.CLASSIC.config, theme))
             translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
             capture("rtl-main-$suffix")
         }
 
-        start(Scenes.arabic("side_by_side"))
+        start(Scenes.arabic(LayoutPreset.SIDE_BY_SIDE.config))
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
         capture("rtl-side-by-side")
 
-        start(Scenes.arabic("side_by_side"))
+        start(Scenes.arabic(LayoutPreset.SIDE_BY_SIDE.config))
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
         openDictionary("peristalsis")
         capture("rtl-side-by-side-dock")
@@ -585,7 +606,8 @@ private class Shots(
 
     private fun settingsConfig(theme: String): Configuration =
         comparisonConfig(theme, listOf("Bing Translate", "DeepL", "Yandex Web"))
-            .copy(layoutPresetId = "classic", mainWindowSize = windowSize(Scenes.WINDOW))
+            .withLayoutConfig(LayoutPreset.CLASSIC.config)
+            .copy(mainWindowSize = windowSize(Scenes.WINDOW))
 
     private suspend fun capturePages(theme: String, suffix: String, pages: List<Pair<Int, String>> = Scenes.SETTINGS_PAGES) {
         val owner = requireFrame()
@@ -741,7 +763,8 @@ private class Shots(
         onUi { previous?.dispose() }
         delay(400)
         applyAuthoredWindowSize(configuration)
-        balanceSplits(configuration.layoutPresetId)
+        // The id of the arrangement the window actually built, not the stored preference.
+        balanceSplits(configuration.layoutConfig.paneLayout.presetId)
         delay(500)
     }
 

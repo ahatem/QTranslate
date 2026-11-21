@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.main.menus
 
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.core.settings.data.ToolbarStyle
 import javax.swing.JCheckBoxMenuItem
 import javax.swing.JMenu
 import javax.swing.JMenuItem
@@ -271,9 +272,10 @@ class OptionsPopupMenuTest {
             layoutComparisonAvailable = layoutComparisonAvailable,
             layoutComparisonUnavailableHint = layoutComparisonUnavailableHint,
             layoutComparisonConfigureLabel = layoutComparisonConfigureLabel,
-            showHistoryControls = "Show History Bar",
-            showLanguageBar = "Show Language Bar",
-            showServicesPanel = "Show Services Panel",
+            toolbarStyle = "Toolbar",
+            toolbarFull = "Full",
+            toolbarCompact = "Compact",
+            toolbarMinimal = "Minimal",
             showStatusBar = "Show Status Bar",
         )
 
@@ -294,9 +296,7 @@ class OptionsPopupMenuTest {
         onCheckForUpdates: () -> Unit = {},
         onExitApplication: () -> Unit = {},
         onChangeLayoutPreset: (String) -> Unit = {},
-        onToggleHistoryControls: (Boolean) -> Unit = {},
-        onToggleLanguageBar: (Boolean) -> Unit = {},
-        onToggleServicesPanel: (Boolean) -> Unit = {},
+        onSelectToolbarStyle: (ToolbarStyle) -> Unit = {},
         onToggleStatusBar: (Boolean) -> Unit = {},
         onOpenServicesSettings: () -> Unit = {},
     ) = MenuActions(
@@ -316,9 +316,7 @@ class OptionsPopupMenuTest {
         onCheckForUpdates,
         onExitApplication,
         onChangeLayoutPreset,
-        onToggleHistoryControls,
-        onToggleLanguageBar,
-        onToggleServicesPanel,
+        onSelectToolbarStyle,
         onToggleStatusBar,
         onOpenServicesSettings,
     )
