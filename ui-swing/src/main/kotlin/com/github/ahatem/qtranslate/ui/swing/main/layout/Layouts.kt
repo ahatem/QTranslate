@@ -132,6 +132,25 @@ object LayoutBuilders {
         }
     }
 
+    /**
+     * One row holding the language controls and, at its end, the history controls.
+     *
+     * This is the whole of the Compact toolbar: the history bar keeps every button it has and
+     * stops being a row. The status sentence inside it is hidden by the window (it is the widest
+     * thing in the bar), which is what makes the row fit beside the language selectors at the
+     * widths people actually use.
+     *
+     * The history controls go to LINE_END, so in Arabic they sit at the leading edge of the row
+     * the way every other trailing group in this window does.
+     */
+    fun combinedLanguageRow(languageBar: JComponent, historyBar: JComponent): JComponent {
+        return JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
+            border = BorderFactory.createEmptyBorder(UISpacing.V_GAP, 0, UISpacing.V_GAP, 0)
+            add(languageBar, BorderLayout.CENTER)
+            add(historyBar, BorderLayout.LINE_END)
+        }
+    }
+
     fun createVerticalSplit(
         top: JComponent,
         bottom: JComponent,
@@ -151,12 +170,23 @@ object LayoutBuilders {
 
 object ClassicLayout : LayoutStrategy {
     override val type = LayoutType.CLASSIC
-    override fun arrange(components: ComponentRegistry, isRtl: Boolean): ArrangedLayout {
-        val topBar = LayoutBuilders.createSimpleTopBar(components.historyBar)
+    override fun arrange(
+        components: ComponentRegistry,
+        isRtl: Boolean,
+        historyInline: Boolean
+    ): ArrangedLayout {
+        val topBar = if (historyInline) null else LayoutBuilders.createSimpleTopBar(components.historyBar)
         val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
 
         val outputSection = JPanel(BorderLayout()).apply {
-            add(LayoutBuilders.wrapLanguageBar(components.languageBar), BorderLayout.NORTH)
+            add(
+                if (historyInline) {
+                    LayoutBuilders.combinedLanguageRow(components.languageBar, components.historyBar)
+                } else {
+                    LayoutBuilders.wrapLanguageBar(components.languageBar)
+                },
+                BorderLayout.NORTH
+            )
             add(components.outputPanel, BorderLayout.CENTER)
         }
         val mainSplit = LayoutBuilders.createVerticalSplit(
@@ -176,7 +206,7 @@ object ClassicLayout : LayoutStrategy {
                 UISpacing.V_GAP,
                 UISpacing.PADDING
             )
-            add(topBar, BorderLayout.NORTH)
+            topBar?.let { add(it, BorderLayout.NORTH) }
             add(extraSplit, BorderLayout.CENTER)
         }
 
@@ -193,8 +223,16 @@ object ClassicLayout : LayoutStrategy {
 
 object SideBySideLayout : LayoutStrategy {
     override val type = LayoutType.SIDE_BY_SIDE
-    override fun arrange(components: ComponentRegistry, isRtl: Boolean): ArrangedLayout {
-        val topBar = LayoutBuilders.createStackedTopBar(components.historyBar, components.languageBar)
+    override fun arrange(
+        components: ComponentRegistry,
+        isRtl: Boolean,
+        historyInline: Boolean
+    ): ArrangedLayout {
+        val topBar = if (historyInline) {
+            LayoutBuilders.combinedLanguageRow(components.languageBar, components.historyBar)
+        } else {
+            LayoutBuilders.createStackedTopBar(components.historyBar, components.languageBar)
+        }
         val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
 
         val mainSplit = ResponsivePairSplit(
@@ -234,8 +272,18 @@ object SideBySideLayout : LayoutStrategy {
 object ComparisonLayout : LayoutStrategy {
     override val type = LayoutType.COMPARISON
 
-    override fun arrange(components: ComponentRegistry, isRtl: Boolean): ArrangedLayout {
-        val topBar = LayoutBuilders.createSimpleTopBar(components.historyBar)
+    override fun arrange(
+        components: ComponentRegistry,
+        isRtl: Boolean,
+        historyInline: Boolean
+    ): ArrangedLayout {
+        // Inline, the one row is the whole top chrome here too: the language selectors and the
+        // history controls share it, above the board.
+        val topBar = if (historyInline) {
+            LayoutBuilders.combinedLanguageRow(components.languageBar, components.historyBar)
+        } else {
+            LayoutBuilders.createSimpleTopBar(components.historyBar)
+        }
         // Comparison owns primary-service switching in the primary result header. The footer is
         // intentionally only the status bar so provider identity and results remain the focus.
         val bottomBar = components.statusBar
@@ -243,7 +291,9 @@ object ComparisonLayout : LayoutStrategy {
         // One logical results viewport: the board owns the primary provider and every
         // comparison below it, so results never split into disconnected scroll regions.
         val resultsSection = JPanel(BorderLayout()).apply {
-            add(LayoutBuilders.wrapLanguageBar(components.languageBar), BorderLayout.NORTH)
+            // The language row moved into the top bar above when inline; adding it again would put
+            // the same selectors on screen twice.
+            if (!historyInline) add(LayoutBuilders.wrapLanguageBar(components.languageBar), BorderLayout.NORTH)
             add(LayoutBuilders.wrapScrollable(components.compareBoard), BorderLayout.CENTER)
         }
         val mainSplit = LayoutBuilders.createVerticalSplit(

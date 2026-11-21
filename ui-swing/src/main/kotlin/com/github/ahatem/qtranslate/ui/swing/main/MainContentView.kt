@@ -10,6 +10,7 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.effectiveTranslatorCount
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
+import com.github.ahatem.qtranslate.core.settings.data.ToolbarStyle
 import com.github.ahatem.qtranslate.core.settings.data.effectiveLayoutPresetId
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
@@ -297,21 +298,27 @@ class MainContentView(
         // translators deterministically shows Classic. The saved preference is
         // never rewritten, so eligibility restores Comparison naturally.
         val effectiveLayoutId = config.effectiveLayoutPresetId(mainState.availableTranslatorIds)
+        // COMPACT is the one toolbar style whose history controls do not get a row of their own:
+        // they share the language row, so the window has to know that before it arranges.
+        val historyInline = config.layoutConfig.toolbarStyle == ToolbarStyle.COMPACT
 
         // Told outright rather than left to the orientation cascade, which reaches the host at a
         // point in startup that depends on when this view was added to the window.
         val direction = if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT else ComponentOrientation.LEFT_TO_RIGHT
         if (dockHost.componentOrientation != direction) dockHost.componentOrientation = direction
 
-        if (lastState == null || lastState?.second?.workingConfiguration?.layoutPresetId != config.layoutPresetId || lastEffectiveLayoutId != effectiveLayoutId) {
-            layoutManager.switchLayout(effectiveLayoutId, localizer.isRtl)
+        if (lastState == null || lastState?.second?.workingConfiguration?.layoutConfig != config.layoutConfig || lastEffectiveLayoutId != effectiveLayoutId) {
+            layoutManager.switchLayout(effectiveLayoutId, localizer.isRtl, historyInline)
             currentLayoutId = effectiveLayoutId
             lastEffectiveLayoutId = effectiveLayoutId
         }
-        translationHistoryBar.setStatusVisible(effectiveLayoutId != LayoutPresetIds.COMPARISON)
+        // The status sentence is the widest thing in the bar: inline it would push the language
+        // selectors off the row, and in a comparison board the selectors and the provider header
+        // already say the same thing.
+        translationHistoryBar.setStatusVisible(effectiveLayoutId != LayoutPresetIds.COMPARISON && !historyInline)
 
         if (lastState == null ||
-            lastState?.second?.workingConfiguration?.toolbarVisibility != config.toolbarVisibility ||
+            lastState?.second?.workingConfiguration?.layoutConfig != config.layoutConfig ||
             lastState?.second?.workingConfiguration?.extraOutputType != config.extraOutputType
         ) {
             layoutManager.updateVisibility(config)

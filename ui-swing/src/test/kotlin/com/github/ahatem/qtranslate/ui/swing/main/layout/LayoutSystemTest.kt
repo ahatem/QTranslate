@@ -195,4 +195,40 @@ class LayoutSystemTest {
             }
         }
     }
+
+    @Test
+    fun `the compact toolbar gives the history controls the language row`() {
+        // The whole of the Compact style: the history bar keeps every button and stops being a row.
+        strategies.forEach { strategy ->
+            val leaves = Leaves()
+            strategy.arrange(leaves.registry, isRtl = false, historyInline = true)
+            flush()
+
+            val history = leaves.registry.historyBar
+            val language = leaves.registry.languageBar
+            val row = history.parent
+            assertSame(language.parent, row, "${strategy.id}: both belong to one row")
+            val layout = row?.layout as? BorderLayout
+            assertNotNull(layout, "${strategy.id}: the combined row places its two halves")
+            assertEquals(BorderLayout.CENTER, layout.getConstraints(language), "${strategy.id}: language takes the row")
+            assertEquals(BorderLayout.LINE_END, layout.getConstraints(history), "${strategy.id}: history joins its end")
+        }
+    }
+
+    @Test
+    fun `without it the history controls keep a row of their own`() {
+        // The other half of the same promise: the language row must not quietly become the history
+        // row for everyone who never asked for one row.
+        strategies.forEach { strategy ->
+            val leaves = Leaves()
+            strategy.arrange(leaves.registry, isRtl = false, historyInline = false)
+            flush()
+
+            val history = leaves.registry.historyBar
+            val language = leaves.registry.languageBar
+            val sharesLanguageRow = history.parent === language.parent &&
+                (history.parent?.layout as? BorderLayout)?.getConstraints(language) == BorderLayout.CENTER
+            assertFalse(sharesLanguageRow, "${strategy.id}: the full toolbar keeps the rows apart")
+        }
+    }
 }

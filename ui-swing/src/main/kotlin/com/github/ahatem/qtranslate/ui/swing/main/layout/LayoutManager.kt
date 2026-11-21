@@ -3,7 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.main.layout
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
-import com.github.ahatem.qtranslate.core.settings.data.legacyLayoutConfig
+import com.github.ahatem.qtranslate.core.settings.data.ToolbarStyle
 import java.awt.BorderLayout
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
@@ -26,17 +26,24 @@ class LayoutManager(
     }
 
     private var currentIsRtl: Boolean = false
+    private var currentHistoryInline: Boolean = false
 
-    fun switchLayout(layoutId: String, isRtl: Boolean = currentIsRtl) {
+    fun switchLayout(
+        layoutId: String,
+        isRtl: Boolean = currentIsRtl,
+        historyInline: Boolean = currentHistoryInline
+    ) {
         val rtlChanged = isRtl != currentIsRtl
-        if (layoutId == currentLayoutId && !rtlChanged) return
+        val inlineChanged = historyInline != currentHistoryInline
+        if (layoutId == currentLayoutId && !rtlChanged && !inlineChanged) return
         currentIsRtl = isRtl
+        currentHistoryInline = historyInline
         SwingUtilities.invokeLater {
             detachAll()
             container.removeAll()
 
             val strategy = getLayoutById(layoutId)
-            val arranged = strategy.arrange(components, isRtl)
+            val arranged = strategy.arrange(components, isRtl, historyInline)
             container.add(arranged.rootComponent, BorderLayout.CENTER)
             currentLayout = arranged
             currentLayoutId = layoutId
@@ -63,14 +70,18 @@ class LayoutManager(
         SwingUtilities.invokeLater {
             if (currentLayoutId == null) return@invokeLater
 
-            // The footer is already one value of its own in the layout model, so it is read from
-            // there. The history row, the language row and the service panel stay on the older
-            // booleans for now: they are on their way to becoming one toolbar *style*, and moving
-            // them before that style has a renderer would only rename the problem.
-            components.historyBar.isVisible = config.toolbarVisibility.isHistoryBarVisible
-            components.translatorSelector.isVisible = config.toolbarVisibility.isServicesPanelVisible
-            components.languageBar.isVisible = config.toolbarVisibility.isLanguageBarVisible
-            components.statusBar.isVisible = config.legacyLayoutConfig().showStatusBar
+            // The window is built from the four stored values now, so the chrome follows them
+            // rather than the older switches they were migrated from.
+            val layout = config.layoutConfig
+
+            // The history bar carries the image and document commands as well as Back and
+            // Forward, so it stays on screen for FULL and COMPACT and only goes away when the
+            // user asked for no history controls at all.
+            components.historyBar.isVisible = layout.toolbarStyle != ToolbarStyle.MINIMAL
+            components.translatorSelector.isVisible = layout.isServiceSelectorVisible
+            // Every style keeps the language row; it is where the active pair is shown.
+            components.languageBar.isVisible = true
+            components.statusBar.isVisible = layout.showStatusBar
 
             val showExtra = config.extraOutputType != ExtraOutputType.None
             currentLayout?.componentRefs?.updateExtraOutputVisibility(showExtra, components.extraOutputPanel)

@@ -25,7 +25,10 @@ class LayoutPresetIdsTest {
             )
         ),
         activeServicePresetId = "preset",
-        layoutPresetId = layoutPresetId
+        layoutPresetId = layoutPresetId,
+        // The arrangement the window actually reads; the id beside it is the older field the same
+        // value is migrated from, kept in step here the way a real configuration keeps it.
+        layoutConfig = LayoutConfig.DEFAULT.copy(paneLayout = PaneLayout.fromPresetId(layoutPresetId))
     )
 
     @Test

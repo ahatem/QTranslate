@@ -222,27 +222,19 @@ object LayoutConfigMigration {
 }
 
 /**
- * This configuration's four layout values, derived from the older settings.
- *
- * The pre-cutover derivation: it exists so the model can be proved equivalent to the rule it
- * replaces while the window is still built from [Configuration.layoutPresetId] and the chrome
- * booleans. Once the settings page writes [Configuration.layoutConfig] and the renderers read it,
- * this is deleted rather than kept as a second truth.
- */
-fun Configuration.legacyLayoutConfig(): LayoutConfig = LayoutConfigMigration.fromV10(this)
-
-/**
  * Writes [layout] into this configuration, keeping the older layout fields in step with it.
  *
- * The inverse of [LayoutConfigMigration.fromV10], and temporary for the same reason: until the
- * renderers read the stored value, the window is still built from the old fields, so a page that
- * wrote only the new one would appear to do nothing. When the old fields go away this collapses to
- * a plain `copy(layoutConfig = layout)`.
+ * The inverse of [LayoutConfigMigration.fromV10], and temporary: the window no longer reads the
+ * old fields, but the remaining chrome controls and the screenshot scenarios still write them, and
+ * they are stored until the release after this one. Keeping them truthful costs one function and
+ * means a configuration never holds two descriptions that disagree.
+ *
+ * When those controls are gone this collapses to a plain `copy(layoutConfig = layout)`.
  *
  * One value cannot survive the trip: [ToolbarStyle.COMPACT] means a single combined row, and the
  * old switches can only say "no separate history row", which is also what [ToolbarStyle.MINIMAL]
- * says. So COMPACT comes back as MINIMAL until the combined row exists. That is exactly why the
- * renderer and this bridge have to be replaced together.
+ * says. So COMPACT comes back as MINIMAL if it is ever read back through the old fields. That is
+ * exactly why the combined row and this bridge had to land together.
  */
 fun Configuration.withLayoutConfig(layout: LayoutConfig): Configuration = copy(
     layoutConfig = layout,
@@ -262,4 +254,4 @@ fun Configuration.withLayoutConfig(layout: LayoutConfig): Configuration = copy(
 
 /** The arrangement to build, once comparison eligibility is taken into account. */
 fun Configuration.effectivePaneLayout(translatorIds: List<String>): PaneLayout =
-    legacyLayoutConfig().effectivePaneLayout(isComparisonEligible(translatorIds))
+    layoutConfig.effectivePaneLayout(isComparisonEligible(translatorIds))
