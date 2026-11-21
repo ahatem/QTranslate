@@ -24,7 +24,7 @@ object ConfigMigrator {
      * would skip every migration it needs. A configuration this build creates from scratch is
      * stamped with this value instead.
      */
-    internal const val CURRENT_VERSION = 10
+    internal const val CURRENT_VERSION = 11
 
     /** The old defaults, frozen: this is what "the user never changed it" looked like. */
     private const val LEGACY_POPUP_IDLE_SECONDS = 3
@@ -211,6 +211,18 @@ object ConfigMigrator {
                 config.copy(
                     configVersion = 10,
                     writingHotkeys = config.writingHotkeys + missing,
+                )
+            }
+            10 -> {
+                // v10 → v11: the window's arrangement becomes four independent values instead of a
+                // layout id plus overlapping chrome switches. The old fields stay stored and stay
+                // authoritative for now: the settings page still writes them, so both descriptions
+                // of the same window have to be kept in step until it moves over. They are removed
+                // in the version after this one, which is also why this branch may read them.
+                logger.info("ConfigMigrator: migrating v10 → v11 — describing the window as four layout values")
+                config.copy(
+                    configVersion = 11,
+                    layoutConfig = LayoutConfigMigration.fromV10(config),
                 )
             }
             else -> {

@@ -3,7 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.main.layout
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
-import com.github.ahatem.qtranslate.core.settings.data.layoutConfig
+import com.github.ahatem.qtranslate.core.settings.data.legacyLayoutConfig
 import java.awt.BorderLayout
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
@@ -70,7 +70,7 @@ class LayoutManager(
             components.historyBar.isVisible = config.toolbarVisibility.isHistoryBarVisible
             components.translatorSelector.isVisible = config.toolbarVisibility.isServicesPanelVisible
             components.languageBar.isVisible = config.toolbarVisibility.isLanguageBarVisible
-            components.statusBar.isVisible = config.layoutConfig().showStatusBar
+            components.statusBar.isVisible = config.legacyLayoutConfig().showStatusBar
 
             val showExtra = config.extraOutputType != ExtraOutputType.None
             currentLayout?.componentRefs?.updateExtraOutputVisibility(showExtra, components.extraOutputPanel)

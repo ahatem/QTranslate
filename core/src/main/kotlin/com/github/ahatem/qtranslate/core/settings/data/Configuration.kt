@@ -339,6 +339,16 @@ data class Configuration(
      */
     val serviceSelectorStyle: ServiceSelectorStyle = ServiceSelectorStyle.ENHANCED,
     val serviceSelectorAppearance: ServiceSelectorAppearance = ServiceSelectorAppearance.ICONS_AND_TEXT,
+    /**
+     * The window's arrangement, as four independent values.
+     *
+     * Supersedes [layoutPresetId], [toolbarVisibility], [serviceSelectorStyle] and
+     * [serviceSelectorAppearance], which are still what the window is built from until the
+     * settings page and the renderers move over. [ConfigMigrator] fills this from them on upgrade,
+     * so every configuration that has been through v11 carries both descriptions of the same
+     * window; the older four are removed in the release after that.
+     */
+    val layoutConfig: LayoutConfig = LayoutConfig.DEFAULT,
 
     // ---- UI — Quick Panel (Popup) ----
     val isPopupAutoSizeEnabled: Boolean = true,

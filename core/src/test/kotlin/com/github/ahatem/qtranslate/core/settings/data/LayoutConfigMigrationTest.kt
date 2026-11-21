@@ -28,7 +28,7 @@ class LayoutConfigMigrationTest {
             toolbarVisibility = visibility,
             serviceSelectorStyle = selectorStyle,
             serviceSelectorAppearance = appearance,
-        ).layoutConfig()
+        ).let(LayoutConfigMigration::fromV10)
     }
 
     /** Every layout id a stored configuration could hold, including retired and unrecognised ones. */

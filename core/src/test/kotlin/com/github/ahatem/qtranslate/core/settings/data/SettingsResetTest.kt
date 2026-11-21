@@ -49,6 +49,12 @@ class SettingsResetTest {
         showDictionaryPanel = true,
         serviceSelectorStyle = ServiceSelectorStyle.CLASSIC,
         serviceSelectorAppearance = ServiceSelectorAppearance.TEXT_ONLY,
+        layoutConfig = LayoutConfig(
+            paneLayout = PaneLayout.SIDE_BY_SIDE,
+            toolbarStyle = ToolbarStyle.MINIMAL,
+            serviceSelector = ServiceSelector.BOTTOM_STRIP,
+            showStatusBar = false,
+        ),
         closeButtonBehavior = CloseButtonBehavior.EXIT,
         minimizeButtonBehavior = MinimizeButtonBehavior.HIDE_TO_TRAY,
         themeId = "dark",

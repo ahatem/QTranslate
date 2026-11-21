@@ -119,6 +119,7 @@ object SettingsReset {
         "showDictionaryPanel",
         "serviceSelectorStyle",
         "serviceSelectorAppearance",
+        "layoutConfig",
         "closeButtonBehavior",
         "minimizeButtonBehavior",
         "themeId",
@@ -201,6 +202,7 @@ object SettingsReset {
             showDictionaryPanel = defaults.showDictionaryPanel,
             serviceSelectorStyle = defaults.serviceSelectorStyle,
             serviceSelectorAppearance = defaults.serviceSelectorAppearance,
+        layoutConfig = defaults.layoutConfig,
             closeButtonBehavior = defaults.closeButtonBehavior,
             minimizeButtonBehavior = defaults.minimizeButtonBehavior,
         )
@@ -262,6 +264,7 @@ object SettingsReset {
         showDictionaryPanel = defaults.showDictionaryPanel,
         serviceSelectorStyle = defaults.serviceSelectorStyle,
         serviceSelectorAppearance = defaults.serviceSelectorAppearance,
+        layoutConfig = defaults.layoutConfig,
         closeButtonBehavior = defaults.closeButtonBehavior,
         minimizeButtonBehavior = defaults.minimizeButtonBehavior,
         // Appearance

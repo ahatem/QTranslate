@@ -221,9 +221,16 @@ object LayoutConfigMigration {
     )
 }
 
-/** This configuration's four layout values. */
-fun Configuration.layoutConfig(): LayoutConfig = LayoutConfigMigration.fromV10(this)
+/**
+ * This configuration's four layout values, derived from the older settings.
+ *
+ * The pre-cutover derivation: it exists so the model can be proved equivalent to the rule it
+ * replaces while the window is still built from [Configuration.layoutPresetId] and the chrome
+ * booleans. Once the settings page writes [Configuration.layoutConfig] and the renderers read it,
+ * this is deleted rather than kept as a second truth.
+ */
+fun Configuration.legacyLayoutConfig(): LayoutConfig = LayoutConfigMigration.fromV10(this)
 
 /** The arrangement to build, once comparison eligibility is taken into account. */
 fun Configuration.effectivePaneLayout(translatorIds: List<String>): PaneLayout =
-    layoutConfig().effectivePaneLayout(isComparisonEligible(translatorIds))
+    legacyLayoutConfig().effectivePaneLayout(isComparisonEligible(translatorIds))
