@@ -29,6 +29,11 @@ import kotlin.test.assertTrue
  * under its sub-section heading — gets its own, indented past it. The audit reported per-row x
  * values that differed; measured here, the difference is the hierarchy rather than drift: every
  * row at a given level shares an edge, and the nested level is offset from it in both directions.
+ *
+ * The page's own rows are panes, toolbar, close and minimise; the selector's row is the only one
+ * inside a sub-section, because which widget picks the service is subordinate to the arrangement
+ * above it — a comparison board has no selector at all. The status bar is a checkbox rather than a
+ * picker, so it is not counted here.
  */
 class LayoutPanelControlColumnTest {
 
@@ -73,9 +78,12 @@ class LayoutPanelControlColumnTest {
     private fun descendants(root: Container): List<Component> =
         root.components.flatMap { listOf(it) + if (it is Container) descendants(it) else emptyList() }
 
-    private fun controlEdges(orientation: ComponentOrientation): List<Int> {
+    /** The page, built, rendered and laid out at a realistic size in [orientation]. */
+    private fun builtPanel(
+        orientation: ComponentOrientation = ComponentOrientation.LEFT_TO_RIGHT,
+    ): LayoutPanel {
         val store = store()
-        val panel = onEdt {
+        return onEdt {
             LayoutPanel(store, localizer).also {
                 it.applyComponentOrientation(orientation)
                 it.render(store.state.value)
@@ -83,6 +91,10 @@ class LayoutPanelControlColumnTest {
                 layoutTree(it)
             }
         }
+    }
+
+    private fun controlEdges(orientation: ComponentOrientation): List<Int> {
+        val panel = builtPanel(orientation)
         return descendants(panel).filterIsInstance<JComboBox<*>>()
             .map { SwingUtilities.convertPoint(it, 0, 0, panel).x }
     }
@@ -90,7 +102,7 @@ class LayoutPanelControlColumnTest {
     @Test
     fun `the page's own pickers share one column edge`() {
         val edges = controlEdges(ComponentOrientation.LEFT_TO_RIGHT)
-        assertEquals(5, edges.size, "layout preset, both selector rows, close and minimise ($edges)")
+        assertEquals(5, edges.size, "panes, toolbar, the service selector, close and minimise ($edges)")
 
         val columns = edges.groupingBy { it }.eachCount()
         assertEquals(
@@ -99,22 +111,42 @@ class LayoutPanelControlColumnTest {
             "one column for the page's rows and one for the nested service selector: $columns",
         )
         assertEquals(
-            listOf(3, 2),
+            listOf(4, 1),
             columns.values.sortedDescending(),
-            "three rows at page level, two inside the sub-section: $columns",
+            "four rows at page level, one inside the sub-section: $columns",
         )
     }
 
+    /**
+     * Every row of the page starts at the page's edge, and the sub-section's single row starts
+     * exactly one indent inside it.
+     *
+     * Measured on the row labels rather than on the pickers. The two containers size their label
+     * columns independently — the page's as wide as its longest row name, the sub-section's as
+     * wide as its own — so comparing picker x values measures two label widths as much as it
+     * measures nesting, and that comparison flipped sign when the sub-section was left with one
+     * short row name. A label starts at its row's leading edge, so its offset *is* the nesting.
+     */
     @Test
-    fun `the nested selector sits inside the page's control column`() {
-        val edges = controlEdges(ComponentOrientation.LEFT_TO_RIGHT)
-        val columns = edges.groupingBy { it }.eachCount()
-        val pageColumn = columns.entries.single { it.value == 3 }.key
-        val nestedColumn = columns.entries.single { it.value == 2 }.key
+    fun `the page's rows share one edge and the nested row is indented past it`() {
+        val panel = builtPanel()
+        fun leadingOffset(text: String): Int {
+            val label = descendants(panel).filterIsInstance<JLabel>().single { it.text == text }
+            return SwingUtilities.convertPoint(label, 0, 0, panel).x
+        }
 
-        assertTrue(
-            nestedColumn > pageColumn,
-            "the sub-section's controls are indented past the page's ($nestedColumn vs $pageColumn)",
+        val pageRows = listOf(
+            localizer.getString("settings_window.layout_row_panes"),
+            localizer.getString("settings_window.layout_row_toolbar"),
+            localizer.getString("settings_window.close_button"),
+            localizer.getString("settings_window.minimize_button"),
+        ).map(::leadingOffset)
+
+        assertEquals(1, pageRows.distinct().size, "the page's own rows share a leading edge ($pageRows)")
+        assertEquals(
+            SettingsPanel.NESTED_INDENT,
+            leadingOffset(localizer.getString("settings_window.layout_row_selector")) - pageRows.first(),
+            "the sub-section's row sits one hierarchy indent inside the page's own rows",
         )
     }
 
@@ -157,23 +189,15 @@ class LayoutPanelControlColumnTest {
 
     /** Leading-edge offsets of a page-level row's label and one inside the sub-section. */
     private fun labelLeadingOffsets(orientation: ComponentOrientation): Pair<Int, Int> {
-        val store = store()
-        val panel = onEdt {
-            LayoutPanel(store, localizer).also {
-                it.applyComponentOrientation(orientation)
-                it.render(store.state.value)
-                it.setSize(900, 700)
-                layoutTree(it)
-            }
-        }
+        val panel = builtPanel(orientation)
         fun offsetOf(text: String): Int {
             val label = descendants(panel)
                 .filterIsInstance<JLabel>()
-                .first { it.text == text }
+                .single { it.text == text }
             val x = SwingUtilities.convertPoint(label, 0, 0, panel).x
             return if (orientation.isLeftToRight) x else panel.width - (x + label.width)
         }
-        return offsetOf(localizer.getString("settings_window.layout_preset")) to
-            offsetOf(localizer.getString("settings_window.service_selector_style"))
+        return offsetOf(localizer.getString("settings_window.layout_row_panes")) to
+            offsetOf(localizer.getString("settings_window.layout_row_selector"))
     }
 }

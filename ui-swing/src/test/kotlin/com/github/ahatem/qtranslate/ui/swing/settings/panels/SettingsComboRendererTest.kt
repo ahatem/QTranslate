@@ -5,9 +5,16 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.LayoutConfig
+import com.github.ahatem.qtranslate.core.settings.data.LayoutConfigMigration
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
+import com.github.ahatem.qtranslate.core.settings.data.ServiceSelector
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
+import com.github.ahatem.qtranslate.core.settings.data.ToolbarStyle
+import com.github.ahatem.qtranslate.core.settings.data.withLayoutConfig
+import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 import kotlinx.coroutines.CoroutineScope
@@ -19,7 +26,9 @@ import kotlinx.serialization.json.Json
 import java.awt.Color
 import java.awt.Component
 import java.awt.Container
+import java.awt.GridLayout
 import java.nio.file.Files
+import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JLabel
 import javax.swing.JList
@@ -29,8 +38,8 @@ import javax.swing.UIManager
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -56,13 +65,13 @@ class SettingsComboRendererTest {
         scopes.forEach { it.cancel() }
     }
 
-    private fun newStore(config: Configuration = Configuration.DEFAULT): SettingsStore = runBlocking {
+    private fun newStore(configuration: Configuration = Configuration.DEFAULT): SettingsStore = runBlocking {
         val directory = Files.createTempDirectory("qtranslate-combo-store").toFile()
         val repository = SettingsRepository(directory, Json { ignoreUnknownKeys = true }, logger)
-        repository.updateConfiguration(config)
+        repository.updateConfiguration(configuration)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         scopes += scope
-        SettingsStore(repository, logger, scope, config)
+        SettingsStore(repository, logger, scope, configuration)
     }
 
     private fun <T> onEdt(block: () -> T): T {
@@ -74,6 +83,23 @@ class SettingsComboRendererTest {
     private fun combos(root: Component): List<JComboBox<*>> =
         (if (root is JComboBox<*>) listOf(root) else emptyList()) +
             if (root is Container) root.components.flatMap(::combos) else emptyList()
+
+    private fun allButtons(root: Component): List<JButton> =
+        (if (root is JButton) listOf(root) else emptyList()) +
+            if (root is Container) root.components.flatMap(::allButtons) else emptyList()
+
+    private fun labels(root: Component): List<JLabel> =
+        (if (root is JLabel) listOf(root) else emptyList()) +
+            if (root is Container) root.components.flatMap(::labels) else emptyList()
+
+    /**
+     * The page's preset cards: the buttons laid out by the 2×2 grid, in that grid's order.
+     *
+     * Not every `JButton` on the page: each combo box carries a `BasicArrowButton` of its own
+     * inside its UI — five of them here, all with empty text.
+     */
+    private fun cards(panel: Container): List<JButton> =
+        allButtons(panel).filter { it.parent?.layout is GridLayout }
 
     @Suppress("UNCHECKED_CAST")
     private fun JComboBox<*>.rowAt(index: Int, selected: Boolean): JLabel {
@@ -87,11 +113,34 @@ class SettingsComboRendererTest {
         return renderer.getListCellRendererComponent(list, getItemAt(index), index, selected, false) as JLabel
     }
 
-    // The layout entries are a private data class; their toString carries the preset id.
-    private fun JComboBox<*>.indexOfLayoutId(id: String): Int =
-        (0 until itemCount).indexOfFirst { getItemAt(it).toString().startsWith("LayoutInfo(id=$id,") }
+    /**
+     * The picker whose entries are pane arrangements.
+     *
+     * The page's other four pickers hold their own enums, so the item type identifies this one
+     * without depending on row order or on text that the renderer localizes.
+     */
+    private fun panesCombo(panel: Container): JComboBox<*> =
+        combos(panel).single { combo ->
+            (0 until combo.itemCount).any { combo.getItemAt(it) is PaneLayout }
+        }
 
-    private fun JComboBox<*>.hasLayoutId(id: String) = indexOfLayoutId(id) >= 0
+    private fun toolbarCombo(panel: Container): JComboBox<*> =
+        combos(panel).single { combo ->
+            (0 until combo.itemCount).any { combo.getItemAt(it) is ToolbarStyle }
+        }
+
+    /**
+     * The Comparison starting point: the last of the four cards, in the order the page promises.
+     *
+     * That order is asserted in `the four starting points are cards in order`, so this cannot
+     * drift silently.
+     */
+    private fun comparisonCard(panel: Container): JButton = cards(panel).last()
+
+    private fun JComboBox<*>.items(): List<Any?> = (0 until itemCount).map { getItemAt(it) }
+
+    private fun JComboBox<*>.renderedTexts(): List<String> =
+        (0 until itemCount).map { rowAt(it, selected = false).text }
 
     private fun assertNativeRows(panel: SettingsPanel, expectedCombos: Int) {
         val found = onEdt { combos(panel) }
@@ -143,82 +192,229 @@ class SettingsComboRendererTest {
 
     @Test
     fun `layout page combos preserve native selection`() {
+        // Panes, toolbar, service selector, close button and minimise button. The status bar is a
+        // checkbox rather than a picker, so it is not one of them.
         val panel = onEdt { LayoutPanel(newStore(), localizer) }
-        assertNativeRows(panel, expectedCombos = 4)
+        assertNativeRows(panel, expectedCombos = 5)
     }
 
-    private fun JComboBox<*>.layoutIds(): List<String> =
-        (0 until itemCount).map { Regex("""id=([^,]+),""").find(getItemAt(it).toString())!!.groupValues[1] }
-
-    private fun comparisonConfig(layoutPresetId: String) = Configuration.DEFAULT.copy(
-        servicePresets = listOf(
-            ServicePreset(
-                id = "preset",
-                name = "preset",
-                selectedServices = mapOf(ServiceRole.TRANSLATOR to "google"),
-                comparisonTranslatorIds = listOf("bing")
-            )
-        ),
-        activeServicePresetId = "preset",
-        layoutPresetId = layoutPresetId
-    )
-
-    @Test
-    fun `layout picker offers exactly Classic, Side By Side and Comparison`() {
-        val panel = onEdt { LayoutPanel(newStore(), localizer) }
-        val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
-
-        assertEquals(listOf("classic", "side_by_side", "comparison"), onEdt { layoutCombo.layoutIds() })
-        assertEquals(
-            listOf("Classic", "Side By Side", "Comparison"),
-            onEdt { (0 until layoutCombo.itemCount).map { layoutCombo.rowAt(it, selected = false).text } }
+    private fun comparisonConfig(layout: LayoutConfig = LayoutConfig.DEFAULT) = Configuration.DEFAULT
+        .copy(
+            servicePresets = listOf(
+                ServicePreset(
+                    id = "preset",
+                    name = "preset",
+                    selectedServices = mapOf(ServiceRole.TRANSLATOR to "google"),
+                    comparisonTranslatorIds = listOf("bing")
+                )
+            ),
+            activeServicePresetId = "preset",
         )
-        assertFalse(onEdt { layoutCombo.hasLayoutId("compact") })
+        .withLayoutConfig(layout)
+
+    private fun testPanel(store: SettingsStore, translatorIds: () -> List<String>, onOpenServices: () -> Unit = {}): LayoutPanel =
+        onEdt {
+            LayoutPanel(store, localizer, availableTranslatorIds = translatorIds, onOpenServicesSettings = onOpenServices).also {
+                it.render(store.state.value)
+            }
+        }
+
+    @Test
+    fun `the panes picker offers exactly stacked, side by side and comparison`() {
+        val panel = testPanel(newStore(), { emptyList() })
+        val panes = onEdt { panesCombo(panel) }
+
+        assertEquals(
+            listOf(PaneLayout.STACKED, PaneLayout.SIDE_BY_SIDE, PaneLayout.COMPARISON),
+            onEdt { panes.items() },
+            "the picker lists the three arrangements and nothing else",
+        )
+        assertEquals(
+            listOf("Stacked", "Side by side", "Comparison"),
+            onEdt { panes.renderedTexts() },
+            "each arrangement is named, not printed as its enum constant",
+        )
+        // The retired compact layout is a toolbar style now, not a fourth arrangement to choose.
+        assertFalse(
+            onEdt { panes.renderedTexts() }.any { it == "Compact" },
+            "the retired layout id is not offered",
+        )
+    }
+
+    /** What the page's own summary line should say for [layout], built from the same keys. */
+    private fun expectedSummary(layout: LayoutConfig): String {
+        val panes = when (layout.paneLayout) {
+            PaneLayout.STACKED -> localizer.getString("settings_window.layout_panes_stacked")
+            PaneLayout.SIDE_BY_SIDE -> localizer.getString("settings_window.layout_panes_side_by_side")
+            PaneLayout.COMPARISON -> localizer.getString("settings_window.layout_panes_comparison")
+        }
+        val toolbar = when (layout.toolbarStyle) {
+            ToolbarStyle.FULL -> localizer.getString("settings_window.layout_toolbar_full")
+            ToolbarStyle.COMPACT -> localizer.getString("settings_window.layout_toolbar_compact")
+            ToolbarStyle.MINIMAL -> localizer.getString("settings_window.layout_toolbar_minimal")
+        }
+        val selector = when {
+            !layout.isServiceSelectorVisible -> localizer.getString("settings_window.layout_selector_absent")
+            layout.serviceSelector == ServiceSelector.BOTTOM_STRIP ->
+                localizer.getString("settings_window.layout_selector_bottom_strip")
+            else -> localizer.getString("settings_window.layout_selector_picker")
+        }
+        val status = if (layout.showStatusBar) {
+            localizer.getString("settings_window.layout_status_shown")
+        } else {
+            localizer.getString("settings_window.layout_status_hidden")
+        }
+        return localizer.getString("settings_window.layout_summary_format", panes, toolbar, selector, status)
+    }
+
+    private fun summaryLine(panel: Container, layout: LayoutConfig): JLabel {
+        val expected = expectedSummary(layout)
+        return labels(panel).singleOrNull { it.text == expected }
+            ?: error(
+                "no label reads '$expected'; the page shows:\n" +
+                    labels(panel).mapNotNull { it.text }.joinToString("\n")
+            )
     }
 
     @Test
-    fun `comparison is selectable once two translators are usable`() {
-        val store = newStore(comparisonConfig(LayoutPresetIds.CLASSIC))
-        val panel = onEdt { LayoutPanel(store, localizer, availableTranslatorIds = { listOf("google", "bing") }) }
-        onEdt { panel.render(store.state.value) }
-        val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
+    fun `the summary line names all four values in the order of the rows below`() {
+        val layout = LayoutConfig(PaneLayout.SIDE_BY_SIDE, ToolbarStyle.COMPACT, ServiceSelector.BOTTOM_STRIP, showStatusBar = false)
+        val panel = testPanel(newStore(Configuration.DEFAULT.withLayoutConfig(layout)), { emptyList() })
 
         onEdt {
-            val row = layoutCombo.rowAt(layoutCombo.indexOfLayoutId(LayoutPresetIds.COMPARISON), selected = false)
-            assertNull(row.toolTipText, "an eligible Comparison carries no unavailable hint")
-            assertNull(layoutCombo.toolTipText)
+            assertEquals(
+                expectedSummary(layout),
+                summaryLine(panel, layout).text,
+                "the page opens by saying what the window is, not by making the user read four controls",
+            )
         }
     }
 
     @Test
-    fun `a saved compact layout is selected as Classic rather than left blank`() {
-        val store = newStore(Configuration.DEFAULT.copy(layoutPresetId = "compact"))
-        val panel = onEdt { LayoutPanel(store, localizer) }
-        onEdt { panel.render(store.state.value) }
-        val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
+    fun `the summary says the selector is not shown on a comparison board`() {
+        val layout = LayoutConfig(PaneLayout.COMPARISON, ToolbarStyle.FULL, ServiceSelector.PICKER, showStatusBar = true)
+        val panel = testPanel(newStore(Configuration.DEFAULT.withLayoutConfig(layout)), { emptyList() })
 
-        val selected = onEdt { layoutCombo.selectedItem.toString() }
-        assertTrue(selected.startsWith("LayoutInfo(id=classic,"), "selected was $selected")
+        onEdt {
+            val summary = summaryLine(panel, layout).text
+            assertTrue(
+                summary.contains(localizer.getString("settings_window.layout_selector_absent")),
+                "a comparison board has no selector, and the summary says so instead of naming an unused value: $summary",
+            )
+        }
     }
 
     @Test
-    fun `unavailable comparison layout is dimmed with its reason and other layouts are not`() {
+    fun `the summary is rebuilt on every render`() {
         val store = newStore()
-        val panel = onEdt { LayoutPanel(store, localizer, availableTranslatorIds = { emptyList() }) }
-        onEdt { panel.render(store.state.value) }
-        val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
+        val panel = testPanel(store, { emptyList() })
+        val stacked = Configuration.DEFAULT.layoutConfig
+        val compared = stacked.copy(paneLayout = PaneLayout.COMPARISON)
+        onEdt { assertEquals(expectedSummary(stacked), summaryLine(panel, stacked).text) }
+
+        onEdt {
+            store.dispatch(
+                SettingsIntent.TransformDraft { it.withLayoutConfig(compared) }
+            )
+            panel.render(store.state.value)
+        }
+
+        onEdt {
+            assertEquals(
+                expectedSummary(compared),
+                summaryLine(panel, compared).text,
+                "the line follows the state rather than being computed once at build time",
+            )
+        }
+    }
+
+    @Test
+    fun `the four starting points are cards in order`() {
+        val panel = testPanel(newStore(), { emptyList() })
+
+        assertEquals(
+            listOf(
+                localizer.getString("settings_window.layout_card_classic"),
+                localizer.getString("settings_window.layout_card_compact"),
+                localizer.getString("settings_window.layout_card_side_by_side"),
+                // Comparison is unavailable here — one usable translator — so its card already
+                // says how to obtain it rather than only what it is called.
+                localizer.getString("settings_window.layout_comparison_configure"),
+            ),
+            onEdt { cards(panel).map { it.text } },
+            "four one-click arrangements, in the order the page promises",
+        )
+        assertTrue(
+            onEdt { cards(panel).all { it.toolTipText != null } },
+            "every card explains what pressing it gets you",
+        )
+    }
+
+    @Test
+    fun `a preset card writes that arrangement`() {
+        val store = newStore()
+        val panel = testPanel(store, { emptyList() })
+
+        onEdt { cards(panel)[1].doClick() }
+
+        assertEquals(
+            ToolbarStyle.COMPACT,
+            store.state.value.workingConfiguration.layoutConfig.toolbarStyle,
+            "the Compact card writes a whole arrangement, not a label",
+        )
+        assertTrue(store.state.value.isDirty)
+    }
+
+    @Test
+    fun `comparison is offered once two translators are usable`() {
+        val store = newStore(comparisonConfig())
+        val panel = testPanel(store, { listOf("google", "bing") })
+        val panes = onEdt { panesCombo(panel) }
+
+        onEdt {
+            val row = panes.rowAt(panes.items().indexOf(PaneLayout.COMPARISON), selected = false)
+            assertNull(row.toolTipText, "an eligible Comparison carries no unavailable hint")
+        }
+        assertEquals(
+            localizer.getString("settings_window.layout_card_comparison"),
+            onEdt { comparisonCard(panel).text },
+            "the card names the arrangement rather than the setup it does not need",
+        )
+        assertEquals(
+            localizer.getString("settings_window.layout_card_comparison_hint"),
+            onEdt { comparisonCard(panel).toolTipText },
+        )
+    }
+
+    @Test
+    fun `a retired layout id still shows the arrangement it stands for`() {
+        // "compact" was a stored layout id until this release. It is a toolbar style now, and a
+        // configuration that carries it must still render as the arrangement it described rather
+        // than leaving the pickers blank.
+        val legacy = Configuration.DEFAULT.copy(layoutPresetId = LayoutPresetIds.LEGACY_COMPACT)
+        val store = newStore(legacy.withLayoutConfig(LayoutConfigMigration.fromV10(legacy)))
+        val panel = testPanel(store, { emptyList() })
+
+        assertEquals(PaneLayout.STACKED, onEdt { panesCombo(panel).selectedItem })
+        assertEquals(ToolbarStyle.FULL, onEdt { toolbarCombo(panel).selectedItem })
+    }
+
+    @Test
+    fun `unavailable comparison is dimmed with its reason and other panes are not`() {
+        val panel = testPanel(newStore(), { emptyList() })
+        val panes = onEdt { panesCombo(panel) }
 
         val dim = Color(120, 121, 122)
         val previous = UIManager.getColor("Label.disabledForeground")
         UIManager.put("Label.disabledForeground", dim)
         try {
             onEdt {
-                val comparison = layoutCombo.indexOfLayoutId(LayoutPresetIds.COMPARISON)
-                val classic = layoutCombo.indexOfLayoutId(LayoutPresetIds.CLASSIC)
-                assertTrue(comparison >= 0, "comparison layout must still be listed")
+                val comparison = panes.items().indexOf(PaneLayout.COMPARISON)
+                val stacked = panes.items().indexOf(PaneLayout.STACKED)
+                assertTrue(comparison >= 0, "comparison must still be listed")
 
                 // The renderer reuses one component, so read each row before rendering the next.
-                val disabledRow = layoutCombo.rowAt(comparison, selected = true)
+                val disabledRow = panes.rowAt(comparison, selected = true)
                 assertEquals(dim, disabledRow.foreground)
                 assertEquals(Color(10, 90, 200), disabledRow.background)
                 assertEquals(
@@ -226,37 +422,56 @@ class SettingsComboRendererTest {
                     disabledRow.toolTipText
                 )
 
-                val normalRow = layoutCombo.rowAt(classic, selected = true)
+                val normalRow = panes.rowAt(stacked, selected = true)
                 assertEquals(Color(255, 255, 255), normalRow.foreground)
                 assertNull(normalRow.toolTipText)
             }
         } finally {
             UIManager.put("Label.disabledForeground", previous)
         }
+
+        // The card is the way there, so it carries the reason as its hint too.
+        assertEquals(
+            localizer.getString("settings_window.layout_comparison_unavailable"),
+            onEdt { comparisonCard(panel).toolTipText },
+        )
     }
 
     @Test
-    fun `picking the unavailable comparison entry opens Services settings instead of doing nothing`() {
+    fun `picking the unavailable comparison card opens Services settings instead of doing nothing`() {
         val store = newStore()
         var opened = 0
-        val panel = onEdt {
-            LayoutPanel(store, localizer, availableTranslatorIds = { emptyList() }, onOpenServicesSettings = { opened++ })
-        }
-        onEdt { panel.render(store.state.value) }
-        val layoutCombo = onEdt { combos(panel).first { it.hasLayoutId(LayoutPresetIds.COMPARISON) } }
+        val panel = testPanel(store, { emptyList() }, onOpenServices = { opened++ })
 
-        val comparisonIndex = onEdt { layoutCombo.indexOfLayoutId(LayoutPresetIds.COMPARISON) }
-        // Its own label is an action, not just a disabled name -- the row text should not simply
-        // read "Comparison" while unavailable.
-        val rowText = onEdt { layoutCombo.rowAt(comparisonIndex, selected = true).text }
-        assertEquals(localizer.getString("settings_window.layout_comparison_configure"), rowText)
+        onEdt { comparisonCard(panel).doClick() }
 
-        onEdt { layoutCombo.selectedIndex = comparisonIndex }
-        assertEquals(1, opened, "selecting the unavailable entry sends the user to fix it")
-        val selected = onEdt { layoutCombo.selectedItem.toString() }
-        assertTrue(
-            selected.startsWith("LayoutInfo(id=classic,"),
-            "the combo itself still falls back to the saved choice rather than writing Comparison, was $selected"
+        assertEquals(1, opened, "acting on the unavailable card sends the user to fix it")
+        assertFalse(store.state.value.isDirty, "and writes no arrangement the window cannot build")
+        assertEquals(
+            PaneLayout.STACKED,
+            store.state.value.workingConfiguration.layoutConfig.paneLayout,
+        )
+    }
+
+    @Test
+    fun `picking comparison in the panes picker while it is unavailable sends the user to Services`() {
+        val store = newStore()
+        var opened = 0
+        val panel = testPanel(store, { emptyList() }, onOpenServices = { opened++ })
+        val panes = onEdt { panesCombo(panel) }
+
+        onEdt { panes.selectedIndex = panes.items().indexOf(PaneLayout.COMPARISON) }
+
+        assertEquals(1, opened, "selecting the unavailable entry is an action, not a no-op")
+        assertEquals(
+            PaneLayout.STACKED,
+            store.state.value.workingConfiguration.layoutConfig.paneLayout,
+            "and the stored arrangement is left alone rather than set to something unusable",
+        )
+        assertEquals(
+            PaneLayout.STACKED,
+            onEdt { panes.selectedItem },
+            "the picker falls back to the saved arrangement rather than showing a layout it refused",
         )
     }
 }

@@ -37,8 +37,23 @@ class InteractionFoundationSourceTest {
     @Test
     fun `layout picker keeps comparison eligibility separate from rendering`() {
         val layout = source("settings/panels/LayoutPanel.kt")
-        assertTrue(layout.contains("isDisabled = ::isUnavailableComparison"))
-        assertTrue(layout.contains("layout.id == LayoutPresetIds.COMPARISON && !comparisonAvailable"))
+        // Dimming an unusable Comparison is not the whole job: the entry has to say what to do
+        // about it and clicking it has to go there, or the row teaches nothing. Both the panes row
+        // and the Comparison card must do that, and neither may write an arrangement that cannot
+        // be drawn.
+        assertTrue(layout.contains("isDisabled = ::isUnavailableComparison"), "the panes row must dim an unusable comparison")
+        assertTrue(
+            layout.contains("tooltip = { if (isUnavailableComparison(it)) comparisonUnavailableHint() else null }"),
+            "the dimmed row must carry the reason"
+        )
+        assertTrue(
+            layout.contains("if (isUnavailableComparison(pane))"),
+            "choosing an unusable comparison must route instead of writing it"
+        )
+        assertTrue(
+            layout.contains("if (preset == LayoutPreset.COMPARISON && !comparisonAvailable)"),
+            "the comparison card must route too"
+        )
     }
 
     @Test
