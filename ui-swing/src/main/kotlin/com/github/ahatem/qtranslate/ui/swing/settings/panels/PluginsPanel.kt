@@ -11,9 +11,6 @@ import com.github.ahatem.qtranslate.core.plugin.*
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.shared.util.role
-import com.github.ahatem.qtranslate.ui.swing.main.layout.BorderSplitPaneUI
-import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
-import com.github.ahatem.qtranslate.ui.swing.main.layout.UISpacing
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import com.github.ahatem.qtranslate.ui.swing.shared.util.GridBag
@@ -107,7 +104,10 @@ class PluginsPanel(
     private val actionBar = JPanel()       // fixed footer — never scrolls
 
     /** The list/detail divider. Held so the two halves can be mirrored for a right-to-left layout. */
-    private lateinit var splitPane: MirroredSplitPane
+    private lateinit var splitPane: SettingsSplitPane
+
+    /** The install-and-drop strip under the list; its top rule is refreshed with the theme. */
+    private lateinit var leftBottomPanel: JPanel
     private var selectedPlugin: PluginState? = null
     private var allPlugins: List<PluginState> = emptyList()
 
@@ -274,9 +274,8 @@ class PluginsPanel(
             )
             transferHandler = dropHandler
         }
-        val leftBottom = JPanel(BorderLayout(0, 6)).apply {
+        leftBottomPanel = JPanel(BorderLayout(0, 6)).apply {
             isOpaque = false
-            border   = BorderFactory.createEmptyBorder(8, 8, 10, 8)
             add(installBtn, BorderLayout.NORTH)
             add(dropHint, BorderLayout.CENTER)
             add(browseLink, BorderLayout.SOUTH)
@@ -288,7 +287,7 @@ class PluginsPanel(
             maximumSize   = Dimension(370, Int.MAX_VALUE)
             add(listHeaderPanel, BorderLayout.NORTH)
             add(listCards, BorderLayout.CENTER)
-            add(leftBottom, BorderLayout.SOUTH)
+            add(leftBottomPanel, BorderLayout.SOUTH)
             transferHandler = dropHandler
         }
         UIManager.addPropertyChangeListener(themeListener)
@@ -321,10 +320,8 @@ class PluginsPanel(
         // list and the detail pane that a matte border was painting before — and it can be dragged,
         // which is how a reader gives a long plugin name room in one language and takes it back in
         // another.
-        splitPane = MirroredSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, leftPanel, rightPanel).apply {
+        splitPane = SettingsSplitPane.horizontal(leftPanel, rightPanel).apply {
             leadingResizeWeight = LIST_SHARE
-            dividerSize         = UISpacing.DIVIDER_SIZE
-            setUI(BorderSplitPaneUI())
             clearBorder()
             isMirrored          = !componentOrientation.isLeftToRight
         }
@@ -396,6 +393,13 @@ class PluginsPanel(
         listHeaderPanel.border = BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(0, 0, 1, 0, line),
             BorderFactory.createEmptyBorder(10, 10, 8, 10)
+        )
+
+        // And one under the list, so the install-and-drop strip reads as a footer of the list
+        // rather than as two more entries at the end of it.
+        leftBottomPanel.border = BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 0, 0, line),
+            BorderFactory.createEmptyBorder(8, 8, 10, 8)
         )
 
         leftPanel.revalidate()

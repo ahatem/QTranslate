@@ -151,38 +151,62 @@ internal class SettingsRowList<E : Any>(
     }
 
     /**
-     * Paints the hover behind the rows, exactly where the selection pill would be.
+     * Paints the selected and hovered rows behind their content.
      *
-     * Before `super`, so the renderer's own content lands on top; the tree in this dialog does the
-     * same thing for the same reason.
+     * A `JList` leaves selection to its renderer, and this list's renderer is a non-opaque panel —
+     * so nothing was painted at all: the selected row was indistinguishable from its neighbours,
+     * which is how it was reported. Painting it here is also what makes the pill the same shape as
+     * the hover, and what allows the accent bar below: with the themes this application ships, the
+     * selection background alone is a shade, and a shade is not an answer to "which row am I on".
+     *
+     * Every colour is read from the look and feel at paint time, so it follows the theme, the focus
+     * state and a custom accent.
      */
     override fun paintComponent(g: Graphics) {
-        val row = hoveredRow
-        if (row >= 0 && !isSelectedIndex(row)) {
-            getCellBounds(row, row)?.let { bounds ->
-                val g2 = g.create() as Graphics2D
-                try {
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                    g2.color = UIManager.getColor("List.selectionInactiveBackground")
-                        ?: UIManager.getColor("Component.borderColor")
-                        ?: return
-                    // The insets FlatLaf uses for the selection pill, so hover and selection are the
-                    // same shape rather than two shapes a pixel apart.
-                    val insetX = UIScale.scale(4)
-                    val insetY = UIScale.scale(2)
-                    val arc = UIScale.scale(8)
-                    g2.fillRoundRect(
-                        bounds.x + insetX, bounds.y + insetY,
-                        (bounds.width - insetX * 2).coerceAtLeast(0),
-                        (bounds.height - insetY * 2).coerceAtLeast(0),
-                        arc, arc
-                    )
-                } finally {
-                    g2.dispose()
-                }
-            }
-        }
+        paintRow(g, selectedIndex, selected = true)
+        val hover = hoveredRow
+        if (hover >= 0 && !isSelectedIndex(hover)) paintRow(g, hover, selected = false)
         super.paintComponent(g)
+    }
+
+    private fun paintRow(g: Graphics, row: Int, selected: Boolean) {
+        if (row < 0) return
+        val bounds = getCellBounds(row, row) ?: return
+
+        val fill = when {
+            !selected -> UIManager.getColor("List.selectionInactiveBackground")
+            hasFocus() -> UIManager.getColor("List.selectionBackground")
+            else -> UIManager.getColor("List.selectionInactiveBackground")
+                ?: UIManager.getColor("List.selectionBackground")
+        } ?: UIManager.getColor("Component.borderColor") ?: return
+
+        val g2 = g.create() as Graphics2D
+        try {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+
+            // The insets FlatLaf uses for the selection pill, so hover and selection are the same
+            // shape rather than two shapes a pixel apart.
+            val insetX = UIScale.scale(4)
+            val insetY = UIScale.scale(2)
+            val arc = UIScale.scale(8)
+            val x = bounds.x + insetX
+            val y = bounds.y + insetY
+            val width = (bounds.width - insetX * 2).coerceAtLeast(0)
+            val height = (bounds.height - insetY * 2).coerceAtLeast(0)
+
+            g2.color = fill
+            g2.fillRoundRect(x, y, width, height, arc, arc)
+
+            if (selected) {
+                val accent = UIManager.getColor("Component.accentColor") ?: return
+                val bar = UIScale.scale(3)
+                val barX = if (componentOrientation.isLeftToRight) x else x + width - bar
+                g2.color = accent
+                g2.fillRoundRect(barX, y, bar, height, arc, arc)
+            }
+        } finally {
+            g2.dispose()
+        }
     }
 
     companion object {

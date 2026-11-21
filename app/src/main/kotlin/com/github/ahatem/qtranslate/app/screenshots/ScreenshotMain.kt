@@ -123,6 +123,10 @@ fun main(args: Array<String>): Unit = runBlocking {
             selectorDensityAudit()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-matrix") {
             settingsMatrix()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-showcase") {
+            // Two pages, one theme: for checking a change to one of them without re-rendering the
+            // whole gallery, which is a couple of minutes of work for a single screenshot.
+            settingsShowcase()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "presentation") {
             mainWindow()
             layouts()

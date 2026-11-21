@@ -10,9 +10,6 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.*
-import com.github.ahatem.qtranslate.ui.swing.main.layout.BorderSplitPaneUI
-import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
-import com.github.ahatem.qtranslate.ui.swing.main.layout.UISpacing
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.AppIcons
@@ -213,7 +210,7 @@ class SettingsDialog(
      * it can be dragged — a page with wide content and a reader who wants the sidebar narrow are
      * both reasonable.
      */
-    private lateinit var mainSplit: MirroredSplitPane
+    private lateinit var mainSplit: SettingsSplitPane
 
     private lateinit var okButton: JButton
     private lateinit var applyButton: JButton
@@ -251,12 +248,8 @@ class SettingsDialog(
         // ── Header strip ─────────────────────────────────────────────────────
         contentArea.add(headerStrip, BorderLayout.NORTH)
 
-        val mainPanel = MirroredSplitPane(
-            JSplitPane.HORIZONTAL_SPLIT, true, sidebarPanel, contentArea
-        ).apply {
+        val mainPanel = SettingsSplitPane.horizontal(sidebarPanel, contentArea).apply {
             leadingResizeWeight = SIDEBAR_SHARE
-            dividerSize         = UISpacing.DIVIDER_SIZE
-            setUI(BorderSplitPaneUI())
             border              = BorderFactory.createEmptyBorder()
             isMirrored          = !componentOrientation.isLeftToRight
         }

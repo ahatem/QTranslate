@@ -31,7 +31,7 @@ import javax.swing.JSplitPane
  *                 right in a right-to-left one.
  * @param trailing the component shown second.
  */
-class MirroredSplitPane(
+open class MirroredSplitPane(
     orientation: Int,
     continuousLayout: Boolean,
     private val leading: Component,
