@@ -140,8 +140,10 @@ object LayoutBuilders {
      * thing in the bar), which is what makes the row fit beside the language selectors at the
      * widths people actually use.
      *
-     * The history controls go to LINE_END, so in Arabic they sit at the leading edge of the row
-     * the way every other trailing group in this window does.
+     * The history controls go to LINE_END, which makes them follow the row's trailing edge: the
+     * right in English and the left in Arabic, mirroring the language selectors that begin the row.
+     * That is the same end of the row the separate history row occupies today, so switching styles
+     * does not move the controls from one side of the window to the other.
      */
     fun combinedLanguageRow(languageBar: JComponent, historyBar: JComponent): JComponent {
         return JPanel(BorderLayout(UIScale.scale(8), 0)).apply {

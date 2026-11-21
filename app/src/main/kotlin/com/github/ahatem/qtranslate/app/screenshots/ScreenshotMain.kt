@@ -409,6 +409,11 @@ private class Shots(
             translate(LanguageCode("fr"), Scenes.LIBRARY)
             capture("layout-classic-compact-$suffix")
         }
+        // One row is exactly where a mirrored layout goes wrong without anyone noticing: the
+        // history controls have to move to the leading edge and Back/Forward swap their icons.
+        start(Scenes.arabic(LayoutPreset.COMPACT.config))
+        translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
+        capture("layout-classic-compact-rtl-dark")
     }
 
     suspend fun selectorAudit() {
