@@ -374,8 +374,14 @@ internal class SettingsNavigationController(
                                 val bar = UIScale.scale(3)
                                 val inset = UIScale.scale(1)
                                 val top = UIScale.scale(1)
+                                // The gutter on the leading side: the right in Arabic.
+                                val barX = if (componentOrientation.isLeftToRight) {
+                                    inset
+                                } else {
+                                    width - bar - inset
+                                }
                                 g2.color = accent
-                                g2.fillRect(inset, bounds.y + top, bar, bounds.height - top * 2)
+                                g2.fillRect(barX, bounds.y + top, bar, bounds.height - top * 2)
                             } finally {
                                 g2.dispose()
                             }

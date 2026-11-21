@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.formdev.flatlaf.FlatClientProperties
+import com.formdev.flatlaf.icons.FlatSearchIcon
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
@@ -17,6 +19,8 @@ import java.awt.event.ComponentEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.*
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 
@@ -78,6 +82,14 @@ class LanguagesPanel(
     private var pinnedRowPitch = 0
     private var pinnedContentInset = 0
 
+    /** Every language the grid can show, before the filter narrows it. */
+    private var allPinCodes: List<String> = emptyList()
+
+    /** What the grid's filter says, kept so a rebuild from `render` honours it. */
+    private var pinnedFilter: String = ""
+
+    private lateinit var pinnedFilterField: JTextField
+
     // Translation rules table
     private lateinit var rulesTable: JTable
     private lateinit var rulesTableModel: DefaultTableModel
@@ -112,6 +124,31 @@ class LanguagesPanel(
         // ---- Pinned Languages ----
         addSeparator(localizationManager.getString("settings_languages.pinned_languages_group"))
         addHint(localizationManager.getString("settings_languages.pinned_languages_hint"))
+
+        // A filter for the grid, kept small and on the trailing edge: the grid is the content, and a
+        // search box that takes a line of its own would be the loudest thing in the section. It only
+        // narrows what is shown — a pin it hides stays pinned.
+        pinnedFilterField = JTextField().apply {
+            putClientProperty(
+                FlatClientProperties.PLACEHOLDER_TEXT,
+                localizationManager.getString("common.search")
+            )
+            putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true)
+            putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON, FlatSearchIcon())
+            preferredSize = Dimension(UIScale.scale(190), preferredSize.height)
+            maximumSize   = preferredSize
+            document.addDocumentListener(object : DocumentListener {
+                override fun insertUpdate(e: DocumentEvent) = refilterPinned()
+                override fun removeUpdate(e: DocumentEvent) = refilterPinned()
+                override fun changedUpdate(e: DocumentEvent) = refilterPinned()
+            })
+        }
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
+            .insets(2, 0, 0, 0)
+            .add(JPanel(FlowLayout(FlowLayout.TRAILING, 0, 0)).apply {
+                isOpaque = false
+                add(pinnedFilterField)
+            })
 
         // A grid of tiles, not a column of checkboxes. Pinning a language is picking it out of a
         // set, not reading a list down — and a grid shows a dozen of them at once where the column
@@ -416,18 +453,28 @@ class LanguagesPanel(
     private fun rebuildPinnedList(codes: List<String>) {
         val pinned = store.state.value.workingConfiguration.pinnedLanguages.toSet()
         val supported = availableLanguages().map { it.tag }.toSet()
+        allPinCodes = codes
+        val query = pinnedFilter.trim()
+        val shown = if (query.isEmpty()) codes else codes.filter { code ->
+            localizedName(code).contains(query, ignoreCase = true) ||
+                code.contains(query, ignoreCase = true)
+        }
         pinnedListPanel.removeAll()
         languageCheckBoxes.clear()
-        codes.forEach { code ->
+        shown.forEach { code ->
             val checkBox = JCheckBox().apply {
                 isOpaque = false
                 isSelected = code in pinned
                 addActionListener {
                     if (!isUpdatingFromState) {
-                        val selected = languageCheckBoxes
-                            .filter { (_, box) -> box.isSelected }
-                            .map { (c, _) -> c }
-                        applyDraft(store) { it.copy(pinnedLanguages = selected) }
+                        // A pin the filter is hiding is not in `languageCheckBoxes`, so the draft is
+                        // assembled from the visible switches plus the stored pins that are not on
+                        // screen — otherwise typing in the filter would silently unpin the rest.
+                        val visible = languageCheckBoxes.filter { (_, box) -> box.isSelected }.map { it.first }
+                        val shownCodes = languageCheckBoxes.map { it.first }.toSet()
+                        val hidden = store.state.value.workingConfiguration.pinnedLanguages
+                            .filterNot { it in shownCodes }
+                        applyDraft(store) { it.copy(pinnedLanguages = (hidden + visible).distinct()) }
                     }
                 }
             }
@@ -437,8 +484,24 @@ class LanguagesPanel(
 
         equaliseTiles()
 
+        // Tiles rebuilt after the page was oriented start out left-to-right, which put the checkbox
+        // on the wrong side in Arabic. The direction is pushed down to the new tiles here.
+        pinnedListPanel.applyComponentOrientation(componentOrientation)
+
         pinnedListPanel.revalidate()
         pinnedListPanel.repaint()
+    }
+
+    /**
+     * Narrows the grid to the languages matching the filter.
+     *
+     * The pins themselves are untouched: this only decides which tiles are on screen, and a pin the
+     * filter hides is still a pin. Without the filter the grid is the whole set again.
+     */
+    private fun refilterPinned() {
+        if (!::pinnedFilterField.isInitialized) return
+        pinnedFilter = pinnedFilterField.text
+        rebuildPinnedList(allPinCodes)
     }
 
     /**

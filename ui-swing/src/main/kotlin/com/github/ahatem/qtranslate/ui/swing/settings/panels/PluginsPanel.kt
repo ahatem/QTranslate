@@ -540,6 +540,9 @@ class PluginsPanel(
             }
 
             row.toolTipText = null
+            // A renderer is not part of the list's hierarchy, so it never receives the direction
+            // the list was given: without this the switch sat on the wrong side in Arabic.
+            row.applyComponentOrientation(list.componentOrientation)
             return row
         }
     }
@@ -721,11 +724,17 @@ class PluginsPanel(
             .add(Box.createVerticalGlue())
 
         detailScroll.setViewportView(infoPanel)
+        // A component added after the page was given its direction starts out left-to-right: the
+        // orientation cascade ran when this panel was built, and everything rebuilt since — the
+        // details, the rows, the action bar — never saw it. In Arabic that showed up as a detail
+        // pane and a list whose contents were laid out the wrong way round.
+        infoPanel.applyComponentOrientation(componentOrientation)
         detailScroll.revalidate()
         detailScroll.repaint()
 
         // ── Action bar ────────────────────────────────────────────────────────
         rebuildActionBar(plugin)
+        actionBar.applyComponentOrientation(componentOrientation)
     }
 
     private fun showEmptyState() {
