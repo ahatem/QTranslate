@@ -56,15 +56,13 @@ fun Configuration.isComparisonEligible(translatorIds: List<String>): Boolean =
  * effective translators falls back to Classic. The saved [layoutPresetId]
  * preference is never rewritten — when Comparison becomes eligible again
  * it takes effect naturally.
+ *
+ * The decision itself lives in [LayoutConfig.effectivePaneLayout] now that the
+ * arrangement is one value among four rather than a layout id; this is the id
+ * form of it, for the layout builder that still selects by id.
  */
-fun Configuration.effectiveLayoutPresetId(translatorIds: List<String>): String {
-    val saved = LayoutPresetIds.resolve(layoutPresetId)
-    return if (saved == LayoutPresetIds.COMPARISON && !isComparisonEligible(translatorIds)) {
-        LayoutPresetIds.CLASSIC
-    } else {
-        saved
-    }
-}
+fun Configuration.effectiveLayoutPresetId(translatorIds: List<String>): String =
+    effectivePaneLayout(translatorIds).presetId
 
 /**
  * Promotes [serviceId] to Primary while preserving the whole translator set:

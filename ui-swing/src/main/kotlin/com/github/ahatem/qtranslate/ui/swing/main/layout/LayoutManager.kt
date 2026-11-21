@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.main.layout
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
+import com.github.ahatem.qtranslate.core.settings.data.layoutConfig
 import java.awt.BorderLayout
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
@@ -62,10 +63,14 @@ class LayoutManager(
         SwingUtilities.invokeLater {
             if (currentLayoutId == null) return@invokeLater
 
+            // The footer is already one value of its own in the layout model, so it is read from
+            // there. The history row, the language row and the service panel stay on the older
+            // booleans for now: they are on their way to becoming one toolbar *style*, and moving
+            // them before that style has a renderer would only rename the problem.
             components.historyBar.isVisible = config.toolbarVisibility.isHistoryBarVisible
             components.translatorSelector.isVisible = config.toolbarVisibility.isServicesPanelVisible
             components.languageBar.isVisible = config.toolbarVisibility.isLanguageBarVisible
-            components.statusBar.isVisible = config.toolbarVisibility.isStatusBarVisible
+            components.statusBar.isVisible = config.layoutConfig().showStatusBar
 
             val showExtra = config.extraOutputType != ExtraOutputType.None
             currentLayout?.componentRefs?.updateExtraOutputVisibility(showExtra, components.extraOutputPanel)
