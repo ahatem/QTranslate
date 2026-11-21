@@ -54,6 +54,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.output.TranslationProviderStat
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelector
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
+import com.github.ahatem.qtranslate.ui.swing.main.selector.serviceSelectorStrings
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorPopupButton
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryPanel
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryPanelState
@@ -389,7 +390,8 @@ class MainContentView(
             selectorState = TranslatorSelectorState(
                 availableTranslators = mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR),
                 selectedTranslatorId = selectedTranslatorId,
-                isLoading = mainState.isLoading
+                isLoading = mainState.isLoading,
+                strings = localizer.serviceSelectorStrings()
             ),
             onCopy = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) },
             onListen = { dispatch(MainIntent.ListenToText(textSource = TextSource.Output)) },
@@ -623,6 +625,7 @@ class MainContentView(
                 availableTranslators = mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR),
                 selectedTranslatorId = selectedTranslatorId,
                 isLoading = mainState.isLoading,
+                strings = localizer.serviceSelectorStrings(),
                 availableServices = mainState.availableServices,
                 selectedServices = activePreset?.selectedServices.orEmpty(),
                 style = config.serviceSelectorStyle,
@@ -748,7 +751,8 @@ class MainContentView(
             TranslatorSelectorState(
                 availableTranslators = mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR),
                 selectedTranslatorId = selectedTranslatorId,
-                isLoading = mainState.isLoading
+                isLoading = mainState.isLoading,
+                strings = localizer.serviceSelectorStrings()
             )
         )
 

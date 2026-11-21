@@ -55,13 +55,49 @@ class TranslatorSelectorTest {
         selectedId: String? = translators.firstOrNull()?.id,
         appearance: ServiceSelectorAppearance = ServiceSelectorAppearance.ICONS_AND_TEXT,
         loading: Boolean = false,
+        strings: TranslatorSelectorStrings = TranslatorSelectorStrings.DEFAULT,
     ) = TranslatorSelectorState(
         availableTranslators = translators,
         selectedTranslatorId = selectedId,
         isLoading = loading,
         style = ServiceSelectorStyle.CLASSIC,
-        appearance = appearance
+        appearance = appearance,
+        strings = strings
     )
+
+    @Test
+    fun `the strip draws the words it is handed, not English literals`() {
+        // These words travel with the state rather than being baked into the widget, so the
+        // interface language can change without the selector being rebuilt. This is the proof that
+        // it reads them; before this the strip was English in every locale.
+        val german = TranslatorSelectorStrings(
+            moreButton = "Weitere",
+            allServicesTooltip = "Alle Dienste",
+            configureActiveTooltip = "Aktiven Dienst einrichten",
+            translatorRole = "Übersetzen",
+            dictionaryRole = "Wörterbuch",
+            voiceRole = "Stimme",
+            selectServiceTooltip = "%1\$s-Dienst wählen",
+            configureServiceTooltip = "Gewählten %1\$s-Dienst einrichten",
+        )
+        val selector = selector()
+        onEdt { selector.render(state(services(3), strings = german)) }
+        size(selector, 800)
+
+        onEdt {
+            val gear = descendants(selector).filterIsInstance<JButton>()
+                .single { it.toolTipText == "Aktiven Dienst einrichten" }
+            assertEquals("Aktiven Dienst einrichten", gear.toolTipText, "the gear's tooltip is localized")
+        }
+
+        // Narrow enough that everything cannot fit: the overflow button appears with the same words.
+        size(selector, 120)
+        onEdt {
+            val more = descendants(selector).filterIsInstance<JButton>()
+                .first { it.toolTipText == "Alle Dienste" }
+            assertEquals("Weitere ▾", more.text, "the overflow button and its tooltip are localized")
+        }
+    }
 
     @Test
     fun `classic mode shows one toggle button per translator, the active one selected`() {

@@ -145,6 +145,16 @@ error_detail_warning = "Warning"
 error_detail_copy = "Copy"
 error_detail_copied = "Copied!"
 
+[main_window_service_selector]
+more = "More"
+all_services_tooltip = "All services"
+configure_active_tooltip = "Configure active translation service"
+role_translator = "Translate"
+role_dictionary = "Dictionary"
+role_voice = "Voice"
+select_service_tooltip = "Select %1$s service"
+configure_service_tooltip = "Configure selected %1$s service"
+
 # ===================================================================
 # SYSTEM TRAY MENU
 # ===================================================================

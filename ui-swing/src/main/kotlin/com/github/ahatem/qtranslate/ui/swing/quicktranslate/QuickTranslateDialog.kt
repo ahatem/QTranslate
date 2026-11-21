@@ -9,6 +9,7 @@ import com.github.ahatem.qtranslate.core.settings.data.Size
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.LanguageComboBox
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorPopupButton
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
+import com.github.ahatem.qtranslate.ui.swing.main.selector.serviceSelectorStrings
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.*
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.ComponentMover
@@ -337,7 +338,8 @@ class QuickTranslateDialog(
             TranslatorSelectorState(
                 availableTranslators = state.translatorSelectorState.availableTranslators,
                 selectedTranslatorId = state.translatorSelectorState.selectedTranslatorId,
-                isLoading = state.isLoading
+                isLoading = state.isLoading,
+                strings = localizationManager.serviceSelectorStrings(),
             )
         )
 
@@ -396,7 +398,8 @@ class QuickTranslateDialog(
             selectorState = TranslatorSelectorState(
                 availableTranslators = state.translatorSelectorState.availableTranslators,
                 selectedTranslatorId = selectedId,
-                isLoading = state.isLoading
+                isLoading = state.isLoading,
+                strings = localizationManager.serviceSelectorStrings(),
             ),
             onCopy = { text -> text.copyToClipboard() },
             onListen = { onListen() },

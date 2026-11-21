@@ -42,18 +42,16 @@ class TranslatorSelector(
     }.apply { isOpaque = false }
     private var activeButton: JToggleButton? = null
     private var stripButtons: List<JToggleButton> = emptyList()
-    private val overflowMenu = JButton("More ▾").apply {
+    private val overflowMenu = JButton().apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
         putClientProperty(FlatClientProperties.STYLE, "arc: 0")
         margin = compactButtonMargin()
-        toolTipText = "All services"
         addActionListener { showOverflowMenu(this) }
     }
     private val configureActive = JButton(iconManager.getIcon(Icons.SETTINGS, 16, 16)).apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
         putClientProperty(FlatClientProperties.STYLE, "arc: 0")
         margin = compactButtonMargin()
-        toolTipText = "Configure active translation service"
         addActionListener { activeServiceId?.let(onConfigureService) }
     }
     private val classic = JPanel(BorderLayout(UIScale.scale(6), 0)).apply {
@@ -73,6 +71,12 @@ class TranslatorSelector(
     override fun render(state: TranslatorSelectorState) {
         this.state = state
         serviceStrip.componentOrientation = componentOrientation
+        // The overflow button and the gear are the two controls this widget words itself; the
+        // chevron stays here rather than in the translation file, where it would be a decoration
+        // translators have to keep copying.
+        overflowMenu.text = "${state.strings.moreButton} ▾"
+        overflowMenu.toolTipText = state.strings.allServicesTooltip
+        configureActive.toolTipText = state.strings.configureActiveTooltip
         if (state.style == ServiceSelectorStyle.CLASSIC) rebuildClassic() else rebuildEnhanced()
         (layout as CardLayout).show(this, if (state.style == ServiceSelectorStyle.CLASSIC) CLASSIC else ENHANCED)
         revalidate(); repaint()
@@ -152,7 +156,11 @@ class TranslatorSelector(
 
     private fun rebuildEnhanced() {
         enhanced.removeAll()
-        listOf(ServiceRole.TRANSLATOR to "Translate", ServiceRole.DICTIONARY to "Dictionary", ServiceRole.TTS to "Voice")
+        listOf(
+            ServiceRole.TRANSLATOR to state.strings.translatorRole,
+            ServiceRole.DICTIONARY to state.strings.dictionaryRole,
+            ServiceRole.TTS to state.strings.voiceRole,
+        )
             .forEach { (type, label) ->
                 val services = state.availableServices.filter { it.type == type }
                 if (services.isNotEmpty()) enhanced.add(createServicePicker(type, label, services))
@@ -162,12 +170,12 @@ class TranslatorSelector(
     private fun createServicePicker(type: ServiceRole, label: String, services: List<ServiceInfo>): JComponent {
         val combo = JComboBox(services.toTypedArray()).apply {
             renderer = ServiceRenderer(); selectedItem = services.find { it.id == state.selectedServices[type] } ?: services.first()
-            isEnabled = !state.isLoading; toolTipText = "Select $label service"
+            isEnabled = !state.isLoading; toolTipText = state.strings.selectServiceTooltip.format(label)
             minimumSize = Dimension(0, preferredSize.height)
             addActionListener { (selectedItem as? ServiceInfo)?.let { onServiceSelected(type, it.id) } }
         }
         val gear = JButton(iconManager.getIcon(Icons.SETTINGS, 16, 16)).apply {
-            putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton"); toolTipText = "Configure selected $label service"; isFocusable = false
+            putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton"); toolTipText = state.strings.configureServiceTooltip.format(label); isFocusable = false
             addActionListener { (combo.selectedItem as? ServiceInfo)?.let { onConfigureService(it.id) } }
         }
         return JPanel(BorderLayout(4, 2)).apply {
