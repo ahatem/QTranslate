@@ -231,6 +231,35 @@ object LayoutConfigMigration {
  */
 fun Configuration.legacyLayoutConfig(): LayoutConfig = LayoutConfigMigration.fromV10(this)
 
+/**
+ * Writes [layout] into this configuration, keeping the older layout fields in step with it.
+ *
+ * The inverse of [LayoutConfigMigration.fromV10], and temporary for the same reason: until the
+ * renderers read the stored value, the window is still built from the old fields, so a page that
+ * wrote only the new one would appear to do nothing. When the old fields go away this collapses to
+ * a plain `copy(layoutConfig = layout)`.
+ *
+ * One value cannot survive the trip: [ToolbarStyle.COMPACT] means a single combined row, and the
+ * old switches can only say "no separate history row", which is also what [ToolbarStyle.MINIMAL]
+ * says. So COMPACT comes back as MINIMAL until the combined row exists. That is exactly why the
+ * renderer and this bridge have to be replaced together.
+ */
+fun Configuration.withLayoutConfig(layout: LayoutConfig): Configuration = copy(
+    layoutConfig = layout,
+    layoutPresetId = layout.paneLayout.presetId,
+    toolbarVisibility = ToolbarVisibility(
+        isHistoryBarVisible = layout.toolbarStyle == ToolbarStyle.FULL,
+        // The language row is the one row every style keeps: no style may hide the active pair.
+        isLanguageBarVisible = true,
+        isServicesPanelVisible = layout.isServiceSelectorVisible,
+        isStatusBarVisible = layout.showStatusBar,
+    ),
+    serviceSelectorStyle = when (layout.serviceSelector) {
+        ServiceSelector.PICKER -> ServiceSelectorStyle.ENHANCED
+        ServiceSelector.BOTTOM_STRIP -> ServiceSelectorStyle.CLASSIC
+    },
+)
+
 /** The arrangement to build, once comparison eligibility is taken into account. */
 fun Configuration.effectivePaneLayout(translatorIds: List<String>): PaneLayout =
     legacyLayoutConfig().effectivePaneLayout(isComparisonEligible(translatorIds))

@@ -54,6 +54,9 @@ class LayoutConfigCutoverTest {
     private fun load(payload: String): Configuration =
         ConfigMigrator.migrate(json.decodeFromString<Configuration>(payload), logger)
 
+    private fun LayoutGeometry.toConfig(): LayoutConfig =
+        LayoutConfig(paneLayout, toolbarStyle, serviceSelector ?: ServiceSelector.PICKER, showStatusBar)
+
     @Test
     fun `a released profile gains its four layout values from the ones it already had`() {
         val migrated = load(
@@ -162,5 +165,35 @@ class LayoutConfigCutoverTest {
         val migrated = load(payload())
         assertEquals(LayoutPreset.CLASSIC.config, migrated.layoutConfig)
         assertEquals(LayoutPreset.CLASSIC, migrated.layoutConfig.matchingPreset())
+    }
+
+    @Test
+    fun `writing the four values keeps the older ones describing the same window`() {
+        // The settings page writes the new values; the window is still built from the old ones for
+        // now, so the two have to agree or the page would silently do nothing.
+        LayoutGeometry.all().forEach { geometry ->
+            val written = geometry.toConfig()
+            val configuration = Configuration.DEFAULT.withLayoutConfig(written)
+            val readBack = LayoutConfigMigration.fromV10(configuration)
+
+            // COMPACT is the one value the old switches cannot say -- see withLayoutConfig.
+            val expected = if (written.toolbarStyle == ToolbarStyle.COMPACT) {
+                written.copy(toolbarStyle = ToolbarStyle.MINIMAL)
+            } else {
+                written
+            }
+            assertEquals(expected.geometry, readBack.geometry, "writing $written must survive as $expected")
+            // And what the page stored is exactly what was asked for.
+            assertEquals(written, configuration.layoutConfig)
+        }
+    }
+
+    @Test
+    fun `compact survives as itself in the value it is written to`() {
+        // What the page stores is exact; only the interim bridge to the old fields loses it.
+        val compact = LayoutConfig(PaneLayout.STACKED, ToolbarStyle.COMPACT, ServiceSelector.PICKER, true)
+        val configuration = Configuration.DEFAULT.withLayoutConfig(compact)
+        assertEquals(compact, configuration.layoutConfig)
+        assertEquals(ToolbarStyle.MINIMAL, LayoutConfigMigration.fromV10(configuration).toolbarStyle)
     }
 }
