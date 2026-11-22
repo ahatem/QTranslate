@@ -795,7 +795,10 @@ class MainContentView(
                         else dispatch(MainIntent.ListenToText(textSource = TextSource.Input))
                     }
                 ),
-            )
+            ),
+            // With every region hidden the strip holds more commands than a short pane has room
+            // for; the ones that do not fit go to this button's menu.
+            moreLabel = localizer.getString("common.more_actions"),
         )
 
         inputTextPanel.render(

@@ -131,6 +131,15 @@ class InputTextPanel(
     /** The containers that make up the action strip, for the window's route checks. */
     internal val stripContainers: List<JComponent> get() = listOf(actionsWrapper, chipRow)
 
+    /** The strip's More button, which appears only while some command does not fit. */
+    internal val moreButton: JComponent get() = actionsPanel.moreButton
+
+    /** The ids of the strip's commands that are in the More menu rather than on the strip. */
+    internal val overflowedActionIds: List<String> get() = actionsPanel.overflowedActionIds
+
+    /** The popup the More button opens, listing the commands that do not fit the strip. */
+    internal fun overflowMenu(): JPopupMenu = actionsPanel.buildOverflowMenu()
+
     fun requestFocusOnText() = textPane.requestFocusInWindow()
     fun setTranslateKeyStroke(old: javax.swing.KeyStroke?, new: javax.swing.KeyStroke?) =
         textPane.setTranslateKeyStroke(old, new)

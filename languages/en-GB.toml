@@ -38,6 +38,7 @@ new = "New..."
 rename = "Rename"
 delete = "Delete"
 search = "Search"
+more_actions = "More actions"
 
 # ===================================================================
 # MAIN APPLICATION WINDOW

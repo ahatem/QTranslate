@@ -36,10 +36,12 @@ import kotlinx.coroutines.runBlocking
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Container
+import java.awt.Rectangle
 import java.io.File
 import java.nio.file.Files
 import javax.swing.AbstractButton
 import javax.swing.JComponent
+import javax.swing.JMenuItem
 import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -228,7 +230,13 @@ class WindowRouteTest {
                     }
                 }
                 FeatureHost.InputStrip -> stripTargets(feature).forEachIndexed { index, target ->
-                    if (target == null || !visibleIn(target, view) || !inStrip(target)) {
+                    // A command the strip has no room for is a menu item under its More button,
+                    // which is just as visible a route.
+                    val inMoreMenu = target is AbstractButton && target.name in input.overflowedActionIds &&
+                        input.overflowMenu().components.any { it is JMenuItem && it.name == target.name }
+                    val shown = target != null && visibleIn(target, view) && inStrip(target)
+                    val folded = inMoreMenu && inStrip(target!!) && visibleIn(input.moreButton, view)
+                    if (!shown && !folded) {
                         problems += "$feature: control $index is not shown in the input strip"
                     }
                 }
@@ -397,4 +405,60 @@ class WindowRouteTest {
         )
         assertSame(view.statusBar.notificationAnchor, view.statusBar.notificationButton, "the popover opens from the button")
     }
+
+    private fun layoutTree(root: Container) {
+        root.doLayout()
+        root.components.forEach { if (it is Container) layoutTree(it) }
+    }
+
+    /** [component]'s bounds in the coordinates of [pane]. */
+    private fun boundsIn(pane: Component, component: Component): Rectangle =
+        SwingUtilities.convertRectangle(component.parent, component.bounds, pane)
+
+    @Test
+    fun `with every region hidden a short input pane still routes every command and clips none`() {
+        val hidden = WindowLayout(
+            history = RegionSlot.HIDDEN, languages = RegionSlot.HIDDEN, services = RegionSlot.HIDDEN,
+            showStatusBar = false,
+        )
+        listOf(false, true).forEach { rtl ->
+            PaneLayout.entries.forEach { panes ->
+                val layout = hidden.copy(panes = panes)
+                var sawOverflow = false
+                var sawFullStrip = false
+                listOf(230, 330, 460, 560, 900).forEach { windowHeight ->
+                    val view = view(localizer(rtl))
+                    render(view, eligibleState, layout)
+                    onEdt {
+                        view.setSize(900, windowHeight)
+                        layoutTree(view)
+                    }
+                    val input = find<InputTextPanel>(view)!!
+                    val context = "rtl=$rtl panes=$panes window height=$windowHeight input height=${input.height}"
+
+                    assertEquals(emptyList<String>(), routeProblems(view, layout, panes), context)
+
+                    val pane = Rectangle(0, 0, input.width, input.height)
+                    val bell = view.statusBar.notificationButton
+                    val stripControls = descendants(input).filterIsInstance<AbstractButton>()
+                        .filter { visibleIn(it, view) && inStrip(input, it) } + bell
+                    stripControls.forEach {
+                        assertTrue(pane.contains(boundsIn(input, it)), "$context: ${it.name ?: it.toolTipText} is clipped by the pane")
+                    }
+                    if (input.overflowedActionIds.isEmpty()) {
+                        sawFullStrip = true
+                        assertFalse(visibleIn(input.moreButton, view), "$context: no More button when everything fits")
+                    } else {
+                        sawOverflow = true
+                        assertTrue(visibleIn(input.moreButton, view), "$context: the More button shows the folded actions")
+                    }
+                }
+                assertTrue(sawOverflow, "rtl=$rtl panes=$panes: the smallest window forces an overflow")
+                assertTrue(sawFullStrip, "rtl=$rtl panes=$panes: the tallest window needs none")
+            }
+        }
+    }
+
+    private fun inStrip(input: InputTextPanel, component: Component): Boolean =
+        input.stripContainers.any { SwingUtilities.isDescendingFrom(component, it) }
 }
