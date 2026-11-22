@@ -252,6 +252,21 @@ private class Shots(
                 (field.get(dialog) as javax.swing.JTextArea).caretPosition = 5
             }
             write("ocr-result-$label", paintAfterLayout("ocr-result-$label", dialog.rootPane))
+            if (label == "light") {
+                val stateField = dialog.javaClass.getDeclaredField("lastOcrState").apply { isAccessible = true }
+                val render = dialog.javaClass.getDeclaredMethod("renderOcr", com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceState::class.java).apply { isAccessible = true }
+                lateinit var state: com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceState
+                onUi {
+                    state = stateField.get(dialog) as com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceState
+                    render.invoke(dialog, state.copy(
+                        providers = emptyList(), providerId = null, languages = emptyList(),
+                        recognizedText = "", regions = emptyList(),
+                        error = com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceError.NoProvider,
+                    ))
+                }
+                write("ocr-no-provider-light", paintAfterLayout("ocr-no-provider-light", dialog.rootPane))
+                onUi { render.invoke(dialog, state) }
+            }
             if (label == "dark") {
                 val stateField = dialog.javaClass.getDeclaredField("lastOcrState").apply { isAccessible = true }
                 val render = dialog.javaClass.getDeclaredMethod("renderOcr", com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceState::class.java).apply { isAccessible = true }
