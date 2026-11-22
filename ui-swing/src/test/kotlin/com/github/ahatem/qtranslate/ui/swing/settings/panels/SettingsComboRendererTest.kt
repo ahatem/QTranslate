@@ -5,15 +5,20 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.HistoryPlacement
+import com.github.ahatem.qtranslate.core.settings.data.LanguagePlacement
 import com.github.ahatem.qtranslate.core.settings.data.LayoutConfig
 import com.github.ahatem.qtranslate.core.settings.data.LayoutConfigMigration
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
+import com.github.ahatem.qtranslate.core.settings.data.ServicePlacement
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelector
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.ToolbarStyle
+import com.github.ahatem.qtranslate.core.settings.data.WorkspaceLayout
 import com.github.ahatem.qtranslate.core.settings.data.withLayoutConfig
+import com.github.ahatem.qtranslate.core.settings.data.withWorkspaceLayout
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
@@ -124,9 +129,9 @@ class SettingsComboRendererTest {
             (0 until combo.itemCount).any { combo.getItemAt(it) is PaneLayout }
         }
 
-    private fun toolbarCombo(panel: Container): JComboBox<*> =
+    private fun historyCombo(panel: Container): JComboBox<*> =
         combos(panel).single { combo ->
-            (0 until combo.itemCount).any { combo.getItemAt(it) is ToolbarStyle }
+            (0 until combo.itemCount).any { combo.getItemAt(it) is HistoryPlacement }
         }
 
     /**
@@ -243,32 +248,35 @@ class SettingsComboRendererTest {
     }
 
     /** What the page's own summary line should say for [layout], built from the same keys. */
-    private fun expectedSummary(layout: LayoutConfig): String {
-        val panes = when (layout.paneLayout) {
+    private fun expectedSummary(layout: WorkspaceLayout): String {
+        val panes = when (layout.panes) {
             PaneLayout.STACKED -> localizer.getString("settings_window.layout_panes_stacked")
             PaneLayout.SIDE_BY_SIDE -> localizer.getString("settings_window.layout_panes_side_by_side")
             PaneLayout.COMPARISON -> localizer.getString("settings_window.layout_panes_comparison")
         }
-        val toolbar = when (layout.toolbarStyle) {
-            ToolbarStyle.FULL -> localizer.getString("settings_window.layout_toolbar_full")
-            ToolbarStyle.COMPACT -> localizer.getString("settings_window.layout_toolbar_compact")
-            ToolbarStyle.MINIMAL -> localizer.getString("settings_window.layout_toolbar_minimal")
+        val history = when (layout.history) {
+            HistoryPlacement.TOP_ROW -> localizer.getString("settings_window.layout_history_top_row")
+            HistoryPlacement.BOTTOM_ROW -> localizer.getString("settings_window.layout_history_bottom_row")
+            HistoryPlacement.COMBINED -> localizer.getString("settings_window.layout_history_combined")
+            HistoryPlacement.RELOCATED -> localizer.getString("settings_window.layout_history_relocated")
         }
-        val selector = when {
-            !layout.isServiceSelectorVisible -> localizer.getString("settings_window.layout_selector_absent")
-            layout.serviceSelector == ServiceSelector.BOTTOM_STRIP ->
-                localizer.getString("settings_window.layout_selector_bottom_strip")
-            else -> localizer.getString("settings_window.layout_selector_picker")
+        val languages = when (layout.languages) {
+            LanguagePlacement.ROW -> localizer.getString("settings_window.layout_languages_row")
+            LanguagePlacement.RELOCATED -> localizer.getString("settings_window.layout_languages_relocated")
         }
-        val status = if (layout.showStatusBar) {
-            localizer.getString("settings_window.layout_status_shown")
+        val selector = if (layout.panes == PaneLayout.COMPARISON) {
+            localizer.getString("settings_window.layout_selector_absent")
         } else {
-            localizer.getString("settings_window.layout_status_hidden")
+            when (layout.services) {
+                ServicePlacement.BOTTOM_STRIP -> localizer.getString("settings_window.layout_selector_bottom_strip")
+                ServicePlacement.PICKER -> localizer.getString("settings_window.layout_selector_picker")
+                ServicePlacement.RELOCATED -> localizer.getString("settings_window.layout_services_relocated")
+            }
         }
-        return localizer.getString("settings_window.layout_summary_format", panes, toolbar, selector, status)
+        return localizer.getString("settings_window.layout_summary_format", panes, history, languages, selector)
     }
 
-    private fun summaryLine(panel: Container, layout: LayoutConfig): JLabel {
+    private fun summaryLine(panel: Container, layout: WorkspaceLayout): JLabel {
         val expected = expectedSummary(layout)
         return labels(panel).singleOrNull { it.text == expected }
             ?: error(
@@ -279,22 +287,25 @@ class SettingsComboRendererTest {
 
     @Test
     fun `the summary line names all four values in the order of the rows below`() {
-        val layout = LayoutConfig(PaneLayout.SIDE_BY_SIDE, ToolbarStyle.COMPACT, ServiceSelector.BOTTOM_STRIP, showStatusBar = false)
-        val panel = testPanel(newStore(Configuration.DEFAULT.withLayoutConfig(layout)), { emptyList() })
+        val layout = WorkspaceLayout(
+            PaneLayout.SIDE_BY_SIDE, HistoryPlacement.COMBINED, LanguagePlacement.ROW,
+            ServicePlacement.BOTTOM_STRIP,
+        )
+        val panel = testPanel(newStore(Configuration.DEFAULT.withWorkspaceLayout(layout)), { emptyList() })
 
         onEdt {
             assertEquals(
                 expectedSummary(layout),
                 summaryLine(panel, layout).text,
-                "the page opens by saying what the window is, not by making the user read four controls",
+                "the page opens by saying what the window is, not by making the user read the rows",
             )
         }
     }
 
     @Test
     fun `the summary says the selector is not shown on a comparison board`() {
-        val layout = LayoutConfig(PaneLayout.COMPARISON, ToolbarStyle.FULL, ServiceSelector.PICKER, showStatusBar = true)
-        val panel = testPanel(newStore(Configuration.DEFAULT.withLayoutConfig(layout)), { emptyList() })
+        val layout = WorkspaceLayout(PaneLayout.COMPARISON, HistoryPlacement.TOP_ROW, LanguagePlacement.ROW)
+        val panel = testPanel(newStore(Configuration.DEFAULT.withWorkspaceLayout(layout)), { emptyList() })
 
         onEdt {
             val summary = summaryLine(panel, layout).text
@@ -309,13 +320,13 @@ class SettingsComboRendererTest {
     fun `the summary is rebuilt on every render`() {
         val store = newStore()
         val panel = testPanel(store, { emptyList() })
-        val stacked = Configuration.DEFAULT.layoutConfig
-        val compared = stacked.copy(paneLayout = PaneLayout.COMPARISON)
+        val stacked = Configuration.DEFAULT.workspaceLayout
+        val compared = stacked.copy(panes = PaneLayout.COMPARISON)
         onEdt { assertEquals(expectedSummary(stacked), summaryLine(panel, stacked).text) }
 
         onEdt {
             store.dispatch(
-                SettingsIntent.TransformDraft { it.withLayoutConfig(compared) }
+                SettingsIntent.TransformDraft { it.withWorkspaceLayout(compared) }
             )
             panel.render(store.state.value)
         }
@@ -359,9 +370,9 @@ class SettingsComboRendererTest {
         onEdt { cards(panel)[1].doClick() }
 
         assertEquals(
-            ToolbarStyle.COMPACT,
-            store.state.value.workingConfiguration.layoutConfig.toolbarStyle,
-            "the Compact card writes a whole arrangement, not a label",
+            HistoryPlacement.COMBINED,
+            store.state.value.workingConfiguration.workspaceLayout.history,
+            "the Compact card writes the shared-row history placement, not a label",
         )
         assertTrue(store.state.value.isDirty)
     }
@@ -397,7 +408,7 @@ class SettingsComboRendererTest {
         val panel = testPanel(store, { emptyList() })
 
         assertEquals(PaneLayout.STACKED, onEdt { panesCombo(panel).selectedItem })
-        assertEquals(ToolbarStyle.FULL, onEdt { toolbarCombo(panel).selectedItem })
+        assertEquals(HistoryPlacement.TOP_ROW, onEdt { historyCombo(panel).selectedItem })
     }
 
     @Test

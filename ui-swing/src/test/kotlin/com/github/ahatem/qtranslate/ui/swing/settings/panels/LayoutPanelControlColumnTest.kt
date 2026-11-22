@@ -31,11 +31,10 @@ import kotlin.test.assertTrue
  * values that differed; measured here, the difference is the hierarchy rather than drift: every
  * row at a given level shares an edge, and the nested level is offset from it in both directions.
  *
- * The page's own rows are panes and toolbar; the selector's row is the only one inside a
- * sub-section, because which widget picks the service is subordinate to the arrangement above it
- * — a comparison board has no selector at all. The status bar is a checkbox rather than a
- * picker, so it is not counted here. The close and minimise buttons are pickers, but they are on
- * the General page now: the title-bar buttons are behaviour, not window shape.
+ * The page's own rows are panes, history, languages and status; the service selector and its
+ * strip labels sit inside a sub-section, because which widget picks the service is subordinate to
+ * the arrangement above it. The status bar is a checkbox rather than a picker, so it is not
+ * counted here. The close and minimise buttons are pickers, but they are on the General page now.
  */
 class LayoutPanelControlColumnTest {
 
@@ -116,14 +115,15 @@ class LayoutPanelControlColumnTest {
         val panel = builtPanel()
         val pagePickers = listOf(
             "settings_window.layout_row_panes",
-            "settings_window.layout_row_toolbar",
+            "settings_window.layout_row_history",
+            "settings_window.layout_row_languages",
         ).map { pickerOn(panel, localizer.getString(it)) }
         val selector = pickerOn(panel, localizer.getString("settings_window.layout_row_selector"))
 
         assertEquals(
-            3,
+            5,
             descendants(panel).filterIsInstance<JComboBox<*>>().size,
-            "panes, toolbar and the service selector",
+            "panes, history, languages, selector and appearance",
         )
 
         val edges = pagePickers.map { SwingUtilities.convertPoint(it, 0, 0, panel).x }
@@ -162,7 +162,8 @@ class LayoutPanelControlColumnTest {
 
         val pageRows = listOf(
             localizer.getString("settings_window.layout_row_panes"),
-            localizer.getString("settings_window.layout_row_toolbar"),
+            localizer.getString("settings_window.layout_row_history"),
+            localizer.getString("settings_window.layout_row_languages"),
         ).map(::leadingOffset)
 
         assertEquals(1, pageRows.distinct().size, "the page's own rows share a leading edge ($pageRows)")
@@ -182,7 +183,7 @@ class LayoutPanelControlColumnTest {
         // leading edge and every one of them starts at the same x whatever row it is on: the x of a
         // control says nothing about nesting in that direction. The nesting is measured on the row
         // labels in `the nesting indents from the leading edge in both directions` instead.
-        assertEquals(3, edges.size, "all three pickers are still on the page ($edges)")
+        assertEquals(5, edges.size, "all five pickers are still on the page ($edges)")
         assertEquals(1, edges.distinct().size, "controls fill from the leading edge in this direction ($edges)")
     }
 

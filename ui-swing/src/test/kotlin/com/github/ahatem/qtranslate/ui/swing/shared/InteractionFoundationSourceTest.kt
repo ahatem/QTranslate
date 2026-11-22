@@ -51,7 +51,7 @@ class InteractionFoundationSourceTest {
             "choosing an unusable comparison must route instead of writing it"
         )
         assertTrue(
-            layout.contains("if (preset == LayoutPreset.COMPARISON && !comparisonAvailable)"),
+            layout.contains("if (preset == WorkspacePreset.COMPARISON && !comparisonAvailable)"),
             "the comparison card must route too"
         )
     }

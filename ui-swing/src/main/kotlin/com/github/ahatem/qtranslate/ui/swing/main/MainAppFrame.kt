@@ -1426,19 +1426,33 @@ class MainAppFrame(
             onCheckForUpdates = { mainStore.dispatch(MainIntent.CheckForUpdates) },
             onExitApplication = { dispose() },
             onChangeLayoutPreset = { layoutId ->
+                val pane = when (layoutId) {
+                    LayoutPresetIds.SIDE_BY_SIDE -> PaneLayout.SIDE_BY_SIDE
+                    LayoutPresetIds.COMPARISON -> PaneLayout.COMPARISON
+                    else -> PaneLayout.STACKED
+                }
                 settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting { it.copy(layoutPresetId = layoutId) }
+                    SettingsIntent.ToggleSetting { it.withWorkspaceLayout(it.workspaceLayout.copy(panes = pane)) }
                 )
             },
             onOpenServicesSettings = { openSettingsDialog(openToServices = true) },
             onSelectToolbarStyle = { style ->
+                val history = when (style) {
+                    ToolbarStyle.FULL -> HistoryPlacement.TOP_ROW
+                    ToolbarStyle.COMPACT -> HistoryPlacement.COMBINED
+                    ToolbarStyle.MINIMAL -> HistoryPlacement.RELOCATED
+                }
                 settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting { it.withLayoutConfig(it.layoutConfig.copy(toolbarStyle = style)) }
+                    SettingsIntent.ToggleSetting {
+                        it.withWorkspaceLayout(it.workspaceLayout.copy(history = history))
+                    }
                 )
             },
             onToggleStatusBar = { shown ->
                 settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting { it.withLayoutConfig(it.layoutConfig.copy(showStatusBar = shown)) }
+                    SettingsIntent.ToggleSetting {
+                        it.withWorkspaceLayout(it.workspaceLayout.copy(showStatusBar = shown))
+                    }
                 )
             }
         )

@@ -38,6 +38,7 @@ import com.github.ahatem.qtranslate.core.workspace.lookup.LookupWordUseCase
 import com.github.ahatem.qtranslate.core.workspace.lookup.SearchImagesUseCase
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.effectiveLayoutPresetId
 import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
@@ -414,7 +415,7 @@ class MainStore(
                 val availableIds = services
                     .filter { it.type == ServiceRole.TRANSLATOR }
                     .map { it.id }
-                config.layoutPresetId == LayoutPresetIds.COMPARISON &&
+                config.workspaceLayout.panes == PaneLayout.COMPARISON &&
                     !config.isComparisonEligible(availableIds)
             }
                 .distinctUntilChanged()

@@ -10,7 +10,11 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.effectiveTranslatorCount
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
-import com.github.ahatem.qtranslate.core.settings.data.ToolbarStyle
+import com.github.ahatem.qtranslate.core.settings.data.HistoryPlacement
+import com.github.ahatem.qtranslate.core.settings.data.ServicePlacement
+import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
+import com.github.ahatem.qtranslate.core.settings.data.effectiveWorkspaceLayout
+import com.github.ahatem.qtranslate.core.settings.data.withWorkspaceLayout
 import com.github.ahatem.qtranslate.core.settings.data.effectiveLayoutPresetId
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
@@ -298,17 +302,18 @@ class MainContentView(
         // Effective arrangement: a requested Comparison without two usable
         // translators deterministically shows Classic. The saved preference is
         // never rewritten, so eligibility restores Comparison naturally.
-        val effectiveLayoutId = config.effectiveLayoutPresetId(mainState.availableTranslatorIds)
-        // COMPACT is the one toolbar style whose history controls do not get a row of their own:
-        // they share the language row, so the window has to know that before it arranges.
-        val historyInline = config.layoutConfig.toolbarStyle == ToolbarStyle.COMPACT
+        val workspace = config.effectiveWorkspaceLayout(mainState.availableTranslatorIds)
+        val effectiveLayoutId = workspace.panes.presetId
+        // Only COMBINED folds the history controls into the language row; every other placement
+        // gives them a row of their own (or relocates them into the input pane).
+        val historyInline = workspace.history == HistoryPlacement.COMBINED
 
         // Told outright rather than left to the orientation cascade, which reaches the host at a
         // point in startup that depends on when this view was added to the window.
         val direction = if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT else ComponentOrientation.LEFT_TO_RIGHT
         if (dockHost.componentOrientation != direction) dockHost.componentOrientation = direction
 
-        if (lastState == null || lastState?.second?.workingConfiguration?.layoutConfig != config.layoutConfig || lastEffectiveLayoutId != effectiveLayoutId) {
+        if (lastState == null || lastState?.second?.workingConfiguration?.workspaceLayout != config.workspaceLayout || lastEffectiveLayoutId != effectiveLayoutId) {
             layoutManager.switchLayout(effectiveLayoutId, localizer.isRtl, historyInline)
             currentLayoutId = effectiveLayoutId
             lastEffectiveLayoutId = effectiveLayoutId
@@ -319,7 +324,7 @@ class MainContentView(
         translationHistoryBar.setStatusVisible(effectiveLayoutId != LayoutPresetIds.COMPARISON && !historyInline)
 
         if (lastState == null ||
-            lastState?.second?.workingConfiguration?.layoutConfig != config.layoutConfig ||
+            lastState?.second?.workingConfiguration?.workspaceLayout != config.workspaceLayout ||
             lastState?.second?.workingConfiguration?.extraOutputType != config.extraOutputType
         ) {
             layoutManager.updateVisibility(config)
@@ -628,8 +633,11 @@ class MainContentView(
                 strings = localizer.serviceSelectorStrings(),
                 availableServices = mainState.availableServices,
                 selectedServices = activePreset?.selectedServices.orEmpty(),
-                style = config.serviceSelectorStyle,
-                appearance = config.serviceSelectorAppearance
+                style = when (config.workspaceLayout.services) {
+                    ServicePlacement.BOTTOM_STRIP -> ServiceSelectorStyle.CLASSIC
+                    else -> ServiceSelectorStyle.ENHANCED
+                },
+                appearance = config.workspaceLayout.appearance
             )
         )
 
@@ -660,8 +668,46 @@ class MainContentView(
         val listenStopTooltip = if (isTtsPlaying)
             localizer.getString("common.stop") else localizer.getString("main_window_editor_context_menu.listen")
         val listenStopIcon = if (isTtsPlaying) Icons.CLOSE else Icons.SPEAK
+        // When history has no row, its commands are mounted here so none of them disappears with
+        // the row. The View menu remains a second route to the same actions.
+        val relocatedHistory = config.workspaceLayout.history == HistoryPlacement.RELOCATED
+        val relocatedActions = if (relocatedHistory) listOf(
+            Action(
+                id = "history_back",
+                iconPath = Icons.NAV_BACK,
+                tooltip = localizer.getString("main_window_history_bar.backward_tooltip"),
+                isEnabled = mainState.canUndo,
+                isVisible = true,
+                onClick = { dispatch(MainIntent.UndoTranslation) }
+            ),
+            Action(
+                id = "history_forward",
+                iconPath = Icons.NAV_FORWARD,
+                tooltip = localizer.getString("main_window_history_bar.forward_tooltip"),
+                isEnabled = mainState.canRedo,
+                isVisible = true,
+                onClick = { dispatch(MainIntent.RedoTranslation) }
+            ),
+            Action(
+                id = "input_image_translate",
+                iconPath = Icons.OCR,
+                tooltip = localizer.getString("main_window_history_bar.image_translate_tooltip"),
+                isEnabled = true,
+                isVisible = true,
+                onClick = { onOpenSnippingTool(OcrWorkflowCommand.SHOW_ACTIONS) }
+            ),
+            Action(
+                id = "input_document_translate",
+                iconPath = Icons.DOCUMENT,
+                tooltip = localizer.getString("main_window_history_bar.document_translate_tooltip"),
+                isEnabled = true,
+                isVisible = true,
+                onClick = { onOpenDocumentTranslation(null) }
+            ),
+        ) else emptyList()
+
         val inputActionsState = TextActionsState(
-            actions = listOf(
+            actions = relocatedActions + listOf(
                 Action(
                     id = "copy_input",
                     iconPath = Icons.COPY,
