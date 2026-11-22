@@ -30,23 +30,27 @@ class LayoutManager(
 
     private var currentIsRtl: Boolean = false
     private var currentHistoryInline: Boolean = false
+    private var currentHistoryAtBottom: Boolean = false
 
     fun switchLayout(
         layoutId: String,
         isRtl: Boolean = currentIsRtl,
-        historyInline: Boolean = currentHistoryInline
+        historyInline: Boolean = currentHistoryInline,
+        historyAtBottom: Boolean = currentHistoryAtBottom,
     ) {
         val rtlChanged = isRtl != currentIsRtl
         val inlineChanged = historyInline != currentHistoryInline
-        if (layoutId == currentLayoutId && !rtlChanged && !inlineChanged) return
+        val bottomChanged = historyAtBottom != currentHistoryAtBottom
+        if (layoutId == currentLayoutId && !rtlChanged && !inlineChanged && !bottomChanged) return
         currentIsRtl = isRtl
         currentHistoryInline = historyInline
+        currentHistoryAtBottom = historyAtBottom
         SwingUtilities.invokeLater {
             detachAll()
             container.removeAll()
 
             val strategy = getLayoutById(layoutId)
-            val arranged = strategy.arrange(components, isRtl, historyInline)
+            val arranged = strategy.arrange(components, isRtl, historyInline, historyAtBottom)
             container.add(arranged.rootComponent, BorderLayout.CENTER)
             currentLayout = arranged
             currentLayoutId = layoutId

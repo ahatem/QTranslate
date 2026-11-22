@@ -111,8 +111,15 @@ object LayoutBuilders {
         }
     }
 
-    fun createBottomBar(translatorSelector: JComponent, statusBar: JComponent): JComponent {
+    fun createBottomBar(
+        translatorSelector: JComponent,
+        statusBar: JComponent,
+        historyBar: JComponent? = null,
+    ): JComponent {
         return JPanel(BorderLayout(0, UIScale.scale(4))).apply {
+            // A bottom history row sits above the selector row so the classic crumb stays directly
+            // above the language controls, mirroring the top-row arrangement.
+            historyBar?.let { add(createSimpleTopBar(it), BorderLayout.NORTH) }
             val selectorRow = JPanel(BorderLayout()).apply {
                 border = BorderFactory.createEmptyBorder(
                     UIScale.scale(2), UISpacing.PADDING,
@@ -120,7 +127,7 @@ object LayoutBuilders {
                 )
                 add(translatorSelector, BorderLayout.CENTER)
             }
-            add(selectorRow, BorderLayout.NORTH)
+            add(selectorRow, if (historyBar != null) BorderLayout.CENTER else BorderLayout.NORTH)
             add(statusBar, BorderLayout.SOUTH)
         }
     }
@@ -175,10 +182,14 @@ object ClassicLayout : LayoutStrategy {
     override fun arrange(
         components: ComponentRegistry,
         isRtl: Boolean,
-        historyInline: Boolean
+        historyInline: Boolean,
+        historyAtBottom: Boolean,
     ): ArrangedLayout {
-        val topBar = if (historyInline) null else LayoutBuilders.createSimpleTopBar(components.historyBar)
-        val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
+        val topBar = if (historyInline || historyAtBottom) null else LayoutBuilders.createSimpleTopBar(components.historyBar)
+        val bottomBar = LayoutBuilders.createBottomBar(
+            components.translatorSelector, components.statusBar,
+            historyBar = components.historyBar.takeIf { historyAtBottom },
+        )
 
         val outputSection = JPanel(BorderLayout()).apply {
             add(
@@ -228,14 +239,20 @@ object SideBySideLayout : LayoutStrategy {
     override fun arrange(
         components: ComponentRegistry,
         isRtl: Boolean,
-        historyInline: Boolean
+        historyInline: Boolean,
+        historyAtBottom: Boolean,
     ): ArrangedLayout {
         val topBar = if (historyInline) {
             LayoutBuilders.combinedLanguageRow(components.languageBar, components.historyBar)
+        } else if (historyAtBottom) {
+            LayoutBuilders.wrapLanguageBar(components.languageBar)
         } else {
             LayoutBuilders.createStackedTopBar(components.historyBar, components.languageBar)
         }
-        val bottomBar = LayoutBuilders.createBottomBar(components.translatorSelector, components.statusBar)
+        val bottomBar = LayoutBuilders.createBottomBar(
+            components.translatorSelector, components.statusBar,
+            historyBar = components.historyBar.takeIf { historyAtBottom },
+        )
 
         val mainSplit = ResponsivePairSplit(
             leading = components.inputPanel,
@@ -277,18 +294,27 @@ object ComparisonLayout : LayoutStrategy {
     override fun arrange(
         components: ComponentRegistry,
         isRtl: Boolean,
-        historyInline: Boolean
+        historyInline: Boolean,
+        historyAtBottom: Boolean,
     ): ArrangedLayout {
         // Inline, the one row is the whole top chrome here too: the language selectors and the
         // history controls share it, above the board.
-        val topBar = if (historyInline) {
-            LayoutBuilders.combinedLanguageRow(components.languageBar, components.historyBar)
-        } else {
-            LayoutBuilders.createSimpleTopBar(components.historyBar)
+        val topBar = when {
+            historyInline -> LayoutBuilders.combinedLanguageRow(components.languageBar, components.historyBar)
+            historyAtBottom -> null
+            else -> LayoutBuilders.createSimpleTopBar(components.historyBar)
         }
         // Comparison owns primary-service switching in the primary result header. The footer is
-        // intentionally only the status bar so provider identity and results remain the focus.
-        val bottomBar = components.statusBar
+        // the status bar, with the history row added above it when history is placed at the bottom.
+        val bottomBar = if (historyAtBottom) {
+            LayoutBuilders.createBottomBar(
+                JPanel().apply { isOpaque = false },
+                components.statusBar,
+                historyBar = components.historyBar,
+            )
+        } else {
+            components.statusBar
+        }
 
         // One logical results viewport: the board owns the primary provider and every
         // comparison below it, so results never split into disconnected scroll regions.
@@ -331,7 +357,7 @@ object ComparisonLayout : LayoutStrategy {
                 UISpacing.V_GAP,
                 UISpacing.PADDING
             )
-            add(topBar, BorderLayout.NORTH)
+            topBar?.let { add(it, BorderLayout.NORTH) }
             add(extraSplit, BorderLayout.CENTER)
         }
         val root = JPanel(BorderLayout()).apply {

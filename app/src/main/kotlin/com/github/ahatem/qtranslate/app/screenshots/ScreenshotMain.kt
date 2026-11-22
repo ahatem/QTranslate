@@ -13,11 +13,15 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.HistoryPlacement
+import com.github.ahatem.qtranslate.core.settings.data.LanguagePlacement
 import com.github.ahatem.qtranslate.core.settings.data.LayoutConfig
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPreset
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.ServicePlacement
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelector
 import com.github.ahatem.qtranslate.core.settings.data.ToolbarStyle
+import com.github.ahatem.qtranslate.core.settings.data.WorkspaceLayout
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.Size
@@ -128,6 +132,8 @@ fun main(args: Array<String>): Unit = runBlocking {
             selectorDensityAudit()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "compact-toolbar") {
             compactToolbar()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "region-layouts") {
+            regionLayouts()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "layout-geometries") {
             layoutGeometries()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-matrix") {
@@ -443,6 +449,29 @@ private class Shots(
             start(Scenes.arabic(config, Scenes.DARK))
             translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
             capture("$name-rtl-dark")
+        }
+    }
+
+    /**
+     * The placements the old four-value model could not express, paired EN light / AR dark:
+     * a bottom history row, history relocated into the input pane, and a relocated language row
+     * and service selector. One structural shot per new choice, not a cartesian sweep.
+     */
+    suspend fun regionLayouts() {
+        val regions = listOf(
+            "history-bottom" to WorkspaceLayout(history = HistoryPlacement.BOTTOM_ROW),
+            "history-relocated" to WorkspaceLayout(history = HistoryPlacement.RELOCATED),
+            "languages-relocated" to WorkspaceLayout(languages = LanguagePlacement.RELOCATED),
+            "services-relocated" to WorkspaceLayout(services = ServicePlacement.RELOCATED),
+        )
+        regions.forEach { (name, layout) ->
+            start(Scenes.region(layout, Scenes.LIGHT))
+            translate(LanguageCode("fr"), Scenes.LIBRARY)
+            capture("region-$name-light")
+
+            start(Scenes.region(layout, Scenes.DARK, rtl = true))
+            translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
+            capture("region-$name-rtl-dark")
         }
     }
 

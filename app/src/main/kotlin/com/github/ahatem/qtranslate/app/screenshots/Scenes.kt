@@ -10,7 +10,9 @@ import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.SelectionBehavior
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelector
 import com.github.ahatem.qtranslate.core.settings.data.ToolbarStyle
+import com.github.ahatem.qtranslate.core.settings.data.WorkspaceLayout
 import com.github.ahatem.qtranslate.core.settings.data.withLayoutConfig
+import com.github.ahatem.qtranslate.core.settings.data.withWorkspaceLayout
 
 /**
  * The gallery of scenes, in the order they are captured.
@@ -223,4 +225,12 @@ internal object Scenes {
         interfaceLanguage = "ar-SA",
         mainWindowSize = windowSize(size)
     ).withLayoutConfig(layout)
+
+    /** A region layout that the old four-value model could not express. */
+    fun region(layout: WorkspaceLayout, theme: String = LIGHT, rtl: Boolean = false): Configuration =
+        BASE.copy(
+            themeId = theme,
+            interfaceLanguage = if (rtl) "ar-SA" else "en-GB",
+            mainWindowSize = windowSize(WINDOW),
+        ).withWorkspaceLayout(layout)
 }

@@ -307,6 +307,7 @@ class MainContentView(
         // Only COMBINED folds the history controls into the language row; every other placement
         // gives them a row of their own (or relocates them into the input pane).
         val historyInline = workspace.history == HistoryPlacement.COMBINED
+        val historyAtBottom = workspace.history == HistoryPlacement.BOTTOM_ROW
 
         // Told outright rather than left to the orientation cascade, which reaches the host at a
         // point in startup that depends on when this view was added to the window.
@@ -314,7 +315,7 @@ class MainContentView(
         if (dockHost.componentOrientation != direction) dockHost.componentOrientation = direction
 
         if (lastState == null || lastState?.second?.workingConfiguration?.workspaceLayout != config.workspaceLayout || lastEffectiveLayoutId != effectiveLayoutId) {
-            layoutManager.switchLayout(effectiveLayoutId, localizer.isRtl, historyInline)
+            layoutManager.switchLayout(effectiveLayoutId, localizer.isRtl, historyInline, historyAtBottom)
             currentLayoutId = effectiveLayoutId
             lastEffectiveLayoutId = effectiveLayoutId
         }

@@ -16,6 +16,7 @@ interface LayoutStrategy {
     fun arrange(
         components: ComponentRegistry,
         isRtl: Boolean = false,
-        historyInline: Boolean = false
+        historyInline: Boolean = false,
+        historyAtBottom: Boolean = false,
     ): ArrangedLayout
 }
