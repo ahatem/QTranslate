@@ -17,6 +17,16 @@ import javax.swing.event.PopupMenuListener
 import javax.swing.plaf.basic.BasicComboPopup
 
 /**
+ * The short label for a language where there is no room for its name: its code, in capitals.
+ *
+ * With Auto resolved, that is the detected language rather than the word "auto", which is the more
+ * useful of the two in a few characters. Shared by the compact combo box and the language pair chip
+ * so the two never describe the same language differently.
+ */
+fun LanguageCode.compactLabel(detected: LanguageCode?): String =
+    (if (this == LanguageCode.AUTO) detected ?: this else this).tag.uppercase()
+
+/**
  * @param compact shows only the language code on the closed control, with full names still in the
  *   list. For places with no room for "Chinese (Simplified)" on screen at all — the quick
  *   translate popup, which can be narrower than one such name. The same shape as the translator
@@ -173,11 +183,8 @@ class LanguageComboBox(
                     }
 
                 if (compact && isClosedControl) {
-                    // The code of whatever is actually in use. With Auto resolved, that is the
-                    // detected language rather than the word "auto", which is the more useful of
-                    // the two in four characters.
-                    val effective = if (value == LanguageCode.AUTO) autoDetectedLanguage ?: value else value
-                    text = effective.tag.uppercase()
+                    // The code of whatever is actually in use.
+                    text = value.compactLabel(autoDetectedLanguage)
                     // The name the code stands for, since the code alone is not always obvious.
                     toolTipText = fullName
                     componentOrientation = ComponentOrientation.LEFT_TO_RIGHT

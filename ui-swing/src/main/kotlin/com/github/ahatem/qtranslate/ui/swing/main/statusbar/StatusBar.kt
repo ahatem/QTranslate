@@ -38,18 +38,39 @@ class StatusBar(
         isOpaque = false
     }
 
-    private val notificationButton = createToolbarButton(iconManager, Icons.NOTIFICATION, 14) {
+    private val notificationButtonControl = createToolbarButton(iconManager, Icons.NOTIFICATION, 14) {
         onNotificationsClicked()
     }
 
-    init {
-        val contentPanel = JPanel(BorderLayout(4, 0)).apply {
-            border = BorderFactory.createEmptyBorder(4, 8, 4, 8)
-            isOpaque = false
-            add(chip, BorderLayout.CENTER)
-            add(notificationButton, BorderLayout.LINE_END)
-        }
+    private val contentPanel = JPanel(BorderLayout(4, 0)).apply {
+        border = BorderFactory.createEmptyBorder(4, 8, 4, 8)
+        isOpaque = false
+        add(chip, BorderLayout.CENTER)
+        add(notificationButtonControl, BorderLayout.LINE_END)
+    }
 
+    /**
+     * The notification button, the only one there is. When this bar is not drawn, another host
+     * (the history row, the input strip) adds it to itself, which takes it out of the bar: Swing
+     * keeps a component under one parent. It is still rendered from [StatusBarState] by [render],
+     * so the badge tooltip and enabled state have one source wherever it sits. Pressing it calls
+     * the same handler, and that handler should anchor its popover to the button
+     * (see [notificationAnchor]), not to this bar, which may have no screen to show on.
+     */
+    val notificationButton: JComponent get() = notificationButtonControl
+
+    /** Where the notification popover should open from: the button, wherever it is mounted. */
+    val notificationAnchor: Component get() = notificationButtonControl
+
+    /** Puts the button back in this bar after another host borrowed it. */
+    fun restoreNotificationButton() {
+        if (notificationButtonControl.parent === contentPanel) return
+        contentPanel.add(notificationButtonControl, BorderLayout.LINE_END)
+        contentPanel.revalidate()
+        contentPanel.repaint()
+    }
+
+    init {
         add(contentPanel, BorderLayout.CENTER)
         add(progressBar, BorderLayout.SOUTH)
 
@@ -64,8 +85,8 @@ class StatusBar(
         updateBorder()
         chip.update(state.message, state.type)
         progressBar.isVisible = state.isLoading
-        notificationButton.toolTipText = state.notificationTooltip
-        notificationButton.isEnabled = state.isNotificationButtonEnabled
+        notificationButtonControl.toolTipText = state.notificationTooltip
+        notificationButtonControl.isEnabled = state.isNotificationButtonEnabled
     }
 
     override fun updateUI() {

@@ -39,7 +39,11 @@ data class TranslatorSelectorStrings(
     /** `%1$s` is the role's name. */
     val selectServiceTooltip: String,
     /** `%1$s` is the role's name. */
-    val configureServiceTooltip: String
+    val configureServiceTooltip: String,
+    /** Names what the provider chip does, for the hover tooltip. */
+    val providerChipTooltip: String = "Translation service",
+    /** What the provider chip says when no translator is selected. */
+    val noTranslator: String = "No Translator"
 ) {
     companion object {
         val DEFAULT = TranslatorSelectorStrings(
@@ -50,7 +54,9 @@ data class TranslatorSelectorStrings(
             dictionaryRole = "Dictionary",
             voiceRole = "Voice",
             selectServiceTooltip = "Select %1\$s service",
-            configureServiceTooltip = "Configure selected %1\$s service"
+            configureServiceTooltip = "Configure selected %1\$s service",
+            providerChipTooltip = "Translation service",
+            noTranslator = "No Translator"
         )
     }
 }
@@ -69,5 +75,7 @@ fun LocalizationManager.serviceSelectorStrings() = TranslatorSelectorStrings(
     dictionaryRole = getString("main_window_service_selector.role_dictionary"),
     voiceRole = getString("main_window_service_selector.role_voice"),
     selectServiceTooltip = getString("main_window_service_selector.select_service_tooltip"),
-    configureServiceTooltip = getString("main_window_service_selector.configure_service_tooltip")
+    configureServiceTooltip = getString("main_window_service_selector.configure_service_tooltip"),
+    providerChipTooltip = getString("main_window_service_selector.provider_chip_tooltip"),
+    noTranslator = getString("main_window.no_translator")
 )

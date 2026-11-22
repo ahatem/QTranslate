@@ -69,6 +69,9 @@ clear_tooltip = "Clear input text"
 swap_languages_tooltip = "Swap translation direction"
 translate_button = "Translate"
 cancel_button = "Cancel"
+pair_chip_tooltip = "Languages: %1$s"
+pair_source_label = "From"
+pair_target_label = "To"
 
 [main_window_editor_context_menu]
 spelling_suggestions = "Spelling Suggestions"
@@ -154,6 +157,7 @@ role_dictionary = "Dictionary"
 role_voice = "Voice"
 select_service_tooltip = "Select %1$s service"
 configure_service_tooltip = "Configure selected %1$s service"
+provider_chip_tooltip = "Translation service"
 
 # ===================================================================
 # SYSTEM TRAY MENU

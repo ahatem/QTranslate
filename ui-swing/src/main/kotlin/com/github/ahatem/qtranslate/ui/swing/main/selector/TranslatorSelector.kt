@@ -21,7 +21,7 @@ class TranslatorSelector(
     private val onServiceSelected: (ServiceRole, String) -> Unit,
     private val onConfigureService: (String) -> Unit = {}
 ) : JPanel(CardLayout()), Renderable<TranslatorSelectorState> {
-    private companion object { const val CLASSIC = "classic"; const val ENHANCED = "enhanced"; const val ICON_SIZE = 16 }
+    private companion object { const val CLASSIC = "classic"; const val ENHANCED = "enhanced" }
 
     private var state = TranslatorSelectorState(emptyList(), null, false)
     private var activeServiceId: String? = null
@@ -169,7 +169,7 @@ class TranslatorSelector(
 
     private fun createServicePicker(type: ServiceRole, label: String, services: List<ServiceInfo>): JComponent {
         val combo = JComboBox(services.toTypedArray()).apply {
-            renderer = ServiceRenderer(); selectedItem = services.find { it.id == state.selectedServices[type] } ?: services.first()
+            renderer = ServiceListCellRenderer(iconManager); selectedItem = services.find { it.id == state.selectedServices[type] } ?: services.first()
             isEnabled = !state.isLoading; toolTipText = state.strings.selectServiceTooltip.format(label)
             minimumSize = Dimension(0, preferredSize.height)
             addActionListener { (selectedItem as? ServiceInfo)?.let { onServiceSelected(type, it.id) } }
@@ -209,7 +209,7 @@ class TranslatorSelector(
         return menu
     }
 
-    private fun loadIcon(service: ServiceInfo): Icon? = service.iconPath?.let { iconManager.getIcon(service.id, it, ICON_SIZE, ICON_SIZE) }
+    private fun loadIcon(service: ServiceInfo): Icon? = iconManager.serviceIcon(service)
 
     private fun compactButtonMargin() = Insets(
         UIScale.scale(2), UIScale.scale(4), UIScale.scale(2), UIScale.scale(4)
@@ -252,12 +252,5 @@ class TranslatorSelector(
                 }
             }
         }
-    }
-
-    private inner class ServiceRenderer : DefaultListCellRenderer() {
-        override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component =
-            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus).apply {
-                val service = value as? ServiceInfo; text = service?.name.orEmpty(); icon = service?.let(::loadIcon)
-            }
     }
 }

@@ -61,7 +61,7 @@ class LanguageSelectionBar(
         clearButton.isEnabled = !state.isLoading && state.canClear
         clearButton.toolTipText = state.strings.clearTooltip
 
-        swapButton.isEnabled = !state.isLoading && state.canSwap
+        swapButton.isEnabled = state.isSwapActionable
         swapButton.toolTipText = state.strings.swapTooltip
 
         // While loading: morph the Translate button into a Cancel button.
@@ -69,7 +69,7 @@ class LanguageSelectionBar(
         isInCancelMode = state.isLoading
         // Disabled on a guaranteed no-op (blank input); while loading this is Cancel, which must
         // stay actionable so a running translation can always be stopped.
-        translateButton.isEnabled = state.isLoading || state.canTranslate
+        translateButton.isEnabled = state.isTranslateActionable
         if (state.isLoading) {
             translateButton.text = state.strings.cancelButtonText
             translateButton.toolTipText = state.strings.cancelButtonText
@@ -78,18 +78,7 @@ class LanguageSelectionBar(
             translateButton.toolTipText = state.strings.translateButtonText
         }
 
-        sourceLanguageComboBox.render(
-            availableLanguages = state.allSourceLanguages,
-            selectedLanguage = state.selectedSourceLanguage,
-            autoDetectedLanguage = state.detectedSourceLanguage,
-            isEnabled = !state.isLoading
-        )
-
-        targetLanguageComboBox.render(
-            availableLanguages = state.allTargetLanguages,
-            selectedLanguage = state.selectedTargetLanguage,
-            autoDetectedLanguage = null,
-            isEnabled = !state.isLoading
-        )
+        sourceLanguageComboBox.renderSource(state)
+        targetLanguageComboBox.renderTarget(state)
     }
 }
