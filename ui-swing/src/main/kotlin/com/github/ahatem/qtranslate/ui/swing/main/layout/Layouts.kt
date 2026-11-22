@@ -71,9 +71,17 @@ sealed interface LayoutComponentRefs {
     }
 }
 
+/**
+ * One chrome row as built: the regions it holds (several when they share it) and the container
+ * that holds them. The window attaches the row's context menu to [container].
+ */
+data class RegionRow(val regions: List<WindowRegion>, val container: JComponent)
+
 data class ArrangedLayout(
     val rootComponent: JComponent,
-    val componentRefs: LayoutComponentRefs
+    val componentRefs: LayoutComponentRefs,
+    /** The chrome rows that were built, top to bottom within each slot. */
+    val rows: List<RegionRow> = emptyList(),
 )
 
 /** The pane arrangements the View menu offers, with the words it names them by. */
@@ -246,10 +254,11 @@ object SlotLayout {
         components.translatorSelector.isVisible = WindowRegion.SERVICES in placed
         components.statusBar.isVisible = layout.showStatusBar
 
-        val top = slot(plan, layout, effectivePanes, RegionSlot.TOP, components)
-        val aboveResults = slot(plan, layout, effectivePanes, RegionSlot.ABOVE_RESULTS, components)
+        val rows = mutableListOf<RegionRow>()
+        val top = slot(plan, layout, effectivePanes, RegionSlot.TOP, components, rows)
+        val aboveResults = slot(plan, layout, effectivePanes, RegionSlot.ABOVE_RESULTS, components, rows)
         // The footer sits outside the padded content, so its rows bring the window's side padding.
-        val bottom = slot(plan, layout, effectivePanes, RegionSlot.BOTTOM, components, horizontalInset = UISpacing.PADDING)
+        val bottom = slot(plan, layout, effectivePanes, RegionSlot.BOTTOM, components, rows, horizontalInset = UISpacing.PADDING)
 
         val (panes, refs) = when (effectivePanes) {
             PaneLayout.STACKED -> stacked(components, aboveResults)
@@ -272,7 +281,7 @@ object SlotLayout {
             add(LayoutBuilders.createBottomBar(bottom, components.statusBar), BorderLayout.SOUTH)
         }
         refs.syncExtraOutputState(components.extraOutputPanel)
-        return ArrangedLayout(root, refs)
+        return ArrangedLayout(root, refs, rows)
     }
 
     private fun slot(
@@ -281,6 +290,7 @@ object SlotLayout {
         effectivePanes: PaneLayout,
         slot: RegionSlot,
         components: ComponentRegistry,
+        rowsOut: MutableList<RegionRow>,
         horizontalInset: Int = 0,
     ): JComponent? {
         // The notification button goes to the end of whichever row holds history.
@@ -289,7 +299,7 @@ object SlotLayout {
         }
         val rows = plan[slot].orEmpty().map { row ->
             val trailing = bell.takeIf { WindowRegion.HISTORY in row }
-            if (row.size == 1) {
+            val built = if (row.size == 1) {
                 when (row.single()) {
                     WindowRegion.HISTORY -> LayoutBuilders.historyRow(components.historyBar, trailing)
                     WindowRegion.LANGUAGES -> LayoutBuilders.wrapLanguageBar(components.languageBar)
@@ -298,6 +308,8 @@ object SlotLayout {
             } else {
                 LayoutBuilders.sharedRow(row.map { it to components.componentOf(it) }, trailing)
             }
+            rowsOut += RegionRow(row, built)
+            built
         }
         return LayoutBuilders.slotColumn(rows, horizontalInset)
     }

@@ -61,7 +61,10 @@ languages sharing the top row with the services on a row of their own beneath
 (`services-top-own-row`), side by side with the languages above the results
 (`side-by-side-languages-above-results`), Comparison with history at the bottom, scrolled to the
 top of the board (`comparison-history-bottom`) and an icon-only service strip (`icon-strip`).
-Thirteen layouts, 26 files. It is the scene to run after touching anything about how the window arranges itself.
+Thirteen layouts, 26 files. The scene ends with the history row's own context menu, which is how the
+window is arranged from the window itself, open over a stacked window in English light
+(`slots-region-menu-history-light`) and Arabic dark (`slots-region-menu-history-rtl-dark`): 28 files
+in all. It is the scene to run after touching anything about how the window arranges itself.
 Use `QTRANSLATE_SCREENSHOT_PLATE_LABEL=none` to composite without the plate caption, for consumers
 that label the shots themselves — the website does.
 

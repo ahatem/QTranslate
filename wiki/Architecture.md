@@ -210,6 +210,19 @@ services) in a slot: `TOP`, `ABOVE_RESULTS`, `BOTTOM` or `HIDDEN`.
   plan; `LayoutManager` rebuilds only when the arrangement changes.
 - A requested Comparison without two usable translators renders Stacked. The stored preference is
   not rewritten, so the board returns once it is eligible again.
+- The window is arranged from the window itself. `RegionMenu` (`ui-swing/main/menus`) builds the
+  menu for one region (where it goes, whether it shares a row, the service selector's widget and
+  strip style, density, and Save layout as profile) and hands each choice to its host as one whole
+  `WindowLayout`. Rules that forbid a choice come from `WindowLayout` as a `LayoutDisabledReason`;
+  `LayoutTexts` (`ui-swing/shared/layout`) turns them into words for every host, so the Settings page
+  and the menus never name a value two ways, and a disabled item carries its reason as a tooltip and
+  as a visible line. Two hosts exist so far: `RegionRowMenus` puts a popup on each chrome row
+  (`ArrangedLayout.rows`) that every control inside inherits unless it has a context menu of its
+  own, so the text panes keep theirs; and the Options menu lists a submenu per region, the status
+  bar, and the saved layouts as radio items (checked when the window equals the layout exactly),
+  with Manage layouts opening Settings. Both apply at once through the scoped save the View menu
+  toggles use. `LayoutProfiles.kt` in `core/settings/data` holds the pure rules for saving a layout
+  under a name (trim, replace in place, the cap of `LayoutProfile.MAX_PROFILES`).
 
 Configuration version 13 introduced the value. Files from versions 10 to 12 are mapped once from
 their stored v10 fields by `WindowLayoutMigration.fromV10`; those fields stay in the file, frozen

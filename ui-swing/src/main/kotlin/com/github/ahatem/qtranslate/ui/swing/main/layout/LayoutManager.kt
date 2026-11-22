@@ -15,7 +15,9 @@ import javax.swing.SwingUtilities
  */
 class LayoutManager(
     private val components: ComponentRegistry,
-    private val container: JPanel
+    private val container: JPanel,
+    /** Called after every build with the arrangement just mounted, so a host can decorate its rows. */
+    private val onArranged: (ArrangedLayout) -> Unit = {},
 ) {
     private var currentLayout: ArrangedLayout? = null
     private var currentKey: Key? = null
@@ -62,6 +64,7 @@ class LayoutManager(
             container.add(arranged.rootComponent, BorderLayout.CENTER)
             currentLayout = arranged
             arranged.componentRefs.syncExtraOutputState(components.extraOutputPanel)
+            onArranged(arranged)
             container.revalidate()
             container.repaint()
         }

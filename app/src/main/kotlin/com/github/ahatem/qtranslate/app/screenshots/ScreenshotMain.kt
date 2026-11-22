@@ -26,7 +26,9 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.ui.swing.main.MainAppFrame
 import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchPanel
 import com.github.ahatem.qtranslate.ui.swing.document.DocumentTranslationDialog
+import com.github.ahatem.qtranslate.ui.swing.main.history.TranslationHistoryBar
 import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
+import com.github.ahatem.qtranslate.ui.swing.main.layout.RegionRowMenus
 import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoard
 import com.github.ahatem.qtranslate.ui.swing.settings.SettingsDialog
 import kotlinx.coroutines.delay
@@ -54,6 +56,7 @@ import javax.swing.JSplitPane
 import javax.swing.JScrollPane
 import javax.swing.JLabel
 import javax.swing.JPanel
+import javax.swing.JPopupMenu
 import javax.swing.JTree
 import javax.swing.RootPaneContainer
 import javax.swing.SwingUtilities
@@ -460,6 +463,59 @@ private class Shots(
             if (layout.panes == PaneLayout.COMPARISON) scrollComparisonToTop()
             capture("slots-$name-rtl-dark")
         }
+
+        // The window arranges itself: the history row's own context menu, open over the window.
+        start(Scenes.slots(WindowLayout.DEFAULT, Scenes.LIGHT, rtl = false))
+        translate(LanguageCode("fr"), Scenes.LIBRARY)
+        captureWithPopup("slots-region-menu-history-light", openHistoryRowMenu())
+        closeHistoryRowMenu()
+
+        start(Scenes.slots(WindowLayout.DEFAULT, Scenes.DARK, rtl = true))
+        translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
+        captureWithPopup("slots-region-menu-history-rtl-dark", openHistoryRowMenu())
+        closeHistoryRowMenu()
+    }
+
+    private suspend fun closeHistoryRowMenu() {
+        onUi { find<TranslationHistoryBar>(requireFrame().rootPane)?.componentPopupMenu?.isVisible = false }
+    }
+
+    /**
+     * Opens the context menu of the history row, as a right-click on it would. The menu is a
+     * lightweight popup inside the window, so the window's own paint includes it.
+     */
+    private suspend fun openHistoryRowMenu(): JPopupMenu {
+        lateinit var opened: JPopupMenu
+        onUi {
+            val bar = requireNotNull(find<TranslationHistoryBar>(requireFrame().rootPane)) { "no history bar" }
+            val popup = requireNotNull(bar.componentPopupMenu as? RegionRowMenus.RowPopup) { "the history row has no menu" }
+            // Sized first so a right-to-left window can place the menu against its leading edge.
+            popup.refresh()
+            val margin = UIScale.scale(24)
+            val x = if (bar.componentOrientation.isLeftToRight) margin else bar.width - popup.preferredSize.width - margin
+            popup.show(bar, x, bar.height)
+            opened = popup
+        }
+        delay(800)
+        return opened
+    }
+
+    /**
+     * The window as [capture] takes it, with [popup] painted over it where it sits on screen. A
+     * popup that does not fit inside the window is its own heavyweight window, which painting the
+     * window's root pane does not include.
+     */
+    private suspend fun captureWithPopup(name: String, popup: JPopupMenu) {
+        val shot = paintAfterLayout(name, requireFrame().rootPane)
+        onUi {
+            val origin = requireFrame().rootPane.locationOnScreen
+            val at = popup.locationOnScreen
+            val g = captureGraphics(shot)
+            g.translate(at.x - origin.x, at.y - origin.y)
+            popup.paint(g)
+            g.dispose()
+        }
+        write(name, shot)
     }
 
     /**

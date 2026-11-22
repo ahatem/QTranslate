@@ -3,7 +3,6 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 import com.formdev.flatlaf.FlatClientProperties
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.LayoutAvailability
-import com.github.ahatem.qtranslate.core.settings.data.LayoutDisabledReason
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
@@ -16,6 +15,7 @@ import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
 import com.github.ahatem.qtranslate.core.settings.data.withWindowLayout
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
+import com.github.ahatem.qtranslate.ui.swing.shared.layout.LayoutTexts
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
@@ -73,6 +73,7 @@ class LayoutPanel(
         ),
     }
 
+    private val texts = LayoutTexts(localizationManager)
     private var comparisonAvailable = true
     private val presetCards = LinkedHashMap<LayoutCard, JButton>()
 
@@ -108,7 +109,7 @@ class LayoutPanel(
 
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(presetCardGrid())
 
-        panesCombo = enumCombo(PaneLayout.entries.toTypedArray(), ::paneText) { pane ->
+        panesCombo = enumCombo(PaneLayout.entries.toTypedArray(), texts::pane) { pane ->
             if (isUnavailableComparison(pane)) {
                 withoutTrigger { panesCombo.selectedItem = store.state.value.workingConfiguration.windowLayout.panes }
                 onOpenServicesSettings()
@@ -117,7 +118,7 @@ class LayoutPanel(
             }
         }
         panesCombo.renderer = DisplayValueRenderer<PaneLayout>(
-            text = ::paneText,
+            text = texts::pane,
             isDisabled = ::isUnavailableComparison,
             tooltip = { if (isUnavailableComparison(it)) comparisonUnavailableHint() else null },
         )
@@ -125,28 +126,28 @@ class LayoutPanel(
 
         addSeparator(localizationManager.getString("settings_window.toolbars_group"))
 
-        historyCombo = enumCombo(RegionSlot.entries.toTypedArray(), ::slotText) {
+        historyCombo = enumCombo(RegionSlot.entries.toTypedArray(), texts::slot) {
             writeLayout { layout -> layout.copy(history = it) }
         }
         addRow(localizationManager.getString("settings_window.layout_row_history"), historyCombo)
 
-        languagesCombo = enumCombo(RegionSlot.entries.toTypedArray(), ::slotText) {
+        languagesCombo = enumCombo(RegionSlot.entries.toTypedArray(), texts::slot) {
             writeLayout { layout -> layout.copy(languages = it) }
         }
         addRow(localizationManager.getString("settings_window.layout_row_languages"), languagesCombo)
 
         addSubSection(localizationManager.getString("settings_window.service_selector_sub")) {
-            servicesCombo = enumCombo(RegionSlot.entries.toTypedArray(), ::slotText) {
+            servicesCombo = enumCombo(RegionSlot.entries.toTypedArray(), texts::slot) {
                 writeLayout { layout -> layout.copy(services = it) }
             }
             addRow(localizationManager.getString("settings_window.layout_row_position"), servicesCombo)
 
-            widgetCombo = enumCombo(ServiceWidget.entries.toTypedArray(), ::widgetText) {
+            widgetCombo = enumCombo(ServiceWidget.entries.toTypedArray(), texts::widget) {
                 writeLayout { layout -> layout.copy(serviceWidget = it) }
             }
             addRow(localizationManager.getString("settings_window.layout_row_selector"), widgetCombo)
 
-            appearanceCombo = enumCombo(ServiceSelectorAppearance.entries.toTypedArray(), ::appearanceText) {
+            appearanceCombo = enumCombo(ServiceSelectorAppearance.entries.toTypedArray(), texts::appearance) {
                 writeLayout { layout -> layout.copy(stripAppearance = it) }
             }
             addRow(localizationManager.getString("settings_window.layout_row_appearance"), appearanceCombo)
@@ -218,52 +219,15 @@ class LayoutPanel(
 
     private fun summaryOf(layout: WindowLayout): String = localizationManager.getString(
         "settings_window.layout_summary_format",
-        paneText(layout.panes),
-        slotText(layout.history),
-        slotText(layout.languages),
+        texts.pane(layout.panes),
+        texts.slot(layout.history),
+        texts.slot(layout.languages),
         if (layout.panes == PaneLayout.COMPARISON) {
             localizationManager.getString("settings_window.layout_selector_absent")
         } else {
-            slotText(layout.services)
+            texts.slot(layout.services)
         },
     )
-
-    private fun paneText(pane: PaneLayout?) = when (pane) {
-        PaneLayout.STACKED -> localizationManager.getString("settings_window.layout_panes_stacked")
-        PaneLayout.SIDE_BY_SIDE -> localizationManager.getString("settings_window.layout_panes_side_by_side")
-        PaneLayout.COMPARISON -> localizationManager.getString("settings_window.layout_panes_comparison")
-        null -> ""
-    }
-
-    private fun slotText(slot: RegionSlot?) = when (slot) {
-        RegionSlot.TOP -> localizationManager.getString("settings_window.layout_slot_top")
-        RegionSlot.ABOVE_RESULTS -> localizationManager.getString("settings_window.layout_slot_above_results")
-        RegionSlot.BOTTOM -> localizationManager.getString("settings_window.layout_slot_bottom")
-        RegionSlot.HIDDEN -> localizationManager.getString("settings_window.layout_slot_hidden")
-        null -> ""
-    }
-
-    private fun widgetText(widget: ServiceWidget?) = when (widget) {
-        ServiceWidget.PICKER -> localizationManager.getString("settings_window.layout_selector_picker")
-        ServiceWidget.STRIP -> localizationManager.getString("settings_window.layout_selector_bottom_strip")
-        null -> ""
-    }
-
-    private fun appearanceText(appearance: ServiceSelectorAppearance?) = when (appearance) {
-        ServiceSelectorAppearance.ICONS_ONLY -> localizationManager.getString("settings_window.layout_appearance_icons")
-        ServiceSelectorAppearance.ICONS_AND_TEXT -> localizationManager.getString("settings_window.layout_appearance_both")
-        ServiceSelectorAppearance.TEXT_ONLY -> localizationManager.getString("settings_window.layout_appearance_text")
-        null -> ""
-    }
-
-    private fun reasonText(reason: LayoutDisabledReason) = when (reason) {
-        LayoutDisabledReason.COMPARISON_OWNS_SERVICES ->
-            localizationManager.getString("settings_window.layout_selector_absent")
-        LayoutDisabledReason.SELECTOR_NEEDS_OWN_ROW ->
-            localizationManager.getString("settings_window.layout_selector_own_row")
-        LayoutDisabledReason.APPEARANCE_NEEDS_STRIP ->
-            localizationManager.getString("settings_window.layout_appearance_needs_strip")
-    }
 
     private fun presetTitle(card: LayoutCard) = when (card) {
         LayoutCard.CLASSIC -> localizationManager.getString("settings_window.layout_card_classic")
@@ -286,7 +250,7 @@ class LayoutPanel(
     /** Enables [control] when [availability] allows, and otherwise says why it does nothing. */
     private fun gate(control: JComponent, availability: LayoutAvailability) {
         control.isEnabled = availability == LayoutAvailability.Enabled
-        control.toolTipText = (availability as? LayoutAvailability.Disabled)?.let { reasonText(it.reason) }
+        control.toolTipText = (availability as? LayoutAvailability.Disabled)?.let { texts.reason(it.reason) }
     }
 
     override fun render(state: SettingsState) {

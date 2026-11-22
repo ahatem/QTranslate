@@ -407,6 +407,8 @@ class SettingsDialog(
 
     fun showOcrPage() = navigator.selectPage(label("ocr"))
 
+    fun showLayoutPage() = navigator.selectPage(label("layout"))
+
     /**
      * The actions a page offers to search.
      *

@@ -18,6 +18,8 @@ import com.github.ahatem.qtranslate.core.settings.data.WindowFeature
 import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import com.github.ahatem.qtranslate.core.settings.data.WindowRegion
 import com.github.ahatem.qtranslate.core.settings.data.effectivePaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.withLayoutProfiles
+import com.github.ahatem.qtranslate.core.settings.data.withWindowLayout
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.api.plugin.StandardOptions
@@ -44,6 +46,12 @@ import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguageSelectionB
 import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguageSelectionBarStrings
 import com.github.ahatem.qtranslate.ui.swing.main.layout.ComponentRegistry
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
+import com.github.ahatem.qtranslate.ui.swing.main.layout.RegionRowMenus
+import com.github.ahatem.qtranslate.ui.swing.main.menus.LayoutProfileSaver
+import com.github.ahatem.qtranslate.ui.swing.main.menus.ProfilePrompts
+import com.github.ahatem.qtranslate.ui.swing.main.menus.SwingProfilePrompts
+import com.github.ahatem.qtranslate.ui.swing.main.menus.profileStrings
+import com.github.ahatem.qtranslate.ui.swing.main.menus.regionMenuStrings
 import com.github.ahatem.qtranslate.ui.swing.main.layout.WorkspaceDockHost
 import com.github.ahatem.qtranslate.ui.swing.main.lookup.LookupDock
 import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchPanel
@@ -114,6 +122,8 @@ class MainContentView(
     private val onEnsureLookupDockRoom: () -> Unit,
     /** Opens the page an image came from. */
     private val onOpenImageSource: (ImageResult) -> Unit,
+    /** The questions asked while saving a layout; the window's own dialogs unless a test supplies them. */
+    profilePrompts: ProfilePrompts? = null,
 ) : JPanel(BorderLayout(0, 0)) {
 
     private val translationHistoryBar: TranslationHistoryBar = TranslationHistoryBar(
@@ -265,6 +275,40 @@ class MainContentView(
     // Separate wrapper so LayoutManager.switchLayout()'s removeAll() never touches dictionaryPanel.
     private val contentWrapper = JPanel(BorderLayout())
 
+    /**
+     * Saves the window's layout as a named profile. The list is written through the same scoped
+     * save every other window setting uses.
+     */
+    private val profileSaver = LayoutProfileSaver(
+        prompts = profilePrompts ?: SwingProfilePrompts(
+            parent = { this },
+            strings = { localizer.profileStrings() },
+        ),
+        profiles = { lastState?.second?.workingConfiguration?.layoutProfiles.orEmpty() },
+        layout = { lastState?.second?.workingConfiguration?.windowLayout ?: WindowLayout.DEFAULT },
+        save = { profiles -> dispatchSettings(SettingsIntent.ToggleSetting { it.withLayoutProfiles(profiles) }) },
+    )
+
+    /** The context menu of every chrome row: the arrangement of the window, from the window itself. */
+    internal val rowMenus = RegionRowMenus(
+        current = {
+            lastState?.let { (main, settings) ->
+                val config = settings.workingConfiguration
+                RegionRowMenus.Current(
+                    layout = config.windowLayout,
+                    effectivePanes = config.effectivePaneLayout(main.availableTranslatorIds),
+                    isRtl = localizer.isRtl,
+                )
+            }
+        },
+        strings = { localizer.regionMenuStrings() },
+        onChange = { layout -> dispatchSettings(SettingsIntent.ToggleSetting { it.withWindowLayout(layout) }) },
+        onSaveProfile = { saveLayoutAsProfile() },
+    )
+
+    /** Asks for a name and saves the window's current layout under it. */
+    fun saveLayoutAsProfile() = profileSaver.saveCurrent()
+
     private val layoutManager = LayoutManager(
         ComponentRegistry(
             historyBar = translationHistoryBar,
@@ -276,7 +320,8 @@ class MainContentView(
             extraOutputPanel = extraOutputPanel,
             statusBar = statusBar,
             notificationButton = statusBar.notificationButton,
-        ), contentWrapper
+        ), contentWrapper,
+        onArranged = { rowMenus.install(it) },
     )
 
     /**
@@ -357,6 +402,8 @@ class MainContentView(
         renderLookupDock(mainState, config)
         renderComponents(mainState, config, effectiveLayoutId, hosts, settingsState.originalConfiguration.ocr.postSelectionAction)
         lastState = mainState to settingsState
+        // Controls the render just created (a tab per service, say) join their row's popup.
+        rowMenus.refreshInheritance()
     }
 
     /**

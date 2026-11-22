@@ -1440,7 +1440,12 @@ class MainAppFrame(
                         it.withWindowLayout(it.windowLayout.copy(showStatusBar = shown))
                     }
                 )
-            }
+            },
+            onChangeLayout = { layout ->
+                settingsStore.dispatch(SettingsIntent.ToggleSetting { it.withWindowLayout(layout) })
+            },
+            onSaveLayoutProfile = { mainContentView.saveLayoutAsProfile() },
+            onManageLayouts = { openSettingsDialog(openToLayout = true) },
         )
 
         val strings = MenuStrings(
@@ -1470,7 +1475,13 @@ class MainAppFrame(
             layoutComparisonAvailable = currentConfig.isComparisonEligible(mainStore.state.value.availableTranslatorIds),
             layoutComparisonUnavailableHint = localizer.getString("settings_window.layout_comparison_unavailable"),
             layoutComparisonConfigureLabel = localizer.getString("settings_window.layout_comparison_configure"),
-            showStatusBar = localizer.getString("main_window_main_menu.show_status_bar")
+            showStatusBar = localizer.getString("main_window_main_menu.show_status_bar"),
+            layoutMenu = LayoutMenuStrings(
+                region = localizer.regionMenuStrings(),
+                savedLayouts = localizer.getString("main_window_main_menu.layout_saved_layouts"),
+                saveProfile = localizer.getString("main_window_main_menu.region_save_profile"),
+                manageLayouts = localizer.getString("main_window_main_menu.layout_manage"),
+            ),
         )
 
         return MainMenuPopup(
@@ -1853,7 +1864,11 @@ class MainAppFrame(
     }
 
     /** Opens Settings with the correct orientation. Shared by the menu and the Ctrl+Comma binding. */
-    private fun openSettingsDialog(openToServices: Boolean = false, openToOcr: Boolean = false) {
+    private fun openSettingsDialog(
+        openToServices: Boolean = false,
+        openToOcr: Boolean = false,
+        openToLayout: Boolean = false,
+    ) {
         val dialog = createSettingsDialog()
         dialog.applyComponentOrientation(
             if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
@@ -1861,6 +1876,7 @@ class MainAppFrame(
         )
         if (openToServices) dialog.showServicesPage()
         if (openToOcr) dialog.showOcrPage()
+        if (openToLayout) dialog.showLayoutPage()
         dialog.isVisible = true
     }
 

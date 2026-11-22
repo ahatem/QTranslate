@@ -5,6 +5,9 @@ import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowRegion
+import com.github.ahatem.qtranslate.core.settings.data.profileMatching
 import javax.swing.ButtonGroup
 import javax.swing.JCheckBoxMenuItem
 import javax.swing.JMenu
@@ -16,6 +19,15 @@ import javax.swing.JSeparator
 data class LayoutPresetInfo(
     val id: String,
     val name: String
+)
+
+/** The words of the layout entries the Options menu adds to the panes and the status bar. */
+data class LayoutMenuStrings(
+    val region: RegionMenuStrings,
+    /** Heading above the saved layouts. */
+    val savedLayouts: String,
+    val saveProfile: String,
+    val manageLayouts: String,
 )
 
 data class MenuStrings(
@@ -46,6 +58,8 @@ data class MenuStrings(
     val layoutComparisonUnavailableHint: String = "",
     val layoutComparisonConfigureLabel: String = "",
     val showStatusBar: String,
+    /** The region submenus and saved layouts; the menu has none of them when this is null. */
+    val layoutMenu: LayoutMenuStrings? = null,
 )
 
 data class MenuActions(
@@ -68,7 +82,13 @@ data class MenuActions(
     val onExitApplication: () -> Unit,
     val onChangeLayoutPreset: (String) -> Unit,
     val onToggleStatusBar: (Boolean) -> Unit,
-    val onOpenServicesSettings: () -> Unit = {}
+    val onOpenServicesSettings: () -> Unit = {},
+    /** Stores a whole new window layout: a region menu's choice, or a saved layout being applied. */
+    val onChangeLayout: (WindowLayout) -> Unit = {},
+    /** Asks for a name and saves the window's layout as a profile. */
+    val onSaveLayoutProfile: () -> Unit = {},
+    /** Opens Settings on the Layout page. */
+    val onManageLayouts: () -> Unit = {},
 )
 
 class LayoutPresetsMenu(
@@ -148,11 +168,58 @@ class ViewOptionsMenu(
                 actions.onOpenServicesSettings
             )
         )
+        val layoutMenu = strings.layoutMenu
+        if (layoutMenu != null) {
+            add(JSeparator())
+            val effectivePanes = config.windowLayout.effectivePanes(strings.layoutComparisonAvailable)
+            WindowRegion.entries.forEach { region ->
+                add(RegionMenu(region, config.windowLayout, layoutMenu.region, actions.onChangeLayout, effectivePanes).menu())
+            }
+        }
         add(JSeparator())
         add(JCheckBoxMenuItem(strings.showStatusBar).apply {
             isSelected = config.windowLayout.showStatusBar
             addActionListener { actions.onToggleStatusBar(isSelected) }
         })
+        if (layoutMenu != null) addSavedLayouts(layoutMenu)
+    }
+
+    /**
+     * The saved layouts as radio items, the one equal to the window checked, then the entries that
+     * save a new one and open Settings to manage them.
+     */
+    private fun addSavedLayouts(layoutMenu: LayoutMenuStrings) {
+        add(JSeparator())
+        if (config.layoutProfiles.isNotEmpty()) {
+            add(JMenuItem(layoutMenu.savedLayouts).apply {
+                name = RegionMenu.HEADING
+                isEnabled = false
+            })
+            val group = ButtonGroup()
+            val active = config.layoutProfiles.profileMatching(config.windowLayout)
+            config.layoutProfiles.forEach { profile ->
+                add(JRadioButtonMenuItem(profile.name).apply {
+                    name = "$PROFILE_PREFIX${profile.name}"
+                    isSelected = profile === active
+                    group.add(this)
+                    addActionListener { actions.onChangeLayout(profile.layout) }
+                })
+            }
+        }
+        add(JMenuItem(layoutMenu.saveProfile).apply {
+            name = RegionMenu.SAVE_PROFILE
+            addActionListener { actions.onSaveLayoutProfile() }
+        })
+        add(JMenuItem(layoutMenu.manageLayouts).apply {
+            name = MANAGE_LAYOUTS
+            addActionListener { actions.onManageLayouts() }
+        })
+    }
+
+    companion object {
+        /** Prefix of the name of a saved layout's item, followed by the layout's name. */
+        const val PROFILE_PREFIX = "profile:"
+        const val MANAGE_LAYOUTS = "manage_layouts"
     }
 }
 
