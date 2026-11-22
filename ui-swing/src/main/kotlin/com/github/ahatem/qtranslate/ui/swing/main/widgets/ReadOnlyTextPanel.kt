@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.BorderLayout
 import javax.swing.BorderFactory
 import javax.swing.JPanel
+import javax.swing.SwingUtilities
 import javax.swing.JScrollPane
 
 data class ReadOnlyTextPanelState(
@@ -32,6 +33,9 @@ class ReadOnlyTextPanel(
     private val actionsPanel: TextActionsPanel,
 ) : JPanel(BorderLayout()), Renderable<ReadOnlyTextPanelState> {
 
+    private val scrollPane = JScrollPane(textPane).apply { isFocusable = false }
+    private var lastText: String? = null
+
     init {
         val actionsWrapper = JPanel(BorderLayout()).apply {
             border = BorderFactory.createEmptyBorder(0, 4, 0, 0)
@@ -39,13 +43,16 @@ class ReadOnlyTextPanel(
             add(actionsPanel, BorderLayout.CENTER)
         }
 
-        add(JScrollPane(textPane).apply { isFocusable = false }, BorderLayout.CENTER)
+        add(scrollPane, BorderLayout.CENTER)
         add(actionsWrapper, BorderLayout.LINE_END)
     }
 
     override fun render(state: ReadOnlyTextPanelState) {
         isVisible = state.isVisible
         if (!isVisible) return
+
+        val isNewResult = lastText != state.text
+        lastText = state.text
 
         textPane.render(
             text = state.text,
@@ -57,6 +64,16 @@ class ReadOnlyTextPanel(
             newPrimary = state.fontConfig.toFont(),
             newFallback = state.fallbackFontConfig.toFont()
         )
+
+        // Issue #416: a newly translated result must start at the top, not wherever setText left
+        // the caret (the end of the text). Queued after the font pass so re-wrapping cannot scroll
+        // back down. Editable panes keep the caret the user placed.
+        if (isNewResult && !state.isEditable) {
+            SwingUtilities.invokeLater {
+                if (textPane.document.length > 0) textPane.caretPosition = 0
+                scrollPane.verticalScrollBar.value = 0
+            }
+        }
 
         actionsPanel.render(state.actionsState)
     }

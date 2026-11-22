@@ -196,6 +196,34 @@ class OutputSurfaceTest {
     }
 
     @Test
+    fun `a new translation starts at the top of the output view`() {
+        val panel = outputPanel()
+        panel.show(longEnglish, 320)
+        val scroll = scrollPanes(panel).single()
+        val textPane = panel.textPaneComponent as javax.swing.JTextPane
+        // Simulate the reader having scrolled down, as setText's end-of-text caret caused.
+        onEdt {
+            textPane.caretPosition = textPane.document.length
+            scroll.verticalScrollBar.value = scroll.verticalScrollBar.maximum
+        }
+        assertTrue(onEdt { scroll.verticalScrollBar.value } > 0, "the view was scrolled down")
+
+        onEdt {
+            panel.render(
+                OutputTextState(
+                    text = "a brand new", fontConfig = textFont, fallbackFontConfig = textFont,
+                    isLoading = false, actionsState = TextActionsState(emptyList())
+                )
+            )
+        }
+        // The reset is queued behind the deferred font pass; a fresh EDT round drains both.
+        onEdt { }
+
+        assertEquals(0, onEdt { textPane.caretPosition })
+        assertEquals(0, onEdt { scroll.verticalScrollBar.value })
+    }
+
+    @Test
     fun `the action column stays beside the text and inside the panel`() {
         val actions = onEdt { TextActionsPanel(blindIconManager()).also { it.add(JButton("copy")) } }
         val text = onEdt { com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane({}, {}, {}) }

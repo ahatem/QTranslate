@@ -544,7 +544,9 @@ class AdvancedTextPane(
 
     override fun updateUI() {
         super.updateUI()
-        putClientProperty(HONOR_DISPLAY_PROPERTIES, true)
+        // Issue #416: do not override the theme's TextPane.background/foreground. Letting FlatLaf
+        // install them is what makes a custom .theme.json honour the output view's colours.
+        putClientProperty(HONOR_DISPLAY_PROPERTIES, false)
         // A theme switch invalidates the cached colour and the font derived from the old one.
         // Swing calls this for us then, which is why the caches need no listener of their own.
         cachedCounterFont = null
