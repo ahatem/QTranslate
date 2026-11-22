@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Container
@@ -49,7 +51,7 @@ class ComparisonExtraBoundaryTest {
         val leaves = registry()
         lateinit var arranged: ArrangedLayout
         SwingUtilities.invokeAndWait {
-            arranged = ComparisonLayout.arrange(components(leaves), isRtl = false)
+            arranged = SlotLayout.arrange(components(leaves), WindowLayout(panes = PaneLayout.COMPARISON))
         }
 
         val boundaries = extraBoundaries(arranged.rootComponent, leaves[5])
@@ -64,7 +66,7 @@ class ComparisonExtraBoundaryTest {
         val leaves = registry()
         lateinit var arranged: ArrangedLayout
         SwingUtilities.invokeAndWait {
-            arranged = ComparisonLayout.arrange(components(leaves), isRtl = false)
+            arranged = SlotLayout.arrange(components(leaves), WindowLayout(panes = PaneLayout.COMPARISON))
         }
 
         val boxed = descendants(arranged.rootComponent).filterIsInstance<JComponent>().filter { component ->
@@ -81,7 +83,7 @@ class ComparisonExtraBoundaryTest {
         val leaves = registry()
         lateinit var arranged: ArrangedLayout
         SwingUtilities.invokeAndWait {
-            arranged = ComparisonLayout.arrange(components(leaves), isRtl = false)
+            arranged = SlotLayout.arrange(components(leaves), WindowLayout(panes = PaneLayout.COMPARISON))
             leaves[5].isVisible = true
         }
         assertEquals(1, extraBoundaries(arranged.rootComponent, leaves[5]).count { it.isVisible })
@@ -114,7 +116,7 @@ class ComparisonExtraBoundaryTest {
         val manager = LayoutManager(components(leaves), container)
 
         listOf("comparison", "classic", "comparison", "side_by_side", "comparison").forEach { id ->
-            SwingUtilities.invokeAndWait { manager.switchLayout(id) }
+            SwingUtilities.invokeAndWait { manager.switchLayout(WindowLayout(panes = PaneLayout.fromPresetId(id))) }
             SwingUtilities.invokeAndWait { }
             SwingUtilities.invokeAndWait { }
             SwingUtilities.invokeAndWait { }
@@ -133,9 +135,9 @@ class ComparisonExtraBoundaryTest {
     fun `classic and side by side keep their boundary-free composition`() {
         val leaves = registry()
         SwingUtilities.invokeAndWait {
-            val classic = ClassicLayout.arrange(components(leaves), isRtl = false)
+            val classic = SlotLayout.arrange(components(leaves), WindowLayout(panes = PaneLayout.STACKED))
             assertTrue(extraBoundaries(classic.rootComponent, leaves[5]).isEmpty())
-            val sideBySide = SideBySideLayout.arrange(components(leaves), isRtl = false)
+            val sideBySide = SlotLayout.arrange(components(leaves), WindowLayout(panes = PaneLayout.SIDE_BY_SIDE))
             assertTrue(extraBoundaries(sideBySide.rootComponent, leaves[5]).isEmpty())
         }
     }

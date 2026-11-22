@@ -97,6 +97,9 @@ class TextActionsPanel(
 
     private fun createActionButton(action: Action): FlatButton {
         return createButtonWithIcon(iconManager, action.iconPath, 16).apply {
+            // The action's id names the button, so the window's route checks can find a command
+            // wherever it is mounted.
+            name = action.id
             toolTipText = action.tooltip
             isEnabled = action.isEnabled
             addActionListener { action.onClick() }

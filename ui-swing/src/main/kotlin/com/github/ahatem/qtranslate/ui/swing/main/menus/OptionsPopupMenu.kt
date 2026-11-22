@@ -5,7 +5,6 @@ import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
-import com.github.ahatem.qtranslate.core.settings.data.ToolbarStyle
 import javax.swing.ButtonGroup
 import javax.swing.JCheckBoxMenuItem
 import javax.swing.JMenu
@@ -46,10 +45,6 @@ data class MenuStrings(
     val layoutComparisonAvailable: Boolean = true,
     val layoutComparisonUnavailableHint: String = "",
     val layoutComparisonConfigureLabel: String = "",
-    val toolbarStyle: String,
-    val toolbarFull: String,
-    val toolbarCompact: String,
-    val toolbarMinimal: String,
     val showStatusBar: String,
 )
 
@@ -72,7 +67,6 @@ data class MenuActions(
 
     val onExitApplication: () -> Unit,
     val onChangeLayoutPreset: (String) -> Unit,
-    val onSelectToolbarStyle: (ToolbarStyle) -> Unit,
     val onToggleStatusBar: (Boolean) -> Unit,
     val onOpenServicesSettings: () -> Unit = {}
 )
@@ -146,7 +140,7 @@ class ViewOptionsMenu(
             LayoutPresetsMenu(
                 strings.layoutPresets,
                 availableLayouts,
-                LayoutPresetIds.resolve(config.layoutPresetId),
+                config.windowLayout.panes.presetId,
                 actions.onChangeLayoutPreset,
                 strings.layoutComparisonAvailable,
                 strings.layoutComparisonUnavailableHint,
@@ -155,40 +149,10 @@ class ViewOptionsMenu(
             )
         )
         add(JSeparator())
-        add(ToolbarStyleMenu(strings.toolbarStyle, strings, config.layoutConfig.toolbarStyle, actions.onSelectToolbarStyle))
         add(JCheckBoxMenuItem(strings.showStatusBar).apply {
-            isSelected = config.layoutConfig.showStatusBar
+            isSelected = config.windowLayout.showStatusBar
             addActionListener { actions.onToggleStatusBar(isSelected) }
         })
-    }
-}
-
-/**
- * How much chrome sits above the panes: Full, Compact or Minimal.
- *
- * A checkbox cannot express this any more. "Show history controls" would have to remember which of
- * the two remaining shapes to go back to when it is ticked again, so the menu asks for the shape
- * outright, the way the settings page does, and there is nothing to remember.
- */
-class ToolbarStyleMenu(
-    title: String,
-    strings: MenuStrings,
-    private val activeStyle: ToolbarStyle,
-    private val onStyleSelected: (ToolbarStyle) -> Unit,
-) : JMenu(title) {
-    init {
-        val group = ButtonGroup()
-        listOf(
-            ToolbarStyle.FULL to strings.toolbarFull,
-            ToolbarStyle.COMPACT to strings.toolbarCompact,
-            ToolbarStyle.MINIMAL to strings.toolbarMinimal,
-        ).forEach { (style, label) ->
-            add(JRadioButtonMenuItem(label).apply {
-                isSelected = style == activeStyle
-                group.add(this)
-                addActionListener { onStyleSelected(style) }
-            })
-        }
     }
 }
 

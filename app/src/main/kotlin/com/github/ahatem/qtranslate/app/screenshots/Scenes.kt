@@ -4,15 +4,13 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
-import com.github.ahatem.qtranslate.core.settings.data.LayoutConfig
-import com.github.ahatem.qtranslate.core.settings.data.LayoutPreset
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
 import com.github.ahatem.qtranslate.core.settings.data.SelectionBehavior
-import com.github.ahatem.qtranslate.core.settings.data.ServiceSelector
-import com.github.ahatem.qtranslate.core.settings.data.ToolbarStyle
-import com.github.ahatem.qtranslate.core.settings.data.WorkspaceLayout
-import com.github.ahatem.qtranslate.core.settings.data.withLayoutConfig
-import com.github.ahatem.qtranslate.core.settings.data.withWorkspaceLayout
+import com.github.ahatem.qtranslate.core.settings.data.ServiceWidget
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowPreset
+import com.github.ahatem.qtranslate.core.settings.data.withWindowLayout
 
 /**
  * The gallery of scenes, in the order they are captured.
@@ -164,73 +162,81 @@ internal object Scenes {
 
     // ── configurations ────────────────────────────────────────────────────────
     //
-    // Each scene states the window its subject needs as the model's four values, written with
-    // [withLayoutConfig]. The window reads that description, so a scene and the window it
+    // Each scene states the window its subject needs as a [WindowLayout], written with
+    // [withWindowLayout]. The window reads that description, so a scene and the window it
     // produces agree by construction rather than through a layout id the window ignores.
 
+    /** The default window: stacked panes, history on top, languages above results, picker below. */
+    val CLASSIC: WindowLayout = WindowLayout.DEFAULT
+
+    /** History and languages sharing one row at the top: the Compact card. */
+    val COMPACT_ROW: WindowLayout = WindowPreset.COMPACT.applyTo(WindowLayout.DEFAULT)
+
+    /** Input and output beside each other, with history and languages above both columns. */
+    val SIDE_BY_SIDE = WindowLayout(
+        panes = PaneLayout.SIDE_BY_SIDE,
+        history = RegionSlot.TOP,
+        languages = RegionSlot.TOP,
+        services = RegionSlot.BOTTOM,
+    )
+
+    /** One input translated by several services, with the languages above the board. */
+    val COMPARISON_BOARD = WindowLayout(panes = PaneLayout.COMPARISON)
+
     /**
-     * Classic panes with the bottom strip of adjacent service tabs instead of the picker.
+     * Classic panes with the strip of adjacent service tabs instead of the picker.
      *
-     * The one arrangement the selector scenes ask for that no preset card offers: Customize
+     * The one arrangement the selector scenes ask for that no preset card offers: the Layout page
      * reaches it one value at a time, so it is spelled out here.
      */
-    val CLASSIC_SELECTOR = LayoutConfig(
-        paneLayout = PaneLayout.STACKED,
-        toolbarStyle = ToolbarStyle.FULL,
-        serviceSelector = ServiceSelector.BOTTOM_STRIP,
-        showStatusBar = true
-    )
+    val CLASSIC_SELECTOR = WindowLayout(serviceWidget = ServiceWidget.STRIP)
 
     fun classic(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
         BASE.copy(themeId = theme, mainWindowSize = windowSize(size))
-            .withLayoutConfig(LayoutPreset.CLASSIC.config)
+            .withWindowLayout(CLASSIC)
 
-    /** Classic panes with one combined toolbar row instead of two: the [LayoutPreset.COMPACT] card. */
+    /** Classic panes with one shared row instead of two: the Compact card. */
     fun classicCompact(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
         BASE.copy(themeId = theme, mainWindowSize = windowSize(size))
-            .withLayoutConfig(LayoutPreset.COMPACT.config)
+            .withWindowLayout(COMPACT_ROW)
 
     /**
-     * Any one of the fifteen arrangements, for the geometry sweep.
+     * Any one window layout, in English or in Arabic, for the curated slot list.
      *
-     * Takes the four values rather than a preset because the sweep has to render the combinations
-     * no card offers as well as the four that do.
+     * The bundled file is `ar-SA.toml`; a bare "ar" finds nothing and silently falls back to the
+     * embedded English strings, leaving the window left-to-right.
      */
-    fun geometry(layout: LayoutConfig, theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
-        BASE.copy(themeId = theme, mainWindowSize = windowSize(size)).withLayoutConfig(layout)
+    fun slots(layout: WindowLayout, theme: String, rtl: Boolean = false, size: Pair<Int, Int> = WINDOW): Configuration =
+        BASE.copy(
+            themeId = theme,
+            interfaceLanguage = if (rtl) "ar-SA" else "en-GB",
+            mainWindowSize = windowSize(size),
+        ).withWindowLayout(layout)
 
     fun classicSelector(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
-        classic(theme, size).withLayoutConfig(CLASSIC_SELECTOR)
+        classic(theme, size).withWindowLayout(CLASSIC_SELECTOR)
 
     fun sideBySide(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
         BASE.copy(themeId = theme, mainWindowSize = windowSize(size))
-            .withLayoutConfig(LayoutPreset.SIDE_BY_SIDE.config)
+            .withWindowLayout(SIDE_BY_SIDE)
 
     fun comparison(theme: String, size: Pair<Int, Int> = COMPARISON_WINDOW): Configuration =
         BASE.copy(themeId = theme, mainWindowSize = windowSize(size))
-            .withLayoutConfig(LayoutPreset.COMPARISON.config)
+            .withWindowLayout(COMPARISON_BOARD)
 
     fun hero(theme: String, size: Pair<Int, Int> = WINDOW): Configuration = BASE.copy(
         themeId = theme,
         extraOutputType = ExtraOutputType.BackwardTranslate,
         mainWindowSize = windowSize(size)
-    ).withLayoutConfig(LayoutPreset.CLASSIC.config)
+    ).withWindowLayout(CLASSIC)
 
     /**
      * The bundled file is `ar-SA.toml`; a bare "ar" finds nothing and silently falls back to the
      * embedded English strings, leaving the window left-to-right.
      */
-    fun arabic(layout: LayoutConfig, theme: String = DARK, size: Pair<Int, Int> = WINDOW): Configuration = BASE.copy(
+    fun arabic(layout: WindowLayout, theme: String = DARK, size: Pair<Int, Int> = WINDOW): Configuration = BASE.copy(
         themeId = theme,
         interfaceLanguage = "ar-SA",
         mainWindowSize = windowSize(size)
-    ).withLayoutConfig(layout)
-
-    /** A region layout that the old four-value model could not express. */
-    fun region(layout: WorkspaceLayout, theme: String = LIGHT, rtl: Boolean = false): Configuration =
-        BASE.copy(
-            themeId = theme,
-            interfaceLanguage = if (rtl) "ar-SA" else "en-GB",
-            mainWindowSize = windowSize(WINDOW),
-        ).withWorkspaceLayout(layout)
+    ).withWindowLayout(layout)
 }

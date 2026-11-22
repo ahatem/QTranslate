@@ -14,7 +14,7 @@ import kotlinx.serialization.Serializable
  * and what is in them, and [requiredHosts] says where every feature must be reachable; a renderer
  * follows the first and a test checks the real component tree against the second.
  *
- * Not yet read by the window, and not yet a field of [Configuration].
+ * Stored as [Configuration.windowLayout] and written only through [withWindowLayout].
  */
 @Serializable
 data class WindowLayout(
@@ -167,6 +167,35 @@ data class WindowLayout(
     companion object {
         /** "Modern classic": the v1.5.0 window. New installs and "Reset layout" get this. */
         val DEFAULT = WindowLayout()
+    }
+}
+
+/** How the result panes sit. */
+@Serializable
+enum class PaneLayout {
+    /** Input above output, the arrangement QTranslate has always had. */
+    STACKED,
+    SIDE_BY_SIDE,
+    COMPARISON;
+
+    /** The layout id this arrangement stands for, as the v10 settings and the menu name it. */
+    val presetId: String
+        get() = when (this) {
+            STACKED -> LayoutPresetIds.CLASSIC
+            SIDE_BY_SIDE -> LayoutPresetIds.SIDE_BY_SIDE
+            COMPARISON -> LayoutPresetIds.COMPARISON
+        }
+
+    companion object {
+        /**
+         * The arrangement a stored layout id stands for. Retired and unrecognised ids mean
+         * STACKED, which is the same substitution [LayoutPresetIds.resolve] makes.
+         */
+        fun fromPresetId(id: String): PaneLayout = when (LayoutPresetIds.resolve(id)) {
+            LayoutPresetIds.SIDE_BY_SIDE -> SIDE_BY_SIDE
+            LayoutPresetIds.COMPARISON -> COMPARISON
+            else -> STACKED
+        }
     }
 }
 
@@ -340,7 +369,8 @@ data class LayoutProfile(val name: String, val layout: WindowLayout) {
 /**
  * The v10 settings expressed as a [WindowLayout]: a pure mapping with no I/O.
  *
- * Existing users see the window they already had. Not wired into [ConfigMigrator] yet.
+ * Existing users see the window they already had. [ConfigMigrator] runs it for every stored
+ * v10, v11 and v12 configuration, reading the v10 fields, which nothing writes any more.
  */
 object WindowLayoutMigration {
     fun fromV10(config: Configuration): WindowLayout = fromV10(
@@ -379,3 +409,14 @@ object WindowLayoutMigration {
         )
     }
 }
+
+/** The one write path for the window's arrangement. */
+fun Configuration.withWindowLayout(layout: WindowLayout): Configuration = copy(windowLayout = layout)
+
+/** Stores [profiles], keeping at most [LayoutProfile.MAX_PROFILES] of them. */
+fun Configuration.withLayoutProfiles(profiles: List<LayoutProfile>): Configuration =
+    copy(layoutProfiles = profiles.take(LayoutProfile.MAX_PROFILES))
+
+/** The pane arrangement to build, once comparison eligibility is taken into account. */
+fun Configuration.effectivePaneLayout(translatorIds: List<String>): PaneLayout =
+    windowLayout.effectivePanes(isComparisonEligible(translatorIds))

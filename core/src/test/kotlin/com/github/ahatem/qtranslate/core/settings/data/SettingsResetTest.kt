@@ -49,19 +49,16 @@ class SettingsResetTest {
         showDictionaryPanel = true,
         serviceSelectorStyle = ServiceSelectorStyle.CLASSIC,
         serviceSelectorAppearance = ServiceSelectorAppearance.TEXT_ONLY,
-        layoutConfig = LayoutConfig(
-            paneLayout = PaneLayout.SIDE_BY_SIDE,
-            toolbarStyle = ToolbarStyle.MINIMAL,
-            serviceSelector = ServiceSelector.BOTTOM_STRIP,
-            showStatusBar = false,
-        ),
-        workspaceLayout = WorkspaceLayout(
+        windowLayout = WindowLayout(
             panes = PaneLayout.SIDE_BY_SIDE,
-            history = HistoryPlacement.BOTTOM_ROW,
-            languages = LanguagePlacement.RELOCATED,
-            services = ServicePlacement.BOTTOM_STRIP,
-            appearance = ServiceSelectorAppearance.TEXT_ONLY,
+            history = RegionSlot.BOTTOM,
+            languages = RegionSlot.HIDDEN,
+            services = RegionSlot.TOP,
+            serviceWidget = ServiceWidget.STRIP,
+            stripAppearance = ServiceSelectorAppearance.TEXT_ONLY,
+            shareRows = true,
             showStatusBar = false,
+            density = Density.COMPACT,
         ),
         closeButtonBehavior = CloseButtonBehavior.EXIT,
         minimizeButtonBehavior = MinimizeButtonBehavior.HIDE_TO_TRAY,
@@ -106,6 +103,7 @@ class SettingsResetTest {
         hotkeys = listOf(HotkeyBinding(action = HotkeyAction.TRANSLATE, keyCode = 84, modifiers = 2)),
         pinnedLanguages = listOf("fr", "de"),
         translationRules = listOf(TranslationRule(sourceLanguage = "fr", targetLanguage = "de")),
+        layoutProfiles = listOf(LayoutProfile("Reading", WindowLayout(panes = PaneLayout.SIDE_BY_SIDE))),
         mainWindowSize = Size(width = 1200, height = 800),
         mainWindowPosition = Position(x = 10, y = 20),
         ocrWorkspaceSize = Size(width = 900, height = 700),
@@ -154,6 +152,7 @@ class SettingsResetTest {
         assertEquals(customizedData.hotkeys, reset.hotkeys, "custom bindings survive")
         assertEquals(customizedData.pinnedLanguages, reset.pinnedLanguages)
         assertEquals(customizedData.translationRules, reset.translationRules)
+        assertEquals(customizedData.layoutProfiles, reset.layoutProfiles, "saved layouts survive")
         assertEquals(customizedData.mainWindowSize, reset.mainWindowSize, "window geometry survives")
         assertEquals(customizedData.mainWindowPosition, reset.mainWindowPosition)
         assertEquals(customizedData.ocrWorkspaceSize, reset.ocrWorkspaceSize)
@@ -175,6 +174,7 @@ class SettingsResetTest {
             servicePresets = customizedData.servicePresets,
             hotkeys = customizedData.hotkeys,
             pinnedLanguages = customizedData.pinnedLanguages,
+            layoutProfiles = customizedData.layoutProfiles,
             mainWindowSize = customizedData.mainWindowSize,
         )
 
@@ -187,7 +187,8 @@ class SettingsResetTest {
 
         val window = SettingsReset.page(config, SettingsPage.WINDOW)
         assertEquals(fresh.layoutPresetId, window.layoutPresetId)
-        assertEquals(fresh.workspaceLayout, window.workspaceLayout, "a custom region layout is reset too")
+        assertEquals(fresh.windowLayout, window.windowLayout, "a custom region layout is reset too")
+        assertEquals(config.layoutProfiles, window.layoutProfiles, "saved layouts are not reset with the page")
         assertEquals(fresh.closeButtonBehavior, window.closeButtonBehavior)
         assertEquals(fresh.minimizeButtonBehavior, window.minimizeButtonBehavior, "a reset gives the product default")
         assertEquals(config.themeId, window.themeId)

@@ -48,13 +48,18 @@ and 200%, plus RTL and light theme.
 Use `QTRANSLATE_SCREENSHOT_SCENES=document` to capture only the document dialog. Its file paths are
 visible in the image, so also set `QTRANSLATE_SCREENSHOT_DOCS` to a neutral folder such as
 `C:\Users\Public\Documents` first.
-Use `QTRANSLATE_SCREENSHOT_SCENES=compact-toolbar` to capture the one-row toolbar — the style where
-the history controls share the language row — in both themes plus Arabic, since a single row is
-where mirroring goes wrong quietly.
-Use `QTRANSLATE_SCREENSHOT_SCENES=layout-geometries` to sweep every arrangement the layout model can
-produce: three pane layouts by three toolbar styles, with the service selector only where it exists,
-each once in English light and once in Arabic dark. Fifteen arrangements, thirty files. It is the
-scene to run after touching anything about how the window arranges itself.
+Use `QTRANSLATE_SCREENSHOT_SCENES=compact-toolbar` to capture the Compact card, where the history
+controls share the language row, in both themes plus Arabic, since a single row is where mirroring
+goes wrong quietly.
+Use `QTRANSLATE_SCREENSHOT_SCENES=layout-slots` to capture a curated list of window layouts, each
+once in English light (`slots-<name>-light`) and once in Arabic dark (`slots-<name>-rtl-dark`):
+the four cards (`card-classic`, `card-compact-row`, `card-side-by-side`, `card-comparison`), every
+region hidden with its chips in the input strip (`all-hidden`), history at the bottom
+(`history-bottom`), languages at the top of stacked panes (`stacked-languages-top`), the services
+sharing the top row (`services-top-shared`), side by side with the languages above the results
+(`side-by-side-languages-above-results`), Comparison with history at the bottom
+(`comparison-history-bottom`) and an icon-only service strip (`icon-strip`). Eleven layouts, 22
+files. It is the scene to run after touching anything about how the window arranges itself.
 Use `QTRANSLATE_SCREENSHOT_PLATE_LABEL=none` to composite without the plate caption, for consumers
 that label the shots themselves — the website does.
 

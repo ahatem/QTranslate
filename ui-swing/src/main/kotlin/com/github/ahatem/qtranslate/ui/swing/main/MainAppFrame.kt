@@ -317,7 +317,7 @@ class MainAppFrame(
         onOpenDocumentTranslation = { file ->
             if (file != null) documentTranslationDialog.openWith(file) else documentTranslationDialog.open()
         },
-        onNotificationsClicked = { notificationPopover.show(mainContentView.statusBar) },
+        onNotificationsClicked = { notificationPopover.show(mainContentView.statusBar.notificationAnchor) },
         onConfigureService = { serviceId -> openPluginConfiguration(serviceId) },
         onOpenServiceSettings = {
             val dialog = createSettingsDialog()
@@ -608,7 +608,9 @@ class MainAppFrame(
         iconManager = iconManager,
         localizer = localizer,
         scope = appScope,
-        defaultMessage = localizer.getString("main_window_status_bar.ready_message")
+        defaultMessage = localizer.getString("main_window_status_bar.ready_message"),
+        // While the bar is off, errors and warnings still reach the user through the popover.
+        isStatusBarHidden = { !settingsStore.state.value.workingConfiguration.windowLayout.showStatusBar }
     )
 
     init {
@@ -1426,32 +1428,16 @@ class MainAppFrame(
             onCheckForUpdates = { mainStore.dispatch(MainIntent.CheckForUpdates) },
             onExitApplication = { dispose() },
             onChangeLayoutPreset = { layoutId ->
-                val pane = when (layoutId) {
-                    LayoutPresetIds.SIDE_BY_SIDE -> PaneLayout.SIDE_BY_SIDE
-                    LayoutPresetIds.COMPARISON -> PaneLayout.COMPARISON
-                    else -> PaneLayout.STACKED
-                }
+                val pane = PaneLayout.fromPresetId(layoutId)
                 settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting { it.withWorkspaceLayout(it.workspaceLayout.copy(panes = pane)) }
+                    SettingsIntent.ToggleSetting { it.withWindowLayout(it.windowLayout.copy(panes = pane)) }
                 )
             },
             onOpenServicesSettings = { openSettingsDialog(openToServices = true) },
-            onSelectToolbarStyle = { style ->
-                val history = when (style) {
-                    ToolbarStyle.FULL -> HistoryPlacement.TOP_ROW
-                    ToolbarStyle.COMPACT -> HistoryPlacement.COMBINED
-                    ToolbarStyle.MINIMAL -> HistoryPlacement.RELOCATED
-                }
-                settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting {
-                        it.withWorkspaceLayout(it.workspaceLayout.copy(history = history))
-                    }
-                )
-            },
             onToggleStatusBar = { shown ->
                 settingsStore.dispatch(
                     SettingsIntent.ToggleSetting {
-                        it.withWorkspaceLayout(it.workspaceLayout.copy(showStatusBar = shown))
+                        it.withWindowLayout(it.windowLayout.copy(showStatusBar = shown))
                     }
                 )
             }
@@ -1484,10 +1470,6 @@ class MainAppFrame(
             layoutComparisonAvailable = currentConfig.isComparisonEligible(mainStore.state.value.availableTranslatorIds),
             layoutComparisonUnavailableHint = localizer.getString("settings_window.layout_comparison_unavailable"),
             layoutComparisonConfigureLabel = localizer.getString("settings_window.layout_comparison_configure"),
-            toolbarStyle = localizer.getString("main_window_main_menu.toolbar_style"),
-            toolbarFull = localizer.getString("main_window_main_menu.toolbar_full"),
-            toolbarCompact = localizer.getString("main_window_main_menu.toolbar_compact"),
-            toolbarMinimal = localizer.getString("main_window_main_menu.toolbar_minimal"),
             showStatusBar = localizer.getString("main_window_main_menu.show_status_bar")
         )
 

@@ -121,9 +121,9 @@ class LayoutPanelControlColumnTest {
         val selector = pickerOn(panel, localizer.getString("settings_window.layout_row_selector"))
 
         assertEquals(
-            5,
+            6,
             descendants(panel).filterIsInstance<JComboBox<*>>().size,
-            "panes, history, languages, selector and appearance",
+            "panes, history, languages, and the selector's position, style and appearance",
         )
 
         val edges = pagePickers.map { SwingUtilities.convertPoint(it, 0, 0, panel).x }
@@ -183,7 +183,7 @@ class LayoutPanelControlColumnTest {
         // leading edge and every one of them starts at the same x whatever row it is on: the x of a
         // control says nothing about nesting in that direction. The nesting is measured on the row
         // labels in `the nesting indents from the leading edge in both directions` instead.
-        assertEquals(5, edges.size, "all five pickers are still on the page ($edges)")
+        assertEquals(6, edges.size, "all six pickers are still on the page ($edges)")
         assertEquals(1, edges.distinct().size, "controls fill from the leading edge in this direction ($edges)")
     }
 

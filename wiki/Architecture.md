@@ -188,6 +188,28 @@ The store processes the intent, updates state, and emits a new state snapshot. `
 
 Blocking calls (`Files.copy`, JDBC, synchronous HTTP) must always be wrapped in `withContext(Dispatchers.IO)`.
 
+### Window layout
+
+The main window is described by one value, `Configuration.windowLayout` (`WindowLayout` in
+`core/settings/data`), and written only through `Configuration.withWindowLayout`. It names the pane
+arrangement (Stacked, Side by side or Comparison) and puts each region (history, languages,
+services) in a slot: `TOP`, `ABOVE_RESULTS`, `BOTTOM` or `HIDDEN`.
+
+- `WindowLayout.rowPlan(effectivePanes)` says which rows each slot holds, in the fixed order
+  history, languages, services. Under Comparison the services region is absent: the board header
+  switches the translator.
+- `WindowLayout.requiredHosts(effectivePanes)` says where each command lives. A hidden region's
+  commands move to the input strip (back/forward with mirrored arrows, the language pair chip with
+  Translate and Clear, the provider chip). With the status bar off, its notification button moves
+  to the end of the history row, or to the input strip when history is hidden too.
+- `SlotLayout` (`ui-swing/main/layout`) builds the slot containers and the pane split from the row
+  plan; `LayoutManager` rebuilds only when the arrangement changes.
+- A requested Comparison without two usable translators renders Stacked. The stored preference is
+  not rewritten, so the board returns once it is eligible again.
+
+Configuration version 13 introduced the value. Files from versions 10 to 12 are mapped once from
+their stored v10 fields by `WindowLayoutMigration.fromV10`; those fields stay in the file, frozen.
+
 ---
 
 ## Error handling
@@ -245,7 +267,7 @@ QTranslate mirrors its entire layout for RTL languages (Arabic, Hebrew, Farsi, e
 1. `LocalizationManager` exposes `isRtl: Boolean` based on the active language's `[meta] rtl = true` field
 2. On language change, `MainAppFrame` calls `applyComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT)` on the root pane — Swing propagates this down the component tree
 3. Layout managers that respect orientation (`BorderLayout.LINE_START/LINE_END`, `FlowLayout.LEADING/TRAILING`, `GridBagConstraints.LINE_START`) flip automatically
-4. `LayoutManager.switchLayout(id, isRtl)` rebuilds the main content layout, passing `isRtl` so `SideBySideLayout` swaps the input/output panel positions
+4. `LayoutManager.switchLayout(layout, effectivePanes, isRtl)` rebuilds the main content, passing `isRtl` so the side-by-side split puts the input column on the leading side. Back/Forward icons do not mirror on their own, so the window swaps them by hand
 
 The key rule: never use absolute constants (`WEST`, `EAST`, `LEFT`, `RIGHT`) in layout code — always use orientation-relative ones (`LINE_START`, `LINE_END`, `LEADING`, `TRAILING`).
 

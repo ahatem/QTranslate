@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.lookup
 
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import com.github.ahatem.qtranslate.core.main.mvi.LookupTool
 import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchPanel
 import com.github.ahatem.qtranslate.ui.swing.main.layout.ComponentRegistry
@@ -129,7 +131,7 @@ class LookupDockTest {
         val wrapper = JPanel(BorderLayout())
         val manager = LayoutManager(registry, wrapper)
         listOf("classic", "side_by_side", "comparison").forEach { id ->
-            onEdt { manager.switchLayout(id) }
+            onEdt { manager.switchLayout(WindowLayout(panes = PaneLayout.fromPresetId(id))) }
             onEdt { }
             assertEquals(1, wrapper.componentCount, "$id fills the one wrapper the host holds")
         }

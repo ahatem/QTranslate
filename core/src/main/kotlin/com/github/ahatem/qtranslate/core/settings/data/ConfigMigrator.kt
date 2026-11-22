@@ -24,7 +24,7 @@ object ConfigMigrator {
      * would skip every migration it needs. A configuration this build creates from scratch is
      * stamped with this value instead.
      */
-    internal const val CURRENT_VERSION = 12
+    internal const val CURRENT_VERSION = 13
 
     /** The old defaults, frozen: this is what "the user never changed it" looked like. */
     private const val LEGACY_POPUP_IDLE_SECONDS = 3
@@ -213,27 +213,15 @@ object ConfigMigrator {
                     writingHotkeys = config.writingHotkeys + missing,
                 )
             }
-            10 -> {
-                // v10 → v11: the window's arrangement becomes four independent values instead of a
-                // layout id plus overlapping chrome switches. The old fields stay stored and stay
-                // authoritative for now: the settings page still writes them, so both descriptions
-                // of the same window have to be kept in step until it moves over. They are removed
-                // in the version after this one, which is also why this branch may read them.
-                logger.info("ConfigMigrator: migrating v10 → v11 — describing the window as four layout values")
+            10, 11, 12 -> {
+                // v10, v11, v12 → v13: the window becomes three regions placed in slots. The v11
+                // and v12 descriptions were stored under keys the configuration no longer has, so
+                // they are discarded on decode; every version maps from the v10 fields instead,
+                // which those releases kept in step and which nothing writes from now on.
+                logger.info("ConfigMigrator: migrating v${config.configVersion} → v13 — describing the window as regions in slots")
                 config.copy(
-                    configVersion = 11,
-                    layoutConfig = LayoutConfigMigration.fromV10(config),
-                )
-            }
-            11 -> {
-                // v11 → v12: the window's chrome becomes independent per-region values. The v11
-                // fields stay stored and in step until the following release; they cannot be
-                // removed here because a field absent from the data class is discarded by
-                // ignoreUnknownKeys before this migration can read it.
-                logger.info("ConfigMigrator: migrating v11 → v12 — describing the window by region")
-                config.copy(
-                    configVersion = 12,
-                    workspaceLayout = WorkspaceLayoutMigration.fromV11(config),
+                    configVersion = 13,
+                    windowLayout = WindowLayoutMigration.fromV10(config),
                 )
             }
             else -> {

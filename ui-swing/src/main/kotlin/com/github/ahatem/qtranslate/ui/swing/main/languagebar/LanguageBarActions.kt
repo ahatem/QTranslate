@@ -29,5 +29,19 @@ fun LanguageSelectionBarState.translateAction(onTranslate: () -> Unit, onCancel:
         onClick = onTranslate
     )
 
+/**
+ * The language bar's Clear button as an action for a strip of icon buttons, for when the bar is not
+ * drawn. Same icon, words and enabled rule as the bar's button, and the same [onClear].
+ */
+fun LanguageSelectionBarState.clearAction(onClear: () -> Unit): Action = Action(
+    id = CLEAR_ACTION_ID,
+    iconPath = Icons.DELETE,
+    tooltip = strings.clearTooltip,
+    isEnabled = isClearActionable,
+    isVisible = true,
+    onClick = onClear
+)
+
 const val TRANSLATE_ACTION_ID = "input_translate"
 const val CANCEL_ACTION_ID = "input_cancel"
+const val CLEAR_ACTION_ID = "input_clear"

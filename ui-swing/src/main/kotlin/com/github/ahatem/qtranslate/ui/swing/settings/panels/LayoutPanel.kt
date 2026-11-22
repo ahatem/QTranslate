@@ -1,20 +1,19 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.formdev.flatlaf.FlatClientProperties
-import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
-import com.github.ahatem.qtranslate.core.settings.data.CloseButtonBehavior
-import com.github.ahatem.qtranslate.core.settings.data.HistoryPlacement
-import com.github.ahatem.qtranslate.core.settings.data.LanguagePlacement
-import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
-import com.github.ahatem.qtranslate.core.settings.data.MinimizeButtonBehavior
+import com.github.ahatem.qtranslate.core.settings.data.LayoutAvailability
+import com.github.ahatem.qtranslate.core.settings.data.LayoutDisabledReason
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
-import com.github.ahatem.qtranslate.core.settings.data.ServicePlacement
+import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
-import com.github.ahatem.qtranslate.core.settings.data.WorkspaceLayout
-import com.github.ahatem.qtranslate.core.settings.data.WorkspacePreset
+import com.github.ahatem.qtranslate.core.settings.data.ServiceWidget
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowPreset
+import com.github.ahatem.qtranslate.core.settings.data.WindowRecipe
+import com.github.ahatem.qtranslate.core.settings.data.effectivePaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
-import com.github.ahatem.qtranslate.core.settings.data.withWorkspaceLayout
+import com.github.ahatem.qtranslate.core.settings.data.withWindowLayout
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
@@ -25,18 +24,18 @@ import javax.swing.BorderFactory
 import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
+import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 
 /**
- * The main window: how its panes sit, and what each visual region does.
+ * The main window: how its panes sit, and where each region goes.
  *
- * The four cards are starting points, not stored modes: a card writes only the regions it names,
- * so "one row but keep my bottom strip" is one click. Every value below is a value the window can
- * actually build, and a region that is hidden keeps its commands reachable elsewhere — the
- * history commands move into the input pane, the service choice into the View menu.
+ * The four cards are starting points, not stored modes: a card writes only the values it names,
+ * so "one row but keep my service strip" is one click. Every value below is a value the window can
+ * actually build, and a hidden region keeps its commands reachable in the input pane.
  *
- * Every write on this page goes through [withWorkspaceLayout] via [writeLayout]; the View menu
+ * Every write on this page goes through [withWindowLayout] via [writeLayout]; the View menu
  * dispatches the same transform through a scoped save. There is no second place that writes a
  * layout field directly.
  */
@@ -48,15 +47,43 @@ class LayoutPanel(
     private val onOpenServicesSettings: () -> Unit = {},
 ) : SettingsPanel() {
 
+    /** The starting-point cards this page offers. */
+    private enum class LayoutCard(val recipe: WindowRecipe) {
+        CLASSIC(WindowPreset.MODERN_CLASSIC.recipe),
+        COMPACT(WindowPreset.COMPACT.recipe),
+        SIDE_BY_SIDE(
+            WindowRecipe(
+                panes = PaneLayout.SIDE_BY_SIDE,
+                history = RegionSlot.TOP,
+                languages = RegionSlot.TOP,
+                services = RegionSlot.BOTTOM,
+                serviceWidget = ServiceWidget.PICKER,
+                shareRows = false,
+                showStatusBar = true,
+            )
+        ),
+        COMPARISON(
+            WindowRecipe(
+                panes = PaneLayout.COMPARISON,
+                history = RegionSlot.TOP,
+                languages = RegionSlot.ABOVE_RESULTS,
+                shareRows = false,
+                showStatusBar = true,
+            )
+        ),
+    }
+
     private var comparisonAvailable = true
-    private val presetCards = LinkedHashMap<WorkspacePreset, JButton>()
+    private val presetCards = LinkedHashMap<LayoutCard, JButton>()
 
     private lateinit var summaryLabel: JLabel
     private lateinit var panesCombo: JComboBox<PaneLayout>
-    private lateinit var historyCombo: JComboBox<HistoryPlacement>
-    private lateinit var languagesCombo: JComboBox<LanguagePlacement>
-    private lateinit var servicesCombo: JComboBox<ServicePlacement>
+    private lateinit var historyCombo: JComboBox<RegionSlot>
+    private lateinit var languagesCombo: JComboBox<RegionSlot>
+    private lateinit var servicesCombo: JComboBox<RegionSlot>
+    private lateinit var widgetCombo: JComboBox<ServiceWidget>
     private lateinit var appearanceCombo: JComboBox<ServiceSelectorAppearance>
+    private lateinit var shareRowsCheck: JCheckBox
     private lateinit var statusCheck: JCheckBox
 
     init {
@@ -83,7 +110,7 @@ class LayoutPanel(
 
         panesCombo = enumCombo(PaneLayout.entries.toTypedArray(), ::paneText) { pane ->
             if (isUnavailableComparison(pane)) {
-                withoutTrigger { panesCombo.selectedItem = store.state.value.workingConfiguration.workspaceLayout.panes }
+                withoutTrigger { panesCombo.selectedItem = store.state.value.workingConfiguration.windowLayout.panes }
                 onOpenServicesSettings()
             } else {
                 writeLayout { it.copy(panes = pane) }
@@ -98,27 +125,37 @@ class LayoutPanel(
 
         addSeparator(localizationManager.getString("settings_window.toolbars_group"))
 
-        historyCombo = enumCombo(HistoryPlacement.entries.toTypedArray(), ::historyText) {
+        historyCombo = enumCombo(RegionSlot.entries.toTypedArray(), ::slotText) {
             writeLayout { layout -> layout.copy(history = it) }
         }
         addRow(localizationManager.getString("settings_window.layout_row_history"), historyCombo)
 
-        languagesCombo = enumCombo(LanguagePlacement.entries.toTypedArray(), ::languageText) {
+        languagesCombo = enumCombo(RegionSlot.entries.toTypedArray(), ::slotText) {
             writeLayout { layout -> layout.copy(languages = it) }
         }
         addRow(localizationManager.getString("settings_window.layout_row_languages"), languagesCombo)
 
         addSubSection(localizationManager.getString("settings_window.service_selector_sub")) {
-            servicesCombo = enumCombo(ServicePlacement.entries.toTypedArray(), ::serviceText) {
+            servicesCombo = enumCombo(RegionSlot.entries.toTypedArray(), ::slotText) {
                 writeLayout { layout -> layout.copy(services = it) }
             }
-            addRow(localizationManager.getString("settings_window.layout_row_selector"), servicesCombo)
+            addRow(localizationManager.getString("settings_window.layout_row_position"), servicesCombo)
+
+            widgetCombo = enumCombo(ServiceWidget.entries.toTypedArray(), ::widgetText) {
+                writeLayout { layout -> layout.copy(serviceWidget = it) }
+            }
+            addRow(localizationManager.getString("settings_window.layout_row_selector"), widgetCombo)
 
             appearanceCombo = enumCombo(ServiceSelectorAppearance.entries.toTypedArray(), ::appearanceText) {
-                writeLayout { layout -> layout.copy(appearance = it) }
+                writeLayout { layout -> layout.copy(stripAppearance = it) }
             }
             addRow(localizationManager.getString("settings_window.layout_row_appearance"), appearanceCombo)
         }
+
+        shareRowsCheck = addCheckbox(
+            localizationManager.getString("settings_window.layout_row_share_rows"),
+            false
+        ) { shared -> writeLayout { it.copy(shareRows = shared) } }
 
         statusCheck = addCheckbox(
             localizationManager.getString("settings_window.layout_row_status"),
@@ -138,18 +175,18 @@ class LayoutPanel(
 
     private fun presetCardGrid(): JPanel {
         val grid = JPanel(GridLayout(2, 2, 8, 8)).apply { isOpaque = false }
-        WorkspacePreset.entries.forEach { preset ->
-            val card = JButton(presetTitle(preset)).apply {
-                toolTipText = presetHint(preset)
+        LayoutCard.entries.forEach { card ->
+            val button = JButton(presetTitle(card)).apply {
+                toolTipText = presetHint(card)
                 putClientProperty(
                     FlatClientProperties.BUTTON_TYPE,
                     FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON
                 )
-                addActionListener { if (!isUpdatingFromState) choosePreset(preset) }
+                addActionListener { if (!isUpdatingFromState) choosePreset(card) }
             }
-            presetCards[preset] = card
-            grid.add(card)
-            registerSearchEntry(presetTitle(preset), card, hint = presetHint(preset))
+            presetCards[card] = button
+            grid.add(button)
+            registerSearchEntry(presetTitle(card), button, hint = presetHint(card))
         }
         return JPanel(BorderLayout()).apply {
             isOpaque = false
@@ -164,30 +201,30 @@ class LayoutPanel(
     private fun isUnavailableComparison(pane: PaneLayout?): Boolean =
         pane == PaneLayout.COMPARISON && !comparisonAvailable
 
-    private fun choosePreset(preset: WorkspacePreset) {
-        if (preset == WorkspacePreset.COMPARISON && !comparisonAvailable) {
+    private fun choosePreset(card: LayoutCard) {
+        if (card == LayoutCard.COMPARISON && !comparisonAvailable) {
             onOpenServicesSettings()
             return
         }
-        writeLayout { current -> preset.recipe.applyTo(current) }
+        writeLayout { current -> card.recipe.applyTo(current) }
     }
 
-    /** The single write path for the whole page: one whole [WorkspaceLayout] per change. */
-    private fun writeLayout(transform: (WorkspaceLayout) -> WorkspaceLayout) {
+    /** The single write path for the whole page: one whole [WindowLayout] per change. */
+    private fun writeLayout(transform: (WindowLayout) -> WindowLayout) {
         applyDraft(store) { configuration ->
-            configuration.withWorkspaceLayout(transform(configuration.workspaceLayout))
+            configuration.withWindowLayout(transform(configuration.windowLayout))
         }
     }
 
-    private fun summaryOf(layout: WorkspaceLayout): String = localizationManager.getString(
+    private fun summaryOf(layout: WindowLayout): String = localizationManager.getString(
         "settings_window.layout_summary_format",
         paneText(layout.panes),
-        historyText(layout.history),
-        languageText(layout.languages),
+        slotText(layout.history),
+        slotText(layout.languages),
         if (layout.panes == PaneLayout.COMPARISON) {
             localizationManager.getString("settings_window.layout_selector_absent")
         } else {
-            serviceText(layout.services)
+            slotText(layout.services)
         },
     )
 
@@ -198,24 +235,17 @@ class LayoutPanel(
         null -> ""
     }
 
-    private fun historyText(placement: HistoryPlacement?) = when (placement) {
-        HistoryPlacement.TOP_ROW -> localizationManager.getString("settings_window.layout_history_top_row")
-        HistoryPlacement.BOTTOM_ROW -> localizationManager.getString("settings_window.layout_history_bottom_row")
-        HistoryPlacement.COMBINED -> localizationManager.getString("settings_window.layout_history_combined")
-        HistoryPlacement.RELOCATED -> localizationManager.getString("settings_window.layout_history_relocated")
+    private fun slotText(slot: RegionSlot?) = when (slot) {
+        RegionSlot.TOP -> localizationManager.getString("settings_window.layout_slot_top")
+        RegionSlot.ABOVE_RESULTS -> localizationManager.getString("settings_window.layout_slot_above_results")
+        RegionSlot.BOTTOM -> localizationManager.getString("settings_window.layout_slot_bottom")
+        RegionSlot.HIDDEN -> localizationManager.getString("settings_window.layout_slot_hidden")
         null -> ""
     }
 
-    private fun languageText(placement: LanguagePlacement?) = when (placement) {
-        LanguagePlacement.ROW -> localizationManager.getString("settings_window.layout_languages_row")
-        LanguagePlacement.RELOCATED -> localizationManager.getString("settings_window.layout_languages_relocated")
-        null -> ""
-    }
-
-    private fun serviceText(placement: ServicePlacement?) = when (placement) {
-        ServicePlacement.PICKER -> localizationManager.getString("settings_window.layout_selector_picker")
-        ServicePlacement.BOTTOM_STRIP -> localizationManager.getString("settings_window.layout_selector_bottom_strip")
-        ServicePlacement.RELOCATED -> localizationManager.getString("settings_window.layout_services_relocated")
+    private fun widgetText(widget: ServiceWidget?) = when (widget) {
+        ServiceWidget.PICKER -> localizationManager.getString("settings_window.layout_selector_picker")
+        ServiceWidget.STRIP -> localizationManager.getString("settings_window.layout_selector_bottom_strip")
         null -> ""
     }
 
@@ -226,27 +256,44 @@ class LayoutPanel(
         null -> ""
     }
 
-    private fun presetTitle(preset: WorkspacePreset) = when (preset) {
-        WorkspacePreset.CLASSIC -> localizationManager.getString("settings_window.layout_card_classic")
-        WorkspacePreset.COMPACT -> localizationManager.getString("settings_window.layout_card_compact")
-        WorkspacePreset.SIDE_BY_SIDE -> localizationManager.getString("settings_window.layout_card_side_by_side")
-        WorkspacePreset.COMPARISON ->
+    private fun reasonText(reason: LayoutDisabledReason) = when (reason) {
+        LayoutDisabledReason.COMPARISON_OWNS_SERVICES ->
+            localizationManager.getString("settings_window.layout_selector_absent")
+        LayoutDisabledReason.STRIP_NEEDS_OWN_ROW,
+        LayoutDisabledReason.APPEARANCE_NEEDS_STRIP ->
+            localizationManager.getString("settings_window.layout_appearance_needs_strip")
+    }
+
+    private fun presetTitle(card: LayoutCard) = when (card) {
+        LayoutCard.CLASSIC -> localizationManager.getString("settings_window.layout_card_classic")
+        LayoutCard.COMPACT -> localizationManager.getString("settings_window.layout_card_compact")
+        LayoutCard.SIDE_BY_SIDE -> localizationManager.getString("settings_window.layout_card_side_by_side")
+        LayoutCard.COMPARISON ->
             if (comparisonAvailable) localizationManager.getString("settings_window.layout_card_comparison")
             else comparisonConfigureLabel()
     }
 
-    private fun presetHint(preset: WorkspacePreset) = when (preset) {
-        WorkspacePreset.CLASSIC -> localizationManager.getString("settings_window.layout_card_classic_hint")
-        WorkspacePreset.COMPACT -> localizationManager.getString("settings_window.layout_card_compact_hint")
-        WorkspacePreset.SIDE_BY_SIDE -> localizationManager.getString("settings_window.layout_card_side_by_side_hint")
-        WorkspacePreset.COMPARISON ->
+    private fun presetHint(card: LayoutCard) = when (card) {
+        LayoutCard.CLASSIC -> localizationManager.getString("settings_window.layout_card_classic_hint")
+        LayoutCard.COMPACT -> localizationManager.getString("settings_window.layout_card_compact_hint")
+        LayoutCard.SIDE_BY_SIDE -> localizationManager.getString("settings_window.layout_card_side_by_side_hint")
+        LayoutCard.COMPARISON ->
             if (comparisonAvailable) localizationManager.getString("settings_window.layout_card_comparison_hint")
             else comparisonUnavailableHint()
     }
 
+    /** Enables [control] when [availability] allows, and otherwise says why it does nothing. */
+    private fun gate(control: JComponent, availability: LayoutAvailability) {
+        control.isEnabled = availability == LayoutAvailability.Enabled
+        control.toolTipText = (availability as? LayoutAvailability.Disabled)?.let { reasonText(it.reason) }
+    }
+
     override fun render(state: SettingsState) {
-        val layout = state.workingConfiguration.workspaceLayout
-        comparisonAvailable = state.workingConfiguration.isComparisonEligible(availableTranslatorIds())
+        val configuration = state.workingConfiguration
+        val layout = configuration.windowLayout
+        val translatorIds = availableTranslatorIds()
+        comparisonAvailable = configuration.isComparisonEligible(translatorIds)
+        val effectivePanes = configuration.effectivePaneLayout(translatorIds)
 
         withoutTrigger {
             summaryLabel.text = summaryOf(layout)
@@ -254,21 +301,25 @@ class LayoutPanel(
             historyCombo.selectedItem = layout.history
             languagesCombo.selectedItem = layout.languages
             servicesCombo.selectedItem = layout.services
-            appearanceCombo.selectedItem = layout.appearance
+            widgetCombo.selectedItem = layout.serviceWidget
+            appearanceCombo.selectedItem = layout.stripAppearance
+            shareRowsCheck.isSelected = layout.shareRows
             statusCheck.isSelected = layout.showStatusBar
 
-            // Appearance only changes the bottom strip; under a picker or in comparison it is a
-            // dead value, so disable the row with a reason rather than let it change nothing.
-            val stripShown = layout.panes != PaneLayout.COMPARISON &&
-                layout.services == ServicePlacement.BOTTOM_STRIP
-            appearanceCombo.isEnabled = stripShown
+            // Under a comparison board the header switches the translator, so the selector's own
+            // values are kept but cannot change anything until the panes change back.
+            val servicesAvailability = layout.servicesControlsAvailability(effectivePanes)
+            gate(servicesCombo, servicesAvailability)
+            gate(widgetCombo, servicesAvailability)
+            // The strip's labels only exist while the strip does.
+            gate(appearanceCombo, layout.appearanceAvailability(effectivePanes))
             panesCombo.selectedItem?.let {
                 if (it == PaneLayout.COMPARISON) panesCombo.toolTipText = comparisonUnavailableHint()
             }
 
-            presetCards.forEach { (preset, card) ->
-                card.text = presetTitle(preset)
-                card.toolTipText = presetHint(preset)
+            presetCards.forEach { (card, button) ->
+                button.text = presetTitle(card)
+                button.toolTipText = presetHint(card)
             }
         }
     }

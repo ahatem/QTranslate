@@ -330,35 +330,26 @@ data class Configuration(
      */
     val editorFallbackFontConfig: FontConfig = FontConfig(name = FontConfig.AUTOMATIC, size = 15),
     val useUnifiedTitleBar: Boolean = true,
+    /**
+     * The v10 description of the window: a layout id, chrome switches and the selector style.
+     *
+     * Frozen. Nothing writes these any more; they stay stored so that [ConfigMigrator] can map a
+     * v10, v11 or v12 file onto [windowLayout], and are removed in a later release.
+     */
     val layoutPresetId: String = "classic",
     val toolbarVisibility: ToolbarVisibility = ToolbarVisibility.DEFAULT,
-    /**
-     * Enhanced by default: it shows which service is active and lets one be swapped in place,
-     * where the classic selector only lists them. Classic remains for anyone who prefers the
-     * denser row.
-     */
     val serviceSelectorStyle: ServiceSelectorStyle = ServiceSelectorStyle.ENHANCED,
     val serviceSelectorAppearance: ServiceSelectorAppearance = ServiceSelectorAppearance.ICONS_AND_TEXT,
     /**
-     * The window's arrangement, as four independent values.
+     * The main window as regions placed in slots. The only description of the window the app
+     * reads; written through [withWindowLayout].
      *
-     * Supersedes [layoutPresetId], [toolbarVisibility], [serviceSelectorStyle] and
-     * [serviceSelectorAppearance], which are still what the window is built from until the
-     * settings page and the renderers move over. [ConfigMigrator] fills this from them on upgrade,
-     * so every configuration that has been through v11 carries both descriptions of the same
-     * window; the older four are removed in the release after that.
+     * The key is new, so the v11 and v12 fields (`layoutConfig`, `workspaceLayout`) are ignored as
+     * unknown and the migration starts from the v10 fields instead.
      */
-    val layoutConfig: LayoutConfig = LayoutConfig.DEFAULT,
-    /**
-     * The main window as independent regions: panes, history, languages, services, selector
-     * appearance and footer. Supersedes [layoutConfig], which is retained for one release as the
-     * v11 migration source and kept in step by [withWorkspaceLayout].
-     *
-     * A classic starting point is available on the settings page; this default is what a stored
-     * v11 configuration migrates to, so upgrading never silently rearranges a returning user's
-     * window.
-     */
-    val workspaceLayout: WorkspaceLayout = WorkspaceLayout.DEFAULT,
+    val windowLayout: WindowLayout = WindowLayout.DEFAULT,
+    /** Named layouts the user saved, at most [LayoutProfile.MAX_PROFILES]. */
+    val layoutProfiles: List<LayoutProfile> = emptyList(),
 
     // ---- UI — Quick Panel (Popup) ----
     val isPopupAutoSizeEnabled: Boolean = true,

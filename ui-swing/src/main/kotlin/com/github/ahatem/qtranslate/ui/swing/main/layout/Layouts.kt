@@ -3,6 +3,10 @@ package com.github.ahatem.qtranslate.ui.swing.main.layout
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowRegion
 import java.awt.*
 import javax.swing.*
 
@@ -64,10 +68,19 @@ data class ArrangedLayout(
     val componentRefs: LayoutComponentRefs
 )
 
-enum class LayoutType(val localizeId: String, val id: String) {
-    CLASSIC("layout_preset_classic", LayoutPresetIds.CLASSIC),
-    SIDE_BY_SIDE("layout_preset_side_by_side", LayoutPresetIds.SIDE_BY_SIDE),
-    COMPARISON("layout_preset_comparison", LayoutPresetIds.COMPARISON);
+/** The pane arrangements the View menu offers, with the words it names them by. */
+enum class LayoutType(val localizeId: String, val id: String, val panes: PaneLayout) {
+    CLASSIC("layout_preset_classic", LayoutPresetIds.CLASSIC, PaneLayout.STACKED),
+    SIDE_BY_SIDE("layout_preset_side_by_side", LayoutPresetIds.SIDE_BY_SIDE, PaneLayout.SIDE_BY_SIDE),
+    COMPARISON("layout_preset_comparison", LayoutPresetIds.COMPARISON, PaneLayout.COMPARISON);
+
+    companion object {
+        /** The entry for [panes]. */
+        fun of(panes: PaneLayout): LayoutType = entries.first { it.panes == panes }
+
+        /** The entry a stored id stands for; retired and unknown ids mean Classic. */
+        fun fromId(id: String): LayoutType = of(PaneLayout.fromPresetId(id))
+    }
 }
 
 object LayoutBuilders {
@@ -82,7 +95,8 @@ object LayoutBuilders {
         viewport.isOpaque = false
     }
 
-    fun createSimpleTopBar(historyBar: JComponent): JComponent {
+    /** The history row: the bar fills the width, its own groups sit at either end. */
+    fun historyRow(historyBar: JComponent): JComponent {
         return JPanel(GridBagLayout()).apply {
             val gbc = GridBagConstraints().apply {
                 gridx = 0
@@ -94,44 +108,6 @@ object LayoutBuilders {
         }
     }
 
-    fun createStackedTopBar(historyBar: JComponent, languageBar: JComponent): JComponent {
-        return JPanel(GridBagLayout()).apply {
-            val gbc = GridBagConstraints().apply {
-                gridx = 0
-                weightx = 1.0
-                anchor = GridBagConstraints.LINE_START
-                fill = GridBagConstraints.HORIZONTAL
-            }
-            gbc.gridy = 0
-            add(historyBar, gbc)
-
-            gbc.gridy = 1
-            gbc.insets = Insets(UISpacing.V_GAP, 0, 0, 0)
-            add(languageBar, gbc)
-        }
-    }
-
-    fun createBottomBar(
-        translatorSelector: JComponent,
-        statusBar: JComponent,
-        historyBar: JComponent? = null,
-    ): JComponent {
-        return JPanel(BorderLayout(0, UIScale.scale(4))).apply {
-            // A bottom history row sits above the selector row so the classic crumb stays directly
-            // above the language controls, mirroring the top-row arrangement.
-            historyBar?.let { add(createSimpleTopBar(it), BorderLayout.NORTH) }
-            val selectorRow = JPanel(BorderLayout()).apply {
-                border = BorderFactory.createEmptyBorder(
-                    UIScale.scale(2), UISpacing.PADDING,
-                    UIScale.scale(2), UISpacing.PADDING
-                )
-                add(translatorSelector, BorderLayout.CENTER)
-            }
-            add(selectorRow, if (historyBar != null) BorderLayout.CENTER else BorderLayout.NORTH)
-            add(statusBar, BorderLayout.SOUTH)
-        }
-    }
-
     fun wrapLanguageBar(languageBar: JComponent): JComponent {
         return JPanel(BorderLayout()).apply {
             border = BorderFactory.createEmptyBorder(UISpacing.V_GAP, 0, UISpacing.V_GAP, 0)
@@ -139,24 +115,65 @@ object LayoutBuilders {
         }
     }
 
+    /** The service selector's row. The slot it sits in supplies any side padding. */
+    fun serviceRow(translatorSelector: JComponent): JComponent {
+        return JPanel(BorderLayout()).apply {
+            border = BorderFactory.createEmptyBorder(UIScale.scale(2), 0, UIScale.scale(2), 0)
+            add(translatorSelector, BorderLayout.CENTER)
+        }
+    }
+
     /**
-     * One row holding the language controls and, at its end, the history controls.
+     * Several regions in one row, in the fixed order history, languages, services.
      *
-     * This is the whole of the Compact toolbar: the history bar keeps every button it has and
-     * stops being a row. The status sentence inside it is hidden by the window (it is the widest
-     * thing in the bar), which is what makes the row fit beside the language selectors at the
-     * widths people actually use.
-     *
-     * The history controls go to LINE_END, which makes them follow the row's trailing edge: the
-     * right in English and the left in Arabic, mirroring the language selectors that begin the row.
-     * That is the same end of the row the separate history row occupies today, so switching styles
-     * does not move the controls from one side of the window to the other.
+     * The language controls take the middle of the row when they are in it, otherwise the history
+     * bar does; a member before that one starts the row at LINE_START and a member after it ends
+     * the row at LINE_END. Only LINE_START and LINE_END are used, so a right-to-left window mirrors
+     * the row from its structure alone.
      */
-    fun combinedLanguageRow(languageBar: JComponent, historyBar: JComponent): JComponent {
+    fun sharedRow(members: List<Pair<WindowRegion, JComponent>>): JComponent {
+        val stretch = members.firstOrNull { it.first == WindowRegion.LANGUAGES }
+            ?: members.firstOrNull { it.first == WindowRegion.HISTORY }
+            ?: members.first()
+        val stretchIndex = members.indexOf(stretch)
         return JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
             border = BorderFactory.createEmptyBorder(UISpacing.V_GAP, 0, UISpacing.V_GAP, 0)
-            add(languageBar, BorderLayout.CENTER)
-            add(historyBar, BorderLayout.LINE_END)
+            members.forEachIndexed { index, (_, component) ->
+                add(
+                    component,
+                    when {
+                        index == stretchIndex -> BorderLayout.CENTER
+                        index < stretchIndex -> BorderLayout.LINE_START
+                        else -> BorderLayout.LINE_END
+                    }
+                )
+            }
+        }
+    }
+
+    /** The rows of one slot, top to bottom, each filling the width. Null when the slot is empty. */
+    fun slotColumn(rows: List<JComponent>, horizontalInset: Int = 0): JComponent? {
+        if (rows.isEmpty()) return null
+        return JPanel(GridBagLayout()).apply {
+            border = BorderFactory.createEmptyBorder(0, horizontalInset, 0, horizontalInset)
+            val gbc = GridBagConstraints().apply {
+                gridx = 0
+                weightx = 1.0
+                anchor = GridBagConstraints.LINE_START
+                fill = GridBagConstraints.HORIZONTAL
+            }
+            rows.forEachIndexed { index, row ->
+                gbc.gridy = index
+                add(row, gbc)
+            }
+        }
+    }
+
+    /** The footer: the bottom slot's rows, if any, above the status bar. */
+    fun createBottomBar(bottomSlot: JComponent?, statusBar: JComponent): JComponent {
+        return JPanel(BorderLayout(0, UIScale.scale(4))).apply {
+            bottomSlot?.let { add(it, BorderLayout.NORTH) }
+            add(statusBar, BorderLayout.SOUTH)
         }
     }
 
@@ -177,40 +194,47 @@ object LayoutBuilders {
     }
 }
 
-object ClassicLayout : LayoutStrategy {
-    override val type = LayoutType.CLASSIC
-    override fun arrange(
-        components: ComponentRegistry,
-        isRtl: Boolean,
-        historyInline: Boolean,
-        historyAtBottom: Boolean,
-    ): ArrangedLayout {
-        val topBar = if (historyInline || historyAtBottom) null else LayoutBuilders.createSimpleTopBar(components.historyBar)
-        val bottomBar = LayoutBuilders.createBottomBar(
-            components.translatorSelector, components.statusBar,
-            historyBar = components.historyBar.takeIf { historyAtBottom },
-        )
+/**
+ * Builds the main window from a [WindowLayout]: three slot containers and the pane split.
+ *
+ * Which rows exist and what each holds comes from [WindowLayout.rowPlan] alone, and a slot means
+ * the same place whatever the panes:
+ *
+ * | slot | Stacked | Side by side | Comparison |
+ * |---|---|---|---|
+ * | TOP | above the input pane | above both columns | above the input pane |
+ * | ABOVE_RESULTS | between input and output | above the output column only | above the board |
+ * | BOTTOM | below the panes, above the status bar | same | same |
+ *
+ * A region absent from the plan (hidden, or the services region under Comparison) is not mounted
+ * and is made invisible; the window hosts its commands elsewhere, as [WindowLayout.requiredHosts]
+ * says.
+ */
+object SlotLayout {
 
-        val outputSection = JPanel(BorderLayout()).apply {
-            add(
-                if (historyInline) {
-                    LayoutBuilders.combinedLanguageRow(components.languageBar, components.historyBar)
-                } else {
-                    LayoutBuilders.wrapLanguageBar(components.languageBar)
-                },
-                BorderLayout.NORTH
-            )
-            add(components.outputPanel, BorderLayout.CENTER)
+    fun arrange(
+        components: ComponentRegistry,
+        layout: WindowLayout,
+        effectivePanes: PaneLayout = layout.panes,
+        isRtl: Boolean = false,
+    ): ArrangedLayout {
+        val plan = layout.rowPlan(effectivePanes)
+        val placed = plan.values.flatten().flatten().toSet()
+        components.historyBar.isVisible = WindowRegion.HISTORY in placed
+        components.languageBar.isVisible = WindowRegion.LANGUAGES in placed
+        components.translatorSelector.isVisible = WindowRegion.SERVICES in placed
+        components.statusBar.isVisible = layout.showStatusBar
+
+        val top = slot(plan, RegionSlot.TOP, components)
+        val aboveResults = slot(plan, RegionSlot.ABOVE_RESULTS, components)
+        // The footer sits outside the padded content, so its rows bring the window's side padding.
+        val bottom = slot(plan, RegionSlot.BOTTOM, components, horizontalInset = UISpacing.PADDING)
+
+        val (panes, refs) = when (effectivePanes) {
+            PaneLayout.STACKED -> stacked(components, aboveResults)
+            PaneLayout.SIDE_BY_SIDE -> sideBySide(components, aboveResults, isRtl)
+            PaneLayout.COMPARISON -> comparison(components, aboveResults)
         }
-        val mainSplit = LayoutBuilders.createVerticalSplit(
-            top = components.inputPanel, bottom = outputSection, resizeWeight = 0.5
-        )
-        val extraSplit = LayoutBuilders.createVerticalSplit(
-            top = mainSplit,
-            bottom = components.extraOutputPanel,
-            resizeWeight = 0.8,
-            bottomMinHeight = UISpacing.MIN_EXTRA_HEIGHT
-        )
 
         val contentPanel = JPanel(BorderLayout(0, UISpacing.V_GAP)).apply {
             border = BorderFactory.createEmptyBorder(
@@ -219,114 +243,88 @@ object ClassicLayout : LayoutStrategy {
                 UISpacing.V_GAP,
                 UISpacing.PADDING
             )
-            topBar?.let { add(it, BorderLayout.NORTH) }
-            add(extraSplit, BorderLayout.CENTER)
+            top?.let { add(it, BorderLayout.NORTH) }
+            add(panes, BorderLayout.CENTER)
         }
-
         val root = JPanel(BorderLayout()).apply {
             add(contentPanel, BorderLayout.CENTER)
-            add(bottomBar, BorderLayout.SOUTH)
+            add(LayoutBuilders.createBottomBar(bottom, components.statusBar), BorderLayout.SOUTH)
         }
-
-        val refs = LayoutComponentRefs.WithSplitPanes(mainSplit, extraSplit)
         refs.syncExtraOutputState(components.extraOutputPanel)
         return ArrangedLayout(root, refs)
     }
-}
 
-object SideBySideLayout : LayoutStrategy {
-    override val type = LayoutType.SIDE_BY_SIDE
-    override fun arrange(
+    private fun slot(
+        plan: Map<RegionSlot, List<List<WindowRegion>>>,
+        slot: RegionSlot,
         components: ComponentRegistry,
-        isRtl: Boolean,
-        historyInline: Boolean,
-        historyAtBottom: Boolean,
-    ): ArrangedLayout {
-        val topBar = if (historyInline) {
-            LayoutBuilders.combinedLanguageRow(components.languageBar, components.historyBar)
-        } else if (historyAtBottom) {
-            LayoutBuilders.wrapLanguageBar(components.languageBar)
-        } else {
-            LayoutBuilders.createStackedTopBar(components.historyBar, components.languageBar)
+        horizontalInset: Int = 0,
+    ): JComponent? {
+        val rows = plan[slot].orEmpty().map { row ->
+            if (row.size == 1) {
+                when (row.single()) {
+                    WindowRegion.HISTORY -> LayoutBuilders.historyRow(components.historyBar)
+                    WindowRegion.LANGUAGES -> LayoutBuilders.wrapLanguageBar(components.languageBar)
+                    WindowRegion.SERVICES -> LayoutBuilders.serviceRow(components.translatorSelector)
+                }
+            } else {
+                LayoutBuilders.sharedRow(row.map { it to components.componentOf(it) })
+            }
         }
-        val bottomBar = LayoutBuilders.createBottomBar(
-            components.translatorSelector, components.statusBar,
-            historyBar = components.historyBar.takeIf { historyAtBottom },
-        )
+        return LayoutBuilders.slotColumn(rows, horizontalInset)
+    }
 
-        val mainSplit = ResponsivePairSplit(
-            leading = components.inputPanel,
-            trailing = components.outputPanel,
-            isRtl = isRtl
-        ).split
-        val extraSplit = LayoutBuilders.createVerticalSplit(
-            top = mainSplit,
-            bottom = components.extraOutputPanel,
+    private fun ComponentRegistry.componentOf(region: WindowRegion): JComponent = when (region) {
+        WindowRegion.HISTORY -> historyBar
+        WindowRegion.LANGUAGES -> languageBar
+        WindowRegion.SERVICES -> translatorSelector
+    }
+
+    private fun extraSplit(top: JComponent, bottom: JComponent): MirroredSplitPane =
+        LayoutBuilders.createVerticalSplit(
+            top = top,
+            bottom = bottom,
             resizeWeight = 0.8,
             bottomMinHeight = UISpacing.MIN_EXTRA_HEIGHT
         )
 
-        val contentPanel = JPanel(BorderLayout(0, UISpacing.V_GAP)).apply {
-            border = BorderFactory.createEmptyBorder(
-                UISpacing.PADDING,
-                UISpacing.PADDING,
-                UISpacing.V_GAP,
-                UISpacing.PADDING
-            )
-            add(topBar, BorderLayout.NORTH)
-            add(extraSplit, BorderLayout.CENTER)
-        }
-
-        val root = JPanel(BorderLayout()).apply {
-            add(contentPanel, BorderLayout.CENTER)
-            add(bottomBar, BorderLayout.SOUTH)
-        }
-
-        val refs = LayoutComponentRefs.WithSplitPanes(mainSplit, extraSplit)
-        refs.syncExtraOutputState(components.extraOutputPanel)
-        return ArrangedLayout(root, refs)
+    /** [content] under [header] in one holder, so the holder's place never depends on the header. */
+    private fun section(header: JComponent?, content: JComponent): JComponent = JPanel(BorderLayout()).apply {
+        header?.let { add(it, BorderLayout.NORTH) }
+        add(content, BorderLayout.CENTER)
     }
-}
 
-object ComparisonLayout : LayoutStrategy {
-    override val type = LayoutType.COMPARISON
-
-    override fun arrange(
-        components: ComponentRegistry,
-        isRtl: Boolean,
-        historyInline: Boolean,
-        historyAtBottom: Boolean,
-    ): ArrangedLayout {
-        // Inline, the one row is the whole top chrome here too: the language selectors and the
-        // history controls share it, above the board.
-        val topBar = when {
-            historyInline -> LayoutBuilders.combinedLanguageRow(components.languageBar, components.historyBar)
-            historyAtBottom -> null
-            else -> LayoutBuilders.createSimpleTopBar(components.historyBar)
-        }
-        // Comparison owns primary-service switching in the primary result header. The footer is
-        // the status bar, with the history row added above it when history is placed at the bottom.
-        val bottomBar = if (historyAtBottom) {
-            LayoutBuilders.createBottomBar(
-                JPanel().apply { isOpaque = false },
-                components.statusBar,
-                historyBar = components.historyBar,
-            )
-        } else {
-            components.statusBar
-        }
-
-        // One logical results viewport: the board owns the primary provider and every
-        // comparison below it, so results never split into disconnected scroll regions.
-        val resultsSection = JPanel(BorderLayout()).apply {
-            // The language row moved into the top bar above when inline; adding it again would put
-            // the same selectors on screen twice.
-            if (!historyInline) add(LayoutBuilders.wrapLanguageBar(components.languageBar), BorderLayout.NORTH)
-            add(LayoutBuilders.wrapScrollable(components.compareBoard), BorderLayout.CENTER)
-        }
+    private fun stacked(components: ComponentRegistry, aboveResults: JComponent?): Pair<JComponent, LayoutComponentRefs> {
         val mainSplit = LayoutBuilders.createVerticalSplit(
             top = components.inputPanel,
-            bottom = resultsSection,
+            bottom = section(aboveResults, components.outputPanel),
+            resizeWeight = 0.5
+        )
+        val extra = extraSplit(mainSplit, components.extraOutputPanel)
+        return extra to LayoutComponentRefs.WithSplitPanes(mainSplit, extra)
+    }
+
+    private fun sideBySide(
+        components: ComponentRegistry,
+        aboveResults: JComponent?,
+        isRtl: Boolean,
+    ): Pair<JComponent, LayoutComponentRefs> {
+        // Above results is above the output column only; the input column starts at the top.
+        val mainSplit = ResponsivePairSplit(
+            leading = components.inputPanel,
+            trailing = section(aboveResults, components.outputPanel),
+            isRtl = isRtl
+        ).split
+        val extra = extraSplit(mainSplit, components.extraOutputPanel)
+        return extra to LayoutComponentRefs.WithSplitPanes(mainSplit, extra)
+    }
+
+    private fun comparison(components: ComponentRegistry, aboveResults: JComponent?): Pair<JComponent, LayoutComponentRefs> {
+        // One logical results viewport: the board owns the primary provider and every comparison
+        // below it, so results never split into disconnected scroll regions.
+        val mainSplit = LayoutBuilders.createVerticalSplit(
+            top = components.inputPanel,
+            bottom = section(aboveResults, LayoutBuilders.wrapScrollable(components.compareBoard)),
             resizeWeight = 0.28,
             topMinHeight = UISpacing.MIN_PANEL_HEIGHT,
             bottomMinHeight = UISpacing.MIN_PANEL_HEIGHT
@@ -334,39 +332,15 @@ object ComparisonLayout : LayoutStrategy {
             // Input takes roughly the top 28%; extra height favours the results.
             setLeadingProportion(0.28)
         }
-        // Layout-owned boundary between the comparison results and the derived
-        // Extra Output: a plain theme-aware separator, not a panel border and
-        // not a box around either region.
+        // Layout-owned boundary between the comparison results and the derived Extra Output: a
+        // plain theme-aware separator, not a panel border and not a box around either region.
         val extraBoundary = JSeparator(SwingConstants.HORIZONTAL)
         val extraSection = JPanel(BorderLayout()).apply {
             isOpaque = false
             add(extraBoundary, BorderLayout.NORTH)
             add(components.extraOutputPanel, BorderLayout.CENTER)
         }
-        val extraSplit = LayoutBuilders.createVerticalSplit(
-            top = mainSplit,
-            bottom = extraSection,
-            resizeWeight = 0.8,
-            bottomMinHeight = UISpacing.MIN_EXTRA_HEIGHT
-        )
-
-        val contentPanel = JPanel(BorderLayout(0, UISpacing.V_GAP)).apply {
-            border = BorderFactory.createEmptyBorder(
-                UISpacing.PADDING,
-                UISpacing.PADDING,
-                UISpacing.V_GAP,
-                UISpacing.PADDING
-            )
-            topBar?.let { add(it, BorderLayout.NORTH) }
-            add(extraSplit, BorderLayout.CENTER)
-        }
-        val root = JPanel(BorderLayout()).apply {
-            add(contentPanel, BorderLayout.CENTER)
-            add(bottomBar, BorderLayout.SOUTH)
-        }
-        val refs = LayoutComponentRefs.WithSplitPanes(mainSplit, extraSplit, extraBoundary)
-        refs.syncExtraOutputState(components.extraOutputPanel)
-        return ArrangedLayout(root, refs)
+        val extra = extraSplit(mainSplit, extraSection)
+        return extra to LayoutComponentRefs.WithSplitPanes(mainSplit, extra, extraBoundary)
     }
 }
-

@@ -4,12 +4,14 @@ import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
-import com.github.ahatem.qtranslate.core.settings.data.HistoryPlacement
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
-import com.github.ahatem.qtranslate.core.settings.data.ServicePlacement
+import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
+import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
+import com.github.ahatem.qtranslate.core.settings.data.ServiceWidget
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
-import com.github.ahatem.qtranslate.core.settings.data.WorkspaceLayout
-import com.github.ahatem.qtranslate.core.settings.data.withWorkspaceLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
+import com.github.ahatem.qtranslate.core.settings.data.withWindowLayout
+import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import kotlinx.coroutines.CoroutineScope
@@ -31,10 +33,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * The Layout page exposes every region's real choice, and gates only the value that would
- * otherwise be dead. Selector placement stays enabled even on a comparison board (RELOCATED is a
- * real choice there); appearance is the only row that can have nothing to change, so it is
- * disabled with a reason unless the bottom strip is actually shown.
+ * The Layout page exposes every region's real choice, and gates only the values that would
+ * otherwise be dead: the selector's position and style while a comparison board owns switching,
+ * and the strip labels unless the strip is the widget. Each gated row says why.
  */
 class LayoutPanelCapabilityTest {
 
@@ -79,27 +80,73 @@ class LayoutPanelCapabilityTest {
         return rowLabel.labelFor as JComboBox<*>
     }
 
-    private fun panel(store: SettingsStore): LayoutPanel = onEdt {
-        LayoutPanel(store, localizer).also { it.render(store.state.value) }
+    private fun panel(store: SettingsStore, translatorIds: List<String> = emptyList()): LayoutPanel = onEdt {
+        LayoutPanel(store, localizer, availableTranslatorIds = { translatorIds }).also { it.render(store.state.value) }
     }
 
-    private fun writeWorkspace(store: SettingsStore, panel: LayoutPanel, transform: (WorkspaceLayout) -> WorkspaceLayout) =
+    private fun writeLayout(store: SettingsStore, panel: LayoutPanel, transform: (WindowLayout) -> WindowLayout) =
         onEdt {
-            store.dispatch(SettingsIntent.TransformDraft { it.withWorkspaceLayout(transform(it.workspaceLayout)) })
+            store.dispatch(SettingsIntent.TransformDraft { it.withWindowLayout(transform(it.windowLayout)) })
             panel.render(store.state.value)
         }
 
+    /** A configuration with two usable translators, so a comparison board is really built. */
+    private val comparisonReady = Configuration.DEFAULT.copy(
+        servicePresets = listOf(
+            ServicePreset(
+                id = "preset",
+                name = "preset",
+                selectedServices = mapOf(ServiceRole.TRANSLATOR to "google"),
+                comparisonTranslatorIds = listOf("bing"),
+            )
+        ),
+        activeServicePresetId = "preset",
+    )
+
     @Test
-    fun `strip labels are only offered while the bottom strip is shown`() {
+    fun `strip labels are only offered while the strip is the selector`() {
         val store = store(Configuration.DEFAULT)
         val layoutPanel = panel(store)
         val appearance = rowCombo(layoutPanel, localizer.getString("settings_window.layout_row_appearance"))
 
         // The default picker has no strip, so the appearance value would change nothing.
         assertFalse(appearance.isEnabled, "a picker has no strip whose labels can change")
+        assertEquals(
+            localizer.getString("settings_window.layout_appearance_needs_strip"),
+            appearance.toolTipText,
+            "the disabled row says why",
+        )
 
-        writeWorkspace(store, layoutPanel) { it.copy(services = ServicePlacement.BOTTOM_STRIP) }
-        assertTrue(appearance.isEnabled, "the bottom strip's labels can now be tuned")
+        writeLayout(store, layoutPanel) { it.copy(serviceWidget = ServiceWidget.STRIP) }
+        assertTrue(appearance.isEnabled, "the strip's labels can now be tuned")
+    }
+
+    @Test
+    fun `a comparison board gates the selector rows and keeps their values`() {
+        val store = store(comparisonReady.withWindowLayout(WindowLayout(services = RegionSlot.TOP)))
+        val layoutPanel = panel(store, translatorIds = listOf("google", "bing"))
+        val position = rowCombo(layoutPanel, localizer.getString("settings_window.layout_row_position"))
+        val style = rowCombo(layoutPanel, localizer.getString("settings_window.layout_row_selector"))
+        assertTrue(position.isEnabled && style.isEnabled, "stacked panes have a selector to place")
+
+        writeLayout(store, layoutPanel) { it.copy(panes = PaneLayout.COMPARISON) }
+        assertFalse(position.isEnabled, "the board header switches the translator under comparison")
+        assertFalse(style.isEnabled)
+        assertEquals(localizer.getString("settings_window.layout_selector_absent"), position.toolTipText)
+        assertEquals(
+            RegionSlot.TOP,
+            store.state.value.workingConfiguration.windowLayout.services,
+            "the stored position is kept for when the panes change back",
+        )
+    }
+
+    @Test
+    fun `an ineligible comparison leaves the selector rows usable`() {
+        // Without two translators the window builds stacked panes, so the selector is really there.
+        val store = store(Configuration.DEFAULT.withWindowLayout(WindowLayout(panes = PaneLayout.COMPARISON)))
+        val layoutPanel = panel(store)
+        val position = rowCombo(layoutPanel, localizer.getString("settings_window.layout_row_position"))
+        assertTrue(position.isEnabled, "the effective panes decide, not the stored preference")
     }
 
     @Test
@@ -108,17 +155,17 @@ class LayoutPanelCapabilityTest {
         val layoutPanel = panel(store)
         val history = rowCombo(layoutPanel, localizer.getString("settings_window.layout_row_history"))
 
-        writeWorkspace(store, layoutPanel) { it.copy(history = HistoryPlacement.BOTTOM_ROW) }
+        writeLayout(store, layoutPanel) { it.copy(history = RegionSlot.BOTTOM) }
         assertEquals(
-            HistoryPlacement.BOTTOM_ROW,
-            store.state.value.workingConfiguration.workspaceLayout.history,
+            RegionSlot.BOTTOM,
+            store.state.value.workingConfiguration.windowLayout.history,
         )
         assertTrue(history.isEnabled, "every pane layout has a history placement to choose")
 
-        writeWorkspace(store, layoutPanel) { it.copy(panes = PaneLayout.COMPARISON) }
+        writeLayout(store, layoutPanel) { it.copy(panes = PaneLayout.COMPARISON) }
         assertEquals(
-            HistoryPlacement.BOTTOM_ROW,
-            store.state.value.workingConfiguration.workspaceLayout.history,
+            RegionSlot.BOTTOM,
+            store.state.value.workingConfiguration.windowLayout.history,
             "changing panes does not silently reset the history choice",
         )
     }

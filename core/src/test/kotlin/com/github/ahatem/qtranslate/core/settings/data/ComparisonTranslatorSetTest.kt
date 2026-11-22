@@ -71,7 +71,7 @@ class ComparisonTranslatorSetTest {
             activeServicePresetId = "preset",
             layoutPresetId = layoutPresetId,
             // The arrangement the window reads, kept in step with the id beside it.
-            layoutConfig = LayoutConfig.DEFAULT.copy(paneLayout = PaneLayout.fromPresetId(layoutPresetId)),
+            windowLayout = WindowLayout(panes = PaneLayout.fromPresetId(layoutPresetId)),
             disabledServices = disabledServices
         )
         return base.withServiceRoleEnabled(ServiceRole.TRANSLATOR, translatorRoleEnabled)

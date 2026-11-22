@@ -58,7 +58,7 @@ class LanguageSelectionBar(
     }
 
     override fun render(state: LanguageSelectionBarState) {
-        clearButton.isEnabled = !state.isLoading && state.canClear
+        clearButton.isEnabled = state.isClearActionable
         clearButton.toolTipText = state.strings.clearTooltip
 
         swapButton.isEnabled = state.isSwapActionable

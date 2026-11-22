@@ -106,7 +106,7 @@ class SettingsInformationArchitectureTest {
     fun `window chrome is not a setting on the history page`() {
         // This used to be a "show the history bar" switch beside the history storage switch, on the
         // argument that the visible half of history belongs with the rest of it. That is no longer
-        // expressible: how much chrome the window draws is one of three toolbar styles on the
+        // expressible: where the history row sits, or whether it is hidden, is a slot on the
         // layout page, and a boolean here could only ever disagree with it. The check is on the
         // source because what matters is that no such write exists here at all.
         val source = java.io.File(

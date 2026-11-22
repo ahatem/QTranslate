@@ -415,7 +415,7 @@ class MainStore(
                 val availableIds = services
                     .filter { it.type == ServiceRole.TRANSLATOR }
                     .map { it.id }
-                config.workspaceLayout.panes == PaneLayout.COMPARISON &&
+                config.windowLayout.panes == PaneLayout.COMPARISON &&
                     !config.isComparisonEligible(availableIds)
             }
                 .distinctUntilChanged()

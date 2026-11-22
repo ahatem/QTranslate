@@ -34,6 +34,9 @@ data class LanguageSelectionBarState(
 
     /** Whether the swap control can be pressed. */
     val isSwapActionable: Boolean get() = !isLoading && canSwap
+
+    /** Whether the clear control can be pressed: there is input, and no translation is running. */
+    val isClearActionable: Boolean get() = !isLoading && canClear
 }
 
 data class LanguageSelectionBarStrings(

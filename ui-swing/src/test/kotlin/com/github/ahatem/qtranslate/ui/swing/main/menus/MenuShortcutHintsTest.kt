@@ -36,7 +36,7 @@ class MenuShortcutHintsTest {
                 onShowDictionary = {}, onShowImageSearch = {}, onRecognizeText = {}, onShowHistory = {},
                 onTranslateDocument = {}, onShowSettings = {}, onShowHowToUse = {}, onShowAboutQTranslate = {},
                 onContactUs = {}, onToggleAutoCheckForUpdates = {}, onCheckForUpdates = {},
-                onExitApplication = {}, onChangeLayoutPreset = {}, onSelectToolbarStyle = {},
+                onExitApplication = {}, onChangeLayoutPreset = {},
                 onToggleStatusBar = {},
             ),
             strings = MenuStrings(
@@ -47,8 +47,7 @@ class MenuShortcutHintsTest {
                 history = "History", translateDocument = "Translate Document", settings = "Settings",
                 help = "Help", howToUse = "How to Use", aboutQTranslate = "About", contactUs = "Contact",
                 autoCheckForUpdates = "Auto-check", checkForUpdates = "Check", exit = "Exit",
-                layoutPresets = "Layouts", toolbarStyle = "Toolbar", toolbarFull = "Full",
-                toolbarCompact = "Compact", toolbarMinimal = "Minimal", showStatusBar = "Status bar",
+                layoutPresets = "Layouts", showStatusBar = "Status bar",
             ),
             availableLayouts = emptyList(),
             shortcutHints = hints,

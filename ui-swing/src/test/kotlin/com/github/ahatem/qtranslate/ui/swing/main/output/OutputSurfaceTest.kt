@@ -1,5 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.main.output
 
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
+import com.github.ahatem.qtranslate.ui.swing.main.layout.SlotLayout
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
@@ -106,15 +109,12 @@ class OutputSurfaceTest {
             outputPanel = leaves[3], compareBoard = leaves[4], extraOutputPanel = leaves[5],
             translatorSelector = leaves[6], statusBar = leaves[7]
         )
-        listOf(
-            com.github.ahatem.qtranslate.ui.swing.main.layout.ClassicLayout,
-            com.github.ahatem.qtranslate.ui.swing.main.layout.SideBySideLayout,
-        ).forEach { layout ->
-            onEdt { layout.arrange(registry, isRtl = false) }
-            assertTrue(leaves[3].parent !is JViewport, "${layout.id}: Output must not sit inside a viewport")
+        listOf(PaneLayout.STACKED, PaneLayout.SIDE_BY_SIDE).forEach { panes ->
+            onEdt { SlotLayout.arrange(registry, WindowLayout(panes = panes)) }
+            assertTrue(leaves[3].parent !is JViewport, "$panes: Output must not sit inside a viewport")
             assertTrue(
                 ancestors(leaves[3]).none { it is JScrollPane },
-                "${layout.id}: Output must not have a layout-owned scroll pane above it"
+                "$panes: Output must not have a layout-owned scroll pane above it"
             )
         }
     }

@@ -2,58 +2,65 @@ package com.github.ahatem.qtranslate.ui.swing.main.layout
 
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
-import com.github.ahatem.qtranslate.core.settings.data.HistoryPlacement
-import com.github.ahatem.qtranslate.core.settings.data.LanguagePlacement
-import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
-import com.github.ahatem.qtranslate.core.settings.data.ServicePlacement
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import java.awt.BorderLayout
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
 
+/**
+ * Mounts the window that [SlotLayout] builds into [container], and rebuilds it when the
+ * arrangement changes. The panes themselves are never replaced: each build re-parents the same
+ * components.
+ */
 class LayoutManager(
     private val components: ComponentRegistry,
     private val container: JPanel
 ) {
     private var currentLayout: ArrangedLayout? = null
-    private var currentLayoutId: String? = null
+    private var currentKey: Key? = null
+    private var currentIsRtl: Boolean = false
+
+    /** What a build depends on. Values that only restyle a mounted component are left out. */
+    private data class Key(val layout: WindowLayout, val effectivePanes: PaneLayout, val isRtl: Boolean)
 
     companion object {
-        private val strategies = listOf(ClassicLayout, SideBySideLayout, ComparisonLayout)
-        fun getAvailableLayouts(): List<LayoutStrategy> = strategies
+        /** The pane arrangements the View menu offers. */
+        fun getAvailableLayouts(): List<LayoutType> = LayoutType.entries
     }
 
-    fun getLayoutById(id: String): LayoutStrategy {
-        val resolved = LayoutPresetIds.resolve(id)
-        return strategies.first { it.id == resolved }
-    }
+    /** The arrangement currently mounted, or null before the first build has run. */
+    val arranged: ArrangedLayout? get() = currentLayout
 
-    private var currentIsRtl: Boolean = false
-    private var currentHistoryInline: Boolean = false
-    private var currentHistoryAtBottom: Boolean = false
-
+    /**
+     * Builds [layout] with [effectivePanes] (the panes actually shown once comparison eligibility
+     * is applied) unless that arrangement is already mounted.
+     */
     fun switchLayout(
-        layoutId: String,
+        layout: WindowLayout,
+        effectivePanes: PaneLayout = layout.panes,
         isRtl: Boolean = currentIsRtl,
-        historyInline: Boolean = currentHistoryInline,
-        historyAtBottom: Boolean = currentHistoryAtBottom,
     ) {
-        val rtlChanged = isRtl != currentIsRtl
-        val inlineChanged = historyInline != currentHistoryInline
-        val bottomChanged = historyAtBottom != currentHistoryAtBottom
-        if (layoutId == currentLayoutId && !rtlChanged && !inlineChanged && !bottomChanged) return
+        val key = Key(
+            // The strip's appearance and the density restyle mounted components; they do not
+            // change which component sits where, so they never cost a rebuild.
+            layout.copy(
+                stripAppearance = WindowLayout.DEFAULT.stripAppearance,
+                density = WindowLayout.DEFAULT.density,
+            ),
+            effectivePanes,
+            isRtl,
+        )
+        if (key == currentKey) return
+        currentKey = key
         currentIsRtl = isRtl
-        currentHistoryInline = historyInline
-        currentHistoryAtBottom = historyAtBottom
         SwingUtilities.invokeLater {
             detachAll()
             container.removeAll()
 
-            val strategy = getLayoutById(layoutId)
-            val arranged = strategy.arrange(components, isRtl, historyInline, historyAtBottom)
+            val arranged = SlotLayout.arrange(components, layout, effectivePanes, isRtl)
             container.add(arranged.rootComponent, BorderLayout.CENTER)
             currentLayout = arranged
-            currentLayoutId = layoutId
             arranged.componentRefs.syncExtraOutputState(components.extraOutputPanel)
             container.revalidate()
             container.repaint()
@@ -73,26 +80,12 @@ class LayoutManager(
         ).forEach { it.parent?.remove(it) }
     }
 
+    /** Shows or hides Extra Output. Region visibility is part of the build itself. */
     fun updateVisibility(config: Configuration) {
         SwingUtilities.invokeLater {
-            if (currentLayoutId == null) return@invokeLater
-
-            // The window is built from the per-region values, so each region follows its own
-            // choice rather than a shared enum or the older switches they were migrated from.
-            // The resolved form applies the one documented rule (COMBINED with a relocated
-            // language row becomes a top history row), so visibility agrees with arrangement.
-            val layout = config.workspaceLayout.effective
-
-            // RELOCATED hides the row but the commands are mounted in the input pane, so the
-            // feature stays reachable; COMBINED keeps them in the language row itself.
-            components.historyBar.isVisible = layout.history != HistoryPlacement.RELOCATED
-            components.translatorSelector.isVisible =
-                layout.panes != PaneLayout.COMPARISON && layout.services != ServicePlacement.RELOCATED
-            components.languageBar.isVisible = layout.languages == LanguagePlacement.ROW
-            components.statusBar.isVisible = layout.showStatusBar
-
+            val arranged = currentLayout ?: return@invokeLater
             val showExtra = config.extraOutputType != ExtraOutputType.None
-            currentLayout?.componentRefs?.updateExtraOutputVisibility(showExtra, components.extraOutputPanel)
+            arranged.componentRefs.updateExtraOutputVisibility(showExtra, components.extraOutputPanel)
         }
     }
 }

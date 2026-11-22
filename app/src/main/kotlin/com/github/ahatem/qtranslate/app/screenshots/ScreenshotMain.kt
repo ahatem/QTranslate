@@ -13,19 +13,15 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
-import com.github.ahatem.qtranslate.core.settings.data.HistoryPlacement
-import com.github.ahatem.qtranslate.core.settings.data.LanguagePlacement
-import com.github.ahatem.qtranslate.core.settings.data.LayoutConfig
-import com.github.ahatem.qtranslate.core.settings.data.LayoutPreset
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
-import com.github.ahatem.qtranslate.core.settings.data.ServicePlacement
-import com.github.ahatem.qtranslate.core.settings.data.ServiceSelector
-import com.github.ahatem.qtranslate.core.settings.data.ToolbarStyle
-import com.github.ahatem.qtranslate.core.settings.data.WorkspaceLayout
+import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
+import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
+import com.github.ahatem.qtranslate.core.settings.data.ServiceWidget
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.Size
-import com.github.ahatem.qtranslate.core.settings.data.withLayoutConfig
+import com.github.ahatem.qtranslate.core.settings.data.withWindowLayout
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.ui.swing.main.MainAppFrame
 import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchPanel
@@ -132,10 +128,8 @@ fun main(args: Array<String>): Unit = runBlocking {
             selectorDensityAudit()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "compact-toolbar") {
             compactToolbar()
-        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "region-layouts") {
-            regionLayouts()
-        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "layout-geometries") {
-            layoutGeometries()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "layout-slots") {
+            layoutSlots()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-matrix") {
             settingsMatrix()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-showcase") {
@@ -409,72 +403,64 @@ private class Shots(
     }
 
     /**
+     * A curated list of window layouts, each in English light and Arabic dark.
+     *
+     * Not a sweep: the four cards, then one shot for each placement the cards do not show. The
+     * Arabic half proves the mirroring and the dark half is where contrast faults show, so one
+     * pass covers both. Comparison scenes get two usable translators so the board is eligible.
+     */
+    suspend fun layoutSlots() {
+        val hidden = RegionSlot.HIDDEN
+        val scenes = listOf(
+            "card-classic" to Scenes.CLASSIC,
+            "card-compact-row" to Scenes.COMPACT_ROW,
+            "card-side-by-side" to Scenes.SIDE_BY_SIDE,
+            "card-comparison" to Scenes.COMPARISON_BOARD,
+            // Every region hidden: the chips, the moved actions and the notification button all
+            // land in the input strip.
+            "all-hidden" to WindowLayout(history = hidden, languages = hidden, services = hidden, showStatusBar = false),
+            "history-bottom" to WindowLayout(history = RegionSlot.BOTTOM),
+            "stacked-languages-top" to WindowLayout(languages = RegionSlot.TOP),
+            "services-top-shared" to WindowLayout(
+                history = RegionSlot.TOP,
+                languages = RegionSlot.TOP,
+                services = RegionSlot.TOP,
+                shareRows = true,
+            ),
+            "side-by-side-languages-above-results" to WindowLayout(
+                panes = PaneLayout.SIDE_BY_SIDE,
+                languages = RegionSlot.ABOVE_RESULTS,
+            ),
+            "comparison-history-bottom" to WindowLayout(panes = PaneLayout.COMPARISON, history = RegionSlot.BOTTOM),
+            "icon-strip" to WindowLayout(
+                serviceWidget = ServiceWidget.STRIP,
+                stripAppearance = ServiceSelectorAppearance.ICONS_ONLY,
+            ),
+        )
+        val secondaries = listOf("Bing Translate", "DeepL", "Yandex Web")
+        scenes.forEach { (name, layout) ->
+            fun scene(theme: String, rtl: Boolean): Configuration {
+                val base = Scenes.slots(layout, theme, rtl)
+                return if (layout.panes == PaneLayout.COMPARISON) comparisonConfig(theme, secondaries, base) else base
+            }
+
+            start(scene(Scenes.LIGHT, rtl = false))
+            translate(LanguageCode("fr"), Scenes.LIBRARY)
+            capture("slots-$name-light")
+
+            start(scene(Scenes.DARK, rtl = true))
+            translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
+            capture("slots-$name-rtl-dark")
+        }
+    }
+
+    /**
      * The Classic arrangement with a compact toolbar: the language controls and the history
      * controls share one row instead of taking one each.
      *
      * Part of the layout set, and selectable on its own with
      * `QTRANSLATE_SCREENSHOT_SCENES=compact-toolbar` when only this chrome is being checked.
      */
-    /**
-     * Every arrangement the model can produce, each in English light and Arabic dark.
-     *
-     * Three pane layouts by three toolbar styles, with the service selector only where it exists:
-     * fifteen pictures, thirty with the pair. Pairing rather than sweeping separately is the point
-     * — the Arabic half is what proves the mirroring and the dark half is where contrast faults
-     * show, so one pass covers both concerns instead of two passes of the same thirty.
-     */
-    suspend fun layoutGeometries() {
-        val arrangements = PaneLayout.values().flatMap { pane ->
-            val selectors = if (pane == PaneLayout.COMPARISON) {
-                // A comparison board switches providers from the result headers; there is no
-                // selector geometry to sweep.
-                listOf(ServiceSelector.PICKER)
-            } else {
-                ServiceSelector.values().toList()
-            }
-            ToolbarStyle.values().flatMap { style ->
-                selectors.map { selector -> Triple(pane, style, selector) }
-            }
-        }
-
-        arrangements.forEach { (pane, style, selector) ->
-            val config = LayoutConfig(pane, style, selector, showStatusBar = true)
-            val selectorName = if (pane == PaneLayout.COMPARISON) "none" else selector.name.lowercase()
-            val name = "geometry-${pane.name.lowercase()}-${style.name.lowercase()}-$selectorName"
-
-            start(Scenes.geometry(config, Scenes.LIGHT))
-            translate(LanguageCode("fr"), Scenes.LIBRARY)
-            capture("$name-light")
-
-            start(Scenes.arabic(config, Scenes.DARK))
-            translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
-            capture("$name-rtl-dark")
-        }
-    }
-
-    /**
-     * The placements the old four-value model could not express, paired EN light / AR dark:
-     * a bottom history row, history relocated into the input pane, and a relocated language row
-     * and service selector. One structural shot per new choice, not a cartesian sweep.
-     */
-    suspend fun regionLayouts() {
-        val regions = listOf(
-            "history-bottom" to WorkspaceLayout(history = HistoryPlacement.BOTTOM_ROW),
-            "history-relocated" to WorkspaceLayout(history = HistoryPlacement.RELOCATED),
-            "languages-relocated" to WorkspaceLayout(languages = LanguagePlacement.RELOCATED),
-            "services-relocated" to WorkspaceLayout(services = ServicePlacement.RELOCATED),
-        )
-        regions.forEach { (name, layout) ->
-            start(Scenes.region(layout, Scenes.LIGHT))
-            translate(LanguageCode("fr"), Scenes.LIBRARY)
-            capture("region-$name-light")
-
-            start(Scenes.region(layout, Scenes.DARK, rtl = true))
-            translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
-            capture("region-$name-rtl-dark")
-        }
-    }
-
     suspend fun compactToolbar() {
         for ((theme, suffix) in Scenes.THEMES) {
             start(Scenes.classicCompact(theme))
@@ -483,7 +469,7 @@ private class Shots(
         }
         // One row is exactly where a mirrored layout goes wrong without anyone noticing: the
         // history controls have to move to the leading edge and Back/Forward swap their icons.
-        start(Scenes.arabic(LayoutPreset.COMPACT.config))
+        start(Scenes.arabic(Scenes.COMPACT_ROW))
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
         capture("layout-classic-compact-rtl-dark")
     }
@@ -551,23 +537,23 @@ private class Shots(
 
     suspend fun rightToLeft() {
         for ((theme, suffix) in Scenes.THEMES) {
-            start(Scenes.arabic(LayoutPreset.CLASSIC.config, theme))
+            start(Scenes.arabic(Scenes.CLASSIC, theme))
             translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
             // The dictionary is the panel that mirrors, so this shot is also the check that it
             // lands on the leading side rather than staying pinned to the right.
             openDictionary("peristalsis")
             capture("rtl-dictionary-$suffix")
 
-            start(Scenes.arabic(LayoutPreset.CLASSIC.config, theme))
+            start(Scenes.arabic(Scenes.CLASSIC, theme))
             translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
             capture("rtl-main-$suffix")
         }
 
-        start(Scenes.arabic(LayoutPreset.SIDE_BY_SIDE.config))
+        start(Scenes.arabic(Scenes.SIDE_BY_SIDE))
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
         capture("rtl-side-by-side")
 
-        start(Scenes.arabic(LayoutPreset.SIDE_BY_SIDE.config))
+        start(Scenes.arabic(Scenes.SIDE_BY_SIDE))
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
         openDictionary("peristalsis")
         capture("rtl-side-by-side-dock")
@@ -683,7 +669,7 @@ private class Shots(
 
     private fun settingsConfig(theme: String): Configuration =
         comparisonConfig(theme, listOf("Bing Translate", "DeepL", "Yandex Web"))
-            .withLayoutConfig(LayoutPreset.CLASSIC.config)
+            .withWindowLayout(Scenes.CLASSIC)
             .copy(mainWindowSize = windowSize(Scenes.WINDOW))
 
     private suspend fun capturePages(theme: String, suffix: String, pages: List<Pair<Int, String>> = Scenes.SETTINGS_PAGES) {
@@ -841,7 +827,7 @@ private class Shots(
         delay(400)
         applyAuthoredWindowSize(configuration)
         // The id of the arrangement the window actually built, not the stored preference.
-        balanceSplits(configuration.layoutConfig.paneLayout.presetId)
+        balanceSplits(configuration.windowLayout.panes.presetId)
         delay(500)
     }
 
@@ -981,11 +967,14 @@ private class Shots(
      * A Comparison scene with Google as Primary and [secondaries] named after the loaded
      * translators, so the set is real and the ids are whatever this run's registry composed.
      */
-    private fun comparisonConfig(theme: String, secondaries: List<String>): Configuration {
+    private fun comparisonConfig(
+        theme: String,
+        secondaries: List<String>,
+        base: Configuration = Scenes.comparison(theme),
+    ): Configuration {
         val translators = deps.mainStore.state.value.getAvailableServicesFor(ServiceRole.TRANSLATOR)
         fun idOf(name: String) = translators.firstOrNull { it.name.contains(name, ignoreCase = true) }?.id
         secondaries.filter { idOf(it) == null }.forEach { logger.warn("comparison provider unavailable: $it") }
-        val base = Scenes.comparison(theme)
         val preset = (base.getActivePreset() ?: ServicePreset.createDefault()).let { active ->
             active.copy(
                 selectedServices = active.selectedServices +
