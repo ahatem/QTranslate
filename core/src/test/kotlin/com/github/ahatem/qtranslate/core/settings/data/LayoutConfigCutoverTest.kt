@@ -68,7 +68,8 @@ class LayoutConfigCutoverTest {
             )
         )
 
-        assertEquals(11, migrated.configVersion)
+        // The released v10 profile migrates through v11 (four layout values) to v12 (regions).
+        assertEquals(12, migrated.configVersion)
         assertEquals(
             LayoutConfig(
                 paneLayout = PaneLayout.SIDE_BY_SIDE,
@@ -77,6 +78,17 @@ class LayoutConfigCutoverTest {
                 showStatusBar = false,
             ),
             migrated.layoutConfig
+        )
+        assertEquals(
+            WorkspaceLayout(
+                panes = PaneLayout.SIDE_BY_SIDE,
+                history = HistoryPlacement.TOP_ROW,
+                languages = LanguagePlacement.ROW,
+                services = ServicePlacement.BOTTOM_STRIP,
+                appearance = ServiceSelectorAppearance.TEXT_ONLY,
+                showStatusBar = false,
+            ),
+            migrated.workspaceLayout,
         )
 
         // The older description is still there and still says the same thing: the settings page
@@ -144,16 +156,25 @@ class LayoutConfigCutoverTest {
 
     @Test
     fun `a configuration this build wrote is not re-mapped over`() {
-        // A current file must keep what it says, even where the four values are not the ones the
-        // mapping would have produced from the older fields still sitting beside them.
+        // A current file must keep what it says, even where the region values are not the ones the
+        // mapping would have produced from the older fields still sitting beside them. This build
+        // writes v12, so a v12 file is already current and must pass through the migrator untouched.
         val handEdited = Configuration.DEFAULT.copy(
-            configVersion = 11,
+            configVersion = 12,
             layoutConfig = LayoutConfig(
                 paneLayout = PaneLayout.COMPARISON,
                 toolbarStyle = ToolbarStyle.MINIMAL,
                 serviceSelector = ServiceSelector.BOTTOM_STRIP,
                 showStatusBar = false,
-            )
+            ),
+            workspaceLayout = WorkspaceLayout(
+                panes = PaneLayout.COMPARISON,
+                history = HistoryPlacement.RELOCATED,
+                languages = LanguagePlacement.ROW,
+                services = ServicePlacement.BOTTOM_STRIP,
+                appearance = ServiceSelectorAppearance.TEXT_ONLY,
+                showStatusBar = false,
+            ),
         )
 
         assertEquals(handEdited, ConfigMigrator.migrate(handEdited, logger))

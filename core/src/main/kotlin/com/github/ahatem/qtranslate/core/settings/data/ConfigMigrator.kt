@@ -24,7 +24,7 @@ object ConfigMigrator {
      * would skip every migration it needs. A configuration this build creates from scratch is
      * stamped with this value instead.
      */
-    internal const val CURRENT_VERSION = 11
+    internal const val CURRENT_VERSION = 12
 
     /** The old defaults, frozen: this is what "the user never changed it" looked like. */
     private const val LEGACY_POPUP_IDLE_SECONDS = 3
@@ -223,6 +223,17 @@ object ConfigMigrator {
                 config.copy(
                     configVersion = 11,
                     layoutConfig = LayoutConfigMigration.fromV10(config),
+                )
+            }
+            11 -> {
+                // v11 → v12: the window's chrome becomes independent per-region values. The v11
+                // fields stay stored and in step until the following release; they cannot be
+                // removed here because a field absent from the data class is discarded by
+                // ignoreUnknownKeys before this migration can read it.
+                logger.info("ConfigMigrator: migrating v11 → v12 — describing the window by region")
+                config.copy(
+                    configVersion = 12,
+                    workspaceLayout = WorkspaceLayoutMigration.fromV11(config),
                 )
             }
             else -> {

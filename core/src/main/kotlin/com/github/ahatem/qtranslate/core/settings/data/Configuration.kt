@@ -349,6 +349,16 @@ data class Configuration(
      * window; the older four are removed in the release after that.
      */
     val layoutConfig: LayoutConfig = LayoutConfig.DEFAULT,
+    /**
+     * The main window as independent regions: panes, history, languages, services, selector
+     * appearance and footer. Supersedes [layoutConfig], which is retained for one release as the
+     * v11 migration source and kept in step by [withWorkspaceLayout].
+     *
+     * A classic starting point is available on the settings page; this default is what a stored
+     * v11 configuration migrates to, so upgrading never silently rearranges a returning user's
+     * window.
+     */
+    val workspaceLayout: WorkspaceLayout = WorkspaceLayout.DEFAULT,
 
     // ---- UI — Quick Panel (Popup) ----
     val isPopupAutoSizeEnabled: Boolean = true,

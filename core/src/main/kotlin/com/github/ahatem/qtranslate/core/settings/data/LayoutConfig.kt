@@ -238,6 +238,9 @@ object LayoutConfigMigration {
  */
 fun Configuration.withLayoutConfig(layout: LayoutConfig): Configuration = copy(
     layoutConfig = layout,
+    // The v12 field must not be left describing the previous window while the UI still writes
+    // through the v11 transform during the cutover.
+    workspaceLayout = WorkspaceLayoutMigration.fromV11(layout, serviceSelectorAppearance),
     layoutPresetId = layout.paneLayout.presetId,
     toolbarVisibility = ToolbarVisibility(
         isHistoryBarVisible = layout.toolbarStyle == ToolbarStyle.FULL,

@@ -55,6 +55,14 @@ class SettingsResetTest {
             serviceSelector = ServiceSelector.BOTTOM_STRIP,
             showStatusBar = false,
         ),
+        workspaceLayout = WorkspaceLayout(
+            panes = PaneLayout.SIDE_BY_SIDE,
+            history = HistoryPlacement.BOTTOM_ROW,
+            languages = LanguagePlacement.RELOCATED,
+            services = ServicePlacement.BOTTOM_STRIP,
+            appearance = ServiceSelectorAppearance.TEXT_ONLY,
+            showStatusBar = false,
+        ),
         closeButtonBehavior = CloseButtonBehavior.EXIT,
         minimizeButtonBehavior = MinimizeButtonBehavior.HIDE_TO_TRAY,
         themeId = "dark",
@@ -179,6 +187,7 @@ class SettingsResetTest {
 
         val window = SettingsReset.page(config, SettingsPage.WINDOW)
         assertEquals(fresh.layoutPresetId, window.layoutPresetId)
+        assertEquals(fresh.workspaceLayout, window.workspaceLayout, "a custom region layout is reset too")
         assertEquals(fresh.closeButtonBehavior, window.closeButtonBehavior)
         assertEquals(fresh.minimizeButtonBehavior, window.minimizeButtonBehavior, "a reset gives the product default")
         assertEquals(config.themeId, window.themeId)

@@ -120,6 +120,7 @@ object SettingsReset {
         "serviceSelectorStyle",
         "serviceSelectorAppearance",
         "layoutConfig",
+        "workspaceLayout",
         "closeButtonBehavior",
         "minimizeButtonBehavior",
         "themeId",
@@ -203,6 +204,7 @@ object SettingsReset {
             serviceSelectorStyle = defaults.serviceSelectorStyle,
             serviceSelectorAppearance = defaults.serviceSelectorAppearance,
         layoutConfig = defaults.layoutConfig,
+            workspaceLayout = defaults.workspaceLayout,
             closeButtonBehavior = defaults.closeButtonBehavior,
             minimizeButtonBehavior = defaults.minimizeButtonBehavior,
         )
@@ -265,6 +267,7 @@ object SettingsReset {
         serviceSelectorStyle = defaults.serviceSelectorStyle,
         serviceSelectorAppearance = defaults.serviceSelectorAppearance,
         layoutConfig = defaults.layoutConfig,
+        workspaceLayout = defaults.workspaceLayout,
         closeButtonBehavior = defaults.closeButtonBehavior,
         minimizeButtonBehavior = defaults.minimizeButtonBehavior,
         // Appearance
