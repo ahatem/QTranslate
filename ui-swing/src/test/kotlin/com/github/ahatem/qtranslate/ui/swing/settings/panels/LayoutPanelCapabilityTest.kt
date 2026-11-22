@@ -4,7 +4,6 @@ import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
-import com.github.ahatem.qtranslate.core.settings.data.MinimizeButtonBehavior
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.withLayoutConfig
@@ -30,12 +29,14 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Two controls on the Layout page depend on something other than their own value.
+ * One control on the Layout page depends on something other than its own value.
  *
  * The service selector means nothing on a comparison board — there is no widget to configure,
- * because that arrangement picks the primary translator from the result headers — and hiding to
- * the tray only exists when there is a tray to hide into. Both used to be live regardless, which
- * made one a no-op and the other an unrecoverable action.
+ * because that arrangement picks the primary translator from the result headers. It used to be
+ * live regardless, which made it a no-op the page did not admit to.
+ *
+ * The title-bar buttons' own capability gate — hiding to the tray with no tray to hide into —
+ * moved with those controls to General; see `GeneralPanelPlatformTest`.
  */
 class LayoutPanelCapabilityTest {
 
@@ -82,20 +83,16 @@ class LayoutPanelCapabilityTest {
     /**
      * The picker on the row labelled [label], reached through the label's own `labelFor`.
      *
-     * Addressed by row rather than by contents: the page now has five pickers, two of which can
-     * offer an entry with the same words, so "the picker containing X" is ambiguous.
+     * Addressed by row rather than by contents: the page has several pickers, and "the picker
+     * containing X" says nothing about which row the user is looking at.
      */
     private fun rowCombo(panel: Container, label: String): JComboBox<*> {
         val rowLabel = descendants(panel).filterIsInstance<JLabel>().single { it.text == label }
         return rowLabel.labelFor as JComboBox<*>
     }
 
-    /** The index of the entry whose rendered value names [text], as the pickers render it. */
-    private fun indexNaming(combo: JComboBox<*>, text: String): Int =
-        (0 until combo.itemCount).first { combo.getItemAt(it).toString().contains(text) }
-
-    private fun panel(store: SettingsStore, trayAvailable: Boolean = true): LayoutPanel = onEdt {
-        LayoutPanel(store, localizer, isTrayAvailable = { trayAvailable }).also {
+    private fun panel(store: SettingsStore): LayoutPanel = onEdt {
+        LayoutPanel(store, localizer).also {
             it.render(store.state.value)
         }
     }
@@ -140,49 +137,5 @@ class LayoutPanelCapabilityTest {
 
         assertTrue(selector.isEnabled, "the row is governed by the arrangement, not by a one-way switch")
         assertNull(selector.toolTipText)
-    }
-
-    @Test
-    fun `choosing hide to tray is refused when no tray icon exists`() {
-        val configuration = Configuration.DEFAULT.copy(minimizeButtonBehavior = MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR)
-        val store = store(configuration)
-        val hideToTray = localizer.getString("settings_window.minimize_behavior_hide")
-        val minimize = rowCombo(panel(store, trayAvailable = false), localizer.getString("settings_window.minimize_button"))
-
-        onEdt { minimize.selectedIndex = indexNaming(minimize, hideToTray) }
-
-        assertEquals(
-            MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR,
-            store.state.value.workingConfiguration.minimizeButtonBehavior,
-            "an unavailable choice is not written to the draft",
-        )
-        assertFalse(store.state.value.isDirty, "and the dialog does not pretend it changed anything")
-    }
-
-    @Test
-    fun `hide to tray is written when a tray icon exists`() {
-        val configuration = Configuration.DEFAULT.copy(minimizeButtonBehavior = MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR)
-        val store = store(configuration)
-        val hideToTray = localizer.getString("settings_window.minimize_behavior_hide")
-        val minimize = rowCombo(panel(store, trayAvailable = true), localizer.getString("settings_window.minimize_button"))
-
-        onEdt { minimize.selectedIndex = indexNaming(minimize, hideToTray) }
-
-        assertEquals(
-            MinimizeButtonBehavior.HIDE_TO_TRAY,
-            store.state.value.workingConfiguration.minimizeButtonBehavior,
-        )
-    }
-
-    @Test
-    fun `the page explains why the tray choice is unavailable`() {
-        val store = store(Configuration.DEFAULT)
-        val hint = localizer.getString("settings_window.tray_unavailable_hint")
-        val panel = panel(store, trayAvailable = false)
-
-        assertTrue(
-            descendants(panel).mapNotNull { it.textOf() }.any { it.contains(hint) },
-            "a disabled choice has to say why",
-        )
     }
 }

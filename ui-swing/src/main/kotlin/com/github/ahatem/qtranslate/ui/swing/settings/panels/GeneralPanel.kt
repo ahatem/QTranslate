@@ -7,6 +7,8 @@ import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.localization.TranslationCoverage
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
+import com.github.ahatem.qtranslate.core.settings.data.CloseButtonBehavior
+import com.github.ahatem.qtranslate.core.settings.data.MinimizeButtonBehavior
 import com.github.ahatem.qtranslate.core.settings.data.SelectionBehavior
 import com.github.ahatem.qtranslate.core.settings.data.SelectionReadSource
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
@@ -50,7 +52,7 @@ import javax.swing.filechooser.FileNameExtensionFilter
 
 /**
  * Application-wide settings that belong to no other page: the interface language, startup,
- * updates, the selection button, and history.
+ * updates, the selection button, history, and what the title-bar buttons do.
  *
  * ### Interface language lives here
  *
@@ -88,6 +90,15 @@ class GeneralPanel(
      * preference the application could not keep.
      */
     private val isLaunchOnStartupSupported: Boolean = WindowsStartupRegistration.isSupported(),
+    /**
+     * Whether the window can actually be hidden into a tray.
+     *
+     * A lambda rather than a plain value because the tray icon is installed during frame
+     * construction: read while the dialog is being constructed this would answer false, while read
+     * when the page is built it answers what the tray really is. It is not re-read on every render,
+     * so a tray that becomes available later needs the page reopened before the choice appears.
+     */
+    private val isTrayAvailable: () -> Boolean = { true },
 ) : SettingsPanel() {
 
     private lateinit var launchCheckbox:  JCheckBox
@@ -96,6 +107,8 @@ class GeneralPanel(
     private lateinit var clearCheckbox:   JCheckBox
     private lateinit var selectionBehaviorCombo: JComboBox<SelectionBehaviorInfo>
     private lateinit var selectionReadSourceCombo: JComboBox<SelectionReadSourceInfo>
+    private lateinit var closeButtonCombo: JComboBox<CloseButtonBehaviorInfo>
+    private lateinit var minimizeButtonCombo: JComboBox<MinimizeButtonBehaviorInfo>
 
     // ── Interface language ───────────────────────────────────────────────────
     private lateinit var languageCombo: JComboBox<LanguageInfo>
@@ -113,6 +126,13 @@ class GeneralPanel(
         val source: SelectionReadSource,
         val displayName: String
     )
+
+    private data class CloseButtonBehaviorInfo(val behavior: CloseButtonBehavior, val displayName: String)
+    private data class MinimizeButtonBehaviorInfo(val behavior: MinimizeButtonBehavior, val displayName: String)
+
+    /** Why hiding to the tray is not on offer here. */
+    private fun trayUnavailableHint(): String =
+        localizationManager.getString("settings_window.tray_unavailable_hint")
 
     init { buildUI() }
 
@@ -211,6 +231,90 @@ class GeneralPanel(
             )
             addHint(localizationManager.getString("settings_general.clear_history_hint"))
         }
+
+        // ── Title-bar buttons ────────────────────────────────────────────────
+        //
+        // Moved here from the Layout page, which is about the shape of the window — panes,
+        // toolbar, selector, footer. What the close and minimise buttons do is behaviour rather
+        // than arrangement, and it is behaviour that depends on what the machine can offer: with
+        // no tray icon there is nowhere to hide to, which is the same kind of availability as
+        // "launch on system startup" above.
+        //
+        // Their localization keys keep their `settings_window.*` names, as the language section's
+        // above keeps its `settings_appearance.*` ones: the keys are an internal namespace, not
+        // something a translator reads, and renaming them would empty the existing translations.
+        addSeparator(localizationManager.getString("settings_window.close_behavior_group"))
+
+        val closeBehaviorOptions = listOf(
+            CloseButtonBehaviorInfo(
+                CloseButtonBehavior.ASK,
+                localizationManager.getString("settings_window.close_behavior_ask")
+            ),
+            CloseButtonBehaviorInfo(
+                CloseButtonBehavior.MINIMIZE_TO_TRAY,
+                localizationManager.getString("settings_window.close_behavior_minimize")
+            ),
+            CloseButtonBehaviorInfo(
+                CloseButtonBehavior.EXIT,
+                localizationManager.getString("settings_window.close_behavior_exit")
+            )
+        )
+
+        closeButtonCombo = JComboBox(closeBehaviorOptions.toTypedArray()).apply {
+            renderer = DisplayValueRenderer<CloseButtonBehaviorInfo>(text = { it?.displayName.orEmpty() })
+            addActionListener {
+                if (!isUpdatingFromState) {
+                    val selected = selectedItem as? CloseButtonBehaviorInfo ?: return@addActionListener
+                    applyDraft(store) { it.copy(closeButtonBehavior = selected.behavior) }
+                }
+            }
+        }
+        addRow(localizationManager.getString("settings_window.close_button"), closeButtonCombo)
+        addHint(localizationManager.getString("settings_window.close_behavior_hint"))
+
+        val minimizeBehaviorOptions = listOf(
+            MinimizeButtonBehaviorInfo(
+                MinimizeButtonBehavior.HIDE_TO_TRAY,
+                localizationManager.getString("settings_window.minimize_behavior_hide")
+            ),
+            MinimizeButtonBehaviorInfo(
+                MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR,
+                localizationManager.getString("settings_window.minimize_behavior_taskbar")
+            )
+        )
+        val trayUnavailable = !isTrayAvailable()
+        minimizeButtonCombo = JComboBox(minimizeBehaviorOptions.toTypedArray()).apply {
+            renderer = DisplayValueRenderer<MinimizeButtonBehaviorInfo>(
+                text = { it?.displayName.orEmpty() },
+                // Hiding needs somewhere to hide into. Without a tray icon the window would be
+                // gone from every visible surface, so the choice is shown as unavailable and the
+                // runtime falls back to the taskbar if it is already stored.
+                isDisabled = { trayUnavailable && it?.behavior == MinimizeButtonBehavior.HIDE_TO_TRAY },
+                tooltip = {
+                    if (trayUnavailable && it?.behavior == MinimizeButtonBehavior.HIDE_TO_TRAY)
+                        trayUnavailableHint()
+                    else null
+                },
+            )
+            addActionListener {
+                if (isUpdatingFromState) return@addActionListener
+                val selected = selectedItem as? MinimizeButtonBehaviorInfo ?: return@addActionListener
+                if (trayUnavailable && selected.behavior == MinimizeButtonBehavior.HIDE_TO_TRAY) {
+                    // A preference this system cannot honour: keep the saved one rather than
+                    // writing a value the window would have to ignore at runtime.
+                    withoutTrigger {
+                        selectedItem = minimizeBehaviorOptions.find {
+                            it.behavior == store.state.value.workingConfiguration.minimizeButtonBehavior
+                        }
+                    }
+                    return@addActionListener
+                }
+                applyDraft(store) { it.copy(minimizeButtonBehavior = selected.behavior) }
+            }
+        }
+        addRow(localizationManager.getString("settings_window.minimize_button"), minimizeButtonCombo)
+        addHint(localizationManager.getString("settings_window.minimize_behavior_hint"))
+        if (trayUnavailable) addHint(trayUnavailableHint())
 
         finishLayout()
     }
@@ -707,6 +811,13 @@ class GeneralPanel(
             historyCheckbox.isSelected = c.isHistoryEnabled
             clearCheckbox.isSelected   = c.clearHistoryOnExit
             clearCheckbox.isEnabled    = c.isHistoryEnabled
+
+            closeButtonCombo.selectedItem = (0 until closeButtonCombo.itemCount)
+                .map { closeButtonCombo.getItemAt(it) }
+                .find { it.behavior == c.closeButtonBehavior }
+            minimizeButtonCombo.selectedItem = (0 until minimizeButtonCombo.itemCount)
+                .map { minimizeButtonCombo.getItemAt(it) }
+                .find { it.behavior == c.minimizeButtonBehavior }
         }
     }
 

@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.MinimizeButtonBehavior
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import kotlinx.coroutines.CoroutineScope
@@ -16,16 +17,19 @@ import java.awt.Component
 import java.awt.Container
 import java.nio.file.Files
 import javax.swing.JCheckBox
+import javax.swing.JComboBox
 import javax.swing.JLabel
 import javax.swing.SwingUtilities
 import kotlin.test.AfterTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * "Launch on system startup" is a Windows feature, so offering it everywhere promised something
- * the application could not keep.
+ * The General page is where a setting that depends on what the machine can offer says so instead
+ * of promising something the application could not keep: "launch on system startup" is a Windows
+ * feature, and the title-bar buttons can only hide the window into a tray that exists.
  */
 class GeneralPanelPlatformTest {
 
@@ -51,13 +55,13 @@ class GeneralPanelPlatformTest {
         scopes.forEach { it.cancel() }
     }
 
-    private fun store(): SettingsStore = runBlocking {
+    private fun store(configuration: Configuration = Configuration.DEFAULT): SettingsStore = runBlocking {
         val directory = Files.createTempDirectory("qtranslate-general-platform-store").toFile()
         val repository = SettingsRepository(directory, Json { ignoreUnknownKeys = true }, logger)
-        repository.updateConfiguration(Configuration.DEFAULT)
+        repository.updateConfiguration(configuration)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         scopes += scope
-        SettingsStore(repository, logger, scope, Configuration.DEFAULT)
+        SettingsStore(repository, logger, scope, configuration)
     }
 
     private fun <T> onEdt(block: () -> T): T {
@@ -69,17 +73,19 @@ class GeneralPanelPlatformTest {
     private fun descendants(root: Container): List<Component> =
         root.components.flatMap { listOf(it) + if (it is Container) descendants(it) else emptyList() }
 
-    private fun panel(supported: Boolean): GeneralPanel {
-        val store = store()
-        return onEdt {
-            GeneralPanel(
-                store,
-                localizer,
-                CoroutineScope(SupervisorJob() + Dispatchers.Default).also { scopes += it },
-                isLaunchOnStartupSupported = supported,
-            ).also {
-                it.render(store.state.value)
-            }
+    private fun panel(
+        supported: Boolean = true,
+        trayAvailable: Boolean = true,
+        settingsStore: SettingsStore = store(),
+    ): GeneralPanel = onEdt {
+        GeneralPanel(
+            settingsStore,
+            localizer,
+            CoroutineScope(SupervisorJob() + Dispatchers.Default).also { scopes += it },
+            isLaunchOnStartupSupported = supported,
+            isTrayAvailable = { trayAvailable },
+        ).also {
+            it.render(settingsStore.state.value)
         }
     }
 
@@ -87,6 +93,16 @@ class GeneralPanelPlatformTest {
         descendants(panel)
             .filterIsInstance<JCheckBox>()
             .single { it.text == localizer.getString("settings_general.launch_on_startup") }
+
+    /** The picker on the row labelled [label], reached through the label's own `labelFor`. */
+    private fun rowCombo(panel: Container, label: String): JComboBox<*> {
+        val rowLabel = descendants(panel).filterIsInstance<JLabel>().single { it.text == label }
+        return rowLabel.labelFor as JComboBox<*>
+    }
+
+    /** The index of the entry whose rendered value names [text], as the pickers render it. */
+    private fun indexNaming(combo: JComboBox<*>, text: String): Int =
+        (0 until combo.itemCount).first { combo.getItemAt(it).toString().contains(text) }
 
     @Test
     fun `launch on startup is offered where the platform supports it`() {
@@ -106,6 +122,61 @@ class GeneralPanelPlatformTest {
                 .mapNotNull { it.textOf() }
                 .any { it.contains(hint) },
             "a disabled platform-specific setting has to explain itself",
+        )
+    }
+
+    // The title-bar buttons moved here from the Layout page; their capability gate came with them.
+
+    @Test
+    fun `choosing hide to tray is refused when no tray icon exists`() {
+        val configuration = Configuration.DEFAULT.copy(
+            minimizeButtonBehavior = MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR
+        )
+        val store = store(configuration)
+        val hideToTray = localizer.getString("settings_window.minimize_behavior_hide")
+        val minimize = rowCombo(
+            panel(trayAvailable = false, settingsStore = store),
+            localizer.getString("settings_window.minimize_button"),
+        )
+
+        onEdt { minimize.selectedIndex = indexNaming(minimize, hideToTray) }
+
+        assertEquals(
+            MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR,
+            store.state.value.workingConfiguration.minimizeButtonBehavior,
+            "an unavailable choice is not written to the draft",
+        )
+        assertFalse(store.state.value.isDirty, "and the dialog does not pretend it changed anything")
+    }
+
+    @Test
+    fun `hide to tray is written when a tray icon exists`() {
+        val configuration = Configuration.DEFAULT.copy(
+            minimizeButtonBehavior = MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR
+        )
+        val store = store(configuration)
+        val hideToTray = localizer.getString("settings_window.minimize_behavior_hide")
+        val minimize = rowCombo(
+            panel(trayAvailable = true, settingsStore = store),
+            localizer.getString("settings_window.minimize_button"),
+        )
+
+        onEdt { minimize.selectedIndex = indexNaming(minimize, hideToTray) }
+
+        assertEquals(
+            MinimizeButtonBehavior.HIDE_TO_TRAY,
+            store.state.value.workingConfiguration.minimizeButtonBehavior,
+        )
+    }
+
+    @Test
+    fun `the page explains why the tray choice is unavailable`() {
+        val hint = localizer.getString("settings_window.tray_unavailable_hint")
+        val panel = panel(trayAvailable = false)
+
+        assertTrue(
+            descendants(panel).mapNotNull { it.textOf() }.any { it.contains(hint) },
+            "a disabled choice has to say why",
         )
     }
 }

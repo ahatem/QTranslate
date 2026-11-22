@@ -22,6 +22,7 @@ import javax.swing.SwingUtilities
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotSame
 import kotlin.test.assertTrue
 
 /**
@@ -30,10 +31,11 @@ import kotlin.test.assertTrue
  * values that differed; measured here, the difference is the hierarchy rather than drift: every
  * row at a given level shares an edge, and the nested level is offset from it in both directions.
  *
- * The page's own rows are panes, toolbar, close and minimise; the selector's row is the only one
- * inside a sub-section, because which widget picks the service is subordinate to the arrangement
- * above it — a comparison board has no selector at all. The status bar is a checkbox rather than a
- * picker, so it is not counted here.
+ * The page's own rows are panes and toolbar; the selector's row is the only one inside a
+ * sub-section, because which widget picks the service is subordinate to the arrangement above it
+ * — a comparison board has no selector at all. The status bar is a checkbox rather than a
+ * picker, so it is not counted here. The close and minimise buttons are pickers, but they are on
+ * the General page now: the title-bar buttons are behaviour, not window shape.
  */
 class LayoutPanelControlColumnTest {
 
@@ -99,22 +101,45 @@ class LayoutPanelControlColumnTest {
             .map { SwingUtilities.convertPoint(it, 0, 0, panel).x }
     }
 
+    /**
+     * The page's own pickers share one edge, and the selector keeps its own column inside the
+     * sub-section.
+     *
+     * Counted by level rather than by distinct x. The two columns are as far apart as the page's
+     * longest row name and the sub-section's, and with two page-level rows left ("Toolbar" against
+     * "Service selector") those widths are close enough that both levels land on the same x — the
+     * same label-width accident the label-based checks below exist to avoid. What the hierarchy
+     * owns is which container a picker is laid out in.
+     */
     @Test
     fun `the page's own pickers share one column edge`() {
-        val edges = controlEdges(ComponentOrientation.LEFT_TO_RIGHT)
-        assertEquals(5, edges.size, "panes, toolbar, the service selector, close and minimise ($edges)")
+        val panel = builtPanel()
+        val pagePickers = listOf(
+            "settings_window.layout_row_panes",
+            "settings_window.layout_row_toolbar",
+        ).map { pickerOn(panel, localizer.getString(it)) }
+        val selector = pickerOn(panel, localizer.getString("settings_window.layout_row_selector"))
 
-        val columns = edges.groupingBy { it }.eachCount()
         assertEquals(
-            2,
-            columns.size,
-            "one column for the page's rows and one for the nested service selector: $columns",
+            3,
+            descendants(panel).filterIsInstance<JComboBox<*>>().size,
+            "panes, toolbar and the service selector",
         )
-        assertEquals(
-            listOf(4, 1),
-            columns.values.sortedDescending(),
-            "four rows at page level, one inside the sub-section: $columns",
+
+        val edges = pagePickers.map { SwingUtilities.convertPoint(it, 0, 0, panel).x }
+        assertEquals(1, edges.distinct().size, "the page's own pickers share one edge ($edges)")
+        assertTrue(pagePickers.all { it.parent === panel }, "and they are laid out as the page's own rows")
+        assertNotSame(
+            panel,
+            selector.parent,
+            "while the selector is laid out in the sub-section, so it keeps a column of its own",
         )
+    }
+
+    /** The picker on the row labelled [label], reached through the label's own `labelFor`. */
+    private fun pickerOn(panel: Container, label: String): JComboBox<*> {
+        val rowLabel = descendants(panel).filterIsInstance<JLabel>().single { it.text == label }
+        return rowLabel.labelFor as JComboBox<*>
     }
 
     /**
@@ -138,8 +163,6 @@ class LayoutPanelControlColumnTest {
         val pageRows = listOf(
             localizer.getString("settings_window.layout_row_panes"),
             localizer.getString("settings_window.layout_row_toolbar"),
-            localizer.getString("settings_window.close_button"),
-            localizer.getString("settings_window.minimize_button"),
         ).map(::leadingOffset)
 
         assertEquals(1, pageRows.distinct().size, "the page's own rows share a leading edge ($pageRows)")
@@ -159,7 +182,7 @@ class LayoutPanelControlColumnTest {
         // leading edge and every one of them starts at the same x whatever row it is on: the x of a
         // control says nothing about nesting in that direction. The nesting is measured on the row
         // labels in `the nesting indents from the leading edge in both directions` instead.
-        assertEquals(5, edges.size, "all five pickers are still on the page ($edges)")
+        assertEquals(3, edges.size, "all three pickers are still on the page ($edges)")
         assertEquals(1, edges.distinct().size, "controls fill from the leading edge in this direction ($edges)")
     }
 

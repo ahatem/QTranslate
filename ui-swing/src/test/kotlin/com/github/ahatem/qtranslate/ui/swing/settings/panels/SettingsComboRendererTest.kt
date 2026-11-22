@@ -96,7 +96,7 @@ class SettingsComboRendererTest {
      * The page's preset cards: the buttons laid out by the 2×2 grid, in that grid's order.
      *
      * Not every `JButton` on the page: each combo box carries a `BasicArrowButton` of its own
-     * inside its UI — five of them here, all with empty text.
+     * inside its UI — three of them here, all with empty text.
      */
     private fun cards(panel: Container): List<JButton> =
         allButtons(panel).filter { it.parent?.layout is GridLayout }
@@ -173,11 +173,12 @@ class SettingsComboRendererTest {
                 CoroutineScope(SupervisorJob() + Dispatchers.Default).also { scopes += it },
             )
         }
-        // Three now: the interface-language picker moved here from Appearance, and it renders
+        // Four now: the interface-language picker moved here from Appearance, and it renders
         // translated language names through a renderer of its own rather than the shared one, so
-        // the shared-renderer check covers the two selection pickers.
+        // the shared-renderer check covers the selection pickers and the title-bar buttons that
+        // came over from the Layout page.
         val shared = onEdt { combos(panel).filter { it.renderer is DisplayValueRenderer<*> } }
-        assertEquals(2, shared.size, "the selection pickers use the shared renderer")
+        assertEquals(4, shared.size, "the selection and title-bar pickers use the shared renderer")
         assertNativeRowsOf(shared)
     }
 
@@ -192,10 +193,10 @@ class SettingsComboRendererTest {
 
     @Test
     fun `layout page combos preserve native selection`() {
-        // Panes, toolbar, service selector, close button and minimise button. The status bar is a
-        // checkbox rather than a picker, so it is not one of them.
+        // Panes, toolbar and the service selector. The status bar is a checkbox rather than a
+        // picker, and the close and minimise pickers are on the General page now.
         val panel = onEdt { LayoutPanel(newStore(), localizer) }
-        assertNativeRows(panel, expectedCombos = 5)
+        assertNativeRows(panel, expectedCombos = 3)
     }
 
     private fun comparisonConfig(layout: LayoutConfig = LayoutConfig.DEFAULT) = Configuration.DEFAULT
