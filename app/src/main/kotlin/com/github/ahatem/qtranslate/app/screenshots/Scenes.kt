@@ -188,6 +188,15 @@ internal object Scenes {
         BASE.copy(themeId = theme, mainWindowSize = windowSize(size))
             .withLayoutConfig(LayoutPreset.COMPACT.config)
 
+    /**
+     * Any one of the fifteen arrangements, for the geometry sweep.
+     *
+     * Takes the four values rather than a preset because the sweep has to render the combinations
+     * no card offers as well as the four that do.
+     */
+    fun geometry(layout: LayoutConfig, theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
+        BASE.copy(themeId = theme, mainWindowSize = windowSize(size)).withLayoutConfig(layout)
+
     fun classicSelector(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
         classic(theme, size).withLayoutConfig(CLASSIC_SELECTOR)
 

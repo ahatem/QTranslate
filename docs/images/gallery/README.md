@@ -48,6 +48,13 @@ and 200%, plus RTL and light theme.
 Use `QTRANSLATE_SCREENSHOT_SCENES=document` to capture only the document dialog. Its file paths are
 visible in the image, so also set `QTRANSLATE_SCREENSHOT_DOCS` to a neutral folder such as
 `C:\Users\Public\Documents` first.
+Use `QTRANSLATE_SCREENSHOT_SCENES=compact-toolbar` to capture the one-row toolbar — the style where
+the history controls share the language row — in both themes plus Arabic, since a single row is
+where mirroring goes wrong quietly.
+Use `QTRANSLATE_SCREENSHOT_SCENES=layout-geometries` to sweep every arrangement the layout model can
+produce: three pane layouts by three toolbar styles, with the service selector only where it exists,
+each once in English light and once in Arabic dark. Fifteen arrangements, thirty files. It is the
+scene to run after touching anything about how the window arranges itself.
 Use `QTRANSLATE_SCREENSHOT_PLATE_LABEL=none` to composite without the plate caption, for consumers
 that label the shots themselves — the website does.
 

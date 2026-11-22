@@ -13,7 +13,11 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.LayoutConfig
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPreset
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.ServiceSelector
+import com.github.ahatem.qtranslate.core.settings.data.ToolbarStyle
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.Size
@@ -124,6 +128,8 @@ fun main(args: Array<String>): Unit = runBlocking {
             selectorDensityAudit()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "compact-toolbar") {
             compactToolbar()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "layout-geometries") {
+            layoutGeometries()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-matrix") {
             settingsMatrix()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-showcase") {
@@ -403,6 +409,43 @@ private class Shots(
      * Part of the layout set, and selectable on its own with
      * `QTRANSLATE_SCREENSHOT_SCENES=compact-toolbar` when only this chrome is being checked.
      */
+    /**
+     * Every arrangement the model can produce, each in English light and Arabic dark.
+     *
+     * Three pane layouts by three toolbar styles, with the service selector only where it exists:
+     * fifteen pictures, thirty with the pair. Pairing rather than sweeping separately is the point
+     * — the Arabic half is what proves the mirroring and the dark half is where contrast faults
+     * show, so one pass covers both concerns instead of two passes of the same thirty.
+     */
+    suspend fun layoutGeometries() {
+        val arrangements = PaneLayout.values().flatMap { pane ->
+            val selectors = if (pane == PaneLayout.COMPARISON) {
+                // A comparison board switches providers from the result headers; there is no
+                // selector geometry to sweep.
+                listOf(ServiceSelector.PICKER)
+            } else {
+                ServiceSelector.values().toList()
+            }
+            ToolbarStyle.values().flatMap { style ->
+                selectors.map { selector -> Triple(pane, style, selector) }
+            }
+        }
+
+        arrangements.forEach { (pane, style, selector) ->
+            val config = LayoutConfig(pane, style, selector, showStatusBar = true)
+            val selectorName = if (pane == PaneLayout.COMPARISON) "none" else selector.name.lowercase()
+            val name = "geometry-${pane.name.lowercase()}-${style.name.lowercase()}-$selectorName"
+
+            start(Scenes.geometry(config, Scenes.LIGHT))
+            translate(LanguageCode("fr"), Scenes.LIBRARY)
+            capture("$name-light")
+
+            start(Scenes.arabic(config, Scenes.DARK))
+            translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
+            capture("$name-rtl-dark")
+        }
+    }
+
     suspend fun compactToolbar() {
         for ((theme, suffix) in Scenes.THEMES) {
             start(Scenes.classicCompact(theme))
