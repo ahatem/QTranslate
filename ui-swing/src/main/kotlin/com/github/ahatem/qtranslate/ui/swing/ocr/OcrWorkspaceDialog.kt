@@ -43,6 +43,7 @@ import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.withContext
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
+import java.awt.event.KeyEvent
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.awt.image.BufferedImage
@@ -102,7 +103,17 @@ class OcrWorkspaceDialog(
     private val busySpinner = com.github.ahatem.qtranslate.ui.swing.shared.widgets.LoadingSpinner().apply {
         isVisible = false
     }
-    private val zoomLabel = JButton()
+    /**
+     * Fixed width so 67% / 100% / 200% do not make the floating bar jump sideways, with the
+     * height the look and feel computes for the current text. Freezing the whole preferred size
+     * while the label was still empty clipped the percentage vertically.
+     */
+    private val zoomLabel = object : JButton() {
+        override fun getPreferredSize(): Dimension = super.getPreferredSize().apply { width = UIScale.scale(52) }
+        override fun getMinimumSize(): Dimension = preferredSize
+        override fun getMaximumSize(): Dimension = preferredSize
+    }
+    private val statusActionButton = JButton()
     private val annotationsCheck = JCheckBox()
     private val ocrTextArea = HintTextArea()
     private val translationArea = HintTextArea()
@@ -354,6 +365,8 @@ class OcrWorkspaceDialog(
                 more = localizer.getString("screen_capture.more_actions"),
             ), onCaptureRequested, ::chooseImageFile, ::pasteImage, ::copyCurrentImage, ::saveCurrentImage, onOpenSettings,
         )
+        acquisitionBar.open.toolTipText = withShortcut(acquisitionBar.open.text, shortcutStroke(KeyEvent.VK_O))
+        acquisitionBar.paste.toolTipText = withShortcut(acquisitionBar.paste.text, shortcutStroke(KeyEvent.VK_V))
         return acquisitionBar
     }
 
@@ -372,15 +385,12 @@ class OcrWorkspaceDialog(
         fun zoomChanged() { zoomLabel.text = "${(imagePanel.zoomScale() * 100).toInt()}%" }
         zoomLabel.addActionListener { imagePanel.actualSize(); zoomChanged() }
         zoomLabel.putClientProperty("JButton.buttonType", "toolBarButton")
-        // Fixed width so 67% / 100% / 200% do not make the floating bar jump
-        // sideways every time the zoom changes.
-        zoomLabel.preferredSize = Dimension(UIScale.scale(52), zoomLabel.preferredSize.height)
-        zoomLabel.minimumSize = zoomLabel.preferredSize
-        zoomLabel.maximumSize = zoomLabel.preferredSize
+        zoomLabel.toolTipText = withShortcut(zoomLabel.toolTipText, shortcutStroke(KeyEvent.VK_1))
         zoomChanged()
         val more = compactButton("⋯", "screen_capture.more_actions") {}
         val fit = actionButton("ocr_workspace.fit") { imagePanel.fitToWindow(imageScroll.viewport.extentSize); zoomChanged() }.apply {
             putClientProperty("JButton.buttonType", "toolBarButton")
+            toolTipText = withShortcut(text, shortcutStroke(KeyEvent.VK_0))
         }
         more.addActionListener {
             JPopupMenu().apply {
@@ -421,12 +431,28 @@ class OcrWorkspaceDialog(
                 font = font.deriveFont(Font.BOLD)
                 border = BorderFactory.createEmptyBorder(0, 8, 0, 8)
             }, c)
-            c.gridy = 2; c.insets = Insets(0, 12, 8, 12)
+            c.gridy = 2; c.insets = Insets(4, 0, 0, 0)
+            add(actionButton("ocr_workspace.capture") { onCaptureRequested() }, c)
+            c.gridy = 3; c.insets = Insets(14, 12, 2, 12)
             add(JLabel(localizer.getString("ocr_workspace.empty_hint")).apply {
+                foreground = UIManager.getColor("Label.disabledForeground")
                 border = BorderFactory.createEmptyBorder(0, 8, 0, 8)
             }, c)
-            c.gridy = 3; c.insets = Insets(0, 0, 0, 0)
-            add(actionButton("ocr_workspace.capture") { onCaptureRequested() }, c)
+            // The hint names two actions, so offer them here instead of only in the toolbar.
+            c.gridy = 4; c.insets = Insets(0, 0, 0, 0)
+            add(JPanel(FlowLayout(FlowLayout.CENTER, UIScale.scale(4), 0)).apply {
+                isOpaque = false
+                add(actionButton("ocr_workspace.open_image") { chooseImageFile() }.apply {
+                    putClientProperty("JButton.buttonType", "toolBarButton")
+                    toolTipText = withShortcut(text, shortcutStroke(KeyEvent.VK_O))
+                })
+                add(actionButton("ocr_workspace.paste_image") { pasteImage() }.apply {
+                    putClientProperty("JButton.buttonType", "toolBarButton")
+                    toolTipText = withShortcut(text, shortcutStroke(KeyEvent.VK_V))
+                })
+            }, c)
+            // Dropping a file works where the hint is shown, not only once an image exists.
+            transferHandler = imagePanel.transferHandler
         }
         imageCards.add(imageScroll, "image")
         imageCards.add(empty, "empty")
@@ -549,7 +575,9 @@ class OcrWorkspaceDialog(
         configureSecondary(copyOcrButton, Icons.COPY, "ocr_workspace.copy_text")
         configureSecondary(listenOcrButton, Icons.SPEAK, "ocr_workspace.listen")
         recognizeButton.text = localizer.getString("ocr_workspace.recognize")
+        recognizeButton.toolTipText = withShortcut(recognizeButton.text, shortcutStroke(KeyEvent.VK_R))
         cancelRecognitionButton.text = localizer.getString("ocr_workspace.cancel")
+        cancelRecognitionButton.toolTipText = withShortcut(cancelRecognitionButton.text, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0))
         cancelRecognitionButton.isVisible = false
         val footer = JPanel(GridBagLayout()).apply {
             val c = GridBagConstraints().apply { fill = GridBagConstraints.HORIZONTAL }
@@ -585,6 +613,7 @@ class OcrWorkspaceDialog(
         configureSecondary(copyTranslationButton, Icons.COPY, "ocr_workspace.copy_translation")
         configureSecondary(listenTranslationButton, Icons.SPEAK, "ocr_workspace.listen")
         translateButton.text = localizer.getString("ocr_workspace.translate")
+        translateButton.toolTipText = withShortcut(translateButton.text, shortcutStroke(KeyEvent.VK_ENTER))
         swapButton.toolTipText = localizer.getString("main_window_language_bar.swap_languages_tooltip")
         swapButton.accessibleContext.accessibleName = swapButton.toolTipText
         swapButton.putClientProperty("JButton.buttonType", "toolBarButton")
@@ -626,24 +655,34 @@ class OcrWorkspaceDialog(
         }
         statusLabel.border = BorderFactory.createEmptyBorder(0, 10, 0, 10)
         infoLabel.foreground = UIManager.getColor("Label.disabledForeground")
-        infoLabel.border = BorderFactory.createEmptyBorder(0, 10, 0, 0)
+        infoLabel.border = BorderFactory.createEmptyBorder(0, 10, 0, 10)
+        // A fix offered beside the message that needs it, such as opening OCR Settings when no
+        // provider is set up. Hidden whenever the status has nothing to offer.
+        statusActionButton.putClientProperty("JButton.buttonType", "toolBarButton")
+        statusActionButton.isRequestFocusEnabled = false
+        statusActionButton.isVisible = false
+        statusActionButton.addActionListener { onOpenSettings() }
         return JPanel(BorderLayout(4, 0)).apply {
             border = BorderFactory.createEmptyBorder(2, 5, 2, 5)
             // GridBag anchors centre every child vertically; FlowLayout top-aligns
             // shorter labels, which read as off-centre next to the button strip.
+            // LINE_START/LINE_END rather than WEST/EAST, which do not mirror in RTL and pinned
+            // the status to the wrong edge, next to "Open in".
             add(
                 JPanel(GridBagLayout()).apply {
                     isOpaque = false
-                    val c = GridBagConstraints().apply { anchor = GridBagConstraints.WEST; gridy = 0 }
+                    val c = GridBagConstraints().apply { anchor = GridBagConstraints.LINE_START; gridy = 0 }
                     c.gridx = 0; c.insets = Insets(0, 0, 0, 6); add(busySpinner, c)
-                    c.gridx = 1; c.weightx = 1.0; add(statusLabel, c)
+                    c.gridx = 1; c.insets = Insets(0, 0, 0, 0); add(statusLabel, c)
+                    c.gridx = 2; add(statusActionButton, c)
+                    c.gridx = 3; c.weightx = 1.0; add(Box.createHorizontalGlue(), c)
                 },
                 BorderLayout.CENTER,
             )
             add(
                 JPanel(GridBagLayout()).apply {
                     isOpaque = false
-                    val c = GridBagConstraints().apply { anchor = GridBagConstraints.EAST; gridy = 0 }
+                    val c = GridBagConstraints().apply { anchor = GridBagConstraints.LINE_END; gridy = 0 }
                     c.gridx = 0; c.insets = Insets(0, 0, 0, 8); add(infoLabel, c)
                     c.gridx = 1; add(open, c)
                 },
@@ -716,31 +755,70 @@ class OcrWorkspaceDialog(
             )
         }
         // Focus ownership is explicit: text editing never loses its chords
-        // (notably Ctrl+V for pasting text) to destructive/modal actions.
+        // (notably Ctrl+V for pasting text) to destructive actions. The workspace usually
+        // opens with focus in the recognized text, so which chords stay usable while typing
+        // is decided per shortcut by ocrShortcutAllowed.
         fun isEditingText(): Boolean = focusOwner is JTextArea
 
-        fun bindUnlessEditing(code: Int, modifiers: Int, action: () -> Unit) {
-            bind(code, modifiers) { if (!isEditingText()) action() }
+        fun bindGuarded(shortcut: OcrShortcut, code: Int, modifiers: Int, action: () -> Unit) {
+            bind(code, modifiers) {
+                if (ocrShortcutAllowed(shortcut, isEditingText(), lastOcrState?.isEdited == true)) action()
+            }
         }
 
         val mask = Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx
-        // Esc: stop a running recognition first; close only when there is nothing to stop.
-        bind(java.awt.event.KeyEvent.VK_ESCAPE, 0) {
-            if (lastOcrState?.isRecognizing == true) store.cancelOcr() else closeWorkspace()
+        // Esc stops work before it closes: recognition first, then this window's translation.
+        bind(KeyEvent.VK_ESCAPE, 0) {
+            when (resolveOcrEscape(lastOcrState?.isRecognizing == true, isTranslatingHere())) {
+                OcrEscapeAction.CANCEL_RECOGNITION -> store.cancelOcr()
+                OcrEscapeAction.CANCEL_TRANSLATION -> cancelWorkspaceTranslationIfRunning()
+                OcrEscapeAction.CLOSE -> closeWorkspace()
+            }
         }
         // Ctrl/Cmd+Enter mirrors the main window's TRANSLATE binding; safe while editing
         // (plain Enter still inserts a newline).
-        bind(java.awt.event.KeyEvent.VK_ENTER, mask) { if (translateButton.isEnabled) translateCurrentText(ocrTextArea.text) }
-        // Destructive or modal actions only when the user is not editing text, so edited
-        // text is never overwritten by an accidental chord and Ctrl+V is never stolen.
-        bindUnlessEditing(java.awt.event.KeyEvent.VK_R, mask) { if (lastOcrState?.canRunOcr == true) store.runOcr() }
-        bindUnlessEditing(java.awt.event.KeyEvent.VK_O, mask) { if (!closed) chooseImageFile() }
-        bindUnlessEditing(java.awt.event.KeyEvent.VK_S, mask) { if (imagePanel.currentImage() != null) saveCurrentImage() }
-        bind(java.awt.event.KeyEvent.VK_0, mask) { imagePanel.fitToWindow(imageScroll.viewport.extentSize) }
-        bind(java.awt.event.KeyEvent.VK_1, mask) { imagePanel.actualSize() }
-        bind(java.awt.event.KeyEvent.VK_EQUALS, mask) { imagePanel.zoomIn() }
-        bind(java.awt.event.KeyEvent.VK_MINUS, mask) { imagePanel.zoomOut() }
+        bind(KeyEvent.VK_ENTER, mask) { if (translateButton.isEnabled) translateCurrentText(ocrTextArea.text) }
+        bindGuarded(OcrShortcut.RECOGNIZE, KeyEvent.VK_R, mask) { if (lastOcrState?.canRunOcr == true) store.runOcr() }
+        bindGuarded(OcrShortcut.OPEN_IMAGE, KeyEvent.VK_O, mask) { if (!closed) chooseImageFile() }
+        bindGuarded(OcrShortcut.SAVE_IMAGE, KeyEvent.VK_S, mask) { if (imagePanel.currentImage() != null) saveCurrentImage() }
+        bindGuarded(OcrShortcut.PASTE_IMAGE, KeyEvent.VK_V, mask) { if (!closed) pasteImage() }
+        installImageAwarePaste(mask)
+        bind(KeyEvent.VK_0, mask) { imagePanel.fitToWindow(imageScroll.viewport.extentSize) }
+        bind(KeyEvent.VK_1, mask) { imagePanel.actualSize() }
+        bind(KeyEvent.VK_EQUALS, mask) { imagePanel.zoomIn() }
+        bind(KeyEvent.VK_MINUS, mask) { imagePanel.zoomOut() }
         rootPane.defaultButton = recognizeButton
+    }
+
+    /**
+     * Ctrl+V in the recognized text pastes text as before, but a clipboard holding only an image
+     * (or an image file) opens it in the workspace instead of silently doing nothing. Clipboard
+     * contents are inspected for their flavors only; nothing is read or logged here.
+     */
+    private fun installImageAwarePaste(mask: Int) {
+        val key = ocrTextArea.getInputMap(JComponent.WHEN_FOCUSED).get(KeyStroke.getKeyStroke(KeyEvent.VK_V, mask)) ?: return
+        val textPaste = ocrTextArea.actionMap.get(key) ?: return
+        ocrTextArea.actionMap.put(key, object : AbstractAction() {
+            override fun actionPerformed(e: java.awt.event.ActionEvent) {
+                val contents = runCatching { Toolkit.getDefaultToolkit().systemClipboard.getContents(null) }.getOrNull()
+                val hasText = contents?.isDataFlavorSupported(DataFlavor.stringFlavor) == true
+                val hasImage = contents != null && DroppedContentClassifier.canAccept(contents)
+                when (resolveOcrPaste(hasText, hasImage)) {
+                    OcrPasteTarget.IMAGE -> pasteImage()
+                    OcrPasteTarget.TEXT -> textPaste.actionPerformed(e)
+                }
+            }
+        })
+    }
+
+    private fun shortcutStroke(code: Int): KeyStroke =
+        KeyStroke.getKeyStroke(code, Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx)
+
+    /** Whether the shared translation workspace is currently translating this window's text. */
+    private fun isTranslatingHere(): Boolean {
+        val expected = expectedTranslationInput ?: return false
+        val main = mainStore.state.value
+        return main.isLoading && main.inputText == expected
     }
 
     private fun observeState() {
@@ -803,22 +881,30 @@ class OcrWorkspaceDialog(
 
         busySpinner.isRunning = busy
         val error = state.error
-        statusLabel.text = when {
-            state.isLoadingImage -> localizer.getString("ocr_workspace.loading_image")
-            state.isRecognizing -> localizer.getString("ocr_workspace.recognizing")
-            error != null -> errorText(error)
-            state.isEdited && state.hasText -> localizer.getString("ocr_workspace.edited")
-            state.hasText || !state.hasImage -> localizer.getString("ocr_workspace.ready")
-            else -> localizer.getString("ocr_workspace.no_text")
+        val status = ocrStatus(state)
+        statusLabel.text = status.language
+            ?.let { localizer.getString(status.key, it.getDisplayName(autoDetectLabel = localizer.getString("common.auto_detect"))) }
+            ?: localizer.getString(status.key)
+        statusActionButton.isVisible = status.action == OcrStatusAction.OPEN_SETTINGS
+        statusActionButton.text = localizer.getString("ocr_workspace.settings")
+        // A disabled Recognize button explains itself instead of only greying out.
+        recognizeButton.toolTipText = if (state.needsProvider) {
+            localizer.getString("ocr_workspace.no_provider")
+        } else {
+            withShortcut(recognizeButton.text, shortcutStroke(KeyEvent.VK_R))
         }
         ocrTextArea.hint = if (!state.hasText && error == null && !busy) {
             localizer.getString("ocr_workspace.no_text")
         } else statusLabel.text
         ocrTextArea.accessibleContext.accessibleDescription = ocrTextArea.hint
-        statusLabel.foreground = when {
-            error != null -> errorColor()
-            busy -> UIManager.getColor("Label.foreground")
-            else -> UIManager.getColor("Label.disabledForeground") ?: UIManager.getColor("Label.foreground")
+        statusLabel.foreground = when (status.tone) {
+            OcrStatusTone.ERROR -> errorColor()
+            OcrStatusTone.BUSY -> UIManager.getColor("Label.foreground")
+            OcrStatusTone.MUTED -> if (status.action != OcrStatusAction.NONE) {
+                UIManager.getColor("Label.foreground")
+            } else {
+                UIManager.getColor("Label.disabledForeground") ?: UIManager.getColor("Label.foreground")
+            }
         }
 
         if (ocrTextArea.text != state.recognizedText) {
@@ -1146,15 +1232,7 @@ class OcrWorkspaceDialog(
     private fun selectedOrAll(area: JTextArea): String =
         area.selectedText?.takeIf { it.isNotBlank() } ?: area.text
 
-    private fun errorText(error: OcrWorkspaceError): String = when (error) {
-        OcrWorkspaceError.NoImage -> localizer.getString("ocr_workspace.no_image")
-        OcrWorkspaceError.NoProvider -> localizer.getString("status_bar.no_ocr_active")
-        OcrWorkspaceError.NoText -> localizer.getString("status_bar.no_text_in_image")
-        OcrWorkspaceError.Timeout -> localizer.getString("status_bar.ocr_timeout")
-        OcrWorkspaceError.ImageOpenFailed -> localizer.getString("ocr_workspace.image_open_failed")
-        OcrWorkspaceError.ClipboardEmpty -> localizer.getString("ocr_workspace.clipboard_empty")
-        is OcrWorkspaceError.Failed -> localizer.getString("ocr_workspace.recognition_failed")
-    }
+    private fun errorText(error: OcrWorkspaceError): String = localizer.getString(ocrErrorKey(error))
 
     private fun updateInfo() {
         val dims = imagePanel.currentImage()?.let { "${it.width}\u00D7${it.height}" }
