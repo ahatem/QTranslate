@@ -333,8 +333,9 @@ data class Configuration(
     /**
      * The v10 description of the window: a layout id, chrome switches and the selector style.
      *
-     * Frozen. Nothing writes these any more; they stay stored so that [ConfigMigrator] can map a
-     * v10, v11 or v12 file onto [windowLayout], and are removed in a later release.
+     * Frozen. The window never writes these; the only write is a settings reset restoring their
+     * defaults (see [SettingsReset]). They stay stored so that [ConfigMigrator] can map a v10, v11
+     * or v12 file onto [windowLayout], and are removed in a later release.
      */
     val layoutPresetId: String = "classic",
     val toolbarVisibility: ToolbarVisibility = ToolbarVisibility.DEFAULT,

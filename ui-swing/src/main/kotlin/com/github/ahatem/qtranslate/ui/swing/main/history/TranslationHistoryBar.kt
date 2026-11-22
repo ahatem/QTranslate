@@ -71,28 +71,6 @@ class TranslationHistoryBar(
         )
     }
 
-    private var trailingComponent: JComponent? = null
-
-    /**
-     * Mounts [component] at the trailing end of the row, after image and document translate, or
-     * removes the one mounted there when null. The window lends the status bar's notification
-     * button to this row while the status bar is off.
-     */
-    fun setTrailingComponent(component: JComponent?) {
-        if (component === trailingComponent && (component == null || component.parent === rightGroup)) return
-        trailingComponent?.let { previous -> if (previous.parent === rightGroup) rightGroup.remove(previous) }
-        trailingComponent = component
-        component?.let {
-            rightGroup.add(it)
-            it.applyComponentOrientation(rightGroup.componentOrientation)
-        }
-        rightGroup.revalidate()
-        rightGroup.repaint()
-    }
-
-    /** The group at the trailing end of the row, which hosts [setTrailingComponent]'s component. */
-    internal val trailingGroup: JComponent get() = rightGroup
-
     override fun render(state: TranslationHistoryBarState) {
         statusLabel.text = state.statusText
         renderControls(state)

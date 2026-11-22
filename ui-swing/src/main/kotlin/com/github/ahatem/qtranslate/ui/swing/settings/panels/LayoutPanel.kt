@@ -259,7 +259,8 @@ class LayoutPanel(
     private fun reasonText(reason: LayoutDisabledReason) = when (reason) {
         LayoutDisabledReason.COMPARISON_OWNS_SERVICES ->
             localizationManager.getString("settings_window.layout_selector_absent")
-        LayoutDisabledReason.STRIP_NEEDS_OWN_ROW,
+        LayoutDisabledReason.SELECTOR_NEEDS_OWN_ROW ->
+            localizationManager.getString("settings_window.layout_selector_own_row")
         LayoutDisabledReason.APPEARANCE_NEEDS_STRIP ->
             localizationManager.getString("settings_window.layout_appearance_needs_strip")
     }

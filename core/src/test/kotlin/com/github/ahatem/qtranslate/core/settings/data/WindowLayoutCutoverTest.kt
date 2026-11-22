@@ -192,13 +192,21 @@ class WindowLayoutCutoverTest {
                             migrated.toolbarVisibility,
                             "decode lost a chrome switch for $label",
                         )
+                        val mapped = WindowLayoutMigration.fromV10(
+                            layoutPresetId = id,
+                            toolbarVisibility = ToolbarVisibility(history, language, services, status),
+                            serviceSelectorStyle = style,
+                            serviceSelectorAppearance = ServiceSelectorAppearance.ICONS_AND_TEXT,
+                        )
+                        // The one place a v11 or v12 file differs from the plain mapping: see
+                        // `a v11 or v12 file saved in comparison keeps its service selector`.
+                        val expected = if (version >= 11 && id == LayoutPresetIds.COMPARISON) {
+                            mapped.copy(services = RegionSlot.BOTTOM)
+                        } else {
+                            mapped
+                        }
                         assertEquals(
-                            WindowLayoutMigration.fromV10(
-                                layoutPresetId = id,
-                                toolbarVisibility = ToolbarVisibility(history, language, services, status),
-                                serviceSelectorStyle = style,
-                                serviceSelectorAppearance = ServiceSelectorAppearance.ICONS_AND_TEXT,
-                            ),
+                            expected,
                             migrated.windowLayout,
                             "the stored values and the mapping disagree for $label",
                         )
@@ -206,6 +214,56 @@ class WindowLayoutCutoverTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun `a v11 or v12 file saved in comparison keeps its service selector`() {
+        // The v11 and v12 bridge wrote "services visible AND not comparison", so a Comparison file
+        // always stored the panel as hidden, whether or not the user had hidden it. The region goes
+        // back to the bottom, ready for when the user leaves Comparison.
+        listOf(11, 12).forEach { version ->
+            listOf(true, false).forEach { storedVisible ->
+                val migrated = load(
+                    payload(version = version, layoutPresetId = LayoutPresetIds.COMPARISON, services = storedVisible)
+                )
+                assertEquals(13, migrated.configVersion, "v$version")
+                assertEquals(PaneLayout.COMPARISON, migrated.windowLayout.panes, "v$version")
+                assertEquals(
+                    RegionSlot.BOTTOM, migrated.windowLayout.services,
+                    "v$version stored as services visible=$storedVisible",
+                )
+                // Nothing else changes: the other regions still follow the stored switches.
+                assertEquals(RegionSlot.TOP, migrated.windowLayout.history, "v$version")
+                assertEquals(RegionSlot.ABOVE_RESULTS, migrated.windowLayout.languages, "v$version")
+            }
+        }
+    }
+
+    @Test
+    fun `a v11 or v12 file in stacked or side by side panes still keeps a hidden selector hidden`() {
+        listOf(11, 12).forEach { version ->
+            listOf(LayoutPresetIds.CLASSIC, LayoutPresetIds.SIDE_BY_SIDE).forEach { id ->
+                val migrated = load(payload(version = version, layoutPresetId = id, services = false))
+                assertEquals(RegionSlot.HIDDEN, migrated.windowLayout.services, "v$version / $id")
+            }
+        }
+    }
+
+    @Test
+    fun `a v10 file saved in comparison is mapped exactly as before`() {
+        // v10 stored the panel's own switch, which Comparison never overwrote.
+        val shown = load(payload(version = 10, layoutPresetId = LayoutPresetIds.COMPARISON, services = true))
+        assertEquals(PaneLayout.COMPARISON, shown.windowLayout.panes)
+        assertEquals(RegionSlot.BOTTOM, shown.windowLayout.services)
+
+        val hidden = load(payload(version = 10, layoutPresetId = LayoutPresetIds.COMPARISON, services = false))
+        assertEquals(PaneLayout.COMPARISON, hidden.windowLayout.panes)
+        assertEquals(RegionSlot.HIDDEN, hidden.windowLayout.services, "a v10 user's own choice is kept")
+        assertEquals(
+            WindowLayoutMigration.fromV10(hidden),
+            hidden.windowLayout,
+            "v10 is the plain mapping, with no comparison exception",
+        )
     }
 
     @Test

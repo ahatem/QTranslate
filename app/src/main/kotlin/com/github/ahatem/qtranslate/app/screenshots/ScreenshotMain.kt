@@ -405,23 +405,28 @@ private class Shots(
     /**
      * A curated list of window layouts, each in English light and Arabic dark.
      *
-     * Not a sweep: the four cards, then one shot for each placement the cards do not show. The
+     * Not a sweep: the four cards and the two pane arrangements that are not cards, then one shot
+     * for each placement they do not show. The
      * Arabic half proves the mirroring and the dark half is where contrast faults show, so one
      * pass covers both. Comparison scenes get two usable translators so the board is eligible.
      */
     suspend fun layoutSlots() {
         val hidden = RegionSlot.HIDDEN
         val scenes = listOf(
-            "card-classic" to Scenes.CLASSIC,
+            "card-modern-classic" to Scenes.MODERN_CLASSIC_CARD,
+            "card-classic" to Scenes.CLASSIC_CARD,
             "card-compact-row" to Scenes.COMPACT_ROW,
-            "card-side-by-side" to Scenes.SIDE_BY_SIDE,
-            "card-comparison" to Scenes.COMPARISON_BOARD,
+            "card-focus" to Scenes.FOCUS_CARD,
+            "panes-side-by-side" to Scenes.SIDE_BY_SIDE,
+            "panes-comparison" to Scenes.COMPARISON_BOARD,
             // Every region hidden: the chips, the moved actions and the notification button all
             // land in the input strip.
             "all-hidden" to WindowLayout(history = hidden, languages = hidden, services = hidden, showStatusBar = false),
             "history-bottom" to WindowLayout(history = RegionSlot.BOTTOM),
             "stacked-languages-top" to WindowLayout(languages = RegionSlot.TOP),
-            "services-top-shared" to WindowLayout(
+            // History and languages share the top row; the service selector never shares, so it
+            // sits on a row of its own beneath them.
+            "services-top-own-row" to WindowLayout(
                 history = RegionSlot.TOP,
                 languages = RegionSlot.TOP,
                 services = RegionSlot.TOP,
@@ -446,10 +451,13 @@ private class Shots(
 
             start(scene(Scenes.LIGHT, rtl = false))
             translate(LanguageCode("fr"), Scenes.LIBRARY)
+            // A long board is scrolled to its top, so the primary header is whole in the frame.
+            if (layout.panes == PaneLayout.COMPARISON) scrollComparisonToTop()
             capture("slots-$name-light")
 
             start(scene(Scenes.DARK, rtl = true))
             translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
+            if (layout.panes == PaneLayout.COMPARISON) scrollComparisonToTop()
             capture("slots-$name-rtl-dark")
         }
     }

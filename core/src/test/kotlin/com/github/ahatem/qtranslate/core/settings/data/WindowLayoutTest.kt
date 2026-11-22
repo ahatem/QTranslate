@@ -309,8 +309,8 @@ class WindowLayoutTest {
                         assertTrue(row.isNotEmpty(), "no empty row")
                         assertTrue(row.all { layout.slotOf(it) == slot }, "regions sit in their own slot")
                         assertEquals(row.sortedBy { it.ordinal }, row, "row order: $layout")
-                        if (WindowRegion.SERVICES in row && layout.serviceWidget == ServiceWidget.STRIP) {
-                            assertEquals(listOf(WindowRegion.SERVICES), row, "the strip is alone: $layout")
+                        if (WindowRegion.SERVICES in row) {
+                            assertEquals(listOf(WindowRegion.SERVICES), row, "the selector is alone: $layout")
                         }
                     }
                     // Rows themselves follow history, languages, services.
@@ -325,14 +325,15 @@ class WindowLayoutTest {
     }
 
     @Test
-    fun `shared rows merge a slot unless the strip is in it`() {
+    fun `shared rows merge history and languages but never the service selector`() {
         val shared = WindowLayout(
             history = RegionSlot.TOP, languages = RegionSlot.TOP, services = RegionSlot.TOP, shareRows = true,
         )
-        assertEquals(
-            listOf(listOf(WindowRegion.HISTORY, WindowRegion.LANGUAGES, WindowRegion.SERVICES)),
-            shared.rowPlan(PaneLayout.STACKED)[RegionSlot.TOP],
+        val historyAndLanguagesThenServices = listOf(
+            listOf(WindowRegion.HISTORY, WindowRegion.LANGUAGES),
+            listOf(WindowRegion.SERVICES),
         )
+        assertEquals(historyAndLanguagesThenServices, shared.rowPlan(PaneLayout.STACKED)[RegionSlot.TOP])
         assertEquals(
             listOf(
                 listOf(WindowRegion.HISTORY, WindowRegion.LANGUAGES),
@@ -478,14 +479,14 @@ class WindowLayoutTest {
     }
 
     @Test
-    fun `the strip cannot share a row`() {
+    fun `the service selector cannot share a row`() {
         val strip = WindowLayout.DEFAULT.copy(serviceWidget = ServiceWidget.STRIP)
         assertEquals(
-            LayoutAvailability.Disabled(LayoutDisabledReason.STRIP_NEEDS_OWN_ROW),
+            LayoutAvailability.Disabled(LayoutDisabledReason.SELECTOR_NEEDS_OWN_ROW),
             strip.shareRowAvailability(WindowRegion.SERVICES, PaneLayout.STACKED),
         )
         assertEquals(
-            LayoutAvailability.Enabled,
+            LayoutAvailability.Disabled(LayoutDisabledReason.SELECTOR_NEEDS_OWN_ROW),
             WindowLayout.DEFAULT.shareRowAvailability(WindowRegion.SERVICES, PaneLayout.STACKED),
         )
         // The other regions can always share, whatever the widget is.
@@ -494,7 +495,7 @@ class WindowLayoutTest {
                 assertEquals(LayoutAvailability.Enabled, strip.shareRowAvailability(region, panes))
             }
         }
-        // Under comparison the services region does not exist, which outranks the strip reason.
+        // Under comparison the services region does not exist, which outranks the selector reason.
         assertEquals(
             LayoutAvailability.Disabled(LayoutDisabledReason.COMPARISON_OWNS_SERVICES),
             strip.shareRowAvailability(WindowRegion.SERVICES, PaneLayout.COMPARISON),

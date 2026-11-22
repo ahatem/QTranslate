@@ -9,6 +9,7 @@ import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Container
 import java.awt.GridBagLayout
+import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
@@ -16,6 +17,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
@@ -84,12 +86,13 @@ class SlotLayoutStructureTest {
         }
     }
 
-    private fun build(layout: WindowLayout, isRtl: Boolean = false): Window = onEdt {
+    private fun build(layout: WindowLayout, isRtl: Boolean = false, bell: Boolean = false): Window = onEdt {
         val leaves = List(8) { JPanel() }
         val registry = ComponentRegistry(
             historyBar = leaves[0], inputPanel = leaves[1], languageBar = leaves[2],
             outputPanel = leaves[3], compareBoard = leaves[4], extraOutputPanel = leaves[5],
-            translatorSelector = leaves[6], statusBar = leaves[7]
+            translatorSelector = leaves[6], statusBar = leaves[7],
+            notificationButton = if (bell) JButton() else null,
         )
         Window(registry, SlotLayout.arrange(registry, layout, layout.panes, isRtl).rootComponent)
     }
@@ -156,42 +159,72 @@ class SlotLayoutStructureTest {
     }
 
     @Test
-    fun `a shared row without languages lets history fill it and ends with services`() {
-        val window = build(
-            WindowLayout(
-                history = RegionSlot.TOP,
-                languages = RegionSlot.BOTTOM,
-                services = RegionSlot.TOP,
-                serviceWidget = ServiceWidget.PICKER,
-                shareRows = true,
+    fun `the service selector keeps its own row beside a history row, whichever widget it is`() {
+        ServiceWidget.entries.forEach { widget ->
+            val window = build(
+                WindowLayout(
+                    history = RegionSlot.TOP,
+                    languages = RegionSlot.BOTTOM,
+                    services = RegionSlot.TOP,
+                    serviceWidget = widget,
+                    shareRows = true,
+                )
             )
-        )
-        onEdt {
-            val row = window.rowOf(WindowRegion.HISTORY, RegionSlot.TOP) as Container
-            assertTrue(SwingUtilities.isDescendingFrom(window.registry.translatorSelector, row), "they share a row")
-            val layout = row.layout as BorderLayout
-            assertEquals(window.registry.historyBar, layout.getLayoutComponent(BorderLayout.CENTER))
-            assertEquals(window.registry.translatorSelector, layout.getLayoutComponent(BorderLayout.LINE_END))
+            onEdt {
+                val history = window.rowOf(WindowRegion.HISTORY, RegionSlot.TOP)
+                val services = window.rowOf(WindowRegion.SERVICES, RegionSlot.TOP)
+                assertTrue(history !== services, "$widget: separate rows")
+                assertEquals(0, window.gridyOf(WindowRegion.HISTORY, RegionSlot.TOP), "$widget")
+                assertEquals(1, window.gridyOf(WindowRegion.SERVICES, RegionSlot.TOP), "$widget: below history")
+            }
         }
     }
 
     @Test
-    fun `a tab strip never shares a row`() {
-        val window = build(
-            WindowLayout(
-                history = RegionSlot.TOP,
-                languages = RegionSlot.TOP,
-                services = RegionSlot.TOP,
-                serviceWidget = ServiceWidget.STRIP,
-                shareRows = true,
+    fun `the service selector never shares a row`() {
+        ServiceWidget.entries.forEach { widget ->
+            val window = build(
+                WindowLayout(
+                    history = RegionSlot.TOP,
+                    languages = RegionSlot.TOP,
+                    services = RegionSlot.TOP,
+                    serviceWidget = widget,
+                    shareRows = true,
+                )
             )
-        )
+            onEdt {
+                val shared = window.rowOf(WindowRegion.HISTORY, RegionSlot.TOP)
+                assertEquals(shared, window.rowOf(WindowRegion.LANGUAGES, RegionSlot.TOP), "$widget: history and languages share")
+                val selector = window.rowOf(WindowRegion.SERVICES, RegionSlot.TOP)
+                assertTrue(selector !== shared, "$widget: the selector has its own row")
+                assertEquals(1, window.gridyOf(WindowRegion.SERVICES, RegionSlot.TOP), "$widget: below the shared row")
+            }
+        }
+    }
+
+    @Test
+    fun `the notification button ends whichever row holds history`() {
+        listOf(false, true).forEach { share ->
+            val layout = WindowLayout(
+                history = RegionSlot.TOP, languages = RegionSlot.TOP, shareRows = share, showStatusBar = false,
+            )
+            val window = build(layout, bell = true)
+            onEdt {
+                val bell = assertNotNull(window.registry.notificationButton)
+                val row = bell.parent as Container
+                assertSame(row, window.rowOf(WindowRegion.HISTORY, RegionSlot.TOP), "share=$share: the bell is in the history row")
+                assertSame(bell, (row.layout as BorderLayout).getLayoutComponent(BorderLayout.LINE_END), "share=$share")
+                assertEquals(share, SwingUtilities.isDescendingFrom(window.registry.languageBar, row), "share=$share")
+            }
+        }
+    }
+
+    @Test
+    fun `the notification button is left to the status bar while the bar is shown`() {
+        val window = build(WindowLayout(history = RegionSlot.TOP, showStatusBar = true), bell = true)
         onEdt {
-            val shared = window.rowOf(WindowRegion.HISTORY, RegionSlot.TOP)
-            assertEquals(shared, window.rowOf(WindowRegion.LANGUAGES, RegionSlot.TOP), "history and languages share")
-            val strip = window.rowOf(WindowRegion.SERVICES, RegionSlot.TOP)
-            assertTrue(strip !== shared, "the strip has its own row")
-            assertEquals(1, window.gridyOf(WindowRegion.SERVICES, RegionSlot.TOP), "below the shared row")
+            val bell = assertNotNull(window.registry.notificationButton)
+            assertNull(bell.parent, "the window leaves it to the status bar")
         }
     }
 

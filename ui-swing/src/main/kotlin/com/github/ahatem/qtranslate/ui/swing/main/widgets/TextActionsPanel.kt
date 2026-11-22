@@ -29,6 +29,9 @@ data class Action(
     val onClick: () -> Unit
 )
 
+/** The vertical gap between two buttons of the action strip. */
+internal const val ACTION_GAP = 2
+
 data class TextActionsState(
     val actions: List<Action>
 ) : UiState
@@ -77,7 +80,7 @@ class TextActionsPanel(
             val button = createActionButton(action)
             actionButtons[action.id] = button
             add(button)
-            add(Box.createVerticalStrut(2))
+            add(Box.createVerticalStrut(ACTION_GAP))
         }
 
         if (componentCount > 0) remove(componentCount - 1)

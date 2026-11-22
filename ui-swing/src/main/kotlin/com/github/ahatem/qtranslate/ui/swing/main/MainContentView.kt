@@ -274,7 +274,8 @@ class MainContentView(
             outputPanel = outputTextPanel,
             compareBoard = compareBoard,
             extraOutputPanel = extraOutputPanel,
-            statusBar = statusBar
+            statusBar = statusBar,
+            notificationButton = statusBar.notificationButton,
         ), contentWrapper
     )
 
@@ -360,21 +361,14 @@ class MainContentView(
 
     /**
      * Puts the one notification button where [host] says: the status bar, or, while the bar is
-     * off, the end of the history row, or the input strip when history is hidden too.
+     * off and history is hidden too, the input strip. The end of the history row is built into
+     * the row itself (see [SlotLayout]), so the button sits at the true end of a shared row.
      */
     private fun mountNotificationButton(host: FeatureHost) {
-        val button = statusBar.notificationButton
         when (host) {
-            FeatureHost.HistoryRowEnd -> {
-                notificationInStrip = null
-                translationHistoryBar.setTrailingComponent(button)
-            }
-            FeatureHost.InputStrip -> {
-                translationHistoryBar.setTrailingComponent(null)
-                notificationInStrip = button
-            }
+            FeatureHost.HistoryRowEnd -> notificationInStrip = null
+            FeatureHost.InputStrip -> notificationInStrip = statusBar.notificationButton
             else -> {
-                translationHistoryBar.setTrailingComponent(null)
                 notificationInStrip = null
                 statusBar.restoreNotificationButton()
             }

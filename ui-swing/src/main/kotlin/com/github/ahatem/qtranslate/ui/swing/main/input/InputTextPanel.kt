@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.main.input
 
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.ui.swing.main.widgets.ACTION_GAP
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsPanel
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toFont
@@ -40,7 +41,7 @@ class InputTextPanel(
      * chips under it. Commands whose own region is hidden are mounted here (see
      * [setStripComponents]), so hiding a row never strands one.
      */
-    private val actionsWrapper = JPanel(BorderLayout()).apply {
+    private val actionsWrapper = JPanel(BorderLayout(0, ACTION_GAP)).apply {
         border = BorderFactory.createEmptyBorder(0, 4, 0, 0)
         isOpaque = false
         add(actionsPanel, BorderLayout.CENTER)

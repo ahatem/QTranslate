@@ -169,6 +169,15 @@ internal object Scenes {
     /** The default window: stacked panes, history on top, languages above results, picker below. */
     val CLASSIC: WindowLayout = WindowLayout.DEFAULT
 
+    /** The Modern classic card: the v1.5.0 window, which is also the default. */
+    val MODERN_CLASSIC_CARD: WindowLayout = WindowPreset.MODERN_CLASSIC.applyTo(WindowLayout.DEFAULT)
+
+    /** The Classic card (QTranslate 6): a bottom strip of service tabs and dense spacing. */
+    val CLASSIC_CARD: WindowLayout = WindowPreset.CLASSIC.applyTo(WindowLayout.DEFAULT)
+
+    /** The Focus card: one shared row, no service row, no status bar. */
+    val FOCUS_CARD: WindowLayout = WindowPreset.FOCUS.applyTo(WindowLayout.DEFAULT)
+
     /** History and languages sharing one row at the top: the Compact card. */
     val COMPACT_ROW: WindowLayout = WindowPreset.COMPACT.applyTo(WindowLayout.DEFAULT)
 

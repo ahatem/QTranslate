@@ -179,6 +179,18 @@ class WindowRouteTest {
         }
     }
 
+    /**
+     * Whether [button] is the trailing component of the row that holds [history]: placed at
+     * LINE_END of that row's own BorderLayout, so it ends the row whether or not other regions
+     * share it.
+     */
+    private fun endsRowOf(button: Component, history: Component): Boolean {
+        val row = button.parent as? Container ?: return false
+        val border = row.layout as? BorderLayout ?: return false
+        return border.getConstraints(button) == BorderLayout.LINE_END &&
+            SwingUtilities.isDescendingFrom(history, row)
+    }
+
     /** Every problem with the routes of [layout] as built in [view]; empty when all are right. */
     private fun routeProblems(view: MainContentView, layout: WindowLayout, effectivePanes: PaneLayout): List<String> {
         val problems = mutableListOf<String>()
@@ -233,9 +245,7 @@ class WindowRouteTest {
                 FeatureHost.HistoryRowEnd -> {
                     val history = find<TranslationHistoryBar>(view)
                     val button = view.statusBar.notificationButton
-                    if (history == null || !visibleIn(button, view) ||
-                        !SwingUtilities.isDescendingFrom(button, history.trailingGroup)
-                    ) {
+                    if (history == null || !visibleIn(button, view) || !endsRowOf(button, history)) {
                         problems += "$feature: not shown at the end of the history row"
                     }
                 }
@@ -342,11 +352,38 @@ class WindowRouteTest {
     }
 
     @Test
+    fun `the notification button is the last component of a shared history row`() {
+        listOf(false, true).forEach { rtl ->
+            val view = view(localizer(rtl = rtl))
+            val shared = WindowLayout(
+                history = RegionSlot.TOP, languages = RegionSlot.TOP, shareRows = true, showStatusBar = false,
+            )
+            render(view, eligibleState, shared)
+            val history = assertNotNull(find<TranslationHistoryBar>(view))
+            val languages = assertNotNull(find<LanguageSelectionBar>(view))
+            val button = view.statusBar.notificationButton
+
+            val row = button.parent as Container
+            assertSame(row, history.parent, "rtl=$rtl: the bell is in the row history and languages share")
+            assertSame(row, languages.parent, "rtl=$rtl")
+            val border = row.layout as BorderLayout
+            assertEquals(BorderLayout.LINE_START, border.getConstraints(history), "rtl=$rtl")
+            assertEquals(BorderLayout.CENTER, border.getConstraints(languages), "rtl=$rtl")
+            assertEquals(BorderLayout.LINE_END, border.getConstraints(button), "rtl=$rtl: the bell ends the row")
+            assertTrue(visibleIn(button, view))
+            assertTrue(
+                row.components.none { it !== button && border.getConstraints(it) == BorderLayout.LINE_END },
+                "rtl=$rtl: nothing else competes for the end of the row",
+            )
+        }
+    }
+
+    @Test
     fun `the notification button comes back to the status bar when the bar returns`() {
         val view = view(localizer())
         render(view, eligibleState, WindowLayout(showStatusBar = false))
         val history = assertNotNull(find<TranslationHistoryBar>(view))
-        assertTrue(SwingUtilities.isDescendingFrom(view.statusBar.notificationButton, history.trailingGroup))
+        assertTrue(endsRowOf(view.statusBar.notificationButton, history))
 
         render(view, eligibleState, WindowLayout(history = RegionSlot.HIDDEN, showStatusBar = false))
         assertTrue(find<InputTextPanel>(view)!!.stripContainers.any {

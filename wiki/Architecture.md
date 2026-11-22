@@ -196,19 +196,22 @@ arrangement (Stacked, Side by side or Comparison) and puts each region (history,
 services) in a slot: `TOP`, `ABOVE_RESULTS`, `BOTTOM` or `HIDDEN`.
 
 - `WindowLayout.rowPlan(effectivePanes)` says which rows each slot holds, in the fixed order
-  history, languages, services. Under Comparison the services region is absent: the board header
-  switches the translator.
+  history, languages, services. History and languages share a row when `shareRows` is set; the
+  service selector always has a row of its own. Under Comparison the services region is absent: the
+  board header switches the translator.
 - `WindowLayout.requiredHosts(effectivePanes)` says where each command lives. A hidden region's
   commands move to the input strip (back/forward with mirrored arrows, the language pair chip with
   Translate and Clear, the provider chip). With the status bar off, its notification button moves
-  to the end of the history row, or to the input strip when history is hidden too.
+  to the trailing end of whichever row holds history, or to the input strip when history is hidden
+  too.
 - `SlotLayout` (`ui-swing/main/layout`) builds the slot containers and the pane split from the row
   plan; `LayoutManager` rebuilds only when the arrangement changes.
 - A requested Comparison without two usable translators renders Stacked. The stored preference is
   not rewritten, so the board returns once it is eligible again.
 
 Configuration version 13 introduced the value. Files from versions 10 to 12 are mapped once from
-their stored v10 fields by `WindowLayoutMigration.fromV10`; those fields stay in the file, frozen.
+their stored v10 fields by `WindowLayoutMigration.fromV10`; those fields stay in the file, frozen
+(only a settings reset writes them, restoring their defaults).
 
 ---
 

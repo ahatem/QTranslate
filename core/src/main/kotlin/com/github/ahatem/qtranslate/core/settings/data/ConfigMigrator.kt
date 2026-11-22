@@ -217,11 +217,21 @@ object ConfigMigrator {
                 // v10, v11, v12 → v13: the window becomes three regions placed in slots. The v11
                 // and v12 descriptions were stored under keys the configuration no longer has, so
                 // they are discarded on decode; every version maps from the v10 fields instead,
-                // which those releases kept in step and which nothing writes from now on.
-                logger.info("ConfigMigrator: migrating v${config.configVersion} → v13 — describing the window as regions in slots")
+                // which those releases kept in step and which only a settings reset writes now.
+                logger.info("ConfigMigrator: migrating v${config.configVersion} → v13, describing the window as regions in slots")
+                val fromV10 = WindowLayoutMigration.fromV10(config)
+                val windowLayout = if (config.configVersion >= 11 && fromV10.panes == PaneLayout.COMPARISON) {
+                    // The v11 and v12 bridge stored the services panel as visible AND not Comparison,
+                    // so a Comparison file reads as hidden although the user never hid it. Comparison
+                    // does not draw the selector, so the region goes back to its default place for
+                    // when they leave Comparison.
+                    fromV10.copy(services = RegionSlot.BOTTOM)
+                } else {
+                    fromV10
+                }
                 config.copy(
                     configVersion = 13,
-                    windowLayout = WindowLayoutMigration.fromV10(config),
+                    windowLayout = windowLayout,
                 )
             }
             else -> {

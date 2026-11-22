@@ -2,9 +2,11 @@ package com.github.ahatem.qtranslate.ui.swing.main.layout
 
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.core.settings.data.FeatureHost
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
+import com.github.ahatem.qtranslate.core.settings.data.WindowFeature
 import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import com.github.ahatem.qtranslate.core.settings.data.WindowRegion
 import java.awt.*
@@ -18,7 +20,13 @@ data class ComponentRegistry(
     val compareBoard: JComponent,
     val extraOutputPanel: JComponent,
     val translatorSelector: JComponent,
-    val statusBar: JComponent
+    val statusBar: JComponent,
+    /**
+     * The notification button, lent to the history row while the status bar is off (see
+     * [com.github.ahatem.qtranslate.core.settings.data.FeatureHost.HistoryRowEnd]). Null where the
+     * window never hosts it there.
+     */
+    val notificationButton: JComponent? = null,
 )
 
 sealed interface LayoutComponentRefs {
@@ -95,8 +103,17 @@ object LayoutBuilders {
         viewport.isOpaque = false
     }
 
-    /** The history row: the bar fills the width, its own groups sit at either end. */
-    fun historyRow(historyBar: JComponent): JComponent {
+    /**
+     * The history row: the bar fills the width, its own groups sit at either end. [trailing], when
+     * given, is the row's last component at LINE_END.
+     */
+    fun historyRow(historyBar: JComponent, trailing: JComponent? = null): JComponent {
+        if (trailing != null) {
+            return JPanel(BorderLayout(UIScale.scale(2), 0)).apply {
+                add(historyBar, BorderLayout.CENTER)
+                add(trailing, BorderLayout.LINE_END)
+            }
+        }
         return JPanel(GridBagLayout()).apply {
             val gbc = GridBagConstraints().apply {
                 gridx = 0
@@ -130,8 +147,11 @@ object LayoutBuilders {
      * bar does; a member before that one starts the row at LINE_START and a member after it ends
      * the row at LINE_END. Only LINE_START and LINE_END are used, so a right-to-left window mirrors
      * the row from its structure alone.
+     *
+     * [trailing], when given, is the row's last component at LINE_END, after every member, so a
+     * button that belongs at the end of the row never ends up in its middle.
      */
-    fun sharedRow(members: List<Pair<WindowRegion, JComponent>>): JComponent {
+    fun sharedRow(members: List<Pair<WindowRegion, JComponent>>, trailing: JComponent? = null): JComponent {
         val stretch = members.firstOrNull { it.first == WindowRegion.LANGUAGES }
             ?: members.firstOrNull { it.first == WindowRegion.HISTORY }
             ?: members.first()
@@ -148,6 +168,7 @@ object LayoutBuilders {
                     }
                 )
             }
+            trailing?.let { add(it, BorderLayout.LINE_END) }
         }
     }
 
@@ -225,10 +246,10 @@ object SlotLayout {
         components.translatorSelector.isVisible = WindowRegion.SERVICES in placed
         components.statusBar.isVisible = layout.showStatusBar
 
-        val top = slot(plan, RegionSlot.TOP, components)
-        val aboveResults = slot(plan, RegionSlot.ABOVE_RESULTS, components)
+        val top = slot(plan, layout, effectivePanes, RegionSlot.TOP, components)
+        val aboveResults = slot(plan, layout, effectivePanes, RegionSlot.ABOVE_RESULTS, components)
         // The footer sits outside the padded content, so its rows bring the window's side padding.
-        val bottom = slot(plan, RegionSlot.BOTTOM, components, horizontalInset = UISpacing.PADDING)
+        val bottom = slot(plan, layout, effectivePanes, RegionSlot.BOTTOM, components, horizontalInset = UISpacing.PADDING)
 
         val (panes, refs) = when (effectivePanes) {
             PaneLayout.STACKED -> stacked(components, aboveResults)
@@ -256,19 +277,26 @@ object SlotLayout {
 
     private fun slot(
         plan: Map<RegionSlot, List<List<WindowRegion>>>,
+        layout: WindowLayout,
+        effectivePanes: PaneLayout,
         slot: RegionSlot,
         components: ComponentRegistry,
         horizontalInset: Int = 0,
     ): JComponent? {
+        // The notification button goes to the end of whichever row holds history.
+        val bell = components.notificationButton.takeIf {
+            layout.requiredHosts(effectivePanes)[WindowFeature.NOTIFICATIONS] == FeatureHost.HistoryRowEnd
+        }
         val rows = plan[slot].orEmpty().map { row ->
+            val trailing = bell.takeIf { WindowRegion.HISTORY in row }
             if (row.size == 1) {
                 when (row.single()) {
-                    WindowRegion.HISTORY -> LayoutBuilders.historyRow(components.historyBar)
+                    WindowRegion.HISTORY -> LayoutBuilders.historyRow(components.historyBar, trailing)
                     WindowRegion.LANGUAGES -> LayoutBuilders.wrapLanguageBar(components.languageBar)
                     WindowRegion.SERVICES -> LayoutBuilders.serviceRow(components.translatorSelector)
                 }
             } else {
-                LayoutBuilders.sharedRow(row.map { it to components.componentOf(it) })
+                LayoutBuilders.sharedRow(row.map { it to components.componentOf(it) }, trailing)
             }
         }
         return LayoutBuilders.slotColumn(rows, horizontalInset)

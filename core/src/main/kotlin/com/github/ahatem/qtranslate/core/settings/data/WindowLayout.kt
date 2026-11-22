@@ -72,16 +72,15 @@ data class WindowLayout(
     /**
      * Whether [shareRows] can put [region] in a row with its neighbours.
      *
-     * The strip stretches its tabs across the full width, so it never shares a row. Under
-     * Comparison the services region does not exist at all.
+     * The service selector never shares a row, whichever widget is chosen: the strip stretches
+     * its tabs across the full width and the picker is wider than a window shared with other
+     * regions. Under Comparison the services region does not exist at all.
      */
     fun shareRowAvailability(region: WindowRegion, effectivePanes: PaneLayout): LayoutAvailability = when {
         region != WindowRegion.SERVICES -> LayoutAvailability.Enabled
         effectivePanes == PaneLayout.COMPARISON ->
             LayoutAvailability.Disabled(LayoutDisabledReason.COMPARISON_OWNS_SERVICES)
-        serviceWidget == ServiceWidget.STRIP ->
-            LayoutAvailability.Disabled(LayoutDisabledReason.STRIP_NEEDS_OWN_ROW)
-        else -> LayoutAvailability.Enabled
+        else -> LayoutAvailability.Disabled(LayoutDisabledReason.SELECTOR_NEEDS_OWN_ROW)
     }
 
     /** Whether [stripAppearance] applies: only to the strip, and never under Comparison. */
@@ -105,8 +104,8 @@ data class WindowLayout(
      *
      * - A hidden region is absent.
      * - Under Comparison the services region is absent: the board header owns switching.
-     * - With [shareRows] the regions of a slot share one row, except a [ServiceWidget.STRIP]
-     *   services region, which is always its own row.
+     * - With [shareRows] history and languages of a slot share one row. The services region is
+     *   always its own row, after the shared one, whichever widget it uses.
      */
     fun rowPlan(effectivePanes: PaneLayout): Map<RegionSlot, List<List<WindowRegion>>> {
         val present = WindowRegion.entries.filter { region ->
@@ -128,8 +127,7 @@ data class WindowLayout(
         }
     }
 
-    private fun WindowRegion.alwaysOwnRow(): Boolean =
-        this == WindowRegion.SERVICES && serviceWidget == ServiceWidget.STRIP
+    private fun WindowRegion.alwaysOwnRow(): Boolean = this == WindowRegion.SERVICES
 
     // ---- Routes ----
 
@@ -228,8 +226,8 @@ enum class LayoutDisabledReason {
     /** Comparison's board header switches the primary translator, so the services region does not exist. */
     COMPARISON_OWNS_SERVICES,
 
-    /** The strip stretches across the full width, so it cannot share a row. */
-    STRIP_NEEDS_OWN_ROW,
+    /** The service selector (strip or picker) is too wide to share, so it always has a row of its own. */
+    SELECTOR_NEEDS_OWN_ROW,
 
     /** Appearance applies to the strip only. */
     APPEARANCE_NEEDS_STRIP,
@@ -370,7 +368,8 @@ data class LayoutProfile(val name: String, val layout: WindowLayout) {
  * The v10 settings expressed as a [WindowLayout]: a pure mapping with no I/O.
  *
  * Existing users see the window they already had. [ConfigMigrator] runs it for every stored
- * v10, v11 and v12 configuration, reading the v10 fields, which nothing writes any more.
+ * v10, v11 and v12 configuration, reading the v10 fields, which are written only when a settings
+ * reset restores their defaults.
  */
 object WindowLayoutMigration {
     fun fromV10(config: Configuration): WindowLayout = fromV10(
