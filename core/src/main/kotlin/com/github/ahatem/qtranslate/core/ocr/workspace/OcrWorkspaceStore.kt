@@ -56,6 +56,8 @@ data class OcrWorkspaceState(
 ) {
     val hasImage: Boolean get() = image != null
     val hasText: Boolean get() = recognizedText.isNotBlank()
+    /** No OCR service is usable, so recognition cannot run until one is set up. */
+    val needsProvider: Boolean get() = providerId == null
     val canRunOcr: Boolean get() = image != null && providerId != null && !isRecognizing && !isLoadingImage
     val canTranslate: Boolean get() = hasText && !isRecognizing && !isLoadingImage
 }
@@ -134,7 +136,10 @@ class OcrWorkspaceStore(
         synchronized(lock) {
             if (closed) return
             val before = _state.value
-            val next = before.withProviders(providers)
+            val next = before.withProviders(providers).let {
+                // A provider becoming available resolves the "no provider" failure.
+                if (it.providerId != null && it.error == OcrWorkspaceError.NoProvider) it.copy(error = null) else it
+            }
             val contextChanged = next.providerId != before.providerId || next.language != before.language
             // A dynamic provider starts with an empty language list and fills it asynchronously.
             // That metadata arrival is not a user-initiated context change: the in-flight request
@@ -217,7 +222,15 @@ class OcrWorkspaceStore(
             )
             _state.value = next
             lastGoodState = next
-            if (autoRun && initialText == null) started = startOcrLocked(next)
+            if (autoRun && initialText == null) {
+                if (next.providerId == null) {
+                    // Without a provider the auto-run cannot start. Say so instead of leaving a
+                    // fresh image beside a disabled Recognize button and a "Ready" status.
+                    _state.value = next.copy(error = OcrWorkspaceError.NoProvider)
+                } else {
+                    started = startOcrLocked(next)
+                }
+            }
         }
         started?.previousJob?.cancel()
         started?.job?.start()

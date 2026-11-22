@@ -112,6 +112,32 @@ class OcrWorkspaceStoreTest {
     }
 
     @Test
+    fun `an image opened with no provider reports the missing provider instead of a silent ready`() = runTest {
+        val ocr = RecordingOcrService()
+        ocr.responder = { Ok(OCRResponse("recognized once a provider exists")) }
+        val fixture = fixture(this, ocr)
+        val services = fixture.services.value
+        fixture.services.value = emptyMap()
+        advanceUntilIdle()
+        assertTrue(fixture.store.state.value.needsProvider)
+
+        fixture.store.openImage(fixture.image, "capture", autoRun = true)
+        advanceUntilIdle()
+
+        val state = fixture.store.state.value
+        assertEquals(OcrWorkspaceError.NoProvider, state.error)
+        assertFalse(state.isRecognizing)
+        assertTrue(state.hasImage, "the image stays so it can be recognized after setup")
+        assertTrue(ocr.requests.isEmpty())
+
+        fixture.services.value = services
+        advanceUntilIdle()
+        assertFalse(fixture.store.state.value.needsProvider)
+        assertNull(fixture.store.state.value.error, "a provider becoming available resolves the failure")
+        assertTrue(fixture.store.state.value.canRunOcr)
+    }
+
+    @Test
     fun `edits survive a provider change and are replaced only by an explicit re-run`() = runTest {
         val ocr = RecordingOcrService()
         val fixture = fixture(this, ocr)
