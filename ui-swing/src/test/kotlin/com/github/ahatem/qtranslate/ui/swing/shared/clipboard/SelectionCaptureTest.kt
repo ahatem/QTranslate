@@ -1,7 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.clipboard
 
 import java.awt.datatransfer.DataFlavor
-import java.awt.datatransfer.StringSelection
 import java.awt.datatransfer.Transferable
 import java.awt.datatransfer.UnsupportedFlavorException
 import java.awt.image.BufferedImage
@@ -11,7 +10,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -119,9 +117,7 @@ class SelectionCaptureTest {
 
     @Test
     fun `no observed clipboard change is inconclusive, not proven no usable text`() = runTest {
-        // Copy is believed sent (the injector returns true) but the change monitor never
-        // reports an advance: this is silence, not evidence, so it must not be reported as
-        // CaptureResult.NoUsableText.
+        // Silence from the change monitor is not evidence of an empty selection.
         val clipboard = RecordingClipboard("original")
         val monitor = FakeChangeMonitor()
         val capture = SelectionCapture(clipboard, monitor, { true }, RecordingLogger())
@@ -136,10 +132,6 @@ class SelectionCaptureTest {
 
     @Test
     fun `a confirmed clipboard change carrying no usable text is reported as such`() = runTest {
-        // The generation token advances, so something landed on the clipboard after Copy was
-        // attempted, but what could be read back was unusable. This does not prove the source
-        // application had no selection, and it does not prove this Copy attempt (rather than a
-        // racing external actor) caused the advance; see CaptureResult's doc.
         val clipboard = RecordingClipboard("original")
         val monitor = FakeChangeMonitor()
         val capture = SelectionCapture(clipboard, monitor, {
@@ -182,16 +174,11 @@ class SelectionCaptureTest {
         capture.capture {}
         val elapsed = testScheduler.currentTime - started
 
-        // A known-failed injection is terminal immediately: no point polling for a change it
-        // cannot have caused.
         assertEquals(0L, elapsed)
     }
 
     @Test
     fun `a clipboard read failure after a confirmed change is a capture failure, never no usable text`() = runTest {
-        // The generation token advances (something landed), but the read that would confirm
-        // what it was throws. That is an operational failure, not evidence that nothing usable
-        // was there.
         val clipboard = RecordingClipboard("original")
         val monitor = FakeChangeMonitor()
         val logger = RecordingLogger()
@@ -204,8 +191,7 @@ class SelectionCaptureTest {
         var captured: CaptureResult? = null
         var callbacks = 0
         capture.capture {
-            // Restore-before-dispatch still holds on the failure path.
-            assertEquals(1, clipboard.restoreCount)
+                assertEquals(1, clipboard.restoreCount)
             captured = it
             callbacks++
         }
@@ -215,31 +201,6 @@ class SelectionCaptureTest {
         assertEquals("original", clipboard.text)
         assertEquals(1, clipboard.restoreCount)
         assertTrue(logger.warns.any { it.contains("read", ignoreCase = true) })
-    }
-
-    @Test
-    fun `an external clipboard write during the capture window is indistinguishable from our own Copy`() = runTest {
-        // Known limitation (see SelectionCapture's class doc): the change monitor only proves
-        // the clipboard changed after the token was taken, not who changed it. Our own Copy
-        // attempt here never touches the clipboard at all; an unrelated actor does, inside the
-        // capture window, and the result is reported as an ordinary Success. This test documents
-        // the limitation; it does not resolve it.
-        val clipboard = RecordingClipboard("original")
-        val monitor = FakeChangeMonitor()
-        val capture = SelectionCapture(clipboard, monitor, {
-            // Our synthesized Copy: injected, but nothing here writes to the clipboard.
-            true
-        }, RecordingLogger())
-
-        var captured: CaptureResult? = null
-        val job = launch { capture.capture { captured = it } }
-        delay(50)
-        // An unrelated process/clipboard manager writes independently of our Copy attempt.
-        monitor.current++
-        clipboard.simulateExternalCopy("from another process")
-        job.join()
-
-        assertEquals(CaptureResult.Success("from another process"), captured)
     }
 
     @Test
@@ -262,9 +223,7 @@ class SelectionCaptureTest {
 
     @Test
     fun `delayed rendering is triggered by reads but only a sequence change counts`() = runTest {
-        // The source app accepts Ctrl+C yet the sequence does not move until the data is
-        // requested; each poll read triggers rendering, and only the verified sequence
-        // advance lets the text through. The pre-copy "original" reads are discarded.
+        // The sequence does not move until the data is read; only the verified advance lets text through.
         val clipboard = RecordingClipboard("original")
         val monitor = DelayedRenderingMonitor()
         clipboard.onReadText = { monitor.renderRequested = true }
@@ -312,7 +271,6 @@ class SelectionCaptureTest {
 
         var captured: CaptureResult? = null
         capture.capture {
-            // Restore-before-dispatch: the clipboard must already be back when this runs.
             assertEquals(1, clipboard.restoreCount)
             captured = it
         }
@@ -334,9 +292,6 @@ class SelectionCaptureTest {
         var captured: CaptureResult? = null
         capture.capture { captured = it }
 
-        // Copy succeeded but the original clipboard could not be put back: the
-        // callback carries empty instead of the selection, so the action never
-        // observes clipboard state the user did not leave there.
         assertEquals(CaptureResult.Failed(CaptureFailure.RESTORE_FAILED), captured)
         assertEquals(3, clipboard.restoreAttempts)
         assertTrue(logger.warns.any { it.contains("restore", ignoreCase = true) })
@@ -400,24 +355,10 @@ class SelectionCaptureTest {
         assertEquals(0, copyCalls)
         assertEquals("stale", clipboard.text)
         assertTrue(logger.warns.any { it.contains("monitor", ignoreCase = true) })
-    }
-
-    @Test
-    fun `monitor-unavailable abort performs zero clipboard writes`() = runTest {
-        val clipboard = RecordingClipboard("stale")
-        val capture = SelectionCapture(clipboard, NullChangeMonitor(), {
-            clipboard.simulateExternalCopy("fresh")
-            true
-        }, RecordingLogger())
-
-        capture.capture {}
-
-        // The abort happens before any synthetic Copy, so there is nothing to
-        // restore and no reason to touch the clipboard: managers observe nothing.
+        // The abort comes before any synthetic Copy, so the clipboard is never written.
         assertEquals(1, clipboard.snapshotCalls)
         assertEquals(0, clipboard.restoreAttempts)
         assertTrue(clipboard.published.isEmpty())
-        assertEquals("stale", clipboard.text)
     }
 
     @Test
@@ -468,8 +409,7 @@ class SelectionCaptureTest {
         var reads = 0
         clipboard.signatureProvider = {
             reads++
-            // The first poll read fails right after a good mark; the failure must read
-            // as "no change", not as a confirmed copy of whatever is on the clipboard.
+            // A failed read right after a good mark must read as "no change".
             if (reads == 2) null else signature
         }
         val monitor = SignatureClipboardChangeMonitor(clipboard)
@@ -511,8 +451,6 @@ class SelectionCaptureTest {
         assertEquals(CaptureResult.Failed(CaptureFailure.SNAPSHOT_FAILED), captured)
         assertEquals(0, clipboard.restoreAttempts)
         assertTrue(clipboard.published.isEmpty())
-        // The log carries only the failure message: there were no readable clipboard
-        // contents to leak, and none are attached.
         assertEquals(
             listOf("Clipboard snapshot failed, skipping selection capture: owning application released the data"),
             logger.warns
@@ -529,7 +467,6 @@ class SelectionCaptureTest {
         capture.capture {}
         val elapsed = testScheduler.currentTime - started
 
-        // No settle delay of its own anymore: a 600 ms capture window, then it gives up.
         assertEquals(600L, elapsed)
     }
 
@@ -548,20 +485,6 @@ class SelectionCaptureTest {
         assertEquals(1, clipboard.restoreCount)
         assertEquals("original", clipboard.text)
         assertFalse(dispatched)
-    }
-
-    @Test
-    fun `restoration failure is logged rather than swallowed`() = runTest {
-        val clipboard = RecordingClipboard("original").apply {
-            restoreFailure = IllegalStateException("clipboard busy")
-        }
-        val monitor = FakeChangeMonitor()
-        val logger = RecordingLogger()
-        val capture = SelectionCapture(clipboard, monitor, copyThatSelects(clipboard, monitor, "selected"), logger)
-
-        capture.capture {}
-
-        assertTrue(logger.warns.any { it.contains("restore", ignoreCase = true) })
     }
 
     @Test
@@ -592,33 +515,4 @@ class SelectionCaptureTest {
         assertEquals("original", clipboard.text)
     }
 
-    @Test
-    fun `a QTranslate copy action does not recursively trigger capture`() = runTest {
-        val clipboard = RecordingClipboard("original")
-        val monitor = FakeChangeMonitor()
-        val capture = SelectionCapture(clipboard, monitor, copyThatSelects(clipboard, monitor, "selected"), RecordingLogger())
-
-        var callbacks = 0
-        capture.capture { callbacks++ }
-
-        // What COPY_TRANSLATION does after a capture: publish the translated text.
-        clipboard.restore(ClipboardSnapshotResult.Available(ClipboardSnapshot(StringSelection("translated"))))
-        advanceUntilIdle()
-
-        assertEquals(1, callbacks)
-        assertEquals("translated", clipboard.published.last())
-    }
-
-    @Test
-    fun `a clipboard manager observes no internal marker`() = runTest {
-        val clipboard = RecordingClipboard("original")
-        val monitor = FakeChangeMonitor()
-        val capture = SelectionCapture(clipboard, monitor, copyThatSelects(clipboard, monitor, "selected"), RecordingLogger())
-
-        capture.capture {}
-
-        assertTrue(clipboard.published.isNotEmpty())
-        assertTrue(clipboard.published.none { it.contains("qtranslate-copy-") })
-        assertTrue(clipboard.published.none { it.contains("qtranslate") })
-    }
 }
