@@ -1,8 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.input
 
 import kotlin.test.Test
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
+import kotlin.test.assertEquals
 
 /**
  * Double-Ctrl tap-pair state machine: a release counts as a tap only after an observed press,
@@ -11,176 +10,77 @@ import kotlin.test.assertTrue
  */
 class DoubleCtrlDetectorTest {
 
-    @Test
-    fun `two genuine taps within threshold trigger exactly once`() {
-        val detector = DoubleCtrlDetector()
+    private sealed interface Step
+    private data object Press : Step
+    private data object OtherKey : Step
+    private data object Reset : Step
+    private data class Release(val at: Long, val active: Boolean = true) : Step
 
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1000L, active = true))
-        detector.onControlPressed()
-        assertTrue(detector.onControlReleased(1200L, active = true))
+    /** Runs [steps] and returns the result of every [Release], in order. */
+    private fun run(vararg steps: Step): List<Boolean> {
+        val detector = DoubleCtrlDetector()
+        return steps.mapNotNull { step ->
+            when (step) {
+                Press -> detector.onControlPressed().let { null }
+                OtherKey -> detector.onOtherKeyPressed().let { null }
+                Reset -> detector.reset().let { null }
+                is Release -> detector.onControlReleased(step.at, step.active)
+            }
+        }
     }
 
     @Test
-    fun `a single genuine tap does not trigger`() {
-        val detector = DoubleCtrlDetector()
-
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1000L, active = true))
-    }
-
-    /**
-     * Timestamps are monotonic microseconds since the runtime started, so the first tap of a
-     * session can land at or near zero. A `0L` "no previous tap" sentinel made that lone first
-     * tap satisfy `now - 0 < threshold` and fire a phantom double; null means "none armed".
-     */
-    @Test
-    fun `a lone first tap at a near-zero timestamp does not pair with itself`() {
-        val detector = DoubleCtrlDetector()
-
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(0L, active = true))
+    fun `only two genuine taps within the threshold trigger, once`() {
+        val cases = mapOf(
+            "two taps" to (arrayOf(Press, Release(1000), Press, Release(1200)) to listOf(false, true)),
+            "a single tap" to (arrayOf(Press, Release(1000)) to listOf(false)),
+            "taps outside the threshold" to (arrayOf(Press, Release(1000), Press, Release(1500)) to listOf(false, false)),
+            // Timestamps are monotonic microseconds since startup, so a first tap can land at zero.
+            // A 0L "no previous tap" sentinel made that lone tap pair with itself.
+            "a lone tap at zero" to (arrayOf(Press, Release(0)) to listOf(false)),
+            "taps at the origin still pair" to (arrayOf(Press, Release(1), Press, Release(50)) to listOf(false, true)),
+            "reset forgets an armed tap" to (arrayOf(Press, Release(1000), Reset, Press, Release(1100)) to listOf(false, false)),
+        )
+        cases.forEach { (name, case) -> assertEquals(case.second, run(*case.first), name) }
     }
 
     @Test
-    fun `a lone early tap just under the threshold does not pair with itself`() {
-        val detector = DoubleCtrlDetector()
-
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(399L, active = true))
+    fun `orphan releases never arm or complete a pair`() {
+        val cases = mapOf(
+            "two orphans, then a lone tap" to
+                (arrayOf(Release(1000), Release(1100), Press, Release(1200)) to listOf(false, false, false)),
+            "an orphan after a valid tap leaves it armed" to
+                (arrayOf(Press, Release(1000), Release(1100), Press, Release(1200)) to listOf(false, false, true)),
+        )
+        cases.forEach { (name, case) -> assertEquals(case.second, run(*case.first), name) }
     }
 
     @Test
-    fun `taps at the origin still pair normally when genuinely close`() {
-        val detector = DoubleCtrlDetector()
-
-        // Two real taps, both at tiny monotonic offsets, must still trigger.
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1L, active = true))
-        detector.onControlPressed()
-        assertTrue(detector.onControlReleased(50L, active = true))
-    }
-
-    @Test
-    fun `two orphan releases within threshold do not trigger or arm`() {
-        val detector = DoubleCtrlDetector()
-
-        assertFalse(detector.onControlReleased(1000L, active = true))
-        assertFalse(detector.onControlReleased(1100L, active = true))
-
-        // The orphans must not have armed anything: a lone tap afterwards still only arms.
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1200L, active = true))
-    }
-
-    @Test
-    fun `orphan release after a valid tap does not complete double ctrl`() {
-        val detector = DoubleCtrlDetector()
-
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1000L, active = true))
-        assertFalse(detector.onControlReleased(1100L, active = true))
-
-        // The earlier tap is still armed and unspoiled: a genuine second tap fires.
-        detector.onControlPressed()
-        assertTrue(detector.onControlReleased(1200L, active = true))
-    }
-
-    @Test
-    fun `ctrl C does not count as a tap`() {
-        val detector = DoubleCtrlDetector()
-
-        detector.onControlPressed()
-        detector.onOtherKeyPressed()
-        assertFalse(detector.onControlReleased(1000L, active = true))
-    }
-
-    @Test
-    fun `ctrl V does not count as a tap`() {
-        val detector = DoubleCtrlDetector()
-
-        detector.onControlPressed()
-        detector.onOtherKeyPressed()
-        assertFalse(detector.onControlReleased(1000L, active = true))
-
-        // The combination also clears any previously armed tap.
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1100L, active = true))
-    }
-
-    @Test
-    fun `combination followed by a tap does not trigger`() {
-        val detector = DoubleCtrlDetector()
-
-        detector.onControlPressed()
-        detector.onOtherKeyPressed()
-        assertFalse(detector.onControlReleased(1000L, active = true))
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1100L, active = true))
-    }
-
-    @Test
-    fun `tap followed by a combination does not trigger`() {
-        val detector = DoubleCtrlDetector()
-
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1000L, active = true))
-        detector.onControlPressed()
-        detector.onOtherKeyPressed()
-        assertFalse(detector.onControlReleased(1100L, active = true))
-
-        // The combination cleared the armed tap: the next lone tap only rearms.
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1200L, active = true))
-    }
-
-    @Test
-    fun `repeated ctrl down while held does not erase combination state`() {
-        val detector = DoubleCtrlDetector()
-
-        detector.onControlPressed()
-        detector.onOtherKeyPressed()
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1000L, active = true))
-
-        // Combination path ran (armed tap cleared): a following lone tap only rearms.
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1100L, active = true))
-    }
-
-    @Test
-    fun `two taps outside the threshold do not trigger`() {
-        val detector = DoubleCtrlDetector()
-
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1000L, active = true))
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1500L, active = true))
-    }
-
-    @Test
-    fun `reset forgets an armed tap`() {
-        val detector = DoubleCtrlDetector()
-
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1000L, active = true))
-        detector.reset()
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1100L, active = true))
+    fun `a combination with another key is not a tap and clears the armed tap`() {
+        val cases = mapOf(
+            "combination alone" to (arrayOf(Press, OtherKey, Release(1000)) to listOf(false)),
+            "combination, then a tap" to
+                (arrayOf(Press, OtherKey, Release(1000), Press, Release(1100)) to listOf(false, false)),
+            "tap, then a combination, then a lone tap" to
+                (arrayOf(Press, Release(1000), Press, OtherKey, Release(1100), Press, Release(1200)) to
+                    listOf(false, false, false)),
+            // Auto-repeat of the held Ctrl must not erase the combination state.
+            "repeated ctrl down while held" to
+                (arrayOf(Press, OtherKey, Press, Release(1000), Press, Release(1100)) to listOf(false, false)),
+        )
+        cases.forEach { (name, case) -> assertEquals(case.second, run(*case.first), name) }
     }
 
     @Test
     fun `firing is gated on active while tracking continues`() {
-        val detector = DoubleCtrlDetector()
-
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1000L, active = false))
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1100L, active = false))
-
-        detector.onControlPressed()
-        assertFalse(detector.onControlReleased(1200L, active = true))
-        detector.onControlPressed()
-        assertTrue(detector.onControlReleased(1300L, active = true))
+        assertEquals(
+            listOf(false, false, false, true),
+            run(
+                Press, Release(1000, active = false),
+                Press, Release(1100, active = false),
+                Press, Release(1200),
+                Press, Release(1300),
+            ),
+        )
     }
 }

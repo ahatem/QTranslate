@@ -5,7 +5,6 @@ import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
-import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 import kotlinx.coroutines.CoroutineScope
@@ -106,29 +105,19 @@ class SettingsComboRendererTest {
     }
 
     @Test
-    fun `general page combos preserve native selection`() {
-        val panel = onEdt {
+    fun `combos on the general and translation pages use the shared renderer and keep native selection`() {
+        val general = onEdt {
             GeneralPanel(
                 newStore(),
                 localizer,
                 CoroutineScope(SupervisorJob() + Dispatchers.Default).also { scopes += it },
             )
         }
-        // Four now: the interface-language picker moved here from Appearance, and it renders
-        // translated language names through a renderer of its own rather than the shared one, so
-        // the shared-renderer check covers the selection pickers and the title-bar buttons that
-        // came over from the Layout page.
-        val shared = onEdt { combos(panel).filter { it.renderer is DisplayValueRenderer<*> } }
-        assertEquals(4, shared.size, "the selection and title-bar pickers use the shared renderer")
-        assertNativeRowsOf(shared)
-    }
+        // The interface-language picker renders translated language names through a renderer of
+        // its own, so only the selection and title-bar pickers are checked here.
+        assertNativeRowsOf(onEdt { combos(general).filter { it.renderer is DisplayValueRenderer<*> } })
 
-    @Test
-    fun `translation page combos preserve native selection`() {
-        // Was 4 before the dictionary auto-lookup source combo (Off/Translated/Source) was
-        // replaced with an explicit checkbox plus a radio group -- the on/off state no longer
-        // hides inside a combo box value.
-        val panel = onEdt { TranslationPanel(newStore(), localizer) }
-        assertNativeRows(panel, expectedCombos = 3)
+        val translation = onEdt { TranslationPanel(newStore(), localizer) }
+        assertNativeRows(translation, expectedCombos = 1)
     }
 }

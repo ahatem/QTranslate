@@ -66,25 +66,25 @@ class SideBySideResponsiveTest {
     }
 
     @Test
-    fun `a wide pair sits side by side`() {
+    fun `the arrangement follows the width, side by side up to and including the breakpoint`() {
         val (pair, input, output) = pair()
-        pair.resizeTo(wide)
+        val breakpoint = UISpacing.SIDE_BY_SIDE_BREAKPOINT
+        // width -> side by side?  Widening again restores the horizontal arrangement.
+        listOf(wide to true, narrow to false, wide to true, breakpoint to true, breakpoint - 1 to false)
+            .forEach { (width, sideBySide) ->
+                pair.resizeTo(width)
 
-        assertFalse(pair.isStacked)
-        assertEquals(JSplitPane.HORIZONTAL_SPLIT, pair.split.orientation)
-        assertSame(input, pair.split.leftComponent)
-        assertSame(output, pair.split.rightComponent)
-    }
-
-    @Test
-    fun `a narrow pair stacks Input above Output`() {
-        val (pair, input, output) = pair()
-        pair.resizeTo(narrow)
-
-        assertTrue(pair.isStacked)
-        assertEquals(JSplitPane.VERTICAL_SPLIT, pair.split.orientation)
-        assertSame(input, pair.split.topComponent)
-        assertSame(output, pair.split.bottomComponent)
+                assertEquals(!sideBySide, pair.isStacked, "width $width")
+                if (sideBySide) {
+                    assertEquals(JSplitPane.HORIZONTAL_SPLIT, pair.split.orientation, "width $width")
+                    assertSame(input, pair.split.leftComponent, "width $width")
+                    assertSame(output, pair.split.rightComponent, "width $width")
+                } else {
+                    assertEquals(JSplitPane.VERTICAL_SPLIT, pair.split.orientation, "width $width")
+                    assertSame(input, pair.split.topComponent, "width $width")
+                    assertSame(output, pair.split.bottomComponent, "width $width")
+                }
+            }
     }
 
     @Test
@@ -98,18 +98,6 @@ class SideBySideResponsiveTest {
         assertSame(pair.split, input.parent)
         assertSame(pair.split, output.parent)
         assertEquals(2, descendants(pair.split).count { it === input || it === output })
-    }
-
-    @Test
-    fun `widening again restores the horizontal arrangement`() {
-        val (pair, input, output) = pair()
-        pair.resizeTo(narrow)
-        pair.resizeTo(wide)
-
-        assertFalse(pair.isStacked)
-        assertEquals(JSplitPane.HORIZONTAL_SPLIT, pair.split.orientation)
-        assertSame(input, pair.split.leftComponent)
-        assertSame(output, pair.split.rightComponent)
     }
 
     @Test
@@ -137,30 +125,11 @@ class SideBySideResponsiveTest {
     }
 
     @Test
-    fun `the breakpoint itself is still side by side`() {
-        val (pair, _, _) = pair()
-        pair.resizeTo(UISpacing.SIDE_BY_SIDE_BREAKPOINT)
-        assertFalse(pair.isStacked)
-        pair.resizeTo(UISpacing.SIDE_BY_SIDE_BREAKPOINT - 1)
-        assertTrue(pair.isStacked)
-    }
-
-    @Test
     fun `a pair with no size yet is left alone`() {
         val (pair, _, _) = pair()
         pair.fit(0)
         assertFalse(pair.isStacked)
         assertEquals(JSplitPane.HORIZONTAL_SPLIT, pair.split.orientation)
-    }
-
-    @Test
-    fun `a wide right to left pair puts Input on the right`() {
-        val (pair, input, output) = pair(isRtl = true)
-        pair.resizeTo(wide)
-
-        assertSame(output, pair.split.leftComponent)
-        assertSame(input, pair.split.rightComponent)
-        assertTrue(output.x < input.x, "and it is drawn there, not only declared there")
     }
 
     @Test

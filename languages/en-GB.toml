@@ -822,9 +822,7 @@ error_unknown = "The extra output request failed."
 # NOTIFICATIONS & ERRORS
 # ===================================================================
 [notifications]
-language_not_supported_format = "The language '%s' is not supported by %s."
 hotkey_rejected_format = "Global hotkey %s was not registered: %s. The remaining global hotkeys stay active."
-tts_not_supported_format = "Text-to-speech is not supported by %s."
 unknown_error = "An unknown error occurred."
 
 # ===================================================================
@@ -852,7 +850,6 @@ converting_to_speech = "Converting text to speech..."
 tts_timeout = "Text-to-speech timed out. Please try again."
 playing_audio = "Playing audio..."
 audio_playback_complete = "Audio playback complete."
-tts_stopped = "Audio stopped."
 downloading_audio = "Downloading audio..."
 audio_download_failed = "Failed to download audio stream."
 tts_failed = "Text-to-Speech failed: %s"

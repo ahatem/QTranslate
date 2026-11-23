@@ -92,44 +92,32 @@ class InstantComparisonResultsTest {
     }
 
     @Test
-    fun `an instant translation leaves the comparison board empty when the layout is classic`() = runTest {
-        val comparison = EchoTranslator("bing")
-        val fixture = Fixture(this, LayoutPresetIds.CLASSIC, comparisonTranslators = listOf(comparison))
-        try {
-            fixture.store.dispatch(MainIntent.UpdateInputText("hello"))
-            advanceUntilIdle()
-
-            val state = fixture.store.state.value
-            assertEquals("t:hello", state.translatedText)
-            assertTrue(state.comparisonResults.isEmpty(), "the classic layout has no comparison rows")
-            assertTrue(comparison.requested.isEmpty(), "no comparison translator may run")
-        } finally {
-            fixture.cleanUp()
-        }
-    }
-
-    @Test
-    fun `an instant translation falls back to the classic layout when only one translator is effective`() = runTest {
-        // The comparison translator is loaded, but disabled for translation: the saved Comparison
-        // layout has no second effective translator, so the layout falls back to Classic and the
-        // instant translation must not run a comparison.
-        val comparison = EchoTranslator("bing")
-        val fixture = Fixture(
-            testScope = this,
-            layoutPresetId = LayoutPresetIds.COMPARISON,
-            comparisonTranslators = listOf(comparison),
-            disabledServices = setOf(comparison.key),
+    fun `an instant translation leaves the comparison board empty without an active comparison layout`() = runTest {
+        // Classic has no comparison rows. A saved Comparison layout whose second translator is
+        // loaded but disabled falls back to Classic, so it must not run a comparison either.
+        val layouts = mapOf(
+            "classic layout" to (LayoutPresetIds.CLASSIC to emptySet<String>()),
+            "comparison layout with one effective translator" to (LayoutPresetIds.COMPARISON to setOf("bing")),
         )
-        try {
-            fixture.store.dispatch(MainIntent.UpdateInputText("hello"))
-            advanceUntilIdle()
+        layouts.forEach { (name, setup) ->
+            val comparison = EchoTranslator("bing")
+            val fixture = Fixture(
+                testScope = this,
+                layoutPresetId = setup.first,
+                comparisonTranslators = listOf(comparison),
+                disabledServices = setup.second,
+            )
+            try {
+                fixture.store.dispatch(MainIntent.UpdateInputText("hello"))
+                advanceUntilIdle()
 
-            val state = fixture.store.state.value
-            assertEquals("t:hello", state.translatedText)
-            assertTrue(state.comparisonResults.isEmpty(), "an ineligible comparison layout has no rows")
-            assertTrue(comparison.requested.isEmpty(), "the comparison translator was never asked to translate")
-        } finally {
-            fixture.cleanUp()
+                val state = fixture.store.state.value
+                assertEquals("t:hello", state.translatedText, name)
+                assertTrue(state.comparisonResults.isEmpty(), "$name has no comparison rows")
+                assertTrue(comparison.requested.isEmpty(), "$name must not run a comparison translator")
+            } finally {
+                fixture.cleanUp()
+            }
         }
     }
 

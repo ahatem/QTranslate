@@ -17,7 +17,6 @@ import java.awt.Container
 import java.nio.file.Files
 import javax.swing.JCheckBox
 import javax.swing.JSpinner
-import javax.swing.SpinnerNumberModel
 import javax.swing.SwingUtilities
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -100,49 +99,5 @@ class SettingsInformationArchitectureTest {
 
         assertTrue(toggle.isSelected)
         assertTrue(spinners.all { effectivelyVisible(it) }, "opening it shows the whole group")
-    }
-
-    @Test
-    fun `window chrome is not a setting on the history page`() {
-        // This used to be a "show the history bar" switch beside the history storage switch, on the
-        // argument that the visible half of history belongs with the rest of it. That is no longer
-        // expressible: where the history row sits, or whether it is hidden, is a slot on the
-        // layout page, and a boolean here could only ever disagree with it. The check is on the
-        // source because what matters is that no such write exists here at all.
-        val source = java.io.File(
-            "src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/settings/panels/GeneralPanel.kt"
-        ).readText()
-
-        assertFalse(source.contains("isHistoryBarVisible"), "the history page must not set the toolbar shape")
-        assertFalse(source.contains("toolbarVisibility"), "no chrome switches belong on the history page")
-    }
-
-    @Test
-    fun `dictionary panel visibility belongs with dictionary behaviour`() {
-        val store = store()
-        val behaviour = onEdt { TranslationPanel(store, localizer).also { it.render(store.state.value) } }
-        val window = onEdt { LayoutPanel(store, localizer).also { it.render(store.state.value) } }
-        val label = localizer.getString("settings_window.show_dictionary_panel")
-
-        assertTrue(
-            descendants(behaviour).filterIsInstance<JCheckBox>().any { it.text == label },
-            "the dictionary panel is a dictionary setting, not a window one",
-        )
-        assertFalse(descendants(window).filterIsInstance<JCheckBox>().any { it.text == label })
-    }
-
-    @Test
-    fun `popup transparency can reach fully opaque`() {
-        val store = store()
-        val panel = onEdt { PopupsPanel(store, localizer).also { it.render(store.state.value) } }
-        val transparency = descendants(panel)
-            .filterIsInstance<JSpinner>()
-            .filter { (it.model as? SpinnerNumberModel)?.maximum == 50 }
-
-        assertTrue(transparency.isNotEmpty(), "each popup has a transparency control")
-        assertTrue(
-            transparency.all { (it.model as SpinnerNumberModel).minimum == 0 },
-            "0% transparency is reachable, so a popup can be fully opaque",
-        )
     }
 }

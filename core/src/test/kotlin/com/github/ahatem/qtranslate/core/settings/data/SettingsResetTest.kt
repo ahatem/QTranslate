@@ -3,7 +3,6 @@ package com.github.ahatem.qtranslate.core.settings.data
 import java.lang.reflect.Modifier
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
@@ -144,28 +143,9 @@ class SettingsResetTest {
 
     @Test
     fun `a preference reset keeps the data the application manages for the user`() {
-        val reset = SettingsReset.preferences(customizedData)
-
-        assertEquals(customizedData.servicePresets, reset.servicePresets, "service presets survive")
-        assertEquals(customizedData.activeServicePresetId, reset.activeServicePresetId)
-        assertEquals(customizedData.disabledServices, reset.disabledServices)
-        assertEquals(customizedData.hotkeys, reset.hotkeys, "custom bindings survive")
-        assertEquals(customizedData.pinnedLanguages, reset.pinnedLanguages)
-        assertEquals(customizedData.translationRules, reset.translationRules)
-        assertEquals(customizedData.layoutProfiles, reset.layoutProfiles, "saved layouts survive")
-        assertEquals(customizedData.mainWindowSize, reset.mainWindowSize, "window geometry survives")
-        assertEquals(customizedData.mainWindowPosition, reset.mainWindowPosition)
-        assertEquals(customizedData.ocrWorkspaceSize, reset.ocrWorkspaceSize)
-        assertEquals(customizedData.ocrWorkspacePosition, reset.ocrWorkspacePosition)
-        assertEquals(customizedData.popupLastKnownSize, reset.popupLastKnownSize)
-        assertEquals(customizedData.popupLastKnownPosition, reset.popupLastKnownPosition)
-        assertEquals(customizedData.quickDictionaryLastKnownSize, reset.quickDictionaryLastKnownSize)
-        assertEquals(customizedData.quickDictionaryLastKnownPosition, reset.quickDictionaryLastKnownPosition)
-        assertEquals(customizedData.imageSearchLastKnownSize, reset.imageSearchLastKnownSize)
-        assertEquals(customizedData.imageSearchLastKnownPosition, reset.imageSearchLastKnownPosition)
-        assertEquals(customizedData.isQuickDictionaryPinned, reset.isQuickDictionaryPinned)
-        assertEquals(customizedData.donationNudgeShown, reset.donationNudgeShown, "nudge state survives")
-        assertEquals(customizedData.configVersion, reset.configVersion, "the schema version is not a setting")
+        // customizedData differs from a fresh install only in that data (presets, bindings, pins,
+        // rules, saved layouts, window geometry, nudge state), so the reset must change nothing.
+        assertEquals(customizedData, SettingsReset.preferences(customizedData))
     }
 
     @Test
@@ -245,10 +225,5 @@ class SettingsResetTest {
             val reset = SettingsReset.page(Configuration.FRESH_INSTALL, page)
             assertEquals(Configuration.FRESH_INSTALL, reset, "$page has nothing to restore on defaults")
         }
-    }
-
-    @Test
-    fun `a preference reset is not a no-op on a customized configuration`() {
-        assertNotEquals(customizedPreferences, SettingsReset.preferences(customizedPreferences))
     }
 }

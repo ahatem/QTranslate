@@ -32,33 +32,31 @@ class LayoutPresetIdsTest {
     )
 
     @Test
-    fun `current layouts resolve to themselves`() {
-        assertEquals(LayoutPresetIds.CLASSIC, LayoutPresetIds.resolve(LayoutPresetIds.CLASSIC))
-        assertEquals(LayoutPresetIds.SIDE_BY_SIDE, LayoutPresetIds.resolve(LayoutPresetIds.SIDE_BY_SIDE))
-        assertEquals(LayoutPresetIds.COMPARISON, LayoutPresetIds.resolve(LayoutPresetIds.COMPARISON))
+    fun `layout ids resolve to a current layout`() {
+        val expected = mapOf(
+            LayoutPresetIds.CLASSIC to LayoutPresetIds.CLASSIC,
+            LayoutPresetIds.SIDE_BY_SIDE to LayoutPresetIds.SIDE_BY_SIDE,
+            LayoutPresetIds.COMPARISON to LayoutPresetIds.COMPARISON,
+            // The retired compact layout and ids from a newer version read as classic.
+            LayoutPresetIds.LEGACY_COMPACT to LayoutPresetIds.CLASSIC,
+            "from_a_newer_version" to LayoutPresetIds.CLASSIC,
+            "" to LayoutPresetIds.CLASSIC,
+        )
+        expected.forEach { (stored, resolved) ->
+            assertEquals(resolved, LayoutPresetIds.resolve(stored), "stored id '$stored'")
+        }
     }
 
     @Test
-    fun `the retired compact layout resolves to classic`() {
-        assertEquals("compact", LayoutPresetIds.LEGACY_COMPACT)
-        assertEquals(LayoutPresetIds.CLASSIC, LayoutPresetIds.resolve(LayoutPresetIds.LEGACY_COMPACT))
-    }
-
-    @Test
-    fun `an unknown layout id falls back to classic`() {
-        assertEquals(LayoutPresetIds.CLASSIC, LayoutPresetIds.resolve("from_a_newer_version"))
-        assertEquals(LayoutPresetIds.CLASSIC, LayoutPresetIds.resolve(""))
-    }
-
-    @Test
-    fun `the runtime arrangement of a saved compact layout is classic`() {
-        assertEquals(LayoutPresetIds.CLASSIC, config("compact").effectiveLayoutPresetId(translators))
-    }
-
-    @Test
-    fun `an eligible comparison stays comparison and side by side is untouched`() {
-        assertEquals(LayoutPresetIds.COMPARISON, config("comparison").effectiveLayoutPresetId(translators))
-        assertEquals(LayoutPresetIds.SIDE_BY_SIDE, config("side_by_side").effectiveLayoutPresetId(translators))
+    fun `the runtime arrangement follows the saved layout when it is eligible`() {
+        val expected = mapOf(
+            "compact" to LayoutPresetIds.CLASSIC,
+            "comparison" to LayoutPresetIds.COMPARISON,
+            "side_by_side" to LayoutPresetIds.SIDE_BY_SIDE,
+        )
+        expected.forEach { (saved, runtime) ->
+            assertEquals(runtime, config(saved).effectiveLayoutPresetId(translators), "saved '$saved'")
+        }
     }
 
     @Test

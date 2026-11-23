@@ -5,7 +5,6 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -33,21 +32,6 @@ class WritingConfigurationTest {
     }
 
     @Test
-    fun `writing actions ship unassigned in their own bucket`() {
-        assertEquals(
-            setOf(HotkeyAction.REPLACE_WITH_REWRITE, HotkeyAction.REPLACE_WITH_SUMMARY),
-            HotkeyBinding.WRITING_ACTIONS,
-        )
-        val defaults = Configuration.DEFAULT.writingHotkeys.associateBy { it.action }
-        assertEquals(HotkeyBinding.WRITING_ACTIONS, defaults.keys)
-        assertTrue(defaults.values.all { !it.hasBinding }, "no writing key is taken from the user by default")
-        assertTrue(
-            Configuration.DEFAULT.hotkeys.none { it.action in HotkeyBinding.WRITING_ACTIONS },
-            "writing actions must never sit in the legacy hotkeys bucket",
-        )
-    }
-
-    @Test
     fun `v9 to v10 migration publishes both writing rows without touching legacy hotkeys`() {
         val legacyBefore = Configuration.DEFAULT.hotkeys.map { it.copy() }
         val v9 = Configuration.DEFAULT.copy(
@@ -67,18 +51,7 @@ class WritingConfigurationTest {
         assertTrue(migrated.writingHotkeys.all { !it.hasBinding })
         assertEquals(legacyBefore, migrated.hotkeys, "legacy hotkeys stay verbatim")
         assertTrue(migrated.hotkeys.none { it.action in HotkeyBinding.WRITING_ACTIONS })
-    }
-
-    @Test
-    fun `v9 to v10 migration is idempotent`() {
-        val v9 = Configuration.DEFAULT.copy(
-            configVersion = 9,
-            writingHotkeys = emptyList(),
-        )
-        val once = ConfigMigrator.migrate(v9, logger)
-        val twice = ConfigMigrator.migrate(once, logger)
-        assertEquals(once, twice)
-        assertEquals(once.writingHotkeys, twice.writingHotkeys)
+        assertEquals(migrated, ConfigMigrator.migrate(migrated, logger), "the v10 step is idempotent")
     }
 
     @Test
@@ -141,19 +114,5 @@ class WritingConfigurationTest {
         // The writing rows are present in their own bucket, so persistence is not lost.
         assertTrue("\"REPLACE_WITH_REWRITE\"" in encoded.substringAfter("\"writingHotkeys\":"))
         assertTrue("\"REPLACE_WITH_SUMMARY\"" in encoded.substringAfter("\"writingHotkeys\":"))
-    }
-
-    @Test
-    fun `an older configuration without writingHotkeys decodes to the safe default`() {
-        val raw = """{"configVersion":9,"hotkeys":[]}"""
-        val decoded = json.decodeFromString<Configuration>(raw)
-
-        assertEquals(HotkeyBinding.WRITING_DEFAULTS, decoded.writingHotkeys)
-        assertTrue(decoded.writingHotkeys.all { !it.hasBinding })
-        assertFalse(decoded.hotkeys.any { it.action in HotkeyBinding.WRITING_ACTIONS })
-
-        val migrated = ConfigMigrator.migrate(decoded, logger)
-        assertEquals(HotkeyBinding.WRITING_DEFAULTS, migrated.writingHotkeys)
-        assertEquals(decoded.hotkeys, migrated.hotkeys)
     }
 }

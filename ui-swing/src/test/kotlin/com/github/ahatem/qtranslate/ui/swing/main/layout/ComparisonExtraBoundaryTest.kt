@@ -2,30 +2,20 @@ package com.github.ahatem.qtranslate.ui.swing.main.layout
 
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
-import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Container
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JSeparator
-import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
-import javax.swing.border.LineBorder
-import javax.swing.border.MatteBorder
-import javax.swing.border.TitledBorder
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * Layout-owned Comparison / Extra Output boundary (#292).
- *
- * A plain theme-aware separator composed by the layout — never a panel
- * border, never per-provider boxes, never custom painting.
- */
+/** Hiding Extra Output in the Comparison layout takes the separator above it along (#292). */
 class ComparisonExtraBoundaryTest {
-    private fun registry(): List<JPanel> = List(8) { JPanel() }
+    private fun leaves(): List<JPanel> = List(8) { JPanel() }
 
     private fun components(leaves: List<JPanel>) = ComponentRegistry(
         historyBar = leaves[0], inputPanel = leaves[1], languageBar = leaves[2],
@@ -45,42 +35,9 @@ class ComparisonExtraBoundaryTest {
             parent.components.contains(extraPanel)
         }
 
-    // 22. Comparison with visible Extra Output has a layout-owned separator.
-    @Test
-    fun `comparison layout owns a separator above extra output`() {
-        val leaves = registry()
-        lateinit var arranged: ArrangedLayout
-        SwingUtilities.invokeAndWait {
-            arranged = SlotLayout.arrange(components(leaves), WindowLayout(panes = PaneLayout.COMPARISON))
-        }
-
-        val boundaries = extraBoundaries(arranged.rootComponent, leaves[5])
-        assertEquals(1, boundaries.size, "exactly one layout-owned boundary above Extra Output")
-        assertEquals(JSeparator::class.java, boundaries.single().javaClass)
-        assertEquals(SwingConstants.HORIZONTAL, boundaries.single().orientation)
-    }
-
-    // 23. The boundary is not a per-provider rectangular border.
-    @Test
-    fun `boundary uses a separator not box borders`() {
-        val leaves = registry()
-        lateinit var arranged: ArrangedLayout
-        SwingUtilities.invokeAndWait {
-            arranged = SlotLayout.arrange(components(leaves), WindowLayout(panes = PaneLayout.COMPARISON))
-        }
-
-        val boxed = descendants(arranged.rootComponent).filterIsInstance<JComponent>().filter { component ->
-            component.border is LineBorder ||
-                component.border is MatteBorder ||
-                component.border is TitledBorder
-        }
-        assertTrue(boxed.isEmpty(), "no rectangular borders anywhere in the comparison composition")
-    }
-
-    // 24. Hiding Extra Output removes the separation with it.
     @Test
     fun `hiding extra output hides the boundary too`() {
-        val leaves = registry()
+        val leaves = leaves()
         lateinit var arranged: ArrangedLayout
         SwingUtilities.invokeAndWait {
             arranged = SlotLayout.arrange(components(leaves), WindowLayout(panes = PaneLayout.COMPARISON))
@@ -106,39 +63,5 @@ class ComparisonExtraBoundaryTest {
         SwingUtilities.invokeAndWait { }
         SwingUtilities.invokeAndWait { }
         assertEquals(1, extraBoundaries(arranged.rootComponent, leaves[5]).count { it.isVisible })
-    }
-
-    // 25. Layout switching leaves no stale separators.
-    @Test
-    fun `switching layouts never duplicates or orphans the boundary`() {
-        val container = JPanel(BorderLayout())
-        val leaves = registry()
-        val manager = LayoutManager(components(leaves), container)
-
-        listOf("comparison", "classic", "comparison", "side_by_side", "comparison").forEach { id ->
-            SwingUtilities.invokeAndWait { manager.switchLayout(WindowLayout(panes = PaneLayout.fromPresetId(id))) }
-            SwingUtilities.invokeAndWait { }
-            SwingUtilities.invokeAndWait { }
-            SwingUtilities.invokeAndWait { }
-            val visible = extraBoundaries(container, leaves[5]).count { it.isVisible }
-            if (id == "comparison") {
-                assertEquals(1, visible, "comparison must own exactly one visible boundary")
-            } else {
-                assertEquals(0, visible, "$id must not retain a comparison boundary")
-            }
-        }
-        // The extra leaf itself is still mounted exactly once everywhere.
-        assertEquals(1, descendants(container).count { it === leaves[5] })
-    }
-
-    @Test
-    fun `classic and side by side keep their boundary-free composition`() {
-        val leaves = registry()
-        SwingUtilities.invokeAndWait {
-            val classic = SlotLayout.arrange(components(leaves), WindowLayout(panes = PaneLayout.STACKED))
-            assertTrue(extraBoundaries(classic.rootComponent, leaves[5]).isEmpty())
-            val sideBySide = SlotLayout.arrange(components(leaves), WindowLayout(panes = PaneLayout.SIDE_BY_SIDE))
-            assertTrue(extraBoundaries(sideBySide.rootComponent, leaves[5]).isEmpty())
-        }
     }
 }

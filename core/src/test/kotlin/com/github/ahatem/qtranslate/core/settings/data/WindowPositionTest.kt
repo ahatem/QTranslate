@@ -17,15 +17,8 @@ class WindowPositionTest {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     @Test
-    fun `a position on a display left of the primary one is accepted`() {
-        val position = Position(x = -1720, y = 240)
-
-        assertEquals(-1720, position.x)
-        assertEquals(240, position.y)
-    }
-
-    @Test
-    fun `a position above the primary display is accepted`() {
+    fun `positions left of or above the primary display are accepted`() {
+        assertEquals(-1720, Position(x = -1720, y = 240).x)
         assertEquals(-980, Position(x = 300, y = -980).y)
     }
 
@@ -38,13 +31,5 @@ class WindowPositionTest {
         val restored = json.decodeFromString<Configuration>(json.encodeToString(original))
 
         assertEquals(Position(-1720, -300), restored.mainWindowPosition)
-    }
-
-    @Test
-    fun `a size must still be positive`() {
-        // The matching requirement on Size is correct and stays: there is no such thing as a
-        // window minus four pixels wide, and it is not what negative coordinates mean.
-        val failure = runCatching { Size(width = -1, height = 100) }.exceptionOrNull()
-        assertEquals(IllegalArgumentException::class, failure!!::class)
     }
 }

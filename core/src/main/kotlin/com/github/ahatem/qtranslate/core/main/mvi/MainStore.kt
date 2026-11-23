@@ -556,10 +556,6 @@ class MainStore(
             MainIntent.CheckForUpdates -> checkForUpdates()
             is MainIntent.TranslateDocument -> startDocumentTranslation(intent)
             MainIntent.CancelDocumentTranslation -> cancelDocumentTranslation()
-            MainIntent.PerformSpellCheck -> scope.launch {
-                handleSpellCheck(SpellCheckInput.from(_state.value, true), checkSetting = false)
-            }
-
             is MainIntent.Translate -> {
                 val workspaceToken = intent.ocrWorkspaceToken
                 if (workspaceToken != null && !ocrOwner.isCurrent(workspaceToken)) return
@@ -678,17 +674,9 @@ class MainStore(
                 destinationOverride = intent.destination,
             )
 
-            is MainIntent.OcrAndCopyText -> startOcrWorkflow(
-                image = intent.image,
-                action = OcrPostSelectionAction.COPY_TEXT,
-                destinationOverride = null,
-            )
-
             is MainIntent.ShowQuickTranslate -> startQuickTranslate(intent)
 
             is MainIntent.LookupWord -> scope.launch { handleLookupWord(intent) }
-
-            is MainIntent.ToggleDictionaryPanel -> _state.update { it.withDictionaryPanelToggled() }
 
             is MainIntent.OpenLookupDock -> _state.update { it.withLookupDockOn(intent.tool) }
 
@@ -1225,9 +1213,9 @@ class MainStore(
         )
     }
 
-    private suspend fun handleSpellCheck(input: SpellCheckInput, checkSetting: Boolean = true) {
+    private suspend fun handleSpellCheck(input: SpellCheckInput) {
         val snapshot = _state.value
-        if (!input.matches(snapshot, if (checkSetting) settingsState.value.isSpellCheckingEnabled else true)) return
+        if (!input.matches(snapshot, settingsState.value.isSpellCheckingEnabled)) return
         val corrections = if (input.isEnabled && input.text.isNotBlank()) {
             performSpellCheckUseCase(
                 currentState   = snapshot,
@@ -1238,7 +1226,7 @@ class MainStore(
             emptyList()
         }
         _state.update { current ->
-            if (input.matches(current, if (checkSetting) settingsState.value.isSpellCheckingEnabled else true))
+            if (input.matches(current, settingsState.value.isSpellCheckingEnabled))
                 current.copy(spellCheckCorrections = corrections)
             else current
         }

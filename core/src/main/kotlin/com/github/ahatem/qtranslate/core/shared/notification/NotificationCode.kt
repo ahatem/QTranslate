@@ -19,12 +19,6 @@ sealed class NotificationCode {
         val releaseUrl: String? = null
     ) : NotificationCode()
 
-    /** A service does not support the requested language. */
-    data class LanguageNotSupported(val lang: String, val serviceId: String) : NotificationCode()
-
-    /** A TTS service does not support the requested language. */
-    data class TtsNotSupported(val serviceId: String) : NotificationCode()
-
     /** An unspecified error occurred. */
     object UnknownError : NotificationCode()
 

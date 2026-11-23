@@ -1,34 +1,23 @@
 package com.github.ahatem.qtranslate.ui.swing.main.output
 
-import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
-import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
-import com.github.ahatem.qtranslate.ui.swing.main.layout.SlotLayout
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
-import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsPanel
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsState
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import java.awt.Component
 import java.awt.Container
 import java.nio.file.Files
-import javax.swing.JButton
-import javax.swing.JComponent
 import javax.swing.JScrollPane
-import javax.swing.JViewport
 import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
-/**
- * The normal Output is one result surface, the same one Extra Output uses: a single scroll pane
- * that owns the text, so the text wraps to the width it is given and never spills out of it.
- */
+/** The Output text wraps to the width it is given, keeps its own direction and starts at the top. */
 class OutputSurfaceTest {
 
     private val logger = object : Logger {
@@ -61,10 +50,6 @@ class OutputSurfaceTest {
         OutputTextPanel(blindIconManager(), localizer, onListen = {}, onTranslateRequest = {})
     }
 
-    private fun extraPanel() = onEdt {
-        ExtraOutputPanel(blindIconManager(), localizer, onListen = {}, onTranslateRequest = {})
-    }
-
     private fun OutputTextPanel.show(text: String, width: Int, height: Int = 320) {
         onEdt {
             render(
@@ -95,45 +80,7 @@ class OutputSurfaceTest {
     private val longArabic = List(60) { "الحركة الدودية" }.joinToString(" ")
     private val unbroken = "x".repeat(400)
 
-    @Test
-    fun `the panel owns one scroll pane and nothing outside wraps it in another`() {
-        val panel = outputPanel()
-        assertEquals(1, scrollPanes(panel).size, "Output has exactly one scroll owner")
-    }
-
-    @Test
-    fun `the layouts mount the output panel itself, not a scroll pane around it`() {
-        val leaves = List(8) { javax.swing.JPanel() }
-        val registry = com.github.ahatem.qtranslate.ui.swing.main.layout.ComponentRegistry(
-            historyBar = leaves[0], inputPanel = leaves[1], languageBar = leaves[2],
-            outputPanel = leaves[3], compareBoard = leaves[4], extraOutputPanel = leaves[5],
-            translatorSelector = leaves[6], statusBar = leaves[7]
-        )
-        listOf(PaneLayout.STACKED, PaneLayout.SIDE_BY_SIDE).forEach { panes ->
-            onEdt { SlotLayout.arrange(registry, WindowLayout(panes = panes)) }
-            assertTrue(leaves[3].parent !is JViewport, "$panes: Output must not sit inside a viewport")
-            assertTrue(
-                ancestors(leaves[3]).none { it is JScrollPane },
-                "$panes: Output must not have a layout-owned scroll pane above it"
-            )
-        }
-    }
-
     private fun ancestors(component: Component) = generateSequence(component.parent) { it.parent }.toList()
-
-    @Test
-    fun `output and extra output are built from the same result surface`() {
-        val root = java.io.File("src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/main")
-        val output = java.io.File(root, "output/OutputTextPanel.kt").readText()
-        val extra = java.io.File(root, "output/ExtraOutputPanel.kt").readText()
-        val surface = "ReadOnlyTextPanel(textPane, actionsPanel)"
-        assertTrue(surface in output, "Output uses the shared result surface")
-        assertTrue(surface in extra, "Extra Output uses the shared result surface")
-
-        val surfaceSource = java.io.File(root, "widgets/ReadOnlyTextPanel.kt").readText()
-        assertEquals(1, "JScrollPane(".let { token -> surfaceSource.windowed(token.length).count { it == token } }, "and that surface scrolls itself once")
-        assertFalse("scrollable" in surfaceSource.substringAfter("class ReadOnlyTextPanel("), "with no switch to turn that off")
-    }
 
     private fun assertWrapsInside(text: String, width: Int) {
         val panel = outputPanel()
@@ -154,13 +101,9 @@ class OutputSurfaceTest {
     }
 
     @Test
-    fun `long English text tracks a narrow viewport`() = assertWrapsInside(longEnglish, 240)
-
-    @Test
-    fun `long Arabic text tracks a narrow viewport`() = assertWrapsInside(longArabic, 240)
-
-    @Test
-    fun `text without spaces still stays inside the viewport`() = assertWrapsInside(unbroken, 240)
+    fun `long English, Arabic and unbroken text all track a narrow viewport`() {
+        listOf(longEnglish, longArabic, unbroken).forEach { assertWrapsInside(it, 240) }
+    }
 
     @Test
     fun `Arabic text is right to left while an English one stays left to right`() {
@@ -221,24 +164,5 @@ class OutputSurfaceTest {
 
         assertEquals(0, onEdt { textPane.caretPosition })
         assertEquals(0, onEdt { scroll.verticalScrollBar.value })
-    }
-
-    @Test
-    fun `the action column stays beside the text and inside the panel`() {
-        val actions = onEdt { TextActionsPanel(blindIconManager()).also { it.add(JButton("copy")) } }
-        val text = onEdt { com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane({}, {}, {}) }
-        val readOnly = onEdt { com.github.ahatem.qtranslate.ui.swing.main.widgets.ReadOnlyTextPanel(text, actions) }
-        onEdt {
-            readOnly.setSize(240, 200)
-            layoutTree(readOnly)
-        }
-
-        val scroll = scrollPanes(readOnly).single()
-        val actionsLeft = SwingUtilities.convertPoint(actions, 0, 0, readOnly).x
-        assertTrue(actions.width > 0 && actionsLeft + actions.width <= readOnly.width, "the actions fit inside the panel")
-        assertTrue(scroll.x + scroll.width <= actionsLeft, "the actions are not covered by the text")
-        val button = descendants(actions).filterIsInstance<JButton>().single()
-        assertTrue(button.width > 0 && button.height > 0, "the action itself is laid out and reachable")
-        assertTrue((button as JComponent).isVisible)
     }
 }

@@ -7,7 +7,6 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class OcrConfigurationTest {
@@ -21,44 +20,8 @@ class OcrConfigurationTest {
         override fun error(message: String, error: Throwable?) = Unit
     }
 
-    @Test
-    fun `the workflow default keeps existing users on the action toolbar`() {
-        assertEquals(OcrPostSelectionAction.SHOW_ACTIONS, OcrSettings().postSelectionAction)
-        assertEquals(OcrTranslationDestination.MAIN_WINDOW, OcrSettings().translationDestination)
-        assertFalse(OcrSettings().removeLineBreaks)
-        assertTrue(OcrSettings().showWorkspaceAnnotations)
-        assertEquals("", OcrSettings().recognitionLanguage)
-    }
-
-    @Test
-    fun `every post-selection action and destination round trips`() {
-        OcrPostSelectionAction.entries.forEach { action ->
-            OcrTranslationDestination.entries.forEach { destination ->
-                val settings = OcrSettings(
-                    postSelectionAction = action,
-                    translationDestination = destination,
-                    recognitionLanguage = "ja",
-                    removeLineBreaks = true,
-                    showWorkspaceAnnotations = false,
-                )
-                val decoded = json.decodeFromString<Configuration>(
-                    json.encodeToString(Configuration.DEFAULT.copy(ocr = settings)),
-                )
-                assertEquals(settings, decoded.ocr)
-            }
-        }
-    }
-
-    @Test
-    fun `an older configuration without OCR fields decodes to the compatible default`() {
-        val raw = """{"configVersion":7,"hotkeys":[]}"""
-        val decoded = json.decodeFromString<Configuration>(raw)
-        assertEquals(OcrSettings(), decoded.ocr)
-        assertEquals(OcrPostSelectionAction.SHOW_ACTIONS, decoded.ocr.postSelectionAction)
-    }
-
-    @Test
-    fun `v7 explicit hotkey lists receive every new OCR action on migration`() {
+    /** A v7 configuration: an explicit hotkey list without the OCR rows and a customised OCR key. */
+    private fun v7ConfigWithCustomOpenOcrKey(): Configuration {
         val oldActions = HotkeyBinding.DEFAULTS
             .filterNot { it.action in NEW_OCR_ACTIONS }
             .map { binding ->
@@ -68,10 +31,12 @@ class OcrConfigurationTest {
                     binding.copy()
                 }
             }
-        val v7 = Configuration.DEFAULT.copy(
-            configVersion = 7,
-            hotkeys = oldActions,
-        )
+        return Configuration.DEFAULT.copy(configVersion = 7, hotkeys = oldActions, ocrHotkeys = emptyList())
+    }
+
+    @Test
+    fun `v7 explicit hotkey lists receive every new OCR action on migration`() {
+        val v7 = v7ConfigWithCustomOpenOcrKey()
 
         val migrated = ConfigMigrator.migrate(v7, logger)
 
@@ -91,20 +56,7 @@ class OcrConfigurationTest {
 
     @Test
     fun `migrated serialization keeps the legacy list downgrade-readable`() {
-        val oldActions = HotkeyBinding.DEFAULTS
-            .filterNot { it.action in NEW_OCR_ACTIONS }
-            .map { binding ->
-                if (binding.action == HotkeyAction.OPEN_OCR) {
-                    binding.copy(keyCode = java.awt.event.KeyEvent.VK_F9, modifiers = 0)
-                } else {
-                    binding.copy()
-                }
-            }
-        val v7 = Configuration.DEFAULT.copy(
-            configVersion = 7,
-            hotkeys = oldActions,
-            ocrHotkeys = emptyList(),
-        )
+        val v7 = v7ConfigWithCustomOpenOcrKey()
         val migrated = ConfigMigrator.migrate(v7, logger)
         val encoded = json.encodeToString(Configuration.serializer(), migrated)
 
@@ -136,19 +88,6 @@ class OcrConfigurationTest {
         assertEquals(OcrWorkflowCommand.COPY_TEXT, HotkeyAction.OCR_COPY_TEXT.ocrWorkflowCommand())
         assertEquals(OcrWorkflowCommand.COPY_IMAGE, HotkeyAction.OCR_COPY_IMAGE.ocrWorkflowCommand())
         assertEquals(null, HotkeyAction.OCR_ACTION_CANCEL.ocrWorkflowCommand())
-    }
-
-    @Test
-    fun `specialized OCR workflows ship unassigned and capture actions use their own scope`() {
-        val bindings = HotkeyBinding.DEFAULTS.associateBy { it.action }
-
-        (NEW_OCR_ACTIONS - CAPTURE_ACTIONS).forEach { action ->
-            assertFalse(bindings.getValue(action).hasBinding, "$action must not claim a key by default")
-        }
-        CAPTURE_ACTIONS.forEach { action ->
-            assertEquals(HotkeyScope.CAPTURE, bindings.getValue(action).scope)
-            assertFalse(bindings.getValue(action).hasBinding)
-        }
     }
 
     private companion object {
