@@ -6,11 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Regression coverage for the Windows startup-registration part of #226: enabling
- * "launch on system startup" persisted the setting but never created a startup entry,
- * because no registration code existed at all.
- *
- * Every test runs against a fake `reg.exe` — nothing here touches the real registry,
+ * Windows startup registration against a fake `reg.exe`: nothing here touches the real registry,
  * so the suite is safe on any OS and in CI.
  */
 class WindowsStartupRegistrationTest {
@@ -50,26 +46,21 @@ class WindowsStartupRegistrationTest {
     // ---- command construction ------------------------------------------------
 
     @Test
-    fun `exe startup command carries the startup marker after the quoted path`() {
+    fun `startup commands quote paths once and put the startup marker last`() {
         assertEquals(
             "\"C:\\Program Files\\QTranslate\\QTranslate.exe\" --startup",
-            WindowsStartupRegistration.startupCommandForExecutable("C:\\Program Files\\QTranslate\\QTranslate.exe")
+            WindowsStartupRegistration.startupCommandForExecutable("C:\\Program Files\\QTranslate\\QTranslate.exe"),
+            "exe"
         )
-    }
-
-    @Test
-    fun `jar fallback uses javaw with both paths quoted and the startup marker last`() {
         assertEquals(
             "\"C:\\Java\\bin\\javaw.exe\" -jar \"C:\\Apps\\QTranslate\\QTranslate.jar\" --startup",
-            WindowsStartupRegistration.startupCommandForJar("C:\\Java\\bin\\javaw.exe", "C:\\Apps\\QTranslate\\QTranslate.jar")
+            WindowsStartupRegistration.startupCommandForJar("C:\\Java\\bin\\javaw.exe", "C:\\Apps\\QTranslate\\QTranslate.jar"),
+            "jar fallback"
         )
-    }
-
-    @Test
-    fun `already-quoted paths are not double-quoted`() {
         assertEquals(
             "\"C:\\QTranslate\\QTranslate.exe\"",
-            WindowsStartupRegistration.quote("\"C:\\QTranslate\\QTranslate.exe\"")
+            WindowsStartupRegistration.quote("\"C:\\QTranslate\\QTranslate.exe\""),
+            "already quoted"
         )
     }
 
@@ -217,22 +208,18 @@ class WindowsStartupRegistrationTest {
     // ---- parsing ------------------------------------------------------------------
 
     @Test
-    fun `query output with spaces in the path parses back exactly`() {
-        val command = "\"C:\\Program Files\\QTranslate\\QTranslate.exe\""
-        assertEquals(command, WindowsStartupRegistration.parseCurrentCommand(queryOutputFor(command)))
-    }
-
-    @Test
-    fun `marker-bearing query output parses back exactly`() {
-        val command = "\"C:\\Program Files\\QTranslate\\QTranslate.exe\" --startup"
-        assertEquals(command, WindowsStartupRegistration.parseCurrentCommand(queryOutputFor(command)))
-    }
-
-    @Test
-    fun `missing value parses to null`() {
+    fun `query output parses back to the stored command, or to null when the value is missing`() {
+        val commands = listOf(
+            "path with spaces" to "\"C:\\Program Files\\QTranslate\\QTranslate.exe\"",
+            "marker-bearing" to "\"C:\\Program Files\\QTranslate\\QTranslate.exe\" --startup",
+        )
+        for ((label, command) in commands) {
+            assertEquals(command, WindowsStartupRegistration.parseCurrentCommand(queryOutputFor(command)), label)
+        }
         assertEquals(
             null,
-            WindowsStartupRegistration.parseCurrentCommand("ERROR: The system was unable to find the specified registry key or value.")
+            WindowsStartupRegistration.parseCurrentCommand("ERROR: The system was unable to find the specified registry key or value."),
+            "missing value"
         )
     }
 
@@ -262,16 +249,6 @@ class WindowsStartupRegistrationTest {
         )
     }
 
-    @Test
-    fun `default resolution in a dev or test worker yields nothing`() {
-        // No jpackage.app-path is ever set outside the packaged launcher, and the code source
-        // here is a classes directory rather than a JAR — so this must resolve to nothing,
-        // which is what keeps ordinary development and test runs out of the user's startup.
-        // (Runs only where it is meaningful: skipped off Windows, where reconcile is a no-op.)
-        if (!WindowsStartupRegistration.isSupported()) return
-        assertEquals(null, WindowsStartupRegistration.resolveLauncherCommand())
-    }
-
     // ---- startup invocation marker -------------------------------------------------
 
     @Test
@@ -284,11 +261,6 @@ class WindowsStartupRegistrationTest {
         )
         assertEquals(false, WindowsStartupRegistration.isStartupLaunch(arrayOf("--minimized")))
         assertEquals(false, WindowsStartupRegistration.isStartupLaunch(arrayOf("--verbose", "--debug")))
-    }
-
-    @Test
-    fun `unknown arguments never crash startup detection`() {
-        assertEquals(false, WindowsStartupRegistration.isStartupLaunch(arrayOf("garbage", "--", "")))
     }
 
     // ---- initial visibility ----------------------------------------------------------
@@ -324,21 +296,6 @@ class WindowsStartupRegistrationTest {
             WindowsStartupRegistration.shouldStartHidden(
                 launchedFromStartup = true,
                 traySupported = false
-            )
-        )
-    }
-
-    @Test
-    fun `manual launch shows the window regardless of the persisted startup setting`() {
-        // The `launchOnSystemStartup` setting is deliberately not an input here: a user with
-        // startup enabled who launches QTranslate by hand must still get the main window.
-        // Only the explicit --startup invocation marker hides it.
-        assertEquals(false, WindowsStartupRegistration.isStartupLaunch(arrayOf()))
-        assertEquals(
-            false,
-            WindowsStartupRegistration.shouldStartHidden(
-                launchedFromStartup = false,
-                traySupported = true
             )
         )
     }

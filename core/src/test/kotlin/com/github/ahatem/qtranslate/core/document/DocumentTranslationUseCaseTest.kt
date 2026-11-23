@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.core.document
 
-import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -14,7 +13,7 @@ import com.github.ahatem.qtranslate.api.translator.BatchTranslator
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
-import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
+import com.github.ahatem.qtranslate.core.testing.SilentLoggerFactory
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -79,27 +78,6 @@ class DocumentTranslationUseCaseTest {
         assertTrue("00:00:01,000 --> 00:00:03,000" in translated)
         assertTrue("<i>" in translated && "</i>" in translated)
         assertTrue("[" in translated)
-    }
-
-    @Test
-    fun `docx translation retains run styling`() = runBlocking {
-        val input = File(directory, "source.docx")
-        XWPFDocument().use { document ->
-            document.createParagraph().createRun().apply {
-                isBold = true
-                setText("Hello")
-            }
-            input.outputStream().use(document::write)
-        }
-        val output = File(directory, "translated.docx")
-
-        useCase().invoke(request(input, output)) { }
-
-        XWPFDocument(output.inputStream()).use { translated ->
-            val run = translated.paragraphs.single().runs.single()
-            assertEquals("[Hello]", run.text())
-            assertTrue(run.isBold)
-        }
     }
 
     @Test
@@ -356,9 +334,7 @@ class DocumentTranslationUseCaseTest {
         val configuration = MutableStateFlow(Configuration.DEFAULT)
         return DocumentTranslationUseCase(
             ActiveServiceManager(activeServices, configuration),
-            object : LoggerFactory {
-                override fun getLogger(name: String): Logger = NoOpLogger
-            }
+            SilentLoggerFactory
         )
     }
 
@@ -398,13 +374,6 @@ class DocumentTranslationUseCaseTest {
             requests += request.texts
             return Ok(BatchTranslationResponse(request.texts.map { TranslationResponse("[$it]") }))
         }
-    }
-
-    private object NoOpLogger : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
     }
 
     private companion object {

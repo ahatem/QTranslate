@@ -22,18 +22,28 @@ class TranslatorSetOperationsTest {
         assertEquals(comparisons.toList(), comparisonTranslatorIds)
     }
 
-    // ---- add ----
+    private class Case(
+        val label: String,
+        val before: ServicePreset,
+        val after: ServicePreset.() -> ServicePreset,
+        val expectedPrimary: String?,
+        val expectedComparisons: List<String>,
+    )
 
     @Test
-    fun `adding to an empty set makes the translator Primary`() {
-        preset(null).withTranslatorAdded("a").assertSet("a")
-    }
-
-    @Test
-    fun `adding appends after the Primary and existing comparisons`() {
-        val one = preset("a").withTranslatorAdded("b")
-        one.assertSet("a", "b")
-        one.withTranslatorAdded("c").assertSet("a", "b", "c")
+    fun `adding a translator appends it after the existing members`() {
+        val cases = listOf(
+            Case("empty set makes it Primary", preset(null), { withTranslatorAdded("a") }, "a", emptyList()),
+            Case("appends after the Primary", preset("a"), { withTranslatorAdded("b") }, "a", listOf("b")),
+            Case("appends after comparisons", preset("a", "b"), { withTranslatorAdded("c") }, "a", listOf("b", "c")),
+            Case("legacy comparisons without a Primary are kept", preset(null, "b", "c"), { withTranslatorAdded("a") }, "a", listOf("b", "c")),
+        )
+        for (case in cases) {
+            val result = case.after(case.before)
+            assertEquals(case.expectedPrimary, result.translatorPrimaryId, case.label)
+            assertEquals(case.expectedComparisons, result.comparisonTranslatorIds, case.label)
+        }
+        assertEquals("tts", preset("a").withTranslatorAdded("b").selectedServices[ServiceRole.TTS], "other roles untouched")
     }
 
     @Test
@@ -41,16 +51,6 @@ class TranslatorSetOperationsTest {
         val base = preset("a", "b")
         assertSame(base, base.withTranslatorAdded("a"))
         assertSame(base, base.withTranslatorAdded("b"))
-    }
-
-    @Test
-    fun `adding keeps other service roles untouched`() {
-        assertEquals("tts", preset("a").withTranslatorAdded("b").selectedServices[ServiceRole.TTS])
-    }
-
-    @Test
-    fun `adding to a legacy preset with comparisons but no Primary keeps them`() {
-        preset(null, "b", "c").withTranslatorAdded("a").assertSet("a", "b", "c")
     }
 
     // ---- remove ----
@@ -89,32 +89,24 @@ class TranslatorSetOperationsTest {
     // ---- reorder ----
 
     @Test
-    fun `moving up swaps with the previous comparison`() {
-        preset("a", "b", "c", "d").withTranslatorMoved("c", TranslatorMove.UP).assertSet("a", "c", "b", "d")
+    fun `moving swaps with the neighbouring comparison`() {
+        val base = preset("a", "b", "c", "d")
+        base.withTranslatorMoved("c", TranslatorMove.UP).assertSet("a", "c", "b", "d")
+        base.withTranslatorMoved("b", TranslatorMove.DOWN).assertSet("a", "c", "b", "d")
     }
 
     @Test
-    fun `moving down swaps with the next comparison`() {
-        preset("a", "b", "c", "d").withTranslatorMoved("b", TranslatorMove.DOWN).assertSet("a", "c", "b", "d")
-    }
-
-    @Test
-    fun `the first comparison cannot move above the Primary`() {
+    fun `moves that cannot happen are no-ops`() {
         val base = preset("a", "b", "c")
-        assertSame(base, base.withTranslatorMoved("b", TranslatorMove.UP))
-    }
-
-    @Test
-    fun `the last comparison cannot move down`() {
-        val base = preset("a", "b", "c")
-        assertSame(base, base.withTranslatorMoved("c", TranslatorMove.DOWN))
-    }
-
-    @Test
-    fun `the Primary and non-members do not move`() {
-        val base = preset("a", "b", "c")
-        assertSame(base, base.withTranslatorMoved("a", TranslatorMove.DOWN))
-        assertSame(base, base.withTranslatorMoved("z", TranslatorMove.UP))
+        val moves = listOf(
+            "the first comparison cannot move above the Primary" to ("b" to TranslatorMove.UP),
+            "the last comparison cannot move down" to ("c" to TranslatorMove.DOWN),
+            "the Primary does not move" to ("a" to TranslatorMove.DOWN),
+            "a non-member does not move" to ("z" to TranslatorMove.UP),
+        )
+        for ((label, move) in moves) {
+            assertSame(base, base.withTranslatorMoved(move.first, move.second), label)
+        }
     }
 
     // ---- unavailable ids and duplicates ----
