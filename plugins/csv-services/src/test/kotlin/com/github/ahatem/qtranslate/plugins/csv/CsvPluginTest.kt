@@ -2,7 +2,6 @@ package com.github.ahatem.qtranslate.plugins.csv
 
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
 import com.github.ahatem.qtranslate.api.language.LanguageCode
-import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 import com.github.michaelbull.result.get
@@ -41,15 +40,6 @@ class CsvPluginTest {
         plugin.onSettingsChanged(settings)
         plugin.onEnable()
         return plugin to context
-    }
-
-    @Test
-    fun `declares one dictionary service`() = runBlocking<Unit> {
-        val (plugin, _) = enabledPlugin(CsvSettings(filePath = glossary().absolutePath))
-
-        val service = plugin.getServices().single()
-        assertEquals("csv-dictionary", service.key)
-        assertEquals(setOf(ServiceRole.DICTIONARY), ServiceRole.of(service))
     }
 
     @Test

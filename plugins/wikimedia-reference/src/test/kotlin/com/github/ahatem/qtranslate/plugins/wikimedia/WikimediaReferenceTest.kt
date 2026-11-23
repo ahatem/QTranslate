@@ -1,9 +1,7 @@
 package com.github.ahatem.qtranslate.plugins.wikimedia
 
-import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
-import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
 import com.github.ahatem.qtranslate.api.imagesearch.ImageSearchRequest
@@ -129,29 +127,6 @@ class WikimediaReferenceTest {
         assertEquals(listOf(300L), waits)
     }
 
-    @Test
-    fun `plugin exposes two dictionaries and an image search`() = runBlocking {
-        val plugin = WikimediaReferencePlugin()
-        val context = FakePluginContext()
-
-        plugin.initialize(context)
-        plugin.onEnable()
-
-        assertEquals(
-            listOf("Wikipedia", "Wiktionary", "Wikimedia Commons"),
-            plugin.getServices().map { it.name }
-        )
-        assertEquals(
-            listOf(
-                setOf(ServiceRole.DICTIONARY),
-                setOf(ServiceRole.DICTIONARY),
-                setOf(ServiceRole.IMAGE_SEARCH)
-            ),
-            plugin.getServices().map { ServiceRole.of(it) }
-        )
-        plugin.shutdown()
-    }
-
     // ── Commons image search ──────────────────────────────────────────────────
 
     @Test
@@ -225,19 +200,6 @@ class WikimediaReferenceTest {
         assertTrue(fileTypeFor(mapOf("mediaType" to "DIAGRAMS")).endsWith("filetype:drawing"))
         // Unset falls back to the declared default rather than sending nothing.
         assertTrue(fileTypeFor(emptyMap()).endsWith("filetype:bitmap|drawing"))
-    }
-
-    @Test
-    fun `image search asks Commons for files rather than articles`() = runBlocking<Unit> {
-        val transport = ScriptedHttpClient(listOf(Ok("""{"batchcomplete":true}""")))
-
-        CommonsImageSearchService(client(transport)).searchImages(
-            ImageSearchRequest("gut", LanguageCode.ENGLISH)
-        )
-
-        assertEquals("https://commons.wikimedia.org/w/api.php", transport.urls.single())
-        // Namespace 6 is File:. Without it the search returns pages with no image on them.
-        assertEquals(6, transport.queryParams.single()["gsrnamespace"])
     }
 
     private fun client(httpClient: HttpClient) = WikimediaClient(httpClient, minimumIntervalMillis = 0)

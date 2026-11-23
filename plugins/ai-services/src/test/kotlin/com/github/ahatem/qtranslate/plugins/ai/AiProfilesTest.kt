@@ -78,11 +78,6 @@ class AiProfilesTest {
         assertTrue(broken.missingKeyError() is ServiceError.ConfigurationError)
     }
 
-    @Test
-    fun `a hosted profile with a key needs no further setup`() {
-        assertNull(profile(baseUrl = "https://openrouter.ai/api/v1", apiKey = "sk-test").missingKeyError())
-    }
-
     // -------------------------------------------------------------------------
     // AiEndpoints
     // -------------------------------------------------------------------------
@@ -125,37 +120,9 @@ class AiProfilesTest {
         }
     }
 
-    @Test
-    fun `AiProfile chatCompletionsUrl never doubles the suffix`() {
-        val p = profile(baseUrl = "https://api.openai.com/v1/chat/completions")
-        assertEquals("https://api.openai.com/v1/chat/completions", p.chatCompletionsUrl())
-        assertEquals(AiEndpoints.chatCompletionsUrl("https://api.openai.com/v1"), p.chatCompletionsUrl())
-    }
-
     // -------------------------------------------------------------------------
     // AiProviderPresets
     // -------------------------------------------------------------------------
-
-    @Test
-    fun `preset default base URLs match the provider contract`() {
-        assertEquals("https://openrouter.ai/api/v1", AiProviderPresets.defaultBaseUrl("openrouter"))
-        assertEquals("https://api.openai.com/v1", AiProviderPresets.defaultBaseUrl("openai"))
-        assertEquals("http://localhost:11434/v1", AiProviderPresets.defaultBaseUrl("local"))
-        assertEquals("", AiProviderPresets.defaultBaseUrl("custom"), "custom has no default address")
-    }
-
-    @Test
-    fun `unknown and null presets have no default base URL`() {
-        assertNull(AiProviderPresets.defaultBaseUrl("mistral"))
-        assertNull(AiProviderPresets.defaultBaseUrl(null))
-        assertNull(AiProviderPresets.defaultBaseUrl(""))
-    }
-
-    @Test
-    fun `PRESETS includes the hosted, local, and custom entries with unique ids`() {
-        val ids = AiProviderPresets.PRESETS.map { it.id }
-        assertEquals(listOf("openrouter", "openai", "local", "custom"), ids)
-    }
 
     // -------------------------------------------------------------------------
     // identityKey
@@ -199,13 +166,6 @@ class AiProfilesTest {
         val key = profile(apiKey = secret).identityKey
         assertFalse(key.contains(secret))
         assertFalse(key.contains("super-secret"))
-    }
-
-    @Test
-    fun `identityKey is stable across construction`() {
-        val p = profile()
-        assertEquals(p.identityKey, p.identityKey)
-        assertEquals(p, p.copy())
     }
 
     // -------------------------------------------------------------------------

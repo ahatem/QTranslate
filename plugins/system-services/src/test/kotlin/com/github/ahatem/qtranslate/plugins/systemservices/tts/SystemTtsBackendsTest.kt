@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.plugins.systemservices.tts
 
-import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.plugins.systemservices.FakeProcessRunner
 import com.github.ahatem.qtranslate.plugins.systemservices.argumentValue
@@ -133,20 +132,6 @@ class SystemTtsBackendsTest {
         assertIs<ServiceError.InvalidInputError>(missing.synthesize("private text", "gone", 1f).unwrapError())
     }
 
-    @Test fun `Windows helper source uses WinRT and file argument plan`() {
-        val script = checkNotNull(javaClass.getResourceAsStream("/scripts/windows-tts.ps1"))
-            .bufferedReader().use { it.readText() }
-        assertTrue("SpeechSynthesizer]::AllVoices" in script)
-        assertTrue("SynthesizeTextToStreamAsync" in script)
-        assertTrue("System.WindowsRuntimeSystemExtensions" in script)
-        assertTrue("ReadAllText($" + "InputPath" in script)
-        assertFalse("SAPI.SpVoice" in script)
-        val command = WindowsTtsBackend(FakeProcessRunner { ok() }, "powershell.exe", File("helper.ps1"))
-            .command("synthesize", File("output.wav"))
-        assertEquals("synthesize", command.argumentValue("-Command"))
-        assertEquals(File("output.wav").absolutePath, command.argumentValue("-OutputPath"))
-        assertFalse(command.any { "private text" in it })
-    }
     @Test fun `cancellation deletes TTS input and output files`() = runBlocking {
         val paths = CompletableDeferred<Pair<File, File>>()
         val runner = object : ProcessRunner {

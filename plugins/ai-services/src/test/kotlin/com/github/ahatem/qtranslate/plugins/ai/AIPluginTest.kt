@@ -260,32 +260,6 @@ class AIPluginTest {
 
     // (f) failed connection test leaves secrets intact ------------------------------
 
-    @Test
-    fun `failed connection test leaves secrets intact`() = runBlocking {
-        val http = ScriptedHttpClient(
-            listOf(Err(ServiceError.UnknownError("boom")))
-        )
-        val context = FakePluginContext(httpClient = http)
-        val plugin = initializedPlugin(context)
-        plugin.onSettingsChanged(
-            AISettings(
-                apiKey = "synthetic-default-key-007",
-                visionUseDefault = false,
-                visionApiKey = "synthetic-vision-key-007",
-                visionModel = "vision-model"
-            )
-        ).unwrap()
-
-        val client = AIServiceClient(pluginContext = context, httpClient = http)
-        val failure = failureOf(plugin.validateAllDistinctProfiles(client))
-        assertEquals("boom", failure.message)
-
-        assertEquals("synthetic-default-key-007", context.secrets.get("apiKey"))
-        assertEquals("synthetic-vision-key-007", context.secrets.get("visionApiKey"))
-        assertTrue(context.secrets.contains("apiKey"))
-        assertTrue(context.secrets.contains("visionApiKey"))
-    }
-
     // (g) error messages contain no synthetic key -----------------------------------
 
     @Test

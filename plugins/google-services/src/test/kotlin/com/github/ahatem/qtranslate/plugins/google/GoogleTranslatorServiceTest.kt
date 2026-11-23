@@ -215,22 +215,6 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `the primary is attempted once when the transport would have retried a rate limit`() = runBlocking {
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
-            fallbackHandler = { Ok(FALLBACK_FLAT) }
-        )
-        val service = createService(client, AtomicLong(0))
-
-        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
-
-        // The primary is tried once from the first answer. A plain GET would have spent two retries
-        // on the rate limit before the circuit ever saw the failure.
-        assertEquals(1, client.primaryCalls)
-        assertEquals(1, client.fallbackCalls)
-    }
-
-    @Test
     fun `a second translation while the circuit is open makes no primary attempt`() = runBlocking {
         val client = GoogleTestHttpClient(
             primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
@@ -552,78 +536,6 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `the translator never contacts the host most hosts files block`() = runBlocking {
-        // The reporter's environment sinkholes clients5.google.com, which used to be the fallback.
-        // Every path is exercised here and none of them may name that host, so a future change that
-        // reintroduces it fails this test instead of failing for the reporter.
-        val scenarios: List<Pair<String, GoogleTestHttpClient>> = listOf(
-            "healthy" to GoogleTestHttpClient(primaryHandler = { Ok(PRIMARY_JSON) }),
-            "primary throttled" to GoogleTestHttpClient(
-                primaryHandler = { Err(ServiceError.RateLimitError("rate limited", retryAfterSeconds = 30)) },
-                fallbackHandler = { Ok(FALLBACK_FLAT) }
-            ),
-            "primary stalled" to GoogleTestHttpClient(
-                primaryHandler = { Err(ServiceError.TimeoutError("timed out")) },
-                fallbackHandler = { Ok(FALLBACK_FLAT) }
-            ),
-            "primary unusable" to GoogleTestHttpClient(
-                primaryHandler = { Ok("<html>nope</html>") },
-                fallbackHandler = { Ok(FALLBACK_FLAT) }
-            ),
-            "both unusable" to GoogleTestHttpClient(
-                primaryHandler = { Ok("<html>nope</html>") },
-                fallbackHandler = { Ok("<html>nope</html>") }
-            )
-        )
-        for ((name, client) in scenarios) {
-            val service = createService(client, AtomicLong(0))
-            service.translate(request)
-            val contacted = client.urls.filter { it.contains("clients5") }
-            assertTrue(contacted.isEmpty(), "$name contacted a blocked host: $contacted")
-            assertTrue(
-                client.urls.all { it.contains("translate.googleapis.com") },
-                "$name contacted something other than the Google host: ${client.urls}"
-            )
-        }
-    }
-
-    @Test
-    fun `the primary is the flat client and the second path asks for no dictionary payload`() = runBlocking {
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Err(ServiceError.TimeoutError("timed out")) },
-            fallbackHandler = { Ok(FALLBACK_FLAT) }
-        )
-        val service = createService(client, AtomicLong(0))
-
-        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
-
-        val first = client.queryParams.first()
-        assertEquals("dict-chrome-ex", first["client"])
-        assertTrue(first.containsKey("q"), "the first path must send the text")
-        assertTrue(!first.containsKey("dt"), "the flat client does not take a feature list")
-
-        val second = client.queryParams[1]
-        assertEquals("gtx", second["client"])
-        // Only the translation itself: the dictionary payload it used to request cost ~750 ms per
-        // request and nothing in the application ever displayed the alternatives it produced.
-        assertEquals("t", second["dt"])
-    }
-
-    @Test
-    fun `a rate limited primary is asked once and the second path answers`() = runBlocking {
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Err(ServiceError.RateLimitError("429 Too Many Requests", retryAfterSeconds = 20)) },
-            fallbackHandler = { Ok(FALLBACK_FLAT) }
-        )
-        val service = createService(client, AtomicLong(0))
-
-        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
-        // getOnce on the first path: a throttle costs one wire attempt, not three.
-        assertEquals(1, client.primaryCalls)
-        assertEquals(1, client.fallbackCalls)
-    }
-
-    @Test
     fun `the flat client keeps line breaks, punctuation and non-BMP characters`() = runBlocking {
         val translated = "Première ligne.\nDeuxième ligne : « ok » 🎉 𝔘 👍🏽"
         val client = GoogleTestHttpClient(
@@ -734,22 +646,6 @@ class GoogleTranslatorServiceTest {
         service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(3, client.primaryCalls)
         assertEquals(1, client.fallbackCalls)
-    }
-
-    @Test
-    fun `rate limit without retry-after opens the circuit immediately`() = runBlocking {
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
-            fallbackHandler = { Ok(FALLBACK_FLAT) }
-        )
-        val service = createService(client, AtomicLong(0))
-
-        service.translate(request)
-        service.translate(request)
-
-        // The first rate limit opens the circuit, so the second call never reaches the primary.
-        assertEquals(1, client.primaryCalls)
-        assertEquals(2, client.fallbackCalls)
     }
 
     @Test

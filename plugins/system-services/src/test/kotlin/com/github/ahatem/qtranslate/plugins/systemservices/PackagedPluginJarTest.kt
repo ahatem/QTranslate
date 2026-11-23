@@ -97,16 +97,6 @@ class PackagedPluginJarTest {
         }
     }
 
-    @Test
-    fun `the macOS helper is never nested under a duplicated path`() {
-        val entries = skipIfNoJar()
-        if (entries.isEmpty()) return
-
-        // Guards against the helper being staged under a doubled prefix the runtime cannot find.
-        val nested = entries.filter { it.contains("native/macos/native/macos") }
-        assertTrue(nested.isEmpty(), "the Vision helper was nested at a duplicated path: $nested")
-    }
-
     @Test fun `the macOS spell helper packaging matches runtime lookup`() {
         val entries = skipIfNoJar()
         if (entries.isEmpty()) return

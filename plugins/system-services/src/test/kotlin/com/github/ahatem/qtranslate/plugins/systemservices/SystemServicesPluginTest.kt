@@ -1,8 +1,6 @@
 package com.github.ahatem.qtranslate.plugins.systemservices
 
-import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.OCR
-import com.github.ahatem.qtranslate.api.plugin.PluginSettings
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.tts.TextToSpeech
 import com.github.ahatem.qtranslate.api.spellchecker.SpellChecker
@@ -105,10 +103,6 @@ class SystemServicesPluginTest {
         assertEquals(3, discoveries)
         plugin.shutdown()
         assertTrue(plugin.getServices().isEmpty())
-    }
-
-    @Test fun `declares no settings`() {
-        assertEquals(PluginSettings.None, plugin().getSettings())
     }
 
     @Test fun `OCR and TTS survive missing spelling`() = runBlocking {

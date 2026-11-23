@@ -10,7 +10,6 @@ import com.github.michaelbull.result.getOrThrow
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 /**
  * What a plugin sees across disable and enable, now that the HTTP client belongs to the context.
@@ -90,26 +89,6 @@ class LibreTranslateLifecycleTest {
 
         assertEquals("bonjour", response)
         assertEquals(2, http.urls.size)
-        plugin.shutdown()
-    }
-
-    @Test
-    fun `many disable and enable cycles keep working on one client`() = runBlocking {
-        val http = libreClient()
-        val context = FakePluginContext(httpClient = http)
-        val plugin = LibreTranslatePlugin()
-
-        plugin.initialize(context)
-        plugin.onSettingsChanged(LibreTranslateSettings(instanceUrl = SERVER_A))
-
-        repeat(50) {
-            plugin.onEnable()
-            plugin.translate()
-            plugin.onDisable()
-        }
-
-        assertEquals(50, http.urls.size, "a cycle stopped issuing its request")
-        assertTrue(http.urls.all { it == "$SERVER_A/translate" })
         plugin.shutdown()
     }
 

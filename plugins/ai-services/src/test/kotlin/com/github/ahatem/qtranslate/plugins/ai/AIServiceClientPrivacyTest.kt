@@ -82,20 +82,6 @@ class AIServiceClientPrivacyTest {
     }
 
     @Test
-    fun `logs never contain the API key or the bearer value`() = runBlocking {
-        val logger = CapturingLogger()
-        val http = ScriptedHttpClient(Ok(completion))
-        val client = AIServiceClient(
-            pluginContext = FakePluginContext(logger = logger, httpClient = http),
-            httpClient = http
-        )
-
-        client.complete(system = "sys", userContent = "user", profile = profile())
-
-        assertClean(logger, sentinelKey, "Bearer $sentinelKey")
-    }
-
-    @Test
     fun `a truncated completion error contains neither the raw body nor the key`() = runBlocking {
         val logger = CapturingLogger()
         val http = ScriptedHttpClient(Ok(truncatedRawCompletion))

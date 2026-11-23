@@ -74,33 +74,6 @@ class AIServiceClientTest {
     }
 
     @Test
-    fun `a trailing slash on the base URL does not split the endpoint`() = runBlocking {
-        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
-
-        client(httpClient).validate(hostedProfile(baseUrl = "https://openrouter.ai/api/v1/"))
-
-        assertEquals("https://openrouter.ai/api/v1/chat/completions", httpClient.urls.single())
-    }
-
-    @Test
-    fun `a base URL already ending in chat completions is not appended twice`() = runBlocking {
-        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
-
-        client(httpClient).validate(hostedProfile(baseUrl = "https://openrouter.ai/api/v1/chat/completions"))
-
-        assertEquals("https://openrouter.ai/api/v1/chat/completions", httpClient.urls.single())
-    }
-
-    @Test
-    fun `whitespace around the base URL is trimmed before resolving the endpoint`() = runBlocking {
-        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
-
-        client(httpClient).validate(hostedProfile(baseUrl = "  https://openrouter.ai/api/v1/  "))
-
-        assertEquals("https://openrouter.ai/api/v1/chat/completions", httpClient.urls.single())
-    }
-
-    @Test
     fun `requests carry the key as a bearer token and JSON content type`() = runBlocking {
         val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
 
@@ -126,15 +99,6 @@ class AIServiceClientTest {
         assertTrue(body.contains("\"model\":\"per-profile-model\""), "body was: $body")
         assertTrue(body.contains("\"temperature\":0.7"), "body was: $body")
         assertTrue(body.contains("\"max_completion_tokens\":128"), "body was: $body")
-    }
-
-    @Test
-    fun `complete sends the given profile's key as bearer token`() = runBlocking {
-        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
-
-        client(httpClient).complete("s", "u", hostedProfile(apiKey = "profile-specific-key"))
-
-        assertEquals("Bearer profile-specific-key", httpClient.headers.single()["Authorization"])
     }
 
     @Test

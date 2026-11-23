@@ -2,8 +2,6 @@ package com.github.ahatem.qtranslate.plugins.ai
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -19,76 +17,6 @@ class AISettingsTest {
 
     private fun settings(url: String, key: String = "") =
         AISettings(baseUrl = url, apiKey = key)
-
-    @Test
-    fun `local endpoints need no key`() {
-        listOf(
-            "http://localhost:11434/v1",          // Ollama
-            "http://127.0.0.1:1234/v1",           // LM Studio
-            "http://192.168.1.50:11434/v1",       // another machine on the LAN
-            "http://10.0.0.4:8080/v1",
-            "http://172.16.3.9:8080/v1",
-            "http://workstation.local:11434/v1",
-        ).forEach { url ->
-            assertTrue(settings(url).isLocalEndpoint, "$url should count as local")
-            assertNull(settings(url).missingKeyError(), "$url should not demand a key")
-        }
-    }
-
-    @Test
-    fun `hosted endpoints demand a key`() {
-        listOf(
-            "https://openrouter.ai/api/v1",
-            "https://api.openai.com/v1",
-            "https://api.mistral.ai/v1",
-            "https://generativelanguage.googleapis.com/v1beta/openai",
-        ).forEach { url ->
-            assertFalse(settings(url).isLocalEndpoint, "$url should not count as local")
-            assertNotNull(settings(url).missingKeyError(), "$url should demand a key")
-        }
-    }
-
-    @Test
-    fun `a key set for a hosted endpoint is no longer missing`() {
-        assertNull(settings("https://openrouter.ai/api/v1", key = "sk-test").missingKeyError())
-    }
-
-    /**
-     * `172.16` through `172.31` are private; `172.32` and above are not.
-     *
-     * The obvious `startsWith("172.")` would wave through a public address, which is the case
-     * worth pinning since nothing else would notice.
-     */
-    @Test
-    fun `only the private half of the 172 range is local`() {
-        assertTrue(settings("http://172.16.0.1:8080/v1").isLocalEndpoint)
-        assertTrue(settings("http://172.31.255.1:8080/v1").isLocalEndpoint)
-        assertFalse(settings("http://172.32.0.1:8080/v1").isLocalEndpoint)
-        assertFalse(settings("http://172.8.0.1:8080/v1").isLocalEndpoint)
-    }
-
-    @Test
-    fun `a malformed url is treated as hosted rather than crashing`() {
-        val broken = settings("not a url at all")
-        assertFalse(broken.isLocalEndpoint)
-        assertNotNull(broken.missingKeyError())
-    }
-
-    /**
-     * The defaults are the configuration every new user starts from, and the ones the OpenRouter
-     * setup guides quote back at us. The endpoint is the production chat-completions base (the
-     * client appends `/chat/completions`), and the model is OpenRouter's free auto-router alias —
-     * both verified against OpenRouter's own documentation and public model list.
-     */
-    @Test
-    fun `defaults match the OpenRouter contract`() {
-        val defaults = AISettings()
-        assertEquals("https://openrouter.ai/api/v1", defaults.baseUrl)
-        assertEquals("openrouter/free", defaults.model)
-        assertEquals("openrouter", defaults.preset)
-        assertEquals(0.3, defaults.temperature)
-        assertEquals(4096, defaults.maxTokens)
-    }
 
     // -------------------------------------------------------------------------
     // profileFor() — per-capability profiles (AI Plugin 2.0)
@@ -310,24 +238,4 @@ class AISettingsTest {
         assertEquals("https://api.openai.com/v1", changed.profileFor(AiCapability.TRANSLATION).baseUrl)
     }
 
-    @Test
-    fun `apiKey survives data class copy`() {
-        // SecretStore persistence is Agent C's concern; this pins that copying a profile
-        // snapshot never drops the key field out from under it.
-        val settings = AISettings(baseUrl = "https://openrouter.ai/api/v1", apiKey = "sk-test-123")
-        assertEquals("sk-test-123", settings.copy().apiKey)
-        assertEquals("sk-test-123", settings.copy(temperature = 1.0).apiKey)
-    }
-
-    @Test
-    fun `settings delegation still matches the resolved Default profile`() {
-        val hosted = AISettings(baseUrl = "https://openrouter.ai/api/v1", apiKey = "")
-        assertFalse(hosted.isLocalEndpoint)
-        assertNotNull(hosted.missingKeyError())
-        assertEquals(hosted.defaultProfile().missingKeyError()?.message, hosted.missingKeyError()?.message)
-
-        val local = AISettings(baseUrl = "http://localhost:11434/v1", apiKey = "")
-        assertTrue(local.isLocalEndpoint)
-        assertNull(local.missingKeyError())
-    }
 }

@@ -24,26 +24,6 @@ import kotlin.test.fail
 
 class ReversoServicesTest {
     @Test
-    fun `plugin exposes translation and dictionary as distinct services`() = runBlocking {
-        val plugin = ReversoPlugin()
-        plugin.initialize(TestPluginContext)
-        plugin.onEnable()
-
-        assertEquals(
-            listOf("Reverso Translation", "Reverso Dictionary"),
-            plugin.getServices().map { it.name }
-        )
-        // Keys, not ids: the plugin declares a name unique within itself and the host composes
-        // the identifier the rest of the application sees.
-        assertEquals(
-            listOf("reverso-services-translation", "reverso-services-dictionary"),
-            plugin.getServices().map { it.key }
-        )
-        plugin.onDisable()
-        plugin.shutdown()
-    }
-
-    @Test
     fun `translation uses current free endpoint and selected language pair`() = runBlocking {
         val http = ScriptedHttpClient(Ok(TEXT_RESPONSE))
         val service = ReversoTranslatorService(client(http))

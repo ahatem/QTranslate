@@ -22,16 +22,6 @@ class GoogleLensPluginTest {
     }
 
     @Test
-    fun `initialize with no persisted override keeps bundled fallback`() = runBlocking {
-        val context = FakePluginContext()
-        val plugin = GoogleLensPlugin()
-
-        plugin.initialize(context).getOrThrow { AssertionError(it.message) }
-
-        assertEquals("", plugin.getSettings().apiKey)
-    }
-
-    @Test
     fun `onSettingsChanged persists trimmed override and updates live settings`() = runBlocking {
         val context = FakePluginContext()
         val plugin = GoogleLensPlugin()

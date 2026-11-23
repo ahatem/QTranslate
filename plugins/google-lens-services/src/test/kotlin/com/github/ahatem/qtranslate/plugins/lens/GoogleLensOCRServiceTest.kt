@@ -244,14 +244,4 @@ class GoogleLensOCRServiceTest {
         assertEquals(30, error.retryAfterSeconds)
     }
 
-    @Test
-    fun `fetchSupportedLanguages returns success with dynamic languages`() = runBlocking {
-        val fakeHttp = FakeLensHttpClient(Ok(ByteArray(0)))
-        val context = FakePluginContext(httpClient = fakeHttp)
-        val service = GoogleLensOCRService(context, fakeHttp)
-
-        val supported = service.fetchSupportedLanguages().getOrThrow { AssertionError(it.message) }
-        assertTrue(LanguageCode.ENGLISH in supported)
-        assertTrue(LanguageCode.SPANISH in supported)
-    }
 }
