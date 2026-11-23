@@ -48,9 +48,8 @@ enum class LegacyConflictChoice { PORTABLE, INSTALLED }
  * Resolves the [ResolvedAppData] for this process.
  *
  * The mode comes from an explicit override or a marker file, never from whether a directory happens
- * to be writable. Writability was the previous rule and it was environment-dependent: the same
- * installation stored data in two places depending on UAC elevation, and moving a folder or mounting
- * it read-only silently relocated a user's settings and history.
+ * to be writable. Writability is environment-dependent: the same installation would store data in
+ * two places depending on UAC elevation, and moving a folder or mounting it read-only would relocate a user's settings and history.
  */
 object AppDataLayout {
 

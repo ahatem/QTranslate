@@ -5,8 +5,8 @@ import java.io.File
 /**
  * Decides whether a plugin JAR is the user's to remove.
  *
- * Uninstalling a bundled plugin used to delete the file the distribution shipped, leaving an
- * installed copy missing a component with no way back short of reinstalling.
+ * Only plugins in the user's own folder are removable. Deleting a bundled plugin would leave the
+ * installation missing a component with no way back short of reinstalling.
  */
 internal object PluginInstallLocation {
 

@@ -6,9 +6,8 @@ import kotlinx.coroutines.Job
  * Owns the primary translation: request identity, comparison generation, and the job slot, all
  * under one lock.
  *
- * These three used to move independently. A caller could claim request A, be delayed, and then
- * cancel the global job slot — by which time request B had claimed it, so A cancelled B while B
- * was still the current request. Keeping the identity and the slot in one transition means a
+ * If they moved independently, a caller could claim request A, be delayed, and then cancel the job
+ * slot after request B had claimed it, cancelling B while B was current. Keeping the identity and the slot in one transition means a
  * stale caller can never cancel or replace an operation it no longer owns.
  *
  * No callback, subsystem call, or coroutine start happens while the lock is held; callers detach

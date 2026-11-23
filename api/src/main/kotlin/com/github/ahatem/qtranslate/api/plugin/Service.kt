@@ -66,8 +66,7 @@ public interface Service {
      * User-selectable modifiers this service accepts, such as summary length or rewrite style.
      *
      * The host renders controls from this list and passes the chosen values back in the request.
-     * Declaring nothing means the service takes no modifiers and the host shows no controls —
-     * which is itself useful information it previously had no way to obtain.
+     * Declaring nothing means the service takes no modifiers and the host shows no controls.
      */
     public val options: List<ServiceOption>
         get() = emptyList()

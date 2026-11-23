@@ -18,9 +18,7 @@ import com.github.michaelbull.result.Result
  * Style is a [ServiceOption], not a fixed enum. A service offering the conventional formal,
  * casual, concise, detailed and simplified choices declares [StandardOptions.REWRITE_STYLE] so
  * the host can localize the labels. A service that can do "academic", "for a five-year-old" or
- * "bullet points" declares its own option and the host renders that instead — previously
- * impossible, since the host owned the vocabulary and offered every value regardless of what
- * the service actually supported.
+ * "bullet points" declares its own option and the host renders that instead.
  */
 public interface Rewriter : Service {
 

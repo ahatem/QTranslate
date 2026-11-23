@@ -45,7 +45,7 @@ fun main(args: Array<String>) = runBlocking {
 
     // A login launch registered by WindowsStartupRegistration carries `--startup`; a manual
     // launch never does — even with `launchOnSystemStartup` enabled — so the setting alone
-    // must never decide visibility (#226).
+    // must never decide visibility.
     val launchedFromSystemStartup = WindowsStartupRegistration.isStartupLaunch(args)
     // Hidden only when the window can actually be restored: without a tray the process would
     // be invisible with no recovery path, so fall back to a visible window.
@@ -56,7 +56,7 @@ fun main(args: Array<String>) = runBlocking {
 
     if (!SingleInstanceGuard.tryLock(onFocusRequested = {
             SwingUtilities.invokeLater {
-                // Same canonical presentation as the tray and global hotkey (#216). A request
+                // Same canonical presentation as the tray and global hotkey. A request
                 // this early, before the frame is built, is remembered instead of dropped, and
                 // consumed once the frame is assigned below.
                 val current = frame
@@ -148,12 +148,10 @@ fun main(args: Array<String>) = runBlocking {
         exit                   = { exitProcess(0) }
     )
 
-    // The "launch on system startup" checkbox used to persist its flag without any code ever
-    // acting on it, so enabling it on Windows changed nothing (#226). This keeps the per-user
-    // startup entry in sync with the setting instead: the initial emission repairs a missing or
-    // stale entry left by an older install location, and later emissions apply OK/Apply from the
-    // settings dialog or any other save path. Best effort — a failure only logs, never blocks
-    // startup. Windows-only; other platforms keep their previous behavior exactly.
+    // Keeps the per-user startup entry in sync with the "launch on system startup" setting: the
+    // initial emission repairs a missing or stale entry left by an older install location, and
+    // later emissions apply OK/Apply from the settings dialog or any other save path. Best effort:
+    // a failure only logs and never blocks startup. Windows-only.
     if (WindowsStartupRegistration.isSupported()) {
         val startupRegistration = WindowsStartupRegistration()
         deps.appScope.launch {
@@ -251,7 +249,7 @@ fun main(args: Array<String>) = runBlocking {
         logger.info("Main window launched")
 
         // A FOCUS request from a second launch that arrived before this frame existed, consumed
-        // exactly once, same presentation as a normal FOCUS or the global hotkey (#216).
+        // exactly once, same presentation as a normal FOCUS or the global hotkey.
         if (pendingFocusRequest) {
             pendingFocusRequest = false
             frame.showAndFocus()

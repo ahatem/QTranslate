@@ -3,9 +3,9 @@ package com.github.ahatem.qtranslate.api.plugin
 /**
  * Typed persistence for a plugin.
  *
- * Everything used to be a `String`, which meant every plugin hand-rolled the same parsing and
- * silently misbehaved when a stored value was malformed. These accessors do that once, in one
- * place, and fall back to the supplied default rather than throwing.
+ * These accessors parse stored values in one place, so plugins do not hand-roll the same
+ * conversions, and they fall back to the supplied default rather than throwing on a malformed
+ * value.
  *
  * ### Scope
  * Values are scoped to the plugin **and the instance the user created**, so two instances of the
@@ -14,8 +14,7 @@ package com.github.ahatem.qtranslate.api.plugin
  *
  * A [serviceKey] may be supplied to scope a value to one service within the plugin. That is what
  * allows a single plugin to use, say, a cheap model for translation and a stronger one for
- * summarizing — previously impossible, because one settings blob covered every service the
- * plugin offered. Reads fall back to the plugin-wide value when no service-specific one exists,
+ * summarizing. Reads fall back to the plugin-wide value when no service-specific one exists,
  * so plugins that do not need this can ignore it entirely.
  */
 public interface SettingsStore {

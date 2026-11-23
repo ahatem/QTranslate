@@ -27,7 +27,7 @@ internal fun shouldAnnounceComparisonFallback(needsFallback: Boolean, alreadyAnn
  * Applies the existing "Remove line breaks from input" cleanup.
  *
  * Single source of truth shared by normal input ([MainIntent.UpdateInputText]) and the
- * Quick Translate translation input (#353). Preserves the exact established semantics:
+ * Quick Translate translation input. Semantics:
  * `\n` becomes a space, `\r` is dropped, one double-space pass, then trim.
  */
 internal fun prepareInputText(text: String, removeLineBreaksEnabled: Boolean): String =

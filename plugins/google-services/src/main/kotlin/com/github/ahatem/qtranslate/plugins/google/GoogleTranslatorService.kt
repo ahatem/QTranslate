@@ -81,8 +81,8 @@ class GoogleTranslatorService(
         /**
          * Both unofficial endpoints are served by one host.
          *
-         * That is deliberate. The hostname the fallback used to live on, `clients5.google.com`, is
-         * blocked by common hosts-file lists and privacy filters, which turned the path that exists
+         * That is deliberate. A separate fallback host such as `clients5.google.com` is
+         * blocked by common hosts-file lists and privacy filters, which would turn the path that exists
          * to survive a throttle into a connection refusal. Nothing here needs a second hostname:
          * `translate.googleapis.com` serves several client variants and the sentence one is not the
          * only one that works.
@@ -323,7 +323,7 @@ class GoogleTranslatorService(
      * The fallback is asked on its own, exactly as it would be with the circuit open, so the request
      * costs one call and no hedge. The primary is still reachable: if the fallback cannot serve the
      * request, the slow primary is asked directly and its answer is the one returned, so an
-     * unreachable fallback (#365) can never fail a request the primary could have served.
+     * unreachable fallback can never fail a request the primary could have served.
      */
     private suspend fun translateWithFallbackFirst(
         text: String,

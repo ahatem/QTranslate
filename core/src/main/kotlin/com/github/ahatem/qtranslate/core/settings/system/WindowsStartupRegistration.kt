@@ -5,10 +5,8 @@ import java.io.File
 /**
  * Windows "launch at system startup" registration.
  *
- * The `launchOnSystemStartup` setting in [com.github.ahatem.qtranslate.core.settings.data.Configuration]
- * used to be write-only: the checkbox persisted the flag but no code ever acted on it, so enabling
- * it on Windows changed nothing. This class is the missing side effect — it keeps the per-user
- * startup entry in sync with the persisted setting.
+ * Keeps the per-user startup entry in sync with the `launchOnSystemStartup` setting in
+ * [com.github.ahatem.qtranslate.core.settings.data.Configuration].
  *
  * ### Mechanism
  * The standard per-user Run key, which needs no elevation and is what installers use for the same
@@ -113,7 +111,7 @@ class WindowsStartupRegistration(
         const val VALUE_NAME = "QTranslate"
 
         /**
-         * Explicit invocation marker appended to the registered startup command (#226).
+         * Explicit invocation marker appended to the registered startup command.
          *
          * The persisted `launchOnSystemStartup` setting alone must never decide whether this
          * process starts hidden: a user with startup enabled may still launch QTranslate
@@ -146,7 +144,7 @@ class WindowsStartupRegistration(
             "${quote(javawPath)} -jar ${quote(jarPath)} $STARTUP_ARGUMENT"
 
         /**
-         * True when this process was invoked from the Windows startup registration (#226).
+         * True when this process was invoked from the Windows startup registration.
          *
          * Deliberately narrow — no CLI framework for one flag, and unknown arguments never
          * affect startup.
@@ -154,7 +152,7 @@ class WindowsStartupRegistration(
         fun isStartupLaunch(args: Array<out String>): Boolean = STARTUP_ARGUMENT in args
 
         /**
-         * Whether the main window must stay hidden at startup (#226).
+         * Whether the main window must stay hidden at startup.
          *
          * Pure so it stays deterministic in tests: hidden only when this invocation came from
          * the startup registration *and* a tray icon can actually restore the window. Starting
