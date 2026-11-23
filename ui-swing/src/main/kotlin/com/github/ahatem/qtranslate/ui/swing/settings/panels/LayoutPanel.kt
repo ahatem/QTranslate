@@ -1,25 +1,68 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.formdev.flatlaf.FlatClientProperties
+import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
-import com.github.ahatem.qtranslate.core.settings.data.CloseButtonBehavior
-import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
-import com.github.ahatem.qtranslate.core.settings.data.MinimizeButtonBehavior
-import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
-import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
+import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.core.settings.data.FeatureHost
+import com.github.ahatem.qtranslate.core.settings.data.LayoutProfile
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
+import com.github.ahatem.qtranslate.core.settings.data.WindowFeature
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowPreset
+import com.github.ahatem.qtranslate.core.settings.data.WindowRegion
+import com.github.ahatem.qtranslate.core.settings.data.cleanProfileName
+import com.github.ahatem.qtranslate.core.settings.data.effectivePaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
+import com.github.ahatem.qtranslate.core.settings.data.isFull
+import com.github.ahatem.qtranslate.core.settings.data.profileMatching
+import com.github.ahatem.qtranslate.core.settings.data.profileNamed
+import com.github.ahatem.qtranslate.core.settings.data.withLayoutProfiles
+import com.github.ahatem.qtranslate.core.settings.data.withProfileRemoved
+import com.github.ahatem.qtranslate.core.settings.data.withProfileRenamed
+import com.github.ahatem.qtranslate.core.settings.data.withWindowLayout
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
-import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
-import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
-import javax.swing.JCheckBox
-import javax.swing.JComboBox
+import com.github.ahatem.qtranslate.ui.swing.main.menus.LayoutProfileSaver
+import com.github.ahatem.qtranslate.ui.swing.main.menus.ProfileManagementPrompts
+import com.github.ahatem.qtranslate.ui.swing.main.menus.RegionMenu
+import com.github.ahatem.qtranslate.ui.swing.main.menus.SecondResultMenu
+import com.github.ahatem.qtranslate.ui.swing.main.menus.SwingProfilePrompts
+import com.github.ahatem.qtranslate.ui.swing.main.menus.profileStrings
+import com.github.ahatem.qtranslate.ui.swing.main.menus.regionMenuStrings
+import com.github.ahatem.qtranslate.ui.swing.main.menus.secondResultMenuStrings
+import com.github.ahatem.qtranslate.ui.swing.shared.layout.LayoutTexts
+import java.awt.BorderLayout
+import java.awt.ComponentOrientation
+import java.awt.FlowLayout
+import java.awt.GridBagConstraints
+import java.awt.GridBagLayout
+import java.awt.GridLayout
+import java.awt.Insets
+import javax.swing.BorderFactory
+import javax.swing.ButtonGroup
+import javax.swing.JButton
+import javax.swing.JCheckBoxMenuItem
+import javax.swing.JComponent
+import javax.swing.JLabel
+import javax.swing.JPanel
+import javax.swing.JPopupMenu
+import javax.swing.JToggleButton
+import javax.swing.SwingUtilities
 
 /**
- * The main window: how it is arranged, what it shows, and what its title-bar buttons do.
+ * The main window, as an outline of itself.
  *
- * Split from the former Window & Layout page, which also held the floating popups. The two
- * were only ever neighbours: chrome is arranged once and left alone, while popup behaviour is
- * tuned repeatedly by anyone the popups annoy. See [PopupsPanel].
+ * Panes are chosen at the top. The outline shows the window as the draft would build it; clicking
+ * a block opens the same menu the window's own row offers, built against the draft, so there is one
+ * way to arrange a region. The starting points are partial recipes: a card writes only the values
+ * it names, so it counts as applied only while applying it would change nothing. Saved layouts keep
+ * whole windows.
+ *
+ * Every write on this page is one whole [WindowLayout] through [withWindowLayout], or the list of
+ * saved layouts through [withLayoutProfiles], dispatched as a draft change.
  */
 class LayoutPanel(
     private val store: SettingsStore,
@@ -27,287 +70,532 @@ class LayoutPanel(
     private val availableTranslatorIds: () -> List<String> = { emptyList() },
     /** Invoked when the user acts on the unavailable-Comparison entry, to send them to fix it. */
     private val onOpenServicesSettings: () -> Unit = {},
-    /**
-     * Whether the window can actually be hidden into a tray. Evaluated when the page is built
-     * and on each render, because the tray icon is installed during frame construction.
-     */
-    private val isTrayAvailable: () -> Boolean = { true },
+    /** The questions asked while saving, renaming and deleting. Defaults to dialogs over this page. */
+    prompts: ProfileManagementPrompts? = null,
 ) : SettingsPanel() {
 
-    private val layouts = LayoutManager.getAvailableLayouts().map {
-        LayoutInfo(it.id, localizationManager.getString("main_window_main_menu.${it.localizeId}"))
+    private val texts = LayoutTexts(localizationManager)
+    private val prompts: ProfileManagementPrompts = prompts ?: SwingProfilePrompts(
+        parent = { SwingUtilities.getWindowAncestor(this) },
+        strings = { localizationManager.profileStrings() },
+    )
+
+    private var comparisonAvailable = true
+    private var shownLayout = WindowLayout.DEFAULT
+    private var shownPanes = PaneLayout.STACKED
+    private var secondResultType = ExtraOutputType.None
+    private var shownProfiles: List<LayoutProfile> = emptyList()
+
+    /** What the last rebuild of the outline, the list of hidden regions and the profiles was for. */
+    private var shownSignature: Any? = null
+
+    private val paneButtons = LinkedHashMap<PaneLayout, JToggleButton>()
+    private val cards = LinkedHashMap<WindowPreset, Card>()
+    private val wrapped = mutableListOf<WrappedText>()
+
+    private val outline = LayoutOutline(
+        label = ::blockName,
+        tooltip = { block -> if (block.isArrangeable) localizationManager.getString("settings_window.layout_outline_block_tip", blockName(block)) else null },
+        onOpen = { block, invoker -> present(popupFor(block), invoker) },
+    )
+    private val hiddenList = stackedColumn()
+
+    /** Shown while Comparison cannot be built: the way to the Services page that fixes it. */
+    private val setupLink = JButton(localizationManager.getString("settings_window.layout_comparison_setup")).apply {
+        name = SETUP_LINK
+        putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_BORDERLESS)
+        toolTipText = localizationManager.getString("settings_window.layout_comparison_unavailable")
+        addActionListener { onOpenServicesSettings() }
+    }
+    private val currentLabel = JLabel()
+    private val profileList = stackedColumn()
+    private val saveButton = JButton(localizationManager.getString("main_window_main_menu.region_save_profile"))
+    private val saveHint = JLabel()
+
+    /** A column whose rows start at the leading edge and fill the width, so it mirrors with the page. */
+    private fun stackedColumn() = JPanel(GridBagLayout()).apply { isOpaque = false }
+
+    /** Adds [row] under the rows already in [column]. */
+    private fun JPanel.addRow(row: JComponent) {
+        add(
+            row,
+            GridBagConstraints().apply {
+                gridx = 0
+                gridy = componentCount
+                weightx = 1.0
+                anchor = GridBagConstraints.LINE_START
+                fill = GridBagConstraints.HORIZONTAL
+            },
+        )
     }
 
-    /** Whether Comparison may be chosen right now; refreshed on every render. */
-    private var comparisonAvailable = true
-
-    private fun comparisonUnavailableHint(): String =
-        localizationManager.getString("settings_window.layout_comparison_unavailable")
-
-    /** The unavailable entry's own display text -- an action, not just a disabled label. */
-    private fun comparisonConfigureLabel(): String =
-        localizationManager.getString("settings_window.layout_comparison_configure")
-
-    /** Why hiding to the tray is not on offer here. */
-    private fun trayUnavailableHint(): String =
-        localizationManager.getString("settings_window.tray_unavailable_hint")
-
-    private lateinit var layoutCombo: JComboBox<LayoutInfo>
-    private lateinit var languageCheck: JCheckBox
-    private lateinit var servicesCheck: JCheckBox
-    private lateinit var selectorStyleCombo: JComboBox<ServiceSelectorStyleInfo>
-    private lateinit var selectorAppearanceCombo: JComboBox<ServiceSelectorAppearanceInfo>
-    private lateinit var statusCheck: JCheckBox
-    private lateinit var closeButtonCombo: JComboBox<CloseButtonBehaviorInfo>
-    private lateinit var minimizeButtonCombo: JComboBox<MinimizeButtonBehaviorInfo>
+    /** Shows a popup next to its block. A seam so a test can take the popup without a screen. */
+    internal var presenter: (JPopupMenu, JComponent) -> Unit = { popup, invoker ->
+        val x = if (invoker.componentOrientation.isLeftToRight) 0 else invoker.width - popup.preferredSize.width
+        popup.show(invoker, x, invoker.height)
+    }
 
     init {
         buildUI()
     }
 
     private fun buildUI() {
-        // ── Layout ───────────────────────────────────────────────────────────
         addSeparator(localizationManager.getString("settings_window.layout_group"))
-
-        layoutCombo = JComboBox<LayoutInfo>(layouts.toTypedArray()).apply {
-            renderer = layoutPresetRenderer()
-            addActionListener {
-                if (!isUpdatingFromState) {
-                    val layout = selectedItem as? LayoutInfo ?: return@addActionListener
-                    if (layout.id == LayoutPresetIds.COMPARISON && !comparisonAvailable) {
-                        // Disabled entries cannot be picked: fall back to the saved choice instead
-                        // of writing an unusable layout. But the click itself is not wasted -- it
-                        // reads as "take me to fix this," so it does.
-                        withoutTrigger {
-                            selectedItem = layouts.find {
-                                it.id == LayoutPresetIds.resolve(store.state.value.workingConfiguration.layoutPresetId)
-                            }
-                        }
-                        onOpenServicesSettings()
-                        return@addActionListener
-                    }
-                    applyDraft(store) { it.copy(layoutPresetId = layout.id) }
-                }
+        addRow(localizationManager.getString("settings_window.layout_row_panes"), panesControl())
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(
+            JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)).apply {
+                isOpaque = false
+                add(setupLink)
             }
-        }
-        addRow(localizationManager.getString("settings_window.layout_preset"), layoutCombo)
-
-        // ── Toolbars & panels ────────────────────────────────────────────────
-        addSeparator(localizationManager.getString("settings_window.toolbars_group"))
-
-        languageCheck = addCheckbox(
-            localizationManager.getString("settings_window.show_language_bar"),
-            false
-        ) { enabled ->
-            applyDraft(store) {
-                it.copy(toolbarVisibility = it.toolbarVisibility.copy(isLanguageBarVisible = enabled))
-            }
-        }
-
-        statusCheck = addCheckbox(
-            localizationManager.getString("settings_window.show_status_bar"),
-            false
-        ) { enabled ->
-            applyDraft(store) {
-                it.copy(toolbarVisibility = it.toolbarVisibility.copy(isStatusBarVisible = enabled))
-            }
-        }
-
-        // ── Service selector ─────────────────────────────────────────────────
-        // Its own sub-section rather than three unrelated-looking rows among the toolbars: the
-        // two combo boxes only mean anything when the selector itself is showing, so they are
-        // nested under it and joined to it by a rail.
-        addSubSection(localizationManager.getString("settings_window.service_selector_sub")) {
-            servicesCheck = addCheckbox(
-                localizationManager.getString("settings_window.show_services_panel"),
-                false
-            ) { enabled ->
-                applyDraft(store) {
-                    it.copy(toolbarVisibility = it.toolbarVisibility.copy(isServicesPanelVisible = enabled))
-                }
-            }
-
-            val selectorStyles = listOf(
-                ServiceSelectorStyleInfo(
-                    ServiceSelectorStyle.CLASSIC,
-                    localizationManager.getString("settings_window.service_selector_classic")
-                ),
-                ServiceSelectorStyleInfo(
-                    ServiceSelectorStyle.ENHANCED,
-                    localizationManager.getString("settings_window.service_selector_enhanced")
-                )
-            )
-            selectorStyleCombo = JComboBox(selectorStyles.toTypedArray()).apply {
-                renderer = DisplayValueRenderer<ServiceSelectorStyleInfo>(text = { it?.displayName.orEmpty() })
-                addActionListener {
-                    if (!isUpdatingFromState) {
-                        (selectedItem as? ServiceSelectorStyleInfo)?.let { selected ->
-                            applyDraft(store) { it.copy(serviceSelectorStyle = selected.value) }
-                        }
-                    }
-                }
-            }
-            addRow(localizationManager.getString("settings_window.service_selector_style"), selectorStyleCombo)
-
-            val appearances = listOf(
-                ServiceSelectorAppearanceInfo(
-                    ServiceSelectorAppearance.ICONS_ONLY,
-                    localizationManager.getString("settings_window.service_selector_icons")
-                ),
-                ServiceSelectorAppearanceInfo(
-                    ServiceSelectorAppearance.ICONS_AND_TEXT,
-                    localizationManager.getString("settings_window.service_selector_icons_text")
-                ),
-                ServiceSelectorAppearanceInfo(
-                    ServiceSelectorAppearance.TEXT_ONLY,
-                    localizationManager.getString("settings_window.service_selector_text")
-                )
-            )
-            selectorAppearanceCombo = JComboBox(appearances.toTypedArray()).apply {
-                renderer = DisplayValueRenderer<ServiceSelectorAppearanceInfo>(text = { it?.displayName.orEmpty() })
-                addActionListener {
-                    if (!isUpdatingFromState) {
-                        (selectedItem as? ServiceSelectorAppearanceInfo)?.let { selected ->
-                            applyDraft(store) { it.copy(serviceSelectorAppearance = selected.value) }
-                        }
-                    }
-                }
-            }
-            addRow(
-                localizationManager.getString("settings_window.service_selector_appearance"),
-                selectorAppearanceCombo
-            )
-        }
-
-        // ── Close button ─────────────────────────────────────────────────────
-        addSeparator(localizationManager.getString("settings_window.close_behavior_group"))
-
-        val behaviorOptions = listOf(
-            CloseButtonBehaviorInfo(
-                CloseButtonBehavior.ASK,
-                localizationManager.getString("settings_window.close_behavior_ask")
-            ),
-            CloseButtonBehaviorInfo(
-                CloseButtonBehavior.MINIMIZE_TO_TRAY,
-                localizationManager.getString("settings_window.close_behavior_minimize")
-            ),
-            CloseButtonBehaviorInfo(
-                CloseButtonBehavior.EXIT,
-                localizationManager.getString("settings_window.close_behavior_exit")
-            )
         )
 
-        closeButtonCombo = JComboBox(behaviorOptions.toTypedArray()).apply {
-            renderer = DisplayValueRenderer<CloseButtonBehaviorInfo>(text = { it?.displayName.orEmpty() })
-            addActionListener {
-                if (!isUpdatingFromState) {
-                    val selected = selectedItem as? CloseButtonBehaviorInfo ?: return@addActionListener
-                    applyDraft(store) { it.copy(closeButtonBehavior = selected.behavior) }
-                }
-            }
-        }
-        addRow(localizationManager.getString("settings_window.close_button"), closeButtonCombo)
-        addHint(localizationManager.getString("settings_window.close_behavior_hint"))
+        addSeparator(localizationManager.getString("settings_window.layout_outline_group"))
+        addHint(localizationManager.getString("settings_window.layout_outline_hint"))
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(outline)
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(hiddenList)
 
-        val minimizeOptions = listOf(
-            MinimizeButtonBehaviorInfo(
-                MinimizeButtonBehavior.HIDE_TO_TRAY,
-                localizationManager.getString("settings_window.minimize_behavior_hide")
-            ),
-            MinimizeButtonBehaviorInfo(
-                MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR,
-                localizationManager.getString("settings_window.minimize_behavior_taskbar")
-            )
-        )
-        val trayAvailable = isTrayAvailable()
-        val trayUnavailable = !trayAvailable
-        minimizeButtonCombo = JComboBox(minimizeOptions.toTypedArray()).apply {
-            renderer = DisplayValueRenderer<MinimizeButtonBehaviorInfo>(
-                text = { it?.displayName.orEmpty() },
-                // Hiding needs somewhere to hide into. Without a tray icon the window would be
-                // gone from every visible surface, so the choice is shown as unavailable and the
-                // runtime falls back to the taskbar if it is already stored.
-                isDisabled = { trayUnavailable && it?.behavior == MinimizeButtonBehavior.HIDE_TO_TRAY },
-                tooltip = {
-                    if (trayUnavailable && it?.behavior == MinimizeButtonBehavior.HIDE_TO_TRAY)
-                        trayUnavailableHint()
-                    else null
-                },
-            )
-            addActionListener {
-                if (isUpdatingFromState) return@addActionListener
-                val selected = selectedItem as? MinimizeButtonBehaviorInfo ?: return@addActionListener
-                if (trayUnavailable && selected.behavior == MinimizeButtonBehavior.HIDE_TO_TRAY) {
-                    // A preference this system cannot honour: keep the saved one rather than
-                    // writing a value the window would have to ignore at runtime.
-                    withoutTrigger {
-                        selectedItem = minimizeOptions.find {
-                            it.behavior == store.state.value.workingConfiguration.minimizeButtonBehavior
-                        }
-                    }
-                    return@addActionListener
-                }
-                applyDraft(store) { it.copy(minimizeButtonBehavior = selected.behavior) }
+        addSeparator(localizationManager.getString("settings_window.layout_starting_points_group"))
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(cardGrid())
+        currentLabel.font = SettingsVisuals.hintFont(currentLabel.font)
+        currentLabel.foreground = SettingsVisuals.secondaryText()
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(currentLabel)
+
+        addSeparator(localizationManager.getString("main_window_main_menu.layout_saved_layouts"))
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(profileList)
+        saveButton.addActionListener { if (!isUpdatingFromState) saveCurrent() }
+        // Spanning the row keeps the button from setting the width of the page's label column.
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(
+            JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)).apply {
+                isOpaque = false
+                add(saveButton)
             }
-        }
-        addRow(localizationManager.getString("settings_window.minimize_button"), minimizeButtonCombo)
-        addHint(localizationManager.getString("settings_window.minimize_behavior_hint"))
-        if (trayUnavailable) addHint(trayUnavailableHint())
+        )
+        saveHint.font = SettingsVisuals.hintFont(saveHint.font)
+        saveHint.foreground = SettingsVisuals.secondaryText()
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(saveHint)
+        registerSearchEntry(saveButton.text, saveButton)
 
         finishLayout()
     }
 
-    /**
-     * Shows an unavailable Comparison dimmed, but its own label says what to do about it rather
-     * than just that it can't be picked -- "Comparison" alone, greyed out, teaches nothing.
-     */
-    private fun layoutPresetRenderer() = DisplayValueRenderer<LayoutInfo>(
-        text = { if (isUnavailableComparison(it)) comparisonConfigureLabel() else it?.displayName.orEmpty() },
-        isDisabled = ::isUnavailableComparison,
-        tooltip = { if (isUnavailableComparison(it)) comparisonUnavailableHint() else null }
-    )
+    // ---- Panes ----
 
-    private fun isUnavailableComparison(layout: LayoutInfo?) =
-        layout?.id == LayoutPresetIds.COMPARISON && !comparisonAvailable
-
-    override fun render(state: SettingsState) {
-        val c = state.workingConfiguration
-        comparisonAvailable = c.isComparisonEligible(availableTranslatorIds())
-        withoutTrigger {
-            layoutCombo.selectedItem = layouts.find { it.id == LayoutPresetIds.resolve(c.layoutPresetId) }
-            layoutCombo.toolTipText =
-                if (comparisonAvailable) null else comparisonUnavailableHint()
-            languageCheck.isSelected = c.toolbarVisibility.isLanguageBarVisible
-            servicesCheck.isSelected = c.toolbarVisibility.isServicesPanelVisible
-            statusCheck.isSelected = c.toolbarVisibility.isStatusBarVisible
-
-            selectorStyleCombo.selectedItem = (0 until selectorStyleCombo.itemCount)
-                .map(selectorStyleCombo::getItemAt)
-                .find { it.value == c.serviceSelectorStyle }
-            selectorAppearanceCombo.selectedItem = (0 until selectorAppearanceCombo.itemCount)
-                .map(selectorAppearanceCombo::getItemAt)
-                .find { it.value == c.serviceSelectorAppearance }
-
-            // The selector's own options are meaningless while it is hidden, and the classic
-            // appearance only exists for the classic selector: under the Enhanced selector it was
-            // a live control that changed nothing at all.
-            val selectorShown = c.toolbarVisibility.isServicesPanelVisible
-            val classicSelector = c.serviceSelectorStyle == ServiceSelectorStyle.CLASSIC
-            selectorStyleCombo.isEnabled = selectorShown
-            selectorAppearanceCombo.isEnabled = selectorShown && classicSelector
-
-            closeButtonCombo.selectedItem = (0 until closeButtonCombo.itemCount)
-                .map { closeButtonCombo.getItemAt(it) }
-                .find { it.behavior == c.closeButtonBehavior }
-            minimizeButtonCombo.selectedItem = (0 until minimizeButtonCombo.itemCount)
-                .map { minimizeButtonCombo.getItemAt(it) }
-                .find { it.behavior == c.minimizeButtonBehavior }
+    private fun panesControl(): JPanel {
+        val group = ButtonGroup()
+        return JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(6), 0)).apply {
+            isOpaque = false
+            PaneLayout.entries.forEach { pane ->
+                val button = JToggleButton(paneTitle(pane)).apply {
+                    name = "panes:$pane"
+                    putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_ROUND_RECT)
+                    addActionListener { if (!isUpdatingFromState) choosePanes(pane) }
+                }
+                group.add(button)
+                paneButtons[pane] = button
+                add(button)
+            }
         }
     }
 
-    private data class LayoutInfo(val id: String, val displayName: String)
-    private data class ServiceSelectorStyleInfo(val value: ServiceSelectorStyle, val displayName: String)
-    private data class ServiceSelectorAppearanceInfo(val value: ServiceSelectorAppearance, val displayName: String)
-    private data class CloseButtonBehaviorInfo(val behavior: CloseButtonBehavior, val displayName: String)
-    private data class MinimizeButtonBehaviorInfo(val behavior: MinimizeButtonBehavior, val displayName: String)
+    private fun paneTitle(pane: PaneLayout): String =
+        texts.pane(pane)
+
+    private fun choosePanes(pane: PaneLayout) {
+        if (pane == PaneLayout.COMPARISON && !comparisonAvailable) {
+            // Not a layout the window can build: send the user to fix it and keep the draft as it is.
+            syncPanes()
+            onOpenServicesSettings()
+        } else {
+            writeLayout { it.copy(panes = pane) }
+            syncPanes()
+        }
+    }
+
+    /** Selects what the window builds, which is Stacked while a requested Comparison cannot be drawn. */
+    private fun syncPanes() = withoutTrigger {
+        setupLink.isVisible = !comparisonAvailable
+        paneButtons.forEach { (pane, button) ->
+            button.text = paneTitle(pane)
+            button.isSelected = pane == shownPanes
+            // Only an unavailable Comparison has a reason to give; an available one has nothing to explain.
+            button.toolTipText =
+                if (pane == PaneLayout.COMPARISON && !comparisonAvailable) {
+                    localizationManager.getString("settings_window.layout_comparison_unavailable")
+                } else {
+                    null
+                }
+        }
+    }
+
+    // ---- Outline and the regions that are not in it ----
+
+    private fun blockName(block: OutlineBlock): String = when (block) {
+        OutlineBlock.HISTORY -> texts.region(WindowRegion.HISTORY)
+        OutlineBlock.LANGUAGES -> texts.region(WindowRegion.LANGUAGES)
+        OutlineBlock.SERVICES -> texts.region(WindowRegion.SERVICES)
+        OutlineBlock.INPUT -> localizationManager.getString("settings_window.layout_block_input")
+        OutlineBlock.RESULT -> localizationManager.getString("settings_window.layout_block_result")
+        OutlineBlock.BOARD -> localizationManager.getString("settings_window.layout_block_board")
+        OutlineBlock.SECOND_RESULT -> texts.secondResultTitle()
+        OutlineBlock.STATUS_BAR -> localizationManager.getString("settings_window.layout_block_status")
+    }
+
+    private fun currentLayout(): WindowLayout = store.state.value.workingConfiguration.windowLayout
+
+    /** The menu a click on [block] opens, built against the draft as it is now. */
+    internal fun popupFor(block: OutlineBlock): JPopupMenu {
+        val layout = currentLayout()
+        val orientation = componentOrientation
+        val region = block.region
+        return when {
+            region != null -> RegionMenu(
+                region = region,
+                layout = layout,
+                strings = localizationManager.regionMenuStrings(),
+                onChange = ::writeWhole,
+                effectivePanes = shownPanes,
+                onSaveProfile = ::saveCurrent,
+            ).popupMenu(orientation)
+
+            block == OutlineBlock.SECOND_RESULT -> SecondResultMenu(
+                layout = layout,
+                effectivePanes = shownPanes,
+                extraOutputType = secondResultType,
+                strings = localizationManager.secondResultMenuStrings(),
+                onChange = ::writeWhole,
+            ).popupMenu(orientation)
+
+            else -> JPopupMenu().apply {
+                add(JCheckBoxMenuItem(localizationManager.getString("settings_window.layout_row_status"), layout.showStatusBar).apply {
+                    name = STATUS_BAR_ITEM
+                    addActionListener { writeWhole(layout.copy(showStatusBar = isSelected)) }
+                })
+                if (orientation != ComponentOrientation.UNKNOWN) applyComponentOrientation(orientation)
+            }
+        }
+    }
+
+    private fun present(popup: JPopupMenu, invoker: JComponent) = presenter(popup, invoker)
+
+    /** A region the window does not show, and where its commands are instead. */
+    private data class NotShown(val block: OutlineBlock, val explanation: String)
+
+    private fun notShown(layout: WindowLayout, panes: PaneLayout): List<NotShown> {
+        val hosts = layout.requiredHosts(panes)
+        fun say(key: String) = localizationManager.getString(key)
+        return buildList {
+            if (layout.history == RegionSlot.HIDDEN) {
+                add(NotShown(OutlineBlock.HISTORY, say("settings_window.layout_hidden_history")))
+            }
+            when (hosts.getValue(WindowFeature.SERVICE_SWITCH)) {
+                FeatureHost.ComparisonHeader -> add(NotShown(OutlineBlock.SERVICES, say("settings_window.layout_hidden_services_board")))
+                FeatureHost.InputStrip -> add(NotShown(OutlineBlock.SERVICES, say("settings_window.layout_hidden_services")))
+                else -> Unit
+            }
+            if (!layout.showStatusBar) {
+                val key = if (hosts.getValue(WindowFeature.NOTIFICATIONS) == FeatureHost.HistoryRowEnd) {
+                    "settings_window.layout_hidden_status_history"
+                } else {
+                    "settings_window.layout_hidden_status_input"
+                }
+                add(NotShown(OutlineBlock.STATUS_BAR, say(key)))
+            }
+        }
+    }
+
+    private fun rebuildOutline(layout: WindowLayout) {
+        outline.show(outlinePlan(layout, shownPanes, secondResultType))
+
+        hiddenList.removeAll()
+        val missing = notShown(layout, shownPanes)
+        if (missing.isNotEmpty()) {
+            hiddenList.addRow(JLabel(localizationManager.getString("settings_window.layout_hidden_title")).apply {
+                font = SettingsVisuals.subSectionTitleFont(font)
+                border = BorderFactory.createEmptyBorder(UIScale.scale(8), 0, UIScale.scale(2), 0)
+            })
+            missing.forEach { entry ->
+                hiddenList.addRow(JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(6), 0)).apply {
+                    isOpaque = false
+                    name = "hidden:${entry.block}"
+                    add(JButton(blockName(entry.block)).apply {
+                        putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_BORDERLESS)
+                        toolTipText = localizationManager.getString("settings_window.layout_outline_block_tip", blockName(entry.block))
+                        addActionListener { present(popupFor(entry.block), this) }
+                    })
+                    add(JLabel(entry.explanation).apply { foreground = SettingsVisuals.secondaryText() })
+                })
+            }
+        }
+        if (secondResultType == ExtraOutputType.None) {
+            hiddenList.addRow(JLabel(texts.reason(com.github.ahatem.qtranslate.core.settings.data.LayoutDisabledReason.SECOND_RESULT_NEEDS_TYPE)).apply {
+                font = SettingsVisuals.hintFont(font)
+                foreground = SettingsVisuals.secondaryText()
+                border = BorderFactory.createEmptyBorder(UIScale.scale(6), 0, 0, 0)
+            })
+        }
+        hiddenList.revalidate()
+        hiddenList.repaint()
+        applyComponentOrientation(componentOrientation)
+    }
+
+    // ---- Starting points ----
+
+    /** A starting point: its name, and what it changes. Selected only while applying it changes nothing. */
+    private inner class Card(val preset: WindowPreset) : JToggleButton() {
+        private val title = JLabel()
+        private val badge = JLabel()
+        private val hint = JLabel()
+        private val hintText = WrappedText(hint, HINT_MEASURE)
+
+        init {
+            name = "card:$preset"
+            layout = BorderLayout(0, UIScale.scale(4))
+            // A bordered card whose selected state is a tint, so the labels inside stay readable.
+            putClientProperty(
+                FlatClientProperties.STYLE,
+                "arc:12; selectedBackground:\$ToggleButton.toolbar.selectedBackground; selectedForeground:\$Label.foreground",
+            )
+            margin = Insets(UIScale.scale(8), UIScale.scale(10), UIScale.scale(8), UIScale.scale(10))
+            title.font = title.font.deriveFont(java.awt.Font.BOLD)
+            badge.foreground = SettingsVisuals.accentMarker()
+            hint.font = SettingsVisuals.hintFont(hint.font)
+            hint.foreground = SettingsVisuals.secondaryText()
+            hint.verticalAlignment = JLabel.TOP
+            add(JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
+                isOpaque = false
+                add(title, BorderLayout.CENTER)
+                add(badge, BorderLayout.LINE_END)
+            }, BorderLayout.NORTH)
+            add(hint, BorderLayout.CENTER)
+            wrapped += hintText
+            addActionListener { if (!isUpdatingFromState) choose() }
+        }
+
+        fun titleText() = localizationManager.getString(
+            when (preset) {
+                WindowPreset.MODERN_CLASSIC -> "settings_window.layout_card_modern_classic"
+                WindowPreset.CLASSIC -> "settings_window.layout_card_classic"
+                WindowPreset.COMPACT -> "settings_window.layout_card_compact"
+                WindowPreset.FOCUS -> "settings_window.layout_card_focus"
+            }
+        )
+
+        fun changesText() = localizationManager.getString(
+            when (preset) {
+                WindowPreset.MODERN_CLASSIC -> "settings_window.layout_card_modern_classic_changes"
+                WindowPreset.CLASSIC -> "settings_window.layout_card_classic_changes"
+                WindowPreset.COMPACT -> "settings_window.layout_card_compact_changes"
+                WindowPreset.FOCUS -> "settings_window.layout_card_focus_changes"
+            }
+        )
+
+        /** Whether applying this card to [layout] would change nothing. */
+        fun isApplied(layout: WindowLayout) = preset.applyTo(layout) == layout
+
+        fun refresh(layout: WindowLayout) {
+            title.text = titleText()
+            hintText.text = changesText()
+            val applied = appliedCard(layout) == preset
+            isSelected = applied
+            badge.text = if (applied) localizationManager.getString("settings_window.layout_card_current") else ""
+            toolTipText = changesText()
+            getAccessibleContext().accessibleName = title.text
+        }
+
+        private fun choose() {
+            writeLayout { preset.applyTo(it) }
+            // A card that was already applied would otherwise stay deselected by the click itself.
+            refresh(currentLayout())
+        }
+    }
+
+    private fun cardGrid(): JPanel {
+        val grid = JPanel(GridLayout(2, 2, UIScale.scale(8), UIScale.scale(8))).apply { isOpaque = false }
+        WindowPreset.entries.forEach { preset ->
+            val card = Card(preset)
+            cards[preset] = card
+            grid.add(card)
+            registerSearchEntry(card.titleText(), card, hint = card.changesText())
+        }
+        return JPanel(BorderLayout()).apply {
+            isOpaque = false
+            add(grid, BorderLayout.CENTER)
+        }
+    }
+
+    /**
+     * The one starting point to mark: the most specific of those already in effect. Focus names more
+     * values than Compact, and the two whole recipes name them all, so they win in that order.
+     */
+    private fun appliedCard(layout: WindowLayout): WindowPreset? =
+        SPECIFICITY.firstOrNull { cards.getValue(it).isApplied(layout) }
+
+    private fun currentName(layout: WindowLayout, profiles: List<LayoutProfile>): String {
+        val card = appliedCard(layout)?.let { cards.getValue(it).titleText() }
+        return card
+            ?: profiles.profileMatching(layout)?.name
+            ?: localizationManager.getString("settings_window.layout_current_custom")
+    }
+
+    // ---- Saved layouts ----
+
+    private fun rebuildProfiles(layout: WindowLayout, profiles: List<LayoutProfile>) {
+        profileList.removeAll()
+        val current = profiles.profileMatching(layout)
+        if (profiles.isEmpty()) {
+            profileList.addRow(JLabel(localizationManager.getString("settings_window.layout_profiles_empty")).apply {
+                foreground = SettingsVisuals.secondaryText()
+            })
+        }
+        profiles.forEach { profile ->
+            val isCurrent = profile === current
+            profileList.addRow(JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
+                isOpaque = false
+                name = "profile:${profile.name}"
+                border = BorderFactory.createEmptyBorder(UIScale.scale(2), 0, UIScale.scale(2), 0)
+                add(JPanel(FlowLayout(FlowLayout.LEADING, UIScale.scale(8), 0)).apply {
+                    isOpaque = false
+                    add(JLabel(profile.name))
+                    if (isCurrent) {
+                        add(JLabel(localizationManager.getString("settings_window.layout_profile_current")).apply {
+                            name = PROFILE_CURRENT
+                            foreground = SettingsVisuals.accentMarker()
+                        })
+                    }
+                }, BorderLayout.CENTER)
+                add(JPanel(FlowLayout(FlowLayout.TRAILING, UIScale.scale(4), 0)).apply {
+                    isOpaque = false
+                    add(JButton(localizationManager.getString("common.apply")).apply {
+                        name = APPLY
+                        isEnabled = !isCurrent
+                        toolTipText = if (isCurrent) localizationManager.getString("settings_window.layout_profile_in_use") else null
+                        addActionListener { applyProfile(profile.name) }
+                    })
+                    add(JButton(localizationManager.getString("common.rename")).apply {
+                        name = RENAME
+                        addActionListener { renameProfile(profile.name) }
+                    })
+                    add(JButton(localizationManager.getString("common.delete")).apply {
+                        name = DELETE
+                        addActionListener { deleteProfile(profile.name) }
+                    })
+                }, BorderLayout.LINE_END)
+            })
+        }
+        val full = profiles.isFull
+        saveButton.isEnabled = !full
+        val reason = if (full) localizationManager.getString("settings_window.layout_profiles_full", LayoutProfile.MAX_PROFILES) else ""
+        saveButton.toolTipText = reason.ifEmpty { null }
+        saveHint.text = reason
+        saveHint.isVisible = full
+        profileList.revalidate()
+        profileList.repaint()
+        applyComponentOrientation(componentOrientation)
+    }
+
+    private fun profiles(): List<LayoutProfile> = store.state.value.workingConfiguration.layoutProfiles
+
+    /** Saves the draft window as a named layout, asking for the name like the window's own menu does. */
+    internal fun saveCurrent() {
+        LayoutProfileSaver(
+            prompts = prompts,
+            profiles = ::profiles,
+            layout = ::currentLayout,
+            save = ::writeProfiles,
+        ).saveCurrent()
+    }
+
+    internal fun applyProfile(name: String) {
+        profiles().profileNamed(name)?.let { writeWhole(it.layout) }
+    }
+
+    internal fun renameProfile(name: String) {
+        val existing = profiles().profileNamed(name) ?: return
+        val typed = cleanProfileName(prompts.askRename(existing.name)) ?: return
+        if (typed == existing.name) return
+        val renamed = profiles().withProfileRenamed(existing.name, typed)
+        if (renamed == null) prompts.showNameTaken(typed) else writeProfiles(renamed)
+    }
+
+    internal fun deleteProfile(name: String) {
+        val existing = profiles().profileNamed(name) ?: return
+        if (prompts.confirmDelete(existing.name)) writeProfiles(profiles().withProfileRemoved(existing.name))
+    }
+
+    // ---- Writes: the only two places this page changes the configuration ----
+
+    private fun writeWhole(layout: WindowLayout) {
+        applyDraft(store) { configuration: Configuration -> configuration.withWindowLayout(layout) }
+    }
+
+    private fun writeLayout(transform: (WindowLayout) -> WindowLayout) {
+        applyDraft(store) { configuration -> configuration.withWindowLayout(transform(configuration.windowLayout)) }
+    }
+
+    private fun writeProfiles(profiles: List<LayoutProfile>) {
+        applyDraft(store) { configuration -> configuration.withLayoutProfiles(profiles) }
+    }
+
+    // ---- Rendering ----
+
+    override fun render(state: SettingsState) {
+        val configuration = state.workingConfiguration
+        val layout = configuration.windowLayout
+        val translatorIds = availableTranslatorIds()
+        comparisonAvailable = configuration.isComparisonEligible(translatorIds)
+
+        shownLayout = layout
+        shownPanes = configuration.effectivePaneLayout(translatorIds)
+        secondResultType = configuration.extraOutputType
+        shownProfiles = configuration.layoutProfiles
+
+        withoutTrigger {
+            syncPanes()
+            cards.values.forEach { it.refresh(layout) }
+            currentLabel.text = localizationManager.getString(
+                "settings_window.layout_current_format",
+                currentName(layout, shownProfiles),
+            )
+            val signature = listOf(layout, shownPanes, secondResultType, shownProfiles)
+            if (signature != shownSignature) {
+                shownSignature = signature
+                rebuildOutline(layout)
+                rebuildProfiles(layout, shownProfiles)
+            }
+        }
+    }
+
+    /** A label whose text is broken into lines at a fixed measure, in the page's own direction. */
+    private inner class WrappedText(private val label: JLabel, private val measure: Int) {
+        var text: String = ""
+            set(value) {
+                field = value
+                rewrap()
+            }
+
+        fun rewrap() {
+            val lines = wrapToMeasure(text, label.font, UIScale.scale(measure))
+            label.text = textHtml(lines)
+        }
+    }
+
+    override fun applyComponentOrientation(orientation: ComponentOrientation) {
+        super.applyComponentOrientation(orientation)
+        wrapped.forEach { it.rewrap() }
+    }
+
+    internal companion object {
+        /** The width, before scaling, that a card's explanation is wrapped to. */
+        const val HINT_MEASURE = 250
+
+        const val SETUP_LINK = "comparison_setup"
+        private val SPECIFICITY = listOf(
+            WindowPreset.MODERN_CLASSIC, WindowPreset.CLASSIC, WindowPreset.FOCUS, WindowPreset.COMPACT,
+        )
+        const val STATUS_BAR_ITEM = "status_bar"
+        const val PROFILE_CURRENT = "profile_current"
+        const val APPLY = "profile_apply"
+        const val RENAME = "profile_rename"
+        const val DELETE = "profile_delete"
+    }
 }

@@ -1,5 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.main.output
 
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
+import com.github.ahatem.qtranslate.ui.swing.main.layout.SlotLayout
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
@@ -106,15 +109,12 @@ class OutputSurfaceTest {
             outputPanel = leaves[3], compareBoard = leaves[4], extraOutputPanel = leaves[5],
             translatorSelector = leaves[6], statusBar = leaves[7]
         )
-        listOf(
-            com.github.ahatem.qtranslate.ui.swing.main.layout.ClassicLayout,
-            com.github.ahatem.qtranslate.ui.swing.main.layout.SideBySideLayout,
-        ).forEach { layout ->
-            onEdt { layout.arrange(registry, isRtl = false) }
-            assertTrue(leaves[3].parent !is JViewport, "${layout.id}: Output must not sit inside a viewport")
+        listOf(PaneLayout.STACKED, PaneLayout.SIDE_BY_SIDE).forEach { panes ->
+            onEdt { SlotLayout.arrange(registry, WindowLayout(panes = panes)) }
+            assertTrue(leaves[3].parent !is JViewport, "$panes: Output must not sit inside a viewport")
             assertTrue(
                 ancestors(leaves[3]).none { it is JScrollPane },
-                "${layout.id}: Output must not have a layout-owned scroll pane above it"
+                "$panes: Output must not have a layout-owned scroll pane above it"
             )
         }
     }
@@ -193,6 +193,34 @@ class OutputSurfaceTest {
         val panel = outputPanel()
         onEdt { panel.applyComponentOrientation(java.awt.ComponentOrientation.RIGHT_TO_LEFT) }
         assertFalse(onEdt { panel.textPaneComponent.componentOrientation.isLeftToRight })
+    }
+
+    @Test
+    fun `a new translation starts at the top of the output view`() {
+        val panel = outputPanel()
+        panel.show(longEnglish, 320)
+        val scroll = scrollPanes(panel).single()
+        val textPane = panel.textPaneComponent as javax.swing.JTextPane
+        // Simulate the reader having scrolled down, as setText's end-of-text caret caused.
+        onEdt {
+            textPane.caretPosition = textPane.document.length
+            scroll.verticalScrollBar.value = scroll.verticalScrollBar.maximum
+        }
+        assertTrue(onEdt { scroll.verticalScrollBar.value } > 0, "the view was scrolled down")
+
+        onEdt {
+            panel.render(
+                OutputTextState(
+                    text = "a brand new", fontConfig = textFont, fallbackFontConfig = textFont,
+                    isLoading = false, actionsState = TextActionsState(emptyList())
+                )
+            )
+        }
+        // The reset is queued behind the deferred font pass; a fresh EDT round drains both.
+        onEdt { }
+
+        assertEquals(0, onEdt { textPane.caretPosition })
+        assertEquals(0, onEdt { scroll.verticalScrollBar.value })
     }
 
     @Test

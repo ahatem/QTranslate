@@ -1,6 +1,9 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Container
@@ -33,7 +36,8 @@ class LayoutSystemTest {
             )
     }
 
-    private val strategies = listOf(ClassicLayout, SideBySideLayout, ComparisonLayout)
+    /** One window per pane arrangement, every other value at its default. */
+    private val layouts = PaneLayout.entries.map { WindowLayout(panes = it) }
 
     private fun flush() {
         repeat(3) { SwingUtilities.invokeAndWait { } }
@@ -51,7 +55,7 @@ class LayoutSystemTest {
     fun `the available layouts are exactly Classic, Side By Side and Comparison`() {
         assertEquals(
             listOf(LayoutType.CLASSIC, LayoutType.SIDE_BY_SIDE, LayoutType.COMPARISON),
-            LayoutManager.getAvailableLayouts().map { it.type }
+            LayoutManager.getAvailableLayouts()
         )
         assertEquals(
             listOf("classic", "side_by_side", "comparison"),
@@ -68,16 +72,15 @@ class LayoutSystemTest {
         assertFalse(LayoutType.entries.any { it.name == "COMPACT" })
         assertFalse(LayoutManager.getAvailableLayouts().any { it.id == LayoutPresetIds.LEGACY_COMPACT })
 
-        val manager = LayoutManager(Leaves().registry, JPanel(BorderLayout()))
-        assertSame(ClassicLayout, manager.getLayoutById(LayoutPresetIds.LEGACY_COMPACT))
-        assertSame(ClassicLayout, manager.getLayoutById("from_a_newer_version"))
+        assertSame(LayoutType.CLASSIC, LayoutType.fromId(LayoutPresetIds.LEGACY_COMPACT))
+        assertSame(LayoutType.CLASSIC, LayoutType.fromId("from_a_newer_version"))
     }
 
     @Test
     fun `every layout arranges its panes in split panes`() {
-        strategies.forEach { strategy ->
-            val refs = strategy.arrange(Leaves().registry, isRtl = false).componentRefs
-            assertIs<LayoutComponentRefs.WithSplitPanes>(refs, "${strategy.id} must be built from split panes")
+        layouts.forEach { layout ->
+            val refs = SlotLayout.arrange(Leaves().registry, layout).componentRefs
+            assertIs<LayoutComponentRefs.WithSplitPanes>(refs, "${layout.panes} must be built from split panes")
         }
     }
 
@@ -88,13 +91,13 @@ class LayoutSystemTest {
         val manager = LayoutManager(leaves.registry, container)
         val original = leaves.all.toList()
 
-        strategies.flatMap { from -> strategies.map { to -> from to to } }.forEach { (from, to) ->
-            SwingUtilities.invokeAndWait { manager.switchLayout(from.id) }
+        layouts.flatMap { from -> layouts.map { to -> from to to } }.forEach { (from, to) ->
+            SwingUtilities.invokeAndWait { manager.switchLayout(from) }
             flush()
-            SwingUtilities.invokeAndWait { manager.switchLayout(to.id) }
+            SwingUtilities.invokeAndWait { manager.switchLayout(to) }
             flush()
             listOf(leaves.all[0], leaves.input, leaves.all[2], leaves.extra, leaves.all[7]).forEach { leaf ->
-                assertEquals(1, count(container, leaf), "${from.id} to ${to.id} lost or duplicated a pane")
+                assertEquals(1, count(container, leaf), "${from.panes} to ${to.panes} lost or duplicated a pane")
             }
         }
         assertEquals(original, leaves.all, "the canonical panes are never replaced")
@@ -102,28 +105,28 @@ class LayoutSystemTest {
 
     @Test
     fun `Extra Output shows and hides cleanly in every layout`() {
-        strategies.forEach { strategy ->
+        layouts.forEach { layout ->
             val leaves = Leaves()
-            val refs = strategy.arrange(leaves.registry, isRtl = false).componentRefs
+            val refs = SlotLayout.arrange(leaves.registry, layout).componentRefs
                 as LayoutComponentRefs.WithSplitPanes
 
             SwingUtilities.invokeAndWait { refs.updateExtraOutputVisibility(true, leaves.extra) }
             flush()
-            assertTrue(leaves.extra.isVisible, "${strategy.id}: Extra Output shows")
-            assertTrue(refs.extraSplit.dividerSize > 0, "${strategy.id}: the divider comes back with it")
+            assertTrue(leaves.extra.isVisible, "${layout.panes}: Extra Output shows")
+            assertTrue(refs.extraSplit.dividerSize > 0, "${layout.panes}: the divider comes back with it")
 
             SwingUtilities.invokeAndWait { refs.updateExtraOutputVisibility(false, leaves.extra) }
             flush()
-            assertFalse(leaves.extra.isVisible, "${strategy.id}: Extra Output hides")
-            assertEquals(0, refs.extraSplit.dividerSize, "${strategy.id}: no divider region is left behind")
+            assertFalse(leaves.extra.isVisible, "${layout.panes}: Extra Output hides")
+            assertEquals(0, refs.extraSplit.dividerSize, "${layout.panes}: no divider region is left behind")
         }
     }
 
     @Test
     fun `a hidden Extra Output leaves no empty band below the results in any layout`() {
-        strategies.forEach { strategy ->
+        layouts.forEach { layout ->
             val leaves = Leaves()
-            val arranged = strategy.arrange(leaves.registry, isRtl = false)
+            val arranged = SlotLayout.arrange(leaves.registry, layout)
             val refs = arranged.componentRefs as LayoutComponentRefs.WithSplitPanes
 
             SwingUtilities.invokeAndWait { refs.updateExtraOutputVisibility(false, leaves.extra) }
@@ -133,8 +136,8 @@ class LayoutSystemTest {
                 layoutTree(refs.extraSplit)
             }
             assertEquals(
-                refs.extraSplit.height, refs.mainSplit.height,
-                "${strategy.id}: the workspace takes the whole height when there is no Extra Output"
+                refs.extraSplit.height, refs.extraSplit.topComponent.height,
+                "${layout.panes}: the workspace takes the whole height when there is no Extra Output"
             )
         }
     }
@@ -146,20 +149,23 @@ class LayoutSystemTest {
 
     @Test
     fun `the selector row keeps its preferred height when the bottom bar has spare space`() {
-        val selector = JPanel().apply { preferredSize = Dimension(300, 24) }
-        val status = JPanel().apply { preferredSize = Dimension(300, 20) }
-        val bottomBar = LayoutBuilders.createBottomBar(selector, status)
+        val leaves = Leaves()
+        val selector = leaves.all[6].apply { preferredSize = Dimension(300, 24) }
+        val status = leaves.all[7].apply { preferredSize = Dimension(300, 20) }
+        // Measured through the whole window rather than the footer alone: the bottom slot brings
+        // the side padding, so the footer by itself no longer shows it.
+        val root = SlotLayout.arrange(leaves.registry, WindowLayout.DEFAULT).rootComponent
 
         SwingUtilities.invokeAndWait {
-            bottomBar.setSize(800, 200)
-            layoutTree(bottomBar)
+            root.setSize(800, 600)
+            layoutTree(root as Container)
         }
 
         assertEquals(24, selector.height)
         assertEquals(20, status.height)
-        val selectorX = SwingUtilities.convertPoint(selector, 0, 0, bottomBar).x
+        val selectorX = SwingUtilities.convertPoint(selector, 0, 0, root).x
         assertEquals(UISpacing.PADDING, selectorX)
-        assertEquals(UISpacing.PADDING, bottomBar.width - selectorX - selector.width)
+        assertEquals(UISpacing.PADDING, root.width - selectorX - selector.width)
     }
 
     @Test
@@ -168,12 +174,12 @@ class LayoutSystemTest {
         val leaves = Leaves()
         val manager = LayoutManager(leaves.registry, container)
 
-        strategies.forEach { strategy ->
+        layouts.forEach { layout ->
             listOf(true, false, true).forEach { rtl ->
-                SwingUtilities.invokeAndWait { manager.switchLayout(strategy.id, rtl) }
+                SwingUtilities.invokeAndWait { manager.switchLayout(layout, isRtl = rtl) }
                 flush()
                 listOf(leaves.input, leaves.extra).forEach { leaf ->
-                    assertEquals(1, count(container, leaf), "${strategy.id} rtl=$rtl lost or duplicated a pane")
+                    assertEquals(1, count(container, leaf), "${layout.panes} rtl=$rtl lost or duplicated a pane")
                 }
             }
         }
@@ -181,18 +187,58 @@ class LayoutSystemTest {
 
     @Test
     fun `focus targets are plainly visible in every layout, never hidden behind a tab`() {
-        strategies.forEach { strategy ->
+        layouts.forEach { layout ->
             val leaves = Leaves()
-            val root = strategy.arrange(leaves.registry, isRtl = false).rootComponent
-            val output = if (strategy === ComparisonLayout) leaves.board else leaves.output
+            val root = SlotLayout.arrange(leaves.registry, layout).rootComponent
+            val output = if (layout.panes == PaneLayout.COMPARISON) leaves.board else leaves.output
 
             listOf(leaves.input, output, leaves.extra).forEach { target ->
-                assertNotNull(target.parent, "${strategy.id}: every focus target is mounted")
+                assertNotNull(target.parent, "${layout.panes}: every focus target is mounted")
                 assertTrue(target.isVisible)
                 val chain = ancestors(target)
-                assertTrue(root in chain, "${strategy.id}: target sits under the layout root")
-                assertTrue(chain.none { it is JTabbedPane }, "${strategy.id}: no tab may hide a focus target")
+                assertTrue(root in chain, "${layout.panes}: target sits under the layout root")
+                assertTrue(chain.none { it is JTabbedPane }, "${layout.panes}: no tab may hide a focus target")
             }
+        }
+    }
+
+    @Test
+    fun `a shared row puts the history controls first and gives the languages the row`() {
+        // History and languages in one slot with shared rows: the history bar keeps every button
+        // and stops being a row. The order is fixed (history, languages, services) and the row
+        // starts at LINE_START, so history leads and the language controls take the rest.
+        layouts.forEach { base ->
+            val leaves = Leaves()
+            val layout = base.copy(history = RegionSlot.TOP, languages = RegionSlot.TOP, shareRows = true)
+            SlotLayout.arrange(leaves.registry, layout)
+            flush()
+
+            val history = leaves.registry.historyBar
+            val language = leaves.registry.languageBar
+            val row = history.parent
+            assertSame(language.parent, row, "${layout.panes}: both belong to one row")
+            val border = row?.layout as? BorderLayout
+            assertNotNull(border, "${layout.panes}: the shared row places its members")
+            assertEquals(BorderLayout.CENTER, border.getConstraints(language), "${layout.panes}: language takes the row")
+            assertEquals(BorderLayout.LINE_START, border.getConstraints(history), "${layout.panes}: history leads it")
+        }
+    }
+
+    @Test
+    fun `without shared rows the history controls keep a row of their own`() {
+        // The other half of the same promise: the language row must not quietly become the history
+        // row for everyone who never asked for one row.
+        layouts.forEach { base ->
+            val leaves = Leaves()
+            val layout = base.copy(history = RegionSlot.TOP, languages = RegionSlot.TOP, shareRows = false)
+            SlotLayout.arrange(leaves.registry, layout)
+            flush()
+
+            val history = leaves.registry.historyBar
+            val language = leaves.registry.languageBar
+            val sharesLanguageRow = history.parent === language.parent &&
+                (history.parent?.layout as? BorderLayout)?.getConstraints(language) == BorderLayout.CENTER
+            assertFalse(sharesLanguageRow, "${layout.panes}: separate rows keep the regions apart")
         }
     }
 }

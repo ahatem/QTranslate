@@ -1,7 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main.selector
 
-import com.formdev.flatlaf.extras.components.FlatButton
-import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.ui.swing.main.widgets.ChevronButton
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.Component
@@ -27,16 +26,17 @@ import kotlin.math.max
  * Reachable from the keyboard like any button (Space or Enter opens the menu); the mouse does not
  * take focus from the text being worked on.
  */
-class TranslatorPopupButton(
+open class TranslatorPopupButton(
     private val iconManager: IconManager,
     private val onTranslatorSelected: (serviceId: String) -> Unit,
     /** When true the button shows "[icon] Name v" as one selector control instead of icon only. */
     textMode: Boolean = false
-) : FlatButton(), Renderable<TranslatorSelectorState> {
+) : ChevronButton(), Renderable<TranslatorSelectorState> {
 
     var textMode: Boolean = textMode
         set(value) {
             field = value
+            showChevron = value
             refreshFromState()
         }
 
@@ -47,15 +47,24 @@ class TranslatorPopupButton(
             refreshFromState()
         }
 
+    /** What the button says when no translator is selected. */
+    var noSelectionText: String = "Select Translator"
+        set(value) {
+            field = value
+            refreshFromState()
+        }
+
     private companion object {
         const val ICON_SIZE = 16
-        const val CHEVRON_GAP = 6
     }
 
-    private var currentState: TranslatorSelectorState? = null
-    private val arrowIcon: Icon get() = UIManager.getIcon("Table.descendingSortIcon")
+    /** The state last rendered, for subclasses that open their own popup. */
+    protected var currentState: TranslatorSelectorState? = null
+        private set
+    private val arrowIcon: Icon get() = chevronIcon
 
     init {
+        showChevron = textMode
         buttonType = ButtonType.toolBarButton
         isFocusable = true
         isRequestFocusEnabled = false
@@ -81,14 +90,14 @@ class TranslatorPopupButton(
 
         if (textMode) {
             icon = serviceIcon
-            text = selectedService?.name ?: "Select Translator"
+            text = selectedService?.name ?: noSelectionText
         } else {
             icon = CompositeIcon(serviceIcon, arrowIcon)
             text = null
         }
         applyToolbarMargin()
 
-        toolTipText = actionTooltip ?: selectedService?.name ?: "Select Translator"
+        toolTipText = actionTooltip ?: selectedService?.name ?: noSelectionText
         isEnabled = !state.isLoading && state.availableTranslators.isNotEmpty()
         revalidate()
         repaint()
@@ -104,32 +113,8 @@ class TranslatorPopupButton(
         if (currentState != null) applyToolbarMargin()
     }
 
-    /**
-     * The room the chevron needs at the trailing edge, on whichever side that is. Added to the
-     * insets rather than the [margin]: it is already in pixels, and FlatLaf's border scales the margin.
-     */
-    override fun getInsets(): Insets = withChevronRoom(super.getInsets())
-
-    override fun getInsets(insets: Insets?): Insets = withChevronRoom(super.getInsets(insets))
-
-    private fun withChevronRoom(insets: Insets): Insets {
-        if (!textMode) return insets
-        val room = arrowIcon.iconWidth + UIScale.scale(CHEVRON_GAP)
-        if (componentOrientation.isLeftToRight) insets.right += room else insets.left += room
-        return insets
-    }
-
-    override fun paintComponent(g: Graphics) {
-        super.paintComponent(g)
-        if (!textMode) return
-        val chevron = arrowIcon
-        val y = (height - chevron.iconHeight) / 2
-        val inset = UIScale.scale(CHEVRON_GAP) / 2 + (UIManager.getInsets("Button.toolbar.margin")?.right ?: 3)
-        val x = if (componentOrientation.isLeftToRight) width - inset - chevron.iconWidth else inset
-        chevron.paintIcon(this, g, x, y)
-    }
-
-    private fun showPopupMenu() {
+    /** Opens the list of translators. A subclass replaces this to present them differently. */
+    protected open fun showPopupMenu() {
         val state = currentState ?: return
         if (state.availableTranslators.isEmpty()) return
 

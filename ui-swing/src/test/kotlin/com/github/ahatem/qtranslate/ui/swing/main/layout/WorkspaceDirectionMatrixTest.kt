@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import com.github.ahatem.qtranslate.core.main.mvi.LookupTool
 import com.github.ahatem.qtranslate.ui.swing.main.lookup.LookupDock
 import com.github.ahatem.qtranslate.ui.swing.shared.TestIcons
@@ -44,7 +46,7 @@ class WorkspaceDirectionMatrixTest {
                 host.applyComponentOrientation(
                     if (rtl) ComponentOrientation.RIGHT_TO_LEFT else ComponentOrientation.LEFT_TO_RIGHT
                 )
-                manager.switchLayout(layoutId, rtl)
+                manager.switchLayout(WindowLayout(panes = PaneLayout.fromPresetId(layoutId)), isRtl = rtl)
             }
             settle()
             SwingUtilities.invokeAndWait {

@@ -330,15 +330,28 @@ data class Configuration(
      */
     val editorFallbackFontConfig: FontConfig = FontConfig(name = FontConfig.AUTOMATIC, size = 15),
     val useUnifiedTitleBar: Boolean = true,
+    /**
+     * The v10 description of the window: a layout id, chrome switches and the selector style.
+     *
+     * Frozen. The window never writes these; the only write is a settings reset restoring their
+     * defaults (see [SettingsReset]). They stay stored so that [ConfigMigrator] can map a v10, v11
+     * or v12 file onto [windowLayout], and are removed in a later release.
+     */
     val layoutPresetId: String = "classic",
     val toolbarVisibility: ToolbarVisibility = ToolbarVisibility.DEFAULT,
-    /**
-     * Enhanced by default: it shows which service is active and lets one be swapped in place,
-     * where the classic selector only lists them. Classic remains for anyone who prefers the
-     * denser row.
-     */
     val serviceSelectorStyle: ServiceSelectorStyle = ServiceSelectorStyle.ENHANCED,
     val serviceSelectorAppearance: ServiceSelectorAppearance = ServiceSelectorAppearance.ICONS_AND_TEXT,
+    /**
+     * The main window as regions placed in slots. The only description of the window the app
+     * reads; written through [withWindowLayout].
+     *
+     * The key is new, so the v11 and v12 fields (`layoutConfig`, `workspaceLayout`) are ignored as
+     * unknown and the migration starts from the v10 fields instead.
+     */
+    val windowLayout: WindowLayout = WindowLayout.DEFAULT,
+    /** Named layouts the user saved, at most [LayoutProfile.MAX_PROFILES]. */
+    @Serializable(with = LayoutProfileListSerializer::class)
+    val layoutProfiles: List<LayoutProfile> = emptyList(),
 
     // ---- UI — Quick Panel (Popup) ----
     val isPopupAutoSizeEnabled: Boolean = true,

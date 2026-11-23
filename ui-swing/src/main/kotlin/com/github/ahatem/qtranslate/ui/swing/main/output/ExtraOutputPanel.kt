@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.widgets.ReadOnlyTextPanel
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.ReadOnlyTextPanelState
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsPanel
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
+import com.github.ahatem.qtranslate.ui.swing.shared.util.WrapLayout
 import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
@@ -83,21 +84,44 @@ class ExtraOutputPanel(
         border = BorderFactory.createEmptyBorder(
             2, 0, 2, 0,
         )
-        val togglesPanel = JPanel(FlowLayout(FlowLayout.LEADING, 2, 2)).apply {
+        // The toggles wrap onto a second row in a narrow column, so none is ever cut off.
+        val togglesPanel = JPanel(WrapLayout(FlowLayout.LEADING, 2, 2)).apply {
             isOpaque = false
             add(backwardBtn)
             add(summaryBtn)
             add(rewriteBtn)
+            addComponentListener(object : java.awt.event.ComponentAdapter() {
+                override fun componentResized(e: java.awt.event.ComponentEvent) {
+                    val toggles = e.component
+                    if (toggles.preferredSize.height != toggles.height) toggles.parent?.revalidate()
+                }
+            })
         }
         val gearPanel = JPanel(FlowLayout(FlowLayout.TRAILING, 0, 2)).apply {
             isOpaque = false
             add(gearBtn)
         }
-        add(togglesPanel, BorderLayout.LINE_START)
+        add(togglesPanel, BorderLayout.CENTER)
         add(gearPanel, BorderLayout.LINE_END)
     }
 
     fun requestFocusOnText() = textPane.requestFocusInWindow()
+
+    /** The popup the header and its controls open on a right-click, or null until a host installs one. */
+    val headerPopupMenu: JPopupMenu? get() = headerBar.componentPopupMenu
+
+    /**
+     * Makes [popup] the context menu of the header: the toggles, the gear and the space between them.
+     * The text keeps its own editor menu.
+     */
+    fun installHeaderPopup(popup: JPopupMenu) {
+        headerBar.componentPopupMenu = popup
+        fun inherit(component: Component) {
+            if (component is JComponent && component.componentPopupMenu == null) component.inheritsPopupMenu = true
+            if (component is Container) component.components.forEach(::inherit)
+        }
+        headerBar.components.forEach(::inherit)
+    }
     fun setTranslateKeyStroke(old: javax.swing.KeyStroke?, new: javax.swing.KeyStroke?) =
         textPane.setTranslateKeyStroke(old, new)
 

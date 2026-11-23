@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import java.awt.BorderLayout
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
@@ -61,7 +63,7 @@ class LayoutManagerOwnershipTest {
     }
 
     private fun switchAndFlush(manager: LayoutManager, layoutId: String) {
-        SwingUtilities.invokeAndWait { manager.switchLayout(layoutId) }
+        SwingUtilities.invokeAndWait { manager.switchLayout(WindowLayout(panes = PaneLayout.fromPresetId(layoutId))) }
         SwingUtilities.invokeAndWait { }
         SwingUtilities.invokeAndWait { }
     }

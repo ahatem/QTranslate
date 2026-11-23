@@ -29,6 +29,8 @@ import com.github.ahatem.qtranslate.core.workspace.translation.TranslateTextUseC
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
@@ -395,6 +397,8 @@ class InstantComparisonResultsTest {
                 servicePresets = listOf(preset),
                 activeServicePresetId = preset.id,
                 layoutPresetId = layoutPresetId,
+                // The arrangement the window reads, kept in step with the id beside it.
+                windowLayout = WindowLayout(panes = PaneLayout.fromPresetId(layoutPresetId)),
                 disabledServices = disabledServices,
                 autoCheckForUpdates = false,
                 isInstantTranslationEnabled = true,

@@ -63,6 +63,7 @@ object SettingsReset {
         // Lists the user authored.
         "pinnedLanguages",
         "translationRules",
+        "layoutProfiles",
         // Operational state written by the application as it runs.
         "mainWindowSize",
         "mainWindowPosition",
@@ -119,6 +120,7 @@ object SettingsReset {
         "showDictionaryPanel",
         "serviceSelectorStyle",
         "serviceSelectorAppearance",
+        "windowLayout",
         "closeButtonBehavior",
         "minimizeButtonBehavior",
         "themeId",
@@ -201,6 +203,7 @@ object SettingsReset {
             showDictionaryPanel = defaults.showDictionaryPanel,
             serviceSelectorStyle = defaults.serviceSelectorStyle,
             serviceSelectorAppearance = defaults.serviceSelectorAppearance,
+            windowLayout = defaults.windowLayout,
             closeButtonBehavior = defaults.closeButtonBehavior,
             minimizeButtonBehavior = defaults.minimizeButtonBehavior,
         )
@@ -262,6 +265,7 @@ object SettingsReset {
         showDictionaryPanel = defaults.showDictionaryPanel,
         serviceSelectorStyle = defaults.serviceSelectorStyle,
         serviceSelectorAppearance = defaults.serviceSelectorAppearance,
+        windowLayout = defaults.windowLayout,
         closeButtonBehavior = defaults.closeButtonBehavior,
         minimizeButtonBehavior = defaults.minimizeButtonBehavior,
         // Appearance

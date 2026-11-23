@@ -11,12 +11,12 @@ class LayoutTypeTest {
         assertEquals(LayoutPresetIds.COMPARISON, LayoutType.COMPARISON.id)
         assertEquals(
             listOf(LayoutType.CLASSIC, LayoutType.SIDE_BY_SIDE, LayoutType.COMPARISON),
-            LayoutManager.getAvailableLayouts().map { it.type }
+            LayoutManager.getAvailableLayouts()
         )
     }
 
     @Test
     fun `every layout has a localized label`() {
-        assertTrue(LayoutManager.getAvailableLayouts().all { it.type.localizeId.startsWith("layout_preset_") })
+        assertTrue(LayoutManager.getAvailableLayouts().all { it.localizeId.startsWith("layout_preset_") })
     }
 }

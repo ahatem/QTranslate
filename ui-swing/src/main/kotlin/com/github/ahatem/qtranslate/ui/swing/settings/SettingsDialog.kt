@@ -407,6 +407,8 @@ class SettingsDialog(
 
     fun showOcrPage() = navigator.selectPage(label("ocr"))
 
+    fun showLayoutPage() = navigator.selectPage(label("layout"))
+
     /**
      * The actions a page offers to search.
      *
@@ -435,6 +437,7 @@ class SettingsDialog(
                 localizationManager = localizationManager,
                 scope = scope,
                 openEditor = { code -> openLanguageEditor(code) },
+                isTrayAvailable = isTrayAvailable,
             )
 
         label("appearance") ->
@@ -478,7 +481,6 @@ class SettingsDialog(
                 localizationManager,
                 availableTranslatorIds,
                 onOpenServicesSettings = ::showServicesPage,
-                isTrayAvailable = isTrayAvailable,
             )
 
         label("popups") ->

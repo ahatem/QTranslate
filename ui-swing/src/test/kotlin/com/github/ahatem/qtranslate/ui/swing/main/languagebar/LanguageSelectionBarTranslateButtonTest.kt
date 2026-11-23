@@ -102,6 +102,19 @@ class LanguageSelectionBarTranslateButtonTest {
     }
 
     @Test
+    fun `the translate button is as tall as the row it stands in`() {
+        val bar = bar()
+        onEdt {
+            bar.render(state(isLoading = false, canTranslate = true))
+            bar.setSize(700, bar.preferredSize.height + 10)
+            bar.doLayout()
+        }
+        val button = translateButtonOf(bar)
+        val others = onEdt { bar.components.filter { it !== button }.map { it.height } }
+        assertTrue(others.all { it == button.height }, "buttons and combo boxes share one height: $others vs ${button.height}")
+    }
+
+    @Test
     fun `translate is enabled when there is input to translate`() {
         val bar = bar()
         onEdt { bar.render(state(isLoading = false, canTranslate = true)) }

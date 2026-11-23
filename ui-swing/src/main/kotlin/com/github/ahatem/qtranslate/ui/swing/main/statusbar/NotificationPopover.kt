@@ -10,6 +10,38 @@ import java.awt.Dimension
 import javax.swing.*
 import javax.swing.border.MatteBorder
 
+/** Where a popover opens, as an offset from its anchor's top-left corner in the anchor's coordinates. */
+internal data class PopoverOffset(val x: Int, val y: Int)
+
+/**
+ * Where a popover opens relative to its anchor.
+ *
+ * It opens below an anchor that sits in the upper half of its window and above any other, so it
+ * stays inside the window from either end. Its trailing edge lines up with the anchor's trailing
+ * edge: the bell is the last thing in its row, so the popover grows back into the window instead of
+ * running off the end of it, towards the left in a left-to-right window and towards the right in a
+ * right-to-left one.
+ * An anchor with no window to measure against opens above, as the status bar's bell always did.
+ *
+ * Pure so the placement can be tested without a screen.
+ */
+internal fun popoverOffset(
+    anchorWidth: Int,
+    anchorHeight: Int,
+    anchorTopInWindow: Int,
+    windowHeight: Int,
+    popoverWidth: Int,
+    popoverHeight: Int,
+    isLeftToRight: Boolean,
+): PopoverOffset {
+    val anchorCentre = anchorTopInWindow + anchorHeight / 2
+    val inUpperHalf = windowHeight > 0 && anchorCentre * 2 < windowHeight
+    return PopoverOffset(
+        x = if (isLeftToRight) anchorWidth - popoverWidth else 0,
+        y = if (inUpperHalf) anchorHeight else -popoverHeight,
+    )
+}
+
 /**
  * A popover panel anchored to the notification bell that lists recent [NotificationEntry] items.
  * Shown as a lightweight popup so it closes automatically when focus leaves it.
@@ -66,9 +98,25 @@ class NotificationPopover(
         if (listModel.size > 50) listModel.removeElementAt(listModel.size - 1)
     }
 
+    /**
+     * Opens the popover from [invoker]. The bell can sit in the status bar at the foot of the
+     * window or in the history row at its head, so the direction follows where the anchor is: see
+     * [popoverOffset].
+     */
     fun show(invoker: Component) {
         if (listModel.isEmpty) listModel.addElement(NotificationEntry(emptyLabel, NotificationType.INFO))
-        popup.show(invoker, 0, -popup.preferredSize.height)
+        val window = SwingUtilities.getWindowAncestor(invoker)
+        val anchorTop = window?.let { SwingUtilities.convertPoint(invoker, 0, 0, it).y }
+        val offset = popoverOffset(
+            anchorWidth = invoker.width,
+            anchorHeight = invoker.height,
+            anchorTopInWindow = anchorTop ?: Int.MAX_VALUE,
+            windowHeight = window?.height ?: 0,
+            popoverWidth = popup.preferredSize.width,
+            popoverHeight = popup.preferredSize.height,
+            isLeftToRight = invoker.componentOrientation.isLeftToRight,
+        )
+        popup.show(invoker, offset.x, offset.y)
     }
 
     fun hasNotifications(): Boolean = listModel.size > 0 && listModel[0].message != emptyLabel

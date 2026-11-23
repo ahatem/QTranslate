@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.menus
 
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import javax.swing.JCheckBoxMenuItem
@@ -79,7 +81,7 @@ class OptionsPopupMenuTest {
     fun `layout presets use one radio item for every available layout`() {
         val selected = mutableListOf<String>()
         val menu = createMenu(
-            config = Configuration.DEFAULT.copy(layoutPresetId = "side_by_side"),
+            config = Configuration.DEFAULT.copy(windowLayout = WindowLayout(panes = PaneLayout.SIDE_BY_SIDE)),
             actions = createActions(onChangeLayoutPreset = { selected += it }),
         )
         val view = menu.components.filterIsInstance<JMenu>().single { it.text == "Options" }
@@ -271,9 +273,6 @@ class OptionsPopupMenuTest {
             layoutComparisonAvailable = layoutComparisonAvailable,
             layoutComparisonUnavailableHint = layoutComparisonUnavailableHint,
             layoutComparisonConfigureLabel = layoutComparisonConfigureLabel,
-            showHistoryControls = "Show History Bar",
-            showLanguageBar = "Show Language Bar",
-            showServicesPanel = "Show Services Panel",
             showStatusBar = "Show Status Bar",
         )
 
@@ -294,9 +293,6 @@ class OptionsPopupMenuTest {
         onCheckForUpdates: () -> Unit = {},
         onExitApplication: () -> Unit = {},
         onChangeLayoutPreset: (String) -> Unit = {},
-        onToggleHistoryControls: (Boolean) -> Unit = {},
-        onToggleLanguageBar: (Boolean) -> Unit = {},
-        onToggleServicesPanel: (Boolean) -> Unit = {},
         onToggleStatusBar: (Boolean) -> Unit = {},
         onOpenServicesSettings: () -> Unit = {},
     ) = MenuActions(
@@ -316,9 +312,6 @@ class OptionsPopupMenuTest {
         onCheckForUpdates,
         onExitApplication,
         onChangeLayoutPreset,
-        onToggleHistoryControls,
-        onToggleLanguageBar,
-        onToggleServicesPanel,
         onToggleStatusBar,
         onOpenServicesSettings,
     )

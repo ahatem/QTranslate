@@ -40,6 +40,19 @@ class OcrSplitButtonTest {
     }
 
     @Test
+    fun `the split button is exactly as tall as an icon button`() {
+        SwingUtilities.invokeAndWait {
+            val iconButton = com.formdev.flatlaf.extras.components.FlatButton().apply {
+                icon = com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet.load(
+                    com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons.OCR, 16, 16
+                )
+            }
+            val control = OcrSplitButton({}, {})
+            assertEquals(iconButton.preferredSize.height, control.preferredSize.height)
+        }
+    }
+
+    @Test
     fun `primary and overrides dispatch canonical commands without changing the default`() {
         SwingUtilities.invokeAndWait {
             val commands = mutableListOf<OcrWorkflowCommand>()

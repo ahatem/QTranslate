@@ -20,6 +20,12 @@ internal class StatusBarController(
     private val localizer: LocalizationManager,
     private val scope: CoroutineScope,
     private val defaultMessage: String,
+    /**
+     * Whether the status bar is off. Its message line is then nowhere on screen, so an error or a
+     * warning it would have shown goes to the notification popover instead, whose button the window
+     * keeps reachable.
+     */
+    private val isStatusBarHidden: () -> Boolean = { false },
 ) {
     private var clearMessageJob: Job? = null
     private var currentMessage: String = defaultMessage
@@ -52,6 +58,12 @@ internal class StatusBarController(
         clearMessageJob?.cancel()
         currentMessage = resolveStatusMessage(event.code)
         currentType = event.type
+        if (isStatusBarHidden() &&
+            (event.type == NotificationType.ERROR || event.type == NotificationType.WARNING)
+        ) {
+            notificationPopover.addNotification(NotificationPopover.NotificationEntry(currentMessage, event.type))
+            unreadCount++
+        }
         render()
         if (event.isTemporary) {
             val snapshot = currentMessage

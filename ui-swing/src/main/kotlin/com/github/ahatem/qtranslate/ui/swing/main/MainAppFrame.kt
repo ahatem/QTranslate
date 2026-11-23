@@ -317,7 +317,7 @@ class MainAppFrame(
         onOpenDocumentTranslation = { file ->
             if (file != null) documentTranslationDialog.openWith(file) else documentTranslationDialog.open()
         },
-        onNotificationsClicked = { notificationPopover.show(mainContentView.statusBar) },
+        onNotificationsClicked = { notificationPopover.show(mainContentView.statusBar.notificationAnchor) },
         onConfigureService = { serviceId -> openPluginConfiguration(serviceId) },
         onOpenServiceSettings = {
             val dialog = createSettingsDialog()
@@ -608,7 +608,9 @@ class MainAppFrame(
         iconManager = iconManager,
         localizer = localizer,
         scope = appScope,
-        defaultMessage = localizer.getString("main_window_status_bar.ready_message")
+        defaultMessage = localizer.getString("main_window_status_bar.ready_message"),
+        // While the bar is off, errors and warnings still reach the user through the popover.
+        isStatusBarHidden = { !settingsStore.state.value.workingConfiguration.windowLayout.showStatusBar }
     )
 
     init {
@@ -1426,39 +1428,24 @@ class MainAppFrame(
             onCheckForUpdates = { mainStore.dispatch(MainIntent.CheckForUpdates) },
             onExitApplication = { dispose() },
             onChangeLayoutPreset = { layoutId ->
+                val pane = PaneLayout.fromPresetId(layoutId)
                 settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting { it.copy(layoutPresetId = layoutId) }
+                    SettingsIntent.ToggleSetting { it.withWindowLayout(it.windowLayout.copy(panes = pane)) }
                 )
             },
             onOpenServicesSettings = { openSettingsDialog(openToServices = true) },
-            onToggleHistoryControls = { enabled ->
+            onToggleStatusBar = { shown ->
                 settingsStore.dispatch(
                     SettingsIntent.ToggleSetting {
-                        it.copy(toolbarVisibility = it.toolbarVisibility.copy(isHistoryBarVisible = enabled))
+                        it.withWindowLayout(it.windowLayout.copy(showStatusBar = shown))
                     }
                 )
             },
-            onToggleLanguageBar = { enabled ->
-                settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting {
-                        it.copy(toolbarVisibility = it.toolbarVisibility.copy(isLanguageBarVisible = enabled))
-                    }
-                )
+            onChangeLayout = { layout ->
+                settingsStore.dispatch(SettingsIntent.ToggleSetting { it.withWindowLayout(layout) })
             },
-            onToggleServicesPanel = { enabled ->
-                settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting {
-                        it.copy(toolbarVisibility = it.toolbarVisibility.copy(isServicesPanelVisible = enabled))
-                    }
-                )
-            },
-            onToggleStatusBar = { enabled ->
-                settingsStore.dispatch(
-                    SettingsIntent.ToggleSetting {
-                        it.copy(toolbarVisibility = it.toolbarVisibility.copy(isStatusBarVisible = enabled))
-                    }
-                )
-            }
+            onSaveLayoutProfile = { mainContentView.saveLayoutAsProfile() },
+            onManageLayouts = { openSettingsDialog(openToLayout = true) },
         )
 
         val strings = MenuStrings(
@@ -1488,10 +1475,14 @@ class MainAppFrame(
             layoutComparisonAvailable = currentConfig.isComparisonEligible(mainStore.state.value.availableTranslatorIds),
             layoutComparisonUnavailableHint = localizer.getString("settings_window.layout_comparison_unavailable"),
             layoutComparisonConfigureLabel = localizer.getString("settings_window.layout_comparison_configure"),
-            showHistoryControls = localizer.getString("main_window_main_menu.show_history_bar"),
-            showLanguageBar = localizer.getString("main_window_main_menu.show_language_bar"),
-            showServicesPanel = localizer.getString("main_window_main_menu.show_services_panel"),
-            showStatusBar = localizer.getString("main_window_main_menu.show_status_bar")
+            showStatusBar = localizer.getString("main_window_main_menu.show_status_bar"),
+            layoutMenu = LayoutMenuStrings(
+                region = localizer.regionMenuStrings(),
+                secondResult = localizer.secondResultMenuStrings(),
+                savedLayouts = localizer.getString("main_window_main_menu.layout_saved_layouts"),
+                saveProfile = localizer.getString("main_window_main_menu.region_save_profile"),
+                manageLayouts = localizer.getString("main_window_main_menu.layout_manage"),
+            ),
         )
 
         return MainMenuPopup(
@@ -1874,7 +1865,11 @@ class MainAppFrame(
     }
 
     /** Opens Settings with the correct orientation. Shared by the menu and the Ctrl+Comma binding. */
-    private fun openSettingsDialog(openToServices: Boolean = false, openToOcr: Boolean = false) {
+    private fun openSettingsDialog(
+        openToServices: Boolean = false,
+        openToOcr: Boolean = false,
+        openToLayout: Boolean = false,
+    ) {
         val dialog = createSettingsDialog()
         dialog.applyComponentOrientation(
             if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT
@@ -1882,6 +1877,7 @@ class MainAppFrame(
         )
         if (openToServices) dialog.showServicesPage()
         if (openToOcr) dialog.showOcrPage()
+        if (openToLayout) dialog.showLayoutPage()
         dialog.isVisible = true
     }
 

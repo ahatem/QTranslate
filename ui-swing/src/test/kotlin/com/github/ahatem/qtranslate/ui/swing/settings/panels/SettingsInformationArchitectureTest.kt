@@ -103,26 +103,18 @@ class SettingsInformationArchitectureTest {
     }
 
     @Test
-    fun `history bar visibility lives with the rest of history`() {
-        val store = store()
-        val general = onEdt {
-            GeneralPanel(
-                store,
-                localizer,
-                CoroutineScope(SupervisorJob() + Dispatchers.Default).also { scopes += it },
-            ).also { it.render(store.state.value) }
-        }
-        val window = onEdt { LayoutPanel(store, localizer).also { it.render(store.state.value) } }
-        val label = localizer.getString("settings_window.show_history_bar")
+    fun `window chrome is not a setting on the history page`() {
+        // This used to be a "show the history bar" switch beside the history storage switch, on the
+        // argument that the visible half of history belongs with the rest of it. That is no longer
+        // expressible: where the history row sits, or whether it is hidden, is a slot on the
+        // layout page, and a boolean here could only ever disagree with it. The check is on the
+        // source because what matters is that no such write exists here at all.
+        val source = java.io.File(
+            "src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/settings/panels/GeneralPanel.kt"
+        ).readText()
 
-        assertTrue(
-            descendants(general).filterIsInstance<JCheckBox>().any { it.text == label },
-            "the visible half of history sits beside the storage toggle",
-        )
-        assertFalse(
-            descendants(window).filterIsInstance<JCheckBox>().any { it.text == label },
-            "and it is no longer window chrome",
-        )
+        assertFalse(source.contains("isHistoryBarVisible"), "the history page must not set the toolbar shape")
+        assertFalse(source.contains("toolbarVisibility"), "no chrome switches belong on the history page")
     }
 
     @Test

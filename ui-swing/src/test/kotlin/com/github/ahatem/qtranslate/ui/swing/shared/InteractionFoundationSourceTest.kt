@@ -26,19 +26,12 @@ class InteractionFoundationSourceTest {
 
     @Test
     fun `settings pages render their combos through the shared renderer`() {
-        listOf("General", "Languages", "Layout", "Translation", "Appearance", "Services").forEach { page ->
+        listOf("General", "Languages", "Translation", "Appearance", "Services").forEach { page ->
             assertTrue(
                 source("settings/panels/${page}Panel.kt").contains("DisplayValueRenderer"),
                 "$page page must use the shared combo renderer"
             )
         }
-    }
-
-    @Test
-    fun `layout picker keeps comparison eligibility separate from rendering`() {
-        val layout = source("settings/panels/LayoutPanel.kt")
-        assertTrue(layout.contains("isDisabled = ::isUnavailableComparison"))
-        assertTrue(layout.contains("layout.id == LayoutPresetIds.COMPARISON && !comparisonAvailable"))
     }
 
     @Test

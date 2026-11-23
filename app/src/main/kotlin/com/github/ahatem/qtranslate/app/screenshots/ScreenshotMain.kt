@@ -13,17 +13,27 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
+import com.github.ahatem.qtranslate.core.settings.data.SecondResultPlacement
+import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
+import com.github.ahatem.qtranslate.core.settings.data.ServiceWidget
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
-import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.Size
+import com.github.ahatem.qtranslate.core.settings.data.withWindowLayout
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.ui.swing.main.MainAppFrame
 import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchPanel
 import com.github.ahatem.qtranslate.ui.swing.document.DocumentTranslationDialog
+import com.github.ahatem.qtranslate.ui.swing.main.history.TranslationHistoryBar
 import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
+import com.github.ahatem.qtranslate.ui.swing.main.layout.RegionRowMenus
 import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoard
 import com.github.ahatem.qtranslate.ui.swing.settings.SettingsDialog
+import com.github.ahatem.qtranslate.ui.swing.settings.panels.SettingsPanel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
@@ -49,6 +59,7 @@ import javax.swing.JSplitPane
 import javax.swing.JScrollPane
 import javax.swing.JLabel
 import javax.swing.JPanel
+import javax.swing.JPopupMenu
 import javax.swing.JTree
 import javax.swing.RootPaneContainer
 import javax.swing.SwingUtilities
@@ -121,6 +132,12 @@ fun main(args: Array<String>): Unit = runBlocking {
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "selector") {
             selectorAudit()
             selectorDensityAudit()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "compact-toolbar") {
+            compactToolbar()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "layout-slots") {
+            layoutSlots()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-outline") {
+            settingsOutline()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-matrix") {
             settingsMatrix()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-showcase") {
@@ -341,6 +358,9 @@ private class Shots(
         translate(LanguageCode("ar"), Scenes.PERISTALSIS)
         capture("layout-classic-narrow-arabic-dark")
 
+        // The same Classic panes with one combined toolbar row instead of two.
+        compactToolbar()
+
         // Use the bundled named translators and give the board a taller scene of its own.
         for ((theme, suffix) in Scenes.THEMES) {
             start(comparisonConfig(theme, listOf("Bing Translate", "DeepL", "Yandex Web")))
@@ -390,6 +410,183 @@ private class Shots(
         }
     }
 
+    /**
+     * A curated list of window layouts, each in English light and Arabic dark.
+     *
+     * Not a sweep: the four cards and the two pane arrangements that are not cards, then one shot
+     * for each placement they do not show, then each place the second result can sit. The
+     * Arabic half proves the mirroring and the dark half is where contrast faults show, so one
+     * pass covers both. Comparison scenes get two usable translators so the board is eligible.
+     */
+    suspend fun layoutSlots() {
+        val hidden = RegionSlot.HIDDEN
+        val scenes = listOf(
+            "card-modern-classic" to Scenes.MODERN_CLASSIC_CARD,
+            "card-classic" to Scenes.CLASSIC_CARD,
+            "card-compact-row" to Scenes.COMPACT_ROW,
+            "card-focus" to Scenes.FOCUS_CARD,
+            "density-modern-compact" to Scenes.MODERN_CLASSIC_COMPACT,
+            "density-classic-comfortable" to Scenes.CLASSIC_COMFORTABLE,
+            "panes-side-by-side" to Scenes.SIDE_BY_SIDE,
+            "panes-comparison" to Scenes.COMPARISON_BOARD,
+            // History and services hidden: their commands, the provider chip and the notification
+            // button all land in the input strip, and the language row stays where it is. The
+            // language row never hides.
+            "history-services-hidden" to WindowLayout(history = hidden, services = hidden, showStatusBar = false),
+            "history-bottom" to WindowLayout(history = RegionSlot.BOTTOM),
+            "stacked-languages-top" to WindowLayout(languages = RegionSlot.TOP),
+            // History and languages share the top row; the service selector never shares, so it
+            // sits on a row of its own beneath them.
+            "services-top-own-row" to WindowLayout(
+                history = RegionSlot.TOP,
+                languages = RegionSlot.TOP,
+                services = RegionSlot.TOP,
+                shareRows = true,
+            ),
+            "side-by-side-languages-above-results" to WindowLayout(
+                panes = PaneLayout.SIDE_BY_SIDE,
+                languages = RegionSlot.ABOVE_RESULTS,
+            ),
+            "comparison-history-bottom" to WindowLayout(panes = PaneLayout.COMPARISON, history = RegionSlot.BOTTOM),
+            "icon-strip" to WindowLayout(
+                serviceWidget = ServiceWidget.STRIP,
+                stripAppearance = ServiceSelectorAppearance.ICONS_ONLY,
+            ),
+            // The second result, a backward translation, in each place the panes let it sit.
+            "stacked-below" to WindowLayout(secondResult = SecondResultPlacement.BELOW),
+            "stacked-beside" to WindowLayout(secondResult = SecondResultPlacement.WITH_RESULT),
+            "sbs-below" to WindowLayout(panes = PaneLayout.SIDE_BY_SIDE, secondResult = SecondResultPlacement.BELOW),
+            "sbs-under-result" to WindowLayout(
+                panes = PaneLayout.SIDE_BY_SIDE,
+                secondResult = SecondResultPlacement.WITH_RESULT,
+            ),
+            "sbs-third-column" to WindowLayout(
+                panes = PaneLayout.SIDE_BY_SIDE,
+                secondResult = SecondResultPlacement.OWN_COLUMN,
+            ),
+            "comparison-below" to WindowLayout(panes = PaneLayout.COMPARISON, secondResult = SecondResultPlacement.BELOW),
+        )
+        val withSecondResult = setOf(
+            "stacked-below", "stacked-beside", "sbs-below", "sbs-under-result", "sbs-third-column", "comparison-below",
+        )
+        val secondaries = listOf("Bing Translate", "DeepL", "Yandex Web")
+        scenes.forEach { (name, layout) ->
+            fun scene(theme: String, rtl: Boolean): Configuration {
+                val base = Scenes.slots(layout, theme, rtl).let {
+                    if (name in withSecondResult) it.copy(extraOutputType = ExtraOutputType.BackwardTranslate) else it
+                }
+                return if (layout.panes == PaneLayout.COMPARISON) comparisonConfig(theme, secondaries, base) else base
+            }
+
+            start(scene(Scenes.LIGHT, rtl = false))
+            translate(LanguageCode("fr"), Scenes.LIBRARY)
+            // A long board is scrolled to its top, so the primary header is whole in the frame.
+            if (layout.panes == PaneLayout.COMPARISON) scrollComparisonToTop()
+            capture("slots-$name-light")
+
+            start(scene(Scenes.DARK, rtl = true))
+            translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
+            if (layout.panes == PaneLayout.COMPARISON) scrollComparisonToTop()
+            capture("slots-$name-rtl-dark")
+        }
+
+        // The window arranges itself: the history row's own context menu, open over the window.
+        start(Scenes.slots(WindowLayout.DEFAULT, Scenes.LIGHT, rtl = false))
+        translate(LanguageCode("fr"), Scenes.LIBRARY)
+        captureWithPopup("slots-region-menu-history-light", openHistoryRowMenu())
+        closeHistoryRowMenu()
+
+        start(Scenes.slots(WindowLayout.DEFAULT, Scenes.DARK, rtl = true))
+        translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
+        captureWithPopup("slots-region-menu-history-rtl-dark", openHistoryRowMenu())
+        closeHistoryRowMenu()
+
+        settingsOutline()
+    }
+
+    /**
+     * The Layout page of Settings, which is an outline of the window: the default window with no
+     * saved layouts, the same window with one saved layout that matches it (shown as current), and
+     * a Focus window in Side by side with a second result in its own column, in Arabic and dark.
+     */
+    suspend fun settingsOutline() {
+        val layout = listOf(7 to "layout")
+        start(Scenes.settingsOutline(WindowLayout.DEFAULT, Scenes.LIGHT))
+        capturePages(Scenes.LIGHT, "outline-default-light", layout, alsoScrolled = true)
+
+        start(Scenes.settingsOutline(WindowLayout.DEFAULT, Scenes.LIGHT, withProfiles = true, secondResult = true))
+        capturePages(Scenes.LIGHT, "outline-profiles-light", layout, alsoScrolled = true)
+
+        val focusSideBySide = Scenes.FOCUS_CARD.copy(
+            panes = PaneLayout.SIDE_BY_SIDE,
+            secondResult = SecondResultPlacement.OWN_COLUMN,
+        )
+        start(Scenes.settingsOutline(focusSideBySide, Scenes.DARK, rtl = true, withProfiles = true, secondResult = true))
+        capturePages(Scenes.DARK, "outline-focus-rtl-dark", layout, alsoScrolled = true)
+    }
+
+    private suspend fun closeHistoryRowMenu() {
+        onUi { find<TranslationHistoryBar>(requireFrame().rootPane)?.componentPopupMenu?.isVisible = false }
+    }
+
+    /**
+     * Opens the context menu of the history row, as a right-click on it would. The menu is a
+     * lightweight popup inside the window, so the window's own paint includes it.
+     */
+    private suspend fun openHistoryRowMenu(): JPopupMenu {
+        lateinit var opened: JPopupMenu
+        onUi {
+            val bar = requireNotNull(find<TranslationHistoryBar>(requireFrame().rootPane)) { "no history bar" }
+            val popup = requireNotNull(bar.componentPopupMenu as? RegionRowMenus.RowPopup) { "the history row has no menu" }
+            // Sized first so a right-to-left window can place the menu against its leading edge.
+            popup.refresh()
+            val margin = UIScale.scale(24)
+            val x = if (bar.componentOrientation.isLeftToRight) margin else bar.width - popup.preferredSize.width - margin
+            popup.show(bar, x, bar.height)
+            opened = popup
+        }
+        delay(800)
+        return opened
+    }
+
+    /**
+     * The window as [capture] takes it, with [popup] painted over it where it sits on screen. A
+     * popup that does not fit inside the window is its own heavyweight window, which painting the
+     * window's root pane does not include.
+     */
+    private suspend fun captureWithPopup(name: String, popup: JPopupMenu) {
+        val shot = paintAfterLayout(name, requireFrame().rootPane)
+        onUi {
+            val origin = requireFrame().rootPane.locationOnScreen
+            val at = popup.locationOnScreen
+            val g = captureGraphics(shot)
+            g.translate(at.x - origin.x, at.y - origin.y)
+            popup.paint(g)
+            g.dispose()
+        }
+        write(name, shot)
+    }
+
+    /**
+     * The Classic arrangement with a compact toolbar: the language controls and the history
+     * controls share one row instead of taking one each.
+     *
+     * Part of the layout set, and selectable on its own with
+     * `QTRANSLATE_SCREENSHOT_SCENES=compact-toolbar` when only this chrome is being checked.
+     */
+    suspend fun compactToolbar() {
+        for ((theme, suffix) in Scenes.THEMES) {
+            start(Scenes.classicCompact(theme))
+            translate(LanguageCode("fr"), Scenes.LIBRARY)
+            capture("layout-classic-compact-$suffix")
+        }
+        // One row is exactly where a mirrored layout goes wrong without anyone noticing: the
+        // history controls have to move to the leading edge and Back/Forward swap their icons.
+        start(Scenes.arabic(Scenes.COMPACT_ROW))
+        translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
+        capture("layout-classic-compact-rtl-dark")
+    }
+
     suspend fun selectorAudit() {
         deps.mainStore.dispatch(MainIntent.CloseLookupDock)
         start(Scenes.classicSelector(Scenes.DARK))
@@ -409,7 +606,7 @@ private class Shots(
         resizeWindow(Scenes.NARROW_WINDOW)
         capture("classic-selector-narrow-100-dark")
 
-        start(Scenes.arabic("classic").copy(serviceSelectorStyle = ServiceSelectorStyle.CLASSIC))
+        start(Scenes.arabic(Scenes.CLASSIC_SELECTOR))
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
         capture("classic-selector-rtl-dark")
 
@@ -453,23 +650,23 @@ private class Shots(
 
     suspend fun rightToLeft() {
         for ((theme, suffix) in Scenes.THEMES) {
-            start(Scenes.arabic("classic", theme))
+            start(Scenes.arabic(Scenes.CLASSIC, theme))
             translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
             // The dictionary is the panel that mirrors, so this shot is also the check that it
             // lands on the leading side rather than staying pinned to the right.
             openDictionary("peristalsis")
             capture("rtl-dictionary-$suffix")
 
-            start(Scenes.arabic("classic", theme))
+            start(Scenes.arabic(Scenes.CLASSIC, theme))
             translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
             capture("rtl-main-$suffix")
         }
 
-        start(Scenes.arabic("side_by_side"))
+        start(Scenes.arabic(Scenes.SIDE_BY_SIDE))
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
         capture("rtl-side-by-side")
 
-        start(Scenes.arabic("side_by_side"))
+        start(Scenes.arabic(Scenes.SIDE_BY_SIDE))
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
         openDictionary("peristalsis")
         capture("rtl-side-by-side-dock")
@@ -585,9 +782,19 @@ private class Shots(
 
     private fun settingsConfig(theme: String): Configuration =
         comparisonConfig(theme, listOf("Bing Translate", "DeepL", "Yandex Web"))
-            .copy(layoutPresetId = "classic", mainWindowSize = windowSize(Scenes.WINDOW))
+            .withWindowLayout(Scenes.CLASSIC)
+            .copy(mainWindowSize = windowSize(Scenes.WINDOW))
 
-    private suspend fun capturePages(theme: String, suffix: String, pages: List<Pair<Int, String>> = Scenes.SETTINGS_PAGES) {
+    /**
+     * @param alsoScrolled also writes `<page>-lower`, the same page scrolled to its end, for a page
+     * that is taller than the dialog.
+     */
+    private suspend fun capturePages(
+        theme: String,
+        suffix: String,
+        pages: List<Pair<Int, String>> = Scenes.SETTINGS_PAGES,
+        alsoScrolled: Boolean = false,
+    ) {
         val owner = requireFrame()
         lateinit var dialog: SettingsDialog
         onUi {
@@ -634,6 +841,16 @@ private class Shots(
                 logger.warn("settings-$name-$suffix: still empty after $attempt attempts")
             }
             write("settings-$name-$suffix", shot)
+            if (alsoScrolled) {
+                onUi {
+                    // The sidebar tree has a scroll pane of its own; the page's is the one that holds a page.
+                    val pane = allOf(dialog, JScrollPane::class.java).first { it.viewport.view is SettingsPanel }
+                    val view = pane.viewport.view
+                    pane.viewport.viewPosition = java.awt.Point(0, maxOf(0, view.height - pane.viewport.height))
+                }
+                delay(600)
+                write("settings-$name-$suffix-lower", paintAfterLayout("settings-$name-$suffix-lower", dialog.rootPane))
+            }
         }
         onUi { dialog.dispose() }
         delay(400)
@@ -741,7 +958,8 @@ private class Shots(
         onUi { previous?.dispose() }
         delay(400)
         applyAuthoredWindowSize(configuration)
-        balanceSplits(configuration.layoutPresetId)
+        // The id of the arrangement the window actually built, not the stored preference.
+        balanceSplits(configuration.windowLayout.panes.presetId)
         delay(500)
     }
 
@@ -783,9 +1001,8 @@ private class Shots(
             } else if (layoutPresetId == "comparison") {
                 panes.filter { it.orientation == JSplitPane.VERTICAL_SPLIT }
                     .lastOrNull()?.let { split ->
-                        // Screenshot scene only: the source is short, so let all provider cards
-                        // fit above the fold without changing the product's minimum pane size.
-                        split.topComponent.minimumSize = Dimension(0, UIScale.scale(80))
+                        // Screenshot scene only: the source is short, so ask for a small share of
+                        // the height. The input still keeps the product's own minimum.
                         split.setLeadingProportion(0.12)
                     }
             } else {
@@ -881,11 +1098,14 @@ private class Shots(
      * A Comparison scene with Google as Primary and [secondaries] named after the loaded
      * translators, so the set is real and the ids are whatever this run's registry composed.
      */
-    private fun comparisonConfig(theme: String, secondaries: List<String>): Configuration {
+    private fun comparisonConfig(
+        theme: String,
+        secondaries: List<String>,
+        base: Configuration = Scenes.comparison(theme),
+    ): Configuration {
         val translators = deps.mainStore.state.value.getAvailableServicesFor(ServiceRole.TRANSLATOR)
         fun idOf(name: String) = translators.firstOrNull { it.name.contains(name, ignoreCase = true) }?.id
         secondaries.filter { idOf(it) == null }.forEach { logger.warn("comparison provider unavailable: $it") }
-        val base = Scenes.comparison(theme)
         val preset = (base.getActivePreset() ?: ServicePreset.createDefault()).let { active ->
             active.copy(
                 selectedServices = active.selectedServices +
@@ -1060,6 +1280,12 @@ internal fun captureGraphics(image: BufferedImage): Graphics2D {
 }
 
 /** First component of type [T] in [root]'s tree. Breadth-first, so shallower matches win. */
+private fun <T : Component> allOf(root: Container, type: Class<T>): List<T> =
+    root.components.flatMap { child ->
+        (if (type.isInstance(child)) listOf(type.cast(child)) else emptyList()) +
+            if (child is Container) allOf(child, type) else emptyList()
+    }
+
 private inline fun <reified T : Component> find(root: Container): T? {
     val queue = ArrayDeque<Container>().apply { add(root) }
     while (queue.isNotEmpty()) {

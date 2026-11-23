@@ -79,8 +79,15 @@ class AppearancePanelFontListTest {
         return panel
     }
 
-    /** The font lists load on a [javax.swing.SwingWorker]; this waits for that pass to finish. */
-    private fun awaitLoaded(panel: AppearancePanel, timeoutMs: Long = 5000) {
+    /**
+     * The font lists load on a [javax.swing.SwingWorker]; this waits for that pass to finish.
+     *
+     * The first pass enumerates every installed font. On a machine with several hundred families
+     * that takes about six seconds when idle and has taken over thirty inside the full suite, so
+     * the deadline is generous. It only bounds how long a hang can take to report; the assertions
+     * are unchanged.
+     */
+    private fun awaitLoaded(panel: AppearancePanel, timeoutMs: Long = 120_000) {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             if (onEdt { panel.fallbackFontComboForTest().isEnabled }) return

@@ -2,6 +2,9 @@ package com.github.ahatem.qtranslate.ui.swing.main.languagebar
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.core.settings.data.Density
+import com.github.ahatem.qtranslate.ui.swing.main.layout.ChromeButtons
+import com.github.ahatem.qtranslate.ui.swing.main.layout.DensityAware
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.GridBag
 import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
@@ -22,7 +25,7 @@ class LanguageSelectionBar(
     private val onTargetLanguageSelected: (LanguageCode) -> Unit,
     private val onTranslate: () -> Unit,
     private val onCancel: () -> Unit = {}
-) : JPanel(GridBagLayout()), Renderable<LanguageSelectionBarState> {
+) : JPanel(GridBagLayout()), Renderable<LanguageSelectionBarState>, DensityAware {
 
     private val clearButton = createButtonWithIcon(iconManager, Icons.DELETE, 16)
     private val sourceLanguageComboBox = LanguageComboBox(
@@ -35,6 +38,16 @@ class LanguageSelectionBar(
         localizer = localizer
     )
     private val translateButton = JButton()
+
+    override var density: Density = Density.COMFORTABLE
+        set(value) {
+            field = value
+            ChromeButtons.apply(clearButton, value, ChromeButtons.Role.ICON)
+            ChromeButtons.apply(swapButton, value, ChromeButtons.Role.ICON)
+            ChromeButtons.apply(translateButton, value, ChromeButtons.Role.TEXT)
+            revalidate()
+            repaint()
+        }
 
     // Single listener that delegates to the correct callback depending on mode.
     private var isInCancelMode = false
@@ -51,17 +64,18 @@ class LanguageSelectionBar(
         grid.weightX(0.5).add(sourceLanguageComboBox)
         grid.weightX(0.0).add(swapButton)
         grid.weightX(0.5).add(targetLanguageComboBox)
+        // Keeps its own width but takes the row's height, so it lines up with the buttons and
+        // combo boxes beside it instead of standing a pixel short of them.
         grid.weightX(0.0)
-            .fill(GridBagConstraints.NONE)
-            .anchor(GridBagConstraints.EAST)
+            .fill(GridBagConstraints.VERTICAL)
             .add(translateButton)
     }
 
     override fun render(state: LanguageSelectionBarState) {
-        clearButton.isEnabled = !state.isLoading && state.canClear
+        clearButton.isEnabled = state.isClearActionable
         clearButton.toolTipText = state.strings.clearTooltip
 
-        swapButton.isEnabled = !state.isLoading && state.canSwap
+        swapButton.isEnabled = state.isSwapActionable
         swapButton.toolTipText = state.strings.swapTooltip
 
         // While loading: morph the Translate button into a Cancel button.
@@ -69,7 +83,7 @@ class LanguageSelectionBar(
         isInCancelMode = state.isLoading
         // Disabled on a guaranteed no-op (blank input); while loading this is Cancel, which must
         // stay actionable so a running translation can always be stopped.
-        translateButton.isEnabled = state.isLoading || state.canTranslate
+        translateButton.isEnabled = state.isTranslateActionable
         if (state.isLoading) {
             translateButton.text = state.strings.cancelButtonText
             translateButton.toolTipText = state.strings.cancelButtonText
@@ -78,18 +92,7 @@ class LanguageSelectionBar(
             translateButton.toolTipText = state.strings.translateButtonText
         }
 
-        sourceLanguageComboBox.render(
-            availableLanguages = state.allSourceLanguages,
-            selectedLanguage = state.selectedSourceLanguage,
-            autoDetectedLanguage = state.detectedSourceLanguage,
-            isEnabled = !state.isLoading
-        )
-
-        targetLanguageComboBox.render(
-            availableLanguages = state.allTargetLanguages,
-            selectedLanguage = state.selectedTargetLanguage,
-            autoDetectedLanguage = null,
-            isEnabled = !state.isLoading
-        )
+        sourceLanguageComboBox.renderSource(state)
+        targetLanguageComboBox.renderTarget(state)
     }
 }

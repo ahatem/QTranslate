@@ -188,6 +188,80 @@ The store processes the intent, updates state, and emits a new state snapshot. `
 
 Blocking calls (`Files.copy`, JDBC, synchronous HTTP) must always be wrapped in `withContext(Dispatchers.IO)`.
 
+### Window layout
+
+The main window is described by one value, `Configuration.windowLayout` (`WindowLayout` in
+`core/settings/data`), and written only through `Configuration.withWindowLayout`. It names the pane
+arrangement (Stacked, Side by side or Comparison) and puts each region (history, languages,
+services) in a slot: `TOP`, `ABOVE_RESULTS`, `BOTTOM` or `HIDDEN`. A slot means the same place in
+every pane layout:
+
+| slot | Stacked | Side by side | Comparison |
+|---|---|---|---|
+| `TOP` | above the input pane | above both columns | above the input pane |
+| `ABOVE_RESULTS` | between input and output | a full-width row directly above both columns, below any `TOP` rows | above the board |
+| `BOTTOM` | below the panes, above the status bar | same | same |
+| `HIDDEN` | not drawn; commands fall back (below) | same | same |
+
+The language row can move but never hides: it can be `TOP`, `ABOVE_RESULTS` or `BOTTOM`.
+`WindowLayout` refuses `HIDDEN` for it, and a stored `HIDDEN` (only a build that never shipped could
+write one) loads as `ABOVE_RESULTS`.
+
+- `WindowLayout.rowPlan(effectivePanes)` says which rows each slot holds, in the fixed order
+  history, languages, services. History and languages share a row when `shareRows` is set; the
+  service selector always has a row of its own. Under Comparison the services region is absent: the
+  board header switches the translator.
+- `WindowLayout.requiredHosts(effectivePanes)` says where each command lives. A hidden region's
+  commands move to the input strip (back/forward and image and document translate with mirrored
+  arrows, or the provider chip). With the status bar off, its notification button moves
+  to the trailing end of whichever row holds history, or to the input strip when history is hidden
+  too. The input strip never clips a command: when the pane is too short for every button, the
+  ones that do not fit fold into a trailing More button whose menu lists them with the same text,
+  icon, enabled state and action, and the notification button stays visible. The strip keeps its
+  visual order and folds by `ActionPriority`: document, image, forward and back first, then Speak,
+  and Copy last.
+- `SlotLayout` (`ui-swing/main/layout`) builds the slot containers and the pane split from the row
+  plan; `LayoutManager` rebuilds only when the arrangement changes.
+- A requested Comparison without two usable translators renders Stacked. The stored preference is
+  not rewritten, so the board returns once it is eligible again.
+- The second result (the extra output: backward translation, summary or rewrite) has its own
+  placement, `WindowLayout.secondResult`: `BELOW` (the default, and what a stored layout with no
+  such field decodes to), `WITH_RESULT` or `OWN_COLUMN`. What each means depends on the panes:
+
+  | | `BELOW` | `WITH_RESULT` | `OWN_COLUMN` |
+  |---|---|---|---|
+  | Stacked | full width under the panes | beside the result, under the input | not offered; built as `BELOW` |
+  | Side by side | full width under both columns | under the result, in the result column; the input keeps the full height | a third column: input, result, second result |
+  | Comparison | under the board | not offered; built as `BELOW` | not offered; built as `BELOW` |
+
+  `WindowLayout.effectiveSecondResult(effectivePanes)` is what is built and
+  `secondResultAvailability` says which choices are offered, with a `LayoutDisabledReason` when one
+  is not (no second result chosen in Settings, a column of its own outside Side by side, any shared
+  placement under Comparison). The stored value is never rewritten, so a choice comes back when the
+  panes allow it again. A row in `ABOVE_RESULTS` sits above the whole results area: the result and,
+  when they share it, the second result. When the second result is hidden, whichever split holds it
+  collapses with no gap and no divider, and the three columns share the width in halves again.
+  `SecondResultMenu` (`ui-swing/main/menus`) is the one builder of the choice, shown in View >
+  Layout and in a right-click menu on the second result's header, and the Settings Layout page
+  has a row for it; each hands one whole `WindowLayout` to the single write path.
+- The window is arranged from the window itself. `RegionMenu` (`ui-swing/main/menus`) builds the
+  menu for one region (where it goes, whether it shares a row, the service selector's widget and
+  strip style, density, and Save layout as profile) and hands each choice to its host as one whole
+  `WindowLayout`. Rules that forbid a choice come from `WindowLayout` as a `LayoutDisabledReason`;
+  `LayoutTexts` (`ui-swing/shared/layout`) turns them into words for every host, so the Settings page
+  and the menus never name a value two ways, and a disabled item carries its reason as a tooltip and
+  as a visible line. Two hosts exist so far: `RegionRowMenus` puts a popup on each chrome row
+  (`ArrangedLayout.rows`) that every control inside inherits unless it has a context menu of its
+  own, so the text panes keep theirs; and the Options menu lists a submenu per region, the status
+  bar, and the saved layouts as radio items (checked when the window equals the layout exactly),
+  with Manage layouts opening Settings. Both apply at once through the scoped save the View menu
+  toggles use. `LayoutProfiles.kt` in `core/settings/data` holds the pure rules for saving a layout
+  under a name (trim, replace in place, the cap of `LayoutProfile.MAX_PROFILES`).
+
+Configuration version 13 introduced the value. Files from versions 10 to 12 are mapped once from
+their stored v10 fields by `WindowLayoutMigration.fromV10`; those fields stay in the file, frozen
+(only a settings reset writes them, restoring their defaults).
+
 ---
 
 ## Error handling
@@ -245,7 +319,7 @@ QTranslate mirrors its entire layout for RTL languages (Arabic, Hebrew, Farsi, e
 1. `LocalizationManager` exposes `isRtl: Boolean` based on the active language's `[meta] rtl = true` field
 2. On language change, `MainAppFrame` calls `applyComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT)` on the root pane — Swing propagates this down the component tree
 3. Layout managers that respect orientation (`BorderLayout.LINE_START/LINE_END`, `FlowLayout.LEADING/TRAILING`, `GridBagConstraints.LINE_START`) flip automatically
-4. `LayoutManager.switchLayout(id, isRtl)` rebuilds the main content layout, passing `isRtl` so `SideBySideLayout` swaps the input/output panel positions
+4. `LayoutManager.switchLayout(layout, effectivePanes, isRtl)` rebuilds the main content, passing `isRtl` so the side-by-side split puts the input column on the leading side. Back/Forward icons do not mirror on their own, so the window swaps them by hand
 
 The key rule: never use absolute constants (`WEST`, `EAST`, `LEFT`, `RIGHT`) in layout code — always use orientation-relative ones (`LINE_START`, `LINE_END`, `LEADING`, `TRAILING`).
 

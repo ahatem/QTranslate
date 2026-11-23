@@ -55,13 +55,49 @@ class TranslatorSelectorTest {
         selectedId: String? = translators.firstOrNull()?.id,
         appearance: ServiceSelectorAppearance = ServiceSelectorAppearance.ICONS_AND_TEXT,
         loading: Boolean = false,
+        strings: TranslatorSelectorStrings = TranslatorSelectorStrings.DEFAULT,
     ) = TranslatorSelectorState(
         availableTranslators = translators,
         selectedTranslatorId = selectedId,
         isLoading = loading,
         style = ServiceSelectorStyle.CLASSIC,
-        appearance = appearance
+        appearance = appearance,
+        strings = strings
     )
+
+    @Test
+    fun `the strip draws the words it is handed, not English literals`() {
+        // These words travel with the state rather than being baked into the widget, so the
+        // interface language can change without the selector being rebuilt. This is the proof that
+        // it reads them; before this the strip was English in every locale.
+        val german = TranslatorSelectorStrings(
+            moreButton = "Weitere",
+            allServicesTooltip = "Alle Dienste",
+            configureActiveTooltip = "Aktiven Dienst einrichten",
+            translatorRole = "Übersetzen",
+            dictionaryRole = "Wörterbuch",
+            voiceRole = "Stimme",
+            selectServiceTooltip = "%1\$s-Dienst wählen",
+            configureServiceTooltip = "Gewählten %1\$s-Dienst einrichten",
+        )
+        val selector = selector()
+        onEdt { selector.render(state(services(3), strings = german)) }
+        size(selector, 800)
+
+        onEdt {
+            val gear = descendants(selector).filterIsInstance<JButton>()
+                .single { it.toolTipText == "Aktiven Dienst einrichten" }
+            assertEquals("Aktiven Dienst einrichten", gear.toolTipText, "the gear's tooltip is localized")
+        }
+
+        // Narrow enough that everything cannot fit: the overflow button appears with the same words.
+        size(selector, 120)
+        onEdt {
+            val more = descendants(selector).filterIsInstance<JButton>()
+                .first { it.toolTipText == "Alle Dienste" }
+            assertEquals("Weitere ▾", more.text, "the overflow button and its tooltip are localized")
+        }
+    }
 
     @Test
     fun `classic mode shows one toggle button per translator, the active one selected`() {
@@ -281,6 +317,73 @@ class TranslatorSelectorTest {
             descendants(selector).filterIsInstance<JButton>()
                 .any { it.isVisible && it.toolTipText == "All services" },
             "one pixel narrower and the row genuinely overflows"
+        )
+    }
+
+    @Test
+    fun `an icons-only strip packs its tabs at the start instead of stretching them`() {
+        val selector = selector()
+        onEdt { selector.render(state(services(4), appearance = ServiceSelectorAppearance.ICONS_ONLY)) }
+        size(selector, 800)
+
+        val tabs = descendants(selector).filterIsInstance<JToggleButton>()
+        val widthOf = { tab: JToggleButton -> maxOf(tab.preferredSize.width, tab.preferredSize.height) }
+        assertEquals(4, tabs.size)
+        tabs.forEach {
+            assertEquals(widthOf(it), it.width, "${it.toolTipText} keeps its own size, not an even share of the row")
+            assertTrue(it.width >= it.height, "an icon tab is at least a square")
+            assertEquals("Service ${tabs.indexOf(it) + 1}", it.toolTipText, "the tooltip names the provider")
+        }
+        assertEquals(tabs.first().x, tabs.first().parent.insets.left)
+        tabs.zipWithNext().forEach { (a, b) -> assertEquals(a.x + a.width, b.x, "tabs touch, in order") }
+        assertTrue(tabs.sumOf { it.width } < 400, "the tabs do not fill the row")
+
+        val gear = descendants(selector).filterIsInstance<JButton>().first { it.toolTipText == "Configure active translation service" }
+        assertTrue(
+            SwingUtilities.convertPoint(gear, gear.width, 0, selector).x >= selector.width - 1,
+            "the settings gear stays at the end of the row"
+        )
+    }
+
+    @Test
+    fun `an icons-only strip packs from the right in a right-to-left window`() {
+        val selector = selector()
+        onEdt {
+            selector.applyComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT)
+            selector.render(state(services(3), appearance = ServiceSelectorAppearance.ICONS_ONLY))
+        }
+        size(selector, 800)
+
+        val tabs = descendants(selector).filterIsInstance<JToggleButton>()
+        val strip = tabs.first().parent
+        assertEquals(strip.width - strip.insets.right, tabs.first().x + tabs.first().width, "the first tab is at the start edge")
+        tabs.zipWithNext().forEach { (a, b) -> assertEquals(b.x + b.width, a.x, "tabs touch, mirrored") }
+        val gear = descendants(selector).filterIsInstance<JButton>().first { it.toolTipText == "Configure active translation service" }
+        assertTrue(SwingUtilities.convertPoint(gear, 0, 0, selector).x <= 1, "the gear mirrors to the left")
+    }
+
+    @Test
+    fun `the service picker mirrors in a right-to-left window`() {
+        val selector = selector()
+        onEdt {
+            selector.applyComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT)
+            selector.render(
+                TranslatorSelectorState(
+                    availableTranslators = services(2),
+                    selectedTranslatorId = "service-0",
+                    isLoading = false,
+                    style = ServiceSelectorStyle.ENHANCED,
+                )
+            )
+        }
+        size(selector, 600)
+
+        val combo = descendants(selector).filterIsInstance<javax.swing.JComboBox<*>>().first()
+        val gear = descendants(selector).filterIsInstance<JButton>().first { it.toolTipText?.startsWith("Configure selected") == true }
+        assertFalse(combo.componentOrientation.isLeftToRight, "a picker built after the window was mirrored is mirrored too")
+        assertTrue(
+            SwingUtilities.convertPoint(gear, 0, 0, selector).x < SwingUtilities.convertPoint(combo, 0, 0, selector).x,
+            "the gear is at the combo's end, which is its left in a right-to-left window"
         )
     }
 

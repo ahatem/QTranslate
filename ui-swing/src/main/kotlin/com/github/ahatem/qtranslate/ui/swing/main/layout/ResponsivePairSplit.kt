@@ -22,14 +22,25 @@ import javax.swing.JSplitPane
  *                 callers pass reading order.
  * @param isRtl    whether the interface reads right to left. Only the side-by-side arrangement
  *                 mirrors; stacked, Input stays above Output whatever the direction.
+ * @param trailingMinWidth  the least width [trailing] keeps beside [leading]; more than one pane's
+ *                 worth when [trailing] holds two columns.
+ * @param trailingMinHeight the least height [trailing] keeps below [leading] when stacked; more
+ *                 than one pane's worth when [trailing] holds two panes one above the other.
+ * @param sideBySideShare  the share of the width [leading] starts with beside [trailing].
+ * @param breakpoint       the width below which the pair stacks; wider for a [trailing] that holds
+ *                 two columns, which need more room than one.
  */
 class ResponsivePairSplit(
     private val leading: JComponent,
     private val trailing: JComponent,
     private val isRtl: Boolean,
+    private val trailingMinWidth: Int = UISpacing.MIN_PANEL_WIDTH,
+    private val trailingMinHeight: Int = UISpacing.MIN_PANEL_HEIGHT,
+    sideBySideShare: Double = 0.5,
+    private val breakpoint: Int = UISpacing.SIDE_BY_SIDE_BREAKPOINT,
 ) {
     val split = MirroredSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, leading, trailing).apply {
-        leadingResizeWeight = 0.5
+        leadingResizeWeight = sideBySideShare
         dividerSize = UISpacing.DIVIDER_SIZE
         clearBorder()
     }
@@ -37,7 +48,7 @@ class ResponsivePairSplit(
     var isStacked: Boolean = false
         private set
 
-    private var sideBySideProportion = 0.5
+    private var sideBySideProportion = sideBySideShare
     private var stackedProportion = 0.5
     private var isRearranging = false
 
@@ -47,12 +58,33 @@ class ResponsivePairSplit(
             override fun componentResized(e: ComponentEvent) = fit(split.width)
         })
         split.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY) { rememberDivider() }
+        // A pair that does not start in halves says so once it has a size, after the fit above has
+        // chosen its arrangement.
+        if (sideBySideShare != 0.5) {
+            split.addComponentListener(object : ComponentAdapter() {
+                override fun componentResized(e: ComponentEvent) {
+                    if (split.width <= 0) return
+                    split.removeComponentListener(this)
+                    if (!isStacked) split.applyLeadingProportion(sideBySideProportion)
+                }
+            })
+        }
+    }
+
+    /**
+     * Gives [leading] [share] of the width whenever the pair is side by side: now if it is, or when
+     * it next is. Used when what [trailing] holds changes how much room [leading] should have.
+     */
+    fun setSideBySideShare(share: Double) {
+        sideBySideProportion = share
+        split.leadingResizeWeight = share
+        if (!isStacked && !split.applyLeadingProportion(share)) split.setLeadingProportion(share)
     }
 
     /** Chooses the arrangement for a pair [width] wide; does nothing unless it crosses the breakpoint. */
     fun fit(width: Int) {
         if (width <= 0) return
-        val stacked = width < UISpacing.SIDE_BY_SIDE_BREAKPOINT
+        val stacked = width < breakpoint
         if (stacked == isStacked) return
 
         val restored = if (stacked) stackedProportion else sideBySideProportion
@@ -74,9 +106,10 @@ class ResponsivePairSplit(
     }
 
     private fun arrange() {
-        val minimum = if (isStacked) Dimension(0, UISpacing.MIN_PANEL_HEIGHT) else Dimension(UISpacing.MIN_PANEL_WIDTH, 0)
-        leading.minimumSize = minimum
-        trailing.minimumSize = minimum
+        leading.minimumSize =
+            if (isStacked) Dimension(0, UISpacing.MIN_PANEL_HEIGHT) else Dimension(UISpacing.MIN_PANEL_WIDTH, 0)
+        trailing.minimumSize =
+            if (isStacked) Dimension(0, trailingMinHeight) else Dimension(trailingMinWidth, 0)
         split.orientation = if (isStacked) JSplitPane.VERTICAL_SPLIT else JSplitPane.HORIZONTAL_SPLIT
         split.isMirrored = isRtl && !isStacked
     }

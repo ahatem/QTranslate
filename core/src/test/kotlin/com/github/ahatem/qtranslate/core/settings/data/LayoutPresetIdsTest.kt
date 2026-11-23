@@ -25,7 +25,10 @@ class LayoutPresetIdsTest {
             )
         ),
         activeServicePresetId = "preset",
-        layoutPresetId = layoutPresetId
+        layoutPresetId = layoutPresetId,
+        // The arrangement the window actually reads; the id beside it is the frozen v10 field the
+        // same value is migrated from, kept in step here the way a migrated configuration has it.
+        windowLayout = WindowLayout(panes = PaneLayout.fromPresetId(layoutPresetId))
     )
 
     @Test

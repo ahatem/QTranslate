@@ -1,5 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
+import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Container
 import java.awt.event.ContainerAdapter
@@ -197,7 +200,7 @@ class SideBySideResponsiveTest {
     @Test
     fun `the arranged layout reacts to its own width and keeps Extra Output below the pair`() {
         val leaves = Leaves()
-        val refs = SideBySideLayout.arrange(leaves.registry, isRtl = false).componentRefs
+        val refs = SlotLayout.arrange(leaves.registry, WindowLayout(panes = PaneLayout.SIDE_BY_SIDE), isRtl = false).componentRefs
             as LayoutComponentRefs.WithSplitPanes
         val pair = refs.mainSplit
 
@@ -215,7 +218,9 @@ class SideBySideResponsiveTest {
         assertSame(leaves.input, pair.topComponent)
         assertTrue(SwingUtilities.isDescendingFrom(leaves.output, pair), "Output is still inside the pair")
 
-        assertSame(pair, refs.extraSplit.topComponent)
+        // The results area is the pair under the row that sits above both columns.
+        val results = refs.extraSplit.topComponent as Container
+        assertSame(pair, (results.layout as BorderLayout).getLayoutComponent(BorderLayout.CENTER))
         assertSame(leaves.extra, refs.extraSplit.bottomComponent)
         assertFalse(SwingUtilities.isDescendingFrom(leaves.extra, pair), "Extra Output stays outside the pair")
 
@@ -232,7 +237,7 @@ class SideBySideResponsiveTest {
     @Test
     fun `a right to left layout mirrors when wide and stacks Input first when narrow`() {
         val leaves = Leaves()
-        val pair = (SideBySideLayout.arrange(leaves.registry, isRtl = true).componentRefs
+        val pair = (SlotLayout.arrange(leaves.registry, WindowLayout(panes = PaneLayout.SIDE_BY_SIDE), isRtl = true).componentRefs
             as LayoutComponentRefs.WithSplitPanes).mainSplit
 
         SwingUtilities.invokeAndWait { pair.setSize(wide, height) }

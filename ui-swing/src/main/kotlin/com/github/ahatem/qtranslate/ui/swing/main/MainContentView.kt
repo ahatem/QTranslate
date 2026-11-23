@@ -10,7 +10,16 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.effectiveTranslatorCount
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
-import com.github.ahatem.qtranslate.core.settings.data.effectiveLayoutPresetId
+import com.github.ahatem.qtranslate.core.settings.data.FeatureHost
+import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
+import com.github.ahatem.qtranslate.core.settings.data.ServiceWidget
+import com.github.ahatem.qtranslate.core.settings.data.WindowFeature
+import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowRegion
+import com.github.ahatem.qtranslate.core.settings.data.effectivePaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.withLayoutProfiles
+import com.github.ahatem.qtranslate.core.settings.data.withWindowLayout
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.api.plugin.StandardOptions
@@ -32,6 +41,14 @@ import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguageSelectionB
 import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguageSelectionBarStrings
 import com.github.ahatem.qtranslate.ui.swing.main.layout.ComponentRegistry
 import com.github.ahatem.qtranslate.ui.swing.main.layout.LayoutManager
+import com.github.ahatem.qtranslate.ui.swing.main.layout.RegionRowMenus
+import com.github.ahatem.qtranslate.ui.swing.main.menus.LayoutProfileSaver
+import com.github.ahatem.qtranslate.ui.swing.main.menus.ProfilePrompts
+import com.github.ahatem.qtranslate.ui.swing.main.menus.SwingProfilePrompts
+import com.github.ahatem.qtranslate.ui.swing.main.menus.profileStrings
+import com.github.ahatem.qtranslate.ui.swing.main.menus.SecondResultPopup
+import com.github.ahatem.qtranslate.ui.swing.main.menus.regionMenuStrings
+import com.github.ahatem.qtranslate.ui.swing.main.menus.secondResultMenuStrings
 import com.github.ahatem.qtranslate.ui.swing.main.layout.WorkspaceDockHost
 import com.github.ahatem.qtranslate.ui.swing.main.lookup.LookupDock
 import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchPanel
@@ -53,13 +70,16 @@ import com.github.ahatem.qtranslate.ui.swing.main.output.TranslationProviderStat
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelector
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
+import com.github.ahatem.qtranslate.ui.swing.main.selector.serviceSelectorStrings
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorPopupButton
+import com.github.ahatem.qtranslate.ui.swing.main.selector.ProviderChip
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryPanel
 import com.github.ahatem.qtranslate.ui.swing.dictionary.DictionaryPanelState
 import com.github.ahatem.qtranslate.ui.swing.main.menus.CommandShortcutHints
 import com.github.ahatem.qtranslate.ui.swing.main.menus.withShortcutChord
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBar
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.Action
+import com.github.ahatem.qtranslate.ui.swing.main.widgets.ActionPriority
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsState
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
@@ -100,6 +120,8 @@ class MainContentView(
     private val onEnsureLookupDockRoom: () -> Unit,
     /** Opens the page an image came from. */
     private val onOpenImageSource: (ImageResult) -> Unit,
+    /** The questions asked while saving a layout; the window's own dialogs unless a test supplies them. */
+    profilePrompts: ProfilePrompts? = null,
 ) : JPanel(BorderLayout(0, 0)) {
 
     private val translationHistoryBar: TranslationHistoryBar = TranslationHistoryBar(
@@ -111,16 +133,29 @@ class MainContentView(
         onDocumentTranslate = { onOpenDocumentTranslation(null) },
     )
 
+    private fun selectService(type: ServiceRole, serviceId: String) {
+        dispatchSettings(SettingsIntent.UpdateServiceInActivePreset(type, serviceId))
+        if (type == ServiceRole.TRANSLATOR) dispatch(MainIntent.Translate())
+    }
+
+    private fun selectSourceLanguage(lang: LanguageCode) {
+        dispatch(MainIntent.SelectSourceLanguage(lang))
+        dispatchSettings(SettingsIntent.ToggleSetting { it.copy(preferredSourceLanguage = lang.tag) })
+    }
+
+    private fun selectTargetLanguage(lang: LanguageCode) {
+        dispatch(MainIntent.SelectTargetLanguage(lang))
+        dispatchSettings(SettingsIntent.ToggleSetting { it.copy(preferredTargetLanguage = lang.tag) })
+    }
+
     private val translatorSelector = TranslatorSelector(
         iconManager = iconManager,
-        onServiceSelected = { type, serviceId ->
-            dispatchSettings(
-                SettingsIntent.UpdateServiceInActivePreset(type, serviceId)
-            )
-            if (type == ServiceRole.TRANSLATOR) dispatch(MainIntent.Translate())
-        },
+        onServiceSelected = ::selectService,
         onConfigureService = onConfigureService
     )
+
+    /** Stands in for [translatorSelector] in the input strip while the services region is hidden. */
+    private val providerChip = ProviderChip(iconManager = iconManager, onServiceSelected = ::selectService)
 
     /** Compact primary selector mounted inside the Comparison result header. */
     private val comparisonPrimarySelector = TranslatorPopupButton(
@@ -137,15 +172,9 @@ class MainContentView(
         iconManager = iconManager,
         localizer = localizer,
         onClear = { dispatch(MainIntent.UpdateInputText("")) },
-        onSourceLanguageSelected = { lang ->
-            dispatch(MainIntent.SelectSourceLanguage(lang))
-            dispatchSettings(SettingsIntent.ToggleSetting { it.copy(preferredSourceLanguage = lang.tag) })
-        },
+        onSourceLanguageSelected = ::selectSourceLanguage,
         onSwap = { dispatch(MainIntent.SwapLanguages) },
-        onTargetLanguageSelected = { lang ->
-            dispatch(MainIntent.SelectTargetLanguage(lang))
-            dispatchSettings(SettingsIntent.ToggleSetting { it.copy(preferredTargetLanguage = lang.tag) })
-        },
+        onTargetLanguageSelected = ::selectTargetLanguage,
         onTranslate = { dispatch(MainIntent.Translate()) },
         onCancel = { dispatch(MainIntent.CancelTranslation) }
     )
@@ -235,6 +264,57 @@ class MainContentView(
     // Separate wrapper so LayoutManager.switchLayout()'s removeAll() never touches dictionaryPanel.
     private val contentWrapper = JPanel(BorderLayout())
 
+    /**
+     * Saves the window's layout as a named profile. The list is written through the same scoped
+     * save every other window setting uses.
+     */
+    private val profileSaver = LayoutProfileSaver(
+        prompts = profilePrompts ?: SwingProfilePrompts(
+            parent = { this },
+            strings = { localizer.profileStrings() },
+        ),
+        profiles = { lastState?.second?.workingConfiguration?.layoutProfiles.orEmpty() },
+        layout = { lastState?.second?.workingConfiguration?.windowLayout ?: WindowLayout.DEFAULT },
+        save = { profiles -> dispatchSettings(SettingsIntent.ToggleSetting { it.withLayoutProfiles(profiles) }) },
+    )
+
+    /** The context menu of every chrome row: the arrangement of the window, from the window itself. */
+    internal val rowMenus = RegionRowMenus(
+        current = {
+            lastState?.let { (main, settings) ->
+                val config = settings.workingConfiguration
+                RegionRowMenus.Current(
+                    layout = config.windowLayout,
+                    effectivePanes = config.effectivePaneLayout(main.availableTranslatorIds),
+                    isRtl = localizer.isRtl,
+                )
+            }
+        },
+        strings = { localizer.regionMenuStrings() },
+        onChange = { layout -> dispatchSettings(SettingsIntent.ToggleSetting { it.withWindowLayout(layout) }) },
+        onSaveProfile = { saveLayoutAsProfile() },
+    )
+
+    /** The context menu of the second result's header: where the second result sits. */
+    internal val secondResultPopup = SecondResultPopup(
+        current = {
+            lastState?.let { (main, settings) ->
+                val config = settings.workingConfiguration
+                SecondResultPopup.Current(
+                    layout = config.windowLayout,
+                    effectivePanes = config.effectivePaneLayout(main.availableTranslatorIds),
+                    extraOutputType = config.extraOutputType,
+                    isRtl = localizer.isRtl,
+                )
+            }
+        },
+        strings = { localizer.secondResultMenuStrings() },
+        onChange = { layout -> dispatchSettings(SettingsIntent.ToggleSetting { it.withWindowLayout(layout) }) },
+    ).also { extraOutputPanel.installHeaderPopup(it) }
+
+    /** Asks for a name and saves the window's current layout under it. */
+    fun saveLayoutAsProfile() = profileSaver.saveCurrent()
+
     private val layoutManager = LayoutManager(
         ComponentRegistry(
             historyBar = translationHistoryBar,
@@ -244,8 +324,10 @@ class MainContentView(
             outputPanel = outputTextPanel,
             compareBoard = compareBoard,
             extraOutputPanel = extraOutputPanel,
-            statusBar = statusBar
-        ), contentWrapper
+            statusBar = statusBar,
+            notificationButton = statusBar.notificationButton,
+        ), contentWrapper,
+        onArranged = { rowMenus.install(it) },
     )
 
     /**
@@ -258,8 +340,6 @@ class MainContentView(
     private var lastState: Pair<MainState, SettingsState>? = null
     private var lastDictionaryKey: DictionaryKey? = null
     private var currentLayoutId: String? = null
-    /** Last arranged layout, so eligibility changes re-arrange without rewriting the preference. */
-    private var lastEffectiveLayoutId: String? = null
     /** The translate binding the settings ask for, so an unchanged request is not re-issued. */
     private var requestedTranslateKeyStroke: KeyStroke? = null
 
@@ -293,25 +373,32 @@ class MainContentView(
 
     fun render(mainState: MainState, settingsState: SettingsState) {
         val config = settingsState.workingConfiguration
+        val layout = config.windowLayout
         // Effective arrangement: a requested Comparison without two usable
-        // translators deterministically shows Classic. The saved preference is
+        // translators deterministically shows Stacked. The saved preference is
         // never rewritten, so eligibility restores Comparison naturally.
-        val effectiveLayoutId = config.effectiveLayoutPresetId(mainState.availableTranslatorIds)
+        val effectivePanes = config.effectivePaneLayout(mainState.availableTranslatorIds)
+        val effectiveLayoutId = effectivePanes.presetId
+        val hosts = layout.requiredHosts(effectivePanes)
 
         // Told outright rather than left to the orientation cascade, which reaches the host at a
         // point in startup that depends on when this view was added to the window.
         val direction = if (localizer.isRtl) ComponentOrientation.RIGHT_TO_LEFT else ComponentOrientation.LEFT_TO_RIGHT
         if (dockHost.componentOrientation != direction) dockHost.componentOrientation = direction
 
-        if (lastState == null || lastState?.second?.workingConfiguration?.layoutPresetId != config.layoutPresetId || lastEffectiveLayoutId != effectiveLayoutId) {
-            layoutManager.switchLayout(effectiveLayoutId, localizer.isRtl)
-            currentLayoutId = effectiveLayoutId
-            lastEffectiveLayoutId = effectiveLayoutId
-        }
-        translationHistoryBar.setStatusVisible(effectiveLayoutId != LayoutPresetIds.COMPARISON)
+        // Rebuilds only when the arrangement changed; the manager compares what it last built.
+        layoutManager.switchLayout(layout, effectivePanes, localizer.isRtl)
+        currentLayoutId = effectiveLayoutId
+        // The status sentence is the widest thing in the bar: in a shared row it would push its
+        // neighbours off the row, and in a comparison board the selectors and the provider header
+        // already say the same thing.
+        val historySharesRow = layout.rowPlan(effectivePanes).values.flatten()
+            .any { row -> WindowRegion.HISTORY in row && row.size > 1 }
+        translationHistoryBar.setStatusVisible(effectivePanes != PaneLayout.COMPARISON && !historySharesRow)
+        mountNotificationButton(hosts.getValue(WindowFeature.NOTIFICATIONS))
 
         if (lastState == null ||
-            lastState?.second?.workingConfiguration?.toolbarVisibility != config.toolbarVisibility ||
+            lastState?.second?.workingConfiguration?.windowLayout != config.windowLayout ||
             lastState?.second?.workingConfiguration?.extraOutputType != config.extraOutputType
         ) {
             layoutManager.updateVisibility(config)
@@ -319,9 +406,30 @@ class MainContentView(
 
         updateTranslateKeyStroke(config)
         renderLookupDock(mainState, config)
-        renderComponents(mainState, config, effectiveLayoutId, settingsState.originalConfiguration.ocr.postSelectionAction)
+        renderComponents(mainState, config, effectiveLayoutId, hosts, settingsState.originalConfiguration.ocr.postSelectionAction)
         lastState = mainState to settingsState
+        // Controls the render just created (a tab per service, say) join their row's popup.
+        rowMenus.refreshInheritance()
     }
+
+    /**
+     * Puts the one notification button where [host] says: the status bar, or, while the bar is
+     * off and history is hidden too, the input strip. The end of the history row is built into
+     * the row itself (see [SlotLayout]), so the button sits at the true end of a shared row.
+     */
+    private fun mountNotificationButton(host: FeatureHost) {
+        when (host) {
+            FeatureHost.HistoryRowEnd -> notificationInStrip = null
+            FeatureHost.InputStrip -> notificationInStrip = statusBar.notificationButton
+            else -> {
+                notificationInStrip = null
+                statusBar.restoreNotificationButton()
+            }
+        }
+    }
+
+    /** The notification button while the input strip hosts it; mounted with the strip's chips. */
+    private var notificationInStrip: JComponent? = null
 
     /**
      * Keeps the per-pane translate keystroke in sync with the user's configured binding.
@@ -382,7 +490,8 @@ class MainContentView(
             selectorState = TranslatorSelectorState(
                 availableTranslators = mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR),
                 selectedTranslatorId = selectedTranslatorId,
-                isLoading = mainState.isLoading
+                isLoading = mainState.isLoading,
+                strings = localizer.serviceSelectorStrings()
             ),
             onCopy = { text -> text.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) },
             onListen = { dispatch(MainIntent.ListenToText(textSource = TextSource.Output)) },
@@ -553,7 +662,13 @@ class MainContentView(
         }
     }
 
-    private fun renderComponents(mainState: MainState, config: Configuration, effectiveLayoutId: String, ocrDefault: OcrPostSelectionAction) {
+    private fun renderComponents(
+        mainState: MainState,
+        config: Configuration,
+        effectiveLayoutId: String,
+        hosts: Map<WindowFeature, FeatureHost>,
+        ocrDefault: OcrPostSelectionAction,
+    ) {
         // Every chord this view shows comes from the user's own bindings, so a rebind is reflected
         // the next time state is rendered rather than in a copy stored somewhere else.
         val shortcutHints = CommandShortcutHints.fromBindings(config.effectiveHotkeys)
@@ -611,54 +726,110 @@ class MainContentView(
             )
         )
 
-        translatorSelector.render(
-            TranslatorSelectorState(
-                availableTranslators = mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR),
-                selectedTranslatorId = selectedTranslatorId,
-                isLoading = mainState.isLoading,
-                availableServices = mainState.availableServices,
-                selectedServices = activePreset?.selectedServices.orEmpty(),
-                style = config.serviceSelectorStyle,
-                appearance = config.serviceSelectorAppearance
-            )
+        val selectorState = TranslatorSelectorState(
+            availableTranslators = mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR),
+            selectedTranslatorId = selectedTranslatorId,
+            isLoading = mainState.isLoading,
+            strings = localizer.serviceSelectorStrings(),
+            availableServices = mainState.availableServices,
+            selectedServices = activePreset?.selectedServices.orEmpty(),
+            style = when (config.windowLayout.serviceWidget) {
+                ServiceWidget.STRIP -> ServiceSelectorStyle.CLASSIC
+                ServiceWidget.PICKER -> ServiceSelectorStyle.ENHANCED
+            },
+            appearance = config.windowLayout.stripAppearance
         )
+        translatorSelector.render(selectorState)
+        providerChip.render(selectorState)
 
-        languageSelectionBar.render(
-            LanguageSelectionBarState(
-                isLoading = mainState.isLoading,
-                canClear = mainState.inputText.isNotBlank(),
-                canSwap = mainState.translatedText.isNotBlank(),
-                canTranslate = mainState.inputText.isNotBlank(),
-                allSourceLanguages = languageChoices.sourceLanguages,
-                allTargetLanguages = languageChoices.targetLanguages,
-                selectedSourceLanguage = mainState.sourceLanguage,
-                detectedSourceLanguage = mainState.detectedSourceLanguage,
-                selectedTargetLanguage = mainState.targetLanguage,
-                strings = LanguageSelectionBarStrings(
-                    translateButtonText = localizer.getString("main_window_language_bar.translate_button"),
-                    cancelButtonText    = localizer.getString("main_window_language_bar.cancel_button"),
-                    clearTooltip        = localizer.getString("main_window_language_bar.clear_tooltip")
-                        .withShortcutChord(shortcutHints, HotkeyAction.CLEAR_INPUT),
-                    swapTooltip         = localizer.getString("main_window_language_bar.swap_languages_tooltip")
-                        .withShortcutChord(shortcutHints, HotkeyAction.SWAP_LANGUAGES)
-                )
+        val languageBarState = LanguageSelectionBarState(
+            isLoading = mainState.isLoading,
+            canClear = mainState.inputText.isNotBlank(),
+            canSwap = mainState.translatedText.isNotBlank(),
+            canTranslate = mainState.inputText.isNotBlank(),
+            allSourceLanguages = languageChoices.sourceLanguages,
+            allTargetLanguages = languageChoices.targetLanguages,
+            selectedSourceLanguage = mainState.sourceLanguage,
+            detectedSourceLanguage = mainState.detectedSourceLanguage,
+            selectedTargetLanguage = mainState.targetLanguage,
+            strings = LanguageSelectionBarStrings(
+                translateButtonText = localizer.getString("main_window_language_bar.translate_button"),
+                cancelButtonText    = localizer.getString("main_window_language_bar.cancel_button"),
+                clearTooltip        = localizer.getString("main_window_language_bar.clear_tooltip")
+                    .withShortcutChord(shortcutHints, HotkeyAction.CLEAR_INPUT),
+                swapTooltip         = localizer.getString("main_window_language_bar.swap_languages_tooltip")
+                    .withShortcutChord(shortcutHints, HotkeyAction.SWAP_LANGUAGES)
             )
         )
+        languageSelectionBar.render(languageBarState)
 
         val hasInputText = mainState.inputText.isNotBlank()
         val isTtsPlaying = mainState.isTtsPlaying
         val listenStopTooltip = if (isTtsPlaying)
             localizer.getString("common.stop") else localizer.getString("main_window_editor_context_menu.listen")
         val listenStopIcon = if (isTtsPlaying) Icons.CLOSE else Icons.SPEAK
+        // When history or the services have no row, their commands are mounted in the input strip so
+        // none of them disappears with the row. The View menu remains a second route to the history
+        // actions. The language row never hides, so it has nothing to put here.
+        val historyInStrip = hosts[WindowFeature.BACK_FORWARD] == FeatureHost.InputStrip
+        val servicesInStrip = hosts[WindowFeature.SERVICE_SWITCH] == FeatureHost.InputStrip
+        // An icon button is not mirrored by its orientation, so the arrows are swapped by hand in
+        // a right-to-left window, as the history row does.
+        val isRtl = localizer.isRtl
+        val relocatedActions = if (historyInStrip) listOf(
+            Action(
+                id = "history_back",
+                iconPath = if (isRtl) Icons.NAV_FORWARD else Icons.NAV_BACK,
+                tooltip = localizer.getString("main_window_history_bar.backward_tooltip"),
+                isEnabled = mainState.canUndo,
+                isVisible = true,
+                onClick = { dispatch(MainIntent.UndoTranslation) },
+                keepPriority = ActionPriority.BACK
+            ),
+            Action(
+                id = "history_forward",
+                iconPath = if (isRtl) Icons.NAV_BACK else Icons.NAV_FORWARD,
+                tooltip = localizer.getString("main_window_history_bar.forward_tooltip"),
+                isEnabled = mainState.canRedo,
+                isVisible = true,
+                onClick = { dispatch(MainIntent.RedoTranslation) },
+                keepPriority = ActionPriority.FORWARD
+            ),
+            Action(
+                id = "input_image_translate",
+                iconPath = Icons.OCR,
+                tooltip = localizer.getString("main_window_history_bar.image_translate_tooltip"),
+                isEnabled = true,
+                isVisible = true,
+                onClick = { onOpenSnippingTool(OcrWorkflowCommand.SHOW_ACTIONS) },
+                keepPriority = ActionPriority.IMAGE
+            ),
+            Action(
+                id = "input_document_translate",
+                iconPath = Icons.DOCUMENT,
+                tooltip = localizer.getString("main_window_history_bar.document_translate_tooltip"),
+                isEnabled = true,
+                isVisible = true,
+                onClick = { onOpenDocumentTranslation(null) },
+                keepPriority = ActionPriority.DOCUMENT
+            ),
+        ) else emptyList()
+
+        inputTextPanel.setStripComponents(
+            chips = listOfNotNull(providerChip.takeIf { servicesInStrip }),
+            trailing = notificationInStrip,
+        )
+
         val inputActionsState = TextActionsState(
-            actions = listOf(
+            actions = relocatedActions + listOf(
                 Action(
                     id = "copy_input",
                     iconPath = Icons.COPY,
                     tooltip = localizer.getString("main_window_editor_context_menu.copy"),
                     isEnabled = hasInputText && !mainState.isLoading,
                     isVisible = true,
-                    onClick = { mainState.inputText.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) }
+                    onClick = { mainState.inputText.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) },
+                    keepPriority = ActionPriority.COPY
                 ),
                 Action(
                     id = if (isTtsPlaying) "stop_tts_input" else "listen_input",
@@ -669,9 +840,13 @@ class MainContentView(
                     onClick = {
                         if (isTtsPlaying) dispatch(MainIntent.StopTTS)
                         else dispatch(MainIntent.ListenToText(textSource = TextSource.Input))
-                    }
+                    },
+                    keepPriority = ActionPriority.SPEAK
                 ),
-            )
+            ),
+            // With every region hidden the strip holds more commands than a short pane has room
+            // for; the ones that do not fit go to this button's menu.
+            moreLabel = localizer.getString("common.more_actions"),
         )
 
         inputTextPanel.render(
@@ -741,7 +916,8 @@ class MainContentView(
             TranslatorSelectorState(
                 availableTranslators = mainState.getAvailableServicesFor(ServiceRole.TRANSLATOR),
                 selectedTranslatorId = selectedTranslatorId,
-                isLoading = mainState.isLoading
+                isLoading = mainState.isLoading,
+                strings = localizer.serviceSelectorStrings()
             )
         )
 

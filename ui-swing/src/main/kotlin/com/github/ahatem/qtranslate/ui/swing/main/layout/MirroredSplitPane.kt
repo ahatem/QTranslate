@@ -101,10 +101,21 @@ open class MirroredSplitPane(
      * @return false, having done nothing, while the pane has no size to divide.
      */
     fun applyLeadingProportion(proportion: Double): Boolean {
-        if (splitExtent == 0) return false
-        setDividerLocation(if (isMirrored) 1.0 - proportion else proportion)
+        val extent = splitExtent
+        if (extent == 0) return false
+        val share = if (isMirrored) 1.0 - proportion else proportion
+        // A share that would leave either side under its own minimum is moved to the nearest
+        // location that does not. A proportion alone is not checked against the minimums, so a
+        // short window would otherwise squeeze the side that asked for the smaller share.
+        val first = leftComponent?.let { minimumAlongAxis(it) } ?: 0
+        val second = rightComponent?.let { minimumAlongAxis(it) } ?: 0
+        val location = (share * extent).toInt()
+        setDividerLocation(if (first <= extent - second) location.coerceIn(first, extent - second) else first)
         return true
     }
+
+    private fun minimumAlongAxis(component: Component): Int =
+        if (orientation == HORIZONTAL_SPLIT) component.minimumSize.width else component.minimumSize.height
 
     /**
      * Like [applyLeadingProportion], but holds the request until the pane can honour it.

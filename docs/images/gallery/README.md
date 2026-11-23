@@ -48,6 +48,29 @@ and 200%, plus RTL and light theme.
 Use `QTRANSLATE_SCREENSHOT_SCENES=document` to capture only the document dialog. Its file paths are
 visible in the image, so also set `QTRANSLATE_SCREENSHOT_DOCS` to a neutral folder such as
 `C:\Users\Public\Documents` first.
+Use `QTRANSLATE_SCREENSHOT_SCENES=compact-toolbar` to capture the Compact card, where the history
+controls share the language row, in both themes plus Arabic, since a single row is where mirroring
+goes wrong quietly.
+Use `QTRANSLATE_SCREENSHOT_SCENES=layout-slots` to capture a curated list of window layouts, each
+once in English light (`slots-<name>-light`) and once in Arabic dark (`slots-<name>-rtl-dark`):
+the four cards (`card-modern-classic`, `card-classic`, `card-compact-row`, `card-focus`), the
+other density of two of them (`density-modern-compact`, `density-classic-comfortable`), the
+side by side and Comparison panes that are not cards (`panes-side-by-side`, `panes-comparison`),
+history and services hidden, with their commands and the provider chip in the input strip
+(`history-services-hidden`; the language row never hides), history at the bottom
+(`history-bottom`), languages at the top of stacked panes (`stacked-languages-top`), history and
+languages sharing the top row with the services on a row of their own beneath
+(`services-top-own-row`), side by side with the languages above the results
+(`side-by-side-languages-above-results`, a full-width row above both columns), Comparison with history at the bottom, scrolled to the
+top of the board (`comparison-history-bottom`) and an icon-only service strip (`icon-strip`). Then
+each place the second result (a backward translation here) can sit: below the result in stacked
+panes (`stacked-below`), beside it (`stacked-beside`), below both columns of side by side
+(`sbs-below`), under the result in its column (`sbs-under-result`), in a third column of its own
+(`sbs-third-column`) and below the Comparison board (`comparison-below`).
+Nineteen layouts, 38 files. The scene ends with the history row's own context menu, which is how the
+window is arranged from the window itself, open over a stacked window in English light
+(`slots-region-menu-history-light`) and Arabic dark (`slots-region-menu-history-rtl-dark`): 40 files
+in all. It is the scene to run after touching anything about how the window arranges itself.
 Use `QTRANSLATE_SCREENSHOT_PLATE_LABEL=none` to composite without the plate caption, for consumers
 that label the shots themselves — the website does.
 

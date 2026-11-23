@@ -3,9 +3,12 @@ package com.github.ahatem.qtranslate.ui.swing.main.selector
 import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
+import com.github.ahatem.qtranslate.core.settings.data.Density
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
+import com.github.ahatem.qtranslate.ui.swing.main.layout.ChromeButtons
+import com.github.ahatem.qtranslate.ui.swing.main.layout.DensityAware
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.*
@@ -20,16 +23,21 @@ class TranslatorSelector(
     private val iconManager: IconManager,
     private val onServiceSelected: (ServiceRole, String) -> Unit,
     private val onConfigureService: (String) -> Unit = {}
-) : JPanel(CardLayout()), Renderable<TranslatorSelectorState> {
-    private companion object { const val CLASSIC = "classic"; const val ENHANCED = "enhanced"; const val ICON_SIZE = 16 }
+) : JPanel(CardLayout()), Renderable<TranslatorSelectorState>, DensityAware {
+    private companion object { const val CLASSIC = "classic"; const val ENHANCED = "enhanced" }
 
     private var state = TranslatorSelectorState(emptyList(), null, false)
     private var activeServiceId: String? = null
+    /** True while the strip shows icons only: compact toolbar buttons packed at the start. */
+    private var iconsOnly = false
+
     // Classic keeps the original QTranslate's adjacent bottom tabs, with complete labels and
     // a single adaptive overflow menu for today's larger plugin set.
     private val serviceStrip = object : JPanel(StretchTabsLayout()) {
         override fun paintChildren(g: Graphics) {
             super.paintChildren(g)
+            // Icon-only tabs are separate toolbar buttons, so no divider is drawn between them.
+            if (iconsOnly) return
             val segments = components.sortedBy { it.x }
             val oldColor = g.color
             g.color = UIManager.getColor("Component.borderColor") ?: Color.GRAY
@@ -42,18 +50,14 @@ class TranslatorSelector(
     }.apply { isOpaque = false }
     private var activeButton: JToggleButton? = null
     private var stripButtons: List<JToggleButton> = emptyList()
-    private val overflowMenu = JButton("More ▾").apply {
+    private val overflowMenu = JButton().apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
         putClientProperty(FlatClientProperties.STYLE, "arc: 0")
-        margin = compactButtonMargin()
-        toolTipText = "All services"
         addActionListener { showOverflowMenu(this) }
     }
     private val configureActive = JButton(iconManager.getIcon(Icons.SETTINGS, 16, 16)).apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
         putClientProperty(FlatClientProperties.STYLE, "arc: 0")
-        margin = compactButtonMargin()
-        toolTipText = "Configure active translation service"
         addActionListener { activeServiceId?.let(onConfigureService) }
     }
     private val classic = JPanel(BorderLayout(UIScale.scale(6), 0)).apply {
@@ -66,14 +70,46 @@ class TranslatorSelector(
     }
     private val enhanced = JPanel(GridLayout(1, 0, 8, 0)).apply { isOpaque = false }
 
+    /**
+     * The density of the strip's buttons. Comfortable leaves their margin to the theme; compact
+     * packs them closer. Applied again to every button a rebuild creates.
+     */
+    override var density: Density = Density.COMFORTABLE
+        set(value) {
+            if (field == value) return
+            field = value
+            styleChromeButtons()
+            fitClassicButtons()
+            revalidate(); repaint()
+        }
+
     init {
         isOpaque = false; add(classic, CLASSIC); add(enhanced, ENHANCED)
+    }
+
+    private fun styleChromeButtons() {
+        ChromeButtons.apply(overflowMenu, density, ChromeButtons.Role.TAB)
+        ChromeButtons.apply(configureActive, density, ChromeButtons.Role.TAB)
+        stripButtons.forEach {
+            // An icon-only tab is a plain toolbar button; the others are segments of the strip.
+            ChromeButtons.apply(it, density, if (iconsOnly) ChromeButtons.Role.ICON else ChromeButtons.Role.TAB)
+        }
     }
 
     override fun render(state: TranslatorSelectorState) {
         this.state = state
         serviceStrip.componentOrientation = componentOrientation
+        // The overflow button and the gear are the two controls this widget words itself; the
+        // chevron stays here rather than in the translation file, where it would be a decoration
+        // translators have to keep copying.
+        overflowMenu.text = "${state.strings.moreButton} ▾"
+        overflowMenu.toolTipText = state.strings.allServicesTooltip
+        configureActive.toolTipText = state.strings.configureActiveTooltip
         if (state.style == ServiceSelectorStyle.CLASSIC) rebuildClassic() else rebuildEnhanced()
+        // Rebuilt children start left to right; hand them the window's direction so the gear, the
+        // combo arrows and the icons mirror with everything else.
+        serviceStrip.applyComponentOrientation(componentOrientation)
+        enhanced.applyComponentOrientation(componentOrientation)
         (layout as CardLayout).show(this, if (state.style == ServiceSelectorStyle.CLASSIC) CLASSIC else ENHANCED)
         revalidate(); repaint()
     }
@@ -83,6 +119,8 @@ class TranslatorSelector(
         val selected = services.find { it.id == state.selectedTranslatorId } ?: services.firstOrNull()
         activeServiceId = selected?.id
         val group = ButtonGroup()
+        iconsOnly = state.appearance == ServiceSelectorAppearance.ICONS_ONLY
+        serviceStrip.layout = if (iconsOnly) PackedTabsLayout() else StretchTabsLayout()
         val buttons = services.associate { service ->
             val serviceIcon = loadIcon(service)
             service.id to JToggleButton().apply {
@@ -94,8 +132,9 @@ class TranslatorSelector(
                 toolTipText = service.name; isSelected = service.id == selected?.id
                 isEnabled = !state.isLoading; isOpaque = false
                 putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
-                putClientProperty(FlatClientProperties.STYLE, "arc: 0")
-                margin = compactButtonMargin()
+                // Text tabs keep the squared, adjacent look. An icon-only tab is a plain FlatLaf
+                // toolbar button, with the look and feel's own margin and corners.
+                if (!iconsOnly) putClientProperty(FlatClientProperties.STYLE, "arc: 0")
                 addActionListener { onServiceSelected(ServiceRole.TRANSLATOR, service.id) }
                 addMouseListener(object : MouseAdapter() {
                     override fun mousePressed(e: MouseEvent) { if (SwingUtilities.isRightMouseButton(e)) onConfigureService(service.id) }
@@ -104,6 +143,7 @@ class TranslatorSelector(
         }
         activeButton = selected?.let { buttons[it.id] }
         stripButtons = services.mapNotNull { buttons[it.id] }
+        styleChromeButtons()
         configureActive.isEnabled = !state.isLoading && selected != null
         overflowMenu.isEnabled = !state.isLoading
         fitClassicButtons()
@@ -145,6 +185,7 @@ class TranslatorSelector(
         if (serviceStrip.components.toList() != visibleButtons) {
             serviceStrip.removeAll()
             visibleButtons.forEach { serviceStrip.add(it) }
+            serviceStrip.applyComponentOrientation(componentOrientation)
         }
         classic.revalidate()
         classic.repaint()
@@ -152,7 +193,11 @@ class TranslatorSelector(
 
     private fun rebuildEnhanced() {
         enhanced.removeAll()
-        listOf(ServiceRole.TRANSLATOR to "Translate", ServiceRole.DICTIONARY to "Dictionary", ServiceRole.TTS to "Voice")
+        listOf(
+            ServiceRole.TRANSLATOR to state.strings.translatorRole,
+            ServiceRole.DICTIONARY to state.strings.dictionaryRole,
+            ServiceRole.TTS to state.strings.voiceRole,
+        )
             .forEach { (type, label) ->
                 val services = state.availableServices.filter { it.type == type }
                 if (services.isNotEmpty()) enhanced.add(createServicePicker(type, label, services))
@@ -161,13 +206,14 @@ class TranslatorSelector(
 
     private fun createServicePicker(type: ServiceRole, label: String, services: List<ServiceInfo>): JComponent {
         val combo = JComboBox(services.toTypedArray()).apply {
-            renderer = ServiceRenderer(); selectedItem = services.find { it.id == state.selectedServices[type] } ?: services.first()
-            isEnabled = !state.isLoading; toolTipText = "Select $label service"
+            renderer = ServiceListCellRenderer(iconManager); selectedItem = services.find { it.id == state.selectedServices[type] } ?: services.first()
+            isEnabled = !state.isLoading; toolTipText = state.strings.selectServiceTooltip.format(label)
             minimumSize = Dimension(0, preferredSize.height)
             addActionListener { (selectedItem as? ServiceInfo)?.let { onServiceSelected(type, it.id) } }
         }
         val gear = JButton(iconManager.getIcon(Icons.SETTINGS, 16, 16)).apply {
-            putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton"); toolTipText = "Configure selected $label service"; isFocusable = false
+            putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton"); toolTipText = state.strings.configureServiceTooltip.format(label); isFocusable = false
+            ChromeButtons.apply(this, density, ChromeButtons.Role.ICON)
             addActionListener { (combo.selectedItem as? ServiceInfo)?.let { onConfigureService(it.id) } }
         }
         return JPanel(BorderLayout(4, 2)).apply {
@@ -201,11 +247,49 @@ class TranslatorSelector(
         return menu
     }
 
-    private fun loadIcon(service: ServiceInfo): Icon? = service.iconPath?.let { iconManager.getIcon(service.id, it, ICON_SIZE, ICON_SIZE) }
+    private fun loadIcon(service: ServiceInfo): Icon? = iconManager.serviceIcon(service)
 
-    private fun compactButtonMargin() = Insets(
-        UIScale.scale(2), UIScale.scale(4), UIScale.scale(2), UIScale.scale(4)
-    )
+    /**
+     * Whole tabs at their own size, packed from the start of the row and so mirrored in a
+     * right-to-left window. Each is at least as wide as it is tall, which makes an icon-only tab a
+     * square toolbar button.
+     */
+    private class PackedTabsLayout : LayoutManager {
+        override fun addLayoutComponent(name: String?, comp: Component?) = Unit
+        override fun removeLayoutComponent(comp: Component?) = Unit
+
+        private fun width(child: Component) = maxOf(child.preferredSize.width, child.preferredSize.height)
+
+        override fun preferredLayoutSize(parent: Container): Dimension {
+            val children = parent.components.filter { it.isVisible }
+            val insets = parent.insets
+            return Dimension(
+                children.sumOf(::width) + insets.left + insets.right,
+                (children.maxOfOrNull { it.preferredSize.height } ?: 0) + insets.top + insets.bottom
+            )
+        }
+
+        override fun minimumLayoutSize(parent: Container): Dimension = preferredLayoutSize(parent)
+
+        override fun layoutContainer(parent: Container) {
+            val insets = parent.insets
+            val ltr = parent.componentOrientation.isLeftToRight
+            val rowHeight = parent.height - insets.top - insets.bottom
+            var edge = if (ltr) insets.left else parent.width - insets.right
+            parent.components.filter { it.isVisible }.forEach { child ->
+                val w = width(child)
+                val h = child.preferredSize.height.coerceAtMost(rowHeight)
+                val y = insets.top + (rowHeight - h) / 2
+                if (ltr) {
+                    child.setBounds(edge, y, w, h)
+                    edge += w
+                } else {
+                    edge -= w
+                    child.setBounds(edge, y, w, h)
+                }
+            }
+        }
+    }
 
     /** Share spare width between whole tabs; never shrink a label to fill an arbitrary cell. */
     private class StretchTabsLayout : LayoutManager {
@@ -244,12 +328,5 @@ class TranslatorSelector(
                 }
             }
         }
-    }
-
-    private inner class ServiceRenderer : DefaultListCellRenderer() {
-        override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component =
-            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus).apply {
-                val service = value as? ServiceInfo; text = service?.name.orEmpty(); icon = service?.let(::loadIcon)
-            }
     }
 }
