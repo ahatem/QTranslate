@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.ui.swing.settings.panels.UnscrolledSettingsP
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
+import com.github.ahatem.qtranslate.ui.swing.shared.util.withAlpha
 import java.awt.BasicStroke
 import java.awt.BorderLayout
 import java.awt.Color
@@ -598,12 +599,12 @@ internal class SettingsNavigationController(
                 val width = rect.width + padX * 2
                 val height = rect.height + padY * 2
 
-                g2.color = Color(accent.red, accent.green, accent.blue, (FILL_ALPHA * strength).toInt())
+                g2.color = accent.withAlpha((FILL_ALPHA * strength).toInt())
                 g2.fillRoundRect(left, top, width, height, arc, arc)
 
                 // Dashed, in the idiom the plugin drop zone already uses, and thick enough to
                 // carry the emphasis on its own — the fill is only there to seat it.
-                g2.color = Color(accent.red, accent.green, accent.blue, (OUTLINE_ALPHA * strength).toInt())
+                g2.color = accent.withAlpha((OUTLINE_ALPHA * strength).toInt())
                 g2.stroke = BasicStroke(
                     UIScale.scale(2f),
                     BasicStroke.CAP_BUTT,

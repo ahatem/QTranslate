@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.dictionary
 
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
+import com.github.ahatem.qtranslate.ui.swing.shared.util.withAlpha
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Color
@@ -108,7 +109,7 @@ class DictionaryPanel(
     private fun refreshLabelColors() {
         val disabledColor = UIManager.getColor("Label.disabledForeground")
             ?: UIManager.getColor("Label.foreground")?.let {
-                Color(it.red, it.green, it.blue, 128)
+                it.withAlpha(128)
             }
             ?: Color.GRAY
 

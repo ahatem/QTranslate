@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
 import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.ui.swing.shared.util.blend
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.extras.FlatSVGIcon
@@ -873,7 +874,7 @@ class PluginsPanel(
         }
         return JLabel(" $text ").apply {
             foreground = SettingsVisuals.atLeast(accent, SettingsVisuals.background(), 4.5f)
-            background = SettingsVisuals.blend(accent, SettingsVisuals.background(), 0.85f)
+            background = accent.blend(SettingsVisuals.background(), 0.85f)
             isOpaque   = true
             font       = font.deriveFont(Font.BOLD, font.size - 1.5f)
             border     = BorderFactory.createEmptyBorder(2, 6, 2, 6)

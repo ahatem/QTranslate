@@ -16,6 +16,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.MainGlobalKeyListener
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.formatChord
+import com.github.ahatem.qtranslate.ui.swing.shared.util.withAlpha
 import java.awt.*
 import java.awt.image.BufferedImage
 import java.util.Locale
@@ -1649,14 +1650,14 @@ class KeyboardPanel(
 
                 val bg = if (muted) {
                     UIManager.getColor("Panel.background")?.let {
-                        Color(it.red, it.green, it.blue, 35)
+                        it.withAlpha(35)
                     } ?: Color(0, 0, 0, 20)
                 } else {
                     UIManager.getColor("Button.background") ?: Color(235, 235, 235)
                 }
 
                 val borderColor = (UIManager.getColor("Component.borderColor") ?: Color(160, 160, 160))
-                    .let { Color(it.red, it.green, it.blue, borderAlpha) }
+                    .withAlpha(borderAlpha)
 
                 // Background
                 g2.color = bg
@@ -1745,9 +1746,9 @@ class KeyboardPanel(
                 } else {
                     UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
                 }
-                g2.color = Color(base.red, base.green, base.blue, 26)
+                g2.color = base.withAlpha(26)
                 g2.fillRoundRect(0, 0, width, height, arc, arc)
-                g2.color = Color(base.red, base.green, base.blue, 70)
+                g2.color = base.withAlpha(70)
                 g2.stroke = BasicStroke(1f)
                 g2.drawRoundRect(0, 0, width - 1, height - 1, arc, arc)
             } finally {
@@ -1782,7 +1783,7 @@ class KeyboardPanel(
                 ?: return
             val g2 = g.create() as Graphics2D
             try {
-                g2.color = Color(lineColor.red, lineColor.green, lineColor.blue, 110)
+                g2.color = lineColor.withAlpha(110)
                 var y = 0
                 for (index in 0 until rowCount) {
                     if (rows.getOrNull(index) is CommandRow.Group && index > 0) {
@@ -2023,7 +2024,7 @@ class KeyboardPanel(
                         else -> if (selected) 24 else 14
                     }
                     if (fill > 0) {
-                        g2.color = Color(base.red, base.green, base.blue, fill)
+                        g2.color = base.withAlpha(fill)
                         g2.fillRoundRect(rect.x, rect.y, rect.width, rect.height, arc, arc)
                     }
                     val alpha = when {
@@ -2035,7 +2036,7 @@ class KeyboardPanel(
                     // Every visible row is repainted on a scroll, so the coloured glyph comes
                     // from the cache rather than being rendered again.
                     val glyphs = if (target == CommandRowAction.EDIT) editGlyph else clearGlyph
-                    val glyph = glyphs.forColor(Color(base.red, base.green, base.blue, alpha))
+                    val glyph = glyphs.forColor(base.withAlpha(alpha))
                     glyph.paintIcon(
                         this,
                         g2,

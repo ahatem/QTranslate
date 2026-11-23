@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.widgets.ReadOnlyTextPanel
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.ReadOnlyTextPanelState
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsPanel
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
+import com.github.ahatem.qtranslate.ui.swing.shared.util.withAlpha
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DefinitionStrip
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
@@ -130,7 +131,7 @@ class OutputTextPanel(
         noServiceAction.addActionListener { state.onAction() }
 
         noServiceBanner.background = UIManager.getColor("Component.warningFocusColor")
-            ?.let { Color(it.red, it.green, it.blue, 28) }
+            ?.withAlpha(28)
             ?: UIManager.getColor("Panel.background")
         noServiceLabel.foreground = UIManager.getColor("Label.foreground")
 

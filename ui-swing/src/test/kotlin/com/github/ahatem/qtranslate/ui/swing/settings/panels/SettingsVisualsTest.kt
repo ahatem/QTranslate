@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.github.ahatem.qtranslate.ui.swing.shared.util.blend
 import java.awt.Font
 import java.awt.Color
 import kotlin.test.Test
@@ -70,7 +71,7 @@ class SettingsVisualsTest {
         val (background, foreground) = dark
         val explanation = SettingsVisuals.mutedToward(foreground, background, 4.5f)
         // The next step past what was accepted must break the floor, or the search stopped early.
-        val oneStepFurther = SettingsVisuals.blend(explanation, background, 0.02f)
+        val oneStepFurther = explanation.blend(background, 0.02f)
         assertTrue(
             SettingsVisuals.contrastRatio(oneStepFurther, background) < 4.5f,
             "the muted color is the quietest one that still passes, not merely a quiet one",

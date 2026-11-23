@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.snippingtool
 
 import com.formdev.flatlaf.FlatClientProperties
+import com.github.ahatem.qtranslate.ui.swing.shared.util.withAlpha
 import java.awt.*
 import java.awt.geom.RoundRectangle2D
 import java.awt.image.BufferedImage
@@ -170,7 +171,7 @@ class ScreenCapturePanel(
         val overlayAlpha = 200
         val baseColor = UIManager.getColor("Panel.background") ?: Color.BLACK
         g2d.composite = AlphaComposite.SrcOver.derive(overlayAlpha / 255f)
-        g2d.color = Color(baseColor.red, baseColor.green, baseColor.blue, overlayAlpha)
+        g2d.color = baseColor.withAlpha(overlayAlpha)
 
         state.selection?.takeIf { it.width > 0 && it.height > 0 }?.let { sel ->
             // Dim everything outside the selection
@@ -189,7 +190,7 @@ class ScreenCapturePanel(
 
             // 15% tinted fill inside selection
             val fillColor = UIManager.getColor("TextField.selectionBackground")?.let {
-                Color(it.red, it.green, it.blue, (255 * 0.15).roundToInt())
+                it.withAlpha((255 * 0.15).roundToInt())
             } ?: Color(0, 120, 215, (255 * 0.15).roundToInt())
             g2d.color = fillColor
             g2d.fillRect(sel.x + 1, sel.y + 1, sel.width - 1, sel.height - 1)
@@ -288,11 +289,11 @@ class ScreenCapturePanel(
                 g2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE)
 
                 val bg = UIManager.getColor("Panel.background") ?: Color(40, 40, 40)
-                g2d.color = Color(bg.red, bg.green, bg.blue, 215)
+                g2d.color = bg.withAlpha(215)
                 g2d.fillRoundRect(0, 0, width, height, 14, 14)
 
                 val border = UIManager.getColor("Component.borderColor") ?: Color(80, 80, 80)
-                g2d.color = Color(border.red, border.green, border.blue, 160)
+                g2d.color = border.withAlpha(160)
                 g2d.stroke = BasicStroke(1.5f)
                 g2d.draw(RoundRectangle2D.Float(0.75f, 0.75f, width - 1.5f, height - 1.5f, 14f, 14f))
 
@@ -355,7 +356,7 @@ class ScreenCapturePanel(
         }
         override fun paintComponent(g: Graphics) {
             val c = UIManager.getColor("Component.borderColor") ?: Color(100, 100, 100)
-            g.color = Color(c.red, c.green, c.blue, 100)
+            g.color = c.withAlpha(100)
             g.drawLine(0, 2, 0, height - 2)
         }
     }

@@ -1,11 +1,11 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.github.ahatem.qtranslate.ui.swing.shared.util.blend
 import java.awt.Color
 import java.awt.Font
 import javax.swing.UIManager
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToInt
 
 /**
  * The four levels a Settings page has to be readable at, expressed once as tokens.
@@ -121,16 +121,6 @@ internal object SettingsVisuals {
         return ((max(a, b) + 0.05) / (min(a, b) + 0.05)).toFloat()
     }
 
-    /** [foreground] moved [amount] of the way toward [background]; 0 leaves it untouched. */
-    fun blend(foreground: Color, background: Color, amount: Float): Color {
-        val t = amount.coerceIn(0f, 1f)
-        return Color(
-            (foreground.red + (background.red - foreground.red) * t).roundToInt().coerceIn(0, 255),
-            (foreground.green + (background.green - foreground.green) * t).roundToInt().coerceIn(0, 255),
-            (foreground.blue + (background.blue - foreground.blue) * t).roundToInt().coerceIn(0, 255),
-        )
-    }
-
     /**
      * [foreground] muted toward [background] as far as [minContrast] allows.
      *
@@ -145,7 +135,7 @@ internal object SettingsVisuals {
         var accepted = foreground
         var amount = MUTE_STEP
         while (amount <= MAX_MUTE) {
-            val candidate = blend(foreground, background, amount)
+            val candidate = foreground.blend(background, amount)
             if (contrastRatio(candidate, background) < minContrast) break
             accepted = candidate
             amount += MUTE_STEP
@@ -163,7 +153,7 @@ internal object SettingsVisuals {
         if (contrastRatio(color, background) >= minContrast) return color
         var amount = MUTE_STEP
         while (amount <= 1f) {
-            val candidate = blend(color, toward, amount)
+            val candidate = color.blend(toward, amount)
             if (contrastRatio(candidate, background) >= minContrast) return candidate
             amount += MUTE_STEP
         }
