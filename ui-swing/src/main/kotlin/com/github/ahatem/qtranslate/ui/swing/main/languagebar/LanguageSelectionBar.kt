@@ -2,6 +2,9 @@ package com.github.ahatem.qtranslate.ui.swing.main.languagebar
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
+import com.github.ahatem.qtranslate.core.settings.data.Density
+import com.github.ahatem.qtranslate.ui.swing.main.layout.ChromeButtons
+import com.github.ahatem.qtranslate.ui.swing.main.layout.DensityAware
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.GridBag
 import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
@@ -22,7 +25,7 @@ class LanguageSelectionBar(
     private val onTargetLanguageSelected: (LanguageCode) -> Unit,
     private val onTranslate: () -> Unit,
     private val onCancel: () -> Unit = {}
-) : JPanel(GridBagLayout()), Renderable<LanguageSelectionBarState> {
+) : JPanel(GridBagLayout()), Renderable<LanguageSelectionBarState>, DensityAware {
 
     private val clearButton = createButtonWithIcon(iconManager, Icons.DELETE, 16)
     private val sourceLanguageComboBox = LanguageComboBox(
@@ -35,6 +38,16 @@ class LanguageSelectionBar(
         localizer = localizer
     )
     private val translateButton = JButton()
+
+    override var density: Density = Density.COMFORTABLE
+        set(value) {
+            field = value
+            ChromeButtons.apply(clearButton, value, ChromeButtons.Role.ICON)
+            ChromeButtons.apply(swapButton, value, ChromeButtons.Role.ICON)
+            ChromeButtons.apply(translateButton, value, ChromeButtons.Role.TEXT)
+            revalidate()
+            repaint()
+        }
 
     // Single listener that delegates to the correct callback depending on mode.
     private var isInCancelMode = false

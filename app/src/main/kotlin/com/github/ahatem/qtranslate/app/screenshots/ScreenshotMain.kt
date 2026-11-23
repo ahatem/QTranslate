@@ -425,6 +425,8 @@ private class Shots(
             "card-classic" to Scenes.CLASSIC_CARD,
             "card-compact-row" to Scenes.COMPACT_ROW,
             "card-focus" to Scenes.FOCUS_CARD,
+            "density-modern-compact" to Scenes.MODERN_CLASSIC_COMPACT,
+            "density-classic-comfortable" to Scenes.CLASSIC_COMFORTABLE,
             "panes-side-by-side" to Scenes.SIDE_BY_SIDE,
             "panes-comparison" to Scenes.COMPARISON_BOARD,
             // History and services hidden: their commands, the provider chip and the notification
@@ -999,9 +1001,8 @@ private class Shots(
             } else if (layoutPresetId == "comparison") {
                 panes.filter { it.orientation == JSplitPane.VERTICAL_SPLIT }
                     .lastOrNull()?.let { split ->
-                        // Screenshot scene only: the source is short, so let all provider cards
-                        // fit above the fold without changing the product's minimum pane size.
-                        split.topComponent.minimumSize = Dimension(0, UIScale.scale(80))
+                        // Screenshot scene only: the source is short, so ask for a small share of
+                        // the height. The input still keeps the product's own minimum.
                         split.setLeadingProportion(0.12)
                     }
             } else {

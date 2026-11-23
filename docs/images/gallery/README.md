@@ -54,6 +54,7 @@ goes wrong quietly.
 Use `QTRANSLATE_SCREENSHOT_SCENES=layout-slots` to capture a curated list of window layouts, each
 once in English light (`slots-<name>-light`) and once in Arabic dark (`slots-<name>-rtl-dark`):
 the four cards (`card-modern-classic`, `card-classic`, `card-compact-row`, `card-focus`), the
+other density of two of them (`density-modern-compact`, `density-classic-comfortable`), the
 side by side and Comparison panes that are not cards (`panes-side-by-side`, `panes-comparison`),
 history and services hidden, with their commands and the provider chip in the input strip
 (`history-services-hidden`; the language row never hides), history at the bottom

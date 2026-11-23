@@ -3,6 +3,8 @@ package com.github.ahatem.qtranslate.ui.swing.main.history
 import com.formdev.flatlaf.extras.components.FlatButton
 import com.formdev.flatlaf.ui.FlatLineBorder
 import com.github.ahatem.qtranslate.core.ocr.OcrWorkflowCommand
+import com.github.ahatem.qtranslate.core.settings.data.Density
+import com.github.ahatem.qtranslate.ui.swing.main.layout.ChromeButtons
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
@@ -84,6 +86,15 @@ internal class OcrSplitButton(
     /** The height of an icon button, which this button matches. Measured again after a theme change. */
     private var iconButtonHeight = 0
 
+    /** The window's density: the button stands as tall as an icon button of that density. */
+    var density: Density = Density.COMFORTABLE
+        set(value) {
+            if (field == value) return
+            field = value
+            iconButtonHeight = 0
+            revalidate()
+        }
+
     override fun updateUI() {
         super.updateUI()
         iconButtonHeight = 0
@@ -97,7 +108,10 @@ internal class OcrSplitButton(
     override fun getPreferredSize(): Dimension {
         val size = super.getPreferredSize()
         if (iconButtonHeight == 0) {
-            iconButtonHeight = FlatButton().apply { icon = IconSet.load(Icons.OCR, 16, 16) }.preferredSize.height
+            iconButtonHeight = FlatButton().apply {
+                icon = IconSet.load(Icons.OCR, 16, 16)
+                ChromeButtons.apply(this, density, ChromeButtons.Role.ICON)
+            }.preferredSize.height
         }
         // The application font is taller than a 16px icon, so left to the text this button would
         // stand above its neighbours. The text is centred and its glyphs are shorter than the

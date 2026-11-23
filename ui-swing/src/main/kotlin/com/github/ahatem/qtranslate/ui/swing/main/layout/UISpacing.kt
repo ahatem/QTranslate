@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
 import com.formdev.flatlaf.util.UIScale
+import com.github.ahatem.qtranslate.core.settings.data.Density
 
 /**
  * Layout metrics, authored against a 100% display and scaled to the one in use.
@@ -14,6 +15,12 @@ import com.formdev.flatlaf.util.UIScale
  * it, not whenever this object first happens to be touched.
  */
 object UISpacing {
+    /** The window chrome's spacing at [density]. Comfortable is what the plain getters below return. */
+    fun chrome(density: Density): ChromeSpacing = when (density) {
+        Density.COMFORTABLE -> ChromeSpacing(padding = 12, vGap = 8)
+        Density.COMPACT -> ChromeSpacing(padding = 6, vGap = 4)
+    }
+
     /** Padding for the main window frame. */
     val PADDING get() = UIScale.scale(12)
 
@@ -34,6 +41,21 @@ object UISpacing {
 
     /** Width a text pane keeps to stay comfortable to read and edit next to another one. */
     val SIDE_BY_SIDE_PANEL_WIDTH get() = UIScale.scale(320)
+
+    /**
+     * The least height the input keeps when the window is short: about three lines of text and its
+     * character count, so what the user typed stays readable while the panes below give way.
+     */
+    val MIN_INPUT_HEIGHT get() = UIScale.scale(110)
+
+    /** The least height the comparison board keeps below its row of controls, enough for a result and its header. */
+    val MIN_BOARD_HEIGHT get() = UIScale.scale(90)
+
+    /** The width each of three columns keeps; below three of them Side by side with a column of its own stacks. */
+    val THREE_COLUMN_PANEL_WIDTH get() = UIScale.scale(260)
+
+    /** Below this width a third result column does not fit, so the input goes above the two results. */
+    val THREE_COLUMN_BREAKPOINT get() = 3 * THREE_COLUMN_PANEL_WIDTH + 2 * DIVIDER_SIZE
 
     /** Below this width Side By Side stacks its Input and Output instead of setting them side by side. */
     val SIDE_BY_SIDE_BREAKPOINT get() = 2 * SIDE_BY_SIDE_PANEL_WIDTH + DIVIDER_SIZE
@@ -64,4 +86,20 @@ object UISpacing {
 
     /** The draggable strip between the workspace and the dock; the line drawn in it is thinner. */
     val DOCK_DIVIDER_HIT_WIDTH get() = UIScale.scale(8)
+}
+
+/**
+ * The spacing of the window chrome (the rows around the panes) for one density, authored against a
+ * 100% display and scaled when read. Only the chrome follows the density: the look and feel's own
+ * metrics are untouched, so a theme keeps working everywhere else.
+ */
+class ChromeSpacing internal constructor(private val padding: Int, private val vGap: Int) {
+    /** Padding between the window edge and its content. */
+    val PADDING get() = UIScale.scale(padding)
+
+    /** The gap between a chrome row and what it sits next to, and between two rows. */
+    val V_GAP get() = UIScale.scale(vGap)
+
+    /** Half of [V_GAP]: the gap above the status bar. */
+    val TIGHT_GAP get() = UIScale.scale(vGap / 2)
 }

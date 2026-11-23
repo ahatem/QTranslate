@@ -44,13 +44,13 @@ class LayoutManager(
         isRtl: Boolean = currentIsRtl,
     ) {
         val key = Key(
-            // The strip's appearance and the density restyle mounted components; they do not
-            // change which component sits where, so they never cost a rebuild.
+            // The strip's appearance restyles mounted components; it does not change which
+            // component sits where, so it never costs a rebuild. The density is part of the key:
+            // it sets the padding the rows are built with.
             // The second result's stored place is replaced by the one the panes build: a stored
             // value they cannot show builds the same window as the one they fall back to.
             layout.copy(
                 stripAppearance = WindowLayout.DEFAULT.stripAppearance,
-                density = WindowLayout.DEFAULT.density,
                 secondResult = layout.effectiveSecondResult(effectivePanes),
             ),
             effectivePanes,

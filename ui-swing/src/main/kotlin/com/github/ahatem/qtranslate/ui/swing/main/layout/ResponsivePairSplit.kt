@@ -27,6 +27,8 @@ import javax.swing.JSplitPane
  * @param trailingMinHeight the least height [trailing] keeps below [leading] when stacked; more
  *                 than one pane's worth when [trailing] holds two panes one above the other.
  * @param sideBySideShare  the share of the width [leading] starts with beside [trailing].
+ * @param breakpoint       the width below which the pair stacks; wider for a [trailing] that holds
+ *                 two columns, which need more room than one.
  */
 class ResponsivePairSplit(
     private val leading: JComponent,
@@ -35,6 +37,7 @@ class ResponsivePairSplit(
     private val trailingMinWidth: Int = UISpacing.MIN_PANEL_WIDTH,
     private val trailingMinHeight: Int = UISpacing.MIN_PANEL_HEIGHT,
     sideBySideShare: Double = 0.5,
+    private val breakpoint: Int = UISpacing.SIDE_BY_SIDE_BREAKPOINT,
 ) {
     val split = MirroredSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, leading, trailing).apply {
         leadingResizeWeight = sideBySideShare
@@ -81,7 +84,7 @@ class ResponsivePairSplit(
     /** Chooses the arrangement for a pair [width] wide; does nothing unless it crosses the breakpoint. */
     fun fit(width: Int) {
         if (width <= 0) return
-        val stacked = width < UISpacing.SIDE_BY_SIDE_BREAKPOINT
+        val stacked = width < breakpoint
         if (stacked == isStacked) return
 
         val restored = if (stacked) stackedProportion else sideBySideProportion

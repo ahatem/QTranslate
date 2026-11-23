@@ -156,17 +156,16 @@ object LayoutBuilders {
         }
     }
 
+    /** The language row. The slot it sits in supplies the space above and below it. */
     fun wrapLanguageBar(languageBar: JComponent): JComponent {
         return JPanel(BorderLayout()).apply {
-            border = BorderFactory.createEmptyBorder(UISpacing.V_GAP, 0, UISpacing.V_GAP, 0)
             add(languageBar, BorderLayout.CENTER)
         }
     }
 
-    /** The service selector's row. The slot it sits in supplies any side padding. */
+    /** The service selector's row. The slot it sits in supplies the space around it. */
     fun serviceRow(translatorSelector: JComponent): JComponent {
         return JPanel(BorderLayout()).apply {
-            border = BorderFactory.createEmptyBorder(UIScale.scale(2), 0, UIScale.scale(2), 0)
             add(translatorSelector, BorderLayout.CENTER)
         }
     }
@@ -188,7 +187,6 @@ object LayoutBuilders {
             ?: members.first()
         val stretchIndex = members.indexOf(stretch)
         return JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
-            border = BorderFactory.createEmptyBorder(UISpacing.V_GAP, 0, UISpacing.V_GAP, 0)
             members.forEachIndexed { index, (_, component) ->
                 add(
                     component,
@@ -203,11 +201,24 @@ object LayoutBuilders {
         }
     }
 
-    /** The rows of one slot, top to bottom, each filling the width. Null when the slot is empty. */
-    fun slotColumn(rows: List<JComponent>, horizontalInset: Int = 0): JComponent? {
+    /**
+     * The rows of one slot, top to bottom, each filling the width. Null when the slot is empty.
+     *
+     * The slot is the only place that spaces its rows: [rowGap] between two of them, [topInset] and
+     * [bottomInset] between the first and last and whatever the slot sits next to, and
+     * [horizontalInset] at the sides. A row never pads itself, so every row sits the same distance
+     * from its neighbours whatever it holds.
+     */
+    fun slotColumn(
+        rows: List<JComponent>,
+        horizontalInset: Int = 0,
+        rowGap: Int = 0,
+        topInset: Int = 0,
+        bottomInset: Int = 0,
+    ): JComponent? {
         if (rows.isEmpty()) return null
         return JPanel(GridBagLayout()).apply {
-            border = BorderFactory.createEmptyBorder(0, horizontalInset, 0, horizontalInset)
+            border = BorderFactory.createEmptyBorder(topInset, horizontalInset, bottomInset, horizontalInset)
             val gbc = GridBagConstraints().apply {
                 gridx = 0
                 weightx = 1.0
@@ -216,14 +227,15 @@ object LayoutBuilders {
             }
             rows.forEachIndexed { index, row ->
                 gbc.gridy = index
+                gbc.insets = Insets(if (index == 0) 0 else rowGap, 0, 0, 0)
                 add(row, gbc)
             }
         }
     }
 
     /** The footer: the bottom slot's rows, if any, above the status bar. */
-    fun createBottomBar(bottomSlot: JComponent?, statusBar: JComponent): JComponent {
-        return JPanel(BorderLayout(0, UIScale.scale(4))).apply {
+    fun createBottomBar(bottomSlot: JComponent?, statusBar: JComponent, gap: Int = UIScale.scale(4)): JComponent {
+        return JPanel(BorderLayout(0, gap)).apply {
             bottomSlot?.let { add(it, BorderLayout.NORTH) }
             add(statusBar, BorderLayout.SOUTH)
         }
@@ -233,11 +245,13 @@ object LayoutBuilders {
         top: JComponent,
         bottom: JComponent,
         resizeWeight: Double = 0.5,
-        topMinHeight: Int = UISpacing.MIN_PANEL_HEIGHT,
-        bottomMinHeight: Int = UISpacing.MIN_PANEL_HEIGHT
+        topMinHeight: Int? = UISpacing.MIN_PANEL_HEIGHT,
+        bottomMinHeight: Int? = UISpacing.MIN_PANEL_HEIGHT
     ): MirroredSplitPane {
-        top.minimumSize = Dimension(0, topMinHeight)
-        bottom.minimumSize = Dimension(0, bottomMinHeight)
+        // A null minimum leaves the component's own, which for a nested split is the sum of what it
+        // holds: the outer split must not let it be squeezed below that.
+        topMinHeight?.let { top.minimumSize = Dimension(0, it) }
+        bottomMinHeight?.let { bottom.minimumSize = Dimension(0, it) }
         return MirroredSplitPane(JSplitPane.VERTICAL_SPLIT, true, top, bottom).apply {
             leadingResizeWeight = resizeWeight
             dividerSize = UISpacing.DIVIDER_SIZE
@@ -287,12 +301,26 @@ object SlotLayout {
         components.languageBar.isVisible = WindowRegion.LANGUAGES in placed
         components.translatorSelector.isVisible = WindowRegion.SERVICES in placed
         components.statusBar.isVisible = layout.showStatusBar
+        listOf(components.historyBar, components.languageBar, components.translatorSelector)
+            .forEach { (it as? DensityAware)?.density = layout.density }
 
+        val spacing = UISpacing.chrome(layout.density)
+        // A vertical split puts its divider directly above the results section, so the row that
+        // heads that section is spaced from the input by the divider and from the output by the
+        // same amount again. Beside each other there is no divider above it.
+        val dividerAbove = effectivePanes != PaneLayout.SIDE_BY_SIDE
         val rows = mutableListOf<RegionRow>()
-        val top = slot(plan, layout, effectivePanes, RegionSlot.TOP, components, rows)
-        val aboveResults = slot(plan, layout, effectivePanes, RegionSlot.ABOVE_RESULTS, components, rows)
+        val top = slot(plan, layout, effectivePanes, RegionSlot.TOP, components, rows, spacing)
+        val aboveResults = slot(
+            plan, layout, effectivePanes, RegionSlot.ABOVE_RESULTS, components, rows, spacing,
+            bottomInset = if (dividerAbove) UISpacing.DIVIDER_SIZE else spacing.V_GAP,
+        )
         // The footer sits outside the padded content, so its rows bring the window's side padding.
-        val bottom = slot(plan, layout, effectivePanes, RegionSlot.BOTTOM, components, rows, horizontalInset = UISpacing.PADDING)
+        // The content's bottom padding is the space above them; the status bar follows at half a gap.
+        val bottom = slot(
+            plan, layout, effectivePanes, RegionSlot.BOTTOM, components, rows, spacing,
+            horizontalInset = spacing.PADDING, bottomInset = spacing.TIGHT_GAP,
+        )
 
         val secondResult = layout.effectiveSecondResult(effectivePanes)
         val (panes, refs) = when (effectivePanes) {
@@ -301,19 +329,19 @@ object SlotLayout {
             PaneLayout.COMPARISON -> comparison(components, aboveResults)
         }
 
-        val contentPanel = JPanel(BorderLayout(0, UISpacing.V_GAP)).apply {
+        val contentPanel = JPanel(BorderLayout(0, spacing.V_GAP)).apply {
             border = BorderFactory.createEmptyBorder(
-                UISpacing.PADDING,
-                UISpacing.PADDING,
-                UISpacing.V_GAP,
-                UISpacing.PADDING
+                spacing.PADDING,
+                spacing.PADDING,
+                spacing.V_GAP,
+                spacing.PADDING
             )
             top?.let { add(it, BorderLayout.NORTH) }
             add(panes, BorderLayout.CENTER)
         }
         val root = JPanel(BorderLayout()).apply {
             add(contentPanel, BorderLayout.CENTER)
-            add(LayoutBuilders.createBottomBar(bottom, components.statusBar), BorderLayout.SOUTH)
+            add(LayoutBuilders.createBottomBar(bottom, components.statusBar, spacing.TIGHT_GAP), BorderLayout.SOUTH)
         }
         refs.syncExtraOutputState(components.extraOutputPanel)
         return ArrangedLayout(root, refs, rows)
@@ -326,7 +354,9 @@ object SlotLayout {
         slot: RegionSlot,
         components: ComponentRegistry,
         rowsOut: MutableList<RegionRow>,
+        spacing: ChromeSpacing,
         horizontalInset: Int = 0,
+        bottomInset: Int = 0,
     ): JComponent? {
         // The notification button goes to the end of whichever row holds history.
         val bell = components.notificationButton.takeIf {
@@ -346,7 +376,7 @@ object SlotLayout {
             rowsOut += RegionRow(row, built)
             built
         }
-        return LayoutBuilders.slotColumn(rows, horizontalInset)
+        return LayoutBuilders.slotColumn(rows, horizontalInset, rowGap = spacing.V_GAP, bottomInset = bottomInset)
     }
 
     private fun ComponentRegistry.componentOf(region: WindowRegion): JComponent = when (region) {
@@ -360,6 +390,9 @@ object SlotLayout {
             top = top,
             bottom = bottom,
             resizeWeight = 0.8,
+            // The panes above keep what they need, whatever that adds up to; the second result
+            // is the one that gives way in a short window.
+            topMinHeight = null,
             bottomMinHeight = UISpacing.MIN_EXTRA_HEIGHT
         )
 
@@ -394,14 +427,16 @@ object SlotLayout {
             val mainSplit = LayoutBuilders.createVerticalSplit(
                 top = components.inputPanel,
                 bottom = section(aboveResults, beside),
-                resizeWeight = 0.5
+                resizeWeight = 0.5,
+                topMinHeight = UISpacing.MIN_INPUT_HEIGHT,
             )
             return mainSplit to LayoutComponentRefs.WithSplitPanes(mainSplit, beside)
         }
         val mainSplit = LayoutBuilders.createVerticalSplit(
             top = components.inputPanel,
             bottom = section(aboveResults, components.outputPanel),
-            resizeWeight = 0.5
+            resizeWeight = 0.5,
+            topMinHeight = UISpacing.MIN_INPUT_HEIGHT,
         )
         val extra = extraSplit(mainSplit, components.extraOutputPanel)
         return extra to LayoutComponentRefs.WithSplitPanes(mainSplit, extra)
@@ -442,6 +477,9 @@ object SlotLayout {
                     isRtl = isRtl,
                     trailingMinWidth = 2 * UISpacing.MIN_PANEL_WIDTH + UISpacing.DIVIDER_SIZE,
                     sideBySideShare = THIRD,
+                    // Three columns need more room than two: until they have it, the input sits
+                    // above the two results instead of squeezing all three.
+                    breakpoint = UISpacing.THREE_COLUMN_BREAKPOINT,
                 )
                 section(aboveResults, pair.split) to LayoutComponentRefs.WithSplitPanes(
                     pair.split, results,
@@ -468,10 +506,17 @@ object SlotLayout {
         // below it, so results never split into disconnected scroll regions.
         val mainSplit = LayoutBuilders.createVerticalSplit(
             top = components.inputPanel,
-            bottom = section(aboveResults, LayoutBuilders.wrapScrollable(components.compareBoard)),
+            bottom = section(
+                aboveResults,
+                LayoutBuilders.wrapScrollable(components.compareBoard).apply {
+                    minimumSize = Dimension(0, UISpacing.MIN_BOARD_HEIGHT)
+                },
+            ),
             resizeWeight = 0.28,
-            topMinHeight = UISpacing.MIN_PANEL_HEIGHT,
-            bottomMinHeight = UISpacing.MIN_PANEL_HEIGHT
+            topMinHeight = UISpacing.MIN_INPUT_HEIGHT,
+            // The section's own minimum: its controls and the board's, not a flat figure that a
+            // short window could not honour next to the second result.
+            bottomMinHeight = null
         ).apply {
             // Input takes roughly the top 28%; extra height favours the results.
             setLeadingProportion(0.28)

@@ -3,9 +3,12 @@ package com.github.ahatem.qtranslate.ui.swing.main.selector
 import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
+import com.github.ahatem.qtranslate.core.settings.data.Density
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorStyle
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
+import com.github.ahatem.qtranslate.ui.swing.main.layout.ChromeButtons
+import com.github.ahatem.qtranslate.ui.swing.main.layout.DensityAware
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.*
@@ -20,7 +23,7 @@ class TranslatorSelector(
     private val iconManager: IconManager,
     private val onServiceSelected: (ServiceRole, String) -> Unit,
     private val onConfigureService: (String) -> Unit = {}
-) : JPanel(CardLayout()), Renderable<TranslatorSelectorState> {
+) : JPanel(CardLayout()), Renderable<TranslatorSelectorState>, DensityAware {
     private companion object { const val CLASSIC = "classic"; const val ENHANCED = "enhanced" }
 
     private var state = TranslatorSelectorState(emptyList(), null, false)
@@ -50,13 +53,11 @@ class TranslatorSelector(
     private val overflowMenu = JButton().apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
         putClientProperty(FlatClientProperties.STYLE, "arc: 0")
-        margin = compactButtonMargin()
         addActionListener { showOverflowMenu(this) }
     }
     private val configureActive = JButton(iconManager.getIcon(Icons.SETTINGS, 16, 16)).apply {
         putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
         putClientProperty(FlatClientProperties.STYLE, "arc: 0")
-        margin = compactButtonMargin()
         addActionListener { activeServiceId?.let(onConfigureService) }
     }
     private val classic = JPanel(BorderLayout(UIScale.scale(6), 0)).apply {
@@ -69,8 +70,30 @@ class TranslatorSelector(
     }
     private val enhanced = JPanel(GridLayout(1, 0, 8, 0)).apply { isOpaque = false }
 
+    /**
+     * The density of the strip's buttons. Comfortable leaves their margin to the theme; compact
+     * packs them closer. Applied again to every button a rebuild creates.
+     */
+    override var density: Density = Density.COMFORTABLE
+        set(value) {
+            if (field == value) return
+            field = value
+            styleChromeButtons()
+            fitClassicButtons()
+            revalidate(); repaint()
+        }
+
     init {
         isOpaque = false; add(classic, CLASSIC); add(enhanced, ENHANCED)
+    }
+
+    private fun styleChromeButtons() {
+        ChromeButtons.apply(overflowMenu, density, ChromeButtons.Role.TAB)
+        ChromeButtons.apply(configureActive, density, ChromeButtons.Role.TAB)
+        stripButtons.forEach {
+            // An icon-only tab is a plain toolbar button; the others are segments of the strip.
+            ChromeButtons.apply(it, density, if (iconsOnly) ChromeButtons.Role.ICON else ChromeButtons.Role.TAB)
+        }
     }
 
     override fun render(state: TranslatorSelectorState) {
@@ -111,10 +134,7 @@ class TranslatorSelector(
                 putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
                 // Text tabs keep the squared, adjacent look. An icon-only tab is a plain FlatLaf
                 // toolbar button, with the look and feel's own margin and corners.
-                if (!iconsOnly) {
-                    putClientProperty(FlatClientProperties.STYLE, "arc: 0")
-                    margin = compactButtonMargin()
-                }
+                if (!iconsOnly) putClientProperty(FlatClientProperties.STYLE, "arc: 0")
                 addActionListener { onServiceSelected(ServiceRole.TRANSLATOR, service.id) }
                 addMouseListener(object : MouseAdapter() {
                     override fun mousePressed(e: MouseEvent) { if (SwingUtilities.isRightMouseButton(e)) onConfigureService(service.id) }
@@ -123,6 +143,7 @@ class TranslatorSelector(
         }
         activeButton = selected?.let { buttons[it.id] }
         stripButtons = services.mapNotNull { buttons[it.id] }
+        styleChromeButtons()
         configureActive.isEnabled = !state.isLoading && selected != null
         overflowMenu.isEnabled = !state.isLoading
         fitClassicButtons()
@@ -192,6 +213,7 @@ class TranslatorSelector(
         }
         val gear = JButton(iconManager.getIcon(Icons.SETTINGS, 16, 16)).apply {
             putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton"); toolTipText = state.strings.configureServiceTooltip.format(label); isFocusable = false
+            ChromeButtons.apply(this, density, ChromeButtons.Role.ICON)
             addActionListener { (combo.selectedItem as? ServiceInfo)?.let { onConfigureService(it.id) } }
         }
         return JPanel(BorderLayout(4, 2)).apply {
@@ -226,10 +248,6 @@ class TranslatorSelector(
     }
 
     private fun loadIcon(service: ServiceInfo): Icon? = iconManager.serviceIcon(service)
-
-    private fun compactButtonMargin() = Insets(
-        UIScale.scale(2), UIScale.scale(4), UIScale.scale(2), UIScale.scale(4)
-    )
 
     /**
      * Whole tabs at their own size, packed from the start of the row and so mirrored in a

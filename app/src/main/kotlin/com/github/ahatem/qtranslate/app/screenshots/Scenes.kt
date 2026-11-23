@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.app.screenshots
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.Density
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
 import com.github.ahatem.qtranslate.core.settings.data.LayoutProfile
@@ -181,6 +182,10 @@ internal object Scenes {
 
     /** History and languages sharing one row at the top: the Compact card. */
     val COMPACT_ROW: WindowLayout = WindowPreset.COMPACT.applyTo(WindowLayout.DEFAULT)
+
+    // Density scenes: each card in the other density, to compare spacing.
+    val MODERN_CLASSIC_COMPACT: WindowLayout = MODERN_CLASSIC_CARD.copy(density = Density.COMPACT)
+    val CLASSIC_COMFORTABLE: WindowLayout = CLASSIC_CARD.copy(density = Density.COMFORTABLE)
 
     /** Input and output beside each other, with history and languages above both columns. */
     val SIDE_BY_SIDE = WindowLayout(

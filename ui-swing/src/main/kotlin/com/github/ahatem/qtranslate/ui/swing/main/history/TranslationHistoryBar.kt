@@ -1,13 +1,18 @@
 package com.github.ahatem.qtranslate.ui.swing.main.history
 
 import com.github.ahatem.qtranslate.core.ocr.OcrWorkflowCommand
+import com.github.ahatem.qtranslate.core.settings.data.Density
+import com.github.ahatem.qtranslate.ui.swing.main.layout.ChromeButtons
+import com.github.ahatem.qtranslate.ui.swing.main.layout.DensityAware
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
 import java.awt.BorderLayout
 import java.awt.ComponentOrientation
-import java.awt.FlowLayout
+import com.formdev.flatlaf.util.UIScale
 import javax.swing.BorderFactory
+import javax.swing.Box
+import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
@@ -20,7 +25,7 @@ class TranslationHistoryBar(
     private val onImageTranslate: (OcrWorkflowCommand) -> Unit,
     private val onOcrSettings: () -> Unit,
     private val onDocumentTranslate: () -> Unit,
-) : JPanel(BorderLayout()), Renderable<TranslationHistoryBarState> {
+) : JPanel(BorderLayout()), Renderable<TranslationHistoryBarState>, DensityAware {
 
     private val backwardButton = createButtonWithIcon(iconManager, Icons.NAV_BACK, 16)
     private val forwardButton = createButtonWithIcon(iconManager, Icons.NAV_FORWARD, 16)
@@ -31,18 +36,36 @@ class TranslationHistoryBar(
         border = BorderFactory.createEmptyBorder(0, 8, 0, 8)
     }
 
-    private val leftGroup = JPanel(FlowLayout(FlowLayout.LEADING, 2, 0)).apply {
+    // Box layouts rather than flow layouts: a flow layout pads both ends of its row, which stood
+    // the first and last button a pixel inside the edge the panes below share.
+    private val leftGroup = JPanel().apply {
+        layout = BoxLayout(this, BoxLayout.LINE_AXIS)
         isOpaque = false
         add(backwardButton)
+        add(Box.createHorizontalStrut(UIScale.scale(BUTTON_GAP)))
         add(forwardButton)
+        add(Box.createHorizontalStrut(UIScale.scale(BUTTON_GAP)))
         add(statusLabel)
     }
 
-    private val rightGroup = JPanel(FlowLayout(FlowLayout.TRAILING, 2, 0)).apply {
+    private val rightGroup = JPanel().apply {
+        layout = BoxLayout(this, BoxLayout.LINE_AXIS)
         isOpaque = false
         add(imageTranslateButton)
+        add(Box.createHorizontalStrut(UIScale.scale(BUTTON_GAP)))
         add(documentTranslateButton)
     }
+
+    override var density: Density = Density.COMFORTABLE
+        set(value) {
+            field = value
+            listOf(backwardButton, forwardButton, documentTranslateButton).forEach {
+                ChromeButtons.apply(it, value, ChromeButtons.Role.ICON)
+            }
+            imageTranslateButton.density = value
+            revalidate()
+            repaint()
+        }
 
     init {
         backwardButton.addActionListener { onBackward() }
@@ -69,6 +92,11 @@ class TranslationHistoryBar(
             if (isRtl) Icons.NAV_BACK else Icons.NAV_FORWARD,
             16, 16
         )
+    }
+
+    private companion object {
+        /** The space between two buttons of a group. */
+        const val BUTTON_GAP = 2
     }
 
     override fun render(state: TranslationHistoryBarState) {
