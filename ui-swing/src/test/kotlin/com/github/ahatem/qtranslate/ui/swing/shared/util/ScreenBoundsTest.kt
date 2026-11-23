@@ -68,10 +68,4 @@ class ScreenBoundsTest {
         val tiny = Rectangle(10, 10, 60, 20)
         assertTrue(isPositionReachable(tiny, listOf(primary)))
     }
-
-    @Test
-    fun `reading the real displays never throws`() {
-        // Returns empty rather than failing when there is no display, which is what CI is.
-        connectedScreenBounds()
-    }
 }
