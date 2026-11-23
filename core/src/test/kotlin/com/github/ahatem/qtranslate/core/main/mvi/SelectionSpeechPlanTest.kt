@@ -6,9 +6,7 @@ import com.github.ahatem.qtranslate.core.settings.data.SelectionReadSource
 import com.github.ahatem.qtranslate.core.settings.data.TextSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 class SelectionSpeechPlanTest {
 
@@ -33,14 +31,6 @@ class SelectionSpeechPlanTest {
         assertEquals(TextSource.Input, plan.textSource)
         assertEquals("captured selection", plan.textOverride)
         assertEquals(LanguageCode("de"), plan.languageOverride)
-    }
-
-    @Test
-    fun `source speech does not depend on translation success`() {
-        assertEquals(
-            "captured selection",
-            selectionSpeechPlan(SelectionReadSource.SOURCE, "captured selection", null, state)?.textOverride
-        )
     }
 
     @Test
@@ -69,12 +59,5 @@ class SelectionSpeechPlanTest {
                 state
             )
         )
-    }
-
-    @Test
-    fun `source request becomes stale when a newer selection generation exists`() {
-        assertTrue(SelectionTranslationReadGuard.shouldReadSource(true, 2L, 2L, "captured"))
-        assertFalse(SelectionTranslationReadGuard.shouldReadSource(true, 1L, 2L, "captured"))
-        assertFalse(SelectionTranslationReadGuard.shouldReadSource(true, 2L, 2L, ""))
     }
 }

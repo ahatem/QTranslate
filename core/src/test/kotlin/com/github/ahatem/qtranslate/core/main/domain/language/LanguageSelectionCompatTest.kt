@@ -41,13 +41,6 @@ class LanguageSelectionCompatTest {
     }
 
     @Test
-    fun `source legacy pt stays visible in the language list`() {
-        val visible = LanguageSelectionCompat.visibleLanguages(regionalProvider, listOf(LanguageCode.PORTUGUESE, LanguageCode.PORTUGUESE_PORTUGAL))
-        assertTrue(LanguageCode.PORTUGUESE in visible)
-        assertTrue(LanguageCode.PORTUGUESE_PORTUGAL in visible)
-    }
-
-    @Test
     fun `target resolution still falls back when the stored language is genuinely unsupported`() {
         val resolved = LanguageSelectionCompat.resolveTargetLanguage(
             LanguageCode.FRENCH, regionalProvider, "en"

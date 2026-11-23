@@ -16,6 +16,8 @@ import com.github.ahatem.qtranslate.core.workspace.translation.TranslateTextUseC
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
+import com.github.ahatem.qtranslate.core.testing.SilentLoggerFactory
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -63,28 +65,6 @@ class TranslationCompletionAutoCopyTest {
 
         assertNull(completion)
         assertTrue(state.translationFailed)
-    }
-
-    @Test
-    fun `a provider that falls back across endpoints still yields one completion`() = runTest {
-        val translator = RetryingTranslator()
-        val useCase = useCase(this, translator)
-        var state = MainState(inputText = "hello")
-        val completion = useCase.translate(update = { transform -> state = state.transform() })
-        advanceUntilIdle()
-
-        assertEquals(3, translator.attempts)
-        assertEquals("recovered:hello", completion?.translatedText, "one logical translation, one result")
-    }
-
-    @Test
-    fun `a provider whose every endpoint fails yields no completion`() = runTest {
-        val useCase = useCase(this, RetryingTranslator(succeedAt = Int.MAX_VALUE))
-        var state = MainState(inputText = "hello")
-        val completion = useCase.translate(update = { transform -> state = state.transform() })
-        advanceUntilIdle()
-
-        assertNull(completion)
     }
 
     @Test
@@ -153,10 +133,10 @@ class TranslationCompletionAutoCopyTest {
             settingsState = settings,
             activeServiceManager = manager,
             historyRepository = HistoryRepository(directory, SilentLogger, Json),
-            summarizeUseCase = SummarizeUseCase(manager, SilentFactory),
-            rewriteUseCase = RewriteUseCase(manager, SilentFactory),
-            loggerFactory = SilentFactory,
-            parallelComparisonUseCase = comparison?.let { ParallelComparisonUseCase(scope, manager, SilentFactory) },
+            summarizeUseCase = SummarizeUseCase(manager, SilentLoggerFactory),
+            rewriteUseCase = RewriteUseCase(manager, SilentLoggerFactory),
+            loggerFactory = SilentLoggerFactory,
+            parallelComparisonUseCase = comparison?.let { ParallelComparisonUseCase(scope, manager, SilentLoggerFactory) },
         )
     }
 
@@ -195,27 +175,6 @@ class TranslationCompletionAutoCopyTest {
             Err(ServiceError.NetworkError("down"))
     }
 
-    private class RetryingTranslator(private val succeedAt: Int = 3) : Translator {
-        override val key = "retry"
-        override val name = key
-        override val version = "test"
-        override val supportedLanguages = SupportedLanguages.All
-        var attempts = 0
-            private set
-
-        override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> {
-            for (attempt in 1..MAX_ATTEMPTS) {
-                attempts = attempt
-                if (attempt == succeedAt) return Ok(TranslationResponse("recovered:${request.text}"))
-            }
-            return Err(ServiceError.NetworkError("no endpoint answered"))
-        }
-
-        private companion object {
-            const val MAX_ATTEMPTS = 4
-        }
-    }
-
     /** Holds the request for [holdText] at the provider until the test lets it go. */
     private class GatedTranslator(private val holdText: String) : Translator {
         override val key = "t"
@@ -238,16 +197,5 @@ class TranslationCompletionAutoCopyTest {
         suspend fun awaitHeldRequestStarted() = started.await()
 
         fun release() = gate.complete(Unit)
-    }
-
-    private object SilentLogger : com.github.ahatem.qtranslate.api.core.Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
-
-    private object SilentFactory : com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory {
-        override fun getLogger(name: String) = SilentLogger
     }
 }

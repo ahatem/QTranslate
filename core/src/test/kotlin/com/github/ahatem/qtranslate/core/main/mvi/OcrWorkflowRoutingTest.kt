@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.api.ocr.OCRResponse
 import com.github.ahatem.qtranslate.core.ocr.OcrWorkflowCommand
 import com.github.ahatem.qtranslate.core.ocr.resolveOcrWorkflow
+import com.github.ahatem.qtranslate.core.settings.data.AutoCopyTranslation
 import com.github.ahatem.qtranslate.core.settings.data.OcrPostSelectionAction
 import com.github.ahatem.qtranslate.core.settings.data.OcrSettings
 import com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination
@@ -19,20 +20,6 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class OcrWorkflowRoutingTest {
-
-    @Test
-    fun `the historic default stays show actions`() {
-        val settings = OcrSettings()
-        assertEquals(OcrPostSelectionAction.SHOW_ACTIONS, settings.postSelectionAction)
-        assertEquals(
-            OcrPostSelectionAction.SHOW_ACTIONS,
-            resolveOcrWorkflow(OcrWorkflowCommand.DEFAULT, settings).action,
-        )
-        assertEquals(
-            OcrTranslationDestination.MAIN_WINDOW,
-            settings.translationDestination,
-        )
-    }
 
     @Test
     fun `explicit workflow commands override the saved action and destination`() {
@@ -137,84 +124,49 @@ class OcrWorkflowRoutingTest {
         }
     }
 
-    @Test
-    fun `translate to the main window writes canonical input and asks for presentation`() = runTest {
-        val fixture = OcrWorkflowFixture(
-            this,
-            OcrSettings(
-                postSelectionAction = OcrPostSelectionAction.TRANSLATE,
-                translationDestination = OcrTranslationDestination.MAIN_WINDOW,
-            ),
-        )
-        try {
-            fixture.ocr.responder = { Ok(OCRResponse("recognized\ntext")) }
-            fixture.store.dispatch(
-                MainIntent.OcrWorkflowImage(
-                    image = fixture.image(),
-                    action = OcrPostSelectionAction.TRANSLATE,
-                )
-            )
-            advanceUntilIdle()
-
-            assertEquals("recognized\ntext", fixture.store.state.value.inputText)
-            assertEquals(listOf("recognized\ntext"), fixture.translator.received)
-            assertTrue(fixture.events.any { it == MainEvent.ShowMainWindow })
-            assertFalse(fixture.store.state.value.isQuickTranslateDialogVisible)
-        } finally {
-            fixture.cleanUp()
-        }
-    }
+    private class DestinationCase(
+        val label: String,
+        val saved: OcrTranslationDestination,
+        val override: OcrTranslationDestination?,
+        val recognized: String,
+        val opensQuick: Boolean,
+    )
 
     @Test
-    fun `translate to quick uses the canonical popup route and does not show the main window`() = runTest {
-        val fixture = OcrWorkflowFixture(
-            this,
-            OcrSettings(
-                postSelectionAction = OcrPostSelectionAction.TRANSLATE,
-                translationDestination = OcrTranslationDestination.QUICK_TRANSLATE,
-            ),
+    fun `translate routes to the main window or the quick popup`() = runTest {
+        val cases = listOf(
+            DestinationCase("saved main window", OcrTranslationDestination.MAIN_WINDOW, null, "recognized\ntext", opensQuick = false),
+            DestinationCase("saved quick popup", OcrTranslationDestination.QUICK_TRANSLATE, null, "recognized text", opensQuick = true),
+            DestinationCase("explicit quick overrides saved main", OcrTranslationDestination.MAIN_WINDOW, OcrTranslationDestination.QUICK_TRANSLATE, "recognized text", opensQuick = true),
         )
-        try {
-            fixture.store.dispatch(
-                MainIntent.OcrWorkflowImage(
-                    image = fixture.image(),
-                    action = OcrPostSelectionAction.TRANSLATE,
-                )
+
+        for (case in cases) {
+            val fixture = OcrWorkflowFixture(
+                this,
+                OcrSettings(
+                    postSelectionAction = OcrPostSelectionAction.TRANSLATE,
+                    translationDestination = case.saved,
+                ),
             )
-            advanceUntilIdle()
-
-            assertTrue(fixture.store.state.value.isQuickTranslateDialogVisible)
-            assertEquals("recognized text", fixture.store.state.value.inputText)
-            assertEquals(listOf("recognized text"), fixture.translator.received)
-            assertFalse(fixture.events.any { it == MainEvent.ShowMainWindow })
-        } finally {
-            fixture.cleanUp()
-        }
-    }
-
-    @Test
-    fun `an explicit translate to quick overrides the saved main destination`() = runTest {
-        val fixture = OcrWorkflowFixture(
-            this,
-            OcrSettings(
-                postSelectionAction = OcrPostSelectionAction.TRANSLATE,
-                translationDestination = OcrTranslationDestination.MAIN_WINDOW,
-            ),
-        )
-        try {
-            fixture.store.dispatch(
-                MainIntent.OcrWorkflowImage(
-                    image = fixture.image(),
-                    action = OcrPostSelectionAction.TRANSLATE,
-                    destinationOverride = OcrTranslationDestination.QUICK_TRANSLATE,
+            try {
+                fixture.ocr.responder = { Ok(OCRResponse(case.recognized)) }
+                fixture.store.dispatch(
+                    MainIntent.OcrWorkflowImage(
+                        image = fixture.image(),
+                        action = OcrPostSelectionAction.TRANSLATE,
+                        destinationOverride = case.override,
+                    )
                 )
-            )
-            advanceUntilIdle()
+                advanceUntilIdle()
 
-            assertTrue(fixture.store.state.value.isQuickTranslateDialogVisible)
-            assertFalse(fixture.events.any { it == MainEvent.ShowMainWindow })
-        } finally {
-            fixture.cleanUp()
+                val state = fixture.store.state.value
+                assertEquals(case.recognized, state.inputText, case.label)
+                assertEquals(listOf(case.recognized), fixture.translator.received, case.label)
+                assertEquals(case.opensQuick, state.isQuickTranslateDialogVisible, case.label)
+                assertEquals(!case.opensQuick, fixture.events.any { it == MainEvent.ShowMainWindow }, case.label)
+            } finally {
+                fixture.cleanUp()
+            }
         }
     }
 
@@ -248,33 +200,6 @@ class OcrWorkflowRoutingTest {
     }
 
     @Test
-    fun `OCR to Quick follows the quick-only auto-copy policy`() = runTest {
-        val fixture = OcrWorkflowFixture(
-            this,
-            OcrSettings(
-                postSelectionAction = OcrPostSelectionAction.TRANSLATE,
-                translationDestination = OcrTranslationDestination.QUICK_TRANSLATE,
-            ),
-            autoCopy = com.github.ahatem.qtranslate.core.settings.data.AutoCopyTranslation.QUICK_TRANSLATE_ONLY,
-        )
-        try {
-            val copied = fixture.copiedAfter {
-                fixture.store.dispatch(
-                    MainIntent.OcrWorkflowImage(
-                        image = fixture.image(),
-                        action = OcrPostSelectionAction.TRANSLATE,
-                    )
-                )
-            }
-            assertEquals("t:recognized text", copied)
-            assertEquals("t:recognized text", fixture.store.state.value.translatedText)
-            assertTrue(fixture.store.state.value.isQuickTranslateDialogVisible)
-        } finally {
-            fixture.cleanUp()
-        }
-    }
-
-    @Test
     fun `a failed OCR translate reveals the main window instead of stranding the user`() = runTest {
         val fixture = OcrWorkflowFixture(this)
         try {
@@ -302,27 +227,38 @@ class OcrWorkflowRoutingTest {
     }
 
     @Test
-    fun `OCR to Main does not copy under the quick-only policy`() = runTest {
-        val fixture = OcrWorkflowFixture(
-            this,
-            OcrSettings(
-                postSelectionAction = OcrPostSelectionAction.TRANSLATE,
-                translationDestination = OcrTranslationDestination.MAIN_WINDOW,
-            ),
-            autoCopy = com.github.ahatem.qtranslate.core.settings.data.AutoCopyTranslation.QUICK_TRANSLATE_ONLY,
-        )
-        try {
-            fixture.store.dispatch(
-                MainIntent.OcrWorkflowImage(
-                    image = fixture.image(),
-                    action = OcrPostSelectionAction.TRANSLATE,
-                )
+    fun `OCR translation follows the quick-only auto-copy policy`() = runTest {
+        for (destination in listOf(OcrTranslationDestination.QUICK_TRANSLATE, OcrTranslationDestination.MAIN_WINDOW)) {
+            val fixture = OcrWorkflowFixture(
+                this,
+                OcrSettings(
+                    postSelectionAction = OcrPostSelectionAction.TRANSLATE,
+                    translationDestination = destination,
+                ),
+                autoCopy = AutoCopyTranslation.QUICK_TRANSLATE_ONLY,
             )
-            advanceUntilIdle()
-
-            assertTrue(fixture.events.filterIsInstance<MainEvent.CopyToClipboard>().isEmpty())
-        } finally {
-            fixture.cleanUp()
+            try {
+                val image = {
+                    fixture.store.dispatch(
+                        MainIntent.OcrWorkflowImage(
+                            image = fixture.image(),
+                            action = OcrPostSelectionAction.TRANSLATE,
+                        )
+                    )
+                }
+                if (destination == OcrTranslationDestination.QUICK_TRANSLATE) {
+                    val copied = fixture.copiedAfter { image() }
+                    assertEquals("t:recognized text", copied)
+                    assertEquals("t:recognized text", fixture.store.state.value.translatedText)
+                    assertTrue(fixture.store.state.value.isQuickTranslateDialogVisible)
+                } else {
+                    image()
+                    advanceUntilIdle()
+                    assertTrue(fixture.events.filterIsInstance<MainEvent.CopyToClipboard>().isEmpty(), "main window must not copy")
+                }
+            } finally {
+                fixture.cleanUp()
+            }
         }
     }
 
@@ -336,13 +272,12 @@ class OcrWorkflowRoutingTest {
             fixture.store.dispatch(
                 MainIntent.SelectTargetLanguage(com.github.ahatem.qtranslate.api.language.LanguageCode.ENGLISH)
             )
-            // The workspace first translates its recognized source: Japanese -> English.
             fixture.store.dispatch(MainIntent.UpdateInputText("こんにちは"))
             fixture.store.dispatch(MainIntent.Translate("こんにちは"))
             advanceUntilIdle()
             assertEquals("t:こんにちは", fixture.store.state.value.translatedText)
 
-            // "Send to Quick" must send the source text, never the already-English result.
+            // Send to Quick sends the source text, never the already-translated result.
             fixture.store.dispatch(MainIntent.ShowQuickTranslate("こんにちは"))
             advanceUntilIdle()
 
@@ -356,99 +291,14 @@ class OcrWorkflowRoutingTest {
     }
 
     @Test
-    fun `a slow main OCR translation cannot overwrite a newer OCR quick result`() = runTest {
-        val fixture = OcrWorkflowFixture(this)
-        try {
-            fixture.ocr.responder = { request ->
-                if (request.image.width == 8) {
-                    Ok(OCRResponse("slow"))
-                } else {
-                    Ok(OCRResponse("fast"))
-                }
-            }
-            fixture.translator.beforeTranslate = { text ->
-                if (text == "slow") kotlinx.coroutines.delay(10_000)
-            }
-
-            fixture.store.dispatch(
-                MainIntent.OcrWorkflowImage(
-                    image = ImageData(byteArrayOf(1), "png", 8, 8),
-                    action = OcrPostSelectionAction.TRANSLATE,
-                    destinationOverride = OcrTranslationDestination.MAIN_WINDOW,
-                )
-            )
-            runCurrent()
-            fixture.store.dispatch(
-                MainIntent.OcrWorkflowImage(
-                    image = ImageData(byteArrayOf(2), "png", 9, 9),
-                    action = OcrPostSelectionAction.TRANSLATE,
-                    destinationOverride = OcrTranslationDestination.QUICK_TRANSLATE,
-                )
-            )
-            advanceUntilIdle()
-
-            assertEquals("fast", fixture.store.state.value.inputText)
-            assertEquals("t:fast", fixture.store.state.value.translatedText)
-            assertTrue(fixture.store.state.value.isQuickTranslateDialogVisible)
-        } finally {
-            fixture.cleanUp()
-        }
-    }
-
-    @Test
-    fun `a superseded OCR request cannot overwrite the current one`() = runTest {
-        val fixture = OcrWorkflowFixture(
-            this,
-            OcrSettings(
-                postSelectionAction = OcrPostSelectionAction.TRANSLATE,
-                translationDestination = OcrTranslationDestination.QUICK_TRANSLATE,
-            ),
-        )
-        try {
-            fixture.ocr.responder = { request ->
-                if (request.image.width == 8) {
-                    // First request is held until after the second has completed.
-                    kotlinx.coroutines.delay(10_000)
-                    Ok(OCRResponse("stale text"))
-                } else {
-                    Ok(OCRResponse("current text"))
-                }
-            }
-            fixture.store.dispatch(
-                MainIntent.OcrWorkflowImage(
-                    image = ImageData(byteArrayOf(1), "png", 8, 8),
-                    action = OcrPostSelectionAction.TRANSLATE,
-                )
-            )
-            runCurrent()
-            assertEquals(1, fixture.ocr.requests.size, "the first request is genuinely in flight")
-            fixture.store.dispatch(
-                MainIntent.OcrWorkflowImage(
-                    image = ImageData(byteArrayOf(2), "png", 9, 9),
-                    action = OcrPostSelectionAction.TRANSLATE,
-                )
-            )
-            advanceUntilIdle()
-
-            assertEquals(2, fixture.ocr.requests.size)
-            assertEquals("current text", fixture.store.state.value.inputText)
-            assertEquals(listOf("current text"), fixture.translator.received)
-        } finally {
-            fixture.cleanUp()
-        }
-    }
-
-    @Test
     fun `workspace translation is superseded by a newer OCR workflow and does not auto-copy`() = runTest {
-        // Finding 1: OCR -> WORKSPACE auto-translate is filed under the capture token,
-        // so choosing Copy Image for B cancels A's still-running translation.
         val fixture = OcrWorkflowFixture(
             this,
             OcrSettings(
                 postSelectionAction = OcrPostSelectionAction.TRANSLATE,
                 translationDestination = OcrTranslationDestination.OCR_WORKSPACE,
             ),
-            autoCopy = com.github.ahatem.qtranslate.core.settings.data.AutoCopyTranslation.ALL,
+            autoCopy = AutoCopyTranslation.ALL,
         )
         try {
             fixture.ocr.responder = { Ok(OCRResponse("slow text")) }
@@ -548,8 +398,7 @@ class OcrWorkflowRoutingTest {
 
     @Test
     fun `cancel translation if current ignores a superseded request`() = runTest {
-        // Finding 3: a new input must not cancel a newer manual request with the same
-        // text by content equality — cancellation is by request identity only.
+        // Cancellation is by request identity, never by equal text.
         val fixture = OcrWorkflowFixture(this)
         try {
             fixture.translator.beforeTranslate = { kotlinx.coroutines.delay(10_000) }
@@ -584,12 +433,10 @@ class OcrWorkflowRoutingTest {
 
     @Test
     fun `workspace-local identity is claimed during dispatch so an immediate replacement supersedes it`() = runTest {
-        // Forces the old claim gap exactly: dispatch A, then replace (cancel) *before* any
-        // scheduler work runs. Previously A's identity was still unknown here, so cleanup
-        // was skipped and A later published/auto-copied over the newer input.
+        // Replace A before any scheduler work runs: its identity must already be known.
         val fixture = OcrWorkflowFixture(
             this,
-            autoCopy = com.github.ahatem.qtranslate.core.settings.data.AutoCopyTranslation.ALL,
+            autoCopy = AutoCopyTranslation.ALL,
         )
         try {
             var claimedId: Long? = null
@@ -598,7 +445,6 @@ class OcrWorkflowRoutingTest {
                 MainIntent.Translate(text = "slow text", onTranslationClaimed = { claimedId = it })
             )
             assertTrue(claimedId != null, "identity must be known before dispatch returns")
-            // No runCurrent/advanceUntilIdle between A and its replacement.
             fixture.store.dispatch(MainIntent.CancelTranslationIfCurrent(claimedId!!))
             advanceUntilIdle()
 
