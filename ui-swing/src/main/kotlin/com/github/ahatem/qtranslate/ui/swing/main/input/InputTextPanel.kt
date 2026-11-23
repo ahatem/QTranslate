@@ -3,11 +3,13 @@ package com.github.ahatem.qtranslate.ui.swing.main.input
 import com.github.ahatem.qtranslate.api.spellchecker.Correction
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.ACTION_GAP
+import com.github.ahatem.qtranslate.ui.swing.main.widgets.STRIP_GAP
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsPanel
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toFont
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
+import com.formdev.flatlaf.util.UIScale
 import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.awt.Point
@@ -25,7 +27,7 @@ class InputTextPanel(
     private val onDocumentPasted: ((java.io.File) -> Unit)? = null,
     private val onFindInDictionary: ((String) -> Unit)? = null,
     private val onSearchImages: ((String) -> Unit)? = null,
-) : JPanel(BorderLayout()), Renderable<InputTextState> {
+) : JPanel(BorderLayout(UIScale.scale(STRIP_GAP), 0)), Renderable<InputTextState> {
 
     private val textPane = AdvancedTextPane(
         onTextChanged = onTextChanged,
@@ -42,7 +44,6 @@ class InputTextPanel(
      * [setStripComponents]), so hiding a row never strands one.
      */
     private val actionsWrapper = JPanel(BorderLayout(0, ACTION_GAP)).apply {
-        border = BorderFactory.createEmptyBorder(0, 4, 0, 0)
         isOpaque = false
         add(actionsPanel, BorderLayout.CENTER)
     }

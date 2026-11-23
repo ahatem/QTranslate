@@ -7,11 +7,14 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
 import com.github.ahatem.qtranslate.ui.swing.shared.util.ThemeIcon
+import com.formdev.flatlaf.util.UIScale
 import java.awt.BorderLayout
+import java.awt.Dimension
 import java.awt.Insets
 import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
 import javax.swing.AbstractAction
+import javax.swing.BorderFactory
 import javax.swing.JMenuItem
 import javax.swing.JPanel
 import javax.swing.JPopupMenu
@@ -34,9 +37,17 @@ internal class OcrSplitButton(
     }
     private var labels: OcrSplitLabels? = null
 
+    /** The button face: the background and outline, drawn inside the room [updateUI] leaves for them. */
+    private val face = object : JPanel(BorderLayout()) {
+        override fun updateUI() {
+            super.updateUI()
+            background = UIManager.getColor("Button.background") ?: UIManager.getColor("Panel.background")
+        }
+    }
+
     init {
-        isOpaque = true
-        border = object : FlatLineBorder(Insets(1, 1, 1, 1), null, 1f, -1) {
+        isOpaque = false
+        face.border = object : FlatLineBorder(Insets(1, 1, 1, 1), null, 1f, -1) {
             override fun getLineColor() = UIManager.getColor("Button.startBorderColor")
                 ?: UIManager.getColor("Component.borderColor")
             override fun getArc(): Int = UIManager.getInt("Button.arc")
@@ -47,9 +58,11 @@ internal class OcrSplitButton(
             it.isRequestFocusEnabled = false
             it.putClientProperty("JComponent.minimumWidth", 0)
         }
+        // No vertical margin; the height the row sees is taken from an icon button (see
+        // getPreferredSize), so the split button stands exactly as tall as the icon buttons beside it.
         val margin = UIManager.getInsets("Button.toolbar.margin") ?: Insets(3, 3, 3, 3)
-        primary.margin = Insets(margin.top, margin.left, margin.bottom, margin.left)
-        arrow.margin = Insets(margin.top, 2, margin.bottom, 2)
+        primary.margin = Insets(0, margin.left, 0, margin.left)
+        arrow.margin = Insets(0, 2, 0, 2)
         primary.isEnabled = false
         arrow.isEnabled = false
         primary.addActionListener { dispatch(OcrWorkflowCommand.DEFAULT) }
@@ -62,14 +75,34 @@ internal class OcrSplitButton(
         primary.actionMap.put("ocrMenu", object : AbstractAction() {
             override fun actionPerformed(e: ActionEvent?) { arrow.doClick() }
         })
-        add(primary, BorderLayout.LINE_START)
-        add(JSeparator(SwingConstants.VERTICAL), BorderLayout.CENTER)
-        add(arrow, BorderLayout.LINE_END)
+        face.add(primary, BorderLayout.LINE_START)
+        face.add(JSeparator(SwingConstants.VERTICAL), BorderLayout.CENTER)
+        face.add(arrow, BorderLayout.LINE_END)
+        add(face, BorderLayout.CENTER)
     }
+
+    /** The height of an icon button, which this button matches. Measured again after a theme change. */
+    private var iconButtonHeight = 0
 
     override fun updateUI() {
         super.updateUI()
-        background = UIManager.getColor("Button.background") ?: UIManager.getColor("Panel.background")
+        iconButtonHeight = 0
+        // A FlatLaf button keeps room for its focus ring inside its bounds and draws its outline
+        // inside that room. The face is drawn the same way, so its outline is exactly as tall as an
+        // icon button's.
+        val room = UIScale.scale(UIManager.getInt("Component.focusWidth"))
+        border = BorderFactory.createEmptyBorder(room, room, room, room)
+    }
+
+    override fun getPreferredSize(): Dimension {
+        val size = super.getPreferredSize()
+        if (iconButtonHeight == 0) {
+            iconButtonHeight = FlatButton().apply { icon = IconSet.load(Icons.OCR, 16, 16) }.preferredSize.height
+        }
+        // The application font is taller than a 16px icon, so left to the text this button would
+        // stand above its neighbours. The text is centred and its glyphs are shorter than the
+        // button, so only the line's spare height is given up.
+        return Dimension(size.width, iconButtonHeight)
     }
 
     fun render(labels: OcrSplitLabels, enabled: Boolean) {

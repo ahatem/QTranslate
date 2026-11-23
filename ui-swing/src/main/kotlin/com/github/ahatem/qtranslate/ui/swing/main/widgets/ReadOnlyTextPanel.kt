@@ -5,8 +5,8 @@ import com.github.ahatem.qtranslate.core.shared.arch.UiState
 import com.github.ahatem.qtranslate.ui.swing.shared.util.toFont
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.Renderable
+import com.formdev.flatlaf.util.UIScale
 import java.awt.BorderLayout
-import javax.swing.BorderFactory
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
 import javax.swing.JScrollPane
@@ -31,14 +31,13 @@ data class ReadOnlyTextPanelState(
 class ReadOnlyTextPanel(
     private val textPane: AdvancedTextPane,
     private val actionsPanel: TextActionsPanel,
-) : JPanel(BorderLayout()), Renderable<ReadOnlyTextPanelState> {
+) : JPanel(BorderLayout(UIScale.scale(STRIP_GAP), 0)), Renderable<ReadOnlyTextPanelState> {
 
     private val scrollPane = JScrollPane(textPane).apply { isFocusable = false }
     private var lastText: String? = null
 
     init {
         val actionsWrapper = JPanel(BorderLayout()).apply {
-            border = BorderFactory.createEmptyBorder(0, 4, 0, 0)
             isOpaque = false
             add(actionsPanel, BorderLayout.CENTER)
         }

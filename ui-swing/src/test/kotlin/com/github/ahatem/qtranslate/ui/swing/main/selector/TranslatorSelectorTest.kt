@@ -321,6 +321,73 @@ class TranslatorSelectorTest {
     }
 
     @Test
+    fun `an icons-only strip packs its tabs at the start instead of stretching them`() {
+        val selector = selector()
+        onEdt { selector.render(state(services(4), appearance = ServiceSelectorAppearance.ICONS_ONLY)) }
+        size(selector, 800)
+
+        val tabs = descendants(selector).filterIsInstance<JToggleButton>()
+        val widthOf = { tab: JToggleButton -> maxOf(tab.preferredSize.width, tab.preferredSize.height) }
+        assertEquals(4, tabs.size)
+        tabs.forEach {
+            assertEquals(widthOf(it), it.width, "${it.toolTipText} keeps its own size, not an even share of the row")
+            assertTrue(it.width >= it.height, "an icon tab is at least a square")
+            assertEquals("Service ${tabs.indexOf(it) + 1}", it.toolTipText, "the tooltip names the provider")
+        }
+        assertEquals(tabs.first().x, tabs.first().parent.insets.left)
+        tabs.zipWithNext().forEach { (a, b) -> assertEquals(a.x + a.width, b.x, "tabs touch, in order") }
+        assertTrue(tabs.sumOf { it.width } < 400, "the tabs do not fill the row")
+
+        val gear = descendants(selector).filterIsInstance<JButton>().first { it.toolTipText == "Configure active translation service" }
+        assertTrue(
+            SwingUtilities.convertPoint(gear, gear.width, 0, selector).x >= selector.width - 1,
+            "the settings gear stays at the end of the row"
+        )
+    }
+
+    @Test
+    fun `an icons-only strip packs from the right in a right-to-left window`() {
+        val selector = selector()
+        onEdt {
+            selector.applyComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT)
+            selector.render(state(services(3), appearance = ServiceSelectorAppearance.ICONS_ONLY))
+        }
+        size(selector, 800)
+
+        val tabs = descendants(selector).filterIsInstance<JToggleButton>()
+        val strip = tabs.first().parent
+        assertEquals(strip.width - strip.insets.right, tabs.first().x + tabs.first().width, "the first tab is at the start edge")
+        tabs.zipWithNext().forEach { (a, b) -> assertEquals(b.x + b.width, a.x, "tabs touch, mirrored") }
+        val gear = descendants(selector).filterIsInstance<JButton>().first { it.toolTipText == "Configure active translation service" }
+        assertTrue(SwingUtilities.convertPoint(gear, 0, 0, selector).x <= 1, "the gear mirrors to the left")
+    }
+
+    @Test
+    fun `the service picker mirrors in a right-to-left window`() {
+        val selector = selector()
+        onEdt {
+            selector.applyComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT)
+            selector.render(
+                TranslatorSelectorState(
+                    availableTranslators = services(2),
+                    selectedTranslatorId = "service-0",
+                    isLoading = false,
+                    style = ServiceSelectorStyle.ENHANCED,
+                )
+            )
+        }
+        size(selector, 600)
+
+        val combo = descendants(selector).filterIsInstance<javax.swing.JComboBox<*>>().first()
+        val gear = descendants(selector).filterIsInstance<JButton>().first { it.toolTipText?.startsWith("Configure selected") == true }
+        assertFalse(combo.componentOrientation.isLeftToRight, "a picker built after the window was mirrored is mirrored too")
+        assertTrue(
+            SwingUtilities.convertPoint(gear, 0, 0, selector).x < SwingUtilities.convertPoint(combo, 0, 0, selector).x,
+            "the gear is at the combo's end, which is its left in a right-to-left window"
+        )
+    }
+
+    @Test
     fun `a loading selector disables every service button`() {
         val selector = selector()
         onEdt { selector.render(state(services(2), loading = true)) }

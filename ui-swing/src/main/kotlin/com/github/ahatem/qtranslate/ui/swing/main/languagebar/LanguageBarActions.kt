@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.main.languagebar
 
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.Action
+import com.github.ahatem.qtranslate.ui.swing.main.widgets.ActionPriority
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 
 /**
@@ -19,14 +20,16 @@ fun LanguageSelectionBarState.translateAction(onTranslate: () -> Unit, onCancel:
         tooltip = strings.cancelButtonText,
         isEnabled = isTranslateActionable,
         isVisible = true,
-        onClick = onCancel
+        onClick = onCancel,
+        keepPriority = ActionPriority.TRANSLATE,
     ) else Action(
         id = TRANSLATE_ACTION_ID,
         iconPath = Icons.TRANSLATE,
         tooltip = strings.translateButtonText,
         isEnabled = isTranslateActionable,
         isVisible = true,
-        onClick = onTranslate
+        onClick = onTranslate,
+        keepPriority = ActionPriority.TRANSLATE,
     )
 
 /**
@@ -39,7 +42,8 @@ fun LanguageSelectionBarState.clearAction(onClear: () -> Unit): Action = Action(
     tooltip = strings.clearTooltip,
     isEnabled = isClearActionable,
     isVisible = true,
-    onClick = onClear
+    onClick = onClear,
+    keepPriority = ActionPriority.CLEAR,
 )
 
 const val TRANSLATE_ACTION_ID = "input_translate"

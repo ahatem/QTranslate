@@ -25,11 +25,16 @@ class TranslatorSelector(
 
     private var state = TranslatorSelectorState(emptyList(), null, false)
     private var activeServiceId: String? = null
+    /** True while the strip shows icons only: compact toolbar buttons packed at the start. */
+    private var iconsOnly = false
+
     // Classic keeps the original QTranslate's adjacent bottom tabs, with complete labels and
     // a single adaptive overflow menu for today's larger plugin set.
     private val serviceStrip = object : JPanel(StretchTabsLayout()) {
         override fun paintChildren(g: Graphics) {
             super.paintChildren(g)
+            // Icon-only tabs are separate toolbar buttons, so no divider is drawn between them.
+            if (iconsOnly) return
             val segments = components.sortedBy { it.x }
             val oldColor = g.color
             g.color = UIManager.getColor("Component.borderColor") ?: Color.GRAY
@@ -78,6 +83,10 @@ class TranslatorSelector(
         overflowMenu.toolTipText = state.strings.allServicesTooltip
         configureActive.toolTipText = state.strings.configureActiveTooltip
         if (state.style == ServiceSelectorStyle.CLASSIC) rebuildClassic() else rebuildEnhanced()
+        // Rebuilt children start left to right; hand them the window's direction so the gear, the
+        // combo arrows and the icons mirror with everything else.
+        serviceStrip.applyComponentOrientation(componentOrientation)
+        enhanced.applyComponentOrientation(componentOrientation)
         (layout as CardLayout).show(this, if (state.style == ServiceSelectorStyle.CLASSIC) CLASSIC else ENHANCED)
         revalidate(); repaint()
     }
@@ -87,6 +96,8 @@ class TranslatorSelector(
         val selected = services.find { it.id == state.selectedTranslatorId } ?: services.firstOrNull()
         activeServiceId = selected?.id
         val group = ButtonGroup()
+        iconsOnly = state.appearance == ServiceSelectorAppearance.ICONS_ONLY
+        serviceStrip.layout = if (iconsOnly) PackedTabsLayout() else StretchTabsLayout()
         val buttons = services.associate { service ->
             val serviceIcon = loadIcon(service)
             service.id to JToggleButton().apply {
@@ -98,8 +109,12 @@ class TranslatorSelector(
                 toolTipText = service.name; isSelected = service.id == selected?.id
                 isEnabled = !state.isLoading; isOpaque = false
                 putClientProperty(FlatClientProperties.BUTTON_TYPE, "toolBarButton")
-                putClientProperty(FlatClientProperties.STYLE, "arc: 0")
-                margin = compactButtonMargin()
+                // Text tabs keep the squared, adjacent look. An icon-only tab is a plain FlatLaf
+                // toolbar button, with the look and feel's own margin and corners.
+                if (!iconsOnly) {
+                    putClientProperty(FlatClientProperties.STYLE, "arc: 0")
+                    margin = compactButtonMargin()
+                }
                 addActionListener { onServiceSelected(ServiceRole.TRANSLATOR, service.id) }
                 addMouseListener(object : MouseAdapter() {
                     override fun mousePressed(e: MouseEvent) { if (SwingUtilities.isRightMouseButton(e)) onConfigureService(service.id) }
@@ -149,6 +164,7 @@ class TranslatorSelector(
         if (serviceStrip.components.toList() != visibleButtons) {
             serviceStrip.removeAll()
             visibleButtons.forEach { serviceStrip.add(it) }
+            serviceStrip.applyComponentOrientation(componentOrientation)
         }
         classic.revalidate()
         classic.repaint()
@@ -214,6 +230,48 @@ class TranslatorSelector(
     private fun compactButtonMargin() = Insets(
         UIScale.scale(2), UIScale.scale(4), UIScale.scale(2), UIScale.scale(4)
     )
+
+    /**
+     * Whole tabs at their own size, packed from the start of the row and so mirrored in a
+     * right-to-left window. Each is at least as wide as it is tall, which makes an icon-only tab a
+     * square toolbar button.
+     */
+    private class PackedTabsLayout : LayoutManager {
+        override fun addLayoutComponent(name: String?, comp: Component?) = Unit
+        override fun removeLayoutComponent(comp: Component?) = Unit
+
+        private fun width(child: Component) = maxOf(child.preferredSize.width, child.preferredSize.height)
+
+        override fun preferredLayoutSize(parent: Container): Dimension {
+            val children = parent.components.filter { it.isVisible }
+            val insets = parent.insets
+            return Dimension(
+                children.sumOf(::width) + insets.left + insets.right,
+                (children.maxOfOrNull { it.preferredSize.height } ?: 0) + insets.top + insets.bottom
+            )
+        }
+
+        override fun minimumLayoutSize(parent: Container): Dimension = preferredLayoutSize(parent)
+
+        override fun layoutContainer(parent: Container) {
+            val insets = parent.insets
+            val ltr = parent.componentOrientation.isLeftToRight
+            val rowHeight = parent.height - insets.top - insets.bottom
+            var edge = if (ltr) insets.left else parent.width - insets.right
+            parent.components.filter { it.isVisible }.forEach { child ->
+                val w = width(child)
+                val h = child.preferredSize.height.coerceAtMost(rowHeight)
+                val y = insets.top + (rowHeight - h) / 2
+                if (ltr) {
+                    child.setBounds(edge, y, w, h)
+                    edge += w
+                } else {
+                    edge -= w
+                    child.setBounds(edge, y, w, h)
+                }
+            }
+        }
+    }
 
     /** Share spare width between whole tabs; never shrink a label to fill an arbitrary cell. */
     private class StretchTabsLayout : LayoutManager {

@@ -82,6 +82,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.menus.CommandShortcutHints
 import com.github.ahatem.qtranslate.ui.swing.main.menus.withShortcutChord
 import com.github.ahatem.qtranslate.ui.swing.main.statusbar.StatusBar
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.Action
+import com.github.ahatem.qtranslate.ui.swing.main.widgets.ActionPriority
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsState
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.copyToClipboard
@@ -778,7 +779,8 @@ class MainContentView(
                 tooltip = localizer.getString("main_window_history_bar.backward_tooltip"),
                 isEnabled = mainState.canUndo,
                 isVisible = true,
-                onClick = { dispatch(MainIntent.UndoTranslation) }
+                onClick = { dispatch(MainIntent.UndoTranslation) },
+                keepPriority = ActionPriority.BACK
             ),
             Action(
                 id = "history_forward",
@@ -786,7 +788,8 @@ class MainContentView(
                 tooltip = localizer.getString("main_window_history_bar.forward_tooltip"),
                 isEnabled = mainState.canRedo,
                 isVisible = true,
-                onClick = { dispatch(MainIntent.RedoTranslation) }
+                onClick = { dispatch(MainIntent.RedoTranslation) },
+                keepPriority = ActionPriority.FORWARD
             ),
             Action(
                 id = "input_image_translate",
@@ -794,7 +797,8 @@ class MainContentView(
                 tooltip = localizer.getString("main_window_history_bar.image_translate_tooltip"),
                 isEnabled = true,
                 isVisible = true,
-                onClick = { onOpenSnippingTool(OcrWorkflowCommand.SHOW_ACTIONS) }
+                onClick = { onOpenSnippingTool(OcrWorkflowCommand.SHOW_ACTIONS) },
+                keepPriority = ActionPriority.IMAGE
             ),
             Action(
                 id = "input_document_translate",
@@ -802,7 +806,8 @@ class MainContentView(
                 tooltip = localizer.getString("main_window_history_bar.document_translate_tooltip"),
                 isEnabled = true,
                 isVisible = true,
-                onClick = { onOpenDocumentTranslation(null) }
+                onClick = { onOpenDocumentTranslation(null) },
+                keepPriority = ActionPriority.DOCUMENT
             ),
         ) else emptyList()
         val languageActions = if (languagesInStrip) listOf(
@@ -829,7 +834,8 @@ class MainContentView(
                     tooltip = localizer.getString("main_window_editor_context_menu.copy"),
                     isEnabled = hasInputText && !mainState.isLoading,
                     isVisible = true,
-                    onClick = { mainState.inputText.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) }
+                    onClick = { mainState.inputText.copyToClipboard(); dispatch(MainIntent.NotifyTextCopied) },
+                    keepPriority = ActionPriority.COPY
                 ),
                 Action(
                     id = if (isTtsPlaying) "stop_tts_input" else "listen_input",
@@ -840,7 +846,8 @@ class MainContentView(
                     onClick = {
                         if (isTtsPlaying) dispatch(MainIntent.StopTTS)
                         else dispatch(MainIntent.ListenToText(textSource = TextSource.Input))
-                    }
+                    },
+                    keepPriority = ActionPriority.SPEAK
                 ),
             ),
             // With every region hidden the strip holds more commands than a short pane has room

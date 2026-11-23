@@ -51,9 +51,10 @@ class LanguageSelectionBar(
         grid.weightX(0.5).add(sourceLanguageComboBox)
         grid.weightX(0.0).add(swapButton)
         grid.weightX(0.5).add(targetLanguageComboBox)
+        // Keeps its own width but takes the row's height, so it lines up with the buttons and
+        // combo boxes beside it instead of standing a pixel short of them.
         grid.weightX(0.0)
-            .fill(GridBagConstraints.NONE)
-            .anchor(GridBagConstraints.EAST)
+            .fill(GridBagConstraints.VERTICAL)
             .add(translateButton)
     }
 

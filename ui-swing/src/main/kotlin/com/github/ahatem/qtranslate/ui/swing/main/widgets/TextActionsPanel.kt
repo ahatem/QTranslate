@@ -26,6 +26,9 @@ import javax.swing.JPopupMenu
  * @param isEnabled Whether the action button should be enabled.
  * @param isVisible Whether the action button should be visible.
  * @param onClick The callback to be executed when the action is performed.
+ * @param keepPriority How long the action stays on a strip that is too short for all of them. When
+ * some do not fit, the lowest priority folds into the More menu first and equal priorities fold
+ * from the end. See [ActionPriority].
  */
 data class Action(
     val id: String,
@@ -33,11 +36,36 @@ data class Action(
     val tooltip: String,
     val isEnabled: Boolean,
     val isVisible: Boolean,
-    val onClick: () -> Unit
+    val onClick: () -> Unit,
+    val keepPriority: Int = ActionPriority.DEFAULT,
 )
+
+/**
+ * The order in which the input strip gives up commands, lowest first. The strip keeps its visual
+ * order whatever folds; this only says which commands go into the More menu when there is not room
+ * for all of them: document, image, forward and back first, then Speak, Clear and Copy, and
+ * Translate last.
+ */
+object ActionPriority {
+    const val DEFAULT = 0
+    const val DOCUMENT = 1
+    const val IMAGE = 2
+    const val FORWARD = 3
+    const val BACK = 4
+    const val SPEAK = 5
+    const val CLEAR = 6
+    const val COPY = 7
+    const val TRANSLATE = 8
+}
 
 /** The vertical gap between two buttons of the action strip. */
 internal const val ACTION_GAP = 2
+
+/**
+ * The gap between a pane's text and its action strip, at 100%. A layout gap rather than a border, so
+ * it follows the strip to whichever side the reading direction puts it on.
+ */
+internal const val STRIP_GAP = 4
 
 /** The name of the More button, for the window's route checks. */
 const val MORE_ACTIONS_NAME = "more_actions"
@@ -65,18 +93,20 @@ class TextActionsPanel(
 ) : JPanel(), Renderable<TextActionsState> {
 
     private val actionButtons = mutableMapOf<String, FlatButton>()
+    private val priorities = mutableMapOf<String, Int>()
     private var lastActions: List<Action> = emptyList()
 
     /**
-     * Part of the column only while some command does not fit; its popup holds those commands. Its
-     * icon is loaded the first time it is needed, so a strip that always fits never asks for it.
+     * Part of the column only while some command does not fit; its popup holds those commands. It is
+     * a plain icon button like the others, so it is never wider than they are. Its icon is loaded
+     * the first time it is needed, so a strip that always fits never asks for it.
      */
     val moreButton: FlatButton = FlatButton().apply {
         name = MORE_ACTIONS_NAME
         addActionListener { showOverflowMenu() }
     }
 
-    private val columnLayout = OverflowColumnLayout(moreButton) {
+    private val columnLayout = OverflowColumnLayout(moreButton, { priorities[it.name] ?: ActionPriority.DEFAULT }) {
         if (moreButton.icon == null) {
             moreButton.icon = (iconManager.getIcon(Icons.MORE, 16, 16) as FlatSVGIcon).applyForegroundColorFilter()
         }
@@ -114,6 +144,8 @@ class TextActionsPanel(
 
     override fun render(state: TextActionsState) {
         val newActions = state.actions.filter { it.isVisible }
+        priorities.clear()
+        newActions.forEach { priorities[it.id] = it.keepPriority }
         val currentIds = actionButtons.keys
         val newIds = newActions.map { it.id }.toSet()
 
@@ -176,14 +208,20 @@ class TextActionsPanel(
 
 /**
  * Lays the children of a column out top to bottom, each centred, [ACTION_GAP] apart. When they do
- * not all fit the available height, the first ones that fit stay, [more] is added after them, and
- * the rest are hidden and remembered in [overflowed].
+ * not all fit the available height, the lowest [priority] ones are hidden until the rest and the
+ * [more] button fit, and the hidden ones are remembered in [overflowed]. The children keep their
+ * order; only which of them show depends on priority.
+ *
+ * The column is as wide as its widest child. [more] counts only while it is a child, and it is an
+ * icon button like the others, so it never widens the column.
  *
  * The preferred height is the whole column, so a tall parent shows everything. The minimum is one
  * button, so a short parent shrinks the column instead of clipping it.
  */
 private class OverflowColumnLayout(
     private val more: Component,
+    /** How long a child stays on a short column; higher stays longer. */
+    private val priority: (Component) -> Int,
     /** Called before the More button is measured for the first time. */
     private val prepareMore: () -> Unit,
 ) : LayoutManager {
@@ -202,18 +240,22 @@ private class OverflowColumnLayout(
 
     private fun items(parent: Container): List<Component> = parent.components.filter { it !== more }
 
+    private fun widest(parent: Container, items: List<Component>): Int =
+        (if (more.parent === parent) items + more else items).maxOfOrNull { it.preferredSize.width } ?: 0
+
     override fun preferredLayoutSize(parent: Container): Dimension {
         val items = items(parent)
         val insets = parent.insets
-        val width = (items + more).maxOf { it.preferredSize.width }
         val height = items.sumOf { it.preferredSize.height } + ACTION_GAP * (items.size - 1).coerceAtLeast(0)
-        return Dimension(width + insets.left + insets.right, height + insets.top + insets.bottom)
+        return Dimension(widest(parent, items) + insets.left + insets.right, height + insets.top + insets.bottom)
     }
 
     override fun minimumLayoutSize(parent: Container): Dimension {
+        val items = items(parent)
         val insets = parent.insets
-        val width = (items(parent) + more).maxOf { it.preferredSize.width }
-        return Dimension(width + insets.left + insets.right, more.preferredSize.height + insets.top + insets.bottom)
+        // One button tall: More is as tall as any of them.
+        val oneButton = items.maxOfOrNull { it.preferredSize.height } ?: 0
+        return Dimension(widest(parent, items) + insets.left + insets.right, oneButton + insets.top + insets.bottom)
     }
 
     override fun layoutContainer(parent: Container) {
@@ -222,27 +264,24 @@ private class OverflowColumnLayout(
         val items = items(parent)
         val heights = items.map { it.preferredSize.height }
 
-        val everything = heights.sum() + ACTION_GAP * (heights.size - 1).coerceAtLeast(0)
-        val shown = if (everything <= available) {
-            items.size
-        } else {
+        fun columnHeight(kept: List<Int>) = kept.sumOf { heights[it] } + ACTION_GAP * (kept.size - 1).coerceAtLeast(0)
+
+        val kept = items.indices.toMutableList()
+        if (columnHeight(kept) > available) {
             prepareMore()
             val moreHeight = more.preferredSize.height
-            // The most buttons that fit with the More button after them.
-            var count = 0
-            var used = 0
-            while (count < items.size) {
-                val next = used + heights[count] + (if (count > 0) ACTION_GAP else 0)
-                if (next + ACTION_GAP + moreHeight > available) break
-                used = next
-                count++
+            fun fits() = columnHeight(kept) + (if (kept.isEmpty()) 0 else ACTION_GAP) + moreHeight <= available
+            // Fold the lowest priority first; of two equals, the later one.
+            val foldOrder = items.indices.sortedWith(compareBy({ priority(items[it]) }, { -it }))
+            for (index in foldOrder) {
+                if (fits()) break
+                kept.remove(index)
             }
-            count
         }
 
         var y = insets.top
         items.forEachIndexed { index, item ->
-            val fits = index < shown
+            val fits = index in kept
             if (item.isVisible != fits) item.isVisible = fits
             if (fits) {
                 val size = item.preferredSize
@@ -250,7 +289,7 @@ private class OverflowColumnLayout(
                 y += size.height + ACTION_GAP
             }
         }
-        overflowed = items.drop(shown)
+        overflowed = items.filterIndexed { index, _ -> index !in kept }
         val needsMore = overflowed.isNotEmpty()
         // The button is a child only while it is needed, so a column that fits holds nothing but
         // its own actions.

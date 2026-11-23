@@ -205,7 +205,9 @@ services) in a slot: `TOP`, `ABOVE_RESULTS`, `BOTTOM` or `HIDDEN`.
   to the trailing end of whichever row holds history, or to the input strip when history is hidden
   too. The input strip never clips a command: when the pane is too short for every button, the
   ones that do not fit fold into a trailing More button whose menu lists them with the same text,
-  icon, enabled state and action, and the notification button stays visible.
+  icon, enabled state and action, and the notification button stays visible. The strip keeps its
+  visual order and folds by `ActionPriority`: document, image, forward and back first, then Speak,
+  Clear and Copy, and Translate last.
 - `SlotLayout` (`ui-swing/main/layout`) builds the slot containers and the pane split from the row
   plan; `LayoutManager` rebuilds only when the arrangement changes.
 - A requested Comparison without two usable translators renders Stacked. The stored preference is

@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.main.widgets
 
 import com.github.ahatem.qtranslate.ui.swing.shared.TestIcons
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
+import com.github.ahatem.qtranslate.ui.swing.shared.util.createButtonWithIcon
 import java.awt.ComponentOrientation
 import javax.swing.AbstractButton
 import javax.swing.JMenuItem
@@ -25,14 +26,41 @@ class TextActionsOverflowTest {
         "input_translate", "input_clear", "copy_input", "listen_input",
     )
 
-    private fun action(id: String, enabled: Boolean = true) = Action(
+    private fun action(id: String, enabled: Boolean = true, priority: Int = ActionPriority.DEFAULT) = Action(
         id = id,
         iconPath = Icons.COPY,
         tooltip = "Label of $id",
         isEnabled = enabled,
         isVisible = true,
         onClick = { clicked += id },
+        keepPriority = priority,
     )
+
+    /** The input strip as the window builds it: the same ids in the same order, with priorities. */
+    private val prioritised = mapOf(
+        "history_back" to ActionPriority.BACK,
+        "history_forward" to ActionPriority.FORWARD,
+        "input_image_translate" to ActionPriority.IMAGE,
+        "input_document_translate" to ActionPriority.DOCUMENT,
+        "input_translate" to ActionPriority.TRANSLATE,
+        "input_clear" to ActionPriority.CLEAR,
+        "copy_input" to ActionPriority.COPY,
+        "listen_input" to ActionPriority.SPEAK,
+    )
+
+    /** What the strip gives up first, then next. */
+    private val foldOrder = listOf(
+        "input_document_translate", "input_image_translate", "history_forward", "history_back",
+        "listen_input", "input_clear", "copy_input", "input_translate",
+    )
+
+    private fun prioritisedPanel(height: Int): TextActionsPanel = onEdt {
+        TextActionsPanel(iconManager).also { panel ->
+            panel.render(TextActionsState(ids.map { action(it, priority = prioritised.getValue(it)) }, moreLabel = "More actions"))
+            panel.setSize(panel.preferredSize.width, height)
+            panel.doLayout()
+        }
+    }
 
     private fun <T> onEdt(block: () -> T): T {
         var result: Result<T>? = null
@@ -75,6 +103,51 @@ class TextActionsOverflowTest {
         assertEquals(emptyList(), panel.overflowedActionIds)
         assertTrue(panel.components.none { it === panel.moreButton }, "a strip that fits holds nothing but its actions")
         buttons(panel).forEach { assertTrue(it.y + it.height <= panel.height, "${it.name} is inside the strip") }
+    }
+
+    @Test
+    fun `the column is exactly as wide as its widest action button`() {
+        val panel = onEdt {
+            TextActionsPanel(iconManager).also { it.render(TextActionsState(ids.map { id -> action(id) }, moreLabel = "More actions")) }
+        }
+        val widest = onEdt { buttons(panel).maxOf { it.preferredSize.width } }
+        val insets = panel.insets
+        assertEquals(widest + insets.left + insets.right, onEdt { panel.preferredSize.width })
+        assertEquals(widest + insets.left + insets.right, onEdt { panel.minimumSize.width })
+        // The column adds nothing to a lone icon button, so the look and feel's minimum button
+        // width cannot have leaked in through a button without an icon.
+        val lone = onEdt { createButtonWithIcon(iconManager, Icons.COPY, 16).preferredSize.width }
+        assertEquals(lone, widest)
+    }
+
+    @Test
+    fun `the More button is no wider than an action button`() {
+        val panel = panel(fullHeight() / 2)
+        assertTrue(moreShown(panel))
+        val widest = onEdt { buttons(panel).maxOf { it.preferredSize.width } }
+        assertTrue(panel.moreButton.preferredSize.width <= widest, "More is ${panel.moreButton.preferredSize.width}, actions ${widest}")
+        val insets = panel.insets
+        assertEquals(widest + insets.left + insets.right, onEdt { panel.preferredSize.width }, "showing More does not widen the column")
+    }
+
+    @Test
+    fun `a short strip folds by priority and keeps the visual order`() {
+        var sawBackFolded = false
+        for (height in fullHeight() downTo 0 step 3) {
+            val panel = prioritisedPanel(height)
+            val folded = panel.overflowedActionIds
+            val shown = buttons(panel).filter { it.isVisible }.map { it.name }
+
+            assertEquals(foldOrder.take(folded.size).toSet(), folded.toSet(), "at $height the lowest priorities fold first")
+            assertEquals(ids.filter { it in folded }, folded, "the menu keeps the visual order")
+            assertEquals(ids.filter { it in shown }, shown, "the strip keeps the visual order")
+            assertEquals(ids.toSet(), (shown + folded).toSet())
+            if (shown.isNotEmpty() && folded.isNotEmpty()) {
+                assertTrue("input_translate" in shown, "Translate stays while anything stays")
+            }
+            if ("history_back" in folded && "listen_input" !in folded) sawBackFolded = true
+        }
+        assertTrue(sawBackFolded, "back folds before Speak, Clear, Copy and Translate")
     }
 
     @Test
