@@ -12,14 +12,10 @@ import java.nio.file.Files
 import javax.imageio.ImageIO
 import kotlin.coroutines.CoroutineContext
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-/**
- * The Workspace must not classify, read, decode or encode images on the Swing thread. These tests
- * inject a dispatcher and prove the blocking work is actually dispatched through it.
- */
+/** Blocking image work must go through the injected dispatcher, never run on the caller. */
 class OcrImageMaterializerTest {
 
     private class RecordingDispatcher : CoroutineDispatcher() {
@@ -41,49 +37,41 @@ class OcrImageMaterializerTest {
     }
 
     @Test
-    fun `image data decoding is dispatched away from the caller`() = runBlocking {
-        val dispatcher = RecordingDispatcher()
-        val decoded = OcrImageMaterializer.decode(
-            ImageData(pngBytes(), "png", image.width, image.height),
-            dispatcher,
-        )
-
-        assertNotNull(decoded)
-        assertEquals(image.width, decoded.width)
-        assertEquals(image.height, decoded.height)
-        assertTrue(dispatcher.dispatches > 0)
-    }
-
-    @Test
-    fun `file reading and png encoding are dispatched away from the caller`() = runBlocking {
-        val file = Files.createTempFile("qtranslate-ocr-image", ".png").toFile()
-        try {
-            ImageIO.write(image, "png", file)
-            val dispatcher = RecordingDispatcher()
-            val materialized = OcrImageMaterializer.readFile(file, dispatcher)
-
-            assertNotNull(materialized)
-            assertEquals(image.width, materialized.image.width)
-            assertEquals("png", materialized.data.format)
-            assertTrue(dispatcher.dispatches > 0)
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun `clipboard classification and decoding are dispatched away from the caller`() = runBlocking {
-        val transferable = object : Transferable {
+    fun `blocking image work runs on the injected dispatcher`() {
+        val clipboard = object : Transferable {
             override fun getTransferDataFlavors() = arrayOf(DataFlavor.imageFlavor)
             override fun isDataFlavorSupported(flavor: DataFlavor) = flavor == DataFlavor.imageFlavor
             override fun getTransferData(flavor: DataFlavor): Any = image
         }
-        val dispatcher = RecordingDispatcher()
-        val materialized = OcrImageMaterializer.readClipboard(transferable, dispatcher)
-
-        assertNotNull(materialized)
-        assertEquals(image.width, materialized.image.width)
-        assertTrue(dispatcher.dispatches > 0)
+        val file = Files.createTempFile("qtranslate-ocr-image", ".png").toFile()
+        try {
+            ImageIO.write(image, "png", file)
+            val cases = listOf<Pair<String, suspend (CoroutineDispatcher) -> String?>>(
+                "decode" to { d ->
+                    OcrImageMaterializer.decode(ImageData(pngBytes(), "png", image.width, image.height), d)
+                        ?.let { "${it.width}" }
+                },
+                "readFile" to { d ->
+                    OcrImageMaterializer.readFile(file, d)?.let { "${it.image.width} ${it.data.format}" }
+                },
+                "readClipboard" to { d ->
+                    OcrImageMaterializer.readClipboard(clipboard, d)?.let { "${it.image.width} ${it.data.format}" }
+                },
+                "encode" to { d ->
+                    OcrImageMaterializer.encode(image, d)?.let { "${it.image.width} ${it.data.format}" }
+                },
+            )
+            for ((label, run) in cases) {
+                val dispatcher = RecordingDispatcher()
+                val result = runBlocking { run(dispatcher) }
+                assertNotNull(result, "$label result")
+                assertTrue(result.startsWith("${image.width}"), "$label width: $result")
+                if (label != "decode") assertTrue(result.endsWith("png"), "$label format: $result")
+                assertTrue(dispatcher.dispatches > 0, "$label was not dispatched")
+            }
+        } finally {
+            file.delete()
+        }
     }
 
     @Test
@@ -113,15 +101,5 @@ class OcrImageMaterializerTest {
         assertNotNull(OcrImageMaterializer.readClipboard(transferable))
         assertTrue(conversionThreads.isNotEmpty(), "the generic conversion branch must execute")
         assertTrue(conversionThreads.none { it }, "raster allocation/drawing must not run on EDT")
-    }
-
-    @Test
-    fun `encoding a captured image is dispatched away from the caller`() = runBlocking {
-        val dispatcher = RecordingDispatcher()
-        val materialized = OcrImageMaterializer.encode(image, dispatcher)
-
-        assertNotNull(materialized)
-        assertEquals("png", materialized.data.format)
-        assertTrue(dispatcher.dispatches > 0)
     }
 }
