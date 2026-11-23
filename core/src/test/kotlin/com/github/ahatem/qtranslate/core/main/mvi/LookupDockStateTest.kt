@@ -22,23 +22,6 @@ class LookupDockStateTest {
     }
 
     @Test
-    fun `the dictionary toggle opens the dock on the dictionary and closes it again`() {
-        val opened = MainState().withDictionaryPanelToggled()
-        assertTrue(opened.isDictionaryPanelVisible)
-
-        val closed = opened.withDictionaryPanelToggled()
-        assertFalse(closed.isLookupDockOpen)
-        assertFalse(closed.isDictionaryPanelVisible)
-    }
-
-    @Test
-    fun `the dictionary toggle on an images dock switches to the dictionary instead of closing`() {
-        val toggled = MainState().withLookupDockOn(LookupTool.IMAGES).withDictionaryPanelToggled()
-        assertTrue(toggled.isLookupDockOpen)
-        assertTrue(toggled.isDictionaryPanelVisible)
-    }
-
-    @Test
     fun `closing keeps which tool was showing so it reopens where it was`() {
         val closed = MainState().withLookupDockOn(LookupTool.IMAGES).copy(isLookupDockOpen = false)
         assertFalse(closed.isImagesDockVisible)

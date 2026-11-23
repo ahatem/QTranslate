@@ -181,11 +181,6 @@ data class MainState(
         get() = getAvailableServicesFor(ServiceRole.TRANSLATOR).map { it.id }
 }
 
-/** Opens the lookup dock on the dictionary, or closes it when the dictionary is what it shows. */
-fun MainState.withDictionaryPanelToggled(): MainState =
-    if (isDictionaryPanelVisible) copy(isLookupDockOpen = false)
-    else copy(isLookupDockOpen = true, lookupDockTool = LookupTool.DICTIONARY)
-
 /** Opens the lookup dock on [tool], or switches an open one to it. */
 fun MainState.withLookupDockOn(tool: LookupTool): MainState =
     copy(isLookupDockOpen = true, lookupDockTool = tool)

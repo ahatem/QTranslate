@@ -1213,9 +1213,9 @@ class MainStore(
         )
     }
 
-    private suspend fun handleSpellCheck(input: SpellCheckInput, checkSetting: Boolean = true) {
+    private suspend fun handleSpellCheck(input: SpellCheckInput) {
         val snapshot = _state.value
-        if (!input.matches(snapshot, if (checkSetting) settingsState.value.isSpellCheckingEnabled else true)) return
+        if (!input.matches(snapshot, settingsState.value.isSpellCheckingEnabled)) return
         val corrections = if (input.isEnabled && input.text.isNotBlank()) {
             performSpellCheckUseCase(
                 currentState   = snapshot,
@@ -1226,7 +1226,7 @@ class MainStore(
             emptyList()
         }
         _state.update { current ->
-            if (input.matches(current, if (checkSetting) settingsState.value.isSpellCheckingEnabled else true))
+            if (input.matches(current, settingsState.value.isSpellCheckingEnabled))
                 current.copy(spellCheckCorrections = corrections)
             else current
         }
