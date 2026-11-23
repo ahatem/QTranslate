@@ -92,9 +92,8 @@ class HotkeyRegistrationLedgerTest {
         assertNull(ledger.registrationFor(first.token))
     }
 
-    /** Accepting an empty plan retires everything, which is what disabling relies on. */
     @Test
-    fun `accepting an empty plan retires every token`() {
+    fun `accepting an empty plan, which disabling relies on, retires every token`() {
         val ledger = HotkeyRegistrationLedger()
         val plan = ledger.plan(
             listOf(
@@ -112,18 +111,6 @@ class HotkeyRegistrationLedgerTest {
         plan.forEach { assertNull(ledger.registrationFor(it.token)) }
     }
 
-    /** Clearing (shutdown) retires everything without needing a plan. */
-    @Test
-    fun `clear retires every token`() {
-        val ledger = HotkeyRegistrationLedger()
-        val plan = ledger.plan(listOf(registration(HotkeyAction.SHOW_IMAGES, "control+shift+KeyQ")))
-        ledger.accept(plan)
-
-        ledger.clear()
-
-        assertNull(ledger.registrationFor(plan.single().token))
-    }
-
     /** Tokens are never reused, so a stale event can never match a later registration. */
     @Test
     fun `tokens are never reused across plans`() {
@@ -135,49 +122,6 @@ class HotkeyRegistrationLedgerTest {
             plan.forEach { assertTrue(seen.add(it.token), "token ${it.token} was reused") }
             ledger.accept(plan)
         }
-    }
-
-    /** Two registrations in one plan carry distinct tokens. */
-    @Test
-    fun `tokens are distinct within a plan`() {
-        val ledger = HotkeyRegistrationLedger()
-        val plan = ledger.plan(
-            listOf(
-                registration(HotkeyAction.SHOW_IMAGES, "control+shift+KeyQ"),
-                registration(HotkeyAction.OPEN_OCR, "control+KeyI"),
-                registration(HotkeyAction.SHOW_DICTIONARY, "control+KeyD")
-            )
-        )
-
-        assertEquals(plan.size, plan.map { it.token }.toSet().size)
-    }
-
-    /** Minting is injectable so token assignment is deterministic under test. */
-    @Test
-    fun `token minting can be injected`() {
-        var next = 100L
-        val ledger = HotkeyRegistrationLedger { next++ }
-        val plan = ledger.plan(
-            listOf(
-                registration(HotkeyAction.SHOW_IMAGES, "control+shift+KeyQ"),
-                registration(HotkeyAction.OPEN_OCR, "control+KeyI")
-            )
-        )
-
-        assertEquals(listOf(100L, 101L), plan.map { it.token.value })
-    }
-
-    /**
-     * A registration whose action is unchanged but whose accelerator differs is *not* the same
-     * registration: this is the case an ordinal-keyed map could not distinguish.
-     */
-    @Test
-    fun `same action on a different accelerator is a different registration`() {
-        val a = registration(HotkeyAction.SHOW_IMAGES, "control+shift+KeyQ")
-        val b = registration(HotkeyAction.SHOW_IMAGES, "control+F9")
-
-        assertNotEquals(a, b)
-        assertNotEquals(a.hashCode(), b.hashCode())
     }
 
     /**

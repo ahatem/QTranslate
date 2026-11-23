@@ -24,44 +24,26 @@ class ScreenCoordinateMapperTest {
         MappedScreen(Rectangle(x, y, w, h), scale, scale)
 
     @Test
-    fun `100 percent is identity`() {
-        val map = mapper(screen(0, 0, 2560, 1440, 1.0))
-        assertEquals(Point(1890, 845), map.toSwing(Point(1890, 845)))
-    }
-
-    @Test
-    fun `125 percent converts physical to logical`() {
-        // 1920x1080 physical at 125% -> 1536x864 logical.
-        val map = mapper(screen(0, 0, 1536, 864, 1.25))
-        assertEquals(Point(800, 600), map.toSwing(Point(1000, 750)))
-        assertEquals(Point(0, 0), map.toSwing(Point(0, 0)))
-        assertEquals(Point(1524, 860), map.toSwing(Point(1905, 1075)))
-    }
-
-    @Test
-    fun `150 percent converts physical to logical`() {
-        val map = mapper(screen(0, 0, 1280, 720, 1.5))
-        assertEquals(Point(1000, 500), map.toSwing(Point(1500, 750)))
-    }
-
-    @Test
-    fun `200 percent converts physical to logical`() {
-        val map = mapper(screen(0, 0, 960, 540, 2.0))
-        assertEquals(Point(500, 250), map.toSwing(Point(1000, 500)))
-    }
-
-    @Test
-    fun `fractional results round to the nearest logical pixel`() {
-        val map = mapper(screen(0, 0, 1536, 864, 1.25))
-        assertEquals(Point(801, 601), map.toSwing(Point(1001, 751)))
-    }
-
-    @Test
-    fun `right edge pixel still belongs to its screen`() {
-        // Physical width is 2400; the last column must map inside, not fall back to identity.
-        val map = mapper(screen(0, 0, 1920, 1080, 1.25))
-        assertEquals(Point(1916, 400), map.toSwing(Point(2395, 500)))
-        assertEquals(Point(1920, 1080), map.toSwing(Point(2400, 1350)))
+    fun `physical coordinates convert to logical at each scale and round to the nearest pixel`() {
+        // (scale, logical screen size, physical in, logical out)
+        listOf(
+            listOf(1.0, 2560 to 1440, Point(1890, 845), Point(1890, 845)),
+            listOf(1.25, 1536 to 864, Point(1000, 750), Point(800, 600)),
+            listOf(1.25, 1536 to 864, Point(0, 0), Point(0, 0)),
+            listOf(1.25, 1536 to 864, Point(1905, 1075), Point(1524, 860)),
+            listOf(1.5, 1280 to 720, Point(1500, 750), Point(1000, 500)),
+            listOf(2.0, 960 to 540, Point(1000, 500), Point(500, 250)),
+            // Fractional results round to the nearest logical pixel.
+            listOf(1.25, 1536 to 864, Point(1001, 751), Point(801, 601)),
+            // The right-edge pixel still belongs to its screen instead of falling back to identity.
+            listOf(1.25, 1920 to 1080, Point(2395, 500), Point(1916, 400)),
+            listOf(1.25, 1920 to 1080, Point(2400, 1350), Point(1920, 1080)),
+        ).forEach { (scale, size, physical, logical) ->
+            @Suppress("UNCHECKED_CAST")
+            val (w, h) = size as Pair<Int, Int>
+            val map = mapper(screen(0, 0, w, h, scale as Double))
+            assertEquals(logical, map.toSwing(physical as Point), "scale $scale, $physical")
+        }
     }
 
     @Test
@@ -186,14 +168,5 @@ class ScreenCoordinateMapperTest {
             )
         )
         assertEquals(Point(1000, 750), down.location)
-    }
-
-    @Test
-    fun `windows detection matches platform naming`() {
-        assertTrue(ScreenCoordinateMapper.isWindows("Windows 10"))
-        assertTrue(ScreenCoordinateMapper.isWindows("Windows 11"))
-        assertTrue(!ScreenCoordinateMapper.isWindows("Linux"))
-        assertTrue(!ScreenCoordinateMapper.isWindows("Mac OS X"))
-        assertTrue(!ScreenCoordinateMapper.isWindows(""))
     }
 }

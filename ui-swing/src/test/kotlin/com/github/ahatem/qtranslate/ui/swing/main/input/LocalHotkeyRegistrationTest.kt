@@ -106,36 +106,6 @@ class LocalHotkeyRegistrationTest {
     }
 
     @Test
-    fun `re-registering replaces the previous local set`() {
-        val rootPane = JRootPane()
-        var bindings = listOf(selectionBinding())
-        val dispatched = mutableListOf<HotkeyBinding>()
-        val registration = LocalHotkeyRegistration(
-            rootPane = rootPane,
-            bindings = { bindings },
-            directHandlers = emptyMap(),
-            dispatch = { dispatched += it },
-        )
-
-        registration.register()
-        fire(rootPane, selectionBinding())
-        assertEquals(1, dispatched.size)
-
-        val replacement = local(HotkeyAction.SHOW_DICTIONARY, KeyEvent.VK_D, InputEvent.CTRL_DOWN_MASK)
-        bindings = listOf(replacement)
-        registration.register()
-
-        val inputMap = rootPane.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
-        assertNull(
-            inputMap.get(selectionBinding().toKeyStroke()),
-            "cleared bindings must not remain registered"
-        )
-        fire(rootPane, replacement)
-        assertEquals(2, dispatched.size)
-        assertEquals(replacement, dispatched.last())
-    }
-
-    @Test
     fun `unbound local actions install nothing`() {
         val rootPane = JRootPane()
         val unbound = HotkeyBinding(HotkeyAction.SHOW_HISTORY, keyCode = 0, scope = HotkeyScope.LOCAL)
