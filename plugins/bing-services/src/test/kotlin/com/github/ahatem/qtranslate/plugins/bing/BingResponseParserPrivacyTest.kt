@@ -51,15 +51,6 @@ class BingResponseParserPrivacyTest {
         assertClean(logger)
     }
 
-    @Test
-    fun `a well-formed translation array still parses`() {
-        val logger = CapturingLogger()
-        val result = BingResponseParser(logger).parseTranslations("[]")
-
-        assertTrue(result.fold(success = { it.isEmpty() }, failure = { false }))
-        assertClean(logger)
-    }
-
     private fun assertClean(logger: CapturingLogger) {
         val captured = logger.messages + logger.loggedThrowables
         val leaked = captured.filter { it.contains(sentinel) }

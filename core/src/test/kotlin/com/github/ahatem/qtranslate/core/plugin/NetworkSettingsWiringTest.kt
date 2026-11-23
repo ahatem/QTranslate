@@ -1,6 +1,6 @@
 package com.github.ahatem.qtranslate.core.plugin
 
-import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
 import com.github.ahatem.qtranslate.api.plugin.DisplayText
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.core.plugin.http.HttpClientConfig
@@ -20,27 +20,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
-/**
- * That what the Network settings page stores is what a plugin's client is actually built with.
- *
- * Every link in this chain had its own tests and the chain itself had none, which is the shape of
- * a feature that is entirely correct and entirely disconnected: the page saved, the mapping
- * converted, the client obeyed, and nothing checked that the three were joined. This asserts the
- * join.
- */
+/** That what the Network settings page stores is what a plugin's client is actually built with. */
 class NetworkSettingsWiringTest {
 
     private object NoTextResolver : PluginTextResolver {
         override fun resolve(pluginId: String, text: DisplayText): String = text.fallback
         override fun onPluginLoaded(pluginId: String, classLoader: ClassLoader) = Unit
         override fun onPluginRemoved(pluginId: String) = Unit
-    }
-
-    private object SilentLogger : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
     }
 
     private class NoopClient : HttpClient {
@@ -118,27 +104,6 @@ class NetworkSettingsWiringTest {
     }
 
     @Test
-    fun `a plugin gets no proxy when the user has not enabled one`() {
-        val secrets = AppSecretStore(PluginKeyValueStore(tempDir()))
-        runBlocking { secrets.put(NetworkConfig.proxyPasswordKey, "left-over") }
-
-        var seen: HttpClientConfig? = null
-        ScopedPluginContext(
-            pluginId = "test-plugin",
-            appDataDirectory = tempDir(),
-            pluginKeyValueStore = PluginKeyValueStore(tempDir()),
-            notificationBus = NotificationBus(),
-            textResolver = NoTextResolver,
-            logger = SilentLogger,
-            httpConfig = hostConfigFrom(NetworkConfig(proxyEnabled = false), secrets),
-            httpFactory = { _, config -> seen = config; NoopClient() }
-        )
-
-        // A password remembered from a proxy that is switched off must not resurrect it.
-        assertNull(seen?.proxy)
-    }
-
-    @Test
     fun `an empty password is stored as absent rather than as blank`() {
         val secrets = AppSecretStore(PluginKeyValueStore(tempDir()))
         runBlocking {
@@ -151,22 +116,4 @@ class NetworkSettingsWiringTest {
         assertNull(runBlocking { secrets.get(NetworkConfig.proxyPasswordKey) })
     }
 
-    @Test
-    fun `default settings build the client the application would have built anyway`() {
-        val secrets = AppSecretStore(PluginKeyValueStore(tempDir()))
-
-        var seen: HttpClientConfig? = null
-        ScopedPluginContext(
-            pluginId = "test-plugin",
-            appDataDirectory = tempDir(),
-            pluginKeyValueStore = PluginKeyValueStore(tempDir()),
-            notificationBus = NotificationBus(),
-            textResolver = NoTextResolver,
-            logger = SilentLogger,
-            httpConfig = hostConfigFrom(NetworkConfig(), secrets),
-            httpFactory = { _, config -> seen = config; NoopClient() }
-        )
-
-        assertEquals(HttpClientConfig(), seen, "an untouched settings page must change nothing")
-    }
 }

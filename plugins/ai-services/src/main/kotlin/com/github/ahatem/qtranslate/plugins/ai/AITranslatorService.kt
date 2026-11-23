@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.translator.TranslationResponse
 import com.github.ahatem.qtranslate.api.translator.Translator
+import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -15,7 +16,6 @@ import com.github.michaelbull.result.coroutines.coroutineBinding
 import com.github.michaelbull.result.map
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import java.util.Locale
 
 val LanguageCode.displayName: String
@@ -40,7 +40,6 @@ class AITranslatorService(
     override val iconPath: String = "assets/ai-icon.svg"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.All
 
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> =
         coroutineBinding {
@@ -96,7 +95,7 @@ class AITranslatorService(
             // Strip optional markdown code fences / prose some models add despite instructions
             val clean = AiJson.extractJson(raw)
 
-            val dto = json.decodeFromString<AutoDetectResponseDto>(clean)
+            val dto = PluginJson.decodeFromString<AutoDetectResponseDto>(clean)
 
             val detectedLang = dto.detectedLanguage
                 ?.let { tag -> runCatching { LanguageCode(tag) }.getOrNull() }

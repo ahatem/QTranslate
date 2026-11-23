@@ -1,44 +1,17 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
-import com.github.ahatem.qtranslate.api.core.Logger
-import com.github.ahatem.qtranslate.api.language.LanguageCode
-import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
-import com.github.ahatem.qtranslate.core.localization.LocalizationManager
-import kotlinx.coroutines.runBlocking
-import java.io.File
-import java.nio.file.Files
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
- * The command list's redesign added sixty-three strings. Arabic ships a translation for every one
- * of them, so an Arabic interface reads as Arabic rather than switching to English midway through
- * the page.
- *
- * Done as its own test because it is a different promise from the fallback one: that test says a
- * locale without the text must still *say something*, this one says Arabic must not need to.
- *
- * The keys are listed rather than derived from `embedded_en.toml`. Deriving them would pass the
- * moment English added a key Arabic had not caught up with, which is the failure this is for.
+ * Arabic ships a translation for every string the command list added, so the page does not switch
+ * to English midway. The keys are listed rather than derived from `embedded_en.toml`: deriving
+ * them would pass the moment English added a key Arabic had not caught up with.
  */
 class KeyboardPanelArabicCoverageTest {
 
-    private val logger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
-
-    /**
-     * Every string the command list added, by its key inside `[settings_hotkeys]` and in the menu.
-     *
-     * Grouped as the page uses them so a missing category reads differently from a missing
-     * description. `conflict_entry` is `%s — %s`, punctuation only, so it is the one entry with no
-     * Arabic of its own.
-     */
+    /** Every string the command list added; `conflict_entry` is punctuation only, so it has no Arabic. */
     private val hotkeyKeys = listOf(
         // category headings
         "category_translation", "category_writing", "category_dictionary", "category_ocr",
@@ -77,91 +50,22 @@ class KeyboardPanelArabicCoverageTest {
 
     private val allKeys = hotkeyKeys.map { "settings_hotkeys.$it" } + menuKeys
 
-    private fun shippedLanguages(): File {
-        var directory: File? = File(System.getProperty("user.dir")).absoluteFile
-        while (directory != null) {
-            val candidate = File(directory, "languages")
-            if (File(candidate, "en-GB.toml").isFile) return candidate
-            directory = directory.parentFile
-        }
-        error("the languages folder was not found above ${System.getProperty("user.dir")}")
-    }
-
-    private fun localizerFor(tag: String): LocalizationManager {
-        val appData = Files.createTempDirectory("qtranslate-kbd-ar").toFile()
-        val install = Files.createTempDirectory("qtranslate-kbd-ar-install").toFile()
-        File(install, "languages").mkdirs()
-        shippedLanguages().listFiles { file -> file.extension == "toml" }
-            .orEmpty()
-            .forEach { it.copyTo(File(install, "languages/${it.name}"), overwrite = true) }
-        val manager = LocalizationManager(appData, LanguageTomlParser(), logger, install)
-        runBlocking { manager.loadLanguage(LanguageCode(tag)) }
-        return manager
-    }
-
     @Test
-    fun `arabic carries every string the command list added`() {
-        val arabic = localizerFor("ar-SA")
-        val english = localizerFor("en")
+    fun `the arabic strings are real arabic text that keeps its placeholders`() {
+        val arabic = shippedLocalizerFor("ar-SA")
+        val english = shippedLocalizerFor("en")
+        val arabicScript = Regex("[\\u0600-\\u06FF]")
 
-        val untranslated = allKeys
-            // A punctuation-only template (`%s — %s`): identical by design, so equality here
-            // would report a missing translation that cannot exist.
-            .filter { it != "settings_hotkeys.conflict_entry" }
-            .filter { key ->
-                // Equal to English means it fell back rather than being translated.
-                arabic.getString(key) == english.getString(key)
-            }
-
-        assertEquals(
-            emptyList(),
-            untranslated,
-            "ar-SA falls back to English for these command list strings: $untranslated",
-        )
-    }
-
-    @Test
-    fun `every arabic string is real text rather than a key or a blank`() {
-        val arabic = localizerFor("ar-SA")
         for (key in allKeys) {
             val text = arabic.getString(key)
             assertNotEquals(key, text, "ar-SA leaks the key for $key")
             assertTrue(text.isNotBlank(), "ar-SA renders an empty label for $key")
-            assertTrue(
-                !text.startsWith("settings_hotkeys.") && !text.startsWith("main_window_main_menu."),
-                "ar-SA leaks the key path for $key: $text",
-            )
+            if (key != "settings_hotkeys.conflict_entry") {
+                assertTrue(arabicScript.containsMatchIn(text), "ar-SA has no Arabic script for $key: $text")
+            }
+            if (english.getString(key).contains("%s")) {
+                assertTrue(text.contains("%s"), "ar-SA dropped the %s placeholder from $key")
+            }
         }
-    }
-
-    @Test
-    fun `the arabic strings keep the placeholders the code fills in`() {
-        val arabic = localizerFor("ar-SA")
-        val english = localizerFor("en")
-
-        for (key in allKeys) {
-            val englishText = english.getString(key)
-            if (!englishText.contains("%s")) continue
-            assertTrue(
-                arabic.getString(key).contains("%s"),
-                "ar-SA dropped the %s placeholder from $key; the value would render unformatted",
-            )
-        }
-    }
-
-    @Test
-    fun `the arabic strings are written in arabic rather than transliterated English`() {
-        // `conflict_entry` is a punctuation-only template and has no letters to check.
-        val arabicScript = Regex("[\\u0600-\\u06FF]")
-        val arabic = localizerFor("ar-SA")
-        val withoutArabic = allKeys
-            .filter { it != "settings_hotkeys.conflict_entry" }
-            .filterNot { arabicScript.containsMatchIn(arabic.getString(it)) }
-
-        assertEquals(
-            emptyList(),
-            withoutArabic,
-            "ar-SA has no Arabic script in these strings: $withoutArabic",
-        )
     }
 }

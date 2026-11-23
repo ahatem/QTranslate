@@ -30,7 +30,6 @@ class GoogleSpellCheckerService(
     private val pluginContext: PluginContext,
     private val httpClient: HttpClient,
     private val languageMapper: GoogleLanguageMapper,
-    private val apiConfig: ApiConfig,
     private val endpointHealth: GoogleEndpointHealth
 ) : SpellChecker {
 
@@ -139,7 +138,7 @@ class GoogleSpellCheckerService(
             try {
                 val response = httpClient.getOnce(
                     url = TRANSLATE_PRIMARY,
-                    headers = apiConfig.createHeaders(),
+                    headers = ApiConfig.createHeaders(),
                     queryParams = mapOf(
                         "client" to "gtx",
                         "dj" to 1,

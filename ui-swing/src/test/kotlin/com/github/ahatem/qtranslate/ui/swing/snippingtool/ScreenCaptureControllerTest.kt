@@ -10,88 +10,49 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * The immediate post-selection workflow depends on the controller reporting only the first
- * completed drag, with the Shift state of that release. These are real MouseEvents on a headless
- * component, not a reconstruction of the controller's arithmetic.
- */
+/** Real MouseEvents on a headless component: only the first completed drag commits, with its Shift state. */
 class ScreenCaptureControllerTest {
 
     @Test
     fun `the first valid selection commits once with its shift state`() {
-        var state = state()
-        val commits = mutableListOf<Boolean>()
-        lateinit var controller: ScreenCaptureController
-        controller = ScreenCaptureController(
-            currentState = state,
-            onStateChanged = {
-                state = it
-                controller.updateState(it)
-            },
-            selectionBounds = { Dimension(200, 100) },
-            onSelectionCommitted = { commits += it },
-        )
+        val harness = Harness(state())
         val component = JPanel()
 
-        controller.mousePressed(mouse(component, MouseEvent.MOUSE_PRESSED, 10, 10))
-        controller.mouseDragged(mouse(component, MouseEvent.MOUSE_DRAGGED, 60, 40))
-        controller.mouseReleased(mouse(component, MouseEvent.MOUSE_RELEASED, 60, 40, shift = true))
+        harness.controller.mousePressed(mouse(component, MouseEvent.MOUSE_PRESSED, 10, 10))
+        harness.controller.mouseDragged(mouse(component, MouseEvent.MOUSE_DRAGGED, 60, 40))
+        harness.controller.mouseReleased(mouse(component, MouseEvent.MOUSE_RELEASED, 60, 40, shift = true))
 
-        assertEquals(listOf(true), commits)
-        assertEquals(Rectangle(10, 10, 50, 30), state.selection)
-        assertEquals(CaptureMode.SELECTED, state.mode)
-        assertTrue(state.showButtons)
+        assertEquals(listOf(true), harness.commits)
+        assertEquals(Rectangle(10, 10, 50, 30), harness.state.selection)
+        assertEquals(CaptureMode.SELECTED, harness.state.mode)
+        assertTrue(harness.state.showButtons)
     }
 
     @Test
     fun `adjusting an existing selection does not commit the workflow again`() {
-        var state = state(
-            selection = Rectangle(10, 10, 50, 30),
-            mode = CaptureMode.SELECTED,
-            showButtons = true,
-        )
-        val commits = mutableListOf<Boolean>()
-        lateinit var controller: ScreenCaptureController
-        controller = ScreenCaptureController(
-            currentState = state,
-            onStateChanged = {
-                state = it
-                controller.updateState(it)
-            },
-            selectionBounds = { Dimension(200, 100) },
-            onSelectionCommitted = { commits += it },
+        val harness = Harness(
+            state(selection = Rectangle(10, 10, 50, 30), mode = CaptureMode.SELECTED, showButtons = true)
         )
         val component = JPanel()
 
-        controller.mousePressed(mouse(component, MouseEvent.MOUSE_PRESSED, 30, 25))
-        controller.mouseDragged(mouse(component, MouseEvent.MOUSE_DRAGGED, 35, 30))
-        controller.mouseReleased(mouse(component, MouseEvent.MOUSE_RELEASED, 35, 30))
+        harness.controller.mousePressed(mouse(component, MouseEvent.MOUSE_PRESSED, 30, 25))
+        harness.controller.mouseDragged(mouse(component, MouseEvent.MOUSE_DRAGGED, 35, 30))
+        harness.controller.mouseReleased(mouse(component, MouseEvent.MOUSE_RELEASED, 35, 30))
 
-        assertTrue(commits.isEmpty(), "move/resize is not a new capture workflow")
+        assertTrue(harness.commits.isEmpty(), "move/resize is not a new capture workflow")
     }
 
     @Test
     fun `a zero-size drag never commits`() {
-        var state = state()
-        val commits = mutableListOf<Boolean>()
-        lateinit var controller: ScreenCaptureController
-        controller = ScreenCaptureController(
-            currentState = state,
-            onStateChanged = {
-                state = it
-                controller.updateState(it)
-            },
-            selectionBounds = { Dimension(200, 100) },
-            onSelectionCommitted = { commits += it },
-        )
+        val harness = Harness(state())
         val component = JPanel()
 
-        controller.mousePressed(mouse(component, MouseEvent.MOUSE_PRESSED, 10, 10))
-        controller.mouseReleased(mouse(component, MouseEvent.MOUSE_RELEASED, 10, 10))
+        harness.controller.mousePressed(mouse(component, MouseEvent.MOUSE_PRESSED, 10, 10))
+        harness.controller.mouseReleased(mouse(component, MouseEvent.MOUSE_RELEASED, 10, 10))
 
-        assertTrue(commits.isEmpty())
-        assertEquals(CaptureMode.IDLE, state.mode)
-        assertEquals(null, state.selection?.takeIf { it.width > 0 && it.height > 0 })
+        assertTrue(harness.commits.isEmpty())
+        assertEquals(CaptureMode.IDLE, harness.state.mode)
+        assertEquals(null, harness.state.selection?.takeIf { it.width > 0 && it.height > 0 })
     }
 
     @Test
@@ -110,6 +71,20 @@ class ScreenCaptureControllerTest {
 
         assertEquals(Rectangle(10, 10, 190, 90), state.selection)
         assertFalse(state.showButtons)
+    }
+
+    private class Harness(initial: ScreenCaptureState) {
+        var state = initial
+        val commits = mutableListOf<Boolean>()
+        val controller: ScreenCaptureController = ScreenCaptureController(
+            currentState = initial,
+            onStateChanged = {
+                state = it
+                controller.updateState(it)
+            },
+            selectionBounds = { Dimension(200, 100) },
+            onSelectionCommitted = { commits += it },
+        )
     }
 
     private fun state(

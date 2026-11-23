@@ -108,7 +108,7 @@ class SystemSpellCheckerServiceTest {
         }
     }
 
-    @Test fun `backend failure stays a failure`() = runBlocking {
+    @Test fun `backend failure stays a failure`() = runBlocking<Unit> {
         val backend = FakeSpell(Err(ServiceError.ServiceUnavailableError("missing")))
         assertIs<ServiceError.ServiceUnavailableError>(
             service(backend).check(SpellCheckRequest("teh", LanguageCode.ENGLISH)).unwrapError()

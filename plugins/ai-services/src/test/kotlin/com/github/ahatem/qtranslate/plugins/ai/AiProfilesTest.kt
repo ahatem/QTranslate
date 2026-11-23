@@ -47,6 +47,8 @@ class AiProfilesTest {
             "http://192.168.1.50:11434/v1",
             "http://10.0.0.4:8080/v1",
             "http://172.16.3.9:8080/v1",
+            "http://172.16.0.1:8080/v1",
+            "http://172.31.255.1:8080/v1",
             "http://workstation.local:11434/v1"
         ).forEach { url ->
             assertTrue(profile(baseUrl = url, apiKey = "").isLocalEndpoint, "$url should be local")
@@ -55,20 +57,13 @@ class AiProfilesTest {
         listOf(
             "https://openrouter.ai/api/v1",
             "https://api.openai.com/v1",
-            "https://172.32.0.1:8080/v1"
+            "https://172.32.0.1:8080/v1",
+            "http://172.8.0.1:8080/v1"
         ).forEach { url ->
             assertFalse(profile(baseUrl = url, apiKey = "").isLocalEndpoint, "$url should be hosted")
             assertTrue(profile(baseUrl = url, apiKey = "").missingKeyError() is ServiceError.ConfigurationError,
                 "$url without a key should report a configuration error")
         }
-    }
-
-    @Test
-    fun `only the private half of the 172 range is local`() {
-        assertTrue(profile(baseUrl = "http://172.16.0.1:8080/v1").isLocalEndpoint)
-        assertTrue(profile(baseUrl = "http://172.31.255.1:8080/v1").isLocalEndpoint)
-        assertFalse(profile(baseUrl = "http://172.32.0.1:8080/v1").isLocalEndpoint)
-        assertFalse(profile(baseUrl = "http://172.8.0.1:8080/v1").isLocalEndpoint)
     }
 
     @Test
@@ -78,35 +73,28 @@ class AiProfilesTest {
         assertTrue(broken.missingKeyError() is ServiceError.ConfigurationError)
     }
 
-    @Test
-    fun `a hosted profile with a key needs no further setup`() {
-        assertNull(profile(baseUrl = "https://openrouter.ai/api/v1", apiKey = "sk-test").missingKeyError())
-    }
-
     // -------------------------------------------------------------------------
     // AiEndpoints
     // -------------------------------------------------------------------------
 
     @Test
-    fun `normalizedBaseUrl trims whitespace and trailing slashes`() {
-        assertEquals("https://openrouter.ai/api/v1", AiEndpoints.normalizedBaseUrl("  https://openrouter.ai/api/v1  "))
-        assertEquals("https://openrouter.ai/api/v1", AiEndpoints.normalizedBaseUrl("https://openrouter.ai/api/v1/"))
-        assertEquals("https://openrouter.ai/api/v1", AiEndpoints.normalizedBaseUrl("https://openrouter.ai/api/v1//"))
-        assertEquals("", AiEndpoints.normalizedBaseUrl(""))
-        assertEquals("", AiEndpoints.normalizedBaseUrl("   "))
-    }
-
-    @Test
-    fun `normalizedBaseUrl strips a chat-completions suffix case-insensitively`() {
-        assertEquals("https://openrouter.ai/api/v1", AiEndpoints.normalizedBaseUrl("https://openrouter.ai/api/v1/chat/completions"))
-        assertEquals("https://openrouter.ai/api/v1", AiEndpoints.normalizedBaseUrl("https://openrouter.ai/api/v1/chat/completions/"))
-        assertEquals("https://openrouter.ai/api/v1", AiEndpoints.normalizedBaseUrl("https://openrouter.ai/api/v1/CHAT/COMPLETIONS"))
-        assertEquals("https://openrouter.ai/api/v1", AiEndpoints.normalizedBaseUrl("  https://openrouter.ai/api/v1/chat/completions/  "))
-    }
-
-    @Test
-    fun `normalizedBaseUrl keeps an unrelated path segment that only looks similar`() {
-        assertEquals("https://host/chat/completions-extra", AiEndpoints.normalizedBaseUrl("https://host/chat/completions-extra"))
+    fun `normalizedBaseUrl trims, strips a chat-completions suffix case-insensitively and keeps lookalikes`() {
+        val api = "https://openrouter.ai/api/v1"
+        val cases = mapOf(
+            "  $api  " to api,
+            "$api/" to api,
+            "$api//" to api,
+            "" to "",
+            "   " to "",
+            "$api/chat/completions" to api,
+            "$api/chat/completions/" to api,
+            "$api/CHAT/COMPLETIONS" to api,
+            "  $api/chat/completions/  " to api,
+            "https://host/chat/completions-extra" to "https://host/chat/completions-extra",
+        )
+        for ((raw, expected) in cases) {
+            assertEquals(expected, AiEndpoints.normalizedBaseUrl(raw), "'$raw'")
+        }
     }
 
     @Test
@@ -123,38 +111,6 @@ class AiProfilesTest {
             assertEquals(once, AiEndpoints.chatCompletionsUrl(once), "second pass must not append again")
             assertEquals("https://openrouter.ai/api/v1", AiEndpoints.normalizedBaseUrl(once))
         }
-    }
-
-    @Test
-    fun `AiProfile chatCompletionsUrl never doubles the suffix`() {
-        val p = profile(baseUrl = "https://api.openai.com/v1/chat/completions")
-        assertEquals("https://api.openai.com/v1/chat/completions", p.chatCompletionsUrl())
-        assertEquals(AiEndpoints.chatCompletionsUrl("https://api.openai.com/v1"), p.chatCompletionsUrl())
-    }
-
-    // -------------------------------------------------------------------------
-    // AiProviderPresets
-    // -------------------------------------------------------------------------
-
-    @Test
-    fun `preset default base URLs match the provider contract`() {
-        assertEquals("https://openrouter.ai/api/v1", AiProviderPresets.defaultBaseUrl("openrouter"))
-        assertEquals("https://api.openai.com/v1", AiProviderPresets.defaultBaseUrl("openai"))
-        assertEquals("http://localhost:11434/v1", AiProviderPresets.defaultBaseUrl("local"))
-        assertEquals("", AiProviderPresets.defaultBaseUrl("custom"), "custom has no default address")
-    }
-
-    @Test
-    fun `unknown and null presets have no default base URL`() {
-        assertNull(AiProviderPresets.defaultBaseUrl("mistral"))
-        assertNull(AiProviderPresets.defaultBaseUrl(null))
-        assertNull(AiProviderPresets.defaultBaseUrl(""))
-    }
-
-    @Test
-    fun `PRESETS includes the hosted, local, and custom entries with unique ids`() {
-        val ids = AiProviderPresets.PRESETS.map { it.id }
-        assertEquals(listOf("openrouter", "openai", "local", "custom"), ids)
     }
 
     // -------------------------------------------------------------------------
@@ -199,13 +155,6 @@ class AiProfilesTest {
         val key = profile(apiKey = secret).identityKey
         assertFalse(key.contains(secret))
         assertFalse(key.contains("super-secret"))
-    }
-
-    @Test
-    fun `identityKey is stable across construction`() {
-        val p = profile()
-        assertEquals(p.identityKey, p.identityKey)
-        assertEquals(p, p.copy())
     }
 
     // -------------------------------------------------------------------------

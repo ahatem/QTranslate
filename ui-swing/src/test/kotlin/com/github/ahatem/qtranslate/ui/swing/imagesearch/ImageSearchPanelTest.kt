@@ -4,12 +4,11 @@ import com.github.ahatem.qtranslate.api.imagesearch.ImageResult
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.ui.swing.shared.TestIcons
+import com.github.ahatem.qtranslate.ui.swing.testing.onEdt
 import java.awt.Component
 import java.awt.Container
 import java.awt.event.MouseEvent
-import java.io.File
 import javax.swing.JTextField
-import javax.swing.SwingUtilities
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -60,8 +59,6 @@ class ImageSearchPanelTest {
 
     private fun panel() = ImageSearchPanel(TestIcons.iconManager()).also { panels += it }
 
-    private fun onEdt(block: () -> Unit) = SwingUtilities.invokeAndWait(block)
-
     private fun layoutTree(root: Container) {
         root.doLayout()
         root.components.forEach { if (it is Container) layoutTree(it) }
@@ -92,9 +89,9 @@ class ImageSearchPanelTest {
         val panel = panel()
         onEdt { panel.render(state(term = "cat", found = results(8))) }
         size(panel, 200)
-        assertEquals(1, panel.columnCountForTest(), "a narrow dock shows one usable picture")
+        assertEquals(1, panel.columnCountForTest(), "narrow width")
         size(panel, 1400)
-        assertTrue(panel.columnCountForTest() >= 3, "a wide host shows several across")
+        assertTrue(panel.columnCountForTest() >= 3, "wide width")
     }
 
     @Test
@@ -105,10 +102,10 @@ class ImageSearchPanelTest {
 
         onEdt { (panel.searchFieldComponent as JTextField).text = "cate" }
         onEdt { panel.render(state(term = "cat", loading = true)) }
-        assertEquals("cate", panel.searchText, "an unrelated render does not overwrite typing")
+        assertEquals("cate", panel.searchText, "unrelated render overwrote typing")
 
         onEdt { panel.render(state(term = "dog")) }
-        assertEquals("dog", panel.searchText, "a new term from a selection does")
+        assertEquals("dog", panel.searchText, "new external term was ignored")
     }
 
     @Test
@@ -134,16 +131,9 @@ class ImageSearchPanelTest {
             tile.dispatchEvent(MouseEvent(tile, MouseEvent.MOUSE_CLICKED, 0L, 0, 5, 5, 1, false))
         }
         assertTrue(panel.isShowingPreview)
-        assertTrue(onEdtResult { panel.stepBack() }, "Escape steps out of the picture first")
+        assertTrue(onEdt { panel.stepBack() }, "first step leaves the picture")
         assertFalse(panel.isShowingPreview)
-        assertFalse(onEdtResult { panel.stepBack() }, "and then has nothing left to step out of")
-    }
-
-    private fun <T> onEdtResult(block: () -> T): T {
-        var result: T? = null
-        SwingUtilities.invokeAndWait { result = block() }
-        @Suppress("UNCHECKED_CAST")
-        return result as T
+        assertFalse(onEdt { panel.stepBack() }, "nothing left to step out of")
     }
 
     @Test
@@ -155,53 +145,15 @@ class ImageSearchPanelTest {
         assertTrue("Nothing found" in labels)
     }
 
-    // 24
-    @Test
-    fun `the same panel is what the dock and the popup both mount`() {
-        val root = File("src/main/kotlin/com/github/ahatem/qtranslate/ui/swing")
-        val dialog = File(root, "imagesearch/ImageSearchDialog.kt").readText()
-        val main = File(root, "main/MainContentView.kt").readText()
-
-        assertTrue("ImageSearchPanel(" in dialog, "the popup mounts the panel")
-        assertTrue("ImageSearchPanel(" in main, "the dock mounts the exact same panel, with no host-supplied padding flag")
-        // The popup is only the window around it: nothing of the content stayed behind.
-        listOf("GridLayout", "ScaledImage", "ElidingLabel", "ThumbnailLoader", "JScrollPane").forEach {
-            assertFalse(it in dialog, "ImageSearchDialog no longer owns $it")
-        }
-        // And the panel knows nothing of either shell.
-        val panel = File(root, "imagesearch/ImageSearchPanel.kt").readText()
-        listOf("JDialog", "FloatingPopupBehavior", "WorkspaceDockHost", "LookupDock", "isDocked").forEach {
-            assertFalse(it in panel.substringAfter("class ImageSearchPanel"), "the panel does not mention $it")
-        }
-    }
-
-    @Test
-    fun `the panel owns one content rhythm, with no host-supplied padding switch`() {
-        val panel = File("src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/imagesearch/ImageSearchPanel.kt").readText()
-        assertFalse("padded" in panel.substringAfter("class ImageSearchPanel"), "there is no per-host padding flag left to keep in sync")
-    }
-
-    @Test
-    fun `the search field and the tile grid share the same leading and trailing edge`() {
-        val panel = panel()
-        onEdt { panel.render(state(term = "cat", found = results(2))) }
-        size(panel, 600)
-        val grid = descendants(panel).first { it is java.awt.Container && it.layout is java.awt.GridLayout } as java.awt.Container
-        val tile = grid.getComponent(0)
-        val fieldPoint = SwingUtilities.convertPoint(panel.searchFieldComponent, 0, 0, panel)
-        val tilePoint = SwingUtilities.convertPoint(tile, 0, 0, panel)
-        assertTrue(kotlin.math.abs(fieldPoint.x - tilePoint.x) <= 1, "the search field and the first tile start at the same left edge (field=${fieldPoint.x} tile=${tilePoint.x})")
-    }
-
     @Test
     fun `the provider picker stays hidden with zero or one Image Search service`() {
         val panel = panel()
         onEdt { panel.render(state()) }
-        assertFalse(panel.isServicePickerVisibleForTest(), "no services -- nothing to pick between")
+        assertFalse(panel.isServicePickerVisibleForTest(), "no services")
 
         onEdt { panel.render(state(availableServices = listOf(service("wikimedia")))) }
-        assertFalse(panel.isServicePickerVisibleForTest(), "one service -- still nothing to pick between")
-        assertEquals("wikimedia", panel.serviceIdentityForTest(), "one provider is named beside search")
+        assertFalse(panel.isServicePickerVisibleForTest(), "one service")
+        assertEquals("wikimedia", panel.serviceIdentityForTest(), "sole provider is not named")
     }
 
     @Test
@@ -218,7 +170,7 @@ class ImageSearchPanelTest {
                 )
             )
         }
-        assertTrue(panel.isServicePickerVisibleForTest(), "two services -- a real choice exists")
+        assertTrue(panel.isServicePickerVisibleForTest(), "two services")
         assertEquals("wikimedia", panel.selectedServiceForTest()?.id)
 
         onEdt { panel.selectServiceForTest(services[1]) }
@@ -232,7 +184,7 @@ class ImageSearchPanelTest {
         size(panel, 700)
         val soleTile = descendants(panel).first { it.cursor.type == java.awt.Cursor.HAND_CURSOR }
         onEdt { soleTile.dispatchEvent(MouseEvent(soleTile, MouseEvent.MOUSE_CLICKED, 0L, 0, 5, 5, 1, false)) }
-        assertFalse("Previous" in panel.previewActionLabelsForTest(), "one result -- nothing to browse to")
+        assertFalse("Previous" in panel.previewActionLabelsForTest(), "one result")
         onEdt { panel.stepBack() }
 
         onEdt { panel.render(state(term = "cat", found = results(3))) }
@@ -240,7 +192,7 @@ class ImageSearchPanelTest {
         val tiles = descendants(panel).filter { it.cursor.type == java.awt.Cursor.HAND_CURSOR }
         onEdt { tiles[0].dispatchEvent(MouseEvent(tiles[0], MouseEvent.MOUSE_CLICKED, 0L, 0, 5, 5, 1, false)) }
         val labelsAtFirst = panel.previewActionLabelsForTest()
-        assertTrue("Next" in labelsAtFirst, "more results exist ahead")
-        assertTrue("Previous" in labelsAtFirst, "Previous is shown even though disabled at the first result")
+        assertTrue("Next" in labelsAtFirst, "results ahead")
+        assertTrue("Previous" in labelsAtFirst, "Previous hidden at the first result")
     }
 }

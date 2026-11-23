@@ -47,7 +47,7 @@ data class TranslationCompletion(
  * ### Comparison lifetime
  * Comparison work belongs to one translation generation. A failed or timed-out primary
  * keeps the comparison rows already produced and lets in-flight comparisons publish, since
- * those results remain useful (#367). Only cancellation, a newer translation, or an
+ * those results remain useful. Only cancellation, a newer translation, or an
  * explicit comparison invalidation discards them.
  *
  * ### Translation Rules
@@ -258,7 +258,7 @@ class TranslateTextUseCase(
 
                 if (result == null) {
                     logger.error("Translation timed out after ${AppConstants.TRANSLATION_TIMEOUT_MS}ms")
-                    // #367: a failed primary keeps this generation's comparison rows and lets
+                    // A failed primary keeps this generation's comparison rows and lets
                     // in-flight comparisons finish; only cancellation or a newer generation
                     // discards them (see the CancellationException path and invoke()).
                     publishPrimaryFailure(extraClaim.generation, publish, updateState)
@@ -545,7 +545,7 @@ class TranslateTextUseCase(
      *
      * Only cancellation uses this. A failed or timed-out primary keeps the generation's
      * comparison rows and lets in-flight comparisons finish, because their results stay
-     * useful to the user (#367). Stale generations are always ignored.
+     * useful to the user. Stale generations are always ignored.
      */
     private fun clearComparisonsIfCurrent(
         generation: Long,
@@ -637,11 +637,9 @@ class TranslateTextUseCase(
     /**
      * Recomputes only the extra output, leaving the translation on screen untouched.
      *
-     * Switching the extra panel between backward, summary and rewrite used to dispatch a full
-     * translation. That wiped the translation the user was reading, showed a spinner over it, and
-     * spent a second request on the translator for a result already on screen — on the unofficial
-     * endpoints, a rate limit risked for nothing. Changing summary length or rewrite style did the
-     * same, which is harder still to justify, since only the extra panel's own parameter moved.
+     * Switching the extra panel mode, summary length or rewrite style must not redo the translation:
+     * that would wipe the text the user is reading and spend a second translator request, risking a
+     * rate limit on the unofficial endpoints.
      *
      * Nothing about the extra output needs the translation to be redone: [handleExtraOutput] takes
      * the translated text as a parameter, so it can be fed the text already in state.

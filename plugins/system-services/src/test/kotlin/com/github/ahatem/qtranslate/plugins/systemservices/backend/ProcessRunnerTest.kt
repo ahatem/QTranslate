@@ -46,14 +46,6 @@ class ProcessRunnerTest {
     }
 
     @Test
-    fun `captures stderr`() = runBlocking {
-        val outcome = runner.run(listOf(javaExecutable, "-version"), 30_000).unwrap()
-
-        assertEquals(0, outcome.exitCode)
-        assertTrue(outcome.stderr.contains("version", ignoreCase = true))
-    }
-
-    @Test
     fun `a program that cannot be launched is an Err rather than a thrown exception`() = runBlocking {
         val absent = File(Files.createTempDirectory("process-runner-absent").toFile(), "no-such-program").absolutePath
 

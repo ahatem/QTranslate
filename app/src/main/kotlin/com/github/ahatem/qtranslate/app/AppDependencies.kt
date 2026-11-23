@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.core.main.domain.usecase.HandleTextToSpeechU
 import com.github.ahatem.qtranslate.core.main.domain.usecase.PerformSpellCheckUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SelectActiveServiceUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SwapLanguagesUseCase
+import com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase
 import com.github.ahatem.qtranslate.core.workspace.lookup.LookupWordUseCase
 import com.github.ahatem.qtranslate.core.workspace.lookup.SearchImagesUseCase
 import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase
@@ -44,7 +45,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.serialization.json.Json
 import java.io.File
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 
@@ -62,7 +62,7 @@ import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 class AppDependencies(
     val appScope: CoroutineScope,
     val mainStore: MainStore,
-    val ocrExtractionUseCase: com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase,
+    val ocrExtractionUseCase: OcrExtractionUseCase,
     val translateStringUseCase: TranslateStringUseCase,
     val settingsStore: SettingsStore,
     val pluginManager: PluginManager,
@@ -132,7 +132,7 @@ suspend fun buildDependencies(
 
     val httpClient = HttpClient(CIO) {
         install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true; isLenient = true })
+            json(appJson)
         }
     }
 
@@ -172,7 +172,7 @@ suspend fun buildDependencies(
     val pluginManager = PluginManager(
         appDataDirectory            = appData,
         settingsRepository          = settingsRepo,
-        pluginFingerprintRepository = PluginFingerprintRepository(appData, Json { ignoreUnknownKeys = true; isLenient = true }, appScope),
+        pluginFingerprintRepository = PluginFingerprintRepository(appData, appJson, appScope),
         pluginKeyValueStore         = keyValueStore,
         loggerFactory               = loggerFactory,
         notificationBus             = notificationBus,
@@ -192,7 +192,7 @@ suspend fun buildDependencies(
     val historyRepo = HistoryRepository(
         appDataDirectory = appData,
         logger           = loggerFactory.getLogger("HistoryRepository"),
-        json             = Json { ignoreUnknownKeys = true; isLenient = true },
+        json             = appJson,
         storageScope     = appScope
     )
 
@@ -287,7 +287,7 @@ suspend fun buildDependencies(
 
     // ---- 9. Stores ----
 
-    val ocrExtractionUseCase = com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase(
+    val ocrExtractionUseCase = OcrExtractionUseCase(
         activeServiceManager = activeServiceManager,
         loggerFactory = loggerFactory,
     )

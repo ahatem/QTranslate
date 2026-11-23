@@ -3,10 +3,10 @@ package com.github.ahatem.qtranslate.core.settings.mvi
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
-import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.SettingsError
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
@@ -27,12 +27,8 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsSaveReceiptTest {
-    private val logger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
+    private val logger = SilentLogger
+
     private class GateStore : DataStore<Preferences> {
         val entered = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
@@ -64,7 +60,7 @@ class SettingsSaveReceiptTest {
             assertTrue(store.state.value.isDirty)
         } finally { scope.cancel() }
     }
-    @Test fun `accepted save survives cancellation of its waiter`() = runTest {
+    @Test fun `accepted save and its completion survive cancellation of the waiter`() = runTest {
         val data = GateStore()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try {
@@ -78,13 +74,15 @@ class SettingsSaveReceiptTest {
             val pending = launch { store.submitDraftSave { committed.complete(Unit) }.await() }
             data.entered.await()
             pending.cancelAndJoin()
+            val drain = async(Dispatchers.Default) { store.drainAcceptedSaves() }
             data.release.complete(Unit)
+            assertTrue(drain.await())
             committed.await()
             assertEquals(125, store.state.value.originalConfiguration.uiScale)
             assertFalse(store.state.value.isDirty)
         } finally { scope.cancel() }
     }
-    @Test fun `failure is returned and no-op completes without writing`() = runTest {
+    @Test fun `failure is returned, skips completion, and a no-op completes without writing`() = runTest {
         val data = GateStore().apply { fail = true; release.complete(Unit) }
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try {
@@ -94,6 +92,9 @@ class SettingsSaveReceiptTest {
             store.dispatch(SettingsIntent.TransformDraft { it.copy(uiScale = 125) })
             assertEquals(Err(SettingsError.IOError("failure")), store.saveDraftAndAwait())
             assertTrue(store.state.value.isDirty)
+            var completed = false
+            assertEquals(Err(SettingsError.IOError("failure")), store.submitDraftSave { completed = true }.await())
+            assertFalse(completed)
         } finally { scope.cancel() }
     }
     @Test fun `concurrent transforms apply to current draft`() = runBlocking {
@@ -135,36 +136,6 @@ class SettingsSaveReceiptTest {
             assertTrue(drain.await())
             assertEquals(150, store.state.value.originalConfiguration.uiScale)
             assertFailsWith<IllegalStateException> { store.submitDraftSave() }
-        } finally { scope.cancel() }
-    }
-
-    @Test fun `accepted completion survives cancelled waiter and is drained`() = runTest {
-        val data = GateStore()
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        try {
-            val store = SettingsStore(SettingsRepository(File("."), Json, logger, data), logger, scope, Configuration.DEFAULT)
-            store.dispatch(SettingsIntent.TransformDraft { it.copy(uiScale = 125) })
-            val completed = CompletableDeferred<Unit>()
-            val receipt = store.submitDraftSave { completed.complete(Unit) }
-            val waiter = launch { receipt.await() }
-            data.entered.await()
-            waiter.cancelAndJoin()
-            val drain = async(Dispatchers.Default) { store.drainAcceptedSaves() }
-            data.release.complete(Unit)
-            assertTrue(drain.await())
-            assertTrue(completed.isCompleted)
-        } finally { scope.cancel() }
-    }
-
-    @Test fun `failed configuration does not run completion`() = runTest {
-        val data = GateStore().apply { fail = true; release.complete(Unit) }
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        try {
-            val store = SettingsStore(SettingsRepository(File("."), Json, logger, data), logger, scope, Configuration.DEFAULT)
-            store.dispatch(SettingsIntent.TransformDraft { it.copy(uiScale = 125) })
-            var completed = false
-            assertEquals(Err(SettingsError.IOError("failure")), store.submitDraftSave { completed = true }.await())
-            assertFalse(completed)
         } finally { scope.cancel() }
     }
 

@@ -25,9 +25,9 @@ import javax.swing.SwingUtilities
  * The OCR settings page: workflow, recognition defaults, text cleanup and workspace presentation.
  *
  * The OCR service itself is owned by Services & Presets, which is the page that configures every
- * service role for the active preset. This page used to offer the same choice a second time, so
- * one value had two editors — and whichever the user found first looked like the real one. Here
- * it is a read-only summary with the way to change it.
+ * service role for the active preset. Offering the same choice here too would give one value two
+ * editors, and whichever the user found first would look like the real one. Here it is a
+ * read-only summary with the way to change it.
  */
 class OcrSettingsPanel(
     private val store: SettingsStore,

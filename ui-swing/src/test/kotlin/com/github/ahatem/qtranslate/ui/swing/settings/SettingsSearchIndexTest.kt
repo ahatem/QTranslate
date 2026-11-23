@@ -1,8 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.settings
 
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.SettingsPanel
+import com.github.ahatem.qtranslate.ui.swing.testing.onEdt
 import javax.swing.JLabel
-import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -13,26 +13,8 @@ import kotlin.test.assertTrue
  */
 class SettingsSearchIndexTest {
 
-    private fun <T> onEdt(block: () -> T): T {
-        if (SwingUtilities.isEventDispatchThread()) return block()
-        var result: T? = null
-        SwingUtilities.invokeAndWait { result = block() }
-        return result!!
-    }
-
     private fun entry(label: String, section: String = "Section", hint: String = "") =
         SettingsPanel.SettingEntry(label, section, hint, onEdt { JLabel() })
-
-    @Test
-    fun `nothing is built until the first search`() {
-        var builtPages = 0
-        val index = SettingsSearchIndex(listOf(PageRef("General"))) { builtPages++; listOf(entry("Alpha")) }
-
-        assertEquals(0, builtPages, "the index is lazy: no panel is asked before someone searches")
-
-        index.search("alpha")
-        assertEquals(1, builtPages)
-    }
 
     @Test
     fun `matching a setting checks its label, section and hint, case-insensitively`() {
@@ -139,12 +121,14 @@ class SettingsSearchIndexTest {
     }
 
     @Test
-    fun `the index is built once and reused`() {
+    fun `nothing is built until the first search, and the index is then built once`() {
         var providerCalls = 0
         val index = SettingsSearchIndex(listOf(PageRef("Alpha"), PageRef("Beta"))) { page ->
             providerCalls++
             listOf(entry("$page setting"))
         }
+
+        assertEquals(0, providerCalls, "no panel is asked before someone searches")
 
         assertEquals(2, index.search("setting").size)
         assertEquals(2, index.search("setting").size)

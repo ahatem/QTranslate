@@ -10,16 +10,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * That a badly formatted translation degrades instead of throwing.
- *
- * `getString` finishes by running the string through `format`, and the strings come from files
- * anyone can write. The language editor warns about a placeholder mismatch but deliberately does
- * not block one, and a file dropped into `languages/` by hand never passes the editor at all. So
- * the application has to survive a string it cannot format, because it will meet one.
- *
- * The percent case is the one worth keeping in mind: it is not a mistake with placeholders at all,
- * it is a translator writing "(100%)" in ordinary prose. The editor's mismatch check does not even
- * flag it, because its pattern needs a letter after the `%`.
+ * A badly formatted translation degrades instead of throwing. Strings come from files anyone can
+ * write, and one dropped into `languages/` by hand never passes the editor's placeholder check.
  */
 class LocalizationFormatSafetyTest {
 
@@ -27,36 +19,23 @@ class LocalizationFormatSafetyTest {
     private val key = "settings_appearance.delete_confirm"
 
     @Test
-    fun `a translation with an extra placeholder falls back to English rather than throwing`() = runTest {
-        val (manager, _) = managerWith("Supprimer la traduction %s de %s ?")
+    fun `a translation that cannot be formatted falls back to English rather than throwing`() = runTest {
+        val broken = listOf(
+            "extra placeholder" to "Supprimer la traduction %s de %s ?",
+            // Ordinary prose, not a placeholder mistake; the editor's check does not flag it.
+            "percent sign in prose" to "Supprimer %s (100%) ?",
+            "changed conversion type" to "Supprimer %d ?",
+        )
 
-        val result = manager.getString(key, "fr-FR")
+        for ((label, translation) in broken) {
+            val (manager, _) = managerWith(translation)
 
-        assertEquals(manager.englishStrings().getValue(key).format("fr-FR"), result)
-    }
-
-    @Test
-    fun `an ordinary percent sign in prose does not throw`() = runTest {
-        // Unflagged by the editor and fatal at runtime: the case this whole guard exists for.
-        val (manager, _) = managerWith("Supprimer %s (100%) ?")
-
-        val result = manager.getString(key, "fr-FR")
-
-        assertEquals(manager.englishStrings().getValue(key).format("fr-FR"), result)
-    }
-
-    @Test
-    fun `a translation that changes the conversion type falls back`() = runTest {
-        val (manager, _) = managerWith("Supprimer %d ?")
-
-        val result = manager.getString(key, "fr-FR")
-
-        assertEquals(manager.englishStrings().getValue(key).format("fr-FR"), result)
+            assertEquals(manager.englishStrings().getValue(key).format("fr-FR"), manager.getString(key, "fr-FR"), label)
+        }
     }
 
     @Test
     fun `a correct translation is still used`() {
-        // The guard must not quietly swallow good translations along with bad ones.
         val (manager, _) = managerWith("Supprimer la traduction %s ?")
 
         assertEquals("Supprimer la traduction fr-FR ?", manager.getString(key, "fr-FR"))
@@ -64,8 +43,7 @@ class LocalizationFormatSafetyTest {
 
     @Test
     fun `dropping a placeholder is left alone, because format accepts it`() {
-        // Extra arguments are ignored by String.format, so this never threw and must not start
-        // being rewritten to English now.
+        // String.format ignores extra arguments, so this never threw and must stay as written.
         val (manager, _) = managerWith("Supprimer cette traduction ?")
 
         assertEquals("Supprimer cette traduction ?", manager.getString(key, "fr-FR"))
@@ -82,8 +60,7 @@ class LocalizationFormatSafetyTest {
 
     @Test
     fun `no arguments means no formatting, so a lone percent is safe`() {
-        // Nothing to substitute, so the string is handed back untouched. Formatting it anyway
-        // would break strings that were never meant to be formatted.
+        // Nothing to substitute, so the string is handed back untouched.
         val (manager, _) = managerWith("Progression : 100%")
 
         assertEquals("Progression : 100%", manager.getString(key))

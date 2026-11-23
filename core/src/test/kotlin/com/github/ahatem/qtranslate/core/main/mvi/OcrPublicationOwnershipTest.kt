@@ -21,9 +21,8 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
- * Deterministic ownership races for screen OCR. Gates hold one request exactly after it returned
- * from the provider but before it is allowed to publish, then let a newer workflow take ownership.
- * No sleeps and no cooperative-cancellation assumptions: the old request is already runnable.
+ * Deterministic ownership races for screen OCR. Gates hold one request after the provider returned
+ * but before it may publish, then let a newer workflow take ownership. No sleeps.
  */
 class OcrPublicationOwnershipTest {
 
@@ -144,8 +143,8 @@ class OcrPublicationOwnershipTest {
             fixture.store.beforeOcrPublication = { atPublication.countDown(); releasePublication.acquireUninterruptibly() }
             fixture.store.dispatch(MainIntent.OcrWorkflowImage(fixture.image(), OcrPostSelectionAction.TRANSLATE, OcrTranslationDestination.MAIN_WINDOW))
             assertTrue(atPublication.await(5, TimeUnit.SECONDS))
-            // Fill the actual bounded transport without assuming its capacity. No consumer can
-            // release the pending ShowMainWindow send after the OCR admission detaches old work.
+            // No public seam fills the bounded event queue, so reach the channel directly. With no
+            // consumer, the pending ShowMainWindow send can only be released by cancellation.
             @Suppress("UNCHECKED_CAST")
             val queue = MainStore::class.java.getDeclaredField("_eventChannel").apply { isAccessible = true }
                 .get(fixture.store) as kotlinx.coroutines.channels.Channel<MainEventDelivery>
@@ -212,7 +211,7 @@ class OcrPublicationOwnershipTest {
     }
 
     @Test
-    fun `a later OCR claim does not cancel a manual translation that replaced the OCR one`() = runBlocking {
+    fun `a later OCR claim does not cancel a manual translation that replaced the OCR one`() = runBlocking<Unit> {
         val fixture = OcrWorkflowFixture(
             testScope = TestScope(),
             dispatcher = Dispatchers.IO,
@@ -244,8 +243,7 @@ class OcrPublicationOwnershipTest {
             )
             withTimeout(5_000) { ocrStarted.await() }
 
-            // The user replaces the OCR-owned Quick translation with a manual one. The manual
-            // request now owns translation publication, even though OCR still remembers its own.
+            // The manual request now owns translation publication, though OCR still remembers its own.
             fixture.store.dispatch(MainIntent.ShowQuickTranslate("manual"))
             withTimeout(5_000) { manualStarted.await() }
 
@@ -272,105 +270,60 @@ class OcrPublicationOwnershipTest {
     }
 
     @Test
-    fun `a newer capture cancels the OCR main translation and clears its loading flag`() = runBlocking {
-        val fixture = OcrWorkflowFixture(
-            testScope = TestScope(),
-            ocrSettings = OcrSettings(
-                postSelectionAction = OcrPostSelectionAction.TRANSLATE,
-                translationDestination = OcrTranslationDestination.MAIN_WINDOW,
-            ),
-            dispatcher = Dispatchers.IO,
-        )
-        try {
-            val translationStarted = CompletableDeferred<Unit>()
-            val releaseTranslation = CompletableDeferred<Unit>()
-            val translationReturned = CountDownLatch(1)
-            fixture.translator.beforeTranslate = { text ->
-                if (text == "A") {
-                    translationStarted.complete(Unit)
-                    try {
-                        releaseTranslation.await()
-                    } finally {
-                        translationReturned.countDown()
+    fun `a newer capture cancels the OCR translation it started and clears its loading flag`() = runBlocking {
+        for (destination in listOf(OcrTranslationDestination.MAIN_WINDOW, OcrTranslationDestination.QUICK_TRANSLATE)) {
+            val fixture = OcrWorkflowFixture(
+                testScope = TestScope(),
+                ocrSettings = OcrSettings(
+                    postSelectionAction = OcrPostSelectionAction.TRANSLATE,
+                    translationDestination = destination,
+                ),
+                dispatcher = Dispatchers.IO,
+            )
+            try {
+                val translationStarted = CompletableDeferred<Unit>()
+                val releaseTranslation = CompletableDeferred<Unit>()
+                val translationReturned = CountDownLatch(1)
+                fixture.translator.beforeTranslate = { text ->
+                    if (text == "A") {
+                        translationStarted.complete(Unit)
+                        try {
+                            releaseTranslation.await()
+                        } finally {
+                            translationReturned.countDown()
+                        }
                     }
                 }
+                fixture.ocr.responder = { Ok(OCRResponse("A")) }
+
+                fixture.store.dispatch(
+                    MainIntent.OcrWorkflowImage(
+                        image = ImageData(byteArrayOf(1), "png", 8, 8),
+                        action = OcrPostSelectionAction.TRANSLATE,
+                    )
+                )
+                withTimeout(5_000) { translationStarted.await() }
+                assertTrue(fixture.store.state.value.isLoading, "$destination: translation running")
+                assertEquals(
+                    destination == OcrTranslationDestination.QUICK_TRANSLATE,
+                    fixture.store.state.value.isQuickTranslateDialogVisible,
+                    "$destination: popup visibility",
+                )
+
+                fixture.store.dispatch(
+                    MainIntent.OcrWorkflowImage(
+                        image = ImageData(byteArrayOf(2), "png", 9, 9),
+                        action = OcrPostSelectionAction.COPY_IMAGE,
+                    )
+                )
+                assertEquals(false, fixture.store.state.value.isLoading, "$destination: spinner cleared")
+
+                releaseTranslation.complete(Unit)
+                assertTrue(translationReturned.await(5, TimeUnit.SECONDS), "$destination: translation unwound")
+                assertEquals("", fixture.store.state.value.translatedText, destination.toString())
+            } finally {
+                fixture.cleanUp()
             }
-            fixture.ocr.responder = { Ok(OCRResponse("A")) }
-
-            fixture.store.dispatch(
-                MainIntent.OcrWorkflowImage(
-                    image = ImageData(byteArrayOf(1), "png", 8, 8),
-                    action = OcrPostSelectionAction.TRANSLATE,
-                )
-            )
-            withTimeout(5_000) { translationStarted.await() }
-            assertTrue(fixture.store.state.value.isLoading)
-
-            fixture.store.dispatch(
-                MainIntent.OcrWorkflowImage(
-                    image = ImageData(byteArrayOf(2), "png", 9, 9),
-                    action = OcrPostSelectionAction.COPY_IMAGE,
-                )
-            )
-            assertEquals(false, fixture.store.state.value.isLoading, "cancelling OCR's translation clears its spinner")
-
-            releaseTranslation.complete(Unit)
-            assertTrue(translationReturned.await(5, TimeUnit.SECONDS))
-            assertEquals("", fixture.store.state.value.translatedText)
-        } finally {
-            fixture.cleanUp()
-        }
-    }
-
-    @Test
-    fun `a newer capture cancels the OCR quick translation it started`() = runBlocking {
-        val fixture = OcrWorkflowFixture(
-            testScope = TestScope(),
-            ocrSettings = OcrSettings(
-                postSelectionAction = OcrPostSelectionAction.TRANSLATE,
-                translationDestination = OcrTranslationDestination.QUICK_TRANSLATE,
-            ),
-            dispatcher = Dispatchers.IO,
-        )
-        try {
-            val translationStarted = CompletableDeferred<Unit>()
-            val releaseTranslation = CompletableDeferred<Unit>()
-            val translationReturned = CountDownLatch(1)
-            fixture.translator.beforeTranslate = { text ->
-                if (text == "A") {
-                    translationStarted.complete(Unit)
-                    try {
-                        releaseTranslation.await()
-                    } finally {
-                        translationReturned.countDown()
-                    }
-                }
-            }
-            fixture.ocr.responder = { Ok(OCRResponse("A")) }
-
-            fixture.store.dispatch(
-                MainIntent.OcrWorkflowImage(
-                    image = ImageData(byteArrayOf(1), "png", 8, 8),
-                    action = OcrPostSelectionAction.TRANSLATE,
-                )
-            )
-            withTimeout(5_000) { translationStarted.await() }
-            assertTrue(fixture.store.state.value.isLoading)
-            assertTrue(fixture.store.state.value.isQuickTranslateDialogVisible)
-
-            fixture.store.dispatch(
-                MainIntent.OcrWorkflowImage(
-                    image = ImageData(byteArrayOf(2), "png", 9, 9),
-                    action = OcrPostSelectionAction.COPY_IMAGE,
-                )
-            )
-            assertEquals(false, fixture.store.state.value.isLoading)
-
-            releaseTranslation.complete(Unit)
-            assertTrue(translationReturned.await(5, TimeUnit.SECONDS))
-            assertEquals("", fixture.store.state.value.translatedText)
-        } finally {
-            fixture.cleanUp()
         }
     }
 

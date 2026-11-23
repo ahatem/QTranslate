@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.core.workspace.translation
 
-import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
+import com.github.ahatem.qtranslate.core.testing.SilentLoggerFactory
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -14,7 +15,6 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
-import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -46,13 +46,6 @@ class TranslationFailureStateTest {
     @AfterTest
     fun cleanUp() {
         directories.forEach { it.deleteRecursively() }
-    }
-
-    @Test
-    fun `an untouched state has not failed`() {
-        val state = MainState()
-        assertFalse(state.translationFailed)
-        assertTrue(state.translatedText.isBlank())
     }
 
     @Test
@@ -147,10 +140,10 @@ class TranslationFailureStateTest {
             scope = scope,
             settingsState = settings,
             activeServiceManager = manager,
-            historyRepository = HistoryRepository(directory, TestLoggerFactory.logger, Json),
-            summarizeUseCase = SummarizeUseCase(manager, TestLoggerFactory),
-            rewriteUseCase = RewriteUseCase(manager, TestLoggerFactory),
-            loggerFactory = TestLoggerFactory
+            historyRepository = HistoryRepository(directory, SilentLogger, Json),
+            summarizeUseCase = SummarizeUseCase(manager, SilentLoggerFactory),
+            rewriteUseCase = RewriteUseCase(manager, SilentLoggerFactory),
+            loggerFactory = SilentLoggerFactory
         )
     }
 
@@ -165,16 +158,5 @@ class TranslationFailureStateTest {
             gate?.await()
             return if (fail) Err(ServiceError.NetworkError("down")) else Ok(TranslationResponse("bonjour"))
         }
-    }
-
-    private object TestLoggerFactory : LoggerFactory {
-        val logger = object : Logger {
-            override fun debug(message: String) = Unit
-            override fun info(message: String) = Unit
-            override fun warn(message: String) = Unit
-            override fun error(message: String, error: Throwable?) = Unit
-        }
-
-        override fun getLogger(name: String): Logger = logger
     }
 }

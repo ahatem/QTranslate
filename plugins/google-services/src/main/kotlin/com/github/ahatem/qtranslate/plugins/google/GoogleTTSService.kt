@@ -21,7 +21,6 @@ class GoogleTTSService(
     private val pluginContext: PluginContext,
     private val httpClient: HttpClient,
     private val languageMapper: GoogleLanguageMapper,
-    private val apiConfig: ApiConfig
 ) : TextToSpeech {
 
 
@@ -74,7 +73,7 @@ class GoogleTTSService(
         for ((idx, chunk) in chunks.withIndex()) {
             val bytes = httpClient.getBytes(
                 url = TTS_ENDPOINT,
-                headers = apiConfig.createHeaders(),
+                headers = ApiConfig.createHeaders(),
                 queryParams = mapOf(
                     "client" to "gtx",
                     "ie" to "UTF-8",
@@ -99,7 +98,7 @@ class GoogleTTSService(
         for (chunk in chunks) {
             val bytes = httpClient.getBytes(
                 url = TTS_ENDPOINT,
-                headers = apiConfig.createHeaders(),
+                headers = ApiConfig.createHeaders(),
                 queryParams = mapOf(
                     "client" to "tw-ob",
                     "tl" to langTag,

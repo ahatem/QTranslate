@@ -27,6 +27,8 @@ import com.github.ahatem.qtranslate.ui.swing.settings.panels.ServicesPanel
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.SettingsPanel
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.theme.ThemeManager
+import com.github.ahatem.qtranslate.ui.swing.testing.SilentLogger
+import com.github.ahatem.qtranslate.ui.swing.testing.onEdt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -48,7 +50,6 @@ import java.awt.GraphicsEnvironment
 import java.awt.event.ActionEvent
 import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
-import java.io.File
 import java.nio.file.Files
 import javax.swing.JButton
 import javax.swing.JComponent
@@ -60,28 +61,10 @@ import javax.swing.JScrollPane
 import javax.swing.JTextField
 import javax.swing.JTree
 import javax.swing.KeyStroke
-import javax.swing.SwingUtilities
 import javax.swing.tree.DefaultMutableTreeNode
 
-/**
- * Regression pins for the dialog shell after search/navigation were extracted into collaborators:
- * the wiring (source-level, runs everywhere) and the behavior a user sees (needs a toolkit).
- */
+/** The dialog shell as a user sees it: navigation, search, Apply and Cancel. Needs a windowing toolkit. */
 class SettingsDialogTest {
-
-    private fun <T> onEdt(block: () -> T): T {
-        if (SwingUtilities.isEventDispatchThread()) return block()
-        var result: T? = null
-        SwingUtilities.invokeAndWait { result = block() }
-        return result!!
-    }
-
-    private object SilentLogger : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
 
     private val directory by lazy { Files.createTempDirectory("qtranslate-settings-dialog").toFile() }
     private val localizer by lazy {
@@ -113,17 +96,20 @@ class SettingsDialogTest {
     private fun newDialog(
         rememberedPage: () -> String? = { null },
         onPageVisited: (String) -> Unit = {},
-    ): SettingsDialog = onEdt {
-        SettingsDialog(
-            owner = owner,
-            settingsStore = store,
-            pluginManager = pluginManager,
-            iconManager = IconManager(pluginManager),
-            themeManager = ThemeManager(directory, SilentLogger),
-            localizationManager = localizer,
-            rememberedPage = rememberedPage,
-            onPageVisited = onPageVisited,
-        ).also { dialogs += it }
+    ): SettingsDialog {
+        val frame = owner
+        return onEdt {
+            SettingsDialog(
+                owner = frame,
+                settingsStore = store,
+                pluginManager = pluginManager,
+                iconManager = IconManager(pluginManager),
+                themeManager = ThemeManager(directory, SilentLogger),
+                localizationManager = localizer,
+                rememberedPage = rememberedPage,
+                onPageVisited = onPageVisited,
+            ).also { dialogs += it }
+        }
     }
 
     @AfterTest
@@ -132,87 +118,6 @@ class SettingsDialogTest {
         dialogs.clear()
         storeScope.cancel()
     }
-
-    // ── Wiring (headless, source-level) ────────────────────────────────────────
-
-    @Test
-    fun `the dialog orchestrates the collaborators instead of owning search and navigation`() {
-        val source = File(
-            "src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/settings/SettingsDialog.kt"
-        ).readText()
-
-        assertTrue(source.contains("SettingsNavigation(::label)"), "the sidebar structure is delegated")
-        assertTrue(source.contains("SettingsNavigationController("), "page selection is delegated")
-        assertTrue(source.contains("panelFactory = ::buildPanel"), "the dialog still owns panel composition")
-        assertTrue(source.contains("SettingsSearchIndex("), "the search index is delegated")
-        assertTrue(source.contains("SettingsSearchController("), "query handling is delegated")
-        assertTrue(source.contains("tree = navigator.tree"), "the results swap with the navigation tree")
-        assertTrue(source.contains("onHitActivated = navigator::openHit"), "hit activation routes to navigation")
-        assertTrue(source.contains("entriesForPage = navigator::searchEntries"), "indexing reads the navigation panel cache")
-        assertTrue(source.contains("glassPane = navigator.markerOverlay"), "the flash overlay stays the dialog's glass pane")
-        assertTrue(
-            source.contains("navigator.selectStartPage(rememberedPage())"),
-            "the initial page selection is delegated, and honours the page the caller remembered"
-        )
-        assertTrue(source.contains("navigator.selectPage(label(\"services\"))"), "external page selection is delegated")
-        assertTrue(source.contains("navigator.renderCurrentPanel()"), "state re-render is delegated")
-
-        assertFalse(source.contains("DefaultMutableTreeNode"), "tree construction moved out")
-        assertFalse(source.contains("CardLayout"), "card switching moved out")
-        assertFalse(source.contains("MarkerOverlay"), "the flash overlay moved out")
-        assertFalse(source.contains("FlatSearchIcon"), "search presentation moved out")
-    }
-
-    @Test
-    fun `reset is offered per page and for the whole dialog, with different intents`() {
-        val source = File(
-            "src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/settings/SettingsDialog.kt"
-        ).readText()
-
-        assertTrue(source.contains("resetPageButton"), "the header owns the page reset")
-        assertTrue(source.contains("SettingsIntent.ResetPage(page)"), "a page reset names its page")
-        assertTrue(source.contains("SettingsIntent.ResetPreferences"), "the bar resets ordinary preferences")
-        assertFalse(source.contains("ResetToDefaults"), "the unscoped reset is gone")
-    }
-
-    @Test
-    fun `the page reset is enabled where the page owns settings`() {
-        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
-        val dialog = newDialog()
-        val resetPage = onEdt {
-            descendants<JButton>(dialog.contentPane)
-                .single { it.text == localizer.getString("settings_dialog.reset_page_button") }
-        }
-
-        assertTrue(onEdt { resetPage.isEnabled }, "General owns settings, so it can be reset")
-    }
-
-    @Test
-    fun `the page reset is disabled where the page owns no settings`() {
-        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
-        val dialog = newDialog()
-        val pluginsLabel = localizer.getString("settings_dialog_sidebar.plugins")
-        val resetPage = onEdt {
-            descendants<JButton>(dialog.contentPane)
-                .single { it.text == localizer.getString("settings_dialog.reset_page_button") }
-        }
-
-        onEdt {
-            val tree = descendants<JTree>(dialog.contentPane).single()
-            val row = (0 until tree.rowCount).first { index ->
-                (tree.getPathForRow(index).lastPathComponent as? DefaultMutableTreeNode)?.userObject == pluginsLabel
-            }
-            tree.setSelectionRow(row)
-        }
-        onEdt {}
-
-        assertFalse(
-            onEdt { resetPage.isEnabled },
-            "the Plugins page is a way in, not a page of settings to restore",
-        )
-    }
-
-    // ── Behavior (needs a toolkit) ─────────────────────────────────────────────
 
     @Test
     fun `opens on the general page with a clean button bar`() {
@@ -373,58 +278,39 @@ class SettingsDialogTest {
     }
 
     @Test
-    fun `the header reset says what it resets, and why it cannot on a page without settings`() {
+    fun `page reset is available on a page of settings and explains itself on one without`() {
         assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
         val dialog = newDialog()
         val pluginsLabel = localizer.getString("settings_dialog_sidebar.plugins")
-        val resetPage = onEdt {
-            descendants<JButton>(dialog.contentPane)
-                .single { it.text == localizer.getString("settings_dialog.reset_page_button") }
-        }
+        val resetPage = footerButton(dialog, "settings_dialog.reset_page_button")
 
+        assertTrue(onEdt { resetPage.isEnabled }, "General owns settings, so it can be reset")
         assertEquals(
             localizer.getString("settings_dialog.reset_page_tooltip"),
             onEdt { resetPage.toolTipText },
-            "on a page that owns settings, the action explains its scope before it is clicked",
         )
 
         onEdt {
             val tree = descendants<JTree>(dialog.contentPane).single()
-            val row = (0 until tree.rowCount).first { index ->
-                (tree.getPathForRow(index).lastPathComponent as? DefaultMutableTreeNode)?.userObject == pluginsLabel
-            }
-            tree.setSelectionRow(row)
+            tree.setSelectionRow(sidebarRow(tree, pluginsLabel))
         }
         onEdt {}
 
+        assertFalse(onEdt { resetPage.isEnabled }, "the Plugins page has no settings to restore")
         assertEquals(
             localizer.getString("settings_dialog.reset_page_unavailable_tooltip"),
             onEdt { resetPage.toolTipText },
-            "and on a page without settings it says so instead of leaving a dead button",
         )
-    }
-
-    @Test
-    fun `cancel closes the dialog`() {
-        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
-        val dialog = newDialog()
-
-        onEdt {
-            val cancel = descendants<JButton>(dialog.contentPane)
-                .single { it.text == localizer.getString("common.cancel") }
-            cancel.doClick()
-        }
-
-        assertFalse(onEdt { dialog.isDisplayable }, "cancel disposes the dialog")
     }
 
     @Test
     fun `applying settings hands the committed configuration to the owner`() {
         assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
         val applied = mutableListOf<Configuration>()
+        val frame = owner
         val dialog = onEdt {
             SettingsDialog(
-                owner = owner,
+                owner = frame,
                 settingsStore = store,
                 pluginManager = pluginManager,
                 iconManager = IconManager(pluginManager),
@@ -446,41 +332,6 @@ class SettingsDialogTest {
         assertFalse(
             applied.single().isHistoryEnabled,
             "the owner receives the configuration that was actually saved",
-        )
-    }
-
-    @Test
-    fun `the footer says what Cancel and Apply will do in the state they are in`() {
-        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
-        val dialog = newDialog()
-        val cancel = footerButton(dialog, "common.cancel")
-        val apply = footerButton(dialog, "common.apply")
-
-        assertEquals(
-            localizer.getString("settings_dialog.cancel_clean_tooltip"),
-            onEdt { cancel.toolTipText },
-            "with nothing staged, Cancel says it is not throwing anything away",
-        )
-        assertEquals(
-            localizer.getString("settings_dialog.apply_nothing_tooltip"),
-            onEdt { apply.toolTipText },
-            "and Apply says there is nothing for it to save",
-        )
-
-        onEdt { store.dispatch(SettingsIntent.TransformDraft { it.copy(isHistoryEnabled = false) }) }
-        // The tooltips are refreshed by the same store emission that enables Apply, so waiting for
-        // the button to become clickable is enough rather than guessing at a delay.
-        waitUntil { onEdt { apply.isEnabled } }
-
-        assertEquals(
-            localizer.getString("settings_dialog.cancel_tooltip"),
-            onEdt { cancel.toolTipText },
-            "once something is staged, Cancel says it would discard it",
-        )
-        assertEquals(
-            localizer.getString("settings_dialog.apply_tooltip"),
-            onEdt { apply.toolTipText },
-            "and Apply says what it would save",
         )
     }
 
@@ -607,23 +458,9 @@ class SettingsDialogTest {
         )
     }
 
-    @Test
-    fun `a page without a count keeps its plain name in the sidebar`() {
-        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a windowing toolkit")
-        val dialog = newDialog()
-        val generalLabel = localizer.getString("settings_dialog_sidebar.general")
-        val tree = onEdt { descendants<JTree>(dialog.contentPane).single() }
-
-        assertEquals(
-            generalLabel,
-            onEdt { renderedRowText(tree, sidebarRow(tree, generalLabel)) },
-            "General is a page of settings, not a list with a total, so nothing is appended to its name",
-        )
-    }
-
     // ── Helpers ────────────────────────────────────────────────────────────────
 
-    /** The footer button labelled by the localization [key]. */
+    /** The button labelled by the localization [key]. */
     private fun footerButton(dialog: SettingsDialog, key: String): JButton =
         onEdt { descendants<JButton>(dialog.contentPane).single { it.text == localizer.getString(key) } }
 

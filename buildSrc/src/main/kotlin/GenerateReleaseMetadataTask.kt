@@ -12,7 +12,6 @@ import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
-import java.security.MessageDigest
 
 abstract class GenerateReleaseMetadataTask : DefaultTask() {
     @get:Input
@@ -39,7 +38,7 @@ abstract class GenerateReleaseMetadataTask : DefaultTask() {
             (parsed[section] as List<MutableMap<String, Any?>>).forEach { item ->
                 val artifact = artifacts[item["file"] as String] ?: return@forEach
                 item["sizeBytes"] = artifact.length()
-                item["sha256"] = sha256(artifact.readBytes())
+                item["sha256"] = sha256Hex(artifact.readBytes())
             }
         }
         outputFile.get().asFile.apply {
@@ -47,9 +46,4 @@ abstract class GenerateReleaseMetadataTask : DefaultTask() {
             writeText(JsonOutput.prettyPrint(JsonOutput.toJson(parsed)) + "\n")
         }
     }
-
-    private fun sha256(bytes: ByteArray): String =
-        MessageDigest.getInstance("SHA-256")
-            .digest(bytes)
-            .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
 }

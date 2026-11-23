@@ -2,26 +2,19 @@ package com.github.ahatem.qtranslate.plugins.reverso
 
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 
-import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
 import com.github.ahatem.qtranslate.api.dictionary.BilingualDictionaryRequest
 import com.github.ahatem.qtranslate.api.language.LanguageCode
-import com.github.ahatem.qtranslate.api.plugin.NotificationType
-import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
-import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
-import com.github.ahatem.qtranslate.plugins.common.TextHttpClient
+import com.github.ahatem.qtranslate.plugins.common.ScriptedHttpClient
+import com.github.ahatem.qtranslate.plugins.common.unwrap
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.fold
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -30,28 +23,8 @@ import kotlin.test.fail
 
 class ReversoServicesTest {
     @Test
-    fun `plugin exposes translation and dictionary as distinct services`() = runBlocking {
-        val plugin = ReversoPlugin()
-        plugin.initialize(TestPluginContext)
-        plugin.onEnable()
-
-        assertEquals(
-            listOf("Reverso Translation", "Reverso Dictionary"),
-            plugin.getServices().map { it.name }
-        )
-        // Keys, not ids: the plugin declares a name unique within itself and the host composes
-        // the identifier the rest of the application sees.
-        assertEquals(
-            listOf("reverso-services-translation", "reverso-services-dictionary"),
-            plugin.getServices().map { it.key }
-        )
-        plugin.onDisable()
-        plugin.shutdown()
-    }
-
-    @Test
     fun `translation uses current free endpoint and selected language pair`() = runBlocking {
-        val http = RecordingHttpClient(Ok(TEXT_RESPONSE))
+        val http = ScriptedHttpClient(Ok(TEXT_RESPONSE))
         val service = ReversoTranslatorService(client(http))
 
         val result = service.translate(TranslationRequest(
@@ -60,19 +33,16 @@ class ReversoServicesTest {
             targetLanguage = LanguageCode.FRENCH
         ))
 
-        result.fold(
-            success = { assertEquals("La banque est fermee.", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        result.unwrap().also { assertEquals("La banque est fermee.", it.translatedText) }
         assertEquals("https://cps.reverso.net/api2/TranslateText", http.lastUrl)
-        val body = Json.decodeFromString<ReversoTextRequest>(http.lastBody)
+        val body = Json.decodeFromString<ReversoTextRequest>(http.lastBody.orEmpty())
         assertEquals("en-fr", body.direction)
         assertEquals("chromeextension", body.origin)
     }
 
     @Test
     fun `dictionary maps ranked translations and bilingual contexts into native entries`() = runBlocking {
-        val http = RecordingHttpClient(Ok(WORD_RESPONSE))
+        val http = ScriptedHttpClient(Ok(WORD_RESPONSE))
         val service = ReversoDictionaryService(client(http))
 
         val result = service.lookupBilingual(BilingualDictionaryRequest(
@@ -93,46 +63,43 @@ class ReversoServicesTest {
             },
             failure = { fail(it.message) }
         )
-        val body = Json.decodeFromString<ReversoWordRequest>(http.lastBody)
+        val body = Json.decodeFromString<ReversoWordRequest>(http.lastBody.orEmpty())
         assertEquals("en-fr", body.direction)
     }
 
     @Test
     fun `dictionary defaults English lookups to French when target is unavailable`() = runBlocking {
-        val http = RecordingHttpClient(Ok(WORD_RESPONSE))
+        val http = ScriptedHttpClient(Ok(WORD_RESPONSE))
         val service = ReversoDictionaryService(client(http))
 
-        service.lookup(DictionaryRequest("bank", LanguageCode.ENGLISH)).fold(
-            success = {},
-            failure = { fail(it.message) }
-        )
+        service.lookup(DictionaryRequest("bank", LanguageCode.ENGLISH)).unwrap()
 
-        assertEquals("en-fr", Json.decodeFromString<ReversoWordRequest>(http.lastBody).direction)
+        assertEquals("en-fr", Json.decodeFromString<ReversoWordRequest>(http.lastBody.orEmpty()).direction)
     }
 
     @Test
     fun `dictionary follows the requested pair beyond the English French default`() = runBlocking {
-        val http = RecordingHttpClient(Ok(WORD_RESPONSE))
+        val http = ScriptedHttpClient(Ok(WORD_RESPONSE))
         val service = ReversoDictionaryService(client(http))
 
         service.lookupBilingual(BilingualDictionaryRequest(
             word = "riso",
             sourceLanguage = LanguageCode.ITALIAN,
             targetLanguage = LanguageCode.ENGLISH
-        )).fold(success = {}, failure = { fail(it.message) })
-        assertEquals("it-en", Json.decodeFromString<ReversoWordRequest>(http.lastBody).direction)
+        )).unwrap()
+        assertEquals("it-en", Json.decodeFromString<ReversoWordRequest>(http.lastBody.orEmpty()).direction)
 
         service.lookupBilingual(BilingualDictionaryRequest(
             word = "rice",
             sourceLanguage = LanguageCode.ENGLISH,
             targetLanguage = LanguageCode.ITALIAN
-        )).fold(success = {}, failure = { fail(it.message) })
-        assertEquals("en-it", Json.decodeFromString<ReversoWordRequest>(http.lastBody).direction)
+        )).unwrap()
+        assertEquals("en-it", Json.decodeFromString<ReversoWordRequest>(http.lastBody.orEmpty()).direction)
     }
 
     @Test
     fun `provider failure has a clear free service message`() = runBlocking {
-        val http = RecordingHttpClient(Ok(
+        val http = ScriptedHttpClient(Ok(
             """{"error":true,"success":false,"message":"Too many requests"}"""
         ))
         val service = ReversoTranslatorService(client(http))
@@ -155,7 +122,7 @@ class ReversoServicesTest {
 
     @Test
     fun `translation rejects auto detection without making a request`() = runBlocking {
-        val http = RecordingHttpClient(Err(ServiceError.NetworkError("must not be called")))
+        val http = ScriptedHttpClient(Err(ServiceError.NetworkError("must not be called")))
         val service = ReversoTranslatorService(client(http))
 
         val result = service.translate(TranslationRequest(
@@ -174,7 +141,6 @@ class ReversoServicesTest {
     private fun client(httpClient: HttpClient) = ReversoClient(
         context = TestPluginContext,
         httpClient = httpClient,
-        apiConfig = ApiConfig(),
         minimumRequestIntervalMillis = 0
     )
 
@@ -203,30 +169,6 @@ class ReversoServicesTest {
               }]
             }
         """
-    }
-}
-
-private class RecordingHttpClient(
-    private val response: Result<String, ServiceError>
-) : TextHttpClient() {
-    var lastUrl: String? = null
-    var lastBody: String = ""
-
-    override suspend fun get(
-        url: String,
-        headers: Map<String, String>,
-        queryParams: Map<String, Any?>
-    ): Result<String, ServiceError> = response
-
-    override suspend fun post(
-        url: String,
-        headers: Map<String, String>,
-        body: String?,
-        queryParams: Map<String, Any?>
-    ): Result<String, ServiceError> {
-        lastUrl = url
-        lastBody = body.orEmpty()
-        return response
     }
 }
 

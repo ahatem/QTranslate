@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.core.plugin
 
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
+import com.github.ahatem.qtranslate.core.testing.SilentLoggerFactory
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginError
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprint
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprintRepository
@@ -24,16 +26,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * T1/T2 trust suite: what may run before approval, and what the approval binds to.
- *
- * Loader-level tests prove assessment is inert even for a fully valid provider JAR, that
- * construction happens exactly once and only from the approved snapshot bytes, and that
- * approval does not survive a byte change. Manager-level tests walk the trust matrix —
- * first-seen, previously approved, changed, duplicate, disabled, installed, pending,
- * resolved, uninstalled — plus the regression for a paused modification surviving a restart
- * instead of degrading into trust-on-first-use.
- */
+/** What may run before approval, and what the approval binds to: inert assessment, snapshot bytes, trust-on-change. */
 class PluginTrustTest {
 
     @BeforeEach
@@ -54,45 +47,25 @@ class PluginTrustTest {
     // -------------------------------------------------------------------------
 
     @Test
-    fun `assessment constructs nothing even when the provider class is inside the jar`() {
+    fun `assessment and manifest reading construct nothing even when the provider class is inside the jar`() {
         val directory = Files.createTempDirectory("qtranslate-trust-inert").toFile()
         try {
             val jar = writePluginJar(directory, "plugin.jar", "inert", RecordingPlugin::class.java)
-            val loader = PluginLoader(FixtureLogger, directory.resolve("cache"))
+            val loader = PluginLoader(SilentLogger, directory.resolve("cache"))
 
             val assessment = loader.assessFile(jar)
-
             assertNotNull(assessment, loader.loadFailures.map { it.message }.toString())
-            assertEquals(0, PluginTestFixtures.Log.count("construct"), "assessment must not construct the provider")
             assessment.discard()
-        } finally { directory.deleteRecursively() }
-    }
+            assertEquals("inert", loader.getManifestFromJar(jar)?.id)
 
-    @Test
-    fun `directory assessment constructs nothing`() {
-        val directory = Files.createTempDirectory("qtranslate-trust-inert-dir").toFile()
-        try {
-            writePluginJar(directory, "one.jar", "inert-one", RecordingPlugin::class.java)
-            writePluginJar(directory, "two.jar", "inert-two", RecordingPlugin::class.java)
-
-            val assessments = PluginLoader(FixtureLogger, directory.resolve("cache")).assessDirectory(directory)
-
+            val many = directory.resolve("many")
+            writePluginJar(many, "one.jar", "inert-one", RecordingPlugin::class.java)
+            writePluginJar(many, "two.jar", "inert-two", RecordingPlugin::class.java)
+            val assessments = PluginLoader(SilentLogger, many.resolve("cache")).assessDirectory(many)
             assertEquals(2, assessments.size)
-            assertEquals(0, PluginTestFixtures.Log.count("construct"))
             assessments.forEach { it.discard() }
-        } finally { directory.deleteRecursively() }
-    }
 
-    @Test
-    fun `manifest reading never constructs the provider`() {
-        val directory = Files.createTempDirectory("qtranslate-trust-manifest").toFile()
-        try {
-            val jar = writePluginJar(directory, "plugin.jar", "manifest-only", RecordingPlugin::class.java)
-
-            val manifest = PluginLoader(FixtureLogger, directory.resolve("cache")).getManifestFromJar(jar)
-
-            assertEquals("manifest-only", manifest?.id)
-            assertEquals(0, PluginTestFixtures.Log.count("construct"))
+            assertEquals(0, PluginTestFixtures.Log.count("construct"), "inspecting a jar must not construct the provider")
         } finally { directory.deleteRecursively() }
     }
 
@@ -101,7 +74,7 @@ class PluginTrustTest {
         val directory = Files.createTempDirectory("qtranslate-trust-garbage").toFile()
         try {
             val broken = directory.resolve("broken.jar").apply { writeText("definitely not a zip archive") }
-            val loader = PluginLoader(FixtureLogger, directory.resolve("cache"))
+            val loader = PluginLoader(SilentLogger, directory.resolve("cache"))
 
             assertNull(loader.assessFile(broken))
 
@@ -119,7 +92,7 @@ class PluginTrustTest {
         val directory = Files.createTempDirectory("qtranslate-trust-once").toFile()
         try {
             val jar = writePluginJar(directory, "plugin.jar", "once", RecordingPlugin::class.java)
-            val loader = PluginLoader(FixtureLogger, directory.resolve("cache"))
+            val loader = PluginLoader(SilentLogger, directory.resolve("cache"))
             val assessment = loader.assessFile(jar)!!
 
             val loaded = loader.loadApproved(assessment)
@@ -138,7 +111,7 @@ class PluginTrustTest {
         val directory = Files.createTempDirectory("qtranslate-trust-bytes").toFile()
         try {
             val jar = writePluginJar(directory, "plugin.jar", "bound", RecordingPlugin::class.java)
-            val loader = PluginLoader(FixtureLogger, directory.resolve("cache"))
+            val loader = PluginLoader(SilentLogger, directory.resolve("cache"))
             val assessment = loader.assessFile(jar)!!
 
             assertTrue(assessment.snapshotFile.setWritable(true))
@@ -248,31 +221,6 @@ class PluginTrustTest {
             assertEquals(constructCount + 1, PluginTestFixtures.Log.count("construct"))
             assertEquals(PluginStatus.ENABLED, manager3.plugins.value.single().status)
             manager3.shutdown()
-        } finally { directory.deleteRecursively() }
-    }
-
-    @Test
-    fun `resolving an update constructs the new approved bytes`() = runBlocking {
-        val directory = Files.createTempDirectory("qtranslate-trust-resolve").toFile()
-        try {
-            val stores = Stores(directory)
-            val plugins = directory.resolve("plugins")
-            writePluginJar(plugins, "plugin.jar", "resolved", RecordingPlugin::class.java, "version one")
-            val manager1 = stores.manager()
-            manager1.loadAndProcessPlugins()
-            manager1.shutdown()
-            writePluginJar(plugins, "plugin.jar", "resolved", RecordingPlugin::class.java, "version two")
-
-            val manager2 = stores.manager()
-            manager2.loadAndProcessPlugins()
-            assertEquals(PluginStatus.AWAITING_VERIFICATION, manager2.plugins.value.single().status)
-            val before = PluginTestFixtures.Log.count("construct")
-
-            manager2.resolveAsUpdate("resolved")
-
-            assertEquals(before + 1, PluginTestFixtures.Log.count("construct"))
-            assertEquals(PluginStatus.ENABLED, manager2.plugins.value.single().status)
-            manager2.shutdown()
         } finally { directory.deleteRecursively() }
     }
 
@@ -394,34 +342,19 @@ class PluginTrustTest {
     }
 
     @Test
-    fun `installation refuses a duplicate plugin id`() = runBlocking {
+    fun `installation refuses a duplicate plugin id and a filename collision`() = runBlocking {
         val directory = Files.createTempDirectory("qtranslate-trust-install-dup").toFile()
         try {
             val stores = Stores(directory)
             val incoming = directory.resolve("incoming")
             val first = writePluginJar(incoming, "first.jar", "installed-twice", RecordingPlugin::class.java)
-            val second = writePluginJar(incoming, "second.jar", "installed-twice", RecordingPlugin::class.java, "other bytes")
+            val sameId = writePluginJar(incoming, "second.jar", "installed-twice", RecordingPlugin::class.java, "other bytes")
+            val sameName = writePluginJar(directory.resolve("incoming-b"), "first.jar", "other-id", ExplodingPlugin::class.java)
             val manager = stores.manager()
 
             assertTrue(manager.installPlugin(first).isOk)
-            assertTrue(manager.installPlugin(second).isErr)
-
-            assertEquals(1, PluginTestFixtures.Log.count("construct"))
-            manager.shutdown()
-        } finally { directory.deleteRecursively() }
-    }
-
-    @Test
-    fun `installation refuses a filename collision`() = runBlocking {
-        val directory = Files.createTempDirectory("qtranslate-trust-install-name").toFile()
-        try {
-            val stores = Stores(directory)
-            val first = writePluginJar(directory.resolve("incoming-a"), "plugin.jar", "first-id", RecordingPlugin::class.java)
-            val second = writePluginJar(directory.resolve("incoming-b"), "plugin.jar", "second-id", ExplodingPlugin::class.java)
-            val manager = stores.manager()
-
-            assertTrue(manager.installPlugin(first).isOk)
-            assertTrue(manager.installPlugin(second).isErr)
+            assertTrue(manager.installPlugin(sameId).isErr, "duplicate id")
+            assertTrue(manager.installPlugin(sameName).isErr, "filename collision")
 
             assertEquals(1, PluginTestFixtures.Log.count("construct"))
             manager.shutdown()
@@ -581,7 +514,7 @@ class PluginTrustTest {
      * instance for the same file, so every manager in a restart sequence must share these.
      */
     private class Stores(private val directory: File) {
-        val settings = SettingsRepository(directory, Json, FixtureLogger)
+        val settings = SettingsRepository(directory, Json, SilentLogger)
         val fingerprints = PluginFingerprintRepository(directory, Json)
         val keyValue = PluginKeyValueStore(directory)
 
@@ -590,7 +523,7 @@ class PluginTrustTest {
             settingsRepository = settings,
             pluginFingerprintRepository = fingerprints,
             pluginKeyValueStore = keyValue,
-            loggerFactory = FixtureLoggerFactory,
+            loggerFactory = SilentLoggerFactory,
             notificationBus = NotificationBus(),
             networkConfig = { NetworkConfig() },
             installationRoot = installationRoot

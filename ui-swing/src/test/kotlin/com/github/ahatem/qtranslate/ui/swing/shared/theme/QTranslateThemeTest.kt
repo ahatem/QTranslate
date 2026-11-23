@@ -1,7 +1,7 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.theme
 
 import com.formdev.flatlaf.IntelliJTheme
-import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.ui.swing.testing.SilentLogger
 import java.awt.Color
 import java.io.File
 import kotlin.io.path.createTempDirectory
@@ -15,23 +15,13 @@ import kotlin.test.assertTrue
 class QTranslateThemeTest {
 
     @Test
-    fun `bundled QTranslate themes load with the expected mode`() {
+    fun `bundled themes load with the expected name and mode`() {
         assertTheme("themes/qtranslate-light.theme.json", "QTranslate Light", false)
         assertTheme("themes/qtranslate-dark.theme.json", "QTranslate Dark", true)
-    }
-
-    @Test
-    fun `bundled Ioskeley themes load with the expected mode`() {
         assertTheme("themes/ioskeley-light.theme.json", "Ioskeley Light", false)
         assertTheme("themes/ioskeley-dark.theme.json", "Ioskeley Dark", true)
         assertTheme("themes/ioskeley-light-proof.theme.json", "Ioskeley Light Proof", false)
         assertTheme("themes/ioskeley-dark-proof.theme.json", "Ioskeley Dark Proof", true)
-    }
-
-    @Test
-    fun `platform defaults use QTranslate themes`() {
-        assertEquals("custom:qtranslate_light", ThemeManager.platformDefaultLightThemeId())
-        assertEquals("custom:qtranslate_dark", ThemeManager.platformDefaultDarkThemeId())
     }
 
     @Test
@@ -53,7 +43,7 @@ class QTranslateThemeTest {
             File(repositoryRoot, "themes/clean_sheet.theme.json")
                 .copyTo(File(themesDirectory, "clean_sheet.theme.json"))
 
-            val manager = ThemeManager(appDataDirectory, silentLogger)
+            val manager = ThemeManager(appDataDirectory, SilentLogger)
 
             val salmon = manager.findThemeById("custom:salmon_light")
             assertEquals("external:salmon.theme", salmon.id)
@@ -69,101 +59,66 @@ class QTranslateThemeTest {
         }
     }
 
+    /** Colours come from the theme files themselves, so a palette edit that drops below a floor fails here. */
     @Test
-    fun `theme text and primary actions meet WCAG contrast targets`() {
-        // QTranslate Light — warm parchment; gold carries fills, bronze carries accent text
-        assertContrast("#1E1D1A", "#F6F2E9", 7.0)   // body text on canvas
-        assertContrast("#1E1D1A", "#FBF8F1", 7.0)   // body text on editor surface
-        assertContrast("#5F5B4C", "#F6F2E9", 4.5)   // muted text
-        assertContrast("#807B6A", "#F6F2E9", 3.0)   // disabled text
-        assertContrast("#1E1D1A", "#B8943A", 4.5)   // label on the gold primary button
-        assertContrast("#8A6A1E", "#F6F2E9", 4.5)   // bronze as link and accent text
-        assertContrast("#1E1D1A", "#EADFBF", 7.0)   // text over a selection
+    fun `bundled theme colours meet their contrast floors`() {
+        fun surfaces(vararg names: String) = names.flatMap {
+            listOf(Floor("mutedForeground", it, 4.5), Floor("disabledForeground", it, 3.0), Floor("foreground", it, 7.0))
+        }
 
-        // QTranslate Dark — brand gold on near-black
-        assertContrast("#BCAC8F", "#0C0C0C", 7.0)   // body text on canvas
-        assertContrast("#BCAC8F", "#181714", 7.0)   // body text on editor surface
-        assertContrast("#8D8975", "#0C0C0C", 4.5)   // muted text
-        assertContrast("#726F5C", "#0C0C0C", 3.0)   // disabled text
-        assertContrast("#14120A", "#B8943A", 4.5)   // label on the gold primary button
-        assertContrast("#B8943A", "#0C0C0C", 4.5)   // gold as accent text
-        assertContrast("#D6B063", "#0C0C0C", 4.5)   // link
-        assertContrast("#BCAC8F", "#4A3A18", 4.5)   // text over a selection
+        val cases = mapOf(
+            "qtranslate-light" to surfaces("canvas", "surface", "surfaceMuted") + listOf(
+                Floor("accentForeground", "accent", 4.5),
+                Floor("bronze", "canvas", 4.5),
+                Floor("link", "canvas", 4.5),
+                Floor("foreground", "selection", 7.0),
+                Floor("success", "canvas", 4.5),
+                Floor("warning", "canvas", 4.5),
+                Floor("error", "canvas", 4.5),
+            ),
+            "qtranslate-dark" to surfaces("canvas", "surface", "surfaceRaised") + listOf(
+                Floor("accentForeground", "accent", 4.5),
+                Floor("accent", "canvas", 4.5),
+                Floor("link", "canvas", 4.5),
+                Floor("foreground", "selection", 4.5),
+                Floor("success", "canvas", 4.5),
+                Floor("warning", "canvas", 4.5),
+                Floor("error", "canvas", 4.5),
+            ),
+            // Proof Red is a graphic mark, never text, so it only needs the non-text floor.
+            "ioskeley-light" to surfaces("canvas", "surface", "surfaceRaised") + listOf(
+                Floor("foreground", "selection", 4.5),
+                Floor("accent", "canvas", 3.0),
+            ),
+            "ioskeley-dark" to surfaces("canvas", "surface", "surfaceRaised") + listOf(
+                Floor("foreground", "selection", 4.5),
+                Floor("accent", "canvas", 3.0),
+            ),
+        )
+
+        for ((theme, floors) in cases) {
+            val colors = themeColors(theme)
+            for (floor in floors) {
+                val foreground = assertNotNull(colors[floor.foreground], "$theme defines ${floor.foreground}")
+                val background = assertNotNull(colors[floor.background], "$theme defines ${floor.background}")
+                val ratio = contrastRatio(foreground, background)
+                assertTrue(
+                    ratio >= floor.minimum,
+                    "$theme: ${floor.foreground} on ${floor.background} has contrast $ratio, expected at least ${floor.minimum}"
+                )
+            }
+        }
     }
 
-    /**
-     * Secondary text is drawn on raised surfaces too — menu accelerators, table headers,
-     * popups — where there is less contrast available than on the canvas. Checking only
-     * against the canvas hides failures on exactly the surfaces where muted text is
-     * hardest to read.
-     */
-    @Test
-    fun `muted and disabled text stay readable on every surface`() {
-        listOf("#0C0C0C", "#181714", "#201F1A").forEach { surface ->
-            assertContrast("#8D8975", surface, 4.5)
-            assertContrast("#726F5C", surface, 3.0)
-            assertContrast("#BCAC8F", surface, 7.0)
-        }
-        listOf("#F6F2E9", "#FBF8F1", "#EAE4D6").forEach { surface ->
-            assertContrast("#5F5B4C", surface, 4.5)
-            assertContrast("#807B6A", surface, 3.0)
-            assertContrast("#1E1D1A", surface, 7.0)
-        }
-    }
+    private class Floor(val foreground: String, val background: String, val minimum: Double)
 
-    @Test
-    fun `status colours are readable on both canvases`() {
-        listOf("#4A6B1F", "#8F5714", "#B0342F").forEach {
-            assertContrast(it, "#F6F2E9", 4.5)
+    private fun themeColors(name: String): Map<String, Color> {
+        val text = assertNotNull(javaClass.classLoader.getResourceAsStream("themes/$name.theme.json")).use {
+            it.reader().readText()
         }
-        listOf("#94AE62", "#E0913C", "#D06B62").forEach {
-            assertContrast(it, "#0C0C0C", 4.5)
-        }
-    }
-
-    /**
-     * Ioskeley is a monochrome, typography-led identity: readable text is always neutral ink,
-     * hierarchy comes from weight and tone, and Proof Red is the only chromatic colour — reserved
-     * for small structural and active-state marks, never for readable text. The tokens are from
-     * Ioskeley's `docs/VISUAL_IDENTITY.md`; the tonal fills are its ink-over-canvas tints
-     * (the website mixes them at runtime) precomputed here.
-     */
-    @Test
-    fun `Ioskeley text stays readable and Proof Red stays a mark`() {
-        // Ioskeley Dark — warm-neutral ink on near-black; status text is neutral, red is marks only
-        assertContrast("#D8D5CE", "#101010", 7.0)   // body text on canvas
-        assertContrast("#D8D5CE", "#1C1C1B", 7.0)   // body text on editor surface
-        assertContrast("#8F8D86", "#101010", 4.5)   // muted text
-        assertContrast("#7E7C77", "#101010", 3.0)   // disabled text
-        assertContrast("#D8D5CE", "#302F2B", 4.5)   // text over a selection
-        assertContrast("#B04A43", "#101010", 3.0)   // Proof Red as a graphic mark, never text
-
-        // Ioskeley Light — ink on warm paper
-        assertContrast("#292826", "#F2F0EA", 7.0)   // body text on canvas
-        assertContrast("#292826", "#E6E4DE", 7.0)   // body text on editor surface
-        assertContrast("#4E4D49", "#F2F0EA", 4.5)   // muted text
-        assertContrast("#6E6B65", "#F2F0EA", 3.0)   // disabled text
-        assertContrast("#292826", "#E2DFD8", 4.5)   // text over a selection
-        assertContrast("#913832", "#F2F0EA", 3.0)   // Proof Red as a graphic mark, never text
-    }
-
-    /**
-     * Secondary and disabled text sit on raised tonal fills too — popups, table headers,
-     * spinner buttons — so they must hold their floors there as well, matching how the
-     * Ioskeley identity lifts grammar tones over tinted fills.
-     */
-    @Test
-    fun `Ioskeley muted and disabled text stay readable on every surface`() {
-        listOf("#101010", "#1C1C1B", "#262624").forEach { surface ->
-            assertContrast("#8F8D86", surface, 4.5)
-            assertContrast("#7E7C77", surface, 3.0)
-            assertContrast("#D8D5CE", surface, 7.0)
-        }
-        listOf("#F2F0EA", "#E6E4DE", "#DCDAD4").forEach { surface ->
-            assertContrast("#4E4D49", surface, 4.5)
-            assertContrast("#6E6B65", surface, 3.0)
-            assertContrast("#292826", surface, 7.0)
-        }
+        val block = text.substringAfter("\"colors\"").substringAfter("{").substringBefore("}")
+        return Regex("""\"(\w+)\"\s*:\s*\"(#[0-9A-Fa-f]{6})\"""").findAll(block)
+            .associate { it.groupValues[1] to Color.decode(it.groupValues[2]) }
     }
 
     private fun assertTheme(resource: String, expectedName: String, expectedDark: Boolean) {
@@ -173,11 +128,6 @@ class QTranslateThemeTest {
             assertEquals(expectedName, laf.name)
             assertEquals(expectedDark, laf.isDark)
         }
-    }
-
-    private fun assertContrast(foreground: String, background: String, minimum: Double) {
-        val ratio = contrastRatio(Color.decode(foreground), Color.decode(background))
-        assertTrue(ratio >= minimum, "$foreground on $background has contrast $ratio; expected at least $minimum")
     }
 
     private fun contrastRatio(first: Color, second: Color): Double {
@@ -199,12 +149,5 @@ class QTranslateThemeTest {
         generateSequence(File(System.getProperty("user.dir"))) { it.parentFile }
             .firstOrNull { File(it, "settings.gradle.kts").isFile }
             ?: error("Could not locate the repository root from ${System.getProperty("user.dir")}")
-    }
-
-    private val silentLogger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
     }
 }

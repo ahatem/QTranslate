@@ -13,9 +13,8 @@ internal data class PageRef(val label: String, val groupLabel: String? = null)
  * query matches against in it.
  *
  * A setting is matched against its own words only — its label, its sub-section path and its
- * explanation. It used to match its page's label too, which meant "network" answered with every
- * row on the Network page; the [SearchHit.Page] result is the better answer to a page-name query,
- * and it is the reason this is no longer needed.
+ * explanation. Matching its page's label too would make "network" answer with every row on the
+ * Network page; the [SearchHit.Page] result is the better answer to a page-name query.
  */
 internal fun SearchHit.matches(query: String): Boolean {
     val q = query.lowercase()
@@ -44,9 +43,8 @@ internal fun SearchHit.matches(query: String): Boolean {
  * have to scroll past that page's thirty rows to find it.
  *
  * @param pages every selectable page, flattened, in sidebar order.
- * @param excludedPageLabels pages deliberately left unindexed. Empty today: the former Plugins
- *   exclusion existed because that page hosted a live manager, and it is an entry-point page now,
- *   so finding it by name should work like any other page.
+ * @param excludedPageLabels pages deliberately left unindexed. Empty today: the Plugins page is
+ *   an entry-point page, so finding it by name works like any other page.
  * @param actionsForPage reads one page's searchable actions. Supplied by the dialog, because an
  *   action such as "Reset Page" belongs to the dialog's own behaviour rather than to the panel.
  *   Last but one so that [entriesForPage] — the argument nearly every caller passes — can stay a

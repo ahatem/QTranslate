@@ -1,24 +1,11 @@
 package com.github.ahatem.qtranslate.core.workspace.lookup
 
-import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase
-
-import com.github.ahatem.qtranslate.api.core.Logger
-import com.github.ahatem.qtranslate.api.dictionary.BilingualDictionary
+import com.github.ahatem.qtranslate.core.testing.SilentLoggerFactory
 import com.github.ahatem.qtranslate.api.dictionary.BilingualDictionaryRequest
-import com.github.ahatem.qtranslate.api.dictionary.Definition
 import com.github.ahatem.qtranslate.api.dictionary.Dictionary
-import com.github.ahatem.qtranslate.api.dictionary.DictionaryEntry
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
-import com.github.ahatem.qtranslate.api.dictionary.DictionaryResponse
 import com.github.ahatem.qtranslate.api.language.LanguageCode
-import com.github.ahatem.qtranslate.api.plugin.ServiceError
-import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
-import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
-import com.github.ahatem.qtranslate.core.settings.data.Configuration
-import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
-import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.Result
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -29,45 +16,30 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * The pair a bilingual dictionary is asked across.
- *
- * The word being defined is one side of a translation and the definition should face the other
- * side: the translated English word of an Italian → English translation is asked about English
- * → Italian, never in the service's own default direction.
- */
+/** A bilingual dictionary is asked across the translation pair, facing the other side of the word being defined. */
 class InlineDefinitionLanguagePairTest {
 
     @Test
-    fun `the translated word is looked up toward the source language`() = runBlocking {
-        val dictionary = RecordingBilingualDictionary()
-        fetch(
-            dictionary,
-            word = "rice", language = LanguageCode.ENGLISH,
-            alternateWord = "riso", alternateLanguage = LanguageCode.ITALIAN
+    fun `each word is looked up toward the other side of the translation`() = runBlocking {
+        val cases = listOf(
+            Triple("translated word toward the source", Pair("rice", LanguageCode.ENGLISH), Pair("riso", LanguageCode.ITALIAN)),
+            Triple("source word toward the target", Pair("riso", LanguageCode.ITALIAN), Pair("rice", LanguageCode.ENGLISH))
         )
+        for ((label, word, alternate) in cases) {
+            val dictionary = RecordingBilingualDictionary()
+            fetch(
+                dictionary,
+                word = word.first, language = word.second,
+                alternateWord = alternate.first, alternateLanguage = alternate.second
+            )
 
-        assertEquals(
-            listOf(BilingualDictionaryRequest("rice", LanguageCode.ENGLISH, LanguageCode.ITALIAN)),
-            dictionary.bilingualRequests
-        )
-        assertTrue(dictionary.plainRequests.isEmpty())
-    }
-
-    @Test
-    fun `the source word is looked up toward the target language`() = runBlocking {
-        val dictionary = RecordingBilingualDictionary()
-        fetch(
-            dictionary,
-            word = "riso", language = LanguageCode.ITALIAN,
-            alternateWord = "rice", alternateLanguage = LanguageCode.ENGLISH
-        )
-
-        assertEquals(
-            listOf(BilingualDictionaryRequest("riso", LanguageCode.ITALIAN, LanguageCode.ENGLISH)),
-            dictionary.bilingualRequests
-        )
-        assertTrue(dictionary.plainRequests.isEmpty())
+            assertEquals(
+                listOf(BilingualDictionaryRequest(word.first, word.second, alternate.second)),
+                dictionary.bilingualRequests,
+                label
+            )
+            assertTrue(dictionary.plainRequests.isEmpty(), label)
+        }
     }
 
     @Test
@@ -115,10 +87,7 @@ class InlineDefinitionLanguagePairTest {
 
     // ── Harness ───────────────────────────────────────────────────────────────
 
-    /**
-     * Runs the fetch and waits for the definition to land, as in [InlineDefinitionBudgetTest].
-     * The requests recorded on the way are the assertion.
-     */
+    /** Runs the fetch and waits for the definition to land; the requests recorded on the way are the assertion. */
     private suspend fun fetch(
         dictionary: Dictionary,
         word: String,
@@ -129,10 +98,7 @@ class InlineDefinitionLanguagePairTest {
         val state = MutableStateFlow(MainState())
         val useCase = FetchInlineDefinitionUseCase(
             scope = CoroutineScope(Dispatchers.Default),
-            activeServiceManager = ActiveServiceManager(
-                activeServices = MutableStateFlow(mapOf("fake:default:dictionary" to dictionary)),
-                configuration = MutableStateFlow(Configuration.DEFAULT)
-            ),
+            activeServiceManager = managerWith(dictionary),
             loggerFactory = SilentLoggerFactory
         )
 
@@ -146,45 +112,6 @@ class InlineDefinitionLanguagePairTest {
 
         withTimeout(5_000) {
             while (state.value.inlineDefinition.isBlank()) delay(5)
-        }
-    }
-
-    private open class RecordingDictionary : Dictionary {
-        override val key = "dictionary"
-        override val name = "Fake"
-        override val version = "1.0.0"
-        override val supportedLanguages = SupportedLanguages.All
-        val plainRequests = mutableListOf<DictionaryRequest>()
-
-        override suspend fun lookup(request: DictionaryRequest): Result<DictionaryResponse, ServiceError> {
-            plainRequests += request
-            return Ok(responseFor(request.word))
-        }
-
-        protected open fun responseFor(word: String): DictionaryResponse =
-            DictionaryResponse(listOf(DictionaryEntry(word, "noun", listOf(Definition("a grain")))))
-    }
-
-    private class RecordingBilingualDictionary(
-        private val defineWords: Set<String>? = null
-    ) : RecordingDictionary(), BilingualDictionary {
-        val bilingualRequests = mutableListOf<BilingualDictionaryRequest>()
-
-        override suspend fun lookupBilingual(
-            request: BilingualDictionaryRequest
-        ): Result<DictionaryResponse, ServiceError> {
-            bilingualRequests += request
-            val defined = defineWords == null || request.word in defineWords
-            return Ok(if (defined) responseFor(request.word) else DictionaryResponse(emptyList()))
-        }
-    }
-
-    private object SilentLoggerFactory : LoggerFactory {
-        override fun getLogger(name: String): Logger = object : Logger {
-            override fun debug(message: String) = Unit
-            override fun info(message: String) = Unit
-            override fun warn(message: String) = Unit
-            override fun error(message: String, error: Throwable?) = Unit
         }
     }
 }

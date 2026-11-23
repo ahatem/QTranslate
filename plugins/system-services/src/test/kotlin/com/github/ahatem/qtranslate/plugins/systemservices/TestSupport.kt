@@ -122,3 +122,16 @@ internal fun <T> Result<T, ServiceError>.unwrap(): T =
 /** Unwraps a failed result, failing the test on an unexpected success. */
 internal fun Result<*, ServiceError>.unwrapError(): ServiceError =
     fold(success = { fail("Expected a failure, but got $it") }, failure = { it })
+
+/** A minimal valid 16-bit mono PCM WAV header with four data bytes. */
+internal fun wav(): ByteArray = ByteArray(48).also { bytes ->
+    "RIFF".toByteArray().copyInto(bytes, 0)
+    bytes[4] = 40
+    "WAVEfmt ".toByteArray().copyInto(bytes, 8)
+    bytes[16] = 16; bytes[20] = 1; bytes[22] = 1
+    bytes[24] = 0x80.toByte(); bytes[25] = 0x3e
+    bytes[28] = 0x00; bytes[29] = 0x7d
+    bytes[32] = 2; bytes[34] = 16
+    "data".toByteArray().copyInto(bytes, 36)
+    bytes[40] = 4
+}

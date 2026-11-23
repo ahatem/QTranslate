@@ -4,13 +4,9 @@ package com.github.ahatem.qtranslate.api.plugin
  * A user-selectable modifier that a service declares and the host renders UI for.
  *
  * ### Why options are data rather than enums
- * Summary length and rewrite style used to be enums owned by the host. That made the vocabulary
- * closed: a plugin could not offer "Academic" or "Bullet points", could not say it supported
- * only some of the values the host advertised, and the host could not tell whether a service
- * honoured the parameter at all. The host built its dropdown from the enum, so every service
- * appeared to support every value.
- *
- * Declaring options as data inverts that. The service says what it supports, the host renders
+ * A host-owned enum would make the vocabulary closed: a plugin could not offer "Academic" or
+ * "Bullet points", could not say it supports only some values, and every service would appear to
+ * support every value. As data, the service says what it supports, the host renders
  * exactly those choices, and a new modifier — formality, tone, domain, anything unforeseen —
  * needs no API change.
  *

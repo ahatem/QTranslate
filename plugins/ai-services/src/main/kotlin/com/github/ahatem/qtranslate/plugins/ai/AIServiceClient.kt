@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
+import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
 import com.github.ahatem.qtranslate.plugins.common.sendJson
 import com.github.michaelbull.result.Err
@@ -11,7 +12,6 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.andThen
 import com.github.michaelbull.result.map
 import com.github.michaelbull.result.toResultOr
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
@@ -54,7 +54,6 @@ class AIServiceClient(
     private val httpClient: HttpClient
 ) {
     private val responseParser = createJsonParser<ChatCompletionResponse>(pluginContext)
-    private val headersJson = Json { ignoreUnknownKeys = true; isLenient = true }
 
     /**
      * Checks that the configured endpoint, key and model actually work together.
@@ -203,7 +202,7 @@ class AIServiceClient(
             put("Content-Type", "application/json")
             if (profile.customHeaders.isNotBlank()) {
                 runCatching {
-                    headersJson.decodeFromString<Map<String, String>>(profile.customHeaders)
+                    PluginJson.decodeFromString<Map<String, String>>(profile.customHeaders)
                 }.onSuccess { extra ->
                     extra.forEach { (key, value) ->
                         if (!key.equals("Authorization", ignoreCase = true) &&

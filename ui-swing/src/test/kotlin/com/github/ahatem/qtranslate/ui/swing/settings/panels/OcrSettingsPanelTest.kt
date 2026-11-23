@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
-import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.ocr.OCR
 import com.github.ahatem.qtranslate.api.plugin.Service
@@ -11,6 +10,7 @@ import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.OcrPostSelectionAction
+import com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
@@ -23,8 +23,8 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import javax.swing.JButton
-import javax.swing.JCheckBox
-import javax.swing.SwingUtilities
+import com.github.ahatem.qtranslate.ui.swing.testing.SilentLogger
+import com.github.ahatem.qtranslate.ui.swing.testing.onEdt
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -33,56 +33,44 @@ import kotlin.test.assertTrue
 
 class OcrSettingsPanelTest {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val logger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
     private val localizer by lazy {
-        LocalizationManager(Files.createTempDirectory("qtranslate-ocr-settings").toFile(), LanguageTomlParser(), logger)
+        LocalizationManager(Files.createTempDirectory("qtranslate-ocr-settings").toFile(), LanguageTomlParser(), SilentLogger)
     }
 
     @AfterTest
     fun tearDown() = scope.cancel()
 
     @Test
-    fun `the page shows the compatible defaults and manages dependent controls`() {
+    fun `choosing translate after selection writes the draft and keeps the destination usable`() {
         val fixture = onEdt { fixture() }
+        onEdt { fixture.panel.render(fixture.store.state.value) }
+
+        assertEquals(0, onEdt { fixture.panel.postActionComboForTest().selectedIndex })
+        assertTrue(onEdt { fixture.panel.destinationComboForTest().isEnabled }, "explicit translate hotkeys need the destination")
 
         onEdt {
-            fixture.panel.render(fixture.store.state.value)
-            assertEquals(0, fixture.panel.postActionComboForTest().selectedIndex)
-            assertTrue(fixture.panel.destinationComboForTest().isEnabled, "explicit translate hotkeys need this destination")
-            assertEquals(
-                "First OCR",
-                fixture.panel.providerSummaryForTest().text,
-                "the active preset's OCR service is shown, read-only",
-            )
-            assertTrue(fixture.panel.languageComboForTest().itemCount >= 2)
-            assertFalse(fixture.panel.removeLineBreaksForTest().isSelected)
-
             fixture.panel.postActionComboForTest().selectedIndex = 1
             fixture.panel.render(fixture.store.state.value)
-
-            assertEquals(
-                OcrPostSelectionAction.TRANSLATE,
-                fixture.store.state.value.workingConfiguration.ocr.postSelectionAction,
-            )
-            assertTrue(fixture.panel.destinationComboForTest().isEnabled)
-
-            fixture.panel.removeLineBreaksForTest().doClick()
-            assertTrue(fixture.store.state.value.workingConfiguration.ocr.removeLineBreaks)
-
-            fixture.panel.destinationComboForTest().selectedIndex = 1
-            assertEquals(
-                com.github.ahatem.qtranslate.core.settings.data.OcrTranslationDestination.QUICK_TRANSLATE,
-                fixture.store.state.value.workingConfiguration.ocr.translationDestination,
-            )
-
-            fixture.panel.annotationsForTest().doClick()
-            assertFalse(fixture.store.state.value.workingConfiguration.ocr.showWorkspaceAnnotations)
         }
+
+        assertEquals(OcrPostSelectionAction.TRANSLATE, fixture.store.state.value.workingConfiguration.ocr.postSelectionAction)
+        assertTrue(onEdt { fixture.panel.destinationComboForTest().isEnabled })
+    }
+
+    @Test
+    fun `the destination, line-break and annotation options write the draft`() {
+        val fixture = onEdt { fixture() }
+        onEdt { fixture.panel.render(fixture.store.state.value) }
+        assertFalse(onEdt { fixture.panel.removeLineBreaksForTest().isSelected })
+
+        onEdt { fixture.panel.removeLineBreaksForTest().doClick() }
+        onEdt { fixture.panel.destinationComboForTest().selectedIndex = 1 }
+        onEdt { fixture.panel.annotationsForTest().doClick() }
+
+        val ocr = fixture.store.state.value.workingConfiguration.ocr
+        assertTrue(ocr.removeLineBreaks)
+        assertEquals(OcrTranslationDestination.QUICK_TRANSLATE, ocr.translationDestination)
+        assertFalse(ocr.showWorkspaceAnnotations)
     }
 
     @Test
@@ -116,7 +104,7 @@ class OcrSettingsPanelTest {
 
     private fun fixture(onOpenServices: () -> Unit = {}): Fixture = runBlocking {
         val directory = Files.createTempDirectory("qtranslate-ocr-settings-store").toFile()
-        val repository = SettingsRepository(directory, Json { ignoreUnknownKeys = true }, logger)
+        val repository = SettingsRepository(directory, Json { ignoreUnknownKeys = true }, SilentLogger)
         val preset = ServicePreset(
             id = "preset",
             name = "preset",
@@ -127,7 +115,7 @@ class OcrSettingsPanelTest {
             activeServicePresetId = preset.id,
         )
         repository.updateConfiguration(configuration)
-        val store = SettingsStore(repository, logger, scope, configuration)
+        val store = SettingsStore(repository, SilentLogger, scope, configuration)
         val services = mapOf<String, Service>(
             "first-ocr" to FakeOcr("first-ocr", "First OCR"),
             "second-ocr" to FakeOcr("second-ocr", "Second OCR"),
@@ -136,7 +124,7 @@ class OcrSettingsPanelTest {
             activeServices = MutableStateFlow(services),
             configuration = MutableStateFlow(configuration),
             scope = scope,
-            logger = logger,
+            logger = SilentLogger,
         )
         val panel = OcrSettingsPanel(
             store, localizer, catalog, scope,
@@ -144,15 +132,6 @@ class OcrSettingsPanelTest {
             onOpenServices = onOpenServices,
         )
         Fixture(panel, store)
-    }
-
-    private fun descendants(root: java.awt.Container): List<java.awt.Component> =
-        root.components.flatMap { listOf(it) + if (it is java.awt.Container) descendants(it) else emptyList() }
-
-    private fun <T> onEdt(block: () -> T): T {
-        var result: Result<T>? = null
-        SwingUtilities.invokeAndWait { result = runCatching(block) }
-        return result!!.getOrThrow()
     }
 
     private class FakeOcr(

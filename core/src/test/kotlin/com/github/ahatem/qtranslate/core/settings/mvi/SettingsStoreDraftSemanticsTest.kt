@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.core.settings.mvi
 
-import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
@@ -11,6 +10,7 @@ import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
 import com.github.ahatem.qtranslate.core.settings.data.TranslatorMove
 import com.github.ahatem.qtranslate.core.settings.data.translatorSetIds
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +20,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
@@ -27,8 +29,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -38,12 +38,7 @@ import kotlin.uuid.ExperimentalUuidApi
 
 @OptIn(ExperimentalUuidApi::class, ExperimentalCoroutinesApi::class)
 class SettingsStoreDraftSemanticsTest {
-    private val logger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
+    private val logger = SilentLogger
     private val directories = mutableListOf<java.io.File>()
     private val scopes = mutableListOf<CoroutineScope>()
 
@@ -354,30 +349,14 @@ class SettingsStoreDraftSemanticsTest {
         scopes += scope
         val repository = SettingsRepository(directory, Json { ignoreUnknownKeys = true }, logger, storageScope = scope)
         repository.updateConfiguration(config)
-        // The store observes the repository asynchronously. The initial state is
-        // seeded correctly, but until the collector has processed the repository's
-        // first emission the store holds an unprocessed stale value: a save that
-        // commits before that emission lands is transiently reverted by it
-        // (observed in CI as "expected [b, c, d] actual [a, b, c, d]"). Await the
-        // first synchronization with a latch on the sync debug message — no
-        // sleeps — so every test exercises draft semantics against a fully
-        // initialized store. Coupled to SettingsStore.observeRepositoryChanges'
-        // "Syncing working config from repository" debug message.
-        val firstRepositorySync = CountDownLatch(1)
-        val syncAwareLogger = object : Logger by logger {
-            override fun debug(message: String) {
-                if (message == SYNC_DEBUG_MESSAGE) firstRepositorySync.countDown()
-                logger.debug(message)
-            }
-        }
-        val store = SettingsStore(repository, syncAwareLogger, scope, config)
-        check(firstRepositorySync.await(10, TimeUnit.SECONDS)) {
-            "SettingsStore did not synchronize with the repository before the test started"
+        // The store observes the repository asynchronously. Seeding it with a different
+        // configuration makes the first repository emission observable: once the state matches
+        // the persisted config, the store is fully synchronized and a later save cannot be
+        // reverted by a stale first emission.
+        val store = SettingsStore(repository, logger, scope, config.copy(uiScale = config.uiScale + 1))
+        withContext(Dispatchers.Default) {
+            withTimeout(10_000) { store.state.first { it.originalConfiguration == config } }
         }
         return store
-    }
-
-    private companion object {
-        const val SYNC_DEBUG_MESSAGE = "Syncing working config from repository"
     }
 }

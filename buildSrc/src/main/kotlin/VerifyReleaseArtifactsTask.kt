@@ -6,7 +6,6 @@ import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
-import java.security.MessageDigest
 import java.util.zip.ZipFile
 
 abstract class VerifyReleaseArtifactsTask : DefaultTask() {
@@ -117,8 +116,7 @@ abstract class VerifyReleaseArtifactsTask : DefaultTask() {
         logger.lifecycle("Release inventory, metadata, portable resources, sizes, and ${checksums.size} checksums verified")
     }
 
-    private fun hash(file: File): String = MessageDigest.getInstance("SHA-256")
-        .digest(file.readBytes()).joinToString("") { "%02x".format(it.toInt() and 0xff) }
+    private fun hash(file: File): String = sha256Hex(file.readBytes())
 
     @Suppress("UNCHECKED_CAST")
     private fun obj(value: Any?): Map<String, Any?> = value as Map<String, Any?>

@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.core.main.domain.usecase
 
-import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -13,7 +12,7 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.shared.StatusCode
-import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
+import com.github.ahatem.qtranslate.core.testing.SilentLoggerFactory
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -52,14 +51,7 @@ class PerformSpellCheckAutoLanguageTest {
                 MutableStateFlow(mapOf<String, Service>("fake:default:fake-spell" to checker)),
                 MutableStateFlow(Configuration.DEFAULT),
             ),
-            object : LoggerFactory {
-                override fun getLogger(name: String) = object : Logger {
-                    override fun debug(message: String) = Unit
-                    override fun info(message: String) = Unit
-                    override fun warn(message: String) = Unit
-                    override fun error(message: String, error: Throwable?) = Unit
-                }
-            },
+            SilentLoggerFactory,
             userLocale = { locale },
         )
 
@@ -108,20 +100,21 @@ class PerformSpellCheckAutoLanguageTest {
         assertTrue(harness.statuses.isEmpty())
     }
 
-    @Test fun `exact system locale outranks its supported base language`() = runTest {
+    @Test fun `system locale resolves to the most specific advertised language`() = runTest {
         val finding = Correction("Ths", 0, 3, listOf("This"))
-        val checker = FakeChecker(SupportedLanguages.Specific(setOf(LanguageCode.ENGLISH, LanguageCode("en-US"))))
-            .apply { corrections = listOf(finding) }
-        val state = MainState(sourceLanguage = LanguageCode.AUTO)
-        assertEquals(listOf(finding), Harness(checker, Locale.forLanguageTag("en-US")).check(state))
-        assertEquals(listOf(LanguageCode("en-US")), checker.requests.map { it.language })
-        assertEquals(null, state.detectedSourceLanguage)
-    }
+        val cases = listOf(
+            Triple("exact locale outranks its base", setOf(LanguageCode.ENGLISH, LanguageCode("en-US")), "en-US") to LanguageCode("en-US"),
+            Triple("regional locale uses the advertised base", setOf(LanguageCode.ARABIC), "ar-EG") to LanguageCode.ARABIC,
+        )
+        for ((case, expected) in cases) {
+            val (label, supported, locale) = case
+            val checker = FakeChecker(SupportedLanguages.Specific(supported)).apply { corrections = listOf(finding) }
+            val state = MainState(sourceLanguage = LanguageCode.AUTO)
 
-    @Test fun `regional system locale uses advertised base language`() = runTest {
-        val checker = FakeChecker(SupportedLanguages.Specific(setOf(LanguageCode.ARABIC)))
-        Harness(checker, Locale.forLanguageTag("ar-EG")).check(LanguageCode.AUTO)
-        assertEquals(listOf(LanguageCode.ARABIC), checker.requests.map { it.language })
+            assertEquals(listOf(finding), Harness(checker, Locale.forLanguageTag(locale)).check(state), label)
+            assertEquals(listOf(expected), checker.requests.map { it.language }, label)
+            assertEquals(null, state.detectedSourceLanguage, label)
+        }
     }
 
     @Test fun `system locale never selects a different region without a supported base`() = runTest {

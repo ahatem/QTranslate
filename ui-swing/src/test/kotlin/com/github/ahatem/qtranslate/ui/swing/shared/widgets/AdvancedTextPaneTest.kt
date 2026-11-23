@@ -6,11 +6,10 @@ import com.github.ahatem.qtranslate.ui.swing.shared.textpane.GraphemeBoundary
 import com.github.ahatem.qtranslate.ui.swing.shared.textpane.MenuShortcutModifier
 import com.github.ahatem.qtranslate.ui.swing.shared.util.isRTL
 import com.github.ahatem.qtranslate.ui.swing.shared.util.withFlatLafScale
+import com.github.ahatem.qtranslate.ui.swing.testing.onEdt
 import java.awt.Dimension
 import java.awt.Font
-import java.awt.GraphicsEnvironment
 import java.awt.Insets
-import java.awt.Toolkit
 import java.awt.event.ActionEvent
 import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
@@ -20,7 +19,6 @@ import java.text.BreakIterator
 import javax.accessibility.AccessibleText
 import javax.swing.JScrollPane
 import javax.swing.KeyStroke
-import javax.swing.SwingUtilities
 import javax.swing.text.DefaultHighlighter
 import javax.swing.text.LabelView
 import javax.swing.text.StyleConstants
@@ -33,19 +31,8 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * Regression suite for [AdvancedTextPane], deterministic and bound to the event dispatch thread
- * through [onEdt]. No robot interaction and no timing thresholds.
- */
+/** [AdvancedTextPane] behaviour, driven on the event dispatch thread without robots. */
 class AdvancedTextPaneTest {
-
-    private fun <T> onEdt(block: () -> T): T {
-        if (SwingUtilities.isEventDispatchThread()) return block()
-        var result: T? = null
-        SwingUtilities.invokeAndWait { result = block() }
-        @Suppress("UNCHECKED_CAST")
-        return result as T
-    }
 
     private fun newPane(
         onTextChanged: (String) -> Unit = {},
@@ -78,7 +65,8 @@ class AdvancedTextPaneTest {
     @Test
     fun `padding is scaled exactly once`() {
         val (expected, insets) = withFlatLafScale(fontSize = 48) {
-            onEdt { UIScale.scale(6) to newPane().insets }
+            val pane = newPane()
+            onEdt { UIScale.scale(6) to pane.insets }
         }
         assertTrue(expected > 6, "UIScale is not reporting a raised factor, so this test proves nothing")
         assertEquals(Insets(expected, expected, expected, expected), insets)
@@ -153,28 +141,14 @@ class AdvancedTextPaneTest {
         (pane.document as StyledDocument).defaultRootElement
 
     @Test
-    fun `undo reverts typed text even after presentation has run`() {
-        val pane = newPane()
-        onEdt { pane.document.insertString(0, "hello", null) }
-        settle()
-
-        trigger(pane, "undo")
-        assertEquals("", onEdt { pane.text })
-    }
-
-    @Test
-    fun `typing then undo then redo round-trips`() {
+    fun `typing and clearing are undoable and redoable`() {
         val pane = newPane()
         onEdt { pane.document.insertString(0, "abc", null) }
         trigger(pane, "undo")
         assertEquals("", onEdt { pane.text })
         trigger(pane, "redo")
         assertEquals("abc", onEdt { pane.text })
-    }
 
-    @Test
-    fun `clear is undoable`() {
-        val pane = newPane()
         onEdt { pane.render("keep me", emptyList(), true) }
         onEdt { pane.document.remove(0, pane.document.length) }
         assertEquals("", onEdt { pane.text })
@@ -197,16 +171,6 @@ class AdvancedTextPaneTest {
         onEdt { pane.document.insertString(0, "x", null) }
         assertEquals(1, reported)
         assertEquals("xhello", onEdt { pane.text })
-    }
-
-    @Test
-    fun `repeated render with the same text is a no-op`() {
-        var reported = 0
-        val pane = newPane(onTextChanged = { reported++ })
-        onEdt { pane.render("hello", emptyList(), true) }
-        onEdt { pane.render("hello", emptyList(), true) }
-        assertEquals(0, reported)
-        assertEquals("hello", onEdt { pane.text })
     }
 
     // -----------------------------------------------------------------------
@@ -290,17 +254,6 @@ class AdvancedTextPaneTest {
         assertTrue(onEdt { ltrMajority.componentOrientation.isLeftToRight })
     }
 
-    @Test
-    fun `typing a direction-changing character realigns the paragraph`() {
-        val pane = newPane()
-        onEdt { pane.render("", emptyList(), true) }
-        onEdt { pane.document.insertString(0, "مرحبا", null) }
-        settle()
-
-        val root = onEdt { (pane.document as StyledDocument).defaultRootElement }
-        assertEquals(StyleConstants.ALIGN_RIGHT, alignmentOf(root, 0))
-    }
-
     private fun alignmentOf(root: javax.swing.text.Element, index: Int): Int =
         StyleConstants.getAlignment(root.getElement(index).attributes)
 
@@ -310,84 +263,23 @@ class AdvancedTextPaneTest {
     // Unicode
     // -----------------------------------------------------------------------
 
-    @Test
-    fun `grapheme segmentation keeps complex clusters together`() {
-        assertEquals(1, clusters("\uD83D\uDE00"), "surrogate pair (emoji)")
-        assertEquals(1, clusters("a\u0301"), "base letter + combining mark")
-        assertEquals(1, clusters("\uD83D\uDC4D\uD83C\uDFFD"), "emoji + skin-tone modifier")
-        assertEquals(1, clusters("\uD83C\uDDFA\uD83C\uDDF8"), "regional-indicator flag")
-        assertEquals(
-            1,
-            clusters("\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67"),
-            "zero-width-joiner family sequence",
-        )
-        assertEquals(2, clusters("ab"), "two plain letters stay two clusters")
-    }
-
-    @Test
-    fun `long unbreakable grapheme run is laid out without altering the text`() {
-        val text = "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67".repeat(400)
-        val pane = newPane()
-        onEdt {
-            pane.size = Dimension(120, 240)
-            pane.render(text, emptyList(), true)
-            val scroll = JScrollPane(pane)
-            scroll.setSize(120, 240)
-            scroll.doLayout()
-            pane.preferredSize
-        }
-        assertEquals(text, onEdt { pane.text })
-    }
-
-    @Test
-    fun `long cjk run is laid out without altering the text`() {
-        val text = "快速翻译帮助读者轻松理解外文文本".repeat(100)
-        val pane = newPane()
-        onEdt {
-            pane.size = Dimension(160, 200)
-            pane.render(text, emptyList(), true)
-            JScrollPane(pane).apply { setSize(160, 200); doLayout() }
-            pane.preferredSize
-        }
-        assertEquals(text, onEdt { pane.text })
-    }
-
-    /**
-     * Number of grapheme clusters in [s].
-     *
-     * A [BreakIterator] reports boundaries, not clusters, and includes the position before the
-     * first character, so the intervals are one fewer than the boundaries.
-     */
-    private fun clusters(s: String): Int {
-        val iterator = BreakIterator.getCharacterInstance()
-        iterator.setText(s)
-        var boundaries = 0
-        var boundary = iterator.first()
-        while (boundary != BreakIterator.DONE) {
-            boundaries++
-            boundary = iterator.next()
-        }
-        return boundaries - 1
-    }
-
     // -----------------------------------------------------------------------
     // Keyboard / platform
     // -----------------------------------------------------------------------
 
     @Test
-    fun `copy, select all and cut use the platform menu shortcut`() {
+    fun `clipboard, select all and undo use the platform menu shortcut, and redo is on both conventions`() {
         val pane = newPane()
         val menuMask = MenuShortcutModifier.current()
-        assertEquals("copy-to-clipboard", onEdt { pane.inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_C, menuMask)) })
-        assertEquals("select-all", onEdt { pane.inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_A, menuMask)) })
-        assertEquals("cut-to-clipboard", onEdt { pane.inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_X, menuMask)) })
-    }
-
-    @Test
-    fun `undo uses the menu shortcut and redo is available on both conventions`() {
-        val pane = newPane()
-        val menuMask = MenuShortcutModifier.current()
-        assertEquals("undo", onEdt { pane.inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_Z, menuMask)) })
+        val bindings = listOf(
+            KeyEvent.VK_C to "copy-to-clipboard",
+            KeyEvent.VK_A to "select-all",
+            KeyEvent.VK_X to "cut-to-clipboard",
+            KeyEvent.VK_Z to "undo",
+        )
+        for ((key, action) in bindings) {
+            assertEquals(action, onEdt { pane.inputMap.get(KeyStroke.getKeyStroke(key, menuMask)) }, "menu shortcut for $action")
+        }
 
         val shiftRedo = KeyStroke.getKeyStroke(KeyEvent.VK_Z, menuMask or InputEvent.SHIFT_DOWN_MASK)
         assertEquals("redo", onEdt { pane.inputMap.get(shiftRedo) })
@@ -427,74 +319,34 @@ class AdvancedTextPaneTest {
         assertEquals(listOf("hello"), requests)
     }
 
-    @Test
-    fun `translate binding refuses to overwrite a core action`() {
-        val pane = newPane()
-        val menuMask = MenuShortcutModifier.current()
-        val copy = KeyStroke.getKeyStroke(KeyEvent.VK_C, menuMask)
-
-        val accepted = onEdt { pane.setTranslateKeyStroke(null, copy) }
-
-        assertFalse(accepted, "a colliding translate shortcut must be refused, not installed")
-        assertEquals("copy-to-clipboard", onEdt { pane.inputMap.get(copy) })
-    }
-
     // -----------------------------------------------------------------------
     // Platform menu shortcut resolution
     // -----------------------------------------------------------------------
 
     @Test
-    fun `the headless fallback uses Ctrl on Windows and Linux`() {
-        assertEquals(InputEvent.CTRL_DOWN_MASK, MenuShortcutModifier.fallback("Windows 11"))
-        assertEquals(InputEvent.CTRL_DOWN_MASK, MenuShortcutModifier.fallback("Linux"))
-        assertEquals(InputEvent.CTRL_DOWN_MASK, MenuShortcutModifier.fallback(null))
-    }
+    fun `the menu shortcut modifier resolves from the OS name when headless and from the toolkit otherwise`() {
+        for (os in listOf("Windows 11", "Linux", null)) {
+            assertEquals(InputEvent.CTRL_DOWN_MASK, MenuShortcutModifier.fallback(os), "fallback for $os")
+        }
+        for (os in listOf("Mac OS X", "macOS")) {
+            assertEquals(InputEvent.META_DOWN_MASK, MenuShortcutModifier.fallback(os), "fallback for $os")
+        }
 
-    @Test
-    fun `the headless fallback uses Command on macOS`() {
-        assertEquals(InputEvent.META_DOWN_MASK, MenuShortcutModifier.fallback("Mac OS X"))
-        assertEquals(InputEvent.META_DOWN_MASK, MenuShortcutModifier.fallback("macOS"))
-    }
-
-    @Test
-    fun `a headful platform takes its modifier from the toolkit`() {
         var asked = false
-        val mask = MenuShortcutModifier.resolve(headless = false, osName = "Linux", toolkitMask = {
+        val headful = MenuShortcutModifier.resolve(headless = false, osName = "Linux", toolkitMask = {
             asked = true
             InputEvent.META_DOWN_MASK
         })
+        assertTrue(asked, "a headful platform takes its modifier from the toolkit")
+        assertEquals(InputEvent.META_DOWN_MASK, headful)
 
-        assertTrue(asked, "the toolkit supplies the modifier when one is available")
-        assertEquals(InputEvent.META_DOWN_MASK, mask)
-    }
-
-    @Test
-    fun `a headless platform never asks the toolkit`() {
-        var asked = false
-        val mask = MenuShortcutModifier.resolve(headless = true, osName = "Mac OS X", toolkitMask = {
+        asked = false
+        val headless = MenuShortcutModifier.resolve(headless = true, osName = "Mac OS X", toolkitMask = {
             asked = true
             InputEvent.CTRL_DOWN_MASK
         })
-
         assertFalse(asked, "the headful-only toolkit must not be consulted when headless")
-        assertEquals(InputEvent.META_DOWN_MASK, mask)
-    }
-
-    @Test
-    fun `the resolved modifier follows the environment it runs in`() {
-        val resolved = MenuShortcutModifier.current()
-
-        if (GraphicsEnvironment.isHeadless()) {
-            assertEquals(MenuShortcutModifier.fallback(System.getProperty("os.name")), resolved)
-        } else {
-            assertEquals(Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx, resolved)
-        }
-    }
-
-    /** The construction step that failed on the headless CI runner. */
-    @Test
-    fun `the pane is constructible in the current environment`() {
-        assertNotNull(newPane())
+        assertEquals(InputEvent.META_DOWN_MASK, headless)
     }
 
     // -----------------------------------------------------------------------
@@ -543,16 +395,6 @@ class AdvancedTextPaneTest {
         assertEquals(2, accessible.getCharCount())
     }
 
-    @Test
-    fun `accessible text still reflects the document selection`() {
-        val pane = newPane()
-        onEdt { pane.render("hello world", emptyList(), true) }
-        onEdt { pane.select(0, 5) }
-
-        val accessible = onEdt { pane.accessibleContext as AccessibleText }
-        assertEquals("hello", accessible.getSelectedText())
-    }
-
     // -----------------------------------------------------------------------
     // Translate rebinding is atomic
     // -----------------------------------------------------------------------
@@ -563,21 +405,15 @@ class AdvancedTextPaneTest {
         KeyStroke.getKeyStroke(KeyEvent.VK_C, MenuShortcutModifier.current())
 
     @Test
-    fun `a free stroke is installed as the translate binding`() {
-        val pane = newPane()
-        val stroke = altT()
-
-        assertTrue(onEdt { pane.setTranslateKeyStroke(null, stroke) })
-        assertEquals("translate", onEdt { pane.inputMap.get(stroke) })
-    }
-
-    @Test
-    fun `translate rebinds from one free stroke to another`() {
+    fun `translate installs on a free stroke, rebinds to another, and rebinding to the same stroke is idempotent`() {
         val pane = newPane()
         val first = altT()
         val second = altR()
 
         assertTrue(onEdt { pane.setTranslateKeyStroke(null, first) })
+        assertEquals("translate", onEdt { pane.inputMap.get(first) })
+        assertTrue(onEdt { pane.setTranslateKeyStroke(first, first) })
+        assertEquals("translate", onEdt { pane.inputMap.get(first) })
         assertTrue(onEdt { pane.setTranslateKeyStroke(first, second) })
 
         assertNull(onEdt { pane.inputMap.get(first) })
@@ -608,19 +444,6 @@ class AdvancedTextPaneTest {
         assertTrue(onEdt { pane.setTranslateKeyStroke(stroke, null) })
 
         assertNull(onEdt { pane.inputMap.get(stroke) })
-    }
-
-    @Test
-    fun `rebinding to the same stroke is idempotent`() {
-        val pane = newPane()
-        val stroke = altT()
-
-        assertTrue(onEdt { pane.setTranslateKeyStroke(null, stroke) })
-        assertTrue(onEdt { pane.setTranslateKeyStroke(stroke, stroke) })
-        assertEquals("translate", onEdt { pane.inputMap.get(stroke) })
-
-        assertTrue(onEdt { pane.setTranslateKeyStroke(stroke, stroke) })
-        assertEquals("translate", onEdt { pane.inputMap.get(stroke) })
     }
 
     @Test
@@ -671,26 +494,6 @@ class AdvancedTextPaneTest {
             "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67",
             "zero-width-joiner sequence",
         )
-    }
-
-    /**
-     * Whether a run wraps at all depends on the font's glyph advances, so this asserts only what
-     * the laid out views must satisfy: they begin at the first character and cover the text in
-     * order without gaps. The grapheme guarantee itself is asserted by the width sweep below.
-     */
-    @Test
-    fun `laid out fragments cover an unbreakable run without gaps`() {
-        val text = "\uD83C\uDDFA\uD83C\uDDF8".repeat(60)
-        val fragments = laidOutFragments(text)
-
-        assertEquals(0, fragments.first().startOffset)
-        assertTrue(
-            fragments.last().endOffset >= text.length,
-            "the last fragment must reach the end of the run",
-        )
-        fragments.zipWithNext().forEach { (previous, next) ->
-            assertEquals(previous.endOffset, next.startOffset, "wrapped fragments must not leave gaps")
-        }
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.core.plugin.settings
 
+import com.github.ahatem.qtranslate.core.testing.SilentLoggerFactory
 import com.github.ahatem.qtranslate.api.plugin.Plugin
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
@@ -7,7 +8,6 @@ import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.settings.Setting
 import com.github.ahatem.qtranslate.api.settings.SettingType
-import com.github.ahatem.qtranslate.core.plugin.FixtureLoggerFactory
 import com.github.ahatem.qtranslate.core.plugin.registry.ServiceId
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
 import com.github.ahatem.qtranslate.core.plugin.storage.ScopedSecretStore
@@ -17,7 +17,6 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.getError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
-import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -59,7 +58,7 @@ class PluginSettingsManagerTest {
         }
     }
 
-    private fun managerFor(store: PluginKeyValueStore) = PluginSettingsManager(store, FixtureLoggerFactory)
+    private fun managerFor(store: PluginKeyValueStore) = PluginSettingsManager(store, SilentLoggerFactory)
 
     private fun secretsFor(store: PluginKeyValueStore) =
         ScopedSecretStore(pluginId, ServiceId.DEFAULT_INSTANCE, store)
@@ -139,46 +138,30 @@ class PluginSettingsManagerTest {
     }
 
     @Test
-    fun `plugin rejection persists nothing anywhere and surfaces the error`() = runBlocking {
-        val directory = Files.createTempDirectory("qtranslate-settings-secret-reject").toFile()
-        try {
-            val store = PluginKeyValueStore(directory)
-            val plugin = FakePlugin().apply {
-                onChanged = { Err(ServiceError.ValidationError("key does not look valid")) }
+    fun `a rejection or an unexpected exception from the plugin persists nothing and becomes a typed failure`() = runBlocking {
+        val cases = listOf<Pair<String, () -> Result<Unit, ServiceError>>>(
+            "rejection" to { Err(ServiceError.ValidationError("key does not look valid")) },
+            "exception" to { throw IllegalStateException("synthetic provider failure") }
+        )
+        for ((label, onChanged) in cases) {
+            val directory = Files.createTempDirectory("qtranslate-settings-secret-reject").toFile()
+            try {
+                val store = PluginKeyValueStore(directory)
+                val plugin = FakePlugin().apply { this.onChanged = { onChanged() } }
+
+                val result = managerFor(store).applySettings(
+                    pluginId, plugin, mapOf("apiKey" to "rejected-key-4", "label" to "hello")
+                )
+
+                val error = result.getError()
+                if (label == "rejection") assertTrue(error is ServiceError.ValidationError, label)
+                else assertTrue(error is ServiceError.UnknownError, label)
+                assertNull(store.getValue(pluginId, "apiKey"), label)
+                assertNull(store.getValue(pluginId, "label"), label)
+                assertNull(secretsFor(store).get("apiKey"), label)
+            } finally {
+                directory.deleteRecursively()
             }
-
-            val result = managerFor(store).applySettings(
-                pluginId, plugin, mapOf("apiKey" to "rejected-key-4", "label" to "hello")
-            )
-
-            assertTrue(result.getError() is ServiceError.ValidationError)
-            assertNull(store.getValue(pluginId, "apiKey"))
-            assertNull(store.getValue(pluginId, "label"))
-            assertNull(secretsFor(store).get("apiKey"))
-        } finally {
-            directory.deleteRecursively()
-        }
-    }
-
-    @Test
-    fun `unexpected plugin exception becomes a typed failure and persists nothing`() = runBlocking {
-        val directory = Files.createTempDirectory("qtranslate-settings-secret-throw").toFile()
-        try {
-            val store = PluginKeyValueStore(directory)
-            val plugin = FakePlugin().apply {
-                onChanged = { throw IllegalStateException("synthetic provider failure") }
-            }
-
-            val result = managerFor(store).applySettings(
-                pluginId, plugin, mapOf("apiKey" to "thrown-key-5", "label" to "hello")
-            )
-
-            assertTrue(result.getError() is ServiceError.UnknownError)
-            assertNull(store.getValue(pluginId, "apiKey"))
-            assertNull(store.getValue(pluginId, "label"))
-            assertNull(secretsFor(store).get("apiKey"))
-        } finally {
-            directory.deleteRecursively()
         }
     }
 

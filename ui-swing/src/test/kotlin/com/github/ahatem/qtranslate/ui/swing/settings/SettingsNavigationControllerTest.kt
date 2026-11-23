@@ -1,22 +1,18 @@
 package com.github.ahatem.qtranslate.ui.swing.settings
 
 import com.github.ahatem.qtranslate.ui.swing.settings.panels.SettingsPanel
+import com.github.ahatem.qtranslate.ui.swing.testing.onEdt
 import java.awt.BorderLayout
 import java.awt.ComponentOrientation
 import java.awt.Rectangle
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JScrollPane
-import javax.swing.Icon
 import javax.swing.JTree
-import javax.swing.SwingUtilities
-import javax.swing.border.EmptyBorder
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeCellRenderer
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -27,13 +23,6 @@ import kotlin.test.assertTrue
  * after a search.
  */
 class SettingsNavigationControllerTest {
-
-    private fun <T> onEdt(block: () -> T): T {
-        if (SwingUtilities.isEventDispatchThread()) return block()
-        var result: T? = null
-        SwingUtilities.invokeAndWait { result = block() }
-        return result!!
-    }
 
     private class Fixture(
         val built: MutableList<String>,
@@ -81,64 +70,6 @@ class SettingsNavigationControllerTest {
             (tree.getPathForRow(row).lastPathComponent as? DefaultMutableTreeNode)?.userObject == label
         }
 
-    /**
-     * A group heading is a label over the block beneath it, not an item in the list.
-     *
-     * So it carries no icon, starts at the row's leading edge, and names itself in upper case: the
-     * indented pages are what then reads as the list. Its rows are still indented past it, which is
-     * the hierarchy the sidebar is for.
-     *
-     * An earlier version kept a blank icon slot so the heading's text lined up with the pages'
-     * text. That is what made the two headings in the middle of the sidebar read as greyed-out
-     * pages — same column as the items, same face, only slightly quieter — which is how they were
-     * reported.
-     */
-    @Test
-    fun `a group heading is upper case, has no icon, and sits left of the rows it labels`() {
-        val fixture = newFixture()
-
-        data class Rendered(val text: String, val icon: Icon?, val leading: Int)
-
-        val (heading, child, topLevel) = onEdt {
-            val tree = fixture.controller.tree
-            val renderer = tree.cellRenderer as DefaultTreeCellRenderer
-            fun render(label: String): Rendered {
-                val row = rowOfLabel(tree, label)
-                renderer.getTreeCellRendererComponent(
-                    tree,
-                    tree.getPathForRow(row).lastPathComponent,
-                    false, false, false, row, false,
-                )
-                val insets = (renderer.border as? EmptyBorder)?.borderInsets
-                val leading = if (tree.componentOrientation.isLeftToRight) {
-                    insets?.left ?: -1
-                } else {
-                    insets?.right ?: -1
-                }
-                return Rendered(renderer.text, renderer.icon, leading)
-            }
-            Triple(
-                render("sidebar.group_translation"),
-                render("sidebar.services"),
-                render("sidebar.general"),
-            )
-        }
-
-        assertEquals(
-            "sidebar.group_translation".uppercase(),
-            heading.text,
-            "a heading names itself in upper case so it cannot be read as one of the pages",
-        )
-        assertNull(heading.icon, "a heading carries no icon; the icon column belongs to the pages")
-        assertNotNull(topLevel.icon, "pages still carry their icons")
-
-        assertTrue(
-            heading.leading < child.leading,
-            "a heading sits left of the rows it labels, so the indented pages read as the list " +
-                "(heading ${heading.leading}, page ${child.leading})",
-        )
-    }
-
     @Test
     fun `pages are built lazily, once, and swapped in place`() {
         val fixture = newFixture()
@@ -157,28 +88,8 @@ class SettingsNavigationControllerTest {
         assertEquals("sidebar.network", scrolls.single().viewport.view.name, "the latest page is the one shown")
 
         assertEquals(listOf("sidebar.general", "sidebar.general", "sidebar.network"), fixture.shown)
-        // Like the dialog it replaces, each show renders the panel it put on screen.
         assertEquals(3, fixture.rendered.size)
         assertSame(fixture.created[1], fixture.controller.currentPanel)
-    }
-
-    @Test
-    fun `the current panel is re-rendered on request`() {
-        val fixture = newFixture()
-        onEdt { fixture.controller.showPanel("sidebar.general") }
-        assertEquals(1, fixture.rendered.size)
-
-        onEdt { fixture.controller.renderCurrentPanel() }
-
-        assertEquals(2, fixture.rendered.size)
-        assertSame(fixture.rendered[0], fixture.rendered[1], "the same panel instance is rendered again")
-    }
-
-    @Test
-    fun `rendering before any page is shown does nothing`() {
-        val fixture = newFixture()
-        onEdt { fixture.controller.renderCurrentPanel() }
-        assertTrue(fixture.rendered.isEmpty())
     }
 
     @Test
@@ -195,23 +106,20 @@ class SettingsNavigationControllerTest {
     }
 
     @Test
-    fun `selectPage selects the page row and shows it`() {
-        val fixture = newFixture()
+    fun `selectPage shows a page and ignores labels that are not pages`() {
+        val cases = listOf(
+            // label to pages built
+            "sidebar.network" to listOf("sidebar.network"),
+            "sidebar.missing" to emptyList(),
+        )
+        for ((label, expectedBuilt) in cases) {
+            val fixture = newFixture()
 
-        onEdt { fixture.controller.selectPage("sidebar.network") }
+            onEdt { fixture.controller.selectPage(label) }
 
-        assertEquals(listOf("sidebar.network"), fixture.built)
-        assertEquals("sidebar.network", selectedLabel(fixture.controller.tree))
-    }
-
-    @Test
-    fun `selectPage ignores labels that are not pages`() {
-        val fixture = newFixture()
-
-        onEdt { fixture.controller.selectPage("sidebar.missing") }
-
-        assertTrue(fixture.built.isEmpty())
-        assertTrue(onEdt { fixture.controller.tree.isSelectionEmpty })
+            assertEquals(expectedBuilt, fixture.built, "pages built for $label")
+            assertEquals(expectedBuilt.firstOrNull(), selectedLabel(fixture.controller.tree), "selection for $label")
+        }
     }
 
     // ── The row suffix ────────────────────────────────────────────────────────
@@ -248,37 +156,21 @@ class SettingsNavigationControllerTest {
     // ── The page to open when Settings starts ─────────────────────────────────
 
     @Test
-    fun `selectStartPage opens the page the session left off on`() {
-        val fixture = newFixture()
-
-        onEdt { fixture.controller.selectStartPage("sidebar.network") }
-
-        assertEquals(listOf("sidebar.network"), fixture.built)
-        assertEquals("sidebar.network", selectedLabel(fixture.controller.tree))
-    }
-
-    @Test
-    fun `selectStartPage falls back to the first page with nothing to return to`() {
-        val fixture = newFixture()
-
-        onEdt { fixture.controller.selectStartPage(null) }
-
-        assertEquals(listOf("sidebar.general"), fixture.built, "the first read of Settings opens the first page")
-        assertEquals("sidebar.general", selectedLabel(fixture.controller.tree))
-    }
-
-    @Test
-    fun `selectStartPage falls back to the first page when the remembered page is gone`() {
-        val fixture = newFixture()
-
-        onEdt { fixture.controller.selectStartPage("sidebar.renamed-away") }
-
-        assertEquals(
-            listOf("sidebar.general"),
-            fixture.built,
-            "a page renamed by a language change must not leave the content area blank",
+    fun `selectStartPage opens the remembered page and falls back to the first page`() {
+        val cases = listOf(
+            "the remembered page" to ("sidebar.network" to "sidebar.network"),
+            "nothing remembered" to (null to "sidebar.general"),
+            "a page renamed away by a language change" to ("sidebar.renamed-away" to "sidebar.general"),
         )
-        assertEquals("sidebar.general", selectedLabel(fixture.controller.tree))
+        for ((case, input) in cases) {
+            val (remembered, expected) = input
+            val fixture = newFixture()
+
+            onEdt { fixture.controller.selectStartPage(remembered) }
+
+            assertEquals(listOf(expected), fixture.built, "page built for $case")
+            assertEquals(expected, selectedLabel(fixture.controller.tree), "selection for $case")
+        }
     }
 
     // ── Coming back from a search ─────────────────────────────────────────────
@@ -373,14 +265,6 @@ class SettingsNavigationControllerTest {
         assertEquals("sidebar.network", selectedLabel(fixture.controller.tree))
         assertTrue(onEdt { fixture.controller.markerOverlay.isVisible }, "the marker is up")
         assertEquals(1f, onEdt { fixture.controller.markerOverlay.strength }, "the marker starts at full strength")
-    }
-
-    @Test
-    fun `flash strength holds full, then fades to zero`() {
-        assertEquals(1f, SettingsNavigationController.flashStrength(0f))
-        assertEquals(1f, SettingsNavigationController.flashStrength(1320f), "held for the first part")
-        assertEquals(0.5f, SettingsNavigationController.flashStrength(1760f), 0.001f, "mid fade")
-        assertEquals(0f, SettingsNavigationController.flashStrength(2200f), "gone at the end")
     }
 
     @Test

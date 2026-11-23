@@ -37,12 +37,9 @@ data class Size(val width: Int, val height: Int) {
 /**
  * A saved window position, in the virtual screen coordinates AWT reports.
  *
- * Deliberately unconstrained. This used to require both coordinates to be non-negative, which is
- * simply not true of a real desktop: a display arranged to the left of or above the primary one
+ * Deliberately unconstrained. Coordinates can be negative on a real desktop: a display arranged to the left of or above the primary one
  * occupies negative coordinates, and a window sitting on it has an ordinary, valid, negative
- * position. The requirement turned that into an IllegalArgumentException thrown from the middle of
- * saving, so call sites clamped to zero to get past it, which then moved the window to the primary
- * display on the next launch.
+ * position. Clamping to zero would move the window to the primary display on the next launch.
  *
  * A position that is no longer on any connected display is a genuine worry, but it belongs to the
  * moment the window is placed rather than the moment the number is stored, because the displays

@@ -43,7 +43,6 @@ class GoogleTranslatorService(
     private val settings: GoogleSettings,
     private val httpClient: HttpClient,
     private val languageMapper: GoogleLanguageMapper,
-    private val apiConfig: ApiConfig,
     private val endpointHealth: GoogleEndpointHealth,
     /**
      * How long the primary endpoint is given on its own before the fallback is asked as well.
@@ -81,8 +80,8 @@ class GoogleTranslatorService(
         /**
          * Both unofficial endpoints are served by one host.
          *
-         * That is deliberate. The hostname the fallback used to live on, `clients5.google.com`, is
-         * blocked by common hosts-file lists and privacy filters, which turned the path that exists
+         * That is deliberate. A separate fallback host such as `clients5.google.com` is
+         * blocked by common hosts-file lists and privacy filters, which would turn the path that exists
          * to survive a throttle into a connection refusal. Nothing here needs a second hostname:
          * `translate.googleapis.com` serves several client variants and the sentence one is not the
          * only one that works.
@@ -160,7 +159,7 @@ class GoogleTranslatorService(
 
         val responseString = httpClient.sendJson(
             url = TRANSLATE_OFFICIAL,
-            headers = apiConfig.createJsonHeaders(),
+            headers = ApiConfig.createJsonHeaders(),
             body = requestBody,
             queryParams = mapOf("key" to settings.translateApiKey)
         ).bind()
@@ -323,7 +322,7 @@ class GoogleTranslatorService(
      * The fallback is asked on its own, exactly as it would be with the circuit open, so the request
      * costs one call and no hedge. The primary is still reachable: if the fallback cannot serve the
      * request, the slow primary is asked directly and its answer is the one returned, so an
-     * unreachable fallback (#365) can never fail a request the primary could have served.
+     * unreachable fallback can never fail a request the primary could have served.
      */
     private suspend fun translateWithFallbackFirst(
         text: String,
@@ -526,7 +525,7 @@ class GoogleTranslatorService(
         return coroutineBinding {
             val responseString = httpClient.getOnce(
                 url = endpoint.url,
-                headers = apiConfig.createHeaders(),
+                headers = ApiConfig.createHeaders(),
                 queryParams = endpoint.queryParams
             ).bind()
             parseFlatResponse(responseString, sourceTag).bind()
@@ -594,7 +593,7 @@ class GoogleTranslatorService(
         return coroutineBinding {
             val responseString = httpClient.get(
                 url = endpoint.url,
-                headers = apiConfig.createHeaders(),
+                headers = ApiConfig.createHeaders(),
                 queryParams = endpoint.queryParams
             ).bind()
             parseSentenceResponse(responseString).bind()

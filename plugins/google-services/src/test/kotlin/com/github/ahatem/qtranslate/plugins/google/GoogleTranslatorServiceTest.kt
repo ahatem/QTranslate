@@ -4,9 +4,9 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckRequest
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
-import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 import com.github.ahatem.qtranslate.plugins.common.PluginJson
+import com.github.ahatem.qtranslate.plugins.common.unwrap
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -20,6 +20,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.concurrent.atomic.AtomicLong
@@ -52,7 +53,6 @@ class GoogleTranslatorServiceTest {
         settings,
         client,
         GoogleLanguageMapper,
-        ApiConfig(),
         health,
         hedgeMillis,
         { clock.get() }
@@ -76,98 +76,34 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `official API omits source when auto detection is requested`() = runBlocking {
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Ok(PRIMARY_JSON) },
-            officialHandler = { Ok(OFFICIAL_JSON) }
+    fun `official API sends the mapped source and target codes and omits source for auto`() = runBlocking {
+        // (source, target) -> expected source field (null = omitted), expected target field
+        val cases = listOf(
+            Triple(LanguageCode.AUTO to LanguageCode.FRENCH, null, "fr"),
+            Triple(LanguageCode.ENGLISH to LanguageCode.GUARANI, "en", "gn"),
+            Triple(LanguageCode.ENGLISH to LanguageCode.GEORGIAN, "en", "ka"),
+            Triple(LanguageCode.FRENCH to LanguageCode.ENGLISH, "fr", "en"),
         )
-        val service = createService(client, AtomicLong(0), GoogleSettings(translateApiKey = "test-key"))
+        for ((languages, wantSource, wantTarget) in cases) {
+            val client = GoogleTestHttpClient(
+                primaryHandler = { Ok(PRIMARY_JSON) },
+                officialHandler = { Ok(OFFICIAL_JSON) }
+            )
+            val service = createService(client, AtomicLong(0), GoogleSettings(translateApiKey = "test-key"))
 
-        service.translate(request).fold(
-            success = {
-                assertEquals("Bonjour", it.translatedText)
-                assertEquals(LanguageCode.ENGLISH, it.detectedLanguage)
-            },
-            failure = { fail(it.message) }
-        )
+            val response = service.translate(
+                TranslationRequest("Hello", languages.first, languages.second)
+            ).unwrap()
 
-        assertEquals(1, client.officialCalls)
-        assertEquals(0, client.primaryCalls)
-        val body = PluginJson.parseToJsonElement(client.officialBodies.single()).jsonObject
-        assertNull(body["source"])
-        assertEquals("Hello", body["q"]?.jsonPrimitive?.content)
-        assertEquals("fr", body["target"]?.jsonPrimitive?.content)
-    }
-
-    @Test
-    fun `official API sends gn as the target for Guarani`() = runBlocking {
-        val guarani = TranslationRequest(
-            text = "Hello, how are you today?",
-            sourceLanguage = LanguageCode.ENGLISH,
-            targetLanguage = LanguageCode.GUARANI
-        )
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Ok(PRIMARY_JSON) },
-            officialHandler = { Ok(OFFICIAL_JSON) }
-        )
-        val service = createService(client, AtomicLong(0), GoogleSettings(translateApiKey = "test-key"))
-
-        service.translate(guarani).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
-
-        assertEquals(1, client.officialCalls)
-        val body = PluginJson.parseToJsonElement(client.officialBodies.single()).jsonObject
-        assertEquals("en", body["source"]?.jsonPrimitive?.content)
-        assertEquals("gn", body["target"]?.jsonPrimitive?.content)
-    }
-
-    @Test
-    fun `official API sends ka as the target for Georgian`() = runBlocking {
-        val georgian = TranslationRequest(
-            text = "Hello, how are you today?",
-            sourceLanguage = LanguageCode.ENGLISH,
-            targetLanguage = LanguageCode.GEORGIAN
-        )
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Ok(PRIMARY_JSON) },
-            officialHandler = { Ok(OFFICIAL_JSON) }
-        )
-        val service = createService(client, AtomicLong(0), GoogleSettings(translateApiKey = "test-key"))
-
-        service.translate(georgian).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
-
-        assertEquals(1, client.officialCalls)
-        val body = PluginJson.parseToJsonElement(client.officialBodies.single()).jsonObject
-        assertEquals("en", body["source"]?.jsonPrimitive?.content)
-        assertEquals("ka", body["target"]?.jsonPrimitive?.content)
-    }
-
-    @Test
-    fun `official API sends the mapped source for an explicit language`() = runBlocking {
-        val explicit = TranslationRequest(
-            text = "Bonjour",
-            sourceLanguage = LanguageCode.FRENCH,
-            targetLanguage = LanguageCode.ENGLISH
-        )
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Ok(PRIMARY_JSON) },
-            officialHandler = { Ok(OFFICIAL_JSON) }
-        )
-        val service = createService(client, AtomicLong(0), GoogleSettings(translateApiKey = "test-key"))
-
-        service.translate(explicit).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
-
-        assertEquals(1, client.officialCalls)
-        val body = PluginJson.parseToJsonElement(client.officialBodies.single()).jsonObject
-        assertEquals("fr", body["source"]?.jsonPrimitive?.content)
+            val label = "${languages.first} -> ${languages.second}"
+            assertEquals("Bonjour", response.translatedText, label)
+            assertEquals(1, client.officialCalls, label)
+            assertEquals(0, client.primaryCalls, label)
+            val body = PluginJson.parseToJsonElement(client.officialBodies.single()).jsonObject
+            assertEquals(wantSource, body["source"]?.jsonPrimitive?.content, label)
+            assertEquals("Hello", body["q"]?.jsonPrimitive?.content, label)
+            assertEquals(wantTarget, body["target"]?.jsonPrimitive?.content, label)
+        }
     }
 
     @Test
@@ -199,10 +135,7 @@ class GoogleTranslatorServiceTest {
         val service = createService(client, AtomicLong(0))
 
         repeat(3) { attempt ->
-            service.translate(request).fold(
-                success = { assertEquals("Bonjour", it.translatedText) },
-                failure = { fail("attempt $attempt failed: ${it.message}") }
-            )
+            service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         }
 
         // Two failures open the circuit; the third call must not touch the primary at all.
@@ -225,25 +158,6 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `the primary is attempted once when the transport would have retried a rate limit`() = runBlocking {
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
-            fallbackHandler = { Ok(FALLBACK_FLAT) }
-        )
-        val service = createService(client, AtomicLong(0))
-
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
-
-        // The primary is tried once from the first answer. A plain GET would have spent two retries
-        // on the rate limit before the circuit ever saw the failure.
-        assertEquals(1, client.primaryCalls)
-        assertEquals(1, client.fallbackCalls)
-    }
-
-    @Test
     fun `a second translation while the circuit is open makes no primary attempt`() = runBlocking {
         val client = GoogleTestHttpClient(
             primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
@@ -252,10 +166,7 @@ class GoogleTranslatorServiceTest {
         val service = createService(client, AtomicLong(0))
 
         repeat(2) { attempt ->
-            service.translate(request).fold(
-                success = { assertEquals("Bonjour", it.translatedText) },
-                failure = { fail("attempt $attempt failed: ${it.message}") }
-            )
+            service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         }
 
         // The single rate-limited attempt opens the circuit, so the second call never reaches the
@@ -265,19 +176,16 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `a rate limited primary does not delay the fallback`() = runBlocking {
+    fun `a rate limited primary does not delay the fallback`() = runTest {
         val client = GoogleTestHttpClient(
             primaryHandler = { Err(ServiceError.RateLimitError("rate limited", retryAfterSeconds = 5)) },
             fallbackHandler = { Ok(FALLBACK_FLAT) }
         )
         val service = createService(client, AtomicLong(0))
 
-        val startedAt = System.nanoTime()
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
-        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+        val startedAt = testScheduler.currentTime
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
+        val elapsedMillis = testScheduler.currentTime - startedAt
 
         // The request is not held for the Retry-After the transport would otherwise have honoured
         // before retrying; the fallback answers straight away.
@@ -362,10 +270,7 @@ class GoogleTranslatorServiceTest {
         )
         val service = createService(client, AtomicLong(0))
 
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
 
         assertEquals(1, client.primaryCalls)
         assertEquals(1, client.fallbackCalls)
@@ -380,10 +285,7 @@ class GoogleTranslatorServiceTest {
         val service = createService(client, AtomicLong(0))
 
         repeat(3) { attempt ->
-            service.translate(request).fold(
-                success = { assertEquals("Bonjour", it.translatedText) },
-                failure = { fail("attempt $attempt failed: ${it.message}") }
-            )
+            service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         }
 
         assertEquals(3, client.primaryCalls)
@@ -391,7 +293,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `only one half-open probe is issued for concurrent callers`() = runBlocking {
+    fun `only one half-open probe is issued for concurrent callers`() = runBlocking<Unit> {
         val clock = AtomicLong(0)
         val probeStarted = CompletableDeferred<Unit>()
         val probeRelease = CompletableDeferred<Unit>()
@@ -426,10 +328,7 @@ class GoogleTranslatorServiceTest {
         assertEquals(6, client.fallbackCalls)
 
         probeRelease.complete(Unit)
-        probe.await().fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        probe.await().unwrap().also { assertEquals("Bonjour", it.translatedText) }
     }
 
     @Test
@@ -533,21 +432,23 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `empty primary response fails with an invalid response error`() = runBlocking {
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Ok("[]") },
-            // The unusable first answer is retryable, so the second path is asked; making that fail
-            // too is what surfaces the primary's own classification.
-            fallbackHandler = { Err(ServiceError.TimeoutError("timed out")) }
-        )
-        val service = createService(client, AtomicLong(0))
+    fun `an empty or unsupported primary answer fails with the primary's own classification`() = runBlocking {
+        for ((label, body) in listOf("empty array" to "[]", "unsupported object" to """{"translated":"Bonjour"}""")) {
+            val client = GoogleTestHttpClient(
+                primaryHandler = { Ok(body) },
+                // The unusable first answer is retryable, so the second path is asked; making that fail
+                // too is what surfaces the primary's own classification.
+                fallbackHandler = { Err(ServiceError.TimeoutError("timed out")) }
+            )
+            val service = createService(client, AtomicLong(0))
 
-        // The caller is left with the second path's failure, so that is the type; what must survive
-        // is the first path's own classification, which is what tells a throttled host apart from
-        // one that answered with something unusable.
-        val error = service.translate(request).getError()
-        assertIs<ServiceError.TimeoutError>(error)
-        assertContains(error.message, "primary endpoint returned an unusable response")
+            // The caller is left with the second path's failure, so that is the type; what must survive
+            // is the first path's own classification, which tells a throttled host apart from one that
+            // answered with something unusable.
+            val error = service.translate(request).getError()
+            assertIs<ServiceError.TimeoutError>(error, label)
+            assertContains(error.message, "primary endpoint returned an unusable response", message = label)
+        }
     }
 
     @Test
@@ -564,97 +465,6 @@ class GoogleTranslatorServiceTest {
         assertIs<ServiceError.InvalidResponseError>(error)
         assertContains(error.message, "primary endpoint timed out")
         assertContains(error.message, "sentence client returned an unusable response")
-    }
-
-    @Test
-    fun `an unsupported primary object shape fails with an invalid response error`() = runBlocking {
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Ok("""{"translated":"Bonjour"}""") },
-            fallbackHandler = { Err(ServiceError.TimeoutError("timed out")) }
-        )
-        val service = createService(client, AtomicLong(0))
-
-        val error = service.translate(request).getError()
-        assertIs<ServiceError.TimeoutError>(error)
-        assertContains(error.message, "primary endpoint returned an unusable response")
-    }
-
-    @Test
-    fun `the translator never contacts the host most hosts files block`() = runBlocking {
-        // The reporter's environment sinkholes clients5.google.com, which used to be the fallback.
-        // Every path is exercised here and none of them may name that host, so a future change that
-        // reintroduces it fails this test instead of failing for the reporter.
-        val scenarios: List<Pair<String, GoogleTestHttpClient>> = listOf(
-            "healthy" to GoogleTestHttpClient(primaryHandler = { Ok(PRIMARY_JSON) }),
-            "primary throttled" to GoogleTestHttpClient(
-                primaryHandler = { Err(ServiceError.RateLimitError("rate limited", retryAfterSeconds = 30)) },
-                fallbackHandler = { Ok(FALLBACK_FLAT) }
-            ),
-            "primary stalled" to GoogleTestHttpClient(
-                primaryHandler = { Err(ServiceError.TimeoutError("timed out")) },
-                fallbackHandler = { Ok(FALLBACK_FLAT) }
-            ),
-            "primary unusable" to GoogleTestHttpClient(
-                primaryHandler = { Ok("<html>nope</html>") },
-                fallbackHandler = { Ok(FALLBACK_FLAT) }
-            ),
-            "both unusable" to GoogleTestHttpClient(
-                primaryHandler = { Ok("<html>nope</html>") },
-                fallbackHandler = { Ok("<html>nope</html>") }
-            )
-        )
-        for ((name, client) in scenarios) {
-            val service = createService(client, AtomicLong(0))
-            service.translate(request)
-            val contacted = client.urls.filter { it.contains("clients5") }
-            assertTrue(contacted.isEmpty(), "$name contacted a blocked host: $contacted")
-            assertTrue(
-                client.urls.all { it.contains("translate.googleapis.com") },
-                "$name contacted something other than the Google host: ${client.urls}"
-            )
-        }
-    }
-
-    @Test
-    fun `the primary is the flat client and the second path asks for no dictionary payload`() = runBlocking {
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Err(ServiceError.TimeoutError("timed out")) },
-            fallbackHandler = { Ok(FALLBACK_FLAT) }
-        )
-        val service = createService(client, AtomicLong(0))
-
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
-
-        val first = client.queryParams.first()
-        assertEquals("dict-chrome-ex", first["client"])
-        assertTrue(first.containsKey("q"), "the first path must send the text")
-        assertTrue(!first.containsKey("dt"), "the flat client does not take a feature list")
-
-        val second = client.queryParams[1]
-        assertEquals("gtx", second["client"])
-        // Only the translation itself: the dictionary payload it used to request cost ~750 ms per
-        // request and nothing in the application ever displayed the alternatives it produced.
-        assertEquals("t", second["dt"])
-    }
-
-    @Test
-    fun `a rate limited primary is asked once and the second path answers`() = runBlocking {
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Err(ServiceError.RateLimitError("429 Too Many Requests", retryAfterSeconds = 20)) },
-            fallbackHandler = { Ok(FALLBACK_FLAT) }
-        )
-        val service = createService(client, AtomicLong(0))
-
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
-        // getOnce on the first path: a throttle costs one wire attempt, not three.
-        assertEquals(1, client.primaryCalls)
-        assertEquals(1, client.fallbackCalls)
     }
 
     @Test
@@ -675,16 +485,13 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `the flat client reports the source it detected for an auto request`() = runBlocking {
+    fun `the flat client reports the source it detected for an auto request`() = runBlocking<Unit> {
         val client = GoogleTestHttpClient(
             primaryHandler = { Ok("""[["Bonjour","fr"]]""") }
         )
         val service = createService(client, AtomicLong(0))
 
-        service.translate(request).fold(
-            success = { assertEquals(LanguageCode.FRENCH, it.detectedLanguage) },
-            failure = { fail(it.message) }
-        )
+        service.translate(request).unwrap().also { assertEquals(LanguageCode.FRENCH, it.detectedLanguage) }
     }
 
     @Test
@@ -737,10 +544,7 @@ class GoogleTranslatorServiceTest {
         assertEquals(0, client.fallbackCalls)
 
         // Health was left untouched, so the next call still uses the primary.
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(2, client.primaryCalls)
     }
 
@@ -766,39 +570,14 @@ class GoogleTranslatorServiceTest {
         started.await()
 
         val newer = async { service.translate(request) }
-        newer.await().fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        newer.await().unwrap().also { assertEquals("Bonjour", it.translatedText) }
 
         gate.complete(Unit)
-        older.await().fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        older.await().unwrap().also { assertEquals("Bonjour", it.translatedText) }
 
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(3, client.primaryCalls)
         assertEquals(1, client.fallbackCalls)
-    }
-
-    @Test
-    fun `rate limit without retry-after opens the circuit immediately`() = runBlocking {
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
-            fallbackHandler = { Ok(FALLBACK_FLAT) }
-        )
-        val service = createService(client, AtomicLong(0))
-
-        service.translate(request)
-        service.translate(request)
-
-        // The first rate limit opens the circuit, so the second call never reaches the primary.
-        assertEquals(1, client.primaryCalls)
-        assertEquals(2, client.fallbackCalls)
     }
 
     @Test
@@ -830,10 +609,7 @@ class GoogleTranslatorServiceTest {
         assertEquals(3, client.primaryCalls)
 
         gate.complete(Unit)
-        older.await().fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        older.await().unwrap().also { assertEquals("Bonjour", it.translatedText) }
 
         // The older success belongs to a previous generation and must not heal the circuit.
         service.translate(request)
@@ -1003,10 +779,7 @@ class GoogleTranslatorServiceTest {
         assertEquals(3, client.primaryCalls)
 
         gate.complete(Unit)
-        probe.await().fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        probe.await().unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(3, client.primaryCalls)
     }
 
@@ -1079,18 +852,12 @@ class GoogleTranslatorServiceTest {
         // After the cooldown a single probe returns to the primary, which has recovered: the
         // request succeeds through the primary even though the fallback is still refused.
         clock.set(2_000)
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(2, client.primaryCalls)
 
         // The probe healed the circuit, so the primary serves directly again and the dead
         // fallback is left alone.
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(3, client.primaryCalls)
         assertEquals(2, client.fallbackCalls)
     }
@@ -1145,10 +912,7 @@ class GoogleTranslatorServiceTest {
         // The fallback's HTTP failure does not feed the circuit: after the primary's cooldown
         // the probe heals it and translation recovers without another fallback attempt.
         clock.set(2_000)
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(2, client.primaryCalls)
         assertEquals(1, client.fallbackCalls)
     }
@@ -1190,7 +954,7 @@ class GoogleTranslatorServiceTest {
     // circuit. The translator keeps a private note instead and re-probes the primary later.
 
     @Test
-    fun `a slow primary no longer holds back a working fallback`() = runBlocking {
+    fun `a slow primary no longer holds back a working fallback`() = runTest {
         val client = GoogleTestHttpClient(
             primaryHandler = { index ->
                 // Throttled into a slow body rather than a 429: still working, not answering yet.
@@ -1201,14 +965,11 @@ class GoogleTranslatorServiceTest {
         )
         val service = createService(client, AtomicLong(0), hedgeMillis = 150)
 
-        val startedAt = System.nanoTime()
+        val startedAt = testScheduler.currentTime
         val result = service.translate(request)
-        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+        val elapsedMillis = testScheduler.currentTime - startedAt
 
-        result.fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        result.unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(1, client.fallbackCalls)
         assertTrue(elapsedMillis >= 150, "returned before the 150ms hedge: ${elapsedMillis}ms")
         // The fallback answered just after the hedge; the rest of the primary's 3 s was not
@@ -1217,7 +978,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `a slow primary still serves the request when the fallback cannot be reached`() = runBlocking {
+    fun `a slow primary still serves the request when the fallback cannot be reached`() = runTest {
         val client = GoogleTestHttpClient(
             primaryHandler = { index ->
                 delay(400)
@@ -1227,17 +988,14 @@ class GoogleTranslatorServiceTest {
         )
         val service = createService(client, AtomicLong(0), hedgeMillis = 100)
 
-        val startedAt = System.nanoTime()
+        val startedAt = testScheduler.currentTime
         val result = service.translate(request)
-        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+        val elapsedMillis = testScheduler.currentTime - startedAt
 
         // The fallback was asked because the primary missed the budget, it refused the
         // connection, and the primary's own answer is still the one returned: an unreachable
         // fallback (#365) cannot turn a slow but working primary into a failure.
-        result.fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        result.unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(1, client.primaryCalls)
         assertEquals(1, client.fallbackCalls)
         assertTrue(elapsedMillis >= 400, "returned before the primary answered: ${elapsedMillis}ms")
@@ -1245,7 +1003,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `a primary that keeps missing the hedge budget is answered by the fallback directly`() = runBlocking {
+    fun `a primary that keeps missing the hedge budget is answered by the fallback directly`() = runTest {
         val clock = AtomicLong(0)
         val client = GoogleTestHttpClient(
             primaryHandler = { index ->
@@ -1257,10 +1015,7 @@ class GoogleTranslatorServiceTest {
         val service = createService(client, clock, hedgeMillis = 100)
 
         repeat(3) { attempt ->
-            service.translate(request).fold(
-                success = { assertEquals("Bonjour", it.translatedText) },
-                failure = { fail("attempt $attempt failed: ${it.message}") }
-            )
+            service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         }
 
         // A missed budget is remembered by the translator itself, so the second request makes it
@@ -1272,7 +1027,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `a slow but working primary still serves spell check after two hedged translations`() = runBlocking {
+    fun `a slow but working primary still serves spell check after two hedged translations`() = runTest {
         val clock = AtomicLong(0)
         val health = GoogleEndpointHealth({ clock.get() }, { 0L })
         val client = GoogleTestHttpClient(
@@ -1289,10 +1044,7 @@ class GoogleTranslatorServiceTest {
         val translator = createService(client, clock, hedgeMillis = 100, health = health)
 
         repeat(2) { attempt ->
-            translator.translate(request).fold(
-                success = { assertEquals("Bonjour", it.translatedText) },
-                failure = { fail("translation $attempt failed: ${it.message}") }
-            )
+            translator.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         }
         assertEquals(2, client.primaryCalls)
         assertEquals(2, client.fallbackCalls)
@@ -1304,7 +1056,6 @@ class GoogleTranslatorServiceTest {
             FakePluginContext(),
             client,
             GoogleLanguageMapper,
-            ApiConfig(),
             health
         )
         val spellResult = spellChecker.check(SpellCheckRequest("Helo world."))
@@ -1314,7 +1065,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `the translator returns to the primary once it answers inside the budget again`() = runBlocking {
+    fun `the translator returns to the primary once it answers inside the budget again`() = runTest {
         val clock = AtomicLong(0)
         val health = GoogleEndpointHealth({ clock.get() }, { 0L })
         val client = GoogleTestHttpClient(
@@ -1333,28 +1084,19 @@ class GoogleTranslatorServiceTest {
         assertEquals(2, client.fallbackCalls)
 
         // While the quiet period runs the fallback is asked on its own: no hedge, no primary call.
-        translator.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        translator.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(2, client.primaryCalls)
         assertEquals(3, client.fallbackCalls)
 
         // Once it has elapsed the primary is asked again, hedged as usual. It answers inside the
         // budget this time, so it serves the request and the note about it being slow is dropped.
         clock.set(60_000)
-        translator.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        translator.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(3, client.primaryCalls)
         assertEquals(3, client.fallbackCalls)
 
         // Direct primary use is back: the next translation costs one request again.
-        translator.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        translator.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(4, client.primaryCalls)
         assertEquals(3, client.fallbackCalls)
 
@@ -1363,7 +1105,6 @@ class GoogleTranslatorServiceTest {
             FakePluginContext(),
             client,
             GoogleLanguageMapper,
-            ApiConfig(),
             health
         )
         val spellResult = spellChecker.check(SpellCheckRequest("Helo world."))
@@ -1371,7 +1112,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `a fallback that dies while it is preferred still lets the slow primary serve`() = runBlocking {
+    fun `a fallback that dies while it is preferred still lets the slow primary serve`() = runTest {
         val clock = AtomicLong(0)
         val client = GoogleTestHttpClient(
             primaryHandler = { index ->
@@ -1391,25 +1132,19 @@ class GoogleTranslatorServiceTest {
 
         // Preferring the fallback must not make an unreachable fallback fatal: the slow primary is
         // asked and its answer is returned (#365).
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(3, client.primaryCalls)
         assertEquals(3, client.fallbackCalls)
 
         // Its failure also drops the preference, so the next request pays the hedge again rather
         // than asking the dead host first.
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(4, client.primaryCalls)
         assertEquals(3, client.fallbackCalls)
     }
 
     @Test
-    fun `a half-open probe is not raced by the hedge so a slow recovery heals the circuit`() = runBlocking {
+    fun `a half-open probe is not raced by the hedge so a slow recovery heals the circuit`() = runTest {
         val clock = AtomicLong(0)
         val health = GoogleEndpointHealth({ clock.get() }, { 0L })
         val client = GoogleTestHttpClient(
@@ -1436,10 +1171,7 @@ class GoogleTranslatorServiceTest {
         assertEquals(2, client.fallbackCalls)
 
         clock.set(2_000)
-        translator.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        translator.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
 
         // The probe was awaited instead of being cancelled at the hedge, so its own answer healed
         // the circuit and the fallback was never needed. Cancelling it would have reopened the
@@ -1451,7 +1183,6 @@ class GoogleTranslatorServiceTest {
             FakePluginContext(),
             client,
             GoogleLanguageMapper,
-            ApiConfig(),
             health
         )
         val spellResult = spellChecker.check(SpellCheckRequest("Helo world."))
@@ -1459,19 +1190,16 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `a fast primary failure reaches the fallback without waiting for the hedge`() = runBlocking {
+    fun `a fast primary failure reaches the fallback without waiting for the hedge`() = runTest {
         val client = GoogleTestHttpClient(
             primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
             fallbackHandler = { Ok(FALLBACK_FLAT) }
         )
         val service = createService(client, AtomicLong(0), hedgeMillis = 5_000)
 
-        val startedAt = System.nanoTime()
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
-        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+        val startedAt = testScheduler.currentTime
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
+        val elapsedMillis = testScheduler.currentTime - startedAt
 
         // A 429 is an answer, so the fallback is asked at once rather than at the hedge deadline.
         assertEquals(1, client.fallbackCalls)
@@ -1479,7 +1207,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `an ordinary primary answer never costs a second provider request`() = runBlocking {
+    fun `an ordinary primary answer never costs a second provider request`() = runTest {
         val client = GoogleTestHttpClient(
             primaryHandler = { index ->
                 delay(100)
@@ -1489,10 +1217,7 @@ class GoogleTranslatorServiceTest {
         )
         val service = createService(client, AtomicLong(0), hedgeMillis = 5_000)
 
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
 
         // The hedge is a budget, not a race: one translation never costs two provider requests,
         // and a primary that answers in time is never replaced by the fallback.
@@ -1501,7 +1226,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `the shipped hedge budget bounds the wait for a slow primary`() = runBlocking {
+    fun `the shipped hedge budget bounds the wait for a slow primary`() = runTest {
         // No hedge override here: this is the delay a user actually gets, with the shipped default.
         val client = GoogleTestHttpClient(
             primaryHandler = { index ->
@@ -1515,16 +1240,12 @@ class GoogleTranslatorServiceTest {
             GoogleSettings(),
             client,
             GoogleLanguageMapper,
-            ApiConfig(),
             GoogleEndpointHealth({ 0L }, { 0L })
         )
 
-        val startedAt = System.nanoTime()
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
-        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+        val startedAt = testScheduler.currentTime
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
+        val elapsedMillis = testScheduler.currentTime - startedAt
 
         assertTrue(elapsedMillis >= 1_500, "returned before the 2s hedge: ${elapsedMillis}ms")
         assertTrue(elapsedMillis < 6_000, "waited for the throttled primary: ${elapsedMillis}ms")

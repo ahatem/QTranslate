@@ -74,7 +74,9 @@ internal class KtorHttpClient(
      * Whether closing this also closes [engine]. False when the caller supplied one, since a test
      * that shares an engine across clients should decide for itself when it dies.
      */
-    private val ownsEngine: Boolean = true
+    private val ownsEngine: Boolean = true,
+    /** Waits out a retry delay. Replaceable so tests can record the requested delay instead of sleeping it. */
+    private val retryDelay: suspend (Long) -> Unit = { kotlinx.coroutines.delay(it) }
 ) : SingleAttemptHttpClient, Closeable {
 
     private val client = KtorClient(engine) {
@@ -120,6 +122,7 @@ internal class KtorHttpClient(
                 // does not. Retrying sooner than a rate limiter asked for is how a rate limit
                 // becomes a longer one.
                 exponentialDelay(baseDelayMs = config.retryInitialDelayMillis.coerceAtLeast(1))
+                delay(retryDelay)
             }
         }
     }

@@ -65,9 +65,8 @@ class ServicesPanel(
             }
         }
         // The same shape as the interface-language picker, through the same helper. These two rows
-        // ask the identical question — a picker plus the actions that operate on it — and used to
-        // answer it differently, two clicks apart in one dialog: labelled buttons on a row below
-        // here, icon buttons inline there.
+        // ask the identical question, a picker plus the actions that operate on it, so they answer
+        // it the same way: icon buttons inline.
         renameBtn = pickerAction(
             Icons.EDIT,
             localizationManager.getString("settings_services.rename_preset_btn")

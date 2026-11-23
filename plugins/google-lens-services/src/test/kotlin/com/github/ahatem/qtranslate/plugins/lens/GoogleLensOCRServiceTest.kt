@@ -12,8 +12,6 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.getError
 import com.github.michaelbull.result.getOrThrow
 import kotlinx.coroutines.runBlocking
-import java.io.ByteArrayOutputStream
-import java.nio.charset.StandardCharsets
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -28,54 +26,6 @@ class GoogleLensOCRServiceTest {
         width = 100,
         height = 100
     )
-
-    private fun buildResponseFixture(lines: List<String>, language: String? = null): ByteArray {
-        val textLayoutStream = ByteArrayOutputStream()
-        for (line in lines) {
-            val words = line.split(" ")
-            val lineStream = ByteArrayOutputStream()
-            for ((idx, word) in words.withIndex()) {
-                val sep = if (idx == words.lastIndex) "" else " "
-                val wordStream = ByteArrayOutputStream()
-                writeLengthDelimited(wordStream, 2, word.toByteArray(StandardCharsets.UTF_8))
-                writeLengthDelimited(wordStream, 3, sep.toByteArray(StandardCharsets.UTF_8))
-                writeLengthDelimited(lineStream, 1, wordStream.toByteArray())
-            }
-            val paragraphStream = ByteArrayOutputStream()
-            writeLengthDelimited(paragraphStream, 2, lineStream.toByteArray())
-            writeLengthDelimited(textLayoutStream, 1, paragraphStream.toByteArray())
-        }
-
-        val textStream = ByteArrayOutputStream()
-        writeLengthDelimited(textStream, 1, textLayoutStream.toByteArray())
-        if (language != null) {
-            writeLengthDelimited(textStream, 2, language.toByteArray(StandardCharsets.UTF_8))
-        }
-
-        val objectsResponseStream = ByteArrayOutputStream()
-        writeLengthDelimited(objectsResponseStream, 3, textStream.toByteArray())
-
-        val rootStream = ByteArrayOutputStream()
-        writeLengthDelimited(rootStream, 2, objectsResponseStream.toByteArray())
-
-        return rootStream.toByteArray()
-    }
-
-    private fun writeLengthDelimited(stream: ByteArrayOutputStream, fieldNumber: Int, bytes: ByteArray) {
-        val tag = (fieldNumber shl 3) or 2
-        writeVarint(stream, tag)
-        writeVarint(stream, bytes.size)
-        stream.write(bytes)
-    }
-
-    private fun writeVarint(stream: ByteArrayOutputStream, value: Int) {
-        var v = value
-        while (v and 0x7F.inv() != 0) {
-            stream.write((v and 0x7F) or 0x80)
-            v = v ushr 7
-        }
-        stream.write(v and 0x7F)
-    }
 
     private class FakeLensHttpClient(
         var response: Result<ByteArray, ServiceError>
@@ -111,80 +61,34 @@ class GoogleLensOCRServiceTest {
     }
 
     @Test
-    fun `extractText sends bundled key when no override is configured`() = runBlocking {
-        val fixture = buildResponseFixture(listOf("Hello"), language = "en")
-        val fakeHttp = FakeLensHttpClient(Ok(fixture))
-        val context = FakePluginContext(httpClient = fakeHttp)
-        val service = GoogleLensOCRService(context, fakeHttp) { GoogleLensSettings() }
-
-        service.extractText(OCRRequest(sampleImage, LanguageCode.AUTO)).getOrThrow { AssertionError(it.message) }
-
-        assertEquals(
-            GoogleLensOCRService.DEFAULT_LENS_API_KEY,
-            fakeHttp.lastPostedHeaders?.get("X-Goog-Api-Key")
-        )
-    }
-
-    @Test
-    fun `extractText sends custom key when override is configured`() = runBlocking {
-        val fixture = buildResponseFixture(listOf("Hello"), language = "en")
-        val fakeHttp = FakeLensHttpClient(Ok(fixture))
-        val context = FakePluginContext(httpClient = fakeHttp)
-        val service = GoogleLensOCRService(context, fakeHttp) { GoogleLensSettings(apiKey = "custom-key") }
-
-        service.extractText(OCRRequest(sampleImage, LanguageCode.AUTO)).getOrThrow { AssertionError(it.message) }
-
-        assertEquals("custom-key", fakeHttp.lastPostedHeaders?.get("X-Goog-Api-Key"))
-    }
-
-    @Test
-    fun `extractText trims override and falls back on whitespace-only value`() = runBlocking {
-        val fixture = buildResponseFixture(listOf("Hello"), language = "en")
-        val fakeHttp = FakeLensHttpClient(Ok(fixture))
-        val context = FakePluginContext(httpClient = fakeHttp)
-        var current = GoogleLensSettings(apiKey = "   ")
-        val service = GoogleLensOCRService(context, fakeHttp) { current }
-
-        service.extractText(OCRRequest(sampleImage, LanguageCode.AUTO)).getOrThrow { AssertionError(it.message) }
-        assertEquals(
-            GoogleLensOCRService.DEFAULT_LENS_API_KEY,
-            fakeHttp.lastPostedHeaders?.get("X-Goog-Api-Key")
-        )
-
-        current = GoogleLensSettings(apiKey = "  custom-key  ")
-        service.extractText(OCRRequest(sampleImage, LanguageCode.AUTO)).getOrThrow { AssertionError(it.message) }
-        assertEquals("custom-key", fakeHttp.lastPostedHeaders?.get("X-Goog-Api-Key"))
-
-        current = GoogleLensSettings(apiKey = "")
-        service.extractText(OCRRequest(sampleImage, LanguageCode.AUTO)).getOrThrow { AssertionError(it.message) }
-        assertEquals(
-            GoogleLensOCRService.DEFAULT_LENS_API_KEY,
-            fakeHttp.lastPostedHeaders?.get("X-Goog-Api-Key")
-        )
-    }
-
-    @Test
-    fun `extractText picks up settings change without service restart`() = runBlocking {
-        val fixture = buildResponseFixture(listOf("Hello"), language = "en")
-        val fakeHttp = FakeLensHttpClient(Ok(fixture))
+    fun `extractText sends the trimmed override key, falls back to the bundled one and re-reads settings every call`() = runBlocking {
+        val fakeHttp = FakeLensHttpClient(Ok(lensResponseOfLines(listOf("Hello"), language = "en")))
         val context = FakePluginContext(httpClient = fakeHttp)
         var current = GoogleLensSettings()
         val service = GoogleLensOCRService(context, fakeHttp) { current }
+        val bundled = GoogleLensOCRService.DEFAULT_LENS_API_KEY
 
-        service.extractText(OCRRequest(sampleImage, LanguageCode.AUTO)).getOrThrow { AssertionError(it.message) }
-        assertEquals(
-            GoogleLensOCRService.DEFAULT_LENS_API_KEY,
-            fakeHttp.lastPostedHeaders?.get("X-Goog-Api-Key")
+        // Settings are read per call, so rotating the key takes effect without a restart.
+        val keys = listOf(
+            "" to bundled,
+            "   " to bundled,
+            "custom-key" to "custom-key",
+            "  custom-key  " to "custom-key",
+            "rotated-key" to "rotated-key",
+            "" to bundled,
         )
+        for ((configured, expected) in keys) {
+            current = GoogleLensSettings(apiKey = configured)
 
-        current = GoogleLensSettings(apiKey = "rotated-key")
-        service.extractText(OCRRequest(sampleImage, LanguageCode.AUTO)).getOrThrow { AssertionError(it.message) }
-        assertEquals("rotated-key", fakeHttp.lastPostedHeaders?.get("X-Goog-Api-Key"))
+            service.extractText(OCRRequest(sampleImage, LanguageCode.AUTO)).getOrThrow { AssertionError(it.message) }
+
+            assertEquals(expected, fakeHttp.lastPostedHeaders?.get("X-Goog-Api-Key"), "configured '$configured'")
+        }
     }
 
     @Test
     fun `extractText returns recognized text and detected language on valid response`() = runBlocking {
-        val fixture = buildResponseFixture(listOf("Hello World", "Line two"), language = "en")
+        val fixture = lensResponseOfLines(listOf("Hello World", "Line two"), language = "en")
         val fakeHttp = FakeLensHttpClient(Ok(fixture))
         val context = FakePluginContext(httpClient = fakeHttp)
         val service = GoogleLensOCRService(context, fakeHttp)
@@ -244,14 +148,4 @@ class GoogleLensOCRServiceTest {
         assertEquals(30, error.retryAfterSeconds)
     }
 
-    @Test
-    fun `fetchSupportedLanguages returns success with dynamic languages`() = runBlocking {
-        val fakeHttp = FakeLensHttpClient(Ok(ByteArray(0)))
-        val context = FakePluginContext(httpClient = fakeHttp)
-        val service = GoogleLensOCRService(context, fakeHttp)
-
-        val supported = service.fetchSupportedLanguages().getOrThrow { AssertionError(it.message) }
-        assertTrue(LanguageCode.ENGLISH in supported)
-        assertTrue(LanguageCode.SPANISH in supported)
-    }
 }

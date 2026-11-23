@@ -8,7 +8,6 @@ import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.settings.Setting
 import com.github.ahatem.qtranslate.api.settings.SettingType
-import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -22,7 +21,6 @@ class GooglePlugin : Plugin<GoogleSettings> {
     private var activeServices: List<Service> = emptyList()
 
     private val languageMapper = GoogleLanguageMapper
-    private val apiConfig = ApiConfig()
 
     override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> {
         this.pluginContext = context
@@ -30,7 +28,7 @@ class GooglePlugin : Plugin<GoogleSettings> {
         this.settings = GoogleSettings(
             visionApiKey = context.secrets.get("visionApiKey") ?: "",
             translateApiKey = context.secrets.get("translateApiKey") ?: ""
-        )
+        )
         pluginContext.logger.info("Google Plugin initialized")
         return Ok(Unit)
     }
@@ -59,12 +57,12 @@ class GooglePlugin : Plugin<GoogleSettings> {
         activeServices = buildList {
             // OCR requires a Vision API key — only register the service when one is configured.
             if (settings.visionApiKey.isNotBlank()) {
-                add(GoogleOCRService(pluginContext, settings, httpClient, languageMapper, apiConfig))
+                add(GoogleOCRService(pluginContext, settings, httpClient, languageMapper))
             }
-            add(GoogleTranslatorService(pluginContext, settings, httpClient, languageMapper, apiConfig, endpointHealth))
-            add(GoogleTTSService(pluginContext, httpClient, languageMapper, apiConfig))
-            add(GoogleDictionaryService(pluginContext, httpClient, languageMapper, apiConfig))
-            add(GoogleSpellCheckerService(pluginContext, httpClient, languageMapper, apiConfig, endpointHealth))
+            add(GoogleTranslatorService(pluginContext, settings, httpClient, languageMapper, endpointHealth))
+            add(GoogleTTSService(pluginContext, httpClient, languageMapper))
+            add(GoogleDictionaryService(pluginContext, httpClient, languageMapper))
+            add(GoogleSpellCheckerService(pluginContext, httpClient, languageMapper, endpointHealth))
         }
         pluginContext.logger.info("Built ${activeServices.size} active Google services.")
     }
@@ -75,7 +73,7 @@ class GooglePlugin : Plugin<GoogleSettings> {
     }
 
     override suspend fun shutdown() {
-        pluginContext.logger.info("Google Plugin shutting down")
+        pluginContext.logger.info("Google Plugin shutting down")
     }
 
     override fun getServices(): List<Service> = activeServices

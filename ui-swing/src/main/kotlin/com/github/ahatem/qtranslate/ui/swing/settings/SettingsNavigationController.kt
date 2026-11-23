@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.ui.swing.settings.panels.UnscrolledSettingsP
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
+import com.github.ahatem.qtranslate.ui.swing.shared.util.withAlpha
 import java.awt.BasicStroke
 import java.awt.BorderLayout
 import java.awt.Color
@@ -65,9 +66,9 @@ internal class SettingsNavigationController(
      * Theme-aware sidebar icons, keyed by localized page label.
      *
      * Two sets, one per state: the page's own icon is drawn in the text colour so it belongs with
-     * its label, and the selected page's icon takes the accent. They used to be drawn in
-     * `Label.disabledForeground`, which is the colour a look and feel uses to say "this control
-     * cannot be used" — the sidebar looked faded rather than quiet.
+     * its label, and the selected page's icon takes the accent. `Label.disabledForeground` is
+     * not used because it is the colour a look and feel uses to say "this control cannot be
+     * used", which would make the sidebar look faded rather than quiet.
      *
      * Each icon re-reads its colour at paint time, so a theme switch needs no update here.
      * Declared before [tree]: building the tree already asks the renderer for a row icon.
@@ -478,10 +479,10 @@ internal class SettingsNavigationController(
                     // Headings and ungrouped pages sit at the base; a page inside a group sits
                     // further in, so the nesting is visible at a glance.
                     //
-                    // An earlier version pushed ungrouped pages *out* to meet the grouped ones so
-                    // every page shared one left edge. That reads as a flat list with two stray
-                    // headings in it — the grouping is there in the markup and invisible on
-                    // screen. The hierarchy is the point, so it is the thing to show.
+                    // Ungrouped pages are not pushed *out* to meet the grouped ones: one shared
+                    // left edge reads as a flat list with two stray headings in it, the grouping
+                    // present in the markup and invisible on screen. The hierarchy is the point,
+                    // so it is the thing to show.
                     //
                     // The tree indents its own children, but by an amount the look and feel
                     // chooses, which can be too small to read as nesting. Whatever it gives is
@@ -491,8 +492,8 @@ internal class SettingsNavigationController(
                     val nesting = if (depth > 1) UIScale.scale(NEST_INDENT) else 0
 
                     // EmptyBorder takes absolute sides and knows nothing about direction, so the
-                    // leading edge is picked here. Written always on the left, the indent moved to
-                    // the far end of the row in a right-to-left interface.
+                    // leading edge is picked here. Written always on the left, the indent would
+                    // move to the far end of the row in a right-to-left interface.
                     val base = UIScale.scale(ROW_INSET)
                     val leading = base + nesting
                     // A heading gets air above it, inside its own row rather than by changing the
@@ -598,12 +599,12 @@ internal class SettingsNavigationController(
                 val width = rect.width + padX * 2
                 val height = rect.height + padY * 2
 
-                g2.color = Color(accent.red, accent.green, accent.blue, (FILL_ALPHA * strength).toInt())
+                g2.color = accent.withAlpha((FILL_ALPHA * strength).toInt())
                 g2.fillRoundRect(left, top, width, height, arc, arc)
 
                 // Dashed, in the idiom the plugin drop zone already uses, and thick enough to
                 // carry the emphasis on its own — the fill is only there to seat it.
-                g2.color = Color(accent.red, accent.green, accent.blue, (OUTLINE_ALPHA * strength).toInt())
+                g2.color = accent.withAlpha((OUTLINE_ALPHA * strength).toInt())
                 g2.stroke = BasicStroke(
                     UIScale.scale(2f),
                     BasicStroke.CAP_BUTT,

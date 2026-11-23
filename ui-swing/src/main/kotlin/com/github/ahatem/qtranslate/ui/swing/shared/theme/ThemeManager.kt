@@ -308,12 +308,11 @@ class ThemeManager(
          * Whether the desktop is currently in its dark appearance.
          *
          * Windows reads the preference in-process. This runs on the 10-second OS-default poll,
-         * where a `reg.exe` child process per poll was wasteful and matched the cadence of the
-         * "Program Close" sound reported in #323.
+         * where a `reg.exe` child process per poll would be wasteful and would recur at the
+         * cadence of the "Program Close" sound.
          *
          * A null [WindowsSystemTheme.isDarkMode] answer reads as light here: the OS-default theme
-         * then resolves to the branded light theme instead of leaving the window unstyled. The
-         * previous `reg.exe` implementation degraded the same way when its read threw.
+         * then resolves to the branded light theme instead of leaving the window unstyled.
          */
         fun isSystemInDarkMode(): Boolean = try {
             when {

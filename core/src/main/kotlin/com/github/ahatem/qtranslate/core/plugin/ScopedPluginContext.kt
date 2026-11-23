@@ -155,8 +155,7 @@ internal class ScopedPluginContext(
      * Releases the connection pool. Called once the plugin is finished with, not on disable,
      * since the same context serves the next enable cycle.
      *
-     * Plugins used to close the client they built themselves. Now that they are handed one, the
-     * closing moved here with the ownership rather than being dropped: an unclosed pool keeps its
+     * The host owns the client it hands a plugin, so it closes it here: an unclosed pool keeps its
      * selector threads alive, which on a plugin the user uninstalls would leak for the rest of
      * the session.
      */

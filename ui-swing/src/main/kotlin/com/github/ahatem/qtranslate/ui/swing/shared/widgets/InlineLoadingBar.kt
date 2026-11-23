@@ -9,9 +9,9 @@ import javax.swing.JProgressBar
 /**
  * A hairline progress bar for work happening inside a popup that already has something on screen.
  *
- * The popups used to blank their content while reloading, which threw away the very thing the
- * reader was in the middle of — the previous translation or definition, still perfectly useful
- * while the next one arrives. This says "working" without taking anything away.
+ * Blanking a popup's content while it reloads would throw away the very thing the reader is in
+ * the middle of: the previous translation or definition, still perfectly useful while the next
+ * one arrives. This says "working" without taking anything away.
  *
  * The bar occupies a fixed height whether or not it is showing, so appearing and disappearing
  * never moves the content beneath it. A progress bar that shoves the text down by three pixels

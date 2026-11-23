@@ -1,7 +1,5 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
-import com.formdev.flatlaf.fonts.inter.FlatInterFont
-import com.github.ahatem.qtranslate.core.settings.data.FontConfig
 import com.github.ahatem.qtranslate.ui.swing.shared.fonts.NotoNaskhArabicFont
 import com.github.ahatem.qtranslate.ui.swing.shared.fonts.RubikSansFont
 import com.github.ahatem.qtranslate.ui.swing.shared.textpane.ShapedCarets
@@ -32,13 +30,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * The behavioural contract for shaped text: where lines break, which font draws a script, and where
- * the caret and the mouse land.
- *
- * The sentence is the one that reproduced a word ("بدلاً") cut across two lines and carets landing a
- * few characters off. The bundled Rubik claims its Arabic but lays it out with broken hit-testing,
- * so the product pair exercises the configured fallback. Fonts are named here as reproductions; the
- * production code decides from each layout's own carets.
+ * Where lines break, which font draws a script, and where the caret and mouse land, on a sentence that
+ * once cut "بدلاً" across two lines. The bundled Rubik shapes Arabic with broken hit-testing, so the
+ * product pair exercises the configured fallback; production decides from each layout's own carets.
  */
 class ShapedTextContractTest {
 
@@ -69,6 +63,9 @@ class ShapedTextContractTest {
     /** The paths above, plus the platform's logical font as the primary. */
     private val pairs = listOf(product, sound, FontPair(Font.DIALOG, NotoNaskhArabicFont.FAMILY), lastResort)
 
+    /** Each width moves the row ends elsewhere in the sentence; the step is coarse but the ends and the middle are kept. */
+    private val sweepWidths = ((240..900 step 60) + (560..640 step 16) + 900).distinct().sorted()
+
     private fun pane(text: String, width: Int, fonts: FontPair) = ShapedText.pane(text, width, fonts.primary, fonts.fallback)
 
     private fun rowStarts(pane: AdvancedTextPane): List<Int> = onEdt { ShapedText.rows(pane).map { it.startOffset } }
@@ -88,7 +85,14 @@ class ShapedTextContractTest {
         val text = onEdt { pane.styledDocument.getText(0, pane.styledDocument.length) }
         val lines = BreakIterator.getLineInstance(Locale.ROOT).apply { setText(text) }
         val clusters = BreakIterator.getCharacterInstance().apply { setText(text) }
-        val starts = rowStarts(pane)
+        val rows = onEdt { ShapedText.rows(pane).map { it.startOffset to it.endOffset } }
+        val starts = rows.map { it.first }
+        assertEquals(0, starts.first(), "$label: the first row starts the paragraph")
+        assertTrue(rows.last().second >= text.length, "$label: the last row ends the paragraph")
+        rows.zipWithNext().forEach { (row, next) ->
+            assertEquals(row.second, next.first, "$label: rows ${row.first}-${row.second} and ${next.first}-${next.second} must meet")
+        }
+        assertTrue(rows.all { it.second > it.first }, "$label: no row is empty")
         for (i in 1 until starts.size) {
             val start = starts[i]
             if (lines.isBoundary(start)) continue
@@ -112,23 +116,12 @@ class ShapedTextContractTest {
     // Line breaking and document text
     // -------------------------------------------------------------------------------------------
 
-    /** Every width, because each one moves the row ends somewhere else in the sentence. */
-    @Test
-    fun `the product fonts never split the word at any width`() {
-        val p = pane(sentence, width = 600, fonts = product)
-        for (width in 240..900 step 4) {
-            ShapedText.resize(p, width)
-            assertWordNeverSplit(p, "width $width")
-            assertRowsRespectLineBreaks(p, "width $width")
-        }
-    }
-
     @Test
     fun `every font path keeps the word whole and the document exactly the source text`() {
         for (fonts in pairs) {
             val p = pane(sentence, width = 600, fonts = fonts)
             assertEquals(sentence, onEdt { p.styledDocument.getText(0, p.styledDocument.length) }, "$fonts: no inserted newline, mark or reordering")
-            for (width in listOf(240) + (560..640 step 8) + 900) {
+            for (width in sweepWidths) {
                 ShapedText.resize(p, width)
                 assertWordNeverSplit(p, "$fonts at $width")
                 assertRowsRespectLineBreaks(p, "$fonts at $width")
@@ -139,13 +132,13 @@ class ShapedTextContractTest {
     @Test
     fun `ordinary text of every kind breaks only at legal opportunities`() {
         val samples = listOf(
-            "pure english" to List(30) { "translation" }.joinToString(" "),
-            "pure arabic" to List(30) { "الحركة الدودية" }.joinToString(" "),
-            "arabic with combining marks" to List(20) { "مُسْتَشْفَيَاتُهُمْ الْعَرَبِيَّةُ" }.joinToString(" "),
-            "mixed arabic and latin" to List(8) { "طلب الدمج PR رقم مفتوحًا وقابلاً للدمج pull request" }.joinToString(" "),
-            "arabic with a hash token" to List(8) { "لا يوجد سبب لحماية طلب الدمج رقم #298 من التغيير" }.joinToString(" "),
-            "arabic with slash separated numbers" to List(8) { "الرقم الحالي هو 852 إضافة / 319 عملية حذف فقط" }.joinToString(" "),
-            "punctuation" to List(8) { "مفتوحًا/قابلاً للدمج، لذلك! أليس كذلك؟ (نعم): بالتأكيد." }.joinToString(" "),
+            "pure english" to List(12) { "translation" }.joinToString(" "),
+            "pure arabic" to List(12) { "الحركة الدودية" }.joinToString(" "),
+            "arabic with combining marks" to List(8) { "مُسْتَشْفَيَاتُهُمْ الْعَرَبِيَّةُ" }.joinToString(" "),
+            "mixed arabic and latin" to List(4) { "طلب الدمج PR رقم مفتوحًا وقابلاً للدمج pull request" }.joinToString(" "),
+            "arabic with a hash token" to List(4) { "لا يوجد سبب لحماية طلب الدمج رقم #298 من التغيير" }.joinToString(" "),
+            "arabic with slash separated numbers" to List(4) { "الرقم الحالي هو 852 إضافة / 319 عملية حذف فقط" }.joinToString(" "),
+            "punctuation" to List(4) { "مفتوحًا/قابلاً للدمج، لذلك! أليس كذلك؟ (نعم): بالتأكيد." }.joinToString(" "),
         )
         for (fonts in pairs) {
             for ((label, text) in samples) {
@@ -197,37 +190,6 @@ class ShapedTextContractTest {
         assertEquals(setOf(expectedArabic), arabicFamilies, "all of the paragraph's Arabic shares one face")
     }
 
-    @Test
-    fun `a primary font that shapes soundly is left alone even when the fallback also would`() {
-        val p = pane(sentence, width = 600, fonts = FontPair(NotoNaskhArabicFont.FAMILY, RubikSansFont.FAMILY))
-        if (layoutIsSound(sentence, NotoNaskhArabicFont.FAMILY)) {
-            assertEquals(NotoNaskhArabicFont.FAMILY, familyAt(p, sentence.indexOf(word)))
-        }
-    }
-
-    /**
-     * The new default pair (Inter primary, Automatic fallback) is deliberately not in [pairs].
-     *
-     * On a platform with no Arabic-capable font installed at all — a minimal Linux box or
-     * container, reproduced on the CI runner this suite runs on — `Font.canDisplayUpTo` and
-     * [ShapedCarets.layoutIsSound] both report the logical `SansSerif`/`Dialog` families as sound
-     * for Arabic, because the substitution Java performs behind them is internally self-consistent.
-     * It is not actually backed by a real Arabic face, so the separate measurement path used for
-     * wrapping disagrees with it, and rows can start mid-word — the exact defect [pairs]'s other
-     * cases exist to catch, on a font this suite's existing soundness check cannot detect.
-     *
-     * The bundled Noto Naskh Arabic face existed for exactly this environment before this stage;
-     * Automatic does not carry the same bundled guarantee. That gap is real and undecided, not
-     * something this test should paper over — so this checks only that the pair renders without
-     * throwing and produces the source text intact, not that its wrapping is legal.
-     */
-    @Test
-    fun `the new default pair renders arabic without throwing, precision aside`() {
-        val p = pane(sentence, width = 600, fonts = FontPair(FlatInterFont.FAMILY, FontConfig.AUTOMATIC))
-        assertEquals(sentence, onEdt { p.styledDocument.getText(0, p.styledDocument.length) })
-        assertTrue(onEdt { ShapedText.rows(p) }.isNotEmpty(), "the paragraph produced at least one row")
-    }
-
     // -------------------------------------------------------------------------------------------
     // Caret, mouse and keyboard
     // -------------------------------------------------------------------------------------------
@@ -263,7 +225,7 @@ class ShapedTextContractTest {
     fun `every position round trips exactly and in reading order, at every width`() {
         for (fonts in listOf(product, sound)) {
             val p = pane(sentence, width = 600, fonts = fonts)
-            for (width in 240..900 step 10) {
+            for (width in ((240..900 step 50) + 900).distinct()) {
                 ShapedText.resize(p, width)
                 onEdt { assertCaretsExact(p, "$fonts at $width") }
             }

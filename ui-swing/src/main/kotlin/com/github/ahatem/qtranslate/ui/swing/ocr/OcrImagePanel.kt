@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.ocr
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.ocr.OCRRegionKind
 import com.github.ahatem.qtranslate.api.ocr.OCRTextRegion
+import com.github.ahatem.qtranslate.ui.swing.shared.util.withAlpha
 import com.github.ahatem.qtranslate.ui.swing.snippingtool.CaptureGeometry
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
@@ -157,8 +158,6 @@ internal class OcrImagePanel : JPanel(), Scrollable {
         setScale(scale * ZOOM_STEP)
     }
 
-    fun isFitMode(): Boolean = fitMode
-
     fun refitIfFitted(viewport: Dimension) {
         if (fitMode) fitToWindow(viewport)
     }
@@ -311,11 +310,11 @@ internal class OcrImagePanel : JPanel(), Scrollable {
                 scale = scale,
             ) ?: return@forEachIndexed
             val isSelected = index == highlightedRegion || index == hoveredRegion
-            g2d.color = if (isSelected) selected else Color(normal.red, normal.green, normal.blue, 85)
+            g2d.color = if (isSelected) selected else normal.withAlpha(85)
             g2d.stroke = BasicStroke(UIScale.scale(if (isSelected) 2.0f else 1.0f))
             g2d.drawRect(view.x, view.y, max(1, view.width), max(1, view.height))
             if (isSelected) {
-                g2d.color = Color(selected.red, selected.green, selected.blue, 38)
+                g2d.color = selected.withAlpha(38)
                 g2d.fillRect(view.x, view.y, max(1, view.width), max(1, view.height))
             }
         }

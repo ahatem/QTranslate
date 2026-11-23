@@ -35,38 +35,29 @@ class OcrImageTest {
     }
 
     @Test
-    fun `scales an oversized image down preserving its aspect ratio`() {
-        val prepared = OcrImage.prepare(imageData(width = 400, height = 200), maxDimension = 100).unwrap()
+    fun `scales an oversized image down by its longest edge, preserving the aspect ratio`() {
+        // (width, height, max dimension) -> expected (width, height)
+        val cases = listOf(
+            Triple(400 to 200, 100, 100 to 50),
+            Triple(1_000 to 333, 100, 100 to 33),
+        )
+        for ((size, max, expected) in cases) {
+            val prepared = OcrImage.prepare(imageData(width = size.first, height = size.second), maxDimension = max).unwrap()
 
-        assertEquals(100, prepared.width)
-        assertEquals(50, prepared.height)
-        assertEquals("png", prepared.format)
+            assertEquals(expected, prepared.width to prepared.height, "scaling $size to $max")
+            assertEquals("png", prepared.format)
+        }
     }
 
     @Test
-    fun `scales by the longest edge and rounds deterministically`() {
-        val prepared = OcrImage.prepare(imageData(width = 1_000, height = 333), maxDimension = 100).unwrap()
-
-        assertEquals(100, prepared.width)
-        assertEquals(33, prepared.height)
-    }
-
-    @Test
-    fun `rejects an image with no data`() {
-        val empty = imageData().let { it.copy(bytes = ByteArray(0)) }
-
-        assertTrue(OcrImage.prepare(empty, maxDimension = null).unwrapError() is ServiceError.InvalidInputError)
-    }
-
-    @Test
-    fun `rejects non-positive dimensions`() {
-        val zero = imageData().let { it.copy(width = 0) }
-
-        assertTrue(OcrImage.prepare(zero, maxDimension = null).unwrapError() is ServiceError.InvalidInputError)
-    }
-
-    @Test
-    fun `rejects a corrupt image`() {
-        assertTrue(OcrImage.prepare(corruptImageData(), maxDimension = null).unwrapError() is ServiceError.InvalidInputError)
+    fun `rejects an image with no data, no size or corrupt bytes`() {
+        val rejected = mapOf(
+            "no data" to imageData().copy(bytes = ByteArray(0)),
+            "non-positive dimensions" to imageData().copy(width = 0),
+            "corrupt bytes" to corruptImageData(),
+        )
+        for ((label, image) in rejected) {
+            assertTrue(OcrImage.prepare(image, maxDimension = null).unwrapError() is ServiceError.InvalidInputError, label)
+        }
     }
 }

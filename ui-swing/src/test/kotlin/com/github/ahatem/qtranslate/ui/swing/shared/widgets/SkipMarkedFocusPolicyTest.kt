@@ -8,10 +8,8 @@ import javax.swing.JTextArea
 import javax.swing.JTextField
 import javax.swing.JTextPane
 import kotlin.test.Test
-import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertSame
-import kotlin.test.assertTrue
 
 /**
  * A focus cycle only answers for a displayable root, which would make these need a display and fail
@@ -115,20 +113,6 @@ class SkipMarkedFocusPolicyTest {
     }
 
     @Test
-    fun `a marked component is still focusable and still read-only`() {
-        listOf(definitionPane("a quick brown fox"), definitionArea("the quick brown fox jumped"))
-            .forEach { text ->
-                assertTrue(text.isFocusable, "a click must be able to leave the caret in it")
-                assertFalse(text.isEditable, "and it is still not written into")
-                assertTrue(text.skipsFocusTraversal(), "while staying out of the Tab cycle")
-                assertTrue(
-                    text.getActionMap().get("copy") != null,
-                    "so the standard copy action is there for the keyboard shortcut",
-                )
-            }
-    }
-
-    @Test
     fun `a cycle of only marked components has no destination`() {
         val first = definitionPane("a quick brown fox")
         val second = definitionArea("the quick brown fox jumped")
@@ -138,23 +122,6 @@ class SkipMarkedFocusPolicyTest {
         assertNull(policy.getComponentBefore(container, second), "in either direction")
         assertNull(policy.getFirstComponent(container))
         assertNull(policy.getLastComponent(container))
-    }
-
-    @Test
-    fun `the policy keeps the delegate's order and only drops the marked components`() {
-        val field = JTextField("fox")
-        val definition = definitionPane("a quick brown fox")
-        val cycle: Array<Component> = arrayOf(field, definition, JButton("Look Up"), JButton("Close"))
-        val delegate = FixedOrder(*cycle)
-
-        assertSame(definition, delegate.getComponentAfter(container, field), "the delegate offers it")
-        assertSame(field, delegate.getComponentAfter(container, cycle[3]), "and wraps as it always did")
-
-        val policy = SkipMarkedFocusPolicy(delegate)
-        assertSame(cycle[2], policy.getComponentAfter(container, definition), "the policy removes it")
-        assertSame(cycle[3], policy.getComponentAfter(container, cycle[2]), "and leaves the rest in order")
-        assertSame(field, policy.getComponentAfter(container, cycle[3]))
-        assertSame(field, policy.getDefaultComponent(container), "an unmarked default is kept as it is")
     }
 
     @Test

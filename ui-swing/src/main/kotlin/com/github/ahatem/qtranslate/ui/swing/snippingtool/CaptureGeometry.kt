@@ -56,8 +56,8 @@ internal object CaptureGeometry {
      * Places the action toolbar beside the selection, in panel coordinates.
      *
      * It prefers below, flips above when there is no room, and finally clamps inside the panel.
-     * Because the panel spans the virtual desktop, this also fixes the negative-monitor-origin
-     * placement bug: no virtual-screen offset is mixed into panel-local values.
+     * Because the panel spans the virtual desktop, this also handles a negative monitor origin:
+     * no virtual-screen offset is mixed into panel-local values.
      */
     fun toolbarPosition(
         selection: Rectangle,

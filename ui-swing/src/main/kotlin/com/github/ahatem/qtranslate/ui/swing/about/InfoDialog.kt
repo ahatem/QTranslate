@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.about
 
 import com.formdev.flatlaf.FlatClientProperties
 import com.formdev.flatlaf.FlatClientProperties.BUTTON_TYPE
+import com.github.ahatem.qtranslate.ui.swing.shared.util.withAlpha
 import java.awt.Color
 import java.awt.Component
 import java.awt.Cursor
@@ -160,7 +161,7 @@ class InfoDialog(owner: Frame) : JDialog(owner, true) {
         }
         override fun paintComponent(g: Graphics) {
             val c = UIManager.getColor("Separator.foreground") ?: Color(80, 80, 80)
-            g.color = Color(c.red, c.green, c.blue, 80)
+            g.color = c.withAlpha(80)
             g.drawLine(0, 0, width, 0)
         }
     }

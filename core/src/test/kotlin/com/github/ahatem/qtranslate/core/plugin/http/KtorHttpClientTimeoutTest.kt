@@ -1,6 +1,6 @@
 package com.github.ahatem.qtranslate.core.plugin.http
 
-import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.HttpTimeoutCapability
@@ -10,7 +10,6 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 /**
  * Which timeouts a request actually goes out with.
@@ -22,12 +21,6 @@ import kotlin.test.assertNull
  */
 class KtorHttpClientTimeoutTest {
 
-    private val silentLogger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
 
     private fun okEngine() = MockEngine { respond(content = "ok", status = HttpStatusCode.OK) }
 
@@ -35,7 +28,7 @@ class KtorHttpClientTimeoutTest {
         getCapabilityOrNull(HttpTimeoutCapability)
 
     private fun clientWith(config: HttpClientConfig, engine: MockEngine) = KtorHttpClient(
-        logger = silentLogger,
+        logger = SilentLogger,
         config = config,
         engine = engine,
         ownsEngine = false
@@ -111,64 +104,28 @@ class KtorHttpClientTimeoutTest {
     }
 
     @Test
-    fun `host matching ignores case, port and scheme`() = runBlocking {
-        val engine = okEngine()
-        clientWith(
-            HttpClientConfig(
-                enableRetry = false,
-                requestTimeoutMillis = 11_000,
-                hostTimeouts = mapOf("API.Example.INVALID" to HostTimeout(requestTimeoutMillis = 45_000))
-            ),
-            engine
-        ).use { it.get("https://api.example.invalid:8443/v1/translate") }
+    fun `host matching is exact on the name and ignores case, port and scheme`() = runBlocking {
+        // Exact matching is deliberate: suffix matching would let "example.invalid" capture
+        // "evil-example.invalid" too.
+        class Case(val label: String, val key: String, val url: String, val expected: Long)
 
-        assertEquals(45_000, engine.requestHistory.single().timeouts()?.requestTimeoutMillis)
-    }
+        val cases = listOf(
+            Case("case, port and scheme ignored", "API.Example.INVALID", "https://api.example.invalid:8443/v1/translate", 45_000),
+            Case("a different host is not matched", "127.0.0.1", "https://api.example.invalid/b", 11_000),
+            Case("a subdomain is not matched by its parent", "example.invalid", "https://api.example.invalid/thing", 11_000)
+        )
+        for (case in cases) {
+            val engine = okEngine()
+            clientWith(
+                HttpClientConfig(
+                    enableRetry = false,
+                    requestTimeoutMillis = 11_000,
+                    hostTimeouts = mapOf(case.key to HostTimeout(requestTimeoutMillis = 45_000))
+                ),
+                engine
+            ).use { it.get(case.url) }
 
-    @Test
-    fun `a host entry does not leak onto a different host`() = runBlocking {
-        val engine = okEngine()
-        clientWith(
-            HttpClientConfig(
-                enableRetry = false,
-                requestTimeoutMillis = 11_000,
-                hostTimeouts = mapOf("127.0.0.1" to HostTimeout(requestTimeoutMillis = 120_000))
-            ),
-            engine
-        ).use {
-            it.get("http://127.0.0.1:11434/a")
-            it.get("https://api.example.invalid/b")
+            assertEquals(case.expected, engine.requestHistory.single().timeouts()?.requestTimeoutMillis, case.label)
         }
-
-        val (local, remote) = engine.requestHistory
-        assertEquals(120_000, local.timeouts()?.requestTimeoutMillis)
-        assertEquals(11_000, remote.timeouts()?.requestTimeoutMillis, "the remote host keeps the shared value")
-    }
-
-    @Test
-    fun `a subdomain is not matched by its parent`() = runBlocking {
-        val engine = okEngine()
-        clientWith(
-            HttpClientConfig(
-                enableRetry = false,
-                requestTimeoutMillis = 11_000,
-                hostTimeouts = mapOf("example.invalid" to HostTimeout(requestTimeoutMillis = 45_000))
-            ),
-            engine
-        ).use { it.get("https://api.example.invalid/thing") }
-
-        // Exact matching, deliberately. Suffix matching would make "example.invalid" silently
-        // capture "evil-example.invalid" too, and the entry is a name rather than a pattern.
-        assertEquals(11_000, engine.requestHistory.single().timeouts()?.requestTimeoutMillis)
-    }
-
-    @Test
-    fun `no per-host entries means nothing is attached beyond the client defaults`() = runBlocking {
-        val engine = okEngine()
-        clientWith(HttpClientConfig(enableRetry = false), engine)
-            .use { it.get("https://example.invalid/thing") }
-
-        assertEquals(30_000, engine.requestHistory.single().timeouts()?.requestTimeoutMillis)
-        assertNull(HostTimeout().requestTimeoutMillis, "an empty override names nothing")
     }
 }

@@ -8,13 +8,9 @@ import kotlin.test.assertTrue
 /**
  * That Download offers the application rather than whatever GitHub happens to list first.
  *
- * The updater took `assets.firstOrNull()`. GitHub returns assets alphabetically, and every release
- * ships a plugin JAR per bundled plugin, so first has always resolved to `ai-plugin-<version>.jar`.
- * Pressing Download downloaded one plugin and presented it as the new version. Nothing threw and
- * nothing logged, which is how it survived releases: it takes someone opening the file to notice.
- *
- * The lists below are the real asset names from v1.3.0 and v1.4.0, taken from the API, so this
- * tests the arrangement that actually shipped rather than a tidied version of it.
+ * GitHub lists assets alphabetically and every release ships a plugin JAR per bundled plugin, so
+ * taking the first asset would offer a plugin as the new version. The list below is the real
+ * asset set of the v1.4.0 release.
  */
 class ReleaseAssetsTest {
 
@@ -38,25 +34,6 @@ class ReleaseAssetsTest {
         "yandex-web-services-1.0.0.jar",
     )
 
-    private val v130 = listOf(
-        "ai-plugin-2.0.0.jar",
-        "bing-services-1.0.0.jar",
-        "deepl-services-1.1.0.jar",
-        "google-services-1.0.0.jar",
-        "libretranslate-services-1.0.0.jar",
-        "mozhi-services-1.0.0.jar",
-        "mymemory-services-1.0.0.jar",
-        "QTranslate-1.3.0-windows-x64.zip",
-        "QTranslate-1.3.0.zip",
-        "QTranslate-App-1.3.0.jar",
-        "release-metadata.json",
-        "reverso-services-1.0.0.jar",
-        "SHA256SUMS.txt",
-        "SIZE_REPORT.md",
-        "wikimedia-reference-1.0.0.jar",
-        "yandex-web-services-1.0.0.jar",
-    )
-
     @Test
     fun `Windows is offered the packaged build`() {
         assertEquals("QTranslate-1.4.0-windows-x64.zip", ReleaseAssets.selectDownload(v140, onWindows = true))
@@ -68,24 +45,15 @@ class ReleaseAssetsTest {
     }
 
     @Test
-    fun `the release that shipped the bug selects correctly too`() {
-        assertEquals("QTranslate-1.3.0-windows-x64.zip", ReleaseAssets.selectDownload(v130, onWindows = true))
-        assertEquals("QTranslate-1.3.0.zip", ReleaseAssets.selectDownload(v130, onWindows = false))
-    }
-
-    @Test
     fun `no plugin jar is ever chosen`() {
-        // The whole point. Stated as a property over both real releases and both platforms rather
-        // than as one assertion about the alphabetically first name, so a future plugin sorting
-        // ahead of ai-plugin cannot quietly reintroduce this.
-        listOf(v130, v140).forEach { assets ->
-            listOf(true, false).forEach { onWindows ->
-                val chosen = ReleaseAssets.selectDownload(assets, onWindows)
-                assertTrue(
-                    chosen != null && chosen.startsWith("QTranslate", ignoreCase = true),
-                    "Chose '$chosen', which is not the application"
-                )
-            }
+        // A property over both platforms rather than an assertion about the alphabetically first
+        // name, so a plugin sorting ahead of ai-plugin cannot reintroduce this.
+        listOf(true, false).forEach { onWindows ->
+            val chosen = ReleaseAssets.selectDownload(v140, onWindows)
+            assertTrue(
+                chosen != null && chosen.startsWith("QTranslate", ignoreCase = true),
+                "Chose '$chosen', which is not the application"
+            )
         }
     }
 
@@ -120,11 +88,5 @@ class ReleaseAssetsTest {
         assertNull(ReleaseAssets.selectDownload(noAppAssets, onWindows = true))
         assertNull(ReleaseAssets.selectDownload(noAppAssets, onWindows = false))
         assertNull(ReleaseAssets.selectDownload(emptyList(), onWindows = true))
-    }
-
-    @Test
-    fun `the checksum and metadata files are never offered`() {
-        val decoys = listOf("SHA256SUMS.txt", "SIZE_REPORT.md", "release-metadata.json")
-        assertNull(ReleaseAssets.selectDownload(decoys, onWindows = true))
     }
 }

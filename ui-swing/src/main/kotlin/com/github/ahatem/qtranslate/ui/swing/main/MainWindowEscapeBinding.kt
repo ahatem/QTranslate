@@ -8,7 +8,7 @@ import javax.swing.JRootPane
 import javax.swing.KeyStroke
 
 /**
- * Fixed Escape binding for the main window (#216, first half).
+ * Fixed Escape binding for the main window.
  *
  * Pressing Escape while the main window is focused hides it (`isVisible = false`).
  * It never disposes the frame, clears input, or exits the application — the next

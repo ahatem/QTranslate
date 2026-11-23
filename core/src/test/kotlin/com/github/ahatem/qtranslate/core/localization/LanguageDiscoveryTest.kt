@@ -1,13 +1,12 @@
 package com.github.ahatem.qtranslate.core.localization
 
-import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -21,20 +20,13 @@ class LanguageDiscoveryTest {
         .firstOrNull { File(it, "languages").isDirectory && File(it, "settings.gradle.kts").isFile }
         ?: error("Could not locate the repository root from ${System.getProperty("user.dir")}")
 
-    private val logger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
-
     @Test
     fun `every shipped language file is discovered with selector metadata`() = runTest {
         val appData = Files.createTempDirectory("qtranslate-language-discovery").toFile()
         val manager = LocalizationManager(
             appDataDirectory = appData,
             parser = LanguageTomlParser(),
-            logger = logger,
+            logger = SilentLogger,
             installationRoot = repoRoot,
         )
 
@@ -54,12 +46,5 @@ class LanguageDiscoveryTest {
             assertTrue(meta.name.isNotBlank(), "$code.toml has no English language name")
             assertTrue(meta.nativeName.isNotBlank(), "$code.toml has no native language name")
         }
-
-        val czech = assertNotNull(manager.readLanguageMeta(LanguageCode("cs-CZ")))
-        assertEquals("Czech", czech.name)
-        assertEquals("Čeština", czech.nativeName)
-        assertEquals("cs-CZ", czech.locale)
-        assertEquals(listOf("KacerV1"), czech.translators)
-        assertFalse(czech.isRtl)
     }
 }

@@ -4,6 +4,7 @@ import com.formdev.flatlaf.extras.FlatSVGIcon
 import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.util.applyForegroundColorFilter
+import com.github.ahatem.qtranslate.ui.swing.shared.util.blend
 import java.awt.AlphaComposite
 import java.awt.Color
 import java.awt.Cursor
@@ -300,15 +301,6 @@ internal class SelectionTranslateButton(
 
         /** Moves a colour toward white (positive [amount]) by the given fraction. */
         private fun Color.shift(amount: Float): Color = blend(Color.WHITE, amount)
-
-        private fun Color.blend(other: Color, ratio: Float): Color {
-            val r = ratio.coerceIn(0f, 1f)
-            return Color(
-                (red + (other.red - red) * r).toInt().coerceIn(0, 255),
-                (green + (other.green - green) * r).toInt().coerceIn(0, 255),
-                (blue + (other.blue - blue) * r).toInt().coerceIn(0, 255)
-            )
-        }
     }
 
     companion object {

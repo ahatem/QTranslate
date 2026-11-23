@@ -46,8 +46,8 @@ class PopupsPanel(
 
     private fun buildUI() {
         // ── Shared ───────────────────────────────────────────────────────────
-        // Ahead of the per-popup sections because it governs all three. It used to sit inside
-        // the translation popup's group, which read as though it applied to that one alone.
+        // Ahead of the per-popup sections because it governs all three. Inside the translation
+        // popup's group it would read as though it applied to that one alone.
         addSeparator(localizationManager.getString("settings_window.popup_group"))
 
         closeOnClickOutsideCheck = addCheckbox(

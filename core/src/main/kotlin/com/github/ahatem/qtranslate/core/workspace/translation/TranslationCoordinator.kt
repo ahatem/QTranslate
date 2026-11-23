@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
  * this origin, and when the secondary panel needs a real translation as a fallback.
  *
  * [TranslateTextUseCase] owns the request lifetime and publication validity; this coordinator
- * owns the policy around it that used to live in the store. It never touches Swing, and the
+ * owns the policy around it. It never touches Swing, and the
  * store keeps rendering state and dispatching intents.
  */
 internal class TranslationCoordinator(

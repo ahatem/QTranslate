@@ -5,7 +5,6 @@ import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import java.awt.Color
 import java.awt.Component
-import java.awt.Dimension
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.Rectangle
@@ -30,8 +29,8 @@ import javax.swing.ScrollPaneConstants
  * A `JList` with a custom cell renderer rather than a column of panels: the list brings keyboard
  * navigation, type-ahead, single selection, scroll-to-selection and an accessible table model for
  * free, and FlatLaf draws the selection pill — including its inactive and focused states — from
- * `List.selection*`. Building the same thing out of panels meant re-implementing all of that and
- * hand-painting selection with colours picked by hand, which is how the rows used to be painted.
+ * `List.selection*`. Building the same thing out of panels would mean re-implementing all of that
+ * and hand-painting selection with colours picked by hand.
  *
  * What this class adds on top of a plain `JList`:
  *
@@ -236,11 +235,5 @@ internal class SettingsRowList<E : Any>(
         /** The colour a row's secondary line uses, from the theme rather than from a literal. */
         fun secondaryForeground(): Color =
             UIManager.getColor("Label.disabledForeground") ?: UIManager.getColor("Label.foreground")
-
-        /** Row height for a two-line row, in device pixels. */
-        fun twoLineRowHeight(): Int = UIScale.scale(58)
-
-        /** Identity of a row, for a renderer that needs a fixed preferred size. */
-        fun rowSize(width: Int, height: Int): Dimension = Dimension(width, UIScale.scale(height))
     }
 }

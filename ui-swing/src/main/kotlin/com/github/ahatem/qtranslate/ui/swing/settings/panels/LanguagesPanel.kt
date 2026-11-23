@@ -6,6 +6,7 @@ import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.localization.getDisplayName
+import com.github.ahatem.qtranslate.ui.swing.shared.util.blend
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.LanguageComboBox
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
@@ -38,8 +39,8 @@ import javax.swing.table.DefaultTableModel
  * 3. **Translation Rules** — per-source-language forced target overrides displayed
  *    as a two-column table. Add / Remove buttons below.
  *
- * Dictionary auto-lookup used to live here. It is behaviour rather than language
- * configuration, and now sits in [TranslationPanel] with the rest of it.
+ * Dictionary auto-lookup is behaviour rather than language configuration, so it lives in
+ * [TranslationPanel] with the rest of it.
  */
 class LanguagesPanel(
     private val store: SettingsStore,
@@ -607,7 +608,7 @@ class LanguagesPanel(
             val accent = UIManager.getColor("Component.accentColor") ?: SettingsVisuals.accent()
             val base   = SettingsVisuals.background()
             val fill = when {
-                checkBox.isSelected -> SettingsVisuals.blend(accent, base, 0.82f)
+                checkBox.isSelected -> accent.blend(base, 0.82f)
                 hovered -> UIManager.getColor("List.selectionInactiveBackground") ?: base
                 else -> base
             }

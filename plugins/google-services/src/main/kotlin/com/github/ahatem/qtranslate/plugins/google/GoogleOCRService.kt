@@ -24,7 +24,6 @@ class GoogleOCRService(
     private val settings: GoogleSettings,
     private val httpClient: HttpClient,
     private val languageMapper: GoogleLanguageMapper,
-    private val apiConfig: ApiConfig
 ) : OCR {
 
 
@@ -70,7 +69,7 @@ class GoogleOCRService(
 
             val responseString = httpClient.sendJson(
                 url = VISION_ENDPOINT,
-                headers = apiConfig.createJsonHeaders(),
+                headers = ApiConfig.createJsonHeaders(),
                 body = requestBody,
                 queryParams = mapOf("key" to settings.visionApiKey)
             ).bind()

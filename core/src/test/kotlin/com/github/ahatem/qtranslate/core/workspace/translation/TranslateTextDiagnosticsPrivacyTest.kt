@@ -74,50 +74,75 @@ class TranslateTextDiagnosticsPrivacyTest {
     }
 
     @Test
-    fun `translation failure logs the error type, not the provider message`() = runTest {
-        val logger = CapturingLogger()
-        // A provider failure whose message carries the request URL with a key and a body that
-        // echoes the request — exactly what a real provider error can contain.
-        val translator = ScriptedTranslator(
-            listOf(
-                Err(
-                    ServiceError.ServiceUnavailableError(
-                        "HTTP 500 for https://provider.invalid/translate?key=SENTINEL-ZQ42-KEY-3af1\n" +
-                                "SENTINEL-ZQ42-BODY-58c2"
+    fun `failures log the error type or exception class, not the provider message`() = runTest {
+        class Case(
+            val label: String,
+            val translator: Translator,
+            val extraOutput: ExtraOutputRequest?,
+            val sentinels: List<String>,
+            val expectedLog: String
+        )
+
+        // A provider error can carry the request URL with a key and a body that echoes the request.
+        val backward = ExtraOutputRequest(
+            type = ExtraOutputType.BackwardTranslate,
+            source = ExtraOutputSource.Output,
+            summaryLength = "short",
+            rewriteStyle = "casual"
+        )
+        val cases = listOf(
+            Case(
+                "provider failure",
+                ScriptedTranslator(
+                    listOf(
+                        Err(
+                            ServiceError.ServiceUnavailableError(
+                                "HTTP 500 for https://provider.invalid/translate?key=SENTINEL-ZQ42-KEY-3af1\n" +
+                                        "SENTINEL-ZQ42-BODY-58c2"
+                            )
+                        )
                     )
-                )
+                ),
+                null,
+                listOf("SENTINEL-ZQ42-KEY-3af1", "SENTINEL-ZQ42-BODY-58c2", "SENTINEL-ZQ42-INPUT-94d0"),
+                "Translation failed: ServiceUnavailableError"
+            ),
+            Case(
+                "unexpected exception",
+                ThrowingTranslator(IllegalStateException("SENTINEL-ZQ42-EXC-71f0 blew up")),
+                null,
+                listOf("SENTINEL-ZQ42-EXC-71f0"),
+                "Unexpected error during translation: IllegalStateException"
+            ),
+            Case(
+                "backward translation failure",
+                ScriptedTranslator(
+                    listOf(
+                        Ok(TranslationResponse("SENTINEL-ZQ42-OUTPUT-1b7e")),
+                        Err(ServiceError.TimeoutError("Request timed out: https://provider.invalid/back?key=SENTINEL-ZQ42-KEY-3af1"))
+                    )
+                ),
+                backward,
+                listOf("SENTINEL-ZQ42-KEY-3af1", "SENTINEL-ZQ42-OUTPUT-1b7e", "SENTINEL-ZQ42-INPUT-94d0"),
+                "Backward translation failed: TimeoutError"
             )
         )
-        harness(this, logger, translator).invoke(
-            getState = { state("SENTINEL-ZQ42-INPUT-94d0 hello") },
-            updateState = { },
-            onStatusUpdate = { _, _, _ -> }
-        )
-        advanceUntilIdle()
+        for (case in cases) {
+            val logger = CapturingLogger()
+            harness(this, logger, case.translator).invoke(
+                getState = { state("SENTINEL-ZQ42-INPUT-94d0 hello") },
+                updateState = { },
+                onStatusUpdate = { _, _, _ -> },
+                extraOutputRequest = case.extraOutput
+            )
+            advanceUntilIdle()
 
-        assertNoSentinel(logger, "SENTINEL-ZQ42-KEY-3af1", "SENTINEL-ZQ42-BODY-58c2", "SENTINEL-ZQ42-INPUT-94d0")
-        assertTrue(
-            logger.messages.any { it.contains("Translation failed: ServiceUnavailableError") },
-            "the failure diagnostic keeps the error type: ${logger.messages}"
-        )
-    }
-
-    @Test
-    fun `an unexpected translation exception logs its class, not its message`() = runTest {
-        val logger = CapturingLogger()
-        val translator = ThrowingTranslator(IllegalStateException("SENTINEL-ZQ42-EXC-71f0 blew up"))
-        harness(this, logger, translator).invoke(
-            getState = { state("SENTINEL-ZQ42-INPUT-94d0 hello") },
-            updateState = { },
-            onStatusUpdate = { _, _, _ -> }
-        )
-        advanceUntilIdle()
-
-        assertNoSentinel(logger, "SENTINEL-ZQ42-EXC-71f0")
-        assertTrue(
-            logger.messages.any { it.contains("Unexpected error during translation: IllegalStateException") },
-            "the diagnostic keeps the exception class: ${logger.messages}"
-        )
+            assertNoSentinel(logger, *case.sentinels.toTypedArray())
+            assertTrue(
+                logger.messages.any { it.contains(case.expectedLog) },
+                "${case.label}: the diagnostic keeps the error type: ${logger.messages}"
+            )
+        }
     }
 
     @Test
@@ -195,40 +220,6 @@ class TranslateTextDiagnosticsPrivacyTest {
         assertTrue(
             logger.messages.any { it.contains("Re-translation successful") && it.contains("chars=") },
             "the retranslation diagnostic keeps its metadata: ${logger.messages}"
-        )
-    }
-
-    @Test
-    fun `backward translation failure logs the error type, not the provider message`() = runTest {
-        val logger = CapturingLogger()
-        val translator = ScriptedTranslator(
-            listOf(
-                Ok(TranslationResponse("SENTINEL-ZQ42-OUTPUT-1b7e")),
-                Err(
-                    ServiceError.TimeoutError(
-                        "Request timed out: https://provider.invalid/back?key=SENTINEL-ZQ42-KEY-3af1"
-                    )
-                )
-            )
-        )
-        val extraOutput = ExtraOutputRequest(
-            type = ExtraOutputType.BackwardTranslate,
-            source = ExtraOutputSource.Output,
-            summaryLength = "short",
-            rewriteStyle = "casual"
-        )
-        harness(this, logger, translator).invoke(
-            getState = { state("SENTINEL-ZQ42-INPUT-94d0 hello") },
-            updateState = { },
-            onStatusUpdate = { _, _, _ -> },
-            extraOutputRequest = extraOutput
-        )
-        advanceUntilIdle()
-
-        assertNoSentinel(logger, "SENTINEL-ZQ42-KEY-3af1", "SENTINEL-ZQ42-OUTPUT-1b7e", "SENTINEL-ZQ42-INPUT-94d0")
-        assertTrue(
-            logger.messages.any { it.contains("Backward translation failed: TimeoutError") },
-            "the failure diagnostic keeps the error type: ${logger.messages}"
         )
     }
 

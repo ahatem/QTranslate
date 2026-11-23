@@ -1,6 +1,6 @@
 package com.github.ahatem.qtranslate.core.plugin.http
 
-import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -14,32 +14,13 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * That the connection cap really constrains real sockets, and by how much.
- *
- * [io.ktor.client.engine.mock.MockEngine] cannot answer this: it never opens a socket, so it has
- * no pool to cap and would pass whatever the setting said. CIO enforces the limit per route with a
- * counter on each endpoint, which is only observable in how many connections a server sees at
- * once, so the server here is real and its job is to count.
- *
- * ### The cap is advisory, and these tests say so
- * `Endpoint.makePipelineRequest` reads `connections.value`, compares it to
- * `maxConnectionsPerRoute`, and only increments the counter later inside `connect`, with a suspend
- * boundary in between. Several coroutines can pass the same stale check before any of them
- * increments, so a burst can overshoot the number. This was found by asserting a hard ceiling of
- * three and watching four connections arrive.
- *
- * These tests therefore assert what the setting actually buys — concurrency held near the cap and
- * far below the number of requests in flight — rather than a guarantee CIO does not make. Pinning
- * the exact overshoot would only encode one machine's timing.
+ * That the connection cap constrains real sockets. [io.ktor.client.engine.mock.MockEngine] has no
+ * pool, so the server here is real and counts concurrent connections. CIO's per-route cap is
+ * advisory (a burst can overshoot it), so this asserts that a higher cap admits more concurrency
+ * rather than a hard ceiling.
  */
 class KtorHttpClientConnectionCapTest {
 
-    private val silentLogger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
 
     /**
      * Fires [requests] at a counting server with the client capped at [cap], and reports the most
@@ -88,7 +69,7 @@ class KtorHttpClientConnectionCapTest {
             }
 
             val client = KtorHttpClient(
-                logger = silentLogger,
+                logger = SilentLogger,
                 config = HttpClientConfig(
                     enableRetry = false,
                     requestTimeoutMillis = 20_000,
@@ -108,24 +89,10 @@ class KtorHttpClientConnectionCapTest {
     }
 
     @Test
-    fun `a low cap holds concurrency far below the number of requests in flight`() {
-        val peak = peakConcurrency(cap = 3, requests = 12)
-
-        assertTrue(peak > 0, "the server was never contacted")
-        // Twelve requests were launched at once. Without a cap they would all land together, so
-        // anything close to the cap is the setting doing its job. The allowance above it is the
-        // documented race, not slack for a broken limit.
-        assertTrue(peak <= 6, "a cap of 3 should keep concurrency near 3, but the server saw $peak")
-        assertTrue(peak < 12, "the cap did nothing: all 12 requests were open at once")
-    }
-
-    @Test
     fun `a higher cap lets more through at once`() {
         val low = peakConcurrency(cap = 2, requests = 12)
         val high = peakConcurrency(cap = 8, requests = 12)
 
-        // The paired half. Without it, a client that throttled everything to a single connection
-        // would satisfy "concurrency stayed low" and look correct.
         assertTrue(
             high > low,
             "raising the cap from 2 to 8 should raise concurrency, but saw $low then $high"

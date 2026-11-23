@@ -11,19 +11,18 @@ import com.github.ahatem.qtranslate.api.translator.BatchTranslationResponse
 import com.github.ahatem.qtranslate.api.translator.BatchTranslator
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.translator.TranslationResponse
+import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.ahatem.qtranslate.plugins.common.fetchJson
 import com.github.ahatem.qtranslate.plugins.common.sendJson
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
-import kotlinx.serialization.json.Json
 
 internal class LibreTranslateService(
     private val context: PluginContext,
     private val httpClient: HttpClient,
     private val settings: () -> LibreTranslateSettings
 ) : BatchTranslator {
-    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
     override val key = "libretranslate-local-translator"
     override val name = "LibreTranslate Local"
     override val iconPath = "assets/libretranslate.svg"
@@ -102,7 +101,7 @@ internal class LibreTranslateService(
     }
 
     private inline fun <reified T> decode(raw: String): Result<T, ServiceError> =
-        runCatching { json.decodeFromString<T>(raw) }
+        runCatching { PluginJson.decodeFromString<T>(raw) }
             .fold(
                 onSuccess = { com.github.michaelbull.result.Ok(it) },
                 onFailure = {

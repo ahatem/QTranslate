@@ -79,9 +79,8 @@ class SettingsRepository(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    // Any failure, not only SerializationException: a migration step throwing
-                    // something else used to escape this catch and be swallowed by the flow's
-                    // handler below, which reached the same silent default by a longer route.
+                    // Any failure, not only SerializationException: a migration step can throw
+                    // anything, and it must reach the same recovery.
                     recoverFrom(stored, e)
                 }
             } ?: Configuration.FRESH_INSTALL   // No stored config at all: a fresh install, not a failure.

@@ -381,9 +381,9 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      *
      * Two passes, because several pickers are built disabled and enabled once their contents have
      * loaded (the interface-language list, the font families). `JComboBox.isFocusable()` answers
-     * `false` while it is disabled, so a single pass found nothing and the label ended up pointing
-     * at the row's container instead of at the picker — a regression that only showed up as a
-     * screen reader saying "Interface Language, panel". The second pass therefore accepts the
+     * `false` while it is disabled, so a single pass finds nothing and the label ends up pointing
+     * at the row's container instead of at the picker, which a screen reader announces as
+     * "Interface Language, panel". The second pass therefore accepts the
      * input controls that will take focus once enabled.
      */
     /**
@@ -391,9 +391,9 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      *
      * Two passes, because several pickers are built disabled and enabled once their contents have
      * loaded (the interface-language list, the font families). `JComboBox.isFocusable()` answers
-     * `false` while it is disabled, so a single pass over "focusable components" found nothing and
-     * the label ended up pointing at the row's container — a regression that only showed up as a
-     * screen reader saying "Interface Language, panel".
+     * `false` while it is disabled, so a single pass over "focusable components" finds nothing and
+     * the label ends up pointing at the row's container, which a screen reader announces as
+     * "Interface Language, panel".
      *
      * The first pass refuses containers. A composite row (a picker with its actions beside it, a
      * field with a button) is itself a `JPanel`, and a `JPanel` can report itself focusable; taking
@@ -506,23 +506,6 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
         gapTop = HINT_GAP_TOP,
         gapBottom = HINT_GAP_BOTTOM,
         explainedSetting = true,
-    )
-
-    /**
-     * Adds running text: a page's opening explanation, set as prose.
-     *
-     * Not [addHint], because that is secondary to something above it and is rendered as an aside.
-     * A lead paragraph is the primary thing on the page — the reason the page exists — so it takes
-     * the body color and upright type, and only the measure is constrained.
-     */
-    protected fun addParagraph(text: String) = addTextRow(
-        text = text,
-        textFont = SettingsVisuals.paragraphFont(font),
-        color = SettingsVisuals.primaryText(),
-        measure = PARAGRAPH_WIDTH,
-        gapTop = PARAGRAPH_GAP_TOP,
-        gapBottom = PARAGRAPH_GAP_BOTTOM,
-        explainedSetting = false,
     )
 
     /**
@@ -746,7 +729,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      * A border that insets the leading edge only, resolving which edge that is at painting time.
      *
      * `EmptyBorder` takes absolute sides and therefore cannot follow `componentOrientation`, which
-     * is applied after panels are built. A fixed left inset put the whole indentation on the
+     * is applied after panels are built. A fixed left inset puts the whole indentation on the
      * trailing side in Arabic, where it read as ragged spacing instead of as nesting.
      */
     private fun leadingInset(leading: Int): javax.swing.border.Border = object : AbstractBorder() {
@@ -772,16 +755,16 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
         /**
          * The vertical rhythm, in one place.
          *
-         * Four numbers were chosen separately at four call sites and drifted: a section break sat
-         * twenty-six pixels above its title while the rows under it sat four apart, which at 150%
-         * scale is a forty-pixel hole between groups and a cramped list inside them. They are one
-         * scale now — attached, separated, sectioned. Every value here is scaled at its point of
-         * use, not stored pre-scaled.
+         * Four numbers chosen separately at four call sites drift apart: a section break
+         * twenty-six pixels above its title while the rows under it sit four apart is, at 150%
+         * scale, a forty-pixel hole between groups and a cramped list inside them. They are one
+         * scale: attached, separated, sectioned. Every value here is scaled at its point of use,
+         * not stored pre-scaled.
          *
-         * The section gap grew when the levels were separated for the owner's review: at eleven
-         * pixels a section break was barely wider than the gap between a sub-section and its own
-         * rows, so the two levels of grouping still looked alike even after the type was fixed.
-         * Space is the cheapest hierarchy there is, and this is the one gap meant to be noticed.
+         * The section gap is wide because at eleven pixels a section break is barely wider than
+         * the gap between a sub-section and its own rows, so the two levels of grouping look
+         * alike even when the type differs. Space is the cheapest hierarchy there is, and this is
+         * the one gap meant to be noticed.
          */
         const val ROW_GAP = 4
 
@@ -826,23 +809,11 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
         /** Space below an explanation, before the next setting. */
         const val HINT_GAP_BOTTOM = 4
 
-        /** Space above and below a lead paragraph. */
-        const val PARAGRAPH_GAP_TOP = 2
-        const val PARAGRAPH_GAP_BOTTOM = 8
-
-        /** Space above and below a page's prominent action. */
-        const val BUTTON_GAP_TOP = 10
-        const val BUTTON_GAP_BOTTOM = 4
-
-
         /** Padding around the page itself. */
         const val EDGE = 10
 
         /** Measure a hint wraps at, before scaling. Roughly a comfortable line of prose. */
         const val HINT_WIDTH = 460
-
-        /** Measure running text wraps at: wider than a hint, since it is the page's own voice. */
-        const val PARAGRAPH_WIDTH = 560
 
         /** Separates a section from a sub-section in a search result's path. */
         const val SECTION_SEPARATOR = "›"

@@ -10,15 +10,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotSame
 import kotlin.test.assertSame
 
-/**
- * The row-action squares are painted for every visible row on every repaint — which includes every
- * step of a scroll — and between those rows only the colour differs. Rendering the glyph and
- * recolouring it per square allocated a fresh image each time, so the work is done once per colour
- * that is actually used and then reused.
- *
- * These tests pin that behaviour without timing anything: the source icon counts its own paints,
- * so a cache hit is visible as a paint that never happened.
- */
+/** The row-action squares are repainted on every scroll step, so each colour's tinted copy is rendered once. */
 class TintedGlyphTest {
 
     /** An icon that counts how often it is asked to draw itself. */
@@ -38,57 +30,30 @@ class TintedGlyphTest {
     private fun image() = BufferedImage(14, 14, BufferedImage.TYPE_INT_ARGB)
 
     @Test
-    fun `a colour is rendered once and then reused`() {
-        val icon = CountingIcon()
-        val glyph = TintedGlyph(icon)
-
-        val first = glyph.forColor(Color(200, 30, 30, 175))
-        val second = glyph.forColor(Color(200, 30, 30, 175))
-
-        assertSame(first, second, "the same state gets the same icon back")
-        assertEquals(1, icon.paints, "the glyph is rendered once per colour, not once per paint")
-    }
-
-    @Test
-    fun `each state is its own copy`() {
+    fun `a glyph is rendered once per distinct colour and alpha, however often it is painted`() {
         val icon = CountingIcon()
         val glyph = TintedGlyph(icon)
 
         val idle = glyph.forColor(Color(0, 0, 0, 175))
+        assertSame(idle, glyph.forColor(Color(0, 0, 0, 175)), "the same state gets the same icon back")
+        assertEquals(1, icon.paints)
+
         val hovered = glyph.forColor(Color(0, 0, 0, 255))
         val disabled = glyph.forColor(Color(0, 0, 0, 55))
-
-        assertNotSame(idle, hovered, "hover is brighter, not the idle copy")
-        assertNotSame(idle, disabled, "a disabled square is fainter")
-        assertEquals(3, icon.paints, "one render per distinct state")
-    }
-
-    @Test
-    fun `the same colour at a different alpha is a different state`() {
-        val icon = CountingIcon()
-        val glyph = TintedGlyph(icon)
-
-        val a = glyph.forColor(Color(10, 20, 30, 100))
-        val b = glyph.forColor(Color(10, 20, 30, 101))
-
-        assertNotSame(a, b, "alpha is part of the state, so it is part of the key")
-        assertEquals(2, icon.paints)
-    }
-
-    @Test
-    fun `painting a cached glyph does not re-render the source`() {
-        val icon = CountingIcon()
-        val glyph = TintedGlyph(icon).forColor(Color(30, 90, 200, 200))
+        val oneAlphaStepAway = glyph.forColor(Color(0, 0, 0, 176))
+        assertNotSame(idle, hovered)
+        assertNotSame(idle, disabled)
+        assertNotSame(idle, oneAlphaStepAway, "alpha is part of the key")
+        assertEquals(4, icon.paints, "one render per distinct state")
 
         val image = image()
         val g = image.createGraphics()
         try {
-            repeat(20) { glyph.paintIcon(null, g, 0, 0) }
+            repeat(20) { idle.paintIcon(null, g, 0, 0) }
         } finally {
             g.dispose()
         }
-
-        assertEquals(1, icon.paints, "twenty paints of the same square cost one render")
+        assertEquals(4, icon.paints, "painting a cached glyph does not re-render the source")
     }
 
     @Test

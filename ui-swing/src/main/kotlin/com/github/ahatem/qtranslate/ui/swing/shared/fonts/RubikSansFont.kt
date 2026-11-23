@@ -5,8 +5,6 @@ import com.formdev.flatlaf.util.FontUtils
 object RubikSansFont {
 
     const val FAMILY = "Rubik"
-    const val FAMILY_LIGHT = "Rubik Light"
-    const val FAMILY_SEMI_BOLD = "Rubik SemiBold"
 
     const val STYLE_REGULAR = "/fonts/sans/rubik/Rubik-Regular.ttf"
     const val STYLE_REGULAR_ITALIC = "/fonts/sans/rubik/Rubik-Italic.ttf"

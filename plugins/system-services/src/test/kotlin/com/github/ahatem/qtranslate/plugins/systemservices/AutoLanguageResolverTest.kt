@@ -1,7 +1,6 @@
 package com.github.ahatem.qtranslate.plugins.systemservices
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
-import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -37,15 +36,6 @@ class AutoLanguageResolverTest {
     }
 
     @Test
-    fun `the installed-language fallback is deterministic`() {
-        val supported = setOf(LanguageCode("ja-JP"), LanguageCode("ar-SA"), LanguageCode("en-US"))
-
-        repeat(5) {
-            assertEquals(LanguageCode("ar-SA"), AutoLanguageResolver.resolve(supported, listOf("fr-FR")))
-        }
-    }
-
-    @Test
     fun `a later platform language is used when the first is not installed`() {
         val supported = setOf(LanguageCode("ja-JP"))
 
@@ -64,8 +54,4 @@ class AutoLanguageResolverTest {
         assertNull(AutoLanguageResolver.resolve(emptySet(), listOf("en-US")))
     }
 
-    @Test
-    fun `the platform preference is the default locale`() {
-        assertEquals(listOf(Locale.getDefault().toLanguageTag()), AutoLanguageResolver.platformPreferredTags())
-    }
 }

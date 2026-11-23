@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.plugins.wikimedia
 
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
+import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -10,7 +11,6 @@ import com.github.michaelbull.result.map
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.Json
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -21,7 +21,6 @@ internal class WikimediaClient(
     private val wait: suspend (Long) -> Unit = { delay(it) }
 ) {
     private val requestMutex = Mutex()
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private var lastRequestStartedAt = 0L
 
     suspend fun search(
@@ -106,7 +105,7 @@ internal class WikimediaClient(
         }
 
     private inline fun <reified T> parse(body: String): Result<T, ServiceError> =
-        runCatching { json.decodeFromString<T>(body) }.fold(
+        runCatching { PluginJson.decodeFromString<T>(body) }.fold(
             onSuccess = { Ok(it) },
             onFailure = {
                 Err(ServiceError.InvalidResponseError("Wikimedia returned an unexpected API response.", it))

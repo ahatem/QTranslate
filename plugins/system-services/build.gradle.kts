@@ -123,11 +123,43 @@ tasks.named<ProcessResources>("processResources") {
     }
 }
 
+// The default `test` task skips tests that need a built JAR or a real Windows engine. Those run
+// in `packagingTest` (part of `check`, so CI still runs them) and `smokeTest` (opt-in).
 tasks.named<Test>("test") {
+    useJUnitPlatform {
+        excludeTags("packaging", "smoke")
+    }
+}
+
+val testSourceSet = sourceSets.named("test")
+
+// Inspects the JAR this build produced, so packaging mistakes fail the build.
+val packagingTest by tasks.registering(Test::class) {
+    group = "verification"
+    description = "Checks the packaged plugin JAR (manifest, service registration, helpers)."
+    testClassesDirs = testSourceSet.get().output.classesDirs
+    classpath = testSourceSet.get().runtimeClasspath
+    useJUnitPlatform { includeTags("packaging") }
     dependsOn(tasks.named("jar"))
     systemProperty("systemServices.pluginJar", layout.buildDirectory.file("libs/system-services.jar").get().asFile.absolutePath)
     systemProperty("systemServices.macHelperPackaged", macVisionHelperWillBePackaged.toString())
     systemProperty("systemServices.macSpellPackaged", (providers.gradleProperty("macSpellHelper").orNull != null || isMacHost).toString())
+}
+
+// Runs the real Windows OCR and spell checker engines. On any other OS the tests skip themselves.
+val smokeTest by tasks.registering(Test::class) {
+    group = "verification"
+    description = "Runs the opt-in smoke tests against the real Windows OCR and spell checker engines."
+    testClassesDirs = testSourceSet.get().output.classesDirs
+    classpath = testSourceSet.get().runtimeClasspath
+    useJUnitPlatform { includeTags("smoke") }
+    environment("SYSTEM_OCR_RTL_SMOKE", "true")
+    environment("SYSTEM_SPELL_SMOKE", "true")
+    outputs.upToDateWhen { false }
+}
+
+tasks.named("check") {
+    dependsOn(packagingTest)
 }
 
 // The NSSpellChecker helper is built on macOS and included in packages assembled elsewhere.

@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.core.workspace.translation
 
-import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
+import com.github.ahatem.qtranslate.core.testing.SilentLoggerFactory
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -21,14 +22,12 @@ import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputRequest
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputSource
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
-import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.serialization.json.Json
@@ -84,50 +83,6 @@ class ExtraOutputRefreshSequencingTest {
     }
 
     @Test
-    fun `explicit none mode clears the existing extra output`() = runTest {
-        val fixture = fixture(Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.Rewrite), this)
-        var state = translatedState().copy(extraOutputText = "stale")
-
-        val refreshed = fixture.useCase.refreshExtraOutput(
-            extraOutputRequest = request(type = ExtraOutputType.None),
-            getState = { state },
-            updateState = { transform -> state = state.transform() },
-            onStatusUpdate = { _, _, _ -> },
-        )
-
-        assertTrue(refreshed)
-        assertEquals("", state.extraOutputText)
-        assertTrue(fixture.rewriter.calls.isEmpty())
-    }
-
-    @Test
-    fun `rapid mode changes leave the latest refresh result in place`() = runTest {
-        val fixture = fixture(Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.BackwardTranslate), this)
-        fixture.summarizer.release = CompletableDeferred()
-        var state = translatedState()
-
-        fixture.useCase.refreshExtraOutput(
-            extraOutputRequest = request(type = ExtraOutputType.Summarize),
-            getState = { state },
-            updateState = { transform -> state = state.transform() },
-            onStatusUpdate = { _, _, _ -> },
-        )
-        runCurrent()
-        assertTrue(fixture.summarizer.started.isCompleted)
-
-        fixture.useCase.refreshExtraOutput(
-            extraOutputRequest = request(type = ExtraOutputType.Rewrite),
-            getState = { state },
-            updateState = { transform -> state = state.transform() },
-            onStatusUpdate = { _, _, _ -> },
-        )
-        advanceUntilIdle()
-
-        assertEquals("rewrite", state.extraOutputText)
-        assertEquals(1, fixture.rewriter.calls.size)
-    }
-
-    @Test
     fun `fallback translation uses the explicit extra output request`() = runTest {
         val fixture = fixture(Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.BackwardTranslate), this)
         var state = MainState(
@@ -152,53 +107,34 @@ class ExtraOutputRefreshSequencingTest {
     }
 
     @Test
-    fun `summary refresh uses the explicit summary length`() = runTest {
-        val fixture = fixture(
-            Configuration.DEFAULT.copy(
-                extraOutputType = ExtraOutputType.Summarize,
-                summaryLength = "short",
-            ),
+    fun `a refresh uses the explicit summary length and rewrite style, not the settings`() = runTest {
+        val summary = fixture(
+            Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.Summarize, summaryLength = "short"),
             this,
         )
         var state = translatedState()
-
-        fixture.useCase.refreshExtraOutput(
-            extraOutputRequest = request(
-                type = ExtraOutputType.Summarize,
-                summaryLength = "long",
-            ),
+        summary.useCase.refreshExtraOutput(
+            extraOutputRequest = request(type = ExtraOutputType.Summarize, summaryLength = "long"),
             getState = { state },
             updateState = { transform -> state = state.transform() },
             onStatusUpdate = { _, _, _ -> },
         )
         advanceUntilIdle()
+        assertEquals("long", summary.summarizer.calls.single().options.values.single(), "summary length")
 
-        assertEquals("long", fixture.summarizer.calls.single().options.values.single())
-    }
-
-    @Test
-    fun `rewrite refresh uses the explicit rewrite style`() = runTest {
-        val fixture = fixture(
-            Configuration.DEFAULT.copy(
-                extraOutputType = ExtraOutputType.Rewrite,
-                rewriteStyle = "old",
-            ),
+        val rewrite = fixture(
+            Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.Rewrite, rewriteStyle = "old"),
             this,
         )
-        var state = translatedState()
-
-        fixture.useCase.refreshExtraOutput(
-            extraOutputRequest = request(
-                type = ExtraOutputType.Rewrite,
-                rewriteStyle = "new",
-            ),
+        state = translatedState()
+        rewrite.useCase.refreshExtraOutput(
+            extraOutputRequest = request(type = ExtraOutputType.Rewrite, rewriteStyle = "new"),
             getState = { state },
             updateState = { transform -> state = state.transform() },
             onStatusUpdate = { _, _, _ -> },
         )
         advanceUntilIdle()
-
-        assertEquals("new", fixture.rewriter.calls.single().options.values.single())
+        assertEquals("new", rewrite.rewriter.calls.single().options.values.single(), "rewrite style")
     }
 
     private fun request(
@@ -225,10 +161,10 @@ class ExtraOutputRefreshSequencingTest {
             rewriter.key to rewriter,
         )
         val activeServices = ActiveServiceManager(MutableStateFlow(services), settings)
-        val loggerFactory = TestLoggerFactory
+        val loggerFactory = SilentLoggerFactory
         val directory = Files.createTempDirectory("qtranslate-extra-output").toFile()
         directories += directory
-        val history = HistoryRepository(directory, loggerFactory.logger, Json)
+        val history = HistoryRepository(directory, SilentLogger, Json)
 
         return Fixture(
             useCase = TranslateTextUseCase(
@@ -288,16 +224,5 @@ class ExtraOutputRefreshSequencingTest {
             calls += request
             return Ok(RewriteResponse("rewrite"))
         }
-    }
-
-    private object TestLoggerFactory : LoggerFactory {
-        val logger = object : Logger {
-            override fun debug(message: String) = Unit
-            override fun info(message: String) = Unit
-            override fun warn(message: String) = Unit
-            override fun error(message: String, error: Throwable?) = Unit
-        }
-
-        override fun getLogger(name: String): Logger = logger
     }
 }

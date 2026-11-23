@@ -69,25 +69,19 @@ class PopupDismissalPolicyTest {
     }
 
     @Test
-    fun `a popup the state says is closed is skipped without reading its window`() {
-        val reads = mutableListOf<String>()
+    fun `a closed or pinned popup, or the setting off, is skipped without reading its window`() {
+        data class Case(val label: String, val enabled: Boolean, val visibleInState: Boolean, val pinned: Boolean)
+        listOf(
+            Case("closed in state", enabled = true, visibleInState = false, pinned = false),
+            Case("pinned", enabled = true, visibleInState = true, pinned = true),
+            Case("setting off", enabled = false, visibleInState = true, pinned = false),
+        ).forEach {
+            val reads = mutableListOf<String>()
+            val popup = popup(visibleInState = it.visibleInState, pinned = it.pinned, windowReads = reads)
 
-        assertEquals(
-            emptyList<MainIntent>(),
-            PopupDismissalPolicy.dismissals(true, outside, listOf(popup(visibleInState = false, windowReads = reads))),
-        )
-        assertTrue(reads.isEmpty(), "a state-invisible popup must not be constructed to be measured")
-    }
-
-    @Test
-    fun `a pinned popup is skipped without reading its window`() {
-        val reads = mutableListOf<String>()
-
-        assertEquals(
-            emptyList<MainIntent>(),
-            PopupDismissalPolicy.dismissals(true, outside, listOf(popup(pinned = true, windowReads = reads))),
-        )
-        assertTrue(reads.isEmpty(), "pinned means never even asked")
+            assertEquals(emptyList<MainIntent>(), PopupDismissalPolicy.dismissals(it.enabled, outside, listOf(popup)), it.label)
+            assertTrue(reads.isEmpty(), "${it.label}: the window must not be constructed to be measured")
+        }
     }
 
     @Test
@@ -99,17 +93,6 @@ class PopupDismissalPolicyTest {
             PopupDismissalPolicy.dismissals(true, outside, listOf(popup(windowVisible = false, windowReads = reads))),
         )
         assertEquals(listOf("read"), reads, "the window may be read, but an unshowing window is never dismissed")
-    }
-
-    @Test
-    fun `the setting turned off dismisses nothing and reads nothing`() {
-        val reads = mutableListOf<String>()
-
-        assertEquals(
-            emptyList<MainIntent>(),
-            PopupDismissalPolicy.dismissals(false, outside, listOf(popup(windowReads = reads))),
-        )
-        assertTrue(reads.isEmpty(), "no popup is consulted while the setting is off")
     }
 
     @Test

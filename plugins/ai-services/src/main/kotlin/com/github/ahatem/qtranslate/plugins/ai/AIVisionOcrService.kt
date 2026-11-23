@@ -8,13 +8,13 @@ import com.github.ahatem.qtranslate.api.ocr.OCRRequest
 import com.github.ahatem.qtranslate.api.ocr.OCRResponse
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
+import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import java.util.Locale
 
 /**
@@ -53,7 +53,6 @@ class AIVisionOcrService(
     override val iconPath: String = "assets/ai-icon.svg"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.All
 
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     override suspend fun extractText(request: OCRRequest): Result<OCRResponse, ServiceError> =
         coroutineBinding {
@@ -102,7 +101,7 @@ class AIVisionOcrService(
         try {
             val clean = AiJson.extractJson(raw)
 
-            val dto = json.decodeFromString<OcrResponseDto>(clean)
+            val dto = PluginJson.decodeFromString<OcrResponseDto>(clean)
 
             val detectedLang = dto.detectedLanguage
                 ?.takeIf { it.isNotBlank() && it != "null" }

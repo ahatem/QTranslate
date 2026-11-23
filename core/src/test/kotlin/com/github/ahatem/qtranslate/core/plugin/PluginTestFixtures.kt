@@ -1,13 +1,11 @@
 package com.github.ahatem.qtranslate.core.plugin
 
 import com.github.ahatem.qtranslate.api.core.ApiVersion
-import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.Plugin
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
-import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import java.io.File
@@ -245,15 +243,4 @@ internal fun writePluginJar(
         out.closeEntry()
     }
     return file
-}
-
-internal object FixtureLoggerFactory : LoggerFactory {
-    override fun getLogger(name: String): Logger = FixtureLogger
-}
-
-internal object FixtureLogger : Logger {
-    override fun debug(message: String) = Unit
-    override fun info(message: String) = Unit
-    override fun warn(message: String) = Unit
-    override fun error(message: String, error: Throwable?) = Unit
 }

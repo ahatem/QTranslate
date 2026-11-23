@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.core.workspace.translation
 
-import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
+import com.github.ahatem.qtranslate.core.testing.SilentLoggerFactory
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
@@ -16,7 +17,6 @@ import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
-import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.CoroutineScope
@@ -192,51 +192,31 @@ class ParallelComparisonTranslationTest {
     }
 
     @Test
-    fun `a primary provider error keeps successful comparison results`() = runTest {
-        val primary = ScriptedTranslator("primary", fail = true)
-        val comparison = ScriptedTranslator("comparison")
-        val fixture = fixture(this, primary, comparison, emptyList())
-        var state = MainState(
-            inputText = "hello",
-            sourceLanguage = LanguageCode.ENGLISH,
-            targetLanguage = LanguageCode.ARABIC
-        )
+    fun `a primary provider error or timeout keeps successful comparison results`() = runTest {
+        val primaries = listOf("provider error" to ScriptedTranslator("primary", fail = true), "timeout" to HangingTranslator("primary"))
+        for ((label, primary) in primaries) {
+            val comparison = ScriptedTranslator("comparison")
+            val fixture = fixture(this, primary, comparison, emptyList())
+            var state = MainState(
+                inputText = "hello",
+                sourceLanguage = LanguageCode.ENGLISH,
+                targetLanguage = LanguageCode.ARABIC
+            )
 
-        fixture.useCase(
-            getState = { state },
-            updateState = { transform -> state = state.transform() },
-            onStatusUpdate = { _, _, _ -> }
-        )
-        advanceUntilIdle()
+            fixture.useCase(
+                getState = { state },
+                updateState = { transform -> state = state.transform() },
+                onStatusUpdate = { _, _, _ -> }
+            )
+            advanceUntilIdle()
 
-        assertTrue(state.translationFailed)
-        assertTrue(state.translatedText.isEmpty())
-        val result = state.comparisonResults.single()
-        assertEquals(ComparisonStatus.SUCCESS, result.status)
-        assertEquals("comparison", result.text)
-    }
-
-    @Test
-    fun `a primary timeout keeps successful comparison results`() = runTest {
-        val primary = HangingTranslator("primary")
-        val comparison = ScriptedTranslator("comparison")
-        val fixture = fixture(this, primary, comparison, emptyList())
-        var state = MainState(
-            inputText = "hello",
-            sourceLanguage = LanguageCode.ENGLISH,
-            targetLanguage = LanguageCode.ARABIC
-        )
-
-        fixture.useCase(
-            getState = { state },
-            updateState = { transform -> state = state.transform() },
-            onStatusUpdate = { _, _, _ -> }
-        )
-        advanceUntilIdle()
-
-        assertTrue(state.translationFailed)
-        assertFalse(state.isLoading)
-        assertEquals(ComparisonStatus.SUCCESS, state.comparisonResults.single().status)
+            assertTrue(state.translationFailed, label)
+            assertTrue(state.translatedText.isEmpty(), label)
+            assertFalse(state.isLoading, label)
+            val result = state.comparisonResults.single()
+            assertEquals(ComparisonStatus.SUCCESS, result.status, label)
+            assertEquals("comparison", result.text, label)
+        }
     }
 
     @Test
@@ -385,10 +365,10 @@ class ParallelComparisonTranslationTest {
         val settings = MutableStateFlow(config)
         val services = mapOf<String, Service>(primary.key to primary, comparison.key to comparison)
         val manager = ActiveServiceManager(MutableStateFlow(services), settings)
-        val loggerFactory = TestLoggerFactory
+        val loggerFactory = SilentLoggerFactory
         val directory = Files.createTempDirectory("qtranslate-comparison").toFile()
         directories += directory
-        val history = HistoryRepository(directory, loggerFactory.logger, Json)
+        val history = HistoryRepository(directory, SilentLogger, Json)
         val comparisonUseCase = ParallelComparisonUseCase(scope, manager, loggerFactory)
 
         return Fixture(
@@ -425,10 +405,10 @@ class ParallelComparisonTranslationTest {
             MutableStateFlow(mapOf<String, Service>(primary.key to primary, comparison.key to comparison)),
             settings
         )
-        val loggerFactory = TestLoggerFactory
+        val loggerFactory = SilentLoggerFactory
         val directory = Files.createTempDirectory("qtranslate-quick-comparison").toFile()
         directories += directory
-        val history = HistoryRepository(directory, loggerFactory.logger, Json)
+        val history = HistoryRepository(directory, SilentLogger, Json)
         val comparisonUseCase = ParallelComparisonUseCase(scope, manager, loggerFactory)
         return GatedFixture(
             TranslateTextUseCase(
@@ -510,16 +490,5 @@ class ParallelComparisonTranslationTest {
             never.await()
             return Ok(TranslationResponse("unreachable"))
         }
-    }
-
-    private object TestLoggerFactory : LoggerFactory {
-        val logger = object : Logger {
-            override fun debug(message: String) = Unit
-            override fun info(message: String) = Unit
-            override fun warn(message: String) = Unit
-            override fun error(message: String, error: Throwable?) = Unit
-        }
-
-        override fun getLogger(name: String): Logger = logger
     }
 }

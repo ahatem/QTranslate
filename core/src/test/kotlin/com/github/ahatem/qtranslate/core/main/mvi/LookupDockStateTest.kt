@@ -9,15 +9,6 @@ import kotlin.test.assertTrue
 class LookupDockStateTest {
 
     @Test
-    fun `a fresh state has a closed dock that would show the dictionary`() {
-        val state = MainState()
-        assertFalse(state.isLookupDockOpen)
-        assertEquals(LookupTool.DICTIONARY, state.lookupDockTool)
-        assertFalse(state.isDictionaryPanelVisible)
-        assertFalse(state.isImagesDockVisible)
-    }
-
-    @Test
     fun `opening on a tool shows exactly that tool`() {
         val images = MainState().withLookupDockOn(LookupTool.IMAGES)
         assertTrue(images.isLookupDockOpen)

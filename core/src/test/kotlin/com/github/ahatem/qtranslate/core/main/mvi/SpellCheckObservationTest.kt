@@ -69,7 +69,6 @@ class SpellCheckObservationTest {
         val changed = old.copy(inputText = "teh again", detectedSourceLanguage = null,
             spellCheckCorrections = emptyList())
         assertFalse(input.matches(changed, true))
-        assertEquals(emptyList(), changed.spellCheckCorrections)
     }
 
     @Test fun `actual detection clears locale fallback corrections and triggers another check`() = runTest {

@@ -16,6 +16,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.MainGlobalKeyListener
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.Icons
 import com.github.ahatem.qtranslate.ui.swing.shared.util.formatChord
+import com.github.ahatem.qtranslate.ui.swing.shared.util.withAlpha
 import java.awt.*
 import java.awt.image.BufferedImage
 import java.util.Locale
@@ -297,9 +298,8 @@ class KeyboardPanel(
      * Every action listed here gets a row, and therefore can be rebound from this panel.
      * This is the registry's editable set ([CommandRegistry.editableActions]) rather than a
      * hand-maintained list, so a new [HotkeyAction] that ships without a [CommandSpec] fails
-     * the core registry completeness test instead of silently having no row — the window-local
-     * group added in #159 was bound, migrated and localized, but never listed, so it ran on its
-     * defaults while being unconfigurable.
+     * the core registry completeness test instead of silently having no row, which would leave
+     * the action bound but unconfigurable.
      *
      * SHOW_MAIN_WINDOW is deliberately excluded from the editable set: it has its own row
      * above the table with Edit/Clear buttons and the Double Ctrl option, so a second row for
@@ -337,9 +337,9 @@ class KeyboardPanel(
         /**
          * How many rows the list shows at once.
          *
-         * The list used to be sized to its whole contents, so the panel grew to forty-odd rows
-         * and the page around it scrolled instead. A viewport of about a dozen rows keeps the
-         * list the tallest thing on the page while leaving the page itself scrollable.
+         * Sizing the list to its whole contents would grow the panel to forty-odd rows and make
+         * the page around it scroll instead. A viewport of about a dozen rows keeps the list the
+         * tallest thing on the page while leaving the page itself scrollable.
          */
         const val LIST_VISIBLE_ROWS = 11
 
@@ -495,9 +495,9 @@ class KeyboardPanel(
         // it covers is what keeps the rows beneath it from looking like they follow it.
         addHint(localizationManager.getString("settings_hotkeys.preset_scope_hint"))
 
-        // Custom is a *description* of the current bindings, not an action. It used to be a
-        // selectable entry, and picking it cleared every shortcut in the panel; now it is only
-        // ever reported here, beside the two presets that can actually be applied.
+        // Custom is a *description* of the current bindings, not an action. It is only ever
+        // reported here, beside the two presets that can actually be applied, and is not
+        // selectable.
         presetStatus = JLabel("").apply {
             isOpaque = false
             foreground = UIManager.getColor("Label.disabledForeground")
@@ -673,7 +673,7 @@ class KeyboardPanel(
         resetButton.addActionListener { onResetAll() }
 
         // The controls that act on the list sit above it, in one line with the filter: they are
-        // read before the rows are, and they no longer move when the rows scroll.
+        // read before the rows are, and they do not move when the rows scroll.
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL)
             .insets(UIScale.scale(2), 0, UIScale.scale(4), 0)
             .add(buildToolbar())
@@ -685,7 +685,7 @@ class KeyboardPanel(
             verticalScrollBar.unitIncrement = UIScale.scale(ROW_HEIGHT)
             viewport.background = table.background
             // A viewport of a fixed number of rows, not the height of the whole list: the list
-            // scrolls its own contents, so adding a command no longer makes the page taller.
+            // scrolls its own contents, so adding a command does not make the page taller.
             preferredSize = Dimension(
                 UIScale.scale(TABLE_PREFERRED_WIDTH),
                 UIScale.scale(ROW_HEIGHT) * LIST_VISIBLE_ROWS +
@@ -746,9 +746,9 @@ class KeyboardPanel(
      * The line above the list: what it shows on the leading edge, what acts on the selection on
      * the trailing one.
      *
-     * The filter and the three buttons used to sit on separate rows on opposite sides of a
-     * forty-row list, so which commands were showing and what could be done to the selected one
-     * were a scroll apart. They answer two halves of the same question and belong on one line.
+     * The filter and the three buttons answer two halves of the same question, which commands
+     * are showing and what can be done to the selected one, so they belong on one line rather
+     * than on opposite sides of a forty-row list.
      */
     private fun buildToolbar(): JPanel = JPanel(BorderLayout(UIScale.scale(8), 0)).apply {
         isOpaque = false
@@ -1649,14 +1649,14 @@ class KeyboardPanel(
 
                 val bg = if (muted) {
                     UIManager.getColor("Panel.background")?.let {
-                        Color(it.red, it.green, it.blue, 35)
+                        it.withAlpha(35)
                     } ?: Color(0, 0, 0, 20)
                 } else {
                     UIManager.getColor("Button.background") ?: Color(235, 235, 235)
                 }
 
                 val borderColor = (UIManager.getColor("Component.borderColor") ?: Color(160, 160, 160))
-                    .let { Color(it.red, it.green, it.blue, borderAlpha) }
+                    .withAlpha(borderAlpha)
 
                 // Background
                 g2.color = bg
@@ -1745,9 +1745,9 @@ class KeyboardPanel(
                 } else {
                     UIManager.getColor("Label.disabledForeground") ?: Color.GRAY
                 }
-                g2.color = Color(base.red, base.green, base.blue, 26)
+                g2.color = base.withAlpha(26)
                 g2.fillRoundRect(0, 0, width, height, arc, arc)
-                g2.color = Color(base.red, base.green, base.blue, 70)
+                g2.color = base.withAlpha(70)
                 g2.stroke = BasicStroke(1f)
                 g2.drawRoundRect(0, 0, width - 1, height - 1, arc, arc)
             } finally {
@@ -1782,7 +1782,7 @@ class KeyboardPanel(
                 ?: return
             val g2 = g.create() as Graphics2D
             try {
-                g2.color = Color(lineColor.red, lineColor.green, lineColor.blue, 110)
+                g2.color = lineColor.withAlpha(110)
                 var y = 0
                 for (index in 0 until rowCount) {
                     if (rows.getOrNull(index) is CommandRow.Group && index > 0) {
@@ -2023,7 +2023,7 @@ class KeyboardPanel(
                         else -> if (selected) 24 else 14
                     }
                     if (fill > 0) {
-                        g2.color = Color(base.red, base.green, base.blue, fill)
+                        g2.color = base.withAlpha(fill)
                         g2.fillRoundRect(rect.x, rect.y, rect.width, rect.height, arc, arc)
                     }
                     val alpha = when {
@@ -2035,7 +2035,7 @@ class KeyboardPanel(
                     // Every visible row is repainted on a scroll, so the coloured glyph comes
                     // from the cache rather than being rendered again.
                     val glyphs = if (target == CommandRowAction.EDIT) editGlyph else clearGlyph
-                    val glyph = glyphs.forColor(Color(base.red, base.green, base.blue, alpha))
+                    val glyph = glyphs.forColor(base.withAlpha(alpha))
                     glyph.paintIcon(
                         this,
                         g2,

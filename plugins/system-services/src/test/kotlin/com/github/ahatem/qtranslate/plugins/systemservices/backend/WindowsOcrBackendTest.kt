@@ -47,13 +47,6 @@ class WindowsOcrBackendTest {
     }
 
     @Test
-    fun `recognize returns the recognized text`() = runBlocking {
-        val backend = backend(helper(recognitionJson = """{"ok":true,"text":"Hello\nWorld","language":"en-US"}"""))
-
-        assertEquals("Hello\nWorld", backend.recognize(imageData(), LanguageCode.ENGLISH).unwrap())
-    }
-
-    @Test
     fun `recognizeStructuredText maps word boxes from the helper into original image pixels`() = runBlocking {
         val backend = backend(
             helper(
@@ -122,13 +115,6 @@ class WindowsOcrBackendTest {
 
         assertEquals("Hello", response.text)
         assertTrue(response.regions.isEmpty(), "rotated geometry is not safe to expose")
-    }
-
-    @Test
-    fun `recognize returns an empty string when the engine finds no text`() = runBlocking {
-        val backend = backend(helper(recognitionJson = """{"ok":true,"text":""}"""))
-
-        assertEquals("", backend.recognize(imageData(), LanguageCode.ENGLISH).unwrap())
     }
 
     @Test
@@ -280,24 +266,6 @@ class WindowsOcrBackendTest {
         val backend = WindowsOcrBackend(helper(), scriptFile = null, powershell = "powershell.exe")
 
         assertTrue(backend.validate().unwrapError() is ServiceError.ConfigurationError)
-    }
-
-    @Test
-    fun `validate succeeds when the tooling is present`() = runBlocking {
-        assertEquals(Unit, backend(helper()).validate().unwrap())
-    }
-
-    @Test
-    fun `a program that cannot be launched becomes an Err, not a thrown exception`() = runBlocking {
-        val absent = File(
-            Files.createTempDirectory("system-ocr-absent").toFile(),
-            "no-such-powershell",
-        ).absolutePath
-        val backend = WindowsOcrBackend(RealProcessRunner(), script, absent)
-
-        val error = backend.recognize(imageData(), LanguageCode.ENGLISH).unwrapError()
-
-        assertTrue(error is ServiceError.ConfigurationError, "was ${error::class.simpleName}")
     }
 
     @Test

@@ -1,6 +1,6 @@
 package com.github.ahatem.qtranslate.core.plugin.http
 
-import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
@@ -29,12 +29,6 @@ import kotlin.test.assertTrue
  */
 class KtorHttpClientProxyTest {
 
-    private val silentLogger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
 
     private fun okEngine() = MockEngine { respond(content = "ok", status = HttpStatusCode.OK) }
 
@@ -44,7 +38,7 @@ class KtorHttpClientProxyTest {
     fun `proxy credentials are attached to every request`() = runBlocking {
         val engine = okEngine()
         KtorHttpClient(
-            logger = silentLogger,
+            logger = SilentLogger,
             config = HttpClientConfig(
                 enableRetry = false,
                 proxy = ProxyConfiguration("http://proxy.invalid:3128", "alice", "s3cret")
@@ -68,49 +62,34 @@ class KtorHttpClientProxyTest {
     }
 
     @Test
-    fun `a proxy without credentials sends no authorization header`() = runBlocking {
-        val engine = okEngine()
-        KtorHttpClient(
-            logger = silentLogger,
-            config = HttpClientConfig(
+    fun `no proxy, or a proxy without credentials, sends no authorization header`() = runBlocking {
+        // An empty Basic header is not the same as no header: it invites a 407 from a proxy that
+        // would otherwise have let the request through unauthenticated.
+        val configs = mapOf(
+            "proxy without credentials" to HttpClientConfig(
                 enableRetry = false,
                 proxy = ProxyConfiguration("http://proxy.invalid:3128")
             ),
-            engine = engine,
-            ownsEngine = false
-        ).use { it.get("https://example.invalid/one") }
+            "no proxy" to HttpClientConfig(enableRetry = false)
+        )
+        for ((label, config) in configs) {
+            val engine = okEngine()
+            KtorHttpClient(logger = SilentLogger, config = config, engine = engine, ownsEngine = false)
+                .use { it.get("https://example.invalid/one") }
 
-        // An empty Basic header is not the same as no header: it invites a 407 from a proxy that
-        // would otherwise have let the request through unauthenticated.
-        assertNull(engine.requestHistory.single().headers[HttpHeaders.ProxyAuthorization])
+            assertNull(engine.requestHistory.single().headers[HttpHeaders.ProxyAuthorization], label)
+        }
     }
 
     @Test
-    fun `no proxy configured sends no authorization header`() = runBlocking {
-        val engine = okEngine()
-        KtorHttpClient(
-            logger = silentLogger,
-            config = HttpClientConfig(enableRetry = false),
-            engine = engine,
-            ownsEngine = false
-        ).use { it.get("https://example.invalid/one") }
+    fun `the username alone decides whether credentials are sent`() {
+        assertNull(ProxyConfiguration("http://p:1", username = "").authorizationHeader(), "empty username")
+        assertNull(ProxyConfiguration("http://p:1", username = null).authorizationHeader(), "no username")
 
-        assertNull(engine.requestHistory.single().headers[HttpHeaders.ProxyAuthorization])
-    }
-
-    @Test
-    fun `an empty username is treated as no credentials`() {
-        assertNull(ProxyConfiguration("http://p:1", username = "").authorizationHeader())
-        assertNull(ProxyConfiguration("http://p:1", username = null).authorizationHeader())
-    }
-
-    @Test
-    fun `a password-less account still authenticates`() {
-        // Some proxies key on the username alone. "user:" is the correct encoding of that, and
-        // dropping the colon would produce a header the proxy cannot parse.
+        // Some proxies key on the username alone. "user:" is the correct encoding of that.
         val header = ProxyConfiguration("http://p:1", username = "alice").authorizationHeader()
         val decoded = String(Base64.getDecoder().decode(header!!.removePrefix("Basic ")))
-        assertEquals("alice:", decoded)
+        assertEquals("alice:", decoded, "password-less account")
     }
 
     // ── What only a socket can see: the CONNECT ───────────────────────────────
@@ -144,7 +123,7 @@ class KtorHttpClientProxyTest {
             }
 
             val client = KtorHttpClient(
-                logger = silentLogger,
+                logger = SilentLogger,
                 config = HttpClientConfig(
                     enableRetry = false,
                     connectTimeoutMillis = 2_000,

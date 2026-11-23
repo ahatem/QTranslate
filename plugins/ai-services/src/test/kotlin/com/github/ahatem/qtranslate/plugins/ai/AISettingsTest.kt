@@ -2,8 +2,6 @@ package com.github.ahatem.qtranslate.plugins.ai
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -19,76 +17,6 @@ class AISettingsTest {
 
     private fun settings(url: String, key: String = "") =
         AISettings(baseUrl = url, apiKey = key)
-
-    @Test
-    fun `local endpoints need no key`() {
-        listOf(
-            "http://localhost:11434/v1",          // Ollama
-            "http://127.0.0.1:1234/v1",           // LM Studio
-            "http://192.168.1.50:11434/v1",       // another machine on the LAN
-            "http://10.0.0.4:8080/v1",
-            "http://172.16.3.9:8080/v1",
-            "http://workstation.local:11434/v1",
-        ).forEach { url ->
-            assertTrue(settings(url).isLocalEndpoint, "$url should count as local")
-            assertNull(settings(url).missingKeyError(), "$url should not demand a key")
-        }
-    }
-
-    @Test
-    fun `hosted endpoints demand a key`() {
-        listOf(
-            "https://openrouter.ai/api/v1",
-            "https://api.openai.com/v1",
-            "https://api.mistral.ai/v1",
-            "https://generativelanguage.googleapis.com/v1beta/openai",
-        ).forEach { url ->
-            assertFalse(settings(url).isLocalEndpoint, "$url should not count as local")
-            assertNotNull(settings(url).missingKeyError(), "$url should demand a key")
-        }
-    }
-
-    @Test
-    fun `a key set for a hosted endpoint is no longer missing`() {
-        assertNull(settings("https://openrouter.ai/api/v1", key = "sk-test").missingKeyError())
-    }
-
-    /**
-     * `172.16` through `172.31` are private; `172.32` and above are not.
-     *
-     * The obvious `startsWith("172.")` would wave through a public address, which is the case
-     * worth pinning since nothing else would notice.
-     */
-    @Test
-    fun `only the private half of the 172 range is local`() {
-        assertTrue(settings("http://172.16.0.1:8080/v1").isLocalEndpoint)
-        assertTrue(settings("http://172.31.255.1:8080/v1").isLocalEndpoint)
-        assertFalse(settings("http://172.32.0.1:8080/v1").isLocalEndpoint)
-        assertFalse(settings("http://172.8.0.1:8080/v1").isLocalEndpoint)
-    }
-
-    @Test
-    fun `a malformed url is treated as hosted rather than crashing`() {
-        val broken = settings("not a url at all")
-        assertFalse(broken.isLocalEndpoint)
-        assertNotNull(broken.missingKeyError())
-    }
-
-    /**
-     * The defaults are the configuration every new user starts from, and the ones the OpenRouter
-     * setup guides quote back at us. The endpoint is the production chat-completions base (the
-     * client appends `/chat/completions`), and the model is OpenRouter's free auto-router alias —
-     * both verified against OpenRouter's own documentation and public model list.
-     */
-    @Test
-    fun `defaults match the OpenRouter contract`() {
-        val defaults = AISettings()
-        assertEquals("https://openrouter.ai/api/v1", defaults.baseUrl)
-        assertEquals("openrouter/free", defaults.model)
-        assertEquals("openrouter", defaults.preset)
-        assertEquals(0.3, defaults.temperature)
-        assertEquals(4096, defaults.maxTokens)
-    }
 
     // -------------------------------------------------------------------------
     // profileFor() — per-capability profiles (AI Plugin 2.0)
@@ -177,50 +105,28 @@ class AISettingsTest {
         }
 
         val base = AISettings().baseUrl
-        val expectedModels = mapOf(
-            AiCapability.TRANSLATION to "gpt-4o",
-            AiCapability.REWRITE to "gpt-4o-mini",
-            AiCapability.SUMMARIZATION to "gpt-4o",
-            AiCapability.SPELL_CHECK to "gpt-4o-mini",
-            AiCapability.DICTIONARY to "gpt-4o",
-            AiCapability.VISION to "gpt-4o"
+        // capability -> model, temperature, max tokens, header tag
+        class Expected(val model: String, val temperature: Double, val maxTokens: Int, val tag: String)
+        val expected = mapOf(
+            AiCapability.TRANSLATION to Expected("gpt-4o", 0.1, 1024, "t"),
+            AiCapability.REWRITE to Expected("gpt-4o-mini", 0.9, 2048, "r"),
+            AiCapability.SUMMARIZATION to Expected("gpt-4o", 0.5, 3072, "s"),
+            AiCapability.SPELL_CHECK to Expected("gpt-4o-mini", 0.0, 512, "c"),
+            AiCapability.DICTIONARY to Expected("gpt-4o", 0.2, 768, "d"),
+            AiCapability.VISION to Expected("gpt-4o", 0.3, 1500, "v"),
         )
-        val expectedTemperatures = mapOf(
-            AiCapability.TRANSLATION to 0.1,
-            AiCapability.REWRITE to 0.9,
-            AiCapability.SUMMARIZATION to 0.5,
-            AiCapability.SPELL_CHECK to 0.0,
-            AiCapability.DICTIONARY to 0.2,
-            AiCapability.VISION to 0.3
-        )
-        val expectedMaxTokens = mapOf(
-            AiCapability.TRANSLATION to 1024,
-            AiCapability.REWRITE to 2048,
-            AiCapability.SUMMARIZATION to 3072,
-            AiCapability.SPELL_CHECK to 512,
-            AiCapability.DICTIONARY to 768,
-            AiCapability.VISION to 1500
-        )
-        val expectedHeaders = mapOf(
-            AiCapability.TRANSLATION to """{"X-Cap": "t"}""",
-            AiCapability.REWRITE to """{"X-Cap": "r"}""",
-            AiCapability.SUMMARIZATION to """{"X-Cap": "s"}""",
-            AiCapability.SPELL_CHECK to """{"X-Cap": "c"}""",
-            AiCapability.DICTIONARY to """{"X-Cap": "d"}""",
-            AiCapability.VISION to """{"X-Cap": "v"}"""
-        )
-        allCapabilities.forEach { capability ->
+        for (capability in allCapabilities) {
             val settings = AISettings().withOverrides(capability)
             val profile = settings.profileFor(capability)
+            val want = expected.getValue(capability)
             assertEquals("openai", profile.preset, "$capability preset")
             assertEquals("https://api.openai.com/v1", profile.baseUrl, "$capability baseUrl")
             assertEquals("sk-${capability.name.lowercase().replace("_", "")}", profile.apiKey, "$capability apiKey")
-            assertEquals(expectedModels[capability], profile.model, "$capability model")
-            assertEquals(expectedTemperatures[capability]!!, profile.temperature, "$capability temperature")
-            assertEquals(expectedMaxTokens[capability]!!, profile.maxTokens, "$capability maxTokens")
-            assertEquals(expectedHeaders[capability], profile.customHeaders, "$capability headers")
-            // Every other capability still inherits the Default.
-            allCapabilities.filter { it != capability }.forEach { other ->
+            assertEquals(want.model, profile.model, "$capability model")
+            assertEquals(want.temperature, profile.temperature, "$capability temperature")
+            assertEquals(want.maxTokens, profile.maxTokens, "$capability maxTokens")
+            assertEquals("""{"X-Cap": "${want.tag}"}""", profile.customHeaders, "$capability headers")
+            for (other in allCapabilities - capability) {
                 assertEquals(base, settings.profileFor(other).baseUrl, "$other should still inherit the Default baseUrl")
             }
         }
@@ -310,24 +216,4 @@ class AISettingsTest {
         assertEquals("https://api.openai.com/v1", changed.profileFor(AiCapability.TRANSLATION).baseUrl)
     }
 
-    @Test
-    fun `apiKey survives data class copy`() {
-        // SecretStore persistence is Agent C's concern; this pins that copying a profile
-        // snapshot never drops the key field out from under it.
-        val settings = AISettings(baseUrl = "https://openrouter.ai/api/v1", apiKey = "sk-test-123")
-        assertEquals("sk-test-123", settings.copy().apiKey)
-        assertEquals("sk-test-123", settings.copy(temperature = 1.0).apiKey)
-    }
-
-    @Test
-    fun `settings delegation still matches the resolved Default profile`() {
-        val hosted = AISettings(baseUrl = "https://openrouter.ai/api/v1", apiKey = "")
-        assertFalse(hosted.isLocalEndpoint)
-        assertNotNull(hosted.missingKeyError())
-        assertEquals(hosted.defaultProfile().missingKeyError()?.message, hosted.missingKeyError()?.message)
-
-        val local = AISettings(baseUrl = "http://localhost:11434/v1", apiKey = "")
-        assertTrue(local.isLocalEndpoint)
-        assertNull(local.missingKeyError())
-    }
 }

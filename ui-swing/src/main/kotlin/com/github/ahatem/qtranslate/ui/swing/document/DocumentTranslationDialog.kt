@@ -134,9 +134,8 @@ class DocumentTranslationDialog(
 
         updateTheme()
         pack()
-        // Wide enough that a long file path is readable, and no wider. The floor used to be 600
-        // against a minimum of 560, which held the window well past what its four rows need and
-        // left it looking mostly empty.
+        // Wide enough that a long file path is readable, and no wider. A larger floor would hold
+        // the window well past what its four rows need and leave it looking mostly empty.
         val packedWidth = width
         minimumSize = Dimension(UIScale.scale(MIN_DIALOG_WIDTH), height)
         size = Dimension(maxOf(packedWidth, UIScale.scale(MIN_DIALOG_WIDTH)), height)
@@ -188,10 +187,9 @@ class DocumentTranslationDialog(
     // QTranslate. MigLayout's units are scaled by FlatLaf, so these are logical pixels like
     // everywhere else.
     //
-    // Nothing here forces a control's height. Every field and button used to be pinned to `h 32!`,
-    // which is taller than the look and feel's own metrics and, being exact, ignored the user's
-    // font size entirely: the rest of the app shrank with a smaller UI font and this dialog did
-    // not.
+    // Nothing here forces a control's height. An exact height such as `h 32!` is taller than the
+    // look and feel's own metrics and ignores the user's font size entirely: the rest of the app
+    // shrinks with a smaller UI font and this dialog would not.
     private fun createContentPanel() = JPanel(
         MigLayout("fillx, insets $PADDING, wrap 1, hidemode 3", "[grow,fill]", "")
     ).apply {
@@ -209,8 +207,8 @@ class DocumentTranslationDialog(
      * whenever they take focus. A two-pixel inset makes room, and `visualPadding` tells the
      * parent layout to disregard that room when aligning, so the extra space costs no shift.
      *
-     * This is the FlatLaf author's own remedy for it, from JFormDesigner/FlatLaf#792, and it
-     * holds only while the containing panel is also MigLayout — which is the case here.
+     * This is the FlatLaf author's own remedy for it (JFormDesigner/FlatLaf#792), and it holds
+     * only while the containing panel is also MigLayout, as it is here.
      */
     private fun nestedPanel(layout: MigLayout) = JPanel(layout).apply {
         isOpaque = false

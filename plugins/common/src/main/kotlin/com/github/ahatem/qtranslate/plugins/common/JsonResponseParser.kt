@@ -34,11 +34,7 @@ class JsonResponseParser<T>(
  */
 inline fun <reified T> createJsonParser(
     pluginContext: PluginContext,
-    json: Json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-        coerceInputValues = true
-    }
+    json: Json = PluginJson
 ): JsonResponseParser<T> {
     return JsonResponseParser(
         pluginContext = pluginContext,

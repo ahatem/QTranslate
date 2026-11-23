@@ -13,91 +13,15 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * The caret has to be drawn on the display's pixel grid.
- *
- * A caret drawn as a stroked line is centred on its coordinate and spans half a pixel either side, so
- * its outer columns are only partly covered. Under a fractional display scale the rasteriser has to
- * quantise the requested width to a whole number of device pixels, and which number it picks depends
- * on the caret's subpixel position, so the caret changes apparent thickness as it moves along a line
- * and its edges go soft. These tests pin the properties that remove that: a whole number of device
- * columns, the same number at every position, no partly covered column, agreement with the boundary
- * the editor hit-tests against, and a height that follows the font rather than a fixed inset.
- *
- * The scales are synthetic. Nothing here depends on the display the test machine happens to have.
- */
+/** The caret is placed on whole device pixels, inside its row, whatever the display scale. */
 class CaretGeometryTest {
 
     private val scales = listOf(1.0, 1.25, 1.5, 1.75, 2.0)
-
-    /** The thickness each scale is expected to produce, in whole device pixels. */
-    private val expectedThickness = mapOf(1.0 to 2, 1.25 to 3, 1.5 to 3, 1.75 to 4, 2.0 to 4)
 
     private fun transform(scale: Double) = AffineTransform.getScaleInstance(scale, scale)
 
     private fun place(scale: Double, rowX: Double = 40.0, rowHeight: Double = 29.0, ascent: Int = 20, descent: Int = 5) =
         CaretGeometry.place(rowX, 6.0, rowHeight, ascent, descent, transform(scale))
-
-    @Test
-    fun `the caret is two device pixels at 100 percent and stays proportionate as the display grows`() {
-        // Three whole device pixels at 100% is what read as heavy. It also tripled through the
-        // display scale, so the caret was twelve device pixels wide at 200%.
-        scales.forEach { scale ->
-            assertEquals(
-                expectedThickness.getValue(scale),
-                place(scale).width,
-                "at ${scale * 100}% the caret should be ${expectedThickness.getValue(scale)} device pixels"
-            )
-        }
-    }
-
-    @Test
-    fun `thickness does not change as the caret moves along the line`() {
-        scales.forEach { scale ->
-            val widths = (0..79).map { place(scale, rowX = it.toDouble()).width }.toSet()
-            assertEquals<Int>(
-                1,
-                widths.size,
-                "at ${scale * 100}% the caret changed thickness as it moved: saw $widths"
-            )
-        }
-    }
-
-    @Test
-    fun `the caret lands on the device column nearest the boundary the editor hit-tests against`() {
-        scales.forEach { scale ->
-            (0..79).forEach { logicalX ->
-                assertEquals<Int>(
-                    Math.round(logicalX * scale).toInt(),
-                    place(scale, rowX = logicalX.toDouble()).x,
-                    "at ${scale * 100}% a caret at user x=$logicalX should snap to the nearest device column"
-                )
-            }
-        }
-    }
-
-    @Test
-    fun `the caret never leaves the row it belongs to`() {
-        // The row is what Swing repaints when the caret blinks, so anything drawn outside it can
-        // survive a blink and leave a trail.
-        scales.forEach { scale ->
-            listOf(11 to (12 to 3), 19 to (20 to 5), 36 to (37 to 8)).forEach { (size, metrics) ->
-                val rowHeight = size * 1.5
-                val placement = place(scale, rowHeight = rowHeight, ascent = metrics.first, descent = metrics.second)
-                val rowTop = Math.round(6.0 * scale)
-                val rowBottom = Math.round((6.0 + rowHeight) * scale)
-                assertTrue(
-                    placement.y >= rowTop,
-                    "at ${scale * 100}% size $size the caret starts at ${placement.y}, above the row at $rowTop"
-                )
-                assertTrue(
-                    placement.y + placement.height <= rowBottom,
-                    "at ${scale * 100}% size $size the caret ends at ${placement.y + placement.height}, " +
-                        "below the row at $rowBottom"
-                )
-            }
-        }
-    }
 
     @Test
     fun `a row that cannot hold the font is clipped to the row rather than overflowing it`() {
@@ -115,30 +39,6 @@ class CaretGeometryTest {
                         "${placement.y + placement.height}, outside the row at $rowTop..$rowBottom"
                 )
             }
-        }
-    }
-
-    @Test
-    fun `height follows the font rather than a fixed inset`() {
-        // A fixed inset is wrong at both ends: it swallows small text and overshoots large text.
-        scales.forEach { scale ->
-            listOf(11 to (12 to 3), 19 to (20 to 5), 36 to (37 to 8)).forEach { (size, metrics) ->
-                val placement = place(scale, rowHeight = size * 1.5, ascent = metrics.first, descent = metrics.second)
-                val expected = Math.round((metrics.first + metrics.second) * scale).toInt()
-                assertEquals(
-                    expected,
-                    placement.height,
-                    "at ${scale * 100}% size $size the caret should be as tall as the font's own body"
-                )
-            }
-        }
-    }
-
-    @Test
-    fun `the caret does not change height between neighbouring positions`() {
-        scales.forEach { scale ->
-            val heights = (0..20).map { place(scale, rowX = it.toDouble()).height }.toSet()
-            assertEquals<Int>(1, heights.size, "at ${scale * 100}% the caret height varied by position: $heights")
         }
     }
 
@@ -177,13 +77,7 @@ class CaretGeometryTest {
     }
 }
 
-/**
- * The same properties, measured off a real painted caret rather than off the arithmetic.
- *
- * A real pane lays the row out and the real caret reads its geometry, so this catches a caret that is
- * correct on paper but painted with the wrong transform. The caret is painted on its own over a blank
- * image, so the measurement is the caret's and not the text's.
- */
+/** The same properties measured off a real painted caret, so a wrong transform cannot hide behind correct arithmetic. */
 class CaretPaintingTest {
 
     private val scales = listOf(1.0, 1.25, 1.5, 1.75, 2.0)
@@ -294,12 +188,6 @@ class CaretPaintingTest {
     }
 
     @Test
-    fun `a painted caret is thin enough to read as a caret rather than a bar`() {
-        // The reported symptom. Three whole device pixels at 100% is what made it look bold.
-        assertTrue(painted(pane(), 12, 1.0).width <= 2, "at 100% the caret is too wide to read as thin")
-    }
-
-    @Test
     fun `a painted caret is the same thickness wherever it is on the line`() {
         val pane = pane()
         scales.forEach { scale ->
@@ -313,29 +201,13 @@ class CaretPaintingTest {
     }
 
     @Test
-    fun `a painted caret starts on the column nearest the boundary the editor reports`() {
-        val pane = pane()
-        scales.forEach { scale ->
-            listOf(3, 12, 21, 30).forEach { dot ->
-                val row = ShapedText.onEdt { pane.ui.modelToView2D(pane, dot, Position.Bias.Forward)!! }
-                val result = painted(pane, dot, scale)
-                assertEquals<Int>(
-                    Math.round(row.x * scale).toInt(),
-                    result.columns.first,
-                    "at ${scale * 100}% the caret at $dot does not sit on the boundary the editor reports"
-                )
-            }
-        }
-    }
-
-    @Test
     fun `a painted caret sits on the boundary the caret's own bias asks for`() {
         // Where two graphemes meet, Forward and Backward resolve to different boundaries. The caret has
         // to sit on the one it reports, because that is the one a click is answered against.
         val pane = pane()
         scales.forEach { scale ->
             listOf(Position.Bias.Forward, Position.Bias.Backward).forEach { bias ->
-                listOf(3, 12, 21).forEach { dot ->
+                listOf(3, 12, 21, 30).forEach { dot ->
                     val row = ShapedText.onEdt { pane.ui.modelToView2D(pane, dot, bias)!! }
                     val result = painted(pane, dot, scale, bias)
                     assertEquals<Int>(

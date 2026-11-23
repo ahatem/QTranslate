@@ -10,61 +10,6 @@ import kotlin.test.assertTrue
 
 class GoogleLensProtoTest {
 
-    /**
-     * Builds a valid synthetic binary Protobuf response adhering to the Google Lens
-     * `crupload` response schema.
-     */
-    private fun buildRecordedResponseFixture(
-        lines: List<List<Pair<String, String>>>,
-        language: String?
-    ): ByteArray {
-        val textLayoutStream = ByteArrayOutputStream()
-
-        for (lineWords in lines) {
-            val lineStream = ByteArrayOutputStream()
-            for ((word, separator) in lineWords) {
-                val wordStream = ByteArrayOutputStream()
-                writeLengthDelimited(wordStream, 2, word.toByteArray(StandardCharsets.UTF_8))
-                writeLengthDelimited(wordStream, 3, separator.toByteArray(StandardCharsets.UTF_8))
-                writeLengthDelimited(lineStream, 1, wordStream.toByteArray())
-            }
-
-            val paragraphStream = ByteArrayOutputStream()
-            writeLengthDelimited(paragraphStream, 2, lineStream.toByteArray()) // lines = field 2
-            writeLengthDelimited(textLayoutStream, 1, paragraphStream.toByteArray()) // paragraphs = field 1
-        }
-
-        val textStream = ByteArrayOutputStream()
-        writeLengthDelimited(textStream, 1, textLayoutStream.toByteArray()) // text_layout = field 1
-        if (language != null) {
-            writeLengthDelimited(textStream, 2, language.toByteArray(StandardCharsets.UTF_8)) // content_language = field 2
-        }
-
-        val objectsResponseStream = ByteArrayOutputStream()
-        writeLengthDelimited(objectsResponseStream, 3, textStream.toByteArray()) // text = field 3
-
-        val rootStream = ByteArrayOutputStream()
-        writeLengthDelimited(rootStream, 2, objectsResponseStream.toByteArray()) // objects_response = field 2
-
-        return rootStream.toByteArray()
-    }
-
-    private fun writeLengthDelimited(stream: ByteArrayOutputStream, fieldNumber: Int, bytes: ByteArray) {
-        val tag = (fieldNumber shl 3) or 2
-        writeVarint(stream, tag)
-        writeVarint(stream, bytes.size)
-        stream.write(bytes)
-    }
-
-    private fun writeVarint(stream: ByteArrayOutputStream, value: Int) {
-        var v = value
-        while (v and 0x7F.inv() != 0) {
-            stream.write((v and 0x7F) or 0x80)
-            v = v ushr 7
-        }
-        stream.write(v and 0x7F)
-    }
-
     @Test
     fun `buildRequest encodes valid protobuf with dimensions and payload`() {
         val testImage = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A) // PNG header
@@ -97,7 +42,7 @@ class GoogleLensProtoTest {
 
     @Test
     fun `parseResponse decodes multi-line recorded response with language`() {
-        val fixture = buildRecordedResponseFixture(
+        val fixture = lensResponse(
             lines = listOf(
                 listOf("Hello" to " ", "World" to ""),
                 listOf("Google" to " ", "Lens" to " ", "OCR" to "")
@@ -111,29 +56,18 @@ class GoogleLensProtoTest {
     }
 
     @Test
-    fun `parseResponse returns empty result for empty byte array`() {
-        val result = GoogleLensProto.parseResponse(ByteArray(0))
-        assertEquals("", result.text)
-        assertNull(result.language)
-    }
+    fun `parseResponse returns an empty result for empty bytes and an empty text object`() {
+        for ((label, bytes) in listOf("empty bytes" to ByteArray(0), "empty text object" to wrapText(ByteArray(0)))) {
+            val result = GoogleLensProto.parseResponse(bytes)
 
-    @Test
-    fun `parseResponse handles empty text object cleanly`() {
-        // Construct response with objects_response but empty text
-        val textStream = ByteArrayOutputStream()
-        val objectsResponseStream = ByteArrayOutputStream()
-        writeLengthDelimited(objectsResponseStream, 3, textStream.toByteArray())
-        val rootStream = ByteArrayOutputStream()
-        writeLengthDelimited(rootStream, 2, objectsResponseStream.toByteArray())
-
-        val result = GoogleLensProto.parseResponse(rootStream.toByteArray())
-        assertEquals("", result.text)
-        assertNull(result.language)
+            assertEquals("", result.text, label)
+            assertNull(result.language, label)
+        }
     }
 
     @Test
     fun `parseResponse handles truncated and corrupted responses gracefully without throwing`() {
-        val validFixture = buildRecordedResponseFixture(
+        val validFixture = lensResponse(
             lines = listOf(listOf("Sample" to " ", "text" to "")),
             language = "fr"
         )

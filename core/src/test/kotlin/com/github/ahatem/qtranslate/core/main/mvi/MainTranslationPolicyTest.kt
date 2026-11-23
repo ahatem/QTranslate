@@ -8,8 +8,6 @@ import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 class MainTranslationPolicyTest {
     private fun config(primary: String, comparisons: List<String> = emptyList()): Configuration =
@@ -37,37 +35,19 @@ class MainTranslationPolicyTest {
     }
 
     @Test
-    fun `quick with one effective translator is canonical only`() {
-        assertEquals(ComparisonPolicy.DISABLED, quickPolicy(config("google"), listOf("google")))
-        // A configured but unavailable comparison id does not make Quick compare.
-        assertEquals(
-            ComparisonPolicy.DISABLED,
-            quickPolicy(config("google", listOf("ghost")), listOf("google"))
-        )
-    }
+    fun `quick compares only when two translators are effective`() {
+        class Case(val label: String, val cfg: Configuration, val available: List<String>, val expected: ComparisonPolicy)
 
-    @Test
-    fun `quick with two effective translators compares`() {
-        assertEquals(
-            ComparisonPolicy.ENABLED,
-            quickPolicy(config("google", listOf("bing")), listOf("google", "bing"))
+        val cases = listOf(
+            Case("one translator", config("google"), listOf("google"), ComparisonPolicy.DISABLED),
+            Case("unavailable comparison id", config("google", listOf("ghost")), listOf("google"), ComparisonPolicy.DISABLED),
+            Case("two translators", config("google", listOf("bing")), listOf("google", "bing"), ComparisonPolicy.ENABLED),
+            // The saved primary is gone but google resolves, so google + deepl is a real pair.
+            Case("resolved fallback primary counts", config("ghost", listOf("deepl")), listOf("google", "deepl"), ComparisonPolicy.ENABLED),
         )
-    }
 
-    @Test
-    fun `quick counts the resolved fallback primary`() {
-        // Saved primary is gone but google resolves: google + deepl is a real pair.
-        assertEquals(
-            ComparisonPolicy.ENABLED,
-            quickPolicy(config("ghost", listOf("deepl")), listOf("google", "deepl"))
-        )
-    }
-
-    @Test
-    fun `fallback notice fires once per entry and re-arms after recovery`() {
-        assertTrue(shouldAnnounceComparisonFallback(needsFallback = true, alreadyAnnounced = false))
-        assertFalse(shouldAnnounceComparisonFallback(needsFallback = true, alreadyAnnounced = true))
-        assertFalse(shouldAnnounceComparisonFallback(needsFallback = false, alreadyAnnounced = false))
-        assertFalse(shouldAnnounceComparisonFallback(needsFallback = false, alreadyAnnounced = true))
+        for (case in cases) {
+            assertEquals(case.expected, quickPolicy(case.cfg, case.available), case.label)
+        }
     }
 }

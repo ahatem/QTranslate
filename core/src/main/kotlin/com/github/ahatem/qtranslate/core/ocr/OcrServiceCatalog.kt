@@ -59,10 +59,6 @@ class OcrServiceCatalog(
             buildProviders(activeServices.value, configuration.value, emptyMap()),
         )
 
-    /** Languages known for [serviceId] right now. */
-    fun languagesFor(serviceId: String): List<LanguageCode> =
-        providers.value.firstOrNull { it.id == serviceId }?.languages.orEmpty()
-
     private fun buildProviders(
         services: Map<String, Service>,
         config: Configuration,

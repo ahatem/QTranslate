@@ -18,7 +18,7 @@ internal fun virtualDesktopBounds(screens: List<Rectangle>): Rectangle? =
  * desktop's leading and trailing edges.
  *
  * The desktop origin is part of the calculation. Clamping from zero would pull a window on a
- * monitor at negative coordinates back to the primary display (issue #412). The envelope is
+ * monitor at negative coordinates back to the primary display. The envelope is
  * only the first clamp: if the resulting window would sit entirely in a gap between irregularly
  * arranged displays, it is moved to the nearest usable display instead of being left off-screen.
  */

@@ -19,18 +19,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
-internal fun wav(): ByteArray = ByteArray(48).also { bytes ->
-    "RIFF".toByteArray().copyInto(bytes, 0)
-    bytes[4] = 40
-    "WAVEfmt ".toByteArray().copyInto(bytes, 8)
-    bytes[16] = 16; bytes[20] = 1; bytes[22] = 1
-    bytes[24] = 0x80.toByte(); bytes[25] = 0x3e
-    bytes[28] = 0x00; bytes[29] = 0x7d
-    bytes[32] = 2; bytes[34] = 16
-    "data".toByteArray().copyInto(bytes, 36)
-    bytes[40] = 4
-}
-
 class SystemTtsServiceTest {
     private val english = SystemVoice("en-id", "English", "en-US")
     private val arabic = SystemVoice("ar-id", "Arabic", "ar-EG")
@@ -58,7 +46,7 @@ class SystemTtsServiceTest {
             (service.supportedLanguages as SupportedLanguages.Specific).languages)
     }
 
-    @Test fun `unsupported language is reported`() = runBlocking {
+    @Test fun `unsupported language is reported`() = runBlocking<Unit> {
         val backend = FakeSpeech(listOf(english))
         val service = SystemTtsService(backend, backend.available, FakePluginContext.SilentLogger)
         assertIs<ServiceError.UnsupportedLanguageError>(
@@ -76,7 +64,7 @@ class SystemTtsServiceTest {
         assertEquals("ar-id", backend.selected)
     }
 
-    @Test fun `backend error and malformed audio are errors`() = runBlocking {
+    @Test fun `backend error and malformed audio are errors`() = runBlocking<Unit> {
         val backend = FakeSpeech(listOf(english))
         val service = SystemTtsService(backend, backend.available, FakePluginContext.SilentLogger)
         backend.result = Err(ServiceError.ServiceUnavailableError("engine failed"))

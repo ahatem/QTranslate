@@ -2,23 +2,21 @@ package com.github.ahatem.qtranslate.plugins.deepl
 
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 
-import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
-import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
+import com.github.ahatem.qtranslate.plugins.common.ScriptedHttpClient
 import com.github.ahatem.qtranslate.plugins.common.TextHttpClient
+import com.github.ahatem.qtranslate.plugins.common.unwrap
+import com.github.ahatem.qtranslate.plugins.common.unwrapError
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.fold
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -34,7 +32,7 @@ class DeepLTranslatorServiceTest {
 
     @Test
     fun `uses free web endpoint when API key is blank`() = runBlocking {
-        val client = ScriptedHttpClient(mutableListOf(Ok(WEB_SUCCESS)))
+        val client = ScriptedHttpClient(listOf(Ok(WEB_SUCCESS)))
         val modes = mutableListOf<DeepLMode>()
         val service = createService(client, DeepLSettings(), modes::add)
 
@@ -56,17 +54,14 @@ class DeepLTranslatorServiceTest {
 
     @Test
     fun `uses official API automatically when key is present`() = runBlocking {
-        val client = ScriptedHttpClient(mutableListOf(Ok(OFFICIAL_SUCCESS)))
+        val client = ScriptedHttpClient(listOf(Ok(OFFICIAL_SUCCESS)))
         val modes = mutableListOf<DeepLMode>()
         val settings = DeepLSettings(apiKey = "test-key:fx")
         val service = createService(client, settings, modes::add)
 
         val result = service.translate(request)
 
-        result.fold(
-            success = { assertEquals("Bonjour officiel", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        result.unwrap().also { assertEquals("Bonjour officiel", it.translatedText) }
         assertEquals(listOf("https://api-free.deepl.com/v2/translate"), client.urls)
         assertEquals("DeepL-Auth-Key test-key:fx", client.headers.single()["Authorization"])
         assertEquals(DeepLMode.OFFICIAL, modes.last())
@@ -74,7 +69,7 @@ class DeepLTranslatorServiceTest {
 
     @Test
     fun `rejected key falls back once and skips repeated official failures`() = runBlocking {
-        val client = ScriptedHttpClient(mutableListOf(
+        val client = ScriptedHttpClient(listOf(
             Err(ServiceError.AuthenticationError("invalid key")),
             Ok(WEB_SUCCESS),
             Ok(WEB_SUCCESS)
@@ -84,14 +79,8 @@ class DeepLTranslatorServiceTest {
         val settings = DeepLSettings(apiKey = "expired-key")
         val service = createService(client, settings, modes::add, context)
 
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
 
         assertEquals(3, client.urls.size)
         assertEquals(1, client.urls.count { it.contains("api.deepl.com") })
@@ -101,44 +90,23 @@ class DeepLTranslatorServiceTest {
     }
 
     @Test
-    fun `maps embedded free endpoint rate limit to actionable guidance`() = runBlocking {
-        val client = ScriptedHttpClient(mutableListOf(Ok(
-            """{"error":{"code":1042911,"message":"Too many requests"}}"""
-        )))
-        val service = createService(client, DeepLSettings(), {})
-
-        service.translate(request).fold(
-            success = { fail("Expected rate limit error") },
-            failure = {
-                val error = assertIs<ServiceError.RateLimitError>(it)
-                assertEquals(
-                    "DeepL free endpoint is rate-limited. Add an API key for official access or try again later.",
-                    error.message
-                )
-            }
+    fun `maps free endpoint rate limits to actionable guidance`() = runBlocking {
+        val responses = mapOf(
+            "embedded in the body" to Ok("""{"error":{"code":1042911,"message":"Too many requests"}}"""),
+            "HTTP error" to Err(ServiceError.RateLimitError("generic HTTP error", retryAfterSeconds = 30)),
         )
-        Unit
-    }
+        for ((label, response) in responses) {
+            val service = createService(ScriptedHttpClient(listOf(response)), DeepLSettings(), {})
 
-    @Test
-    fun `maps web HTTP rate limit to actionable guidance`() = runBlocking {
-        val client = ScriptedHttpClient(mutableListOf(Err(
-            ServiceError.RateLimitError("generic HTTP error", retryAfterSeconds = 30)
-        )))
-        val service = createService(client, DeepLSettings(), {})
+            val error = assertIs<ServiceError.RateLimitError>(service.translate(request).unwrapError(), label)
 
-        service.translate(request).fold(
-            success = { fail("Expected rate limit error") },
-            failure = {
-                val error = assertIs<ServiceError.RateLimitError>(it)
-                assertEquals(
-                    "DeepL free endpoint is rate-limited. Add an API key for official access or try again later.",
-                    error.message
-                )
-                assertEquals(30, error.retryAfterSeconds)
-            }
-        )
-        Unit
+            assertEquals(
+                "DeepL free endpoint is rate-limited. Add an API key for official access or try again later.",
+                error.message,
+                label
+            )
+            if (response.isErr) assertEquals(30, error.retryAfterSeconds, label)
+        }
     }
 
     @Test
@@ -149,16 +117,13 @@ class DeepLTranslatorServiceTest {
 
         val result = service.translate(request.copy(text = source))
 
-        result.fold(
-            success = { assertEquals(source, it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        result.unwrap().also { assertEquals(source, it.translatedText) }
         assertTrue(client.requestCount > 1)
     }
 
     @Test
     fun `official API sends regional target codes and collapses regional source to PT`() = runBlocking {
-        val client = ScriptedHttpClient(mutableListOf(Ok(OFFICIAL_SUCCESS)))
+        val client = ScriptedHttpClient(listOf(Ok(OFFICIAL_SUCCESS)))
         val service = createService(client, DeepLSettings(apiKey = "test-key:fx"), {})
 
         service.translate(
@@ -173,23 +138,20 @@ class DeepLTranslatorServiceTest {
     }
 
     @Test
-    fun `official API maps detected PT-BR back to Brazilian Portuguese`() = runBlocking {
-        val client = ScriptedHttpClient(mutableListOf(
+    fun `official API maps detected PT-BR back to Brazilian Portuguese`() = runBlocking<Unit> {
+        val client = ScriptedHttpClient(listOf(
             Ok("""{"translations":[{"text":"x","detected_source_language":"PT-BR"}]}""")
         ))
         val service = createService(client, DeepLSettings(apiKey = "test-key:fx"), {})
 
         val result = service.translate(request)
 
-        result.fold(
-            success = { assertEquals(LanguageCode.PORTUGUESE_BRAZIL, it.detectedLanguage) },
-            failure = { fail(it.message) }
-        )
+        result.unwrap().also { assertEquals(LanguageCode.PORTUGUESE_BRAZIL, it.detectedLanguage) }
     }
 
     @Test
     fun `free web endpoint collapses regional Portuguese targets to pt`() = runBlocking {
-        val client = ScriptedHttpClient(mutableListOf(Ok(WEB_SUCCESS)))
+        val client = ScriptedHttpClient(listOf(Ok(WEB_SUCCESS)))
         val service = createService(client, DeepLSettings(), {})
 
         service.translate(request.copy(targetLanguage = LanguageCode.PORTUGUESE_PORTUGAL))
@@ -217,38 +179,6 @@ class DeepLTranslatorServiceTest {
             """{"translations":[{"text":"Bonjour officiel","detected_source_language":"EN"}]}"""
         const val WEB_SUCCESS =
             """{"translations":[{"text":"Bonjour","detected_source_language":"EN"}]}"""
-    }
-}
-
-private class ScriptedHttpClient(
-    private val responses: MutableList<Result<String, ServiceError>>
-) : TextHttpClient() {
-    val urls = mutableListOf<String>()
-    val headers = mutableListOf<Map<String, String>>()
-    val bodies = mutableListOf<String>()
-
-    override suspend fun get(
-        url: String,
-        headers: Map<String, String>,
-        queryParams: Map<String, Any?>
-    ): Result<String, ServiceError> = next(url, headers, null)
-
-    override suspend fun post(
-        url: String,
-        headers: Map<String, String>,
-        body: String?,
-        queryParams: Map<String, Any?>
-    ): Result<String, ServiceError> = next(url, headers, body)
-
-    private fun next(
-        url: String,
-        requestHeaders: Map<String, String>,
-        body: String?
-    ): Result<String, ServiceError> {
-        urls += url
-        headers += requestHeaders
-        bodies += body.orEmpty()
-        return responses.removeFirst()
     }
 }
 

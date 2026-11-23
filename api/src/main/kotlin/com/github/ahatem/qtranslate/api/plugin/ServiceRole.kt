@@ -17,16 +17,9 @@ import kotlin.reflect.KClass
  * a service has the [TRANSLATOR] role exactly when it implements [Translator]. Nothing is declared
  * and nothing needs checking, because there is only one fact and [of] reads it.
  *
- * This replaced a design where a service declared a set of capabilities *and* implemented the
- * matching interfaces. Two statements of one fact can disagree, and the host resolves a service by
- * the declared value and then casts to the interface, so disagreeing meant a `ClassCastException`
- * the first time the user tried to use it. A validator existed purely to catch that, and it is
- * gone with the duplication that made it necessary.
- *
- * Declaring came in to fix a real bug: the roles were previously inferred by an *ordered* type
- * test, which returned one answer, so a service that both translated and defined words was filed
- * under whichever branch happened to run first. The flaw was the ordering, not the inference.
- * [of] filters instead of matching, so a service holds every role it implements.
+ * Deriving roles from the interfaces means a declaration and an implementation can never disagree,
+ * which would otherwise surface as a `ClassCastException` when the host casts a resolved service.
+ * [of] filters rather than matching in order, so a service holds every role it implements.
  *
  * ### Roles against optional behaviour
  * A role is selectable by the user: they pick which translator translates. Behaviour that merely

@@ -4,10 +4,8 @@ package com.github.ahatem.qtranslate.core.updater
  * Which file the update dialog's Download button should fetch.
  *
  * A release carries the application in three shapes alongside a plugin JAR for every bundled
- * plugin, and the updater used to take whichever asset GitHub listed first. GitHub lists them
- * alphabetically, so first has always meant `ai-plugin-<version>.jar`: pressing Download in a
- * release-shipping application handed the user a single plugin and called it an update. Nothing
- * failed, and nothing said anything was wrong, which is why it survived several releases.
+ * plugin. GitHub lists assets alphabetically, so the first one is a plugin JAR such as
+ * `ai-plugin-<version>.jar`, not the application.
  *
  * Matching is therefore by name and deliberately narrow. There is no "first asset" fallback and
  * there must never be one: an asset this cannot identify is far more likely to be a plugin than

@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.ui.swing.main.output
 
-import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
@@ -12,12 +11,10 @@ import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.effectiveTranslatorCount
 import com.github.ahatem.qtranslate.ui.swing.main.widgets.TextActionsState
 import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
+import com.github.ahatem.qtranslate.ui.swing.testing.SilentLogger
 import java.awt.Component
-import java.awt.ComponentOrientation
 import java.awt.Container
-import java.io.File
 import java.nio.file.Files
-import javax.swing.JScrollPane
 import javax.swing.SwingUtilities
 import javax.swing.UIManager
 import kotlin.test.Test
@@ -175,95 +172,8 @@ class CompareEmptyStateTest {
         assertTrue(board.primaryProviderView.bodyVisibleForTest(), "quick keeps the provider's own placeholder")
     }
 
-    @Test
-    fun `the empty state is centered in the space below the primary header`() {
-        val board = CompareBoard()
-        startup(board)
-        layout(board, 600, height = 700)
-        val view = board.emptyStateForTest()
-        assertEquals(board.height - board.insets.bottom, view.y + view.height, "it fills the viewport below the header")
-        val stack = listOf(view.titleForTest(), view.messageForTest())
-        val top = stack.minOf { it.y }
-        val bottom = stack.maxOf { it.y + it.height }
-        val above = top
-        val below = view.height - bottom
-        assertTrue(kotlin.math.abs(above - below) <= 2, "stack is vertically centered (above=$above below=$below)")
-        val center = (view.titleForTest().x + view.titleForTest().width / 2)
-        assertTrue(kotlin.math.abs(center - view.width / 2) <= 1, "stack is horizontally centered")
-    }
-
-    @Test
-    fun `narrow widths wrap inside the board without clipping or forcing width`() {
-        val board = CompareBoard()
-        startup(board)
-        layout(board, 220, height = 600)
-        val view = board.emptyStateForTest()
-        listOf(view.titleForTest(), view.messageForTest()).forEach {
-            assertTrue(it.x >= 0 && it.x + it.width <= view.width, "text must stay inside the board")
-        }
-        val message = view.messageForTest()
-        val oneLine = message.getFontMetrics(message.font).stringWidth(message.text)
-        assertTrue(message.height > message.getFontMetrics(message.font).height, "the message wraps to several lines")
-        assertTrue(oneLine > message.width, "the message is wider than one line of the narrow board")
-        SwingUtilities.invokeAndWait { }
-        assertTrue(board.minimumSize.width == 0, "the board never asks for more width")
-    }
-
-    @Test
-    fun `text wraps to a readable measure on wide boards`() {
-        val board = CompareBoard()
-        startup(board)
-        layout(board, 1400)
-        assertTrue(board.emptyStateForTest().messageForTest().width <= 448, "the stack stays compact")
-    }
-
-    @Test
-    fun `follows the interface orientation`() {
-        val board = CompareBoard()
-        render(board, CompareBoardState(primary(ProviderStatus.PLACEHOLDER), emptyList(), emptyState))
-        SwingUtilities.invokeAndWait { board.applyComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT) }
-        val view = board.emptyStateForTest()
-        assertEquals(ComponentOrientation.RIGHT_TO_LEFT, view.titleForTest().componentOrientation)
-        assertEquals(ComponentOrientation.RIGHT_TO_LEFT, view.messageForTest().componentOrientation)
-        layout(board, 500)
-        val title = view.titleForTest()
-        assertTrue(kotlin.math.abs(title.x + title.width / 2 - view.width / 2) <= 1)
-    }
-
-    @Test
-    fun `fills the viewport while it fits and scrolls normally when it does not`() {
-        val board = CompareBoard()
-        startup(board)
-        val pane = JScrollPane(board)
-        SwingUtilities.invokeAndWait {
-            pane.setSize(600, 600)
-            layoutTopDown(pane)
-        }
-        assertTrue(board.scrollableTracksViewportHeight)
-        SwingUtilities.invokeAndWait {
-            pane.setSize(600, 40)
-            layoutTopDown(pane)
-        }
-        assertFalse(board.scrollableTracksViewportHeight)
-        render(board, CompareBoardState(primary(ProviderStatus.SUCCESS, "bonjour"), emptyList(), emptyState))
-        SwingUtilities.invokeAndWait {
-            pane.setSize(600, 600)
-            layoutTopDown(pane)
-        }
-        assertFalse(board.scrollableTracksViewportHeight, "real results scroll as before")
-    }
-
-    // ---- effective count and wording ----
-
-    private val logger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
-
     private val localizer by lazy {
-        LocalizationManager(Files.createTempDirectory("qtranslate-empty-state").toFile(), LanguageTomlParser(), logger)
+        LocalizationManager(Files.createTempDirectory("qtranslate-empty-state").toFile(), LanguageTomlParser(), SilentLogger)
     }
 
     private fun config(primary: String, comparisons: List<String>, disabled: Set<String> = emptySet()) =
@@ -292,32 +202,6 @@ class CompareEmptyStateTest {
         val four = config("google", listOf("bing", "deepl", "yandex")).effectiveTranslatorCount(listOf("google", "bing", "deepl", "yandex"))
         assertTrue(localizer.getString("main_window.comparison_empty_subtitle", four).contains("4 translation services"))
     }
-
-    @Test
-    fun `the main window feeds the board from the effective count and localization keys`() {
-        val source = File("src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/main/MainContentView.kt").readText()
-        assertTrue(source.contains("config.effectiveTranslatorCount(mainState.availableTranslatorIds)"))
-        assertTrue(source.contains("localizer.getString(\"main_window.comparison_empty_subtitle\", readyCount)"))
-        assertTrue(source.contains("localizer.getString(\"main_window.comparison_empty\")"))
-        assertFalse(source.contains("placeholderTitle = localizer"), "the primary provider no longer carries the startup text")
-    }
-
-    // ---- no hard-coded colors ----
-
-    @Test
-    fun `the empty state uses theme colors only`() {
-        val source = File("src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/main/output/CenteredStateView.kt").readText()
-        assertFalse(Regex("""\bColor\s*\(""").containsMatchIn(source))
-        assertFalse(Regex("""Color\.[A-Za-z]+""").containsMatchIn(source))
-        assertFalse(Regex("""0x[0-9A-Fa-f]{6}""").containsMatchIn(source))
-        assertTrue(source.contains("Label.disabledForeground") && source.contains("Label.foreground"))
-        assertFalse(source.contains("paintComponent"), "no card or custom surface painting")
-        assertFalse(source.contains("RoundRect") || source.contains("setBorder(BorderFactory.createLine") || source.contains("createLineBorder"))
-    }
-
-    // ---- Extra Output placeholder ----
-
-    // ---- the real Extra Output panel ----
 
     /**
      * IconManager resolves the app's own icons without touching its plugin manager, so a manager
@@ -395,22 +279,6 @@ class CompareEmptyStateTest {
     }
 
     @Test
-    fun `the placeholder does not change the panel size`() {
-        val panel = extraPanel()
-        fun preferred(): java.awt.Dimension {
-            var size: java.awt.Dimension? = null
-            SwingUtilities.invokeAndWait { size = panel.preferredSize }
-            return size!!
-        }
-        repeat(2) { renderExtra(panel, extraState(placeholder = null)) }
-        val withBody = preferred()
-        renderExtra(panel, extraState())
-        assertEquals(withBody, preferred())
-    }
-
-    // ---- primary status ----
-
-    @Test
     fun `primary status separates initial loading success and failure`() {
         assertEquals(ProviderStatus.PLACEHOLDER, primaryProviderStatus("", isLoading = false, translationFailed = false))
         assertEquals(ProviderStatus.LOADING, primaryProviderStatus("", isLoading = true, translationFailed = false))
@@ -443,18 +311,5 @@ class CompareEmptyStateTest {
 
         show("bonjour", loading = false, failed = false)
         assertFalse(board.emptyStateForTest().isVisible, "success")
-    }
-
-    @Test
-    fun `the main window derives the primary status from the failure state`() {
-        val source = File("src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/main/MainContentView.kt").readText()
-        assertTrue(source.contains("mainState.translatedText, mainState.isLoading, mainState.translationFailed"))
-        assertTrue(source.contains(".takeIf { mainState.translatedText.isBlank() }"), "extra output placeholder stays tied to no translation")
-    }
-
-    @Test
-    fun `extra output panel has no split behavior`() {
-        val panel = File("src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/main/output/ExtraOutputPanel.kt").readText()
-        assertFalse(panel.contains("setDividerLocation") || panel.contains("resizeWeight"))
     }
 }

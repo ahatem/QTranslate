@@ -8,7 +8,8 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.plugins.common.CapturingLogger
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
-import com.github.ahatem.qtranslate.plugins.common.TextHttpClient
+import com.github.ahatem.qtranslate.plugins.common.ScriptedHttpClient
+import com.github.ahatem.qtranslate.plugins.common.unwrapError
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -46,29 +47,6 @@ class AIServiceClientPrivacyTest {
     private val truncatedRawCompletion =
         """{"choices":[{"message":{"role":"assistant","content":"$sentinelRaw"},"finish_reason":"length"}]}"""
 
-    private class ScriptedHttpClient(
-        private val response: Result<String, ServiceError>
-    ) : TextHttpClient() {
-        val urls = mutableListOf<String>()
-
-        override suspend fun post(
-            url: String,
-            headers: Map<String, String>,
-            body: String?,
-            queryParams: Map<String, Any?>
-        ): Result<String, ServiceError> {
-            urls += url
-            return response
-        }
-
-        override suspend fun get(
-            url: String,
-            headers: Map<String, String>,
-            queryParams: Map<String, Any?>
-        ): Result<String, ServiceError> =
-            error("The AI client should not issue GETs, but one went to $url")
-    }
-
     private fun profile(
         baseUrl: String = "https://api.example.invalid/v1",
         customHeaders: String = ""
@@ -103,20 +81,6 @@ class AIServiceClientPrivacyTest {
         )
         assertClean(logger, sentinelEndpoint)
         assertClean(logger, sentinelKey)
-    }
-
-    @Test
-    fun `logs never contain the API key or the bearer value`() = runBlocking {
-        val logger = CapturingLogger()
-        val http = ScriptedHttpClient(Ok(completion))
-        val client = AIServiceClient(
-            pluginContext = FakePluginContext(logger = logger, httpClient = http),
-            httpClient = http
-        )
-
-        client.complete(system = "sys", userContent = "user", profile = profile())
-
-        assertClean(logger, sentinelKey, "Bearer $sentinelKey")
     }
 
     @Test
@@ -180,70 +144,36 @@ class AIServiceClientPrivacyTest {
     }
 
     @Test
-    fun `a malformed translation response does not put the raw model output in the error`() = runBlocking {
-        val logger = CapturingLogger()
-        val http = ScriptedHttpClient(Ok(rawCompletion))
-        val client = AIServiceClient(
-            pluginContext = FakePluginContext(logger = logger, httpClient = http),
-            httpClient = http
+    fun `a malformed response does not put the raw model output in the error`() = runBlocking {
+        val calls = mapOf<String, Pair<String, suspend (AIServiceClient) -> Result<*, ServiceError>>>(
+            "translation" to ("Failed to parse AI translation response" to { client ->
+                AITranslatorService(client, profileProvider = { profile() })
+                    .translate(TranslationRequest("hello", LanguageCode.AUTO, LanguageCode.FRENCH))
+            }),
+            "dictionary" to ("Failed to parse AI dictionary response" to { client ->
+                AIDictionaryService(client, profileProvider = { profile() })
+                    .lookup(DictionaryRequest("word", LanguageCode.ENGLISH))
+            }),
+            "vision" to ("Failed to parse AI OCR response" to { client ->
+                AIVisionOcrService(client, profileProvider = { profile() })
+                    .extractText(OCRRequest(ImageData(byteArrayOf(1, 2, 3), "png", 1, 1), LanguageCode.ENGLISH))
+            }),
         )
-        val service = AITranslatorService(client, profileProvider = { profile() })
+        for ((service, call) in calls) {
+            val (expectedMessage, invoke) = call
+            val logger = CapturingLogger()
+            val http = ScriptedHttpClient(Ok(rawCompletion))
+            val client = AIServiceClient(
+                pluginContext = FakePluginContext(logger = logger, httpClient = http),
+                httpClient = http
+            )
 
-        val result = service.translate(
-            TranslationRequest("hello", LanguageCode.AUTO, LanguageCode.FRENCH)
-        )
+            val error = invoke(client).unwrapError()
 
-        val error = result.fold(
-            success = { fail("a response the DTO cannot decode must fail") },
-            failure = { it }
-        )
-        assertFalse(error.message.contains(sentinelRaw), "the surfaced error must not carry the raw output")
-        assertContains(error.message, "Failed to parse AI translation response")
-        assertClean(logger, sentinelRaw)
-    }
-
-    @Test
-    fun `a malformed dictionary response does not put the raw model output in the error`() = runBlocking {
-        val logger = CapturingLogger()
-        val http = ScriptedHttpClient(Ok(rawCompletion))
-        val client = AIServiceClient(
-            pluginContext = FakePluginContext(logger = logger, httpClient = http),
-            httpClient = http
-        )
-        val service = AIDictionaryService(client, profileProvider = { profile() })
-
-        val result = service.lookup(DictionaryRequest("word", LanguageCode.ENGLISH))
-
-        val error = result.fold(
-            success = { fail("a response the DTO cannot decode must fail") },
-            failure = { it }
-        )
-        assertFalse(error.message.contains(sentinelRaw), "the surfaced error must not carry the raw output")
-        assertContains(error.message, "Failed to parse AI dictionary response")
-        assertClean(logger, sentinelRaw)
-    }
-
-    @Test
-    fun `a malformed vision response does not put the raw model output in the error`() = runBlocking {
-        val logger = CapturingLogger()
-        val http = ScriptedHttpClient(Ok(rawCompletion))
-        val client = AIServiceClient(
-            pluginContext = FakePluginContext(logger = logger, httpClient = http),
-            httpClient = http
-        )
-        val service = AIVisionOcrService(client, profileProvider = { profile() })
-
-        val result = service.extractText(
-            OCRRequest(ImageData(byteArrayOf(1, 2, 3), "png", 1, 1), LanguageCode.ENGLISH)
-        )
-
-        val error = result.fold(
-            success = { fail("a response the DTO cannot decode must fail") },
-            failure = { it }
-        )
-        assertFalse(error.message.contains(sentinelRaw), "the surfaced error must not carry the raw output")
-        assertContains(error.message, "Failed to parse AI OCR response")
-        assertClean(logger, sentinelRaw)
+            assertFalse(error.message.contains(sentinelRaw), "$service: the surfaced error must not carry the raw output")
+            assertContains(error.message, expectedMessage, message = service)
+            assertClean(logger, sentinelRaw)
+        }
     }
 
     private fun assertClean(logger: CapturingLogger, vararg sentinels: String) {

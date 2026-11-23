@@ -20,9 +20,9 @@ import com.github.ahatem.qtranslate.ui.swing.shared.widgets.DisplayValueRenderer
 /**
  * How the application looks: theme, icon set, interface scale and fonts.
  *
- * The interface language and the actions that manage translation files used to sit at the top of
- * this page. They moved to [GeneralPanel] — the language is an application-wide preference, not a
- * visual one, and it was the first thing on a page named after themes and fonts.
+ * The interface language and the actions that manage translation files live in [GeneralPanel]:
+ * the language is an application-wide preference, not a visual one, and would be out of place as
+ * the first thing on a page named after themes and fonts.
  */
 class AppearancePanel(
     private val store: SettingsStore,
@@ -131,8 +131,8 @@ class AppearancePanel(
         editorFontSize    = JSpinner(SpinnerNumberModel(15, 8, 32, 1))
         fallbackFontCombo = JComboBox(arrayOf(FallbackFontOption(loadingItem, loadingItem))).apply { isEnabled = false }
 
-        // The interface font size is no longer offered: it was a second, compounding zoom beside
-        // Interface Scale, and raising one quietly enlarged everything while the other stayed put.
+        // The interface font size is not offered: a second, compounding zoom beside Interface
+        // Scale would let raising one quietly enlarge everything while the other stayed put.
         // The stored size still applies (the spinner is kept, just not shown) so existing
         // configurations render as they did, and choosing a family leaves the size alone.
         addRow(localizationManager.getString("settings_appearance.ui_font"),       createFontRow(uiFontCombo,     null))

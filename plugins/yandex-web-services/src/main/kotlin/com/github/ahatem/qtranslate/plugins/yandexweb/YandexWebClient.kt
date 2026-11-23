@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.plugins.yandexweb
 
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
+import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -9,7 +10,6 @@ import com.github.michaelbull.result.fold
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.Json
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -20,7 +20,6 @@ internal class YandexWebClient(
     private val wait: suspend (Long) -> Unit = { delay(it) }
 ) {
     private val requestMutex = Mutex()
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private var lastRequestStartedAt = 0L
 
     suspend fun translate(text: String, targetLanguage: String): Result<YandexWebResponse, ServiceError> =
@@ -67,7 +66,7 @@ internal class YandexWebClient(
                 )
             ).fold(
                 success = { body ->
-                    runCatching { json.decodeFromString<MozhiYandexResponse>(body) }.fold(
+                    runCatching { PluginJson.decodeFromString<MozhiYandexResponse>(body) }.fold(
                         onSuccess = { parsed ->
                             if (parsed.translatedText.isNotBlank()) {
                                 Ok(YandexWebResponse(parsed.translatedText, parsed.sourceLanguage, targetLanguage))
@@ -90,7 +89,7 @@ internal class YandexWebClient(
     }
 
     private fun parseResponse(body: String): Result<YandexWebResponse, ServiceError> =
-        runCatching { json.decodeFromString<List<YandexWebResponse>>(body).firstOrNull() }
+        runCatching { PluginJson.decodeFromString<List<YandexWebResponse>>(body).firstOrNull() }
             .fold(
                 onSuccess = { response ->
                     if (response != null && response.text.isNotBlank()) Ok(response)

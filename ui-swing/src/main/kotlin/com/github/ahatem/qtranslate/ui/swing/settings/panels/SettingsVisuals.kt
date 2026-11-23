@@ -1,22 +1,21 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
+import com.github.ahatem.qtranslate.ui.swing.shared.util.blend
 import java.awt.Color
 import java.awt.Font
 import javax.swing.UIManager
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToInt
 
 /**
  * The four levels a Settings page has to be readable at, expressed once as tokens.
  *
- * The dialog previously used whatever the look and feel happened to hand out: a section heading
- * was the panel's own font one point larger, a sub-heading was the same font shrunk and dimmed,
- * an ordinary label was plain, and an explanation was the *disabled* color at a smaller size.
- * Two of those levels came out within a pixel and a shade of each other, so the page read as one
- * undifferentiated list: the owner could not tell a group heading from the name of a setting, and
- * the explanations sat in a color that either competed with the text above it or all but vanished,
- * depending on which theme was loaded.
+ * Taking whatever the look and feel happens to hand out is not enough: a section heading as the
+ * panel's own font one point larger, a sub-heading as the same font shrunk and dimmed, a plain
+ * label, and an explanation in the *disabled* color at a smaller size leave two of those levels
+ * within a pixel and a shade of each other. The page then reads as one undifferentiated list: a
+ * group heading cannot be told from the name of a setting, and the explanations either compete
+ * with the text above them or all but vanish, depending on which theme is loaded.
  *
  * So the levels are separated on purpose, and the separation is measured rather than guessed:
  *
@@ -103,9 +102,6 @@ internal object SettingsVisuals {
     /** An explanation. Smaller and italic, and never so small that it stops being readable. */
     fun hintFont(base: Font): Font = base.deriveFont(Font.ITALIC, base.size - 1f)
 
-    /** Reading text, such as a page's opening explanation. Italic would make prose look edited. */
-    fun paragraphFont(base: Font): Font = base.deriveFont(Font.PLAIN, base.size.toFloat())
-
     /** WCAG relative luminance of [color]. */
     fun relativeLuminance(color: Color): Double {
         fun channel(value: Int): Double {
@@ -124,16 +120,6 @@ internal object SettingsVisuals {
         return ((max(a, b) + 0.05) / (min(a, b) + 0.05)).toFloat()
     }
 
-    /** [foreground] moved [amount] of the way toward [background]; 0 leaves it untouched. */
-    fun blend(foreground: Color, background: Color, amount: Float): Color {
-        val t = amount.coerceIn(0f, 1f)
-        return Color(
-            (foreground.red + (background.red - foreground.red) * t).roundToInt().coerceIn(0, 255),
-            (foreground.green + (background.green - foreground.green) * t).roundToInt().coerceIn(0, 255),
-            (foreground.blue + (background.blue - foreground.blue) * t).roundToInt().coerceIn(0, 255),
-        )
-    }
-
     /**
      * [foreground] muted toward [background] as far as [minContrast] allows.
      *
@@ -148,7 +134,7 @@ internal object SettingsVisuals {
         var accepted = foreground
         var amount = MUTE_STEP
         while (amount <= MAX_MUTE) {
-            val candidate = blend(foreground, background, amount)
+            val candidate = foreground.blend(background, amount)
             if (contrastRatio(candidate, background) < minContrast) break
             accepted = candidate
             amount += MUTE_STEP
@@ -166,7 +152,7 @@ internal object SettingsVisuals {
         if (contrastRatio(color, background) >= minContrast) return color
         var amount = MUTE_STEP
         while (amount <= 1f) {
-            val candidate = blend(color, toward, amount)
+            val candidate = color.blend(toward, amount)
             if (contrastRatio(candidate, background) >= minContrast) return candidate
             amount += MUTE_STEP
         }

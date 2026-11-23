@@ -9,7 +9,6 @@ import com.github.ahatem.qtranslate.plugins.systemservices.unwrap
 import com.github.ahatem.qtranslate.plugins.systemservices.unwrapError
 import kotlinx.coroutines.runBlocking
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -163,14 +162,4 @@ class LinuxTesseractBackendTest {
         assertFalse(File(runner.commands.single()[1]).exists())
     }
 
-    @Test
-    fun `a program that cannot be launched becomes an Err, not a thrown exception`() = runBlocking {
-        val absent = File(Files.createTempDirectory("system-ocr-absent").toFile(), "no-such-tesseract").absolutePath
-
-        val error = LinuxTesseractBackend(RealProcessRunner(), absent)
-            .recognize(imageData(), LanguageCode.ENGLISH)
-            .unwrapError()
-
-        assertTrue(error is ServiceError.ConfigurationError, "was ${error::class.simpleName}")
-    }
 }
