@@ -1,6 +1,9 @@
 package com.github.ahatem.qtranslate.core.settings.data
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 
 /**
  * The main window as three regions, each placed in a slot.
@@ -14,6 +17,11 @@ import kotlinx.serialization.Serializable
  * and what is in them, and [requiredHosts] says where every feature must be reachable; a renderer
  * follows the first and a test checks the real component tree against the second.
  *
+ * The language row can move but never hides: [languages] is [RegionSlot.TOP],
+ * [RegionSlot.ABOVE_RESULTS] or [RegionSlot.BOTTOM]. The constructor refuses [RegionSlot.HIDDEN] for it,
+ * so no write can produce one, and a stored one is read as [RegionSlot.ABOVE_RESULTS] (see
+ * [LanguageSlotSerializer]).
+ *
  * Stored as [Configuration.windowLayout] and written only through [withWindowLayout].
  */
 @Serializable
@@ -21,7 +29,8 @@ data class WindowLayout(
     val panes: PaneLayout = PaneLayout.STACKED,
     /** Back/forward, the provider crumb, image and document translate. */
     val history: RegionSlot = RegionSlot.TOP,
-    /** Source, swap, target and Translate. */
+    /** Source, swap, target and Translate. Never [RegionSlot.HIDDEN]. */
+    @Serializable(with = LanguageSlotSerializer::class)
     val languages: RegionSlot = RegionSlot.ABOVE_RESULTS,
     /** The service selector. */
     val services: RegionSlot = RegionSlot.BOTTOM,
@@ -33,6 +42,10 @@ data class WindowLayout(
     val showStatusBar: Boolean = true,
     val density: Density = Density.COMFORTABLE,
 ) {
+    init {
+        require(languages != RegionSlot.HIDDEN) { "The language row can move but never hides" }
+    }
+
     /** The slot [region] is placed in. */
     fun slotOf(region: WindowRegion): RegionSlot = when (region) {
         WindowRegion.HISTORY -> history
@@ -40,7 +53,7 @@ data class WindowLayout(
         WindowRegion.SERVICES -> services
     }
 
-    /** This layout with [region] moved to [slot]. */
+    /** This layout with [region] moved to [slot]; [slot] must be one of [WindowRegion.allowedSlots]. */
     fun withSlot(region: WindowRegion, slot: RegionSlot): WindowLayout = when (region) {
         WindowRegion.HISTORY -> copy(history = slot)
         WindowRegion.LANGUAGES -> copy(languages = slot)
@@ -140,8 +153,8 @@ data class WindowLayout(
     fun requiredHosts(effectivePanes: PaneLayout): Map<WindowFeature, FeatureHost> {
         val historyHost =
             if (history != RegionSlot.HIDDEN) FeatureHost.RegionRow(WindowRegion.HISTORY) else FeatureHost.InputStrip
-        val languagesHost =
-            if (languages != RegionSlot.HIDDEN) FeatureHost.RegionRow(WindowRegion.LANGUAGES) else FeatureHost.InputStrip
+        // The language row never hides, so its commands always have a row of their own.
+        val languagesHost = FeatureHost.RegionRow(WindowRegion.LANGUAGES)
         val servicesHost = when {
             effectivePanes == PaneLayout.COMPARISON -> FeatureHost.ComparisonHeader
             services != RegionSlot.HIDDEN -> FeatureHost.RegionRow(WindowRegion.SERVICES)
@@ -203,12 +216,28 @@ enum class PaneLayout {
  * | slot | Stacked | Side by side | Comparison |
  * |---|---|---|---|
  * | [TOP] | above the input pane | above both columns | above the input pane |
- * | [ABOVE_RESULTS] | between input and output | above the output column only | above the board |
+ * | [ABOVE_RESULTS] | between input and output | a full-width row directly above both columns, below any [TOP] rows | above the board |
  * | [BOTTOM] | below the panes, above the status bar | same | same |
  * | [HIDDEN] | not drawn; its commands fall back (see [FeatureHost]) | same | same |
  */
 @Serializable
 enum class RegionSlot { TOP, ABOVE_RESULTS, BOTTOM, HIDDEN }
+
+/**
+ * Reads the language row's slot, treating a stored [RegionSlot.HIDDEN] as [RegionSlot.ABOVE_RESULTS].
+ *
+ * Only a build that has not shipped could write that value, so this exists to keep such a file
+ * loading rather than to migrate released data.
+ */
+internal object LanguageSlotSerializer : KSerializer<RegionSlot> {
+    private val delegate = RegionSlot.serializer()
+    override val descriptor = delegate.descriptor
+
+    override fun deserialize(decoder: Decoder): RegionSlot =
+        delegate.deserialize(decoder).let { if (it == RegionSlot.HIDDEN) RegionSlot.ABOVE_RESULTS else it }
+
+    override fun serialize(encoder: Encoder, value: RegionSlot) = delegate.serialize(encoder, value)
+}
 
 /** Which widget chooses the active service. */
 @Serializable
@@ -219,7 +248,19 @@ enum class ServiceWidget { PICKER, STRIP }
 enum class Density { COMFORTABLE, COMPACT }
 
 /** A region of the window that can be placed in a slot. Declaration order is the order within a slot. */
-enum class WindowRegion { HISTORY, LANGUAGES, SERVICES }
+enum class WindowRegion {
+    HISTORY, LANGUAGES, SERVICES;
+
+    /**
+     * The slots this region can be placed in, in the order menus offer them. The language row is
+     * never hidden: the translation cannot be directed without it.
+     */
+    val allowedSlots: List<RegionSlot>
+        get() = when (this) {
+            LANGUAGES -> listOf(RegionSlot.TOP, RegionSlot.ABOVE_RESULTS, RegionSlot.BOTTOM)
+            else -> listOf(RegionSlot.TOP, RegionSlot.ABOVE_RESULTS, RegionSlot.BOTTOM, RegionSlot.HIDDEN)
+        }
+}
 
 /** Why a layout control is unavailable. Core does not know the words; the UI maps each to a sentence. */
 enum class LayoutDisabledReason {
@@ -259,7 +300,7 @@ sealed interface FeatureHost {
     /** In the row of [region], which is placed in a visible slot. */
     data class RegionRow(val region: WindowRegion) : FeatureHost
 
-    /** The action strip of the input pane: where commands go when their own region is hidden. */
+    /** The action strip of the input pane: where history or service commands go when their region is hidden. */
     data object InputStrip : FeatureHost
 
     /** The board header of the Comparison layout, which owns service switching there. */
@@ -390,12 +431,9 @@ object WindowLayoutMigration {
             panes = panes,
             history = if (toolbarVisibility.isHistoryBarVisible) RegionSlot.TOP else RegionSlot.HIDDEN,
             // The language row sat between the panes in Stacked and Comparison, but above both
-            // columns in Side by side.
-            languages = when {
-                !toolbarVisibility.isLanguageBarVisible -> RegionSlot.HIDDEN
-                panes == PaneLayout.SIDE_BY_SIDE -> RegionSlot.TOP
-                else -> RegionSlot.ABOVE_RESULTS
-            },
+            // columns in Side by side. It no longer hides, so a hidden v10 bar gets the slot a
+            // visible one would have had.
+            languages = if (panes == PaneLayout.SIDE_BY_SIDE) RegionSlot.TOP else RegionSlot.ABOVE_RESULTS,
             services = if (toolbarVisibility.isServicesPanelVisible) RegionSlot.BOTTOM else RegionSlot.HIDDEN,
             serviceWidget = when (serviceSelectorStyle) {
                 ServiceSelectorStyle.CLASSIC -> ServiceWidget.STRIP

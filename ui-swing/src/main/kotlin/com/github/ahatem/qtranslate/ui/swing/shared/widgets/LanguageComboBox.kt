@@ -20,8 +20,7 @@ import javax.swing.plaf.basic.BasicComboPopup
  * The short label for a language where there is no room for its name: its code, in capitals.
  *
  * With Auto resolved, that is the detected language rather than the word "auto", which is the more
- * useful of the two in a few characters. Shared by the compact combo box and the language pair chip
- * so the two never describe the same language differently.
+ * useful of the two in a few characters.
  */
 fun LanguageCode.compactLabel(detected: LanguageCode?): String =
     (if (this == LanguageCode.AUTO) detected ?: this else this).tag.uppercase()

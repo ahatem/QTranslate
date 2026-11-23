@@ -422,9 +422,10 @@ private class Shots(
             "card-focus" to Scenes.FOCUS_CARD,
             "panes-side-by-side" to Scenes.SIDE_BY_SIDE,
             "panes-comparison" to Scenes.COMPARISON_BOARD,
-            // Every region hidden: the chips, the moved actions and the notification button all
-            // land in the input strip.
-            "all-hidden" to WindowLayout(history = hidden, languages = hidden, services = hidden, showStatusBar = false),
+            // History and services hidden: their commands, the provider chip and the notification
+            // button all land in the input strip, and the language row stays where it is. The
+            // language row never hides.
+            "history-services-hidden" to WindowLayout(history = hidden, services = hidden, showStatusBar = false),
             "history-bottom" to WindowLayout(history = RegionSlot.BOTTOM),
             "stacked-languages-top" to WindowLayout(languages = RegionSlot.TOP),
             // History and languages share the top row; the service selector never shares, so it

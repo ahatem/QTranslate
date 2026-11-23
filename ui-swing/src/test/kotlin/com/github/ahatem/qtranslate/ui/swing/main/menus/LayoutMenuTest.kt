@@ -105,8 +105,12 @@ class LayoutMenuTest {
     @Test
     fun `a region submenu writes the whole layout it was built from`() {
         val menu = options(Configuration.DEFAULT.withWindowLayout(compact))
-        menu.region(WindowRegion.LANGUAGES).item("slot:HIDDEN").doClick(0)
-        assertEquals(listOf(compact.copy(languages = RegionSlot.HIDDEN)), applied)
+        menu.region(WindowRegion.LANGUAGES).item("slot:BOTTOM").doClick(0)
+        assertEquals(listOf(compact.copy(languages = RegionSlot.BOTTOM)), applied)
+        assertTrue(
+            menu.region(WindowRegion.LANGUAGES).menuComponents.none { it.name == "slot:HIDDEN" },
+            "the language row has no Hide in the View menu",
+        )
     }
 
     @Test

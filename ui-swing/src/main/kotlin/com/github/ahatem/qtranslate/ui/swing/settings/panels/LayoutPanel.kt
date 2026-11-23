@@ -10,6 +10,7 @@ import com.github.ahatem.qtranslate.core.settings.data.ServiceWidget
 import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import com.github.ahatem.qtranslate.core.settings.data.WindowPreset
 import com.github.ahatem.qtranslate.core.settings.data.WindowRecipe
+import com.github.ahatem.qtranslate.core.settings.data.WindowRegion
 import com.github.ahatem.qtranslate.core.settings.data.effectivePaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.isComparisonEligible
 import com.github.ahatem.qtranslate.core.settings.data.withWindowLayout
@@ -131,7 +132,8 @@ class LayoutPanel(
         }
         addRow(localizationManager.getString("settings_window.layout_row_history"), historyCombo)
 
-        languagesCombo = enumCombo(RegionSlot.entries.toTypedArray(), texts::slot) {
+        // The language row can move but never hides, so the list has no Hide.
+        languagesCombo = enumCombo(WindowRegion.LANGUAGES.allowedSlots.toTypedArray(), texts::slot) {
             writeLayout { layout -> layout.copy(languages = it) }
         }
         addRow(localizationManager.getString("settings_window.layout_row_languages"), languagesCombo)

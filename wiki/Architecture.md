@@ -193,21 +193,33 @@ Blocking calls (`Files.copy`, JDBC, synchronous HTTP) must always be wrapped in 
 The main window is described by one value, `Configuration.windowLayout` (`WindowLayout` in
 `core/settings/data`), and written only through `Configuration.withWindowLayout`. It names the pane
 arrangement (Stacked, Side by side or Comparison) and puts each region (history, languages,
-services) in a slot: `TOP`, `ABOVE_RESULTS`, `BOTTOM` or `HIDDEN`.
+services) in a slot: `TOP`, `ABOVE_RESULTS`, `BOTTOM` or `HIDDEN`. A slot means the same place in
+every pane layout:
+
+| slot | Stacked | Side by side | Comparison |
+|---|---|---|---|
+| `TOP` | above the input pane | above both columns | above the input pane |
+| `ABOVE_RESULTS` | between input and output | a full-width row directly above both columns, below any `TOP` rows | above the board |
+| `BOTTOM` | below the panes, above the status bar | same | same |
+| `HIDDEN` | not drawn; commands fall back (below) | same | same |
+
+The language row can move but never hides: it can be `TOP`, `ABOVE_RESULTS` or `BOTTOM`.
+`WindowLayout` refuses `HIDDEN` for it, and a stored `HIDDEN` (only a build that never shipped could
+write one) loads as `ABOVE_RESULTS`.
 
 - `WindowLayout.rowPlan(effectivePanes)` says which rows each slot holds, in the fixed order
   history, languages, services. History and languages share a row when `shareRows` is set; the
   service selector always has a row of its own. Under Comparison the services region is absent: the
   board header switches the translator.
 - `WindowLayout.requiredHosts(effectivePanes)` says where each command lives. A hidden region's
-  commands move to the input strip (back/forward with mirrored arrows, the language pair chip with
-  Translate and Clear, the provider chip). With the status bar off, its notification button moves
+  commands move to the input strip (back/forward and image and document translate with mirrored
+  arrows, or the provider chip). With the status bar off, its notification button moves
   to the trailing end of whichever row holds history, or to the input strip when history is hidden
   too. The input strip never clips a command: when the pane is too short for every button, the
   ones that do not fit fold into a trailing More button whose menu lists them with the same text,
   icon, enabled state and action, and the notification button stays visible. The strip keeps its
   visual order and folds by `ActionPriority`: document, image, forward and back first, then Speak,
-  Clear and Copy, and Translate last.
+  and Copy last.
 - `SlotLayout` (`ui-swing/main/layout`) builds the slot containers and the pane split from the row
   plan; `LayoutManager` rebuilds only when the arrangement changes.
 - A requested Comparison without two usable translators renders Stacked. The stored preference is

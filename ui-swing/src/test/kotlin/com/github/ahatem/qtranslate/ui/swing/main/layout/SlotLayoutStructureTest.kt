@@ -97,12 +97,16 @@ class SlotLayoutStructureTest {
         Window(registry, SlotLayout.arrange(registry, layout, layout.panes, isRtl).rootComponent)
     }
 
+    /**
+     * [region] in [slot] and nothing else placed anywhere else. The language row never hides, so
+     * when another region is under test the language row shares its slot rather than leaving it.
+     */
     private fun only(region: WindowRegion, slot: RegionSlot, panes: PaneLayout): WindowLayout {
         val hidden = RegionSlot.HIDDEN
         return WindowLayout(
             panes = panes,
             history = if (region == WindowRegion.HISTORY) slot else hidden,
-            languages = if (region == WindowRegion.LANGUAGES) slot else hidden,
+            languages = slot,
             services = if (region == WindowRegion.SERVICES) slot else hidden,
         )
     }
@@ -131,14 +135,54 @@ class SlotLayoutStructureTest {
     }
 
     @Test
-    fun `above results sits over the results, never over the input`() {
-        PaneLayout.entries.forEach { panes ->
+    fun `above results sits over the results, never over the input, in stacked and comparison`() {
+        listOf(PaneLayout.STACKED, PaneLayout.COMPARISON).forEach { panes ->
             val window = build(only(WindowRegion.LANGUAGES, RegionSlot.ABOVE_RESULTS, panes))
             onEdt {
                 val header = assertNotNull(window.aboveResults, "$panes has a header over the results")
                 assertTrue(SwingUtilities.isDescendingFrom(window.registry.languageBar, header))
                 assertTrue(!SwingUtilities.isDescendingFrom(window.registry.inputPanel, header.parent), "$panes: not over the input")
             }
+        }
+    }
+
+    @Test
+    fun `above results in side by side is a full-width row directly above both columns`() {
+        val window = build(only(WindowRegion.LANGUAGES, RegionSlot.ABOVE_RESULTS, PaneLayout.SIDE_BY_SIDE))
+        onEdt {
+            val header = assertNotNull(window.aboveResults, "the row exists")
+            assertTrue(SwingUtilities.isDescendingFrom(window.registry.languageBar, header))
+            val section = header.parent as Container
+            assertEquals(
+                BorderLayout.NORTH, (section.layout as BorderLayout).getConstraints(header),
+                "the row sits at the top of the results area",
+            )
+            // Both columns are under the row, so the row spans the input column as well.
+            val columns = (section.layout as BorderLayout).getLayoutComponent(BorderLayout.CENTER)
+            assertTrue(SwingUtilities.isDescendingFrom(window.registry.inputPanel, columns), "the input column is under the row")
+            assertTrue(SwingUtilities.isDescendingFrom(window.registry.outputPanel, columns), "the output column is under the row")
+            assertTrue(!SwingUtilities.isDescendingFrom(window.registry.inputPanel, header))
+            assertTrue(!SwingUtilities.isDescendingFrom(window.registry.outputPanel, header))
+        }
+    }
+
+    @Test
+    fun `above results in side by side sits below any top rows`() {
+        val window = build(
+            WindowLayout(
+                panes = PaneLayout.SIDE_BY_SIDE, history = RegionSlot.TOP,
+                languages = RegionSlot.ABOVE_RESULTS, services = RegionSlot.BOTTOM,
+            )
+        )
+        onEdt {
+            val top = assertNotNull(window.top)
+            val header = assertNotNull(window.aboveResults)
+            assertTrue(SwingUtilities.isDescendingFrom(window.registry.historyBar, top))
+            // The top rows are the content's north edge; the row over the results is inside the centre.
+            val content = window.registry.statusBar.parent.parent as Container
+            assertTrue(!SwingUtilities.isDescendingFrom(header, top))
+            val center = (content.layout as BorderLayout).getLayoutComponent(BorderLayout.CENTER)
+            assertTrue(SwingUtilities.isDescendingFrom(header, center), "below the top rows, above the columns")
         }
     }
 
@@ -233,7 +277,7 @@ class SlotLayoutStructureTest {
         var checked = 0
         PaneLayout.entries.forEach { panes ->
             RegionSlot.entries.forEach { history ->
-                RegionSlot.entries.forEach { languages ->
+                WindowRegion.LANGUAGES.allowedSlots.forEach { languages ->
                     RegionSlot.entries.forEach { services ->
                         ServiceWidget.entries.forEach { widget ->
                             listOf(false, true).forEach { share ->
@@ -263,7 +307,7 @@ class SlotLayoutStructureTest {
                 }
             }
         }
-        assertEquals(3 * 4 * 4 * 4 * 2 * 2 * 2, checked)
+        assertEquals(3 * 4 * 3 * 4 * 2 * 2 * 2, checked)
     }
 
     private fun descendants(root: Component): Sequence<Component> = sequence {

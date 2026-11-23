@@ -27,7 +27,10 @@ data class RegionMenuStrings(
     val regionName: (WindowRegion) -> String,
     val moveTo: String,
     val slotName: (RegionSlot) -> String,
-    /** The Hide item of a region; it also says where that region's commands go. */
+    /**
+     * The Hide item of a region; it also says where that region's commands go. Not defined for the
+     * language row, which never hides.
+     */
     val hide: (WindowRegion) -> String,
     val shareRow: String,
     val selector: String,
@@ -51,7 +54,7 @@ fun LocalizationManager.regionMenuStrings(): RegionMenuStrings {
         hide = { region ->
             when (region) {
                 WindowRegion.HISTORY -> getString("main_window_main_menu.region_hide_history")
-                WindowRegion.LANGUAGES -> getString("main_window_main_menu.region_hide_languages")
+                WindowRegion.LANGUAGES -> error("The language row never hides")
                 WindowRegion.SERVICES -> getString("main_window_main_menu.region_hide_services")
             }
         },
@@ -108,7 +111,7 @@ class RegionMenu(
 
         add(heading(strings.moveTo))
         val position = ButtonGroup()
-        listOf(RegionSlot.TOP, RegionSlot.ABOVE_RESULTS, RegionSlot.BOTTOM, RegionSlot.HIDDEN).forEach { slot ->
+        region.allowedSlots.forEach { slot ->
             val text = if (slot == RegionSlot.HIDDEN) strings.hide(region) else strings.slotName(slot)
             add(radio("slot:$slot", text, window.slotOf(region) == slot, regionAvailability, position) {
                 window.withSlot(region, slot)

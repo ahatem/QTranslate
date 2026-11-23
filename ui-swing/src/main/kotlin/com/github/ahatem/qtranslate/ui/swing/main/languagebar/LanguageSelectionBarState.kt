@@ -24,8 +24,7 @@ data class LanguageSelectionBarState(
 ) : UiState {
     /**
      * Whether the Translate/Cancel control can be pressed: always while loading (it is Cancel, and
-     * a running translation must stay stoppable), otherwise only when there is input. One rule for
-     * the bar's button and for every stand-in for it.
+     * a running translation must stay stoppable), otherwise only when there is input.
      */
     val isTranslateActionable: Boolean get() = isLoading || canTranslate
 
@@ -48,7 +47,7 @@ data class LanguageSelectionBarStrings(
 
 /**
  * Fills a source combo box from [state]. The one place that says the source list carries the
- * detected language and the target list does not, shared by the bar and the language pair popup.
+ * detected language and the target list does not.
  */
 internal fun LanguageComboBox.renderSource(state: LanguageSelectionBarState) = render(
     availableLanguages = state.allSourceLanguages,

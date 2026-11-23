@@ -249,8 +249,9 @@ class RegionRowMenusTest {
         onEdt { popup.refresh() }
         assertEquals(listOf("region:HISTORY", "region:LANGUAGES", RegionMenu.SAVE_PROFILE), names(popup))
         val languages = popup.components.filterIsInstance<JMenu>().last()
-        onEdt { languages.menuComponents.filterIsInstance<JMenuItem>().single { it.name == "slot:HIDDEN" }.doClick(0) }
-        assertEquals(shared.copy(languages = RegionSlot.HIDDEN), lastWrite(base.withWindowLayout(shared)).windowLayout)
+        assertTrue(languages.menuComponents.none { it.name == "slot:HIDDEN" }, "the language row has no Hide")
+        onEdt { languages.menuComponents.filterIsInstance<JMenuItem>().single { it.name == "slot:BOTTOM" }.doClick(0) }
+        assertEquals(shared.copy(languages = RegionSlot.BOTTOM), lastWrite(base.withWindowLayout(shared)).windowLayout)
     }
 
     @Test

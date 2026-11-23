@@ -23,7 +23,7 @@ class TextActionsOverflowTest {
 
     private val ids = listOf(
         "history_back", "history_forward", "input_image_translate", "input_document_translate",
-        "input_translate", "input_clear", "copy_input", "listen_input",
+        "copy_input", "listen_input",
     )
 
     private fun action(id: String, enabled: Boolean = true, priority: Int = ActionPriority.DEFAULT) = Action(
@@ -42,8 +42,6 @@ class TextActionsOverflowTest {
         "history_forward" to ActionPriority.FORWARD,
         "input_image_translate" to ActionPriority.IMAGE,
         "input_document_translate" to ActionPriority.DOCUMENT,
-        "input_translate" to ActionPriority.TRANSLATE,
-        "input_clear" to ActionPriority.CLEAR,
         "copy_input" to ActionPriority.COPY,
         "listen_input" to ActionPriority.SPEAK,
     )
@@ -51,7 +49,7 @@ class TextActionsOverflowTest {
     /** What the strip gives up first, then next. */
     private val foldOrder = listOf(
         "input_document_translate", "input_image_translate", "history_forward", "history_back",
-        "listen_input", "input_clear", "copy_input", "input_translate",
+        "listen_input", "copy_input",
     )
 
     private fun prioritisedPanel(height: Int): TextActionsPanel = onEdt {
@@ -143,11 +141,11 @@ class TextActionsOverflowTest {
             assertEquals(ids.filter { it in shown }, shown, "the strip keeps the visual order")
             assertEquals(ids.toSet(), (shown + folded).toSet())
             if (shown.isNotEmpty() && folded.isNotEmpty()) {
-                assertTrue("input_translate" in shown, "Translate stays while anything stays")
+                assertTrue("copy_input" in shown, "Copy stays while anything stays")
             }
             if ("history_back" in folded && "listen_input" !in folded) sawBackFolded = true
         }
-        assertTrue(sawBackFolded, "back folds before Speak, Clear, Copy and Translate")
+        assertTrue(sawBackFolded, "back folds before Speak and Copy")
     }
 
     @Test

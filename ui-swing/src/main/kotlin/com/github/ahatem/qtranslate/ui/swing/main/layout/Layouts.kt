@@ -232,7 +232,7 @@ object LayoutBuilders {
  * | slot | Stacked | Side by side | Comparison |
  * |---|---|---|---|
  * | TOP | above the input pane | above both columns | above the input pane |
- * | ABOVE_RESULTS | between input and output | above the output column only | above the board |
+ * | ABOVE_RESULTS | between input and output | a full-width row directly above both columns, below any TOP rows | above the board |
  * | BOTTOM | below the panes, above the status bar | same | same |
  *
  * A region absent from the plan (hidden, or the services region under Comparison) is not mounted
@@ -349,13 +349,13 @@ object SlotLayout {
         aboveResults: JComponent?,
         isRtl: Boolean,
     ): Pair<JComponent, LayoutComponentRefs> {
-        // Above results is above the output column only; the input column starts at the top.
+        // Above results is a full-width row directly above both columns, below any TOP rows.
         val mainSplit = ResponsivePairSplit(
             leading = components.inputPanel,
-            trailing = section(aboveResults, components.outputPanel),
+            trailing = components.outputPanel,
             isRtl = isRtl
         ).split
-        val extra = extraSplit(mainSplit, components.extraOutputPanel)
+        val extra = extraSplit(section(aboveResults, mainSplit), components.extraOutputPanel)
         return extra to LayoutComponentRefs.WithSplitPanes(mainSplit, extra)
     }
 

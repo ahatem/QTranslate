@@ -52,7 +52,7 @@ class SettingsResetTest {
         windowLayout = WindowLayout(
             panes = PaneLayout.SIDE_BY_SIDE,
             history = RegionSlot.BOTTOM,
-            languages = RegionSlot.HIDDEN,
+            languages = RegionSlot.BOTTOM,
             services = RegionSlot.TOP,
             serviceWidget = ServiceWidget.STRIP,
             stripAppearance = ServiceSelectorAppearance.TEXT_ONLY,

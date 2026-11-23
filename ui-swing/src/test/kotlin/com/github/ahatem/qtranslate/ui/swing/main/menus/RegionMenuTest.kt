@@ -27,6 +27,7 @@ import javax.swing.JRadioButtonMenuItem
 import javax.swing.JSeparator
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
@@ -74,9 +75,8 @@ class RegionMenuTest {
 
     // ---- Structure ----
 
-    @Test
-    fun `history and languages offer position, share row and density`() {
-        listOf(WindowRegion.HISTORY, WindowRegion.LANGUAGES).forEach { region ->
+    fun `history offers position, hide, share row and density`() {
+        listOf(WindowRegion.HISTORY).forEach { region ->
             val items = menu(region).items()
             assertEquals(
                 listOf(
@@ -90,6 +90,26 @@ class RegionMenuTest {
             assertTrue(items.filter { it.isChoice() }.all { it.isEnabled }, "nothing is unavailable for $region")
             assertTrue(items.names().none { it == RegionMenu.REASON }, "no reason is shown while nothing is disabled")
             assertTrue(items.names().none { it?.startsWith("widget") == true || it?.startsWith("appearance") == true })
+        }
+    }
+
+    @Test
+    fun `the language row can move but has no Hide`() {
+        val items = menu(WindowRegion.LANGUAGES).items()
+        assertEquals(
+            listOf(
+                "heading", "slot:TOP", "slot:ABOVE_RESULTS", "slot:BOTTOM",
+                "share_rows", "heading", "density:COMFORTABLE", "density:COMPACT",
+            ),
+            items.names(),
+        )
+        assertTrue(items.filter { it.isChoice() }.all { it.isEnabled })
+        // Whatever the panes, and whichever slot it is in, the menu never offers to hide it.
+        PaneLayout.entries.forEach { panes ->
+            RegionSlot.entries.filter { it != RegionSlot.HIDDEN }.forEach { slot ->
+                val names = menu(WindowRegion.LANGUAGES, WindowLayout(panes = panes, languages = slot)).items().names()
+                assertTrue("slot:HIDDEN" !in names, "$panes / $slot")
+            }
         }
     }
 
@@ -125,11 +145,11 @@ class RegionMenuTest {
     @Test
     fun `Hide is one item per region and names where the commands go`() {
         val real = realStrings()
-        val hide = WindowRegion.entries.associateWith { real.hide(it) }
-        assertEquals(3, hide.values.toSet().size, "a different sentence for each region")
+        val hide = listOf(WindowRegion.HISTORY, WindowRegion.SERVICES).associateWith { real.hide(it) }
+        assertEquals(2, hide.values.toSet().size, "a different sentence for each region that can hide")
         assertTrue(hide.getValue(WindowRegion.HISTORY).contains("input pane"))
-        assertTrue(hide.getValue(WindowRegion.LANGUAGES).contains("input pane"))
         assertTrue(hide.getValue(WindowRegion.SERVICES).contains("input pane"))
+        assertFailsWith<IllegalStateException> { real.hide(WindowRegion.LANGUAGES) }
     }
 
     @Test
@@ -222,7 +242,7 @@ class RegionMenuTest {
     @Test
     fun `history and languages choices change only their own slot and the shared values`() {
         WindowRegion.entries.filter { it != WindowRegion.SERVICES }.forEach { region ->
-            RegionSlot.entries.filter { it != WindowLayout.DEFAULT.slotOf(region) }.forEach { slot ->
+            region.allowedSlots.filter { it != WindowLayout.DEFAULT.slotOf(region) }.forEach { slot ->
                 changes.clear()
                 menu(region).items().named("slot:$slot").doClick(0)
                 assertEquals(listOf(WindowLayout.DEFAULT.withSlot(region, slot)), changes)
@@ -262,9 +282,9 @@ class RegionMenuTest {
         listOf(false, true).forEach { rtl ->
             val real = realStrings(rtl)
             WindowRegion.entries.forEach { region ->
-                listOf(
-                    real.regionName(region), real.hide(region),
-                ).forEach { assertTrue(it.isNotBlank() && !it.contains('—'), it) }
+                // The language row never hides, so it has no Hide sentence.
+                (if (region == WindowRegion.LANGUAGES) listOf(real.regionName(region))
+                else listOf(real.regionName(region), real.hide(region))).forEach { assertTrue(it.isNotBlank() && !it.contains('—'), it) }
             }
             LayoutDisabledReason.entries.forEach { assertTrue(real.reason(it).isNotBlank()) }
             RegionSlot.entries.forEach { assertTrue(real.slotName(it).isNotBlank()) }

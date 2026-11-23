@@ -55,11 +55,12 @@ Use `QTRANSLATE_SCREENSHOT_SCENES=layout-slots` to capture a curated list of win
 once in English light (`slots-<name>-light`) and once in Arabic dark (`slots-<name>-rtl-dark`):
 the four cards (`card-modern-classic`, `card-classic`, `card-compact-row`, `card-focus`), the
 side by side and Comparison panes that are not cards (`panes-side-by-side`, `panes-comparison`),
-every region hidden with its chips in the input strip (`all-hidden`), history at the bottom
+history and services hidden, with their commands and the provider chip in the input strip
+(`history-services-hidden`; the language row never hides), history at the bottom
 (`history-bottom`), languages at the top of stacked panes (`stacked-languages-top`), history and
 languages sharing the top row with the services on a row of their own beneath
 (`services-top-own-row`), side by side with the languages above the results
-(`side-by-side-languages-above-results`), Comparison with history at the bottom, scrolled to the
+(`side-by-side-languages-above-results`, a full-width row above both columns), Comparison with history at the bottom, scrolled to the
 top of the board (`comparison-history-bottom`) and an icon-only service strip (`icon-strip`).
 Thirteen layouts, 26 files. The scene ends with the history row's own context menu, which is how the
 window is arranged from the window itself, open over a stacked window in English light

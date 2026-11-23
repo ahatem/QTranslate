@@ -43,8 +43,7 @@ data class Action(
 /**
  * The order in which the input strip gives up commands, lowest first. The strip keeps its visual
  * order whatever folds; this only says which commands go into the More menu when there is not room
- * for all of them: document, image, forward and back first, then Speak, Clear and Copy, and
- * Translate last.
+ * for all of them: document, image, forward and back first, then Speak, and Copy last.
  */
 object ActionPriority {
     const val DEFAULT = 0
@@ -53,9 +52,7 @@ object ActionPriority {
     const val FORWARD = 3
     const val BACK = 4
     const val SPEAK = 5
-    const val CLEAR = 6
-    const val COPY = 7
-    const val TRANSLATE = 8
+    const val COPY = 6
 }
 
 /** The vertical gap between two buttons of the action strip. */

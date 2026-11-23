@@ -23,7 +23,6 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsIntent
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.ui.swing.main.history.TranslationHistoryBar
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputTextPanel
-import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguagePairChip
 import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguageSelectionBar
 import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoard
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextPanel
@@ -211,8 +210,8 @@ class WindowRouteTest {
             WindowFeature.BACK_FORWARD -> listOf(named(input, "history_back"), named(input, "history_forward"))
             WindowFeature.IMAGE_AND_DOCUMENT ->
                 listOf(named(input, "input_image_translate"), named(input, "input_document_translate"))
-            WindowFeature.LANGUAGE_PAIR -> listOf(find<LanguagePairChip>(input))
-            WindowFeature.TRANSLATE_ACTION -> listOf(named(input, "input_translate"))
+            // The language row never hides, so these two are never hosted in the strip.
+            WindowFeature.LANGUAGE_PAIR, WindowFeature.TRANSLATE_ACTION -> emptyList()
             WindowFeature.SERVICE_SWITCH -> listOf(find<ProviderChip>(input))
             WindowFeature.NOTIFICATIONS -> listOf(view.statusBar.notificationButton)
         }
@@ -260,11 +259,16 @@ class WindowRouteTest {
             }
         }
 
-        // A stand-in that has nothing to stand in for must not linger in the strip.
-        val pairChip = find<LanguagePairChip>(input)
-        if (hosts[WindowFeature.LANGUAGE_PAIR] != FeatureHost.InputStrip && pairChip != null && visibleIn(pairChip, view)) {
-            problems += "the language pair chip is shown while the language row is"
+        // The language row is always drawn, and nothing of it is mounted in the strip.
+        val languageBar = find<LanguageSelectionBar>(view)
+        if (languageBar == null || !visibleIn(languageBar, view)) problems += "the language row is not shown"
+        if (input.stripContainers.any { strip -> descendants(strip).any { it is LanguageSelectionBar } }) {
+            problems += "the language bar is mounted in the input strip"
         }
+        if (listOf("input_translate", "input_clear", "input_cancel").any { named(input, it) != null }) {
+            problems += "a Translate or Clear stand-in is in the input strip"
+        }
+        // A stand-in that has nothing to stand in for must not linger in the strip.
         val providerChip = find<ProviderChip>(input)
         if (hosts[WindowFeature.SERVICE_SWITCH] != FeatureHost.InputStrip && providerChip != null && visibleIn(providerChip, view)) {
             problems += "the provider chip is shown while another route switches the service"
@@ -283,7 +287,7 @@ class WindowRouteTest {
     private fun allLayouts(): List<WindowLayout> =
         PaneLayout.entries.flatMap { panes ->
             RegionSlot.entries.flatMap { history ->
-                RegionSlot.entries.flatMap { languages ->
+                WindowRegion.LANGUAGES.allowedSlots.flatMap { languages ->
                     RegionSlot.entries.flatMap { services ->
                         ServiceWidget.entries.flatMap { widget ->
                             listOf(false, true).flatMap { share ->
@@ -416,10 +420,9 @@ class WindowRouteTest {
         SwingUtilities.convertRectangle(component.parent, component.bounds, pane)
 
     @Test
-    fun `with every region hidden a short input pane still routes every command and clips none`() {
+    fun `with history and services hidden a short input pane still routes every command and clips none`() {
         val hidden = WindowLayout(
-            history = RegionSlot.HIDDEN, languages = RegionSlot.HIDDEN, services = RegionSlot.HIDDEN,
-            showStatusBar = false,
+            history = RegionSlot.HIDDEN, services = RegionSlot.HIDDEN, showStatusBar = false,
         )
         listOf(false, true).forEach { rtl ->
             PaneLayout.entries.forEach { panes ->

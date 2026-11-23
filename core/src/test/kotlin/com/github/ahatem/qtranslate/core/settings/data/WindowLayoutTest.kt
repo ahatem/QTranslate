@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.core.settings.data
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
@@ -47,11 +48,11 @@ class WindowLayoutTest {
         }
     }
 
-    /** Every value the new model can hold: 3 x 4^3 x 2 x 3 x 2 x 2 x 2. */
+    /** Every value the new model can hold: 3 x 4 x 3 x 4 x 2 x 3 x 2 x 2 x 2. The language row never hides. */
     private fun everyLayout(): List<WindowLayout> =
         PaneLayout.entries.flatMap { panes ->
             RegionSlot.entries.flatMap { history ->
-                RegionSlot.entries.flatMap { languages ->
+                WindowRegion.LANGUAGES.allowedSlots.flatMap { languages ->
                     RegionSlot.entries.flatMap { services ->
                         ServiceWidget.entries.flatMap { widget ->
                             ServiceSelectorAppearance.entries.flatMap { appearance ->
@@ -122,11 +123,8 @@ class WindowLayoutTest {
                 if (v.visibility.isHistoryBarVisible) RegionSlot.TOP else RegionSlot.HIDDEN,
                 migrated.history, "history for $v",
             )
-            val expectedLanguages = when {
-                !v.visibility.isLanguageBarVisible -> RegionSlot.HIDDEN
-                panes == PaneLayout.SIDE_BY_SIDE -> RegionSlot.TOP
-                else -> RegionSlot.ABOVE_RESULTS
-            }
+            // The language row never hides, so a hidden v10 bar gets the slot a visible one would.
+            val expectedLanguages = if (panes == PaneLayout.SIDE_BY_SIDE) RegionSlot.TOP else RegionSlot.ABOVE_RESULTS
             assertEquals(expectedLanguages, migrated.languages, "languages for $v")
             assertEquals(
                 if (v.visibility.isServicesPanelVisible) RegionSlot.BOTTOM else RegionSlot.HIDDEN,
@@ -214,7 +212,7 @@ class WindowLayoutTest {
         val base = WindowLayout(
             panes = PaneLayout.COMPARISON,
             history = RegionSlot.BOTTOM,
-            languages = RegionSlot.HIDDEN,
+            languages = RegionSlot.BOTTOM,
             services = RegionSlot.TOP,
             serviceWidget = ServiceWidget.STRIP,
             stripAppearance = ServiceSelectorAppearance.TEXT_ONLY,
@@ -435,12 +433,17 @@ class WindowLayoutTest {
     @Test
     fun `hosts follow the fallback table`() {
         val hidden = WindowLayout.DEFAULT.copy(
-            history = RegionSlot.HIDDEN, languages = RegionSlot.HIDDEN, services = RegionSlot.HIDDEN,
-            showStatusBar = false,
+            history = RegionSlot.HIDDEN, services = RegionSlot.HIDDEN, showStatusBar = false,
         )
         val hosts = hidden.requiredHosts(PaneLayout.STACKED)
         assertEquals(WindowFeature.entries.toSet(), hosts.keys)
-        assertTrue(hosts.values.all { it == FeatureHost.InputStrip })
+        // The language row never hides, so it keeps its own commands whatever else is hidden.
+        assertEquals(FeatureHost.RegionRow(WindowRegion.LANGUAGES), hosts.getValue(WindowFeature.LANGUAGE_PAIR))
+        assertEquals(FeatureHost.RegionRow(WindowRegion.LANGUAGES), hosts.getValue(WindowFeature.TRANSLATE_ACTION))
+        assertTrue(
+            hosts.filterKeys { it != WindowFeature.LANGUAGE_PAIR && it != WindowFeature.TRANSLATE_ACTION }
+                .values.all { it == FeatureHost.InputStrip },
+        )
 
         val statusOff = WindowLayout.DEFAULT.copy(showStatusBar = false).requiredHosts(PaneLayout.STACKED)
         assertEquals(FeatureHost.HistoryRowEnd, statusOff.getValue(WindowFeature.NOTIFICATIONS))
@@ -521,7 +524,7 @@ class WindowLayoutTest {
     @Test
     fun `slot accessors read and write the matching region`() {
         WindowRegion.entries.forEach { region ->
-            RegionSlot.entries.forEach { slot ->
+            region.allowedSlots.forEach { slot ->
                 val moved = WindowLayout.DEFAULT.withSlot(region, slot)
                 assertEquals(slot, moved.slotOf(region))
                 WindowRegion.entries.filter { it != region }.forEach {
@@ -530,5 +533,72 @@ class WindowLayoutTest {
             }
         }
         assertNotEquals(WindowLayout.DEFAULT, WindowLayout.DEFAULT.withSlot(WindowRegion.HISTORY, RegionSlot.BOTTOM))
+    }
+
+    // ---- The language row never hides ----
+
+    @Test
+    fun `only the language row is barred from the hidden slot`() {
+        assertEquals(
+            listOf(RegionSlot.TOP, RegionSlot.ABOVE_RESULTS, RegionSlot.BOTTOM),
+            WindowRegion.LANGUAGES.allowedSlots,
+        )
+        listOf(WindowRegion.HISTORY, WindowRegion.SERVICES).forEach {
+            assertEquals(RegionSlot.entries, it.allowedSlots.sortedBy { slot -> slot.ordinal }, "$it")
+        }
+    }
+
+    @Test
+    fun `a write that hides the language row is impossible`() {
+        assertFailsWith<IllegalArgumentException> { WindowLayout(languages = RegionSlot.HIDDEN) }
+        assertFailsWith<IllegalArgumentException> { WindowLayout.DEFAULT.copy(languages = RegionSlot.HIDDEN) }
+        assertFailsWith<IllegalArgumentException> {
+            WindowLayout.DEFAULT.withSlot(WindowRegion.LANGUAGES, RegionSlot.HIDDEN)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            WindowRecipe(languages = RegionSlot.HIDDEN).applyTo(WindowLayout.DEFAULT)
+        }
+    }
+
+    @Test
+    fun `a stored hidden language row loads as above results`() {
+        val json = Json { ignoreUnknownKeys = true; isLenient = true }
+        val stored = """{"panes":"SIDE_BY_SIDE","history":"BOTTOM","languages":"HIDDEN","services":"TOP"}"""
+        assertEquals(
+            WindowLayout(panes = PaneLayout.SIDE_BY_SIDE, history = RegionSlot.BOTTOM, services = RegionSlot.TOP),
+            json.decodeFromString<WindowLayout>(stored),
+        )
+        // Inside a saved profile and a whole configuration too, and it is written back as a legal value.
+        val profile = json.decodeFromString<LayoutProfile>("""{"name":"Old","layout":$stored}""")
+        assertEquals(RegionSlot.ABOVE_RESULTS, profile.layout.languages)
+        val config = json.decodeFromString<Configuration>("""{"windowLayout":$stored}""")
+        assertEquals(RegionSlot.ABOVE_RESULTS, config.windowLayout.languages)
+        val written = Json { encodeDefaults = true }.encodeToString(WindowLayout.serializer(), config.windowLayout)
+        assertTrue(""""languages":"ABOVE_RESULTS"""" in written, written)
+    }
+
+    @Test
+    fun `every stored slot of the language row other than hidden is read as written`() {
+        val json = Json
+        WindowRegion.LANGUAGES.allowedSlots.forEach { slot ->
+            val layout = WindowLayout.DEFAULT.copy(languages = slot)
+            assertEquals(layout, json.decodeFromString<WindowLayout>(json.encodeToString(WindowLayout.serializer(), layout)))
+        }
+    }
+
+    @Test
+    fun `the language row is always hosted in a row of its own whatever else is hidden`() {
+        everyLayout().forEach { layout ->
+            layout.effectiveVariants().forEach { effective ->
+                assertEquals(
+                    FeatureHost.RegionRow(WindowRegion.LANGUAGES),
+                    layout.requiredHosts(effective).getValue(WindowFeature.LANGUAGE_PAIR),
+                )
+                assertTrue(
+                    WindowRegion.LANGUAGES in layout.rowPlan(effective).values.flatten().flatten(),
+                    "the language row is in the plan: $layout / $effective",
+                )
+            }
+        }
     }
 }

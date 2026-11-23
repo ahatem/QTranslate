@@ -2,6 +2,7 @@ package com.github.ahatem.qtranslate.ui.swing.main.layout
 
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
+import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Container
 import java.awt.event.ContainerAdapter
@@ -217,7 +218,9 @@ class SideBySideResponsiveTest {
         assertSame(leaves.input, pair.topComponent)
         assertTrue(SwingUtilities.isDescendingFrom(leaves.output, pair), "Output is still inside the pair")
 
-        assertSame(pair, refs.extraSplit.topComponent)
+        // The results area is the pair under the row that sits above both columns.
+        val results = refs.extraSplit.topComponent as Container
+        assertSame(pair, (results.layout as BorderLayout).getLayoutComponent(BorderLayout.CENTER))
         assertSame(leaves.extra, refs.extraSplit.bottomComponent)
         assertFalse(SwingUtilities.isDescendingFrom(leaves.extra, pair), "Extra Output stays outside the pair")
 

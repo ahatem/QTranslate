@@ -36,11 +36,6 @@ import com.github.ahatem.qtranslate.core.ocr.OcrWorkflowCommand
 import com.github.ahatem.qtranslate.core.settings.data.OcrPostSelectionAction
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputTextPanel
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputTextState
-import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguagePairChip
-import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguagePairChipState
-import com.github.ahatem.qtranslate.ui.swing.main.languagebar.clearAction
-import com.github.ahatem.qtranslate.ui.swing.main.languagebar.languagePairChipStrings
-import com.github.ahatem.qtranslate.ui.swing.main.languagebar.translateAction
 import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguageSelectionBar
 import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguageSelectionBarState
 import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguageSelectionBarStrings
@@ -180,15 +175,6 @@ class MainContentView(
         onTargetLanguageSelected = ::selectTargetLanguage,
         onTranslate = { dispatch(MainIntent.Translate()) },
         onCancel = { dispatch(MainIntent.CancelTranslation) }
-    )
-
-    /** Stands in for [languageSelectionBar] in the input strip while the languages region is hidden. */
-    private val languagePairChip = LanguagePairChip(
-        iconManager = iconManager,
-        localizer = localizer,
-        onSourceLanguageSelected = ::selectSourceLanguage,
-        onSwap = { dispatch(MainIntent.SwapLanguages) },
-        onTargetLanguageSelected = ::selectTargetLanguage,
     )
 
     private val inputTextPanel = InputTextPanel(
@@ -757,17 +743,16 @@ class MainContentView(
             )
         )
         languageSelectionBar.render(languageBarState)
-        languagePairChip.render(LanguagePairChipState(languageBarState, localizer.languagePairChipStrings()))
 
         val hasInputText = mainState.inputText.isNotBlank()
         val isTtsPlaying = mainState.isTtsPlaying
         val listenStopTooltip = if (isTtsPlaying)
             localizer.getString("common.stop") else localizer.getString("main_window_editor_context_menu.listen")
         val listenStopIcon = if (isTtsPlaying) Icons.CLOSE else Icons.SPEAK
-        // When a region has no row, its commands are mounted in the input strip so none of them
-        // disappears with the row. The View menu remains a second route to the history actions.
+        // When history or the services have no row, their commands are mounted in the input strip so
+        // none of them disappears with the row. The View menu remains a second route to the history
+        // actions. The language row never hides, so it has nothing to put here.
         val historyInStrip = hosts[WindowFeature.BACK_FORWARD] == FeatureHost.InputStrip
-        val languagesInStrip = hosts[WindowFeature.LANGUAGE_PAIR] == FeatureHost.InputStrip
         val servicesInStrip = hosts[WindowFeature.SERVICE_SWITCH] == FeatureHost.InputStrip
         // An icon button is not mirrored by its orientation, so the arrows are swapped by hand in
         // a right-to-left window, as the history row does.
@@ -810,24 +795,14 @@ class MainContentView(
                 keepPriority = ActionPriority.DOCUMENT
             ),
         ) else emptyList()
-        val languageActions = if (languagesInStrip) listOf(
-            languageBarState.translateAction(
-                onTranslate = { dispatch(MainIntent.Translate()) },
-                onCancel = { dispatch(MainIntent.CancelTranslation) }
-            ),
-            languageBarState.clearAction(onClear = { dispatch(MainIntent.UpdateInputText("")) }),
-        ) else emptyList()
 
         inputTextPanel.setStripComponents(
-            chips = listOfNotNull(
-                languagePairChip.takeIf { languagesInStrip },
-                providerChip.takeIf { servicesInStrip },
-            ),
+            chips = listOfNotNull(providerChip.takeIf { servicesInStrip }),
             trailing = notificationInStrip,
         )
 
         val inputActionsState = TextActionsState(
-            actions = relocatedActions + languageActions + listOf(
+            actions = relocatedActions + listOf(
                 Action(
                     id = "copy_input",
                     iconPath = Icons.COPY,

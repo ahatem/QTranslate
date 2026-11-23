@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.ui.swing.main.layout
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
 import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
+import com.github.ahatem.qtranslate.core.settings.data.WindowRegion
 import java.awt.BorderLayout
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
@@ -44,8 +45,10 @@ class RegionVisibilityTest {
     }
 
     @Test
-    fun `hidden languages hide the language row`() {
-        assertEquals(listOf(true, false, true, true), visibilities(WindowLayout(languages = RegionSlot.HIDDEN)))
+    fun `the language row is shown in every slot it can be placed in`() {
+        WindowRegion.LANGUAGES.allowedSlots.forEach { slot ->
+            assertEquals(listOf(true, true, true, true), visibilities(WindowLayout(languages = slot)), "$slot")
+        }
     }
 
     @Test
@@ -67,9 +70,9 @@ class RegionVisibilityTest {
     }
 
     @Test
-    fun `every region hidden leaves only the panes`() {
+    fun `every region that can hide leaves the panes and the language row`() {
         val hidden = RegionSlot.HIDDEN
-        val v = visibilities(WindowLayout(history = hidden, languages = hidden, services = hidden, showStatusBar = false))
-        assertEquals(listOf(false, false, false, false), v)
+        val v = visibilities(WindowLayout(history = hidden, services = hidden, showStatusBar = false))
+        assertEquals(listOf(false, true, false, false), v, "history bar, language, selector, status")
     }
 }

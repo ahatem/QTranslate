@@ -136,7 +136,7 @@ class LayoutSystemTest {
                 layoutTree(refs.extraSplit)
             }
             assertEquals(
-                refs.extraSplit.height, refs.mainSplit.height,
+                refs.extraSplit.height, refs.extraSplit.topComponent.height,
                 "${layout.panes}: the workspace takes the whole height when there is no Extra Output"
             )
         }

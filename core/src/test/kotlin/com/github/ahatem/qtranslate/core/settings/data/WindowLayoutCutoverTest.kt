@@ -267,6 +267,41 @@ class WindowLayoutCutoverTest {
     }
 
     @Test
+    fun `a hidden language bar in a released file keeps the slot a visible one would have`() {
+        // Maintainer decision: the language row never hides. The hidden bar's v10 switch is
+        // therefore read as a visible one, and the row lands where it always sat in that pane layout.
+        releasedVersions.forEach { version ->
+            mapOf(
+                LayoutPresetIds.CLASSIC to RegionSlot.ABOVE_RESULTS,
+                LayoutPresetIds.SIDE_BY_SIDE to RegionSlot.TOP,
+                LayoutPresetIds.COMPARISON to RegionSlot.ABOVE_RESULTS,
+            ).forEach { (id, expected) ->
+                val migrated = load(payload(version = version, layoutPresetId = id, language = false))
+                assertEquals(expected, migrated.windowLayout.languages, "v$version / $id")
+                assertTrue(!migrated.toolbarVisibility.isLanguageBarVisible, "the frozen switch is untouched")
+            }
+        }
+    }
+
+    @Test
+    fun `a v13 file that stores the language row as hidden loads it above the results`() {
+        val stored = """
+            {
+              "configVersion": 13,
+              "windowLayout": { "panes": "SIDE_BY_SIDE", "languages": "HIDDEN", "history": "BOTTOM" },
+              "layoutProfiles": [ { "name": "Old", "layout": { "languages": "HIDDEN" } } ]
+            }
+        """.trimIndent()
+        val loaded = load(stored)
+        assertEquals(13, loaded.configVersion)
+        assertEquals(
+            WindowLayout(panes = PaneLayout.SIDE_BY_SIDE, history = RegionSlot.BOTTOM, languages = RegionSlot.ABOVE_RESULTS),
+            loaded.windowLayout,
+        )
+        assertEquals(RegionSlot.ABOVE_RESULTS, loaded.layoutProfiles.single().layout.languages)
+    }
+
+    @Test
     fun `the same file migrated twice is the same file`() {
         val once = load(payload(version = 12, layoutPresetId = LayoutPresetIds.COMPARISON, language = false))
         assertEquals(once, ConfigMigrator.migrate(once, logger))
@@ -281,7 +316,7 @@ class WindowLayoutCutoverTest {
             windowLayout = WindowLayout(
                 panes = PaneLayout.COMPARISON,
                 history = RegionSlot.BOTTOM,
-                languages = RegionSlot.HIDDEN,
+                languages = RegionSlot.BOTTOM,
                 shareRows = true,
                 showStatusBar = false,
             ),
