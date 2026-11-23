@@ -22,7 +22,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.serialization.json.Json
 import java.awt.SystemTray
 import java.io.File
 import javax.swing.SwingUtilities
@@ -109,9 +108,8 @@ fun main(args: Array<String>) = runBlocking {
         logger.info("Launched from Windows startup — starting hidden in the system tray")
     }
 
-    val json         = Json { ignoreUnknownKeys = true; isLenient = true }
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("AppScope"))
-    val settingsRepo = SettingsRepository(appData, json, logFactory.getLogger("SettingsRepository"), storageScope = appScope)
+    val settingsRepo = SettingsRepository(appData, appJson, logFactory.getLogger("SettingsRepository"), storageScope = appScope)
 
     var configLoadTimedOut = false
     val initialConfig = withTimeoutOrNull(AppConstants.CONFIG_LOAD_TIMEOUT_MS) {

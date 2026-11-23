@@ -44,7 +44,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.serialization.json.Json
 import java.io.File
 import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 
@@ -132,7 +131,7 @@ suspend fun buildDependencies(
 
     val httpClient = HttpClient(CIO) {
         install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true; isLenient = true })
+            json(appJson)
         }
     }
 
@@ -172,7 +171,7 @@ suspend fun buildDependencies(
     val pluginManager = PluginManager(
         appDataDirectory            = appData,
         settingsRepository          = settingsRepo,
-        pluginFingerprintRepository = PluginFingerprintRepository(appData, Json { ignoreUnknownKeys = true; isLenient = true }, appScope),
+        pluginFingerprintRepository = PluginFingerprintRepository(appData, appJson, appScope),
         pluginKeyValueStore         = keyValueStore,
         loggerFactory               = loggerFactory,
         notificationBus             = notificationBus,
@@ -192,7 +191,7 @@ suspend fun buildDependencies(
     val historyRepo = HistoryRepository(
         appDataDirectory = appData,
         logger           = loggerFactory.getLogger("HistoryRepository"),
-        json             = Json { ignoreUnknownKeys = true; isLenient = true },
+        json             = appJson,
         storageScope     = appScope
     )
 

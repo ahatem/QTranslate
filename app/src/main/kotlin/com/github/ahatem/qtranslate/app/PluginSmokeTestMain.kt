@@ -10,7 +10,6 @@ import com.github.michaelbull.result.fold
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.json.Json
 import java.io.File
 
 private data class SmokeResult(
@@ -28,7 +27,7 @@ fun main(args: Array<String>) = runBlocking {
     val loggerFactory = ConsoleLoggerFactory(ConsoleLoggerFactory.LogLevel.INFO)
     val settingsRepository = SettingsRepository(
         appData,
-        Json { ignoreUnknownKeys = true; isLenient = true },
+        appJson,
         loggerFactory.getLogger("SmokeSettings")
     )
     val configuration = Configuration.DEFAULT.copy(autoCheckForUpdates = false)

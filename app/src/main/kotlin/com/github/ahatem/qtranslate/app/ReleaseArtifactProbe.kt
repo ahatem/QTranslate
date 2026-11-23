@@ -6,7 +6,6 @@ import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -117,7 +116,7 @@ suspend fun runReleaseArtifactProbe(args: Array<String>) {
     val loggerFactory = ConsoleLoggerFactory(ConsoleLoggerFactory.LogLevel.INFO)
     val settings = SettingsRepository(
         distribution,
-        Json { ignoreUnknownKeys = true; isLenient = true },
+        appJson,
         loggerFactory.getLogger("ReleaseArtifactProbe")
     )
     val probeConfig = Configuration.DEFAULT.copy(autoCheckForUpdates = false)
