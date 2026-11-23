@@ -21,6 +21,18 @@ interface ProfilePrompts {
     fun showFull(max: Int)
 }
 
+/** The questions of a page that also renames and deletes saved layouts. */
+interface ProfileManagementPrompts : ProfilePrompts {
+    /** The new name the user typed for the layout called [current], or null when they cancelled. */
+    fun askRename(current: String): String?
+
+    /** Whether to delete the saved layout called [name]. */
+    fun confirmDelete(name: String): Boolean
+
+    /** Tells the user another saved layout already has [name], so the rename did not happen. */
+    fun showNameTaken(name: String)
+}
+
 /**
  * Saves the window's current layout as a named profile.
  *
@@ -58,6 +70,12 @@ data class ProfileStrings(
     val cancel: String,
     val fullTitle: String,
     val fullMessage: (Int) -> String,
+    val renameTitle: String,
+    val renamePrompt: String,
+    val nameTakenMessage: (String) -> String,
+    val deleteTitle: String,
+    val deleteMessage: (String) -> String,
+    val delete: String,
 )
 
 fun LocalizationManager.profileStrings() = ProfileStrings(
@@ -69,6 +87,12 @@ fun LocalizationManager.profileStrings() = ProfileStrings(
     cancel = getString("common.cancel"),
     fullTitle = getString("main_window_main_menu.layout_saved_layouts"),
     fullMessage = { max -> getString("main_window_main_menu.profile_full_message", max) },
+    renameTitle = getString("settings_window.layout_profile_rename_title"),
+    renamePrompt = getString("settings_window.layout_profile_rename_prompt"),
+    nameTakenMessage = { name -> getString("settings_window.layout_profile_name_taken", name) },
+    deleteTitle = getString("settings_window.layout_profile_delete_title"),
+    deleteMessage = { name -> getString("settings_window.layout_profile_delete_message", name) },
+    delete = getString("common.delete"),
 )
 
 /**
@@ -78,7 +102,7 @@ fun LocalizationManager.profileStrings() = ProfileStrings(
 class SwingProfilePrompts(
     private val parent: () -> Component?,
     private val strings: () -> ProfileStrings,
-) : ProfilePrompts {
+) : ProfileManagementPrompts {
 
     override fun askName(): String? = JOptionPane.showInputDialog(
         parent(), strings().namePrompt, strings().nameTitle, JOptionPane.PLAIN_MESSAGE
@@ -97,5 +121,24 @@ class SwingProfilePrompts(
     override fun showFull(max: Int) {
         val words = strings()
         JOptionPane.showMessageDialog(parent(), words.fullMessage(max), words.fullTitle, JOptionPane.INFORMATION_MESSAGE)
+    }
+
+    override fun askRename(current: String): String? = JOptionPane.showInputDialog(
+        parent(), strings().renamePrompt, strings().renameTitle, JOptionPane.PLAIN_MESSAGE, null, null, current
+    ) as? String
+
+    override fun confirmDelete(name: String): Boolean {
+        val words = strings()
+        val options = arrayOf(words.delete, words.cancel)
+        val choice = JOptionPane.showOptionDialog(
+            parent(), words.deleteMessage(name), words.deleteTitle,
+            JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, options, options[1],
+        )
+        return choice == 0
+    }
+
+    override fun showNameTaken(name: String) {
+        val words = strings()
+        JOptionPane.showMessageDialog(parent(), words.nameTakenMessage(name), words.renameTitle, JOptionPane.INFORMATION_MESSAGE)
     }
 }

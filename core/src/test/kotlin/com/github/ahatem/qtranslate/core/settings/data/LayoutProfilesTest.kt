@@ -64,4 +64,40 @@ class LayoutProfilesTest {
         val saved = Configuration.DEFAULT.withLayoutProfiles(profiles(LayoutProfile.MAX_PROFILES + 3))
         assertEquals(LayoutProfile.MAX_PROFILES, saved.layoutProfiles.size)
     }
+
+    @Test
+    fun `renaming keeps the layout and refuses a name another layout has`() {
+        val list = listOf(LayoutProfile("Work", compact), LayoutProfile("Reading", focus))
+
+        assertEquals(
+            listOf(LayoutProfile("Office", compact), LayoutProfile("Reading", focus)),
+            list.withProfileRenamed("work", "  Office "),
+        )
+        assertEquals(
+            listOf(LayoutProfile("WORK", compact), LayoutProfile("Reading", focus)),
+            list.withProfileRenamed("Work", "WORK"),
+            "a layout may change the spelling of its own name",
+        )
+        assertNull(list.withProfileRenamed("Work", " reading "), "another layout already has that name")
+        assertNull(list.withProfileRenamed("Work", "   "), "an empty name cancels")
+        assertNull(list.withProfileRenamed("Missing", "Office"))
+    }
+
+    @Test
+    fun `removing drops only the named layout`() {
+        val list = listOf(LayoutProfile("Work", compact), LayoutProfile("Reading", focus))
+        assertEquals(listOf(LayoutProfile("Reading", focus)), list.withProfileRemoved(" work "))
+        assertEquals(list, list.withProfileRemoved("Missing"))
+    }
+
+    @Test
+    fun `a stored list longer than the cap is read back capped`() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val many = profiles(LayoutProfile.MAX_PROFILES + 4)
+        val stored = json.encodeToString(Configuration.serializer(), Configuration.DEFAULT.copy(layoutProfiles = many))
+
+        val loaded = json.decodeFromString(Configuration.serializer(), stored)
+
+        assertEquals(many.take(LayoutProfile.MAX_PROFILES), loaded.layoutProfiles)
+    }
 }

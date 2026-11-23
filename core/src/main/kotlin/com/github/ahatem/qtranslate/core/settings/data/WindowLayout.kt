@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.core.settings.data
 
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
@@ -280,6 +281,20 @@ internal object LanguageSlotSerializer : KSerializer<RegionSlot> {
         delegate.deserialize(decoder).let { if (it == RegionSlot.HIDDEN) RegionSlot.ABOVE_RESULTS else it }
 
     override fun serialize(encoder: Encoder, value: RegionSlot) = delegate.serialize(encoder, value)
+}
+
+/**
+ * Reads the saved layouts and keeps the first [LayoutProfile.MAX_PROFILES], so a hand-edited file
+ * cannot hold more than the Settings page lets a user keep.
+ */
+internal object LayoutProfileListSerializer : KSerializer<List<LayoutProfile>> {
+    private val delegate = ListSerializer(LayoutProfile.serializer())
+    override val descriptor = delegate.descriptor
+
+    override fun deserialize(decoder: Decoder): List<LayoutProfile> =
+        delegate.deserialize(decoder).take(LayoutProfile.MAX_PROFILES)
+
+    override fun serialize(encoder: Encoder, value: List<LayoutProfile>) = delegate.serialize(encoder, value)
 }
 
 /** Which widget chooses the active service. */

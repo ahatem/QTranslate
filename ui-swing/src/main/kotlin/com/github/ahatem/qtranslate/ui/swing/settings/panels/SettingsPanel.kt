@@ -586,7 +586,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      * `dir` is set so punctuation and any embedded Latin resolve against the right base direction
      * instead of being reordered to the wrong end of the line.
      */
-    private fun textHtml(lines: List<String>): String {
+    protected fun textHtml(lines: List<String>): String {
         val body = lines.joinToString("<br>") { escapeHtml(it) }
         val dir = if (componentOrientation.isLeftToRight) "ltr" else "rtl"
         return "<html><body dir='$dir'>$body</body></html>"
@@ -598,7 +598,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      * A single word wider than the measure is left long: breaking inside a word would be wrong in
      * every language, and one long word is better than a mangled one.
      */
-    private fun wrapToMeasure(text: String, measureFont: Font, measure: Int): List<String> {
+    protected fun wrapToMeasure(text: String, measureFont: Font, measure: Int): List<String> {
         val metrics = getFontMetrics(measureFont)
         val lines = mutableListOf<String>()
         for (paragraph in text.split("\n")) {

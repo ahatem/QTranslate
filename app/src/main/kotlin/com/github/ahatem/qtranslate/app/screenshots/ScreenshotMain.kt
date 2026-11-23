@@ -33,6 +33,7 @@ import com.github.ahatem.qtranslate.ui.swing.main.layout.MirroredSplitPane
 import com.github.ahatem.qtranslate.ui.swing.main.layout.RegionRowMenus
 import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoard
 import com.github.ahatem.qtranslate.ui.swing.settings.SettingsDialog
+import com.github.ahatem.qtranslate.ui.swing.settings.panels.SettingsPanel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
@@ -135,6 +136,8 @@ fun main(args: Array<String>): Unit = runBlocking {
             compactToolbar()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "layout-slots") {
             layoutSlots()
+        } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-outline") {
+            settingsOutline()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-matrix") {
             settingsMatrix()
         } else if (System.getenv("QTRANSLATE_SCREENSHOT_SCENES") == "settings-showcase") {
@@ -495,6 +498,29 @@ private class Shots(
         translate(LanguageCode("en"), Scenes.ARABIC_PERISTALSIS)
         captureWithPopup("slots-region-menu-history-rtl-dark", openHistoryRowMenu())
         closeHistoryRowMenu()
+
+        settingsOutline()
+    }
+
+    /**
+     * The Layout page of Settings, which is an outline of the window: the default window with no
+     * saved layouts, the same window with one saved layout that matches it (shown as current), and
+     * a Focus window in Side by side with a second result in its own column, in Arabic and dark.
+     */
+    suspend fun settingsOutline() {
+        val layout = listOf(7 to "layout")
+        start(Scenes.settingsOutline(WindowLayout.DEFAULT, Scenes.LIGHT))
+        capturePages(Scenes.LIGHT, "outline-default-light", layout, alsoScrolled = true)
+
+        start(Scenes.settingsOutline(WindowLayout.DEFAULT, Scenes.LIGHT, withProfiles = true, secondResult = true))
+        capturePages(Scenes.LIGHT, "outline-profiles-light", layout, alsoScrolled = true)
+
+        val focusSideBySide = Scenes.FOCUS_CARD.copy(
+            panes = PaneLayout.SIDE_BY_SIDE,
+            secondResult = SecondResultPlacement.OWN_COLUMN,
+        )
+        start(Scenes.settingsOutline(focusSideBySide, Scenes.DARK, rtl = true, withProfiles = true, secondResult = true))
+        capturePages(Scenes.DARK, "outline-focus-rtl-dark", layout, alsoScrolled = true)
     }
 
     private suspend fun closeHistoryRowMenu() {
@@ -757,7 +783,16 @@ private class Shots(
             .withWindowLayout(Scenes.CLASSIC)
             .copy(mainWindowSize = windowSize(Scenes.WINDOW))
 
-    private suspend fun capturePages(theme: String, suffix: String, pages: List<Pair<Int, String>> = Scenes.SETTINGS_PAGES) {
+    /**
+     * @param alsoScrolled also writes `<page>-lower`, the same page scrolled to its end, for a page
+     * that is taller than the dialog.
+     */
+    private suspend fun capturePages(
+        theme: String,
+        suffix: String,
+        pages: List<Pair<Int, String>> = Scenes.SETTINGS_PAGES,
+        alsoScrolled: Boolean = false,
+    ) {
         val owner = requireFrame()
         lateinit var dialog: SettingsDialog
         onUi {
@@ -804,6 +839,16 @@ private class Shots(
                 logger.warn("settings-$name-$suffix: still empty after $attempt attempts")
             }
             write("settings-$name-$suffix", shot)
+            if (alsoScrolled) {
+                onUi {
+                    // The sidebar tree has a scroll pane of its own; the page's is the one that holds a page.
+                    val pane = allOf(dialog, JScrollPane::class.java).first { it.viewport.view is SettingsPanel }
+                    val view = pane.viewport.view
+                    pane.viewport.viewPosition = java.awt.Point(0, maxOf(0, view.height - pane.viewport.height))
+                }
+                delay(600)
+                write("settings-$name-$suffix-lower", paintAfterLayout("settings-$name-$suffix-lower", dialog.rootPane))
+            }
         }
         onUi { dialog.dispose() }
         delay(400)
@@ -1234,6 +1279,12 @@ internal fun captureGraphics(image: BufferedImage): Graphics2D {
 }
 
 /** First component of type [T] in [root]'s tree. Breadth-first, so shallower matches win. */
+private fun <T : Component> allOf(root: Container, type: Class<T>): List<T> =
+    root.components.flatMap { child ->
+        (if (type.isInstance(child)) listOf(type.cast(child)) else emptyList()) +
+            if (child is Container) allOf(child, type) else emptyList()
+    }
+
 private inline fun <reified T : Component> find(root: Container): T? {
     val queue = ArrayDeque<Container>().apply { add(root) }
     while (queue.isNotEmpty()) {

@@ -350,6 +350,7 @@ data class Configuration(
      */
     val windowLayout: WindowLayout = WindowLayout.DEFAULT,
     /** Named layouts the user saved, at most [LayoutProfile.MAX_PROFILES]. */
+    @Serializable(with = LayoutProfileListSerializer::class)
     val layoutProfiles: List<LayoutProfile> = emptyList(),
 
     // ---- UI — Quick Panel (Popup) ----

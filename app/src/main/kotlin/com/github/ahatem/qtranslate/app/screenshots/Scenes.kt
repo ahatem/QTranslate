@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
+import com.github.ahatem.qtranslate.core.settings.data.LayoutProfile
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
 import com.github.ahatem.qtranslate.core.settings.data.SelectionBehavior
@@ -221,6 +222,31 @@ internal object Scenes {
             interfaceLanguage = if (rtl) "ar-SA" else "en-GB",
             mainWindowSize = windowSize(size),
         ).withWindowLayout(layout)
+
+    /** A tall frame, so the Layout page's outline, cards and saved layouts are all in the shot. */
+    val SETTINGS_OUTLINE_WINDOW = 860 to 980
+
+    /** The layouts saved for the Settings outline scenes: one equal to the default and one that is not. */
+    val OUTLINE_PROFILES = listOf(
+        LayoutProfile("Everyday", WindowLayout.DEFAULT),
+        LayoutProfile("Reading", FOCUS_CARD),
+    )
+
+    /**
+     * The window the Settings outline scenes start from: [layout] drawn on the Layout page, with a
+     * second result chosen when [secondResult] is true and the saved layouts of [OUTLINE_PROFILES]
+     * when [withProfiles] is true.
+     */
+    fun settingsOutline(
+        layout: WindowLayout,
+        theme: String,
+        rtl: Boolean = false,
+        withProfiles: Boolean = false,
+        secondResult: Boolean = false,
+    ): Configuration = slots(layout, theme, rtl, SETTINGS_OUTLINE_WINDOW).copy(
+        layoutProfiles = if (withProfiles) OUTLINE_PROFILES else emptyList(),
+        extraOutputType = if (secondResult) ExtraOutputType.BackwardTranslate else ExtraOutputType.None,
+    )
 
     fun classicSelector(theme: String, size: Pair<Int, Int> = WINDOW): Configuration =
         classic(theme, size).withWindowLayout(CLASSIC_SELECTOR)

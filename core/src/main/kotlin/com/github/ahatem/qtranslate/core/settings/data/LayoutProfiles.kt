@@ -38,3 +38,22 @@ fun List<LayoutProfile>.withProfileSaved(name: String, layout: WindowLayout): Li
         else -> this + LayoutProfile(clean, layout)
     }
 }
+
+/**
+ * The list after renaming the layout called [from] to [to]. Null when nothing is renamed: [to] is
+ * empty, [from] is not in the list, or another layout already has the name (a layout may be
+ * renamed to a different spelling of its own name).
+ */
+fun List<LayoutProfile>.withProfileRenamed(from: String, to: String): List<LayoutProfile>? {
+    val clean = cleanProfileName(to) ?: return null
+    val target = profileNamed(from) ?: return null
+    val clash = profileNamed(clean)
+    if (clash != null && clash !== target) return null
+    return map { if (it === target) LayoutProfile(clean, it.layout) else it }
+}
+
+/** The list without the layout called [name]; the list itself when there is none. */
+fun List<LayoutProfile>.withProfileRemoved(name: String): List<LayoutProfile> {
+    val target = profileNamed(name) ?: return this
+    return filterNot { it === target }
+}

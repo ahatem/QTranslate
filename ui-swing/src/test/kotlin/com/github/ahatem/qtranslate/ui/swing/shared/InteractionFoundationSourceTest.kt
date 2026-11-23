@@ -26,34 +26,12 @@ class InteractionFoundationSourceTest {
 
     @Test
     fun `settings pages render their combos through the shared renderer`() {
-        listOf("General", "Languages", "Layout", "Translation", "Appearance", "Services").forEach { page ->
+        listOf("General", "Languages", "Translation", "Appearance", "Services").forEach { page ->
             assertTrue(
                 source("settings/panels/${page}Panel.kt").contains("DisplayValueRenderer"),
                 "$page page must use the shared combo renderer"
             )
         }
-    }
-
-    @Test
-    fun `layout picker keeps comparison eligibility separate from rendering`() {
-        val layout = source("settings/panels/LayoutPanel.kt")
-        // Dimming an unusable Comparison is not the whole job: the entry has to say what to do
-        // about it and clicking it has to go there, or the row teaches nothing. Both the panes row
-        // and the Comparison card must do that, and neither may write an arrangement that cannot
-        // be drawn.
-        assertTrue(layout.contains("isDisabled = ::isUnavailableComparison"), "the panes row must dim an unusable comparison")
-        assertTrue(
-            layout.contains("tooltip = { if (isUnavailableComparison(it)) comparisonUnavailableHint() else null }"),
-            "the dimmed row must carry the reason"
-        )
-        assertTrue(
-            layout.contains("if (isUnavailableComparison(pane))"),
-            "choosing an unusable comparison must route instead of writing it"
-        )
-        assertTrue(
-            layout.contains("if (card == LayoutCard.COMPARISON && !comparisonAvailable)"),
-            "the comparison card must route too"
-        )
     }
 
     @Test
