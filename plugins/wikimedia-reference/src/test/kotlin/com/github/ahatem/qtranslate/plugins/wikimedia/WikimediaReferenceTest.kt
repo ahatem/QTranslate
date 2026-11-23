@@ -71,7 +71,7 @@ class WikimediaReferenceTest {
     }
 
     @Test
-    fun `missing pages return an empty dictionary response`() = runBlocking {
+    fun `missing pages and empty image searches return an empty response`() = runBlocking {
         val transport = ScriptedHttpClient(listOf(Ok("""{"pages":[]}""")))
 
         val response = WikipediaService(client(transport)).lookup(
@@ -79,6 +79,12 @@ class WikimediaReferenceTest {
         ).getOrThrow(::failure)
 
         assertTrue(response.entries.isEmpty())
+
+        // An obscure image query is the ordinary case, so it is an empty result, not an error.
+        val images = CommonsImageSearchService(client(ScriptedHttpClient(listOf(Ok("""{"batchcomplete":true}"""))))).searchImages(
+            ImageSearchRequest("qwertyuiop", LanguageCode.ENGLISH)
+        ).getOrThrow(::failure)
+        assertTrue(images.results.isEmpty())
     }
 
     @Test
@@ -130,13 +136,15 @@ class WikimediaReferenceTest {
     // ── Commons image search ──────────────────────────────────────────────────
 
     @Test
-    fun `image search reads urls, caption, credit and licence`() = runBlocking<Unit> {
+    fun `image search reads urls, caption, credit and licence and drops files without a thumbnail`() = runBlocking<Unit> {
         val transport = ScriptedHttpClient(listOf(Ok(COMMONS_JSON)))
 
         val results = CommonsImageSearchService(client(transport)).searchImages(
             ImageSearchRequest("borborygmi", LanguageCode.ENGLISH)
         ).getOrThrow(::failure).results
 
+        // Showing a file with no thumbnail would put a broken tile in the grid, so it is dropped.
+        assertEquals(1, results.size)
         val first = results.first()
         assertEquals("https://upload.wikimedia.org/thumb/gut.jpg", first.thumbnailUrl)
         assertEquals("https://upload.wikimedia.org/gut.jpg", first.fullUrl)
@@ -146,31 +154,6 @@ class WikimediaReferenceTest {
         // The credit arrives as a link, which would read as raw HTML on screen.
         assertEquals("Jane Roe", first.attribution)
         assertEquals("CC BY-SA 4.0", first.license)
-    }
-
-    @Test
-    fun `a file Commons could not render a thumbnail for is dropped`() = runBlocking<Unit> {
-        // Showing it would put a broken tile in the grid; there is nothing to display.
-        val transport = ScriptedHttpClient(listOf(Ok(COMMONS_JSON)))
-
-        val results = CommonsImageSearchService(client(transport)).searchImages(
-            ImageSearchRequest("borborygmi", LanguageCode.ENGLISH)
-        ).getOrThrow(::failure).results
-
-        assertEquals(1, results.size)
-    }
-
-    @Test
-    fun `finding nothing is an empty result, not an error`() = runBlocking<Unit> {
-        // The popup says "no images found"; an error would put a red status bar in front of
-        // someone for the ordinary case of an obscure word.
-        val transport = ScriptedHttpClient(listOf(Ok("""{"batchcomplete":true}""")))
-
-        val response = CommonsImageSearchService(client(transport)).searchImages(
-            ImageSearchRequest("qwertyuiop", LanguageCode.ENGLISH)
-        ).getOrThrow(::failure)
-
-        assertTrue(response.results.isEmpty())
     }
 
     @Test

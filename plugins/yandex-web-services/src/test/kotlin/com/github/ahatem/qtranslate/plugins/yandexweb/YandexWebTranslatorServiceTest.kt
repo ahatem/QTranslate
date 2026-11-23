@@ -17,30 +17,27 @@ import kotlin.test.assertTrue
 
 class YandexWebTranslatorServiceTest {
     @Test
-    fun `translates Arabic to English and reports detected language`() = runBlocking {
-        val transport = ScriptedHttpClient(Ok("""[{"text":"Hello World","from":"ar","to":"en"}]"""))
-        val service = service(transport)
+    fun `translates in both directions, detecting the source only for auto`() = runBlocking {
+        // (source, target, provider reply) -> expected text, detected language, form field
+        val cases = listOf(
+            Triple(Triple("مرحبا بالعالم", LanguageCode.AUTO, LanguageCode.ENGLISH),
+                """[{"text":"Hello World","from":"ar","to":"en"}]""",
+                Triple("Hello World", LanguageCode.ARABIC, "statLang=en")),
+            Triple(Triple("Hello world", LanguageCode.ENGLISH, LanguageCode.ARABIC),
+                """[{"text":"مرحبا العالم","from":"en","to":"ar"}]""",
+                Triple("مرحبا العالم", null, "locale=ar")),
+        )
+        for ((input, reply, expected) in cases) {
+            val transport = ScriptedHttpClient(Ok(reply))
 
-        val response = service.translate(
-            TranslationRequest("مرحبا بالعالم", LanguageCode.AUTO, LanguageCode.ENGLISH)
-        ).getOrThrow { IllegalStateException(it.message, it.cause) }
+            val response = service(transport).translate(
+                TranslationRequest(input.first, input.second, input.third)
+            ).getOrThrow { IllegalStateException(it.message, it.cause) }
 
-        assertEquals("Hello World", response.translatedText)
-        assertEquals(LanguageCode.ARABIC, response.detectedLanguage)
-        assertTrue(transport.lastBody.orEmpty().contains("statLang=en"))
-    }
-
-    @Test
-    fun `translates English to Arabic`() = runBlocking {
-        val transport = ScriptedHttpClient(Ok("""[{"text":"مرحبا العالم","from":"en","to":"ar"}]"""))
-
-        val response = service(transport).translate(
-            TranslationRequest("Hello world", LanguageCode.ENGLISH, LanguageCode.ARABIC)
-        ).getOrThrow { IllegalStateException(it.message, it.cause) }
-
-        assertEquals("مرحبا العالم", response.translatedText)
-        assertEquals(null, response.detectedLanguage)
-        assertTrue(transport.lastBody.orEmpty().contains("locale=ar"))
+            assertEquals(expected.first, response.translatedText, input.first)
+            assertEquals(expected.second, response.detectedLanguage, input.first)
+            assertTrue(transport.lastBody.orEmpty().contains(expected.third), input.first)
+        }
     }
 
     @Test

@@ -164,34 +164,22 @@ class CsvIndexTest {
     }
 
     @Test
-    fun `a column that cannot be found yields nothing rather than the wrong column`() {
+    fun `an unreadable file or column yields nothing rather than the wrong column`() {
         // The wrong delimiter makes every header name unfindable at once. Falling back to the
-        // first column would read it as both term and definition, producing rows whose two halves
-        // are the same string — which looks like a working file until someone reads it.
-        val file = csv("semicolons.csv", "term;meaning\nDNS;Domain Name System")
-
-        val index = CsvIndex.read(
-            file,
-            CsvSettings(delimiter = ",", termColumn = "term", definitionColumn = "meaning")
+        // first column would read it as both term and definition, which looks like a working file.
+        val cases = listOf(
+            Triple("wrong delimiter", csv("semicolons.csv", "term;meaning\nDNS;Domain Name System"),
+                CsvSettings(delimiter = ",", termColumn = "term", definitionColumn = "meaning")),
+            Triple("column past the end", csv("narrow.csv", "DNS,Domain Name System"),
+                CsvSettings(termColumn = "1", definitionColumn = "5")),
+            Triple("empty file", csv("empty.csv", ""), CsvSettings()),
         )
+        for ((label, file, settings) in cases) {
+            val index = CsvIndex.read(file, settings)
 
-        assertEquals(0, index.size)
-    }
-
-    @Test
-    fun `a column number past the end of the file yields nothing`() {
-        val file = csv("narrow.csv", "DNS,Domain Name System")
-
-        val index = CsvIndex.read(file, CsvSettings(termColumn = "1", definitionColumn = "5"))
-
-        assertEquals(0, index.size)
-    }
-
-    @Test
-    fun `an empty file yields an empty index rather than failing`() {
-        val index = CsvIndex.read(csv("empty.csv", ""), CsvSettings())
-        assertEquals(0, index.size)
-        assertTrue(index.lookup("anything").isEmpty())
+            assertEquals(0, index.size, label)
+            assertTrue(index.lookup("anything").isEmpty(), label)
+        }
     }
 
     @Test

@@ -10,6 +10,7 @@ import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.plugins.common.ScriptedHttpClient
 import com.github.ahatem.qtranslate.plugins.common.TextHttpClient
 import com.github.ahatem.qtranslate.plugins.common.unwrap
+import com.github.ahatem.qtranslate.plugins.common.unwrapError
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -89,44 +90,23 @@ class DeepLTranslatorServiceTest {
     }
 
     @Test
-    fun `maps embedded free endpoint rate limit to actionable guidance`() = runBlocking {
-        val client = ScriptedHttpClient(listOf(Ok(
-            """{"error":{"code":1042911,"message":"Too many requests"}}"""
-        )))
-        val service = createService(client, DeepLSettings(), {})
-
-        service.translate(request).fold(
-            success = { fail("Expected rate limit error") },
-            failure = {
-                val error = assertIs<ServiceError.RateLimitError>(it)
-                assertEquals(
-                    "DeepL free endpoint is rate-limited. Add an API key for official access or try again later.",
-                    error.message
-                )
-            }
+    fun `maps free endpoint rate limits to actionable guidance`() = runBlocking {
+        val responses = mapOf(
+            "embedded in the body" to Ok("""{"error":{"code":1042911,"message":"Too many requests"}}"""),
+            "HTTP error" to Err(ServiceError.RateLimitError("generic HTTP error", retryAfterSeconds = 30)),
         )
-        Unit
-    }
+        for ((label, response) in responses) {
+            val service = createService(ScriptedHttpClient(listOf(response)), DeepLSettings(), {})
 
-    @Test
-    fun `maps web HTTP rate limit to actionable guidance`() = runBlocking {
-        val client = ScriptedHttpClient(listOf(Err(
-            ServiceError.RateLimitError("generic HTTP error", retryAfterSeconds = 30)
-        )))
-        val service = createService(client, DeepLSettings(), {})
+            val error = assertIs<ServiceError.RateLimitError>(service.translate(request).unwrapError(), label)
 
-        service.translate(request).fold(
-            success = { fail("Expected rate limit error") },
-            failure = {
-                val error = assertIs<ServiceError.RateLimitError>(it)
-                assertEquals(
-                    "DeepL free endpoint is rate-limited. Add an API key for official access or try again later.",
-                    error.message
-                )
-                assertEquals(30, error.retryAfterSeconds)
-            }
-        )
-        Unit
+            assertEquals(
+                "DeepL free endpoint is rate-limited. Add an API key for official access or try again later.",
+                error.message,
+                label
+            )
+            if (response.isErr) assertEquals(30, error.retryAfterSeconds, label)
+        }
     }
 
     @Test
