@@ -1,6 +1,6 @@
 package com.github.ahatem.qtranslate.core.plugin.lifecycle
 
-import com.github.ahatem.qtranslate.core.plugin.FixtureLogger
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
@@ -21,7 +21,7 @@ class PluginTransitionOwnerTest {
     @Test
     fun `shutdown charges one global budget for every stuck plugin`() = runTest {
         val budget = 5_000L
-        val owner = PluginTransitionOwner(FixtureLogger, budget)
+        val owner = PluginTransitionOwner(SilentLogger, budget)
         val ids = (1..5).map { "stuck-$it" }
         val entered = ids.associateWith { CompletableDeferred<Unit>() }
         val release = CompletableDeferred<Unit>()
@@ -52,7 +52,7 @@ class PluginTransitionOwnerTest {
 
     @Test
     fun `shutdown settles idle slots immediately and rejects new transitions`() = runTest {
-        val owner = PluginTransitionOwner(FixtureLogger, 5_000L)
+        val owner = PluginTransitionOwner(SilentLogger, 5_000L)
         val completed = CompletableDeferred<Unit>()
         launch { owner.transition("idle") { completed.complete(Unit) } }
         completed.await()

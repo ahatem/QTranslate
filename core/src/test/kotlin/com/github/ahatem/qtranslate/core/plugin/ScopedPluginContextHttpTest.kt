@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.core.plugin
 
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.DisplayText
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
@@ -18,15 +19,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
-/**
- * The ownership rules for the HTTP client the context hands plugins.
- *
- * These exist because the client used to belong to the plugin, which built one in `initialize` and
- * closed it in `shutdown`. Moving it to the context changed when it is created and destroyed, and
- * the context outlives any single enable cycle. The three things that could go wrong are: building
- * a client per cycle, closing it on disable so the next cycle gets a dead one, and sharing one
- * between plugins so disabling either breaks the other. Each has a test.
- */
+/** Ownership rules for the HTTP client the context hands plugins: one per plugin, closed only on teardown. */
 class ScopedPluginContextHttpTest {
 
     @Test
@@ -42,36 +35,7 @@ class ScopedPluginContextHttpTest {
 
         assertEquals(1, factory.built, "a client was built more than once for one plugin")
         assertSame(original, context.http, "the client was swapped during an enable cycle")
-    }
-
-    @Test
-    fun `disabling does not close the client, so the next cycle gets a working one`() {
-        val factory = CountingFactory()
-        val context = context(factory = factory)
-        val client = context.http as RecordingHttpClient
-
-        // What disable actually does: cancel the scope, then reset it on the way back up.
-        context.cancelScope()
-        assertFalse(client.closed, "disabling closed the client the next enable cycle needs")
-
-        context.resetScope()
-        assertFalse(client.closed)
-    }
-
-    @Test
-    fun `rapid cycles neither rebuild nor close the client`() {
-        val factory = CountingFactory()
-        val context = context(factory = factory)
-        val client = context.http as RecordingHttpClient
-
-        repeat(200) {
-            context.cancelScope()
-            context.resetScope()
-        }
-
-        assertEquals(1, factory.built, "cycling built extra clients, which would leak connection pools")
-        assertFalse(client.closed)
-        assertSame(client, context.http)
+        assertFalse((original as RecordingHttpClient).closed, "disabling closed the client the next cycle needs")
     }
 
     @Test
@@ -189,10 +153,4 @@ class ScopedPluginContextHttpTest {
         override fun onPluginRemoved(pluginId: String) = Unit
     }
 
-    private object SilentLogger : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
 }

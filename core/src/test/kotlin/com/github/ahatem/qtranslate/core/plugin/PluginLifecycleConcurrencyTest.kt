@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.core.plugin
 
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
+import com.github.ahatem.qtranslate.core.testing.SilentLoggerFactory
 import com.github.ahatem.qtranslate.core.plugin.lifecycle.PluginLifecycleHandler
 import com.github.ahatem.qtranslate.core.plugin.lifecycle.PluginTransitionOwner
 import com.github.ahatem.qtranslate.core.plugin.registry.PluginContainer
@@ -29,12 +31,9 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 
 /**
- * T3 — deterministic lifecycle interleavings.
- *
- * Every test drives the real stack (manager, installer, lifecycle handler, real plugin JARs)
- * and holds transitions mid-flight with latches inside the plugin's own callbacks, so racing
- * transitions are forced to overlap in a controlled way. No sleeps: ordering is proven by
- * handshakes, and each assertion is structural rather than timing-based.
+ * Deterministic lifecycle interleavings against the real stack (manager, installer, lifecycle
+ * handler, real plugin JARs). Transitions are held mid-flight with latches inside the plugin's own
+ * callbacks, so there are no sleeps and every assertion is structural.
  */
 class PluginLifecycleConcurrencyTest {
 
@@ -313,46 +312,88 @@ class PluginLifecycleConcurrencyTest {
     // Shutdown ownership
     // -------------------------------------------------------------------------
 
+    private class Prepared(
+        val manager: PluginManager,
+        val operate: suspend () -> Unit,
+        val constructsExpected: Int? = null,
+        val verify: suspend () -> Unit = {}
+    )
+
+    private class ShutdownRace(
+        val label: String,
+        /** True when the transition being held mid-flight is a disable (uninstall), false for an activation. */
+        val holdsDisable: Boolean,
+        val prepare: suspend (File) -> Prepared
+    )
+
     @Test
-    fun `shutdown settles an accepted activation before finalizing it`() = runBlocking {
-        val directory = Files.createTempDirectory("qtranslate-lc-shutdown-settle").toFile()
-        try {
-            val stores = Stores(directory)
-            val manager = loadedManager(directory, stores)
-            val jar = File(directory, "plugins/plugin.jar")
-            manager.disablePlugin(ID)
-            PluginTestFixtures.Log.reset()
-
-            val enableHold = PluginTestFixtures.Gate.holdEnable()
-            val enableJob = launch(Dispatchers.Default) { manager.enablePlugin(ID) }
-            enableHold.entered.await()
-            val shutdownJob = launch(Dispatchers.Default) { manager.shutdown() }
-
-            // Shutdown must not finalize — or abandon — the in-flight activation.
-            try {
-                assertEquals(0, PluginTestFixtures.Log.count("disable-enter"))
-                assertEquals(0, PluginTestFixtures.Log.count("plugin-shutdown"))
-            } finally {
-                enableHold.release.countDown()
+    fun `a transition racing shutdown settles then is finalized exactly once`() = runBlocking {
+        val races = listOf(
+            ShutdownRace("accepted activation", holdsDisable = false) { directory ->
+                val stores = Stores(directory)
+                val manager = loadedManager(directory, stores)
+                val jar = File(directory, "plugins/plugin.jar")
+                manager.disablePlugin(ID)
+                PluginTestFixtures.Log.reset()
+                Prepared(manager, { manager.enablePlugin(ID) }) {
+                    assertEquals(1, PluginTestFixtures.Log.count("enable-enter"))
+                    assertEquals(1, PluginTestFixtures.Log.count("enable-exit"))
+                    // Fingerprints were persisted from the settled state, not a mid-transition one.
+                    assertEquals(mapOf(ID to Hashing.sha256(jar)), stores.fingerprints.loadFingerprints())
+                }
+            },
+            ShutdownRace("install", holdsDisable = false) { directory ->
+                val manager = Stores(directory).manager()
+                val source = writePluginJar(directory.resolve("incoming"), "plugin.jar", ID, RecordingPlugin::class.java)
+                Prepared(manager, { manager.installPlugin(source) }, constructsExpected = 1)
+            },
+            ShutdownRace("update resolution", holdsDisable = false) { directory ->
+                val manager = pausedManager(directory)
+                val before = PluginTestFixtures.Log.count("construct")
+                Prepared(manager, { manager.resolveAsUpdate(ID) }, constructsExpected = before + 1)
+            },
+            ShutdownRace("uninstall", holdsDisable = true) { directory ->
+                val manager = loadedManager(directory)
+                Prepared(manager, { manager.uninstallPlugin(ID) })
             }
-            enableJob.join()
-            shutdownJob.join()
+        )
 
-            // The settled activation completed, then was finalized exactly once.
-            assertEquals(1, PluginTestFixtures.Log.count("enable-enter"))
-            assertEquals(1, PluginTestFixtures.Log.count("enable-exit"))
-            assertEquals(1, PluginTestFixtures.Log.count("disable-enter"))
-            assertEquals(1, PluginTestFixtures.Log.count("plugin-shutdown"))
-            assertTrue(manager.plugins.value.isEmpty())
-            PluginTestFixtures.Log.constructedLoaders.forEach { assertFalse(it.providerDescriptorStillReachable()) }
-            assertTrue(File(directory, "plugin-snapshots").listFiles().orEmpty().isEmpty())
+        for (race in races) {
+            PluginTestFixtures.Log.resetAll()
+            PluginTestFixtures.Gate.reset()
+            val directory = Files.createTempDirectory("qtranslate-lc-shutdown-race").toFile()
+            try {
+                val prepared = race.prepare(directory)
+                val manager = prepared.manager
 
-            // Fingerprints were persisted from the settled state, not a mid-transition one.
-            assertEquals(
-                mapOf(ID to Hashing.sha256(jar)),
-                stores.fingerprints.loadFingerprints()
-            )
-        } finally { directory.deleteRecursively() }
+                val hold = if (race.holdsDisable) PluginTestFixtures.Gate.holdDisable() else PluginTestFixtures.Gate.holdEnable()
+                val operation = launch(Dispatchers.Default) { prepared.operate() }
+                hold.entered.await()
+                val shutdownJob = launch(Dispatchers.Default) { manager.shutdown() }
+
+                // Shutdown must neither finalize nor abandon the in-flight transition.
+                try {
+                    assertEquals(0, PluginTestFixtures.Log.count("plugin-shutdown"), race.label)
+                    if (!race.holdsDisable) assertEquals(0, PluginTestFixtures.Log.count("disable-enter"), race.label)
+                } finally {
+                    hold.release.countDown()
+                }
+                operation.join()
+                shutdownJob.join()
+
+                assertTrue(manager.plugins.value.isEmpty(), race.label)
+                prepared.constructsExpected?.let {
+                    assertEquals(it, PluginTestFixtures.Log.count("construct"), "${race.label}: constructions")
+                }
+                assertEquals(1, PluginTestFixtures.Log.count("disable-enter"), race.label)
+                assertEquals(1, PluginTestFixtures.Log.count("plugin-shutdown"), race.label)
+                PluginTestFixtures.Log.constructedLoaders.forEach {
+                    assertFalse(it.providerDescriptorStillReachable(), race.label)
+                }
+                assertTrue(File(directory, "plugin-snapshots").listFiles().orEmpty().isEmpty(), race.label)
+                prepared.verify()
+            } finally { directory.deleteRecursively() }
+        }
     }
 
     @Test
@@ -408,98 +449,11 @@ class PluginLifecycleConcurrencyTest {
     }
 
     @Test
-    fun `an install racing shutdown settles then is finalized exactly once`() = runBlocking {
-        val directory = Files.createTempDirectory("qtranslate-lc-install-shutdown").toFile()
-        try {
-            val stores = Stores(directory)
-            val manager = stores.manager()
-            val source = writePluginJar(directory.resolve("incoming"), "plugin.jar", ID, RecordingPlugin::class.java)
-
-            val enableHold = PluginTestFixtures.Gate.holdEnable()
-            val installJob = launch(Dispatchers.Default) { manager.installPlugin(source) }
-            enableHold.entered.await()   // constructed and initialized; activation in flight
-            val shutdownJob = launch(Dispatchers.Default) { manager.shutdown() }
-
-            try {
-                assertEquals(0, PluginTestFixtures.Log.count("disable-enter"))
-                assertEquals(0, PluginTestFixtures.Log.count("plugin-shutdown"))
-            } finally {
-                enableHold.release.countDown()
-            }
-            installJob.join()
-            shutdownJob.join()
-
-            assertTrue(manager.plugins.value.isEmpty())
-            assertEquals(1, PluginTestFixtures.Log.count("construct"))
-            assertEquals(1, PluginTestFixtures.Log.count("disable-enter"))
-            assertEquals(1, PluginTestFixtures.Log.count("plugin-shutdown"))
-            PluginTestFixtures.Log.constructedLoaders.forEach { assertFalse(it.providerDescriptorStillReachable()) }
-            assertTrue(File(directory, "plugin-snapshots").listFiles().orEmpty().isEmpty())
-        } finally { directory.deleteRecursively() }
-    }
-
-    @Test
-    fun `an update resolution racing shutdown settles then is finalized exactly once`() = runBlocking {
-        val directory = Files.createTempDirectory("qtranslate-lc-resolve-shutdown").toFile()
-        try {
-            val manager = pausedManager(directory)
-            val constructBefore = PluginTestFixtures.Log.count("construct")
-
-            val enableHold = PluginTestFixtures.Gate.holdEnable()
-            val resolveJob = launch(Dispatchers.Default) { manager.resolveAsUpdate(ID) }
-            enableHold.entered.await()
-            val shutdownJob = launch(Dispatchers.Default) { manager.shutdown() }
-
-            try {
-                assertEquals(0, PluginTestFixtures.Log.count("disable-enter"))
-                assertEquals(0, PluginTestFixtures.Log.count("plugin-shutdown"))
-            } finally {
-                enableHold.release.countDown()
-            }
-            resolveJob.join()
-            shutdownJob.join()
-
-            assertTrue(manager.plugins.value.isEmpty())
-            assertEquals(constructBefore + 1, PluginTestFixtures.Log.count("construct"))
-            assertEquals(1, PluginTestFixtures.Log.count("disable-enter"))
-            assertEquals(1, PluginTestFixtures.Log.count("plugin-shutdown"))
-            PluginTestFixtures.Log.constructedLoaders.forEach { assertFalse(it.providerDescriptorStillReachable()) }
-        } finally { directory.deleteRecursively() }
-    }
-
-    @Test
-    fun `an uninstall racing shutdown tears down exactly once`() = runBlocking {
-        val directory = Files.createTempDirectory("qtranslate-lc-uninstall-shutdown").toFile()
-        try {
-            val manager = loadedManager(directory)
-
-            val disableHold = PluginTestFixtures.Gate.holdDisable()
-            val uninstallJob = launch(Dispatchers.Default) { manager.uninstallPlugin(ID) }
-            disableHold.entered.await()
-            val shutdownJob = launch(Dispatchers.Default) { manager.shutdown() }
-
-            try {
-                assertEquals(0, PluginTestFixtures.Log.count("plugin-shutdown"))
-            } finally {
-                disableHold.release.countDown()
-            }
-            uninstallJob.join()
-            shutdownJob.join()
-
-            assertTrue(manager.plugins.value.isEmpty())
-            assertEquals(1, PluginTestFixtures.Log.count("disable-enter"))
-            assertEquals(1, PluginTestFixtures.Log.count("plugin-shutdown"))
-            PluginTestFixtures.Log.constructedLoaders.forEach { assertFalse(it.providerDescriptorStillReachable()) }
-            assertTrue(File(directory, "plugin-snapshots").listFiles().orEmpty().isEmpty())
-        } finally { directory.deleteRecursively() }
-    }
-
-    @Test
     fun `finalizing the same container twice runs the final callbacks once`() = runBlocking {
         val directory = Files.createTempDirectory("qtranslate-lc-double-finalize").toFile()
         try {
             val jar = writePluginJar(directory, "plugin.jar", ID, RecordingPlugin::class.java)
-            val loader = PluginLoader(FixtureLogger, directory.resolve("cache"))
+            val loader = PluginLoader(SilentLogger, directory.resolve("cache"))
             val assessment = loader.assessFile(jar)!!
             val result = loader.loadApproved(assessment)!!
             val handler = PluginLifecycleHandler(
@@ -507,7 +461,7 @@ class PluginLifecycleConcurrencyTest {
                 pluginKeyValueStore = PluginKeyValueStore(directory),
                 notificationBus = NotificationBus(),
                 textResolver = PluginTextResolver.Fallback,
-                loggerFactory = FixtureLoggerFactory
+                loggerFactory = SilentLoggerFactory
             )
             val container = PluginContainer(
                 plugin = result.plugin,
@@ -609,7 +563,7 @@ class PluginLifecycleConcurrencyTest {
 
     /** One repository instance per file per test: DataStore refuses a second active instance. */
     private class Stores(private val directory: File) {
-        val settings = SettingsRepository(directory, Json, FixtureLogger)
+        val settings = SettingsRepository(directory, Json, SilentLogger)
         val fingerprints = PluginFingerprintRepository(directory, Json)
         val keyValue = PluginKeyValueStore(directory)
 
@@ -621,7 +575,7 @@ class PluginLifecycleConcurrencyTest {
             settingsRepository = settings,
             pluginFingerprintRepository = fingerprints,
             pluginKeyValueStore = keyValue,
-            loggerFactory = FixtureLoggerFactory,
+            loggerFactory = SilentLoggerFactory,
             notificationBus = NotificationBus(),
             networkConfig = { NetworkConfig() },
             installationRoot = installationRoot,

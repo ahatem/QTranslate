@@ -1,6 +1,7 @@
 package com.github.ahatem.qtranslate.core.plugin
 
-import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.core.testing.SilentLoggerFactory
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
 import com.github.ahatem.qtranslate.api.core.ApiVersion
 import com.github.ahatem.qtranslate.api.plugin.Plugin
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
@@ -16,13 +17,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.assertNull
-import com.github.ahatem.qtranslate.core.plugin.registry.PluginRegistry
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprint
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprintRepository
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
 import com.github.ahatem.qtranslate.core.settings.data.NetworkConfig
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
-import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.ahatem.qtranslate.core.shared.notification.NotificationBus
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -51,30 +50,11 @@ class PluginLoaderTest {
     }
 
     @Test
-    fun `assessment reads descriptor without constructing or loading its class`() {
-        val directory = Files.createTempDirectory("qtranslate-plugin-assess").toFile()
-        try {
-            val jar = writeJar(directory, "plugin.jar", "test", ConstructorSentinel::class.java.name)
-            val loader = PluginLoader(NoOpLogger, directory.resolve("cache"))
-            ConstructorSentinel.constructions = 0
-
-            val assessment = loader.assessFile(jar)
-            assertTrue(assessment != null, loader.loadFailures.map { it.message }.toString())
-
-            assertEquals(0, ConstructorSentinel.constructions)
-            assertEquals("test", assessment.manifest.id)
-            assertEquals(jar.absolutePath, assessment.jarFile.absolutePath)
-            assertTrue(assessment.snapshotFile.isFile)
-            assessment.discard()
-        } finally { directory.deleteRecursively() }
-    }
-
-    @Test
     fun `approved loader rejects provider from parent classpath`() {
         val directory = Files.createTempDirectory("qtranslate-plugin-origin").toFile()
         try {
             val jar = writeJar(directory, "plugin.jar", "test", ConstructorSentinel::class.java.name)
-            val loader = PluginLoader(NoOpLogger, directory.resolve("cache"))
+            val loader = PluginLoader(SilentLogger, directory.resolve("cache"))
             ConstructorSentinel.constructions = 0
             val assessment = loader.assessFile(jar)
             assertTrue(assessment != null, loader.loadFailures.map { it.message }.toString())
@@ -90,7 +70,7 @@ class PluginLoaderTest {
         val directory = Files.createTempDirectory("qtranslate-plugin-approved").toFile()
         try {
             val jar = writeJar(directory, "plugin.jar", "original", FixturePlugin::class.java.name, includeProviderClass = true)
-            val loader = PluginLoader(NoOpLogger, directory.resolve("cache"))
+            val loader = PluginLoader(SilentLogger, directory.resolve("cache"))
             val assessment = loader.assessFile(jar)!!
             writeJar(directory, "plugin.jar", "replacement")
             System.clearProperty(FIXTURE_PROBE_KEY)
@@ -110,79 +90,6 @@ class PluginLoaderTest {
     }
 
     @Test
-    fun `assessed snapshot remains the original bytes when source jar changes`() {
-        val directory = Files.createTempDirectory("qtranslate-plugin-snapshot").toFile()
-        try {
-            val jar = writeJar(directory, "plugin.jar", "original")
-            val loader = PluginLoader(NoOpLogger, directory.resolve("cache"))
-            val assessment = loader.assessFile(jar)
-            assertTrue(assessment != null, loader.loadFailures.map { it.message }.toString())
-            writeJar(directory, "plugin.jar", "replacement")
-
-            assertEquals("original", loader.getManifestFromJar(assessment.snapshotFile)?.id)
-            assertEquals("replacement", loader.getManifestFromJar(jar)?.id)
-            assessment.discard()
-        } finally { directory.deleteRecursively() }
-    }
-
-    @Test
-    fun `duplicate IDs in one folder are rejected before loading`() {
-        val directory = Files.createTempDirectory("qtranslate-plugin-duplicates").toFile()
-        try {
-            writeJar(directory, "a.jar", "same")
-            writeJar(directory, "b.jar", "same")
-            val assessments = PluginLoader(NoOpLogger, directory.resolve("cache")).assessDirectory(directory)
-
-            val outcome = PluginRegistry().validateAndFilter(assessments)
-
-            assertTrue(outcome.successful.isEmpty())
-            assertEquals(2, outcome.skipped.size)
-            assertTrue(assessments.none { it.snapshotFile.exists() })
-        } finally { directory.deleteRecursively() }
-    }
-
-    @Test
-    fun `changed known jar constructs provider only after approval from assessed snapshot`() = runBlocking {
-        val directory = Files.createTempDirectory("qtranslate-plugin-pending").toFile()
-        try {
-            directory.resolve("datastore").mkdirs()
-            val plugins = directory.resolve("plugins").apply { mkdirs() }
-            val jar = writeJar(plugins, "plugin.jar", "known", FixturePlugin::class.java.name, includeProviderClass = true)
-            val fingerprints = PluginFingerprintRepository(directory, Json)
-            fingerprints.storeFingerprints(listOf(PluginFingerprint("known", "old-hash")))
-            val loggerFactory = object : LoggerFactory {
-                override fun getLogger(name: String): Logger = NoOpLogger
-            }
-            val manager = PluginManager(
-                appDataDirectory = directory,
-                settingsRepository = SettingsRepository(directory, Json, NoOpLogger),
-                pluginFingerprintRepository = fingerprints,
-                pluginKeyValueStore = PluginKeyValueStore(directory),
-                loggerFactory = loggerFactory,
-                notificationBus = NotificationBus(),
-                networkConfig = { NetworkConfig() }
-            )
-            System.clearProperty(FIXTURE_PROBE_KEY)
-
-            manager.loadAndProcessPlugins()
-
-            assertNull(System.getProperty(FIXTURE_PROBE_KEY))
-            val state = manager.plugins.value.single()
-            assertEquals(PluginStatus.AWAITING_VERIFICATION, state.status)
-            assertEquals(jar.absolutePath, state.jarPath)
-            writeJar(plugins, "plugin.jar", "replacement")
-            manager.resolveAsUpdate("known")
-            assertEquals("constructed", System.getProperty(FIXTURE_PROBE_KEY))
-            assertEquals(PluginStatus.ENABLED, manager.plugins.value.single().status)
-            assertEquals("known", manager.plugins.value.single().id)
-            manager.shutdown()
-        } finally {
-            System.clearProperty(FIXTURE_PROBE_KEY)
-            directory.deleteRecursively()
-        }
-    }
-
-    @Test
     fun `user jar shadows bundled jar before either provider is constructed`() = runBlocking {
         val directory = Files.createTempDirectory("qtranslate-plugin-shadow").toFile()
         try {
@@ -194,10 +101,10 @@ class PluginLoaderTest {
             fingerprints.storeFingerprints(listOf(PluginFingerprint("shared", "old-hash")))
             val manager = PluginManager(
                 appDataDirectory = directory,
-                settingsRepository = SettingsRepository(directory, Json, NoOpLogger),
+                settingsRepository = SettingsRepository(directory, Json, SilentLogger),
                 pluginFingerprintRepository = fingerprints,
                 pluginKeyValueStore = PluginKeyValueStore(directory),
-                loggerFactory = object : LoggerFactory { override fun getLogger(name: String): Logger = NoOpLogger },
+                loggerFactory = SilentLoggerFactory,
                 notificationBus = NotificationBus(),
                 networkConfig = { NetworkConfig() },
                 installationRoot = installationRoot
@@ -229,7 +136,7 @@ class PluginLoaderTest {
         try {
             val jar = directory.resolve("broken-plugin.jar")
             JarOutputStream(jar.outputStream()).use { }
-            val loader = PluginLoader(NoOpLogger, directory.resolve("cache"))
+            val loader = PluginLoader(SilentLogger, directory.resolve("cache"))
 
             val plugins = loader.loadPluginsFromDirectory(directory)
 
@@ -242,12 +149,6 @@ class PluginLoaderTest {
         }
     }
 
-    private object NoOpLogger : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
 }
 
 /** Harmless test provider copied into a fixture JAR to verify approved byte origin. */

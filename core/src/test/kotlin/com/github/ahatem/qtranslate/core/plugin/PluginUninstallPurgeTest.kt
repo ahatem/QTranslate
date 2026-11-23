@@ -1,5 +1,7 @@
 package com.github.ahatem.qtranslate.core.plugin
 
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
+import com.github.ahatem.qtranslate.core.testing.SilentLoggerFactory
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprintRepository
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
 import com.github.ahatem.qtranslate.core.settings.data.NetworkConfig
@@ -25,14 +27,14 @@ class PluginUninstallPurgeTest {
     private val id = "purge-test"
 
     private fun manager(directory: File, keyValue: PluginKeyValueStore): PluginManager {
-        val settings = SettingsRepository(directory, Json, FixtureLogger)
+        val settings = SettingsRepository(directory, Json, SilentLogger)
         val fingerprints = PluginFingerprintRepository(directory, Json)
         return PluginManager(
             appDataDirectory = directory,
             settingsRepository = settings,
             pluginFingerprintRepository = fingerprints,
             pluginKeyValueStore = keyValue,
-            loggerFactory = FixtureLoggerFactory,
+            loggerFactory = SilentLoggerFactory,
             notificationBus = NotificationBus(),
             networkConfig = { NetworkConfig() }
         )

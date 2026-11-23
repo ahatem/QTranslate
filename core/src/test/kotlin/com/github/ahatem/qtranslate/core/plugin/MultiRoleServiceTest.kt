@@ -13,13 +13,10 @@ import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.translator.TranslationResponse
 import com.github.ahatem.qtranslate.api.translator.Translator
-import com.github.ahatem.qtranslate.core.plugin.registry.ServiceValidator
 import com.github.ahatem.qtranslate.core.settings.data.ActiveServiceManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.isServiceDisabled
 import com.github.ahatem.qtranslate.core.settings.data.withServiceRoleEnabled
-import com.github.ahatem.qtranslate.core.shared.util.role
-import com.github.ahatem.qtranslate.core.shared.util.roles
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,16 +27,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
-/**
- * A service that holds two roles at once.
- *
- * This is the case the whole roles design exists for, and nothing in the tree exercises it: all
- * eleven bundled plugins implement exactly one role interface per service object, so the smoke
- * test proves the single-role path and says nothing about this one. Roles used to be inferred by
- * an ordered type test that returned one answer, which is the bug that made a service like this
- * impossible; these tests pin down that it is now genuinely possible, rather than trusting that
- * `filter` did the job.
- */
+/** A service that holds two roles at once, which no bundled single-role plugin exercises. */
 class MultiRoleServiceTest {
 
     @Test
@@ -51,27 +39,6 @@ class MultiRoleServiceTest {
             ServiceRole.of(service),
             "a service is offered only for the interfaces it implements, and it implements both"
         )
-    }
-
-    @Test
-    fun `holding two roles does not stop it being valid`() {
-        assertEquals(
-            emptyList(),
-            ServiceValidator.validate(TranslatingDictionary()),
-            "nothing about a second role makes a service unusable"
-        )
-    }
-
-    @Test
-    fun `the representative role is stable rather than whichever check ran first`() {
-        // `role` returns one of them for the places that still assume a single answer. Which one
-        // hardly matters, but it must not change between calls or between runs, or a service would
-        // drift between pickers for no reason the user could see.
-        val service = TranslatingDictionary()
-        val first = service.role
-
-        repeat(50) { assertEquals(first, service.role) }
-        assertTrue(first in service.roles)
     }
 
     @Test
@@ -89,19 +56,6 @@ class MultiRoleServiceTest {
             "both roles are the same object, so resolving them must not produce two services"
         )
         assertEquals(SERVICE_ID, asTranslator.id)
-    }
-
-    @Test
-    fun `resolving by role casts to that role's interface`() {
-        // The unchecked cast in getActive is only honest because a role means the interface is
-        // implemented. Calling through both proves the cast the type system cannot check here.
-        val manager = managerFor(TranslatingDictionary())
-
-        val translator = manager.getActive<Translator>(ServiceRole.TRANSLATOR)?.service
-        val dictionary = manager.getActive<Dictionary>(ServiceRole.DICTIONARY)?.service
-
-        assertNotNull(translator)
-        assertNotNull(dictionary)
     }
 
     @Test

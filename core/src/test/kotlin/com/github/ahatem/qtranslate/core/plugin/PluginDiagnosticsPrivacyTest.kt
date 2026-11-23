@@ -1,5 +1,6 @@
 package com.github.ahatem.qtranslate.core.plugin
 
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginFingerprintRepository
 import com.github.ahatem.qtranslate.core.plugin.storage.PluginKeyValueStore
 import com.github.ahatem.qtranslate.core.settings.data.NetworkConfig
@@ -104,7 +105,7 @@ class PluginDiagnosticsPrivacyTest {
 
     private fun managerFor(directory: File, logger: CapturingLogger): PluginManager = PluginManager(
         appDataDirectory = directory,
-        settingsRepository = SettingsRepository(directory, Json, FixtureLogger),
+        settingsRepository = SettingsRepository(directory, Json, SilentLogger),
         pluginFingerprintRepository = PluginFingerprintRepository(directory, Json),
         pluginKeyValueStore = PluginKeyValueStore(directory),
         loggerFactory = CapturingLoggerFactory(logger),
