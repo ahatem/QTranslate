@@ -113,12 +113,6 @@ sealed interface MainIntent : UiIntent {
     ) : MainIntent
 
     /**
-     * User requested OCR on an image to extract text and copy it to the clipboard —
-     * without triggering a translation. Emits [MainEvent.CopyToClipboard] on success.
-     */
-    data class OcrAndCopyText(val image: ImageData) : MainIntent
-
-    /**
      * User requested text-to-speech for a specific text panel.
      * @property textSource Which panel to read aloud.
      * @property text Optional text override. If `null`, uses the text from [textSource].
@@ -131,9 +125,6 @@ sealed interface MainIntent : UiIntent {
         val text: String? = null,
         val language: LanguageCode? = null
     ) : MainIntent
-
-    /** User manually triggered a spell check (or it was triggered automatically). */
-    data object PerformSpellCheck : MainIntent
 
     /**
      * User clicked a spell-check suggestion to apply it.
@@ -230,12 +221,6 @@ sealed interface MainIntent : UiIntent {
         val language: LanguageCode = LanguageCode.ENGLISH,
         val targetLanguage: LanguageCode? = null
     ) : MainIntent
-
-    /**
-     * User toggled the dictionary in the lookup dock: opens the dock on the dictionary, or closes
-     * it when the dictionary is what it already shows.
-     */
-    data object ToggleDictionaryPanel : MainIntent
 
     /** User opened the lookup dock on [tool], or switched an open dock to it. */
     data class OpenLookupDock(val tool: LookupTool) : MainIntent

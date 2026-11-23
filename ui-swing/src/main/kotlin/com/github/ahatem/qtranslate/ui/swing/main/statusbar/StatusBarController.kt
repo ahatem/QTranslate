@@ -145,7 +145,6 @@ internal class StatusBarController(
         StatusCode.TtsTimeout                   -> localizer.getString("status_bar.tts_timeout")
         StatusCode.PlayingAudio                 -> localizer.getString("status_bar.playing_audio")
         StatusCode.AudioPlaybackComplete        -> localizer.getString("status_bar.audio_playback_complete")
-        StatusCode.TtsStopped                   -> localizer.getString("status_bar.tts_stopped")
         StatusCode.DownloadingAudio             -> localizer.getString("status_bar.downloading_audio")
         StatusCode.AudioDownloadFailed          -> localizer.getString("status_bar.audio_download_failed")
         is StatusCode.TtsFailed                 -> localizer.getString("status_bar.tts_failed", code.summary)
@@ -191,10 +190,6 @@ internal class StatusBarController(
     }
 
     private fun resolveNotificationMessage(code: NotificationCode): String = when (code) {
-        is NotificationCode.LanguageNotSupported ->
-            localizer.getString("notifications.language_not_supported_format", code.lang, code.serviceId)
-        is NotificationCode.TtsNotSupported ->
-            localizer.getString("notifications.tts_not_supported_format", code.serviceId)
         is NotificationCode.UnknownError ->
             localizer.getString("notifications.unknown_error")
         is NotificationCode.Custom -> if (code.title.isNotBlank()) "${code.title}: ${code.body}" else code.body

@@ -856,15 +856,6 @@ class MainAppFrame(
                         is MainEvent.PasteTranslation -> if (event.translatedText.isNotBlank()) {
                             pasteTextToActiveApp(event.translatedText)
                         }
-                        is MainEvent.ShowUpdateDialog -> {
-                            showUpdateDialog(NotificationCode.UpdateAvailable(
-                                newVersion = event.newVersion,
-                                currentVersion = event.currentVersion,
-                                releaseNotes = event.releaseNotes,
-                                downloadUrl = event.downloadUrl,
-                                releaseUrl = event.releaseUrl
-                            ))
-                        }
                         is MainEvent.CopyToClipboard -> {
                             // Clipboard contention must not turn a successful translation into a failure.
                             runCatching {

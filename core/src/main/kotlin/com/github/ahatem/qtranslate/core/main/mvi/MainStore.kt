@@ -556,10 +556,6 @@ class MainStore(
             MainIntent.CheckForUpdates -> checkForUpdates()
             is MainIntent.TranslateDocument -> startDocumentTranslation(intent)
             MainIntent.CancelDocumentTranslation -> cancelDocumentTranslation()
-            MainIntent.PerformSpellCheck -> scope.launch {
-                handleSpellCheck(SpellCheckInput.from(_state.value, true), checkSetting = false)
-            }
-
             is MainIntent.Translate -> {
                 val workspaceToken = intent.ocrWorkspaceToken
                 if (workspaceToken != null && !ocrOwner.isCurrent(workspaceToken)) return
@@ -678,17 +674,9 @@ class MainStore(
                 destinationOverride = intent.destination,
             )
 
-            is MainIntent.OcrAndCopyText -> startOcrWorkflow(
-                image = intent.image,
-                action = OcrPostSelectionAction.COPY_TEXT,
-                destinationOverride = null,
-            )
-
             is MainIntent.ShowQuickTranslate -> startQuickTranslate(intent)
 
             is MainIntent.LookupWord -> scope.launch { handleLookupWord(intent) }
-
-            is MainIntent.ToggleDictionaryPanel -> _state.update { it.withDictionaryPanelToggled() }
 
             is MainIntent.OpenLookupDock -> _state.update { it.withLookupDockOn(intent.tool) }
 
