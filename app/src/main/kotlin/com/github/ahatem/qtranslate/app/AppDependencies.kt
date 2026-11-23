@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.core.main.domain.usecase.HandleTextToSpeechU
 import com.github.ahatem.qtranslate.core.main.domain.usecase.PerformSpellCheckUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SelectActiveServiceUseCase
 import com.github.ahatem.qtranslate.core.main.domain.usecase.SwapLanguagesUseCase
+import com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase
 import com.github.ahatem.qtranslate.core.workspace.lookup.LookupWordUseCase
 import com.github.ahatem.qtranslate.core.workspace.lookup.SearchImagesUseCase
 import com.github.ahatem.qtranslate.core.workspace.lookup.FetchInlineDefinitionUseCase
@@ -61,7 +62,7 @@ import com.github.ahatem.qtranslate.core.document.DocumentTranslationUseCase
 class AppDependencies(
     val appScope: CoroutineScope,
     val mainStore: MainStore,
-    val ocrExtractionUseCase: com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase,
+    val ocrExtractionUseCase: OcrExtractionUseCase,
     val translateStringUseCase: TranslateStringUseCase,
     val settingsStore: SettingsStore,
     val pluginManager: PluginManager,
@@ -286,7 +287,7 @@ suspend fun buildDependencies(
 
     // ---- 9. Stores ----
 
-    val ocrExtractionUseCase = com.github.ahatem.qtranslate.core.ocr.OcrExtractionUseCase(
+    val ocrExtractionUseCase = OcrExtractionUseCase(
         activeServiceManager = activeServiceManager,
         loggerFactory = loggerFactory,
     )

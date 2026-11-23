@@ -81,7 +81,7 @@ fun main(args: Array<String>) = runBlocking {
     } catch (failure: AppDataLayoutException) {
         System.err.println(failure.message)
         AppDataFailureDialog.show(failure)
-        kotlin.system.exitProcess(1)
+        exitProcess(1)
     }
     val appData = dataLayout.userDataRoot
 
