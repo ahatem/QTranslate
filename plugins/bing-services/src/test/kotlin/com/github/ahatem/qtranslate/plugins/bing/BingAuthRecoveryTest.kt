@@ -5,6 +5,7 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
+import com.github.ahatem.qtranslate.plugins.common.unwrap
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.fold
@@ -54,10 +55,7 @@ class BingAuthRecoveryTest {
 
         val result = translate(client)
 
-        result.fold(
-            success = { assertEquals("Hola, ¿cómo estás?", it.translatedText) },
-            failure = { fail("recovery should have succeeded: ${it.message}") }
-        )
+        result.unwrap().also { assertEquals("Hola, ¿cómo estás?", it.translatedText) }
         assertEquals(2, client.translateCalls, "exactly one retry after the rejection")
         assertEquals(2, client.authFetches, "one fetch before the rejection, one after")
         assertEquals(BingTestHttpClient.TOKEN, client.lastTranslateForm["token"])

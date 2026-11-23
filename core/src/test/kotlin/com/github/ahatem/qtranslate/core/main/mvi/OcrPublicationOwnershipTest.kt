@@ -211,7 +211,7 @@ class OcrPublicationOwnershipTest {
     }
 
     @Test
-    fun `a later OCR claim does not cancel a manual translation that replaced the OCR one`() = runBlocking {
+    fun `a later OCR claim does not cancel a manual translation that replaced the OCR one`() = runBlocking<Unit> {
         val fixture = OcrWorkflowFixture(
             testScope = TestScope(),
             dispatcher = Dispatchers.IO,

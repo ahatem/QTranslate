@@ -58,7 +58,7 @@ class SystemTtsServiceTest {
             (service.supportedLanguages as SupportedLanguages.Specific).languages)
     }
 
-    @Test fun `unsupported language is reported`() = runBlocking {
+    @Test fun `unsupported language is reported`() = runBlocking<Unit> {
         val backend = FakeSpeech(listOf(english))
         val service = SystemTtsService(backend, backend.available, FakePluginContext.SilentLogger)
         assertIs<ServiceError.UnsupportedLanguageError>(
@@ -76,7 +76,7 @@ class SystemTtsServiceTest {
         assertEquals("ar-id", backend.selected)
     }
 
-    @Test fun `backend error and malformed audio are errors`() = runBlocking {
+    @Test fun `backend error and malformed audio are errors`() = runBlocking<Unit> {
         val backend = FakeSpeech(listOf(english))
         val service = SystemTtsService(backend, backend.available, FakePluginContext.SilentLogger)
         backend.result = Err(ServiceError.ServiceUnavailableError("engine failed"))

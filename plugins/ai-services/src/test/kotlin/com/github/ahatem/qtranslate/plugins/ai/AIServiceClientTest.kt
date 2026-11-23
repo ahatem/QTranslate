@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 import com.github.ahatem.qtranslate.plugins.common.ScriptedHttpClient
+import com.github.ahatem.qtranslate.plugins.common.unwrap
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -62,10 +63,7 @@ class AIServiceClientTest {
     fun `the connection test sends a real minimal completion, not an empty ping`() = runBlocking {
         val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
 
-        client(httpClient).validate(hostedProfile()).fold(
-            success = { },
-            failure = { fail("validate should pass against a working endpoint: ${it.message}") }
-        )
+        client(httpClient).validate(hostedProfile()).unwrap()
 
         assertEquals("https://openrouter.ai/api/v1/chat/completions", httpClient.urls.single())
         val body = httpClient.bodies.single()
@@ -123,10 +121,7 @@ class AIServiceClientTest {
             profile = hostedProfile(model = "per-profile-model", temperature = 0.7, maxTokens = 128)
         )
 
-        result.fold(
-            success = { assertEquals("Bonjour", it) },
-            failure = { fail("complete should pass: ${it.message}") }
-        )
+        result.unwrap().also { assertEquals("Bonjour", it) }
         val body = httpClient.bodies.single()
         assertTrue(body.contains("\"model\":\"per-profile-model\""), "body was: $body")
         assertTrue(body.contains("\"temperature\":0.7"), "body was: $body")
@@ -176,10 +171,7 @@ class AIServiceClientTest {
 
         val result = client(httpClient).complete("s", "u", hostedProfile(customHeaders = "{not-json"))
 
-        result.fold(
-            success = { },
-            failure = { fail("malformed custom headers must not fail the request: ${it.message}") }
-        )
+        result.unwrap()
         assertEquals("Bearer test-key-12345", httpClient.headers.single()["Authorization"])
     }
 
@@ -201,10 +193,7 @@ class AIServiceClientTest {
         val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
         val local = hostedProfile(baseUrl = "http://localhost:11434/v1", apiKey = "")
 
-        client(httpClient).validate(local).fold(
-            success = { },
-            failure = { fail("a local endpoint needs no key: ${it.message}") }
-        )
+        client(httpClient).validate(local).unwrap()
         assertEquals(1, httpClient.urls.size)
     }
 
@@ -224,10 +213,7 @@ class AIServiceClientTest {
             )
         )
 
-        response.fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail("translation against a scripted success should pass: ${it.message}") }
-        )
+        response.unwrap().also { assertEquals("Bonjour", it.translatedText) }
         val body = httpClient.bodies.single()
         assertTrue(body.contains("\"model\":\"google/gemini-2.5-flash\""), "body was: $body")
     }
@@ -276,20 +262,17 @@ class AIServiceClientTest {
     }
 
     @Test
-    fun `a null finish reason passes through as a normal completion`() = runBlocking {
+    fun `a null finish reason passes through as a normal completion`() = runBlocking<Unit> {
         val body = """{"choices":[{"message":{"role":"assistant","content":"done"},"finish_reason":null}]}"""
         val httpClient = ScriptedHttpClient(listOf(Ok(body)))
 
         val result = client(httpClient).complete("s", "u", hostedProfile())
 
-        result.fold(
-            success = { assertEquals("done", it) },
-            failure = { fail("finish_reason=null must pass: ${it.message}") }
-        )
+        result.unwrap().also { assertEquals("done", it) }
     }
 
     @Test
-    fun `a malformed non-JSON body is an invalid response error, not an exception`() = runBlocking {
+    fun `a malformed non-JSON body is an invalid response error, not an exception`() = runBlocking<Unit> {
         val httpClient = ScriptedHttpClient(listOf(Ok("not json")))
 
         val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
@@ -298,7 +281,7 @@ class AIServiceClientTest {
     }
 
     @Test
-    fun `an empty choices list is an invalid response error`() = runBlocking {
+    fun `an empty choices list is an invalid response error`() = runBlocking<Unit> {
         val httpClient = ScriptedHttpClient(listOf(Ok("""{"choices":[]}""")))
 
         val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))

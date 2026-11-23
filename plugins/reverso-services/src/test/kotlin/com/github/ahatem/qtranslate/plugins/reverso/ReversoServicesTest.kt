@@ -10,6 +10,7 @@ import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.plugins.common.ScriptedHttpClient
+import com.github.ahatem.qtranslate.plugins.common.unwrap
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.fold
@@ -53,10 +54,7 @@ class ReversoServicesTest {
             targetLanguage = LanguageCode.FRENCH
         ))
 
-        result.fold(
-            success = { assertEquals("La banque est fermee.", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        result.unwrap().also { assertEquals("La banque est fermee.", it.translatedText) }
         assertEquals("https://cps.reverso.net/api2/TranslateText", http.lastUrl)
         val body = Json.decodeFromString<ReversoTextRequest>(http.lastBody.orEmpty())
         assertEquals("en-fr", body.direction)
@@ -95,10 +93,7 @@ class ReversoServicesTest {
         val http = ScriptedHttpClient(Ok(WORD_RESPONSE))
         val service = ReversoDictionaryService(client(http))
 
-        service.lookup(DictionaryRequest("bank", LanguageCode.ENGLISH)).fold(
-            success = {},
-            failure = { fail(it.message) }
-        )
+        service.lookup(DictionaryRequest("bank", LanguageCode.ENGLISH)).unwrap()
 
         assertEquals("en-fr", Json.decodeFromString<ReversoWordRequest>(http.lastBody.orEmpty()).direction)
     }
@@ -112,14 +107,14 @@ class ReversoServicesTest {
             word = "riso",
             sourceLanguage = LanguageCode.ITALIAN,
             targetLanguage = LanguageCode.ENGLISH
-        )).fold(success = {}, failure = { fail(it.message) })
+        )).unwrap()
         assertEquals("it-en", Json.decodeFromString<ReversoWordRequest>(http.lastBody.orEmpty()).direction)
 
         service.lookupBilingual(BilingualDictionaryRequest(
             word = "rice",
             sourceLanguage = LanguageCode.ENGLISH,
             targetLanguage = LanguageCode.ITALIAN
-        )).fold(success = {}, failure = { fail(it.message) })
+        )).unwrap()
         assertEquals("en-it", Json.decodeFromString<ReversoWordRequest>(http.lastBody.orEmpty()).direction)
     }
 

@@ -8,6 +8,7 @@ import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.SecretStore
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SettingsStore
+import com.github.ahatem.qtranslate.plugins.common.unwrap
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.fold
@@ -68,10 +69,7 @@ class JsonResponseParserPrivacyTest {
     @Test
     fun `a readable body still parses`() {
         val parser = JsonResponseParser<String>(ParserTestContext(CapturingLogger())) { it }
-        val value = runBlocking { parser.parse("value") }.fold(
-            success = { it },
-            failure = { fail("a readable body must parse, not fail") }
-        )
+        val value = runBlocking { parser.parse("value") }.unwrap()
         assertEquals("value", value)
     }
 

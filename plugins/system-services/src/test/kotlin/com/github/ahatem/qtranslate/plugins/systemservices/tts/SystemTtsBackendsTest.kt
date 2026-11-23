@@ -120,7 +120,7 @@ class SystemTtsBackendsTest {
         assertEquals(null, backend.parseVoiceLine("Voice Name    invalid!    # sample"))
     }
 
-    @Test fun `Windows helper errors expose native code without leaking text`() = runBlocking {
+    @Test fun `Windows helper errors expose native code without leaking text`() = runBlocking<Unit> {
         val backend = WindowsTtsBackend(FakeProcessRunner {
             ProcessOutcome(1, "", "winrt_speech_failed HRESULT=0x800455A0 type=System.Exception", false)
         }, "powershell.exe", File("helper.ps1"))
@@ -164,7 +164,7 @@ class SystemTtsBackendsTest {
         assertFalse(output.exists())
     }
 
-    @Test fun `timeouts nonzero exits and empty output fail`() = runBlocking {
+    @Test fun `timeouts nonzero exits and empty output fail`() = runBlocking<Unit> {
         val backend = LinuxTtsBackend(FakeProcessRunner {
             if ("--voices" in it) ProcessOutcome(-1, "", "", true) else ok()
         }, "espeak")

@@ -7,6 +7,7 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.ScriptedHttpClient
+import com.github.ahatem.qtranslate.plugins.common.unwrap
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.fold
@@ -42,10 +43,7 @@ class MyMemoryTranslatorServiceTest {
             targetLanguage = LanguageCode.FRENCH
         ))
 
-        result.fold(
-            success = { assertEquals("Bonjour & bienvenue", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        result.unwrap().also { assertEquals("Bonjour & bienvenue", it.translatedText) }
         assertEquals("https://api.mymemory.translated.net/get", client.lastUrl)
         assertEquals("en|fr", client.lastQueryParams["langpair"])
         assertEquals("Hello & welcome", client.lastQueryParams["q"])

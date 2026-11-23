@@ -9,6 +9,7 @@ import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.plugins.common.ScriptedHttpClient
 import com.github.ahatem.qtranslate.plugins.common.TextHttpClient
+import com.github.ahatem.qtranslate.plugins.common.unwrap
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -59,10 +60,7 @@ class DeepLTranslatorServiceTest {
 
         val result = service.translate(request)
 
-        result.fold(
-            success = { assertEquals("Bonjour officiel", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        result.unwrap().also { assertEquals("Bonjour officiel", it.translatedText) }
         assertEquals(listOf("https://api-free.deepl.com/v2/translate"), client.urls)
         assertEquals("DeepL-Auth-Key test-key:fx", client.headers.single()["Authorization"])
         assertEquals(DeepLMode.OFFICIAL, modes.last())
@@ -80,14 +78,8 @@ class DeepLTranslatorServiceTest {
         val settings = DeepLSettings(apiKey = "expired-key")
         val service = createService(client, settings, modes::add, context)
 
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
-        service.translate(request).fold(
-            success = { assertEquals("Bonjour", it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
+        service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
 
         assertEquals(3, client.urls.size)
         assertEquals(1, client.urls.count { it.contains("api.deepl.com") })
@@ -145,10 +137,7 @@ class DeepLTranslatorServiceTest {
 
         val result = service.translate(request.copy(text = source))
 
-        result.fold(
-            success = { assertEquals(source, it.translatedText) },
-            failure = { fail(it.message) }
-        )
+        result.unwrap().also { assertEquals(source, it.translatedText) }
         assertTrue(client.requestCount > 1)
     }
 
@@ -169,7 +158,7 @@ class DeepLTranslatorServiceTest {
     }
 
     @Test
-    fun `official API maps detected PT-BR back to Brazilian Portuguese`() = runBlocking {
+    fun `official API maps detected PT-BR back to Brazilian Portuguese`() = runBlocking<Unit> {
         val client = ScriptedHttpClient(listOf(
             Ok("""{"translations":[{"text":"x","detected_source_language":"PT-BR"}]}""")
         ))
@@ -177,10 +166,7 @@ class DeepLTranslatorServiceTest {
 
         val result = service.translate(request)
 
-        result.fold(
-            success = { assertEquals(LanguageCode.PORTUGUESE_BRAZIL, it.detectedLanguage) },
-            failure = { fail(it.message) }
-        )
+        result.unwrap().also { assertEquals(LanguageCode.PORTUGUESE_BRAZIL, it.detectedLanguage) }
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckRequest
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
+import com.github.ahatem.qtranslate.plugins.common.unwrap
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -86,10 +87,7 @@ class GoogleSpellCheckerServiceTest {
 
         assertEquals(4, client.maxInFlight)
         release.complete(Unit)
-        job.await().fold(
-            success = {},
-            failure = { fail(it.message) }
-        )
+        job.await().unwrap()
         assertEquals(4, client.maxInFlight)
     }
 
