@@ -1,23 +1,12 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
-import com.github.ahatem.qtranslate.api.core.Logger
-import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
-import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
-import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.mvi.SettingsStore
 import com.github.ahatem.qtranslate.ui.swing.shared.util.TranslationCapabilities
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.Json
-import java.nio.file.Files
 import javax.swing.JLabel
 import javax.swing.JList
-import javax.swing.SwingUtilities
+import com.github.ahatem.qtranslate.ui.swing.testing.onEdt
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -25,51 +14,16 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * Extra Output must only offer what the application can run.
- *
- * Summarize and Rewrite were selectable with no such service installed, so choosing one produced
- * a failure later. They now appear as a dimmed "set up" action that leads to the page where the
- * missing service belongs, and a choice the runtime ignores is disabled rather than accepted.
- */
+/** Extra Output only offers what the application can run; a missing service is a "set up" action. */
 class TranslationPanelCapabilityTest {
 
-    private val scopes = mutableListOf<CoroutineScope>()
-
-    private val logger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
-
-    private val localizer by lazy {
-        LocalizationManager(
-            Files.createTempDirectory("qtranslate-translation-capability").toFile(),
-            LanguageTomlParser(),
-            logger,
-        )
-    }
+    private val fixture = SettingsPanelFixture()
+    private val localizer get() = fixture.localizer
 
     @AfterTest
-    fun tearDown() {
-        scopes.forEach { it.cancel() }
-    }
+    fun tearDown() = fixture.close()
 
-    private fun store(config: Configuration): SettingsStore = runBlocking {
-        val directory = Files.createTempDirectory("qtranslate-translation-capability-store").toFile()
-        val repository = SettingsRepository(directory, Json { ignoreUnknownKeys = true }, logger)
-        repository.updateConfiguration(config)
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        scopes += scope
-        SettingsStore(repository, logger, scope, config)
-    }
-
-    private fun <T> onEdt(block: () -> T): T {
-        var result: Result<T>? = null
-        SwingUtilities.invokeAndWait { result = runCatching(block) }
-        return result!!.getOrThrow()
-    }
+    private fun store(config: Configuration): SettingsStore = fixture.store(config)
 
     private fun panel(
         store: SettingsStore,
@@ -95,12 +49,7 @@ class TranslationPanelCapabilityTest {
         }
     }
 
-    /**
-     * Renders one combo entry exactly as the closed picker would show it.
-     *
-     * The combo's renderer is typed with a captured wildcard, so it is widened here rather than
-     * making the production renderer's type public for a test.
-     */
+    /** One combo entry as the closed picker shows it; the renderer's wildcard type is widened here. */
     @Suppress("UNCHECKED_CAST")
     private fun renderedCell(combo: javax.swing.JComboBox<*>, index: Int): JLabel {
         val renderer = combo.renderer as javax.swing.ListCellRenderer<Any?>
@@ -149,14 +98,12 @@ class TranslationPanelCapabilityTest {
     }
 
     @Test
-    fun `a missing rewriter is presented the same way`() {
+    fun `a missing rewriter is presented the same way as a missing summarizer`() {
         val translation = panel(
             store(Configuration.FRESH_INSTALL),
             TranslationCapabilities(summarizerAvailable = true, rewriterAvailable = false),
         )
-        val combo = translation.typeComboForTest()
-        val rewriteIndex = indexOfType(translation, 3)
-        val rendered = renderedCell(combo, rewriteIndex)
+        val rendered = renderedCell(translation.typeComboForTest(), indexOfType(translation, 3))
 
         assertEquals(localizer.getString("settings_translation.type_rewrite_unavailable"), rendered.text)
     }
@@ -178,31 +125,23 @@ class TranslationPanelCapabilityTest {
     }
 
     @Test
-    fun `backward translation disables the source choice the runtime ignores`() {
-        val store = store(Configuration.FRESH_INSTALL.copy(extraOutputType = ExtraOutputType.BackwardTranslate))
-        val translation = panel(store, TranslationCapabilities.UNKNOWN)
-
-        assertFalse(
-            onEdt { translation.useInputForTest().isEnabled },
-            "the runtime always reads the translated text for backward translation",
+    fun `the source choice is disabled for backward translation and live for other extra outputs`() {
+        val backward = panel(
+            store(Configuration.FRESH_INSTALL.copy(extraOutputType = ExtraOutputType.BackwardTranslate)),
+            TranslationCapabilities.UNKNOWN,
         )
+        assertFalse(onEdt { backward.useInputForTest().isEnabled }, "the runtime always reads the translated text")
         assertEquals(
             localizer.getString("settings_translation.backward_input_unavailable"),
-            onEdt { translation.useInputForTest().toolTipText },
-            "the disabled choice explains itself",
+            onEdt { backward.useInputForTest().toolTipText },
         )
-        assertTrue(
-            onEdt { translation.useTranslatedForTest().isSelected },
-            "the radio shows what the runtime will actually use",
+        assertTrue(onEdt { backward.useTranslatedForTest().isSelected }, "the radio shows what the runtime uses")
+
+        val summarize = panel(
+            store(Configuration.FRESH_INSTALL.copy(extraOutputType = ExtraOutputType.Summarize)),
+            TranslationCapabilities.UNKNOWN,
         )
-    }
-
-    @Test
-    fun `the source choice is live for other extra outputs`() {
-        val store = store(Configuration.FRESH_INSTALL.copy(extraOutputType = ExtraOutputType.Summarize))
-        val translation = panel(store, TranslationCapabilities.UNKNOWN)
-
-        assertTrue(onEdt { translation.useInputForTest().isEnabled })
-        assertNull(onEdt { translation.useInputForTest().toolTipText })
+        assertTrue(onEdt { summarize.useInputForTest().isEnabled })
+        assertNull(onEdt { summarize.useInputForTest().toolTipText })
     }
 }
