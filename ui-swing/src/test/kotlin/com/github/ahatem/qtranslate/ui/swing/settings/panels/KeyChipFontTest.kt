@@ -31,36 +31,27 @@ class KeyChipFontTest {
         }
     }
 
-    private fun assertLocalizedFallback(text: String) {
+    /** Returns false when the host has no system font that could cover [text] at all. */
+    private fun checkLocalizedFallback(text: String): Boolean {
         FlatInterFont.installLazy()
         FontUtils.loadFontFamily(FlatInterFont.FAMILY)
-        // A real bundled physical font provides a portable missing-glyph case; installed mono
-        // families differ between hosts and some already have CJK coverage.
+        // The bundled Inter font is a portable missing-glyph case; installed mono families differ
+        // between hosts and some already cover CJK.
         val limited = Font(FlatInterFont.FAMILY, Font.ITALIC, 12)
         assertTrue(limited.canDisplayUpTo(text) >= 0, "the preferred font must lack part of $text")
         val compositeUi = FontUtils.getCompositeFont(uiFont.family, limited.style, limited.size)
-        // Composite fonts use installed system glyphs. A host without CJK fonts cannot render
-        // them with any application policy; exercise real coverage wherever those fonts exist.
-        assumeTrue(compositeUi.canDisplayUpTo(text) == -1, "host has no system font coverage for $text")
+        if (compositeUi.canDisplayUpTo(text) != -1) return false
 
         val chosen = keyChipFont(text, limited, uiFont)
-        assertEquals(-1, chosen.canDisplayUpTo(text), "chosen font must cover the whole localized label")
-        assertEquals(limited.size, chosen.size)
-        assertEquals(limited.style, chosen.style)
+        assertEquals(-1, chosen.canDisplayUpTo(text), "chosen font must cover the whole label $text")
+        assertEquals(limited.size, chosen.size, text)
+        assertEquals(limited.style, chosen.style, text)
+        return true
     }
 
     @Test
-    fun `Japanese unassigned label falls back to a font covering the whole label`() {
-        assertLocalizedFallback("(なし)")
-    }
-
-    @Test
-    fun `Simplified Chinese unassigned label falls back to a font covering the whole label`() {
-        assertLocalizedFallback("(无)")
-    }
-
-    @Test
-    fun `Traditional Chinese unassigned label falls back to a font covering the whole label`() {
-        assertLocalizedFallback("(無)")
+    fun `localized unassigned labels fall back to a font covering the whole label`() {
+        val checked = listOf("(なし)", "(无)", "(無)").map { checkLocalizedFallback(it) }
+        assumeTrue(checked.any { it }, "host has no system font coverage for CJK")
     }
 }
