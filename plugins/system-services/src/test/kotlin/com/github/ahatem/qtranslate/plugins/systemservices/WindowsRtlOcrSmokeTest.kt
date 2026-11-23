@@ -21,6 +21,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Files
 import javax.imageio.ImageIO
+import org.junit.jupiter.api.Tag
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -30,8 +31,9 @@ import kotlin.test.assertTrue
  * A real Windows.Media.Ocr run over rendered Arabic, mixed and Latin lines. It writes the engine's
  * raw word order and the reconstructed text to a report.
  *
- * Gated behind `SYSTEM_OCR_RTL_SMOKE=true`; the rendered page is left in `build/rtl-smoke/`.
+ * Runs under `smokeTest`, which sets `SYSTEM_OCR_RTL_SMOKE=true`; the rendered page is left in `build/rtl-smoke/`.
  */
+@Tag("smoke")
 class WindowsRtlOcrSmokeTest {
 
     private companion object {

@@ -5,10 +5,12 @@ import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckRequest
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 import com.github.ahatem.qtranslate.plugins.systemservices.spell.WindowsSpellCheckerBackend
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Tag
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+@Tag("smoke")
 class WindowsSpellCheckerSmokeTest {
     @Test fun `real Windows spelling preserves ranges and suggestions`() = runBlocking {
         if (System.getenv("SYSTEM_SPELL_SMOKE") != "true" || !System.getProperty("os.name").startsWith("Windows")) return@runBlocking

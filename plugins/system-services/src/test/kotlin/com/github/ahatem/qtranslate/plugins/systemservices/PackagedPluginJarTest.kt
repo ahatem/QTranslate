@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.plugins.systemservices.backend.MAC_VISION_HE
 import com.github.ahatem.qtranslate.plugins.systemservices.spell.SystemSpellCheckerBackends
 import java.io.File
 import java.util.zip.ZipFile
+import org.junit.jupiter.api.Tag
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -13,10 +14,11 @@ import kotlin.test.assertTrue
  * Inspects the JAR this build produced rather than the source tree, since packaging mistakes live in
  * the gap between the two.
  *
- * The Gradle test task passes the JAR path in `systemServices.pluginJar` and whether a macOS helper was
+ * The `packagingTest` task (part of `check`) passes the JAR path in `systemServices.pluginJar` and whether a macOS helper was
  * available to the build in `systemServices.macHelperPackaged`. Run outside Gradle, both are absent and
  * the checks skip.
  */
+@Tag("packaging")
 class PackagedPluginJarTest {
 
     private val jarPath: String? = System.getProperty("systemServices.pluginJar")
