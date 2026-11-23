@@ -23,7 +23,7 @@ import kotlinx.coroutines.swing.Swing
  * after the keystroke has already updated the document. [com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane.render]
  * cannot distinguish that stale echo from a programmatic change, so it rewrites the whole
  * document: a just-deleted character comes back, a just-typed character is dropped, the caret
- * jumps and the undo history is discarded (#413).
+ * jumps and the undo history is discarded.
  *
  * Collection and rendering belong to the same UI event stream. Starting the collector on Swing
  * means each snapshot is read at an EDT event boundary, after any input event ahead of it has

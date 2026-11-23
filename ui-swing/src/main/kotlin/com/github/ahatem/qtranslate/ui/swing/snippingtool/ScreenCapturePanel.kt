@@ -45,7 +45,7 @@ class ScreenCapturePanel(
 
     /**
      * The primary Translate action of the capture toolbar. Exposed so the owning
-     * dialog can install it as the root pane's default button (#364). It is
+     * dialog can install it as the root pane's default button. It is
      * disabled while no valid selection exists, so Enter can only trigger a real
      * capture.
      */
@@ -93,7 +93,7 @@ class ScreenCapturePanel(
 
         // The toolbar (and the Translate action with it) only makes sense once a
         // real region is selected; keep the primary action disabled before that so
-        // the dialog's default button cannot fire an empty capture (#364). The
+        // the dialog's default button cannot fire an empty capture. The
         // validity rule mirrors ScreenCaptureController.mouseReleased.
         val selection = state.selection
         val validSelection = selection != null && selection.width > 0 && selection.height > 0

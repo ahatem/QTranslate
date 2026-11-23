@@ -14,9 +14,9 @@ import com.sun.jna.win32.StdCallLibrary
  * non-zero value means light. It is read with `advapi32!RegGetValueW`, which needs no key
  * handle to open and therefore none to close on any path, including failure.
  *
- * Reading in-process is the point. The 10-second follow-the-OS check used to shell out to
- * `reg.exe`; that recurring child-process lifecycle matches the cadence of the "Program Close"
- * sound reported in #323, and it was wasteful either way.
+ * Reading in-process is the point. Shelling out to `reg.exe` on the 10-second follow-the-OS
+ * check would recur a child-process lifecycle at the cadence of the "Program Close" sound, and
+ * would be wasteful either way.
  *
  * The native binding is a constructor parameter so tests can drive every outcome, including a
  * failing registry call; production uses [create].

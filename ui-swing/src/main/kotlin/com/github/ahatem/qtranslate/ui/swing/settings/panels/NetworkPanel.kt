@@ -31,9 +31,9 @@ import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconSet
  *
  * ### Why these are here rather than on each plugin
  * A proxy is a property of where the user is sitting. So is a timeout, mostly. Neither is a
- * property of which translation service is selected, and before this page there was nowhere to say
- * so once: a corporate proxy meant every plugin needing its own answer, which is to say no answer
- * at all. Plugins are handed a client already configured from this and never see it.
+ * property of which translation service is selected, so without this page there would be nowhere
+ * to say so once: a corporate proxy would mean every plugin needing its own answer, which is to
+ * say no answer at all. Plugins are handed a client already configured from this and never see it.
  *
  * ### What applies when
  * Everything here takes effect for clients built after it is saved. A plugin already running keeps
@@ -112,7 +112,7 @@ class NetworkPanel(
                 onEdit { access.write(String(password)) }
             }
             // A stored credential is not a setting, and it cannot be undone: clearing the field by
-            // hand already removed it on Apply, but nothing said so and nothing made it deliberate.
+            // hand removes it on Apply, but nothing says so and nothing makes it deliberate.
             // The explicit action says what it does, and "empty means remove" is stated once in the
             // hint rather than left to be guessed.
             proxyPasswordClearButton = JButton(

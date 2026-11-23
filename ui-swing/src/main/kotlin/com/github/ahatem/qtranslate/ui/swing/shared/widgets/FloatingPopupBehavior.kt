@@ -313,9 +313,9 @@ class FloatingPopupBehavior(
     /**
      * Animates opacity, cancelling any fade already running.
      *
-     * Restarting rather than refusing while one is in flight: an earlier version guarded against
-     * re-entry and so dropped the fade back to transparency whenever the mouse entered and left
-     * within a single animation.
+     * Restarting rather than refusing while one is in flight: guarding against re-entry would
+     * drop the fade back to transparency whenever the mouse enters and leaves within a single
+     * animation.
      */
     fun fadeTo(target: Float, durationMs: Int = idleFadeMs) {
         fadeTimer?.stop()

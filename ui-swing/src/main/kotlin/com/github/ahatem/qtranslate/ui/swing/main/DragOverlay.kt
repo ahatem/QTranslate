@@ -17,9 +17,9 @@ import javax.swing.UIManager
 /**
  * The "drop it here" sheet drawn over the whole window while a file is dragged across it.
  *
- * Worth having only because there is now a single drop target: when images and documents were
- * handled in two places that disagreed about what they accepted, no honest overlay could have been
- * drawn — it would have promised a drop the pane underneath would then discard.
+ * Worth having only because there is a single drop target: with images and documents handled in
+ * two places that disagreed about what they accepted, no honest overlay could be drawn, since it
+ * would promise a drop the pane underneath would then discard.
  *
  * @param onLabel supplies the message, read fresh each time so it follows the interface language.
  */

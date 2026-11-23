@@ -960,7 +960,7 @@ internal class PluginSettingsForm(
 
     private fun firstFocusable(comp: JComponent): Component? {
         // Two passes: a container reports itself focusable even when its only child cannot be
-        // focused (a disabled picker), which used to hand focus to a row instead of a field.
+        // focused (a disabled picker), which would hand focus to a row instead of a field.
         if (comp.isFocusable && comp !is Container) return comp
         val children = comp.components.filterIsInstance<Component>()
         children.firstOrNull { it.isFocusable && it !is Container }?.let { return it }

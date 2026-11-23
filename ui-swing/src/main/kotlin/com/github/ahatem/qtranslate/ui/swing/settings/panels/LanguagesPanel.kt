@@ -39,8 +39,8 @@ import javax.swing.table.DefaultTableModel
  * 3. **Translation Rules** — per-source-language forced target overrides displayed
  *    as a two-column table. Add / Remove buttons below.
  *
- * Dictionary auto-lookup used to live here. It is behaviour rather than language
- * configuration, and now sits in [TranslationPanel] with the rest of it.
+ * Dictionary auto-lookup is behaviour rather than language configuration, so it lives in
+ * [TranslationPanel] with the rest of it.
  */
 class LanguagesPanel(
     private val store: SettingsStore,

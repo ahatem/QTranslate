@@ -31,11 +31,11 @@ internal sealed interface ClipboardImageCandidate {
 /**
  * Decides what a [Transferable] holds.
  *
- * This exists because the answer used to be worked out in two places — the input pane and the
- * frame — which disagreed. The pane claimed every file list, including documents it could not
- * open, so a `.docx` dropped on it was accepted and then silently discarded instead of reaching
- * the frame's handler. Document drop therefore worked only on window chrome, which is the part of
- * the window nobody aims at.
+ * This exists because working the answer out separately in the input pane and the frame lets
+ * them disagree. A pane that claims every file list, including documents it cannot open, accepts
+ * a dropped `.docx` and then silently discards it instead of letting it reach the frame's
+ * handler, so document drop would work only on window chrome, which is the part of the window
+ * nobody aims at.
  *
  * One classifier, one answer, and the two callers differ only in what they do with it.
  */
@@ -80,10 +80,10 @@ object DroppedContentClassifier {
      *
      * It deliberately does not look at the contents, because it cannot: during a drag the data is
      * not readable yet — Windows hands it over only once the drop has been accepted, and asking
-     * early throws. An earlier version inspected the file list here to check the extensions, and
-     * the result was that every file drag was silently refused, since the read failed every time
-     * and a failed read looked exactly like "nothing here I want". Pasting the same file worked,
-     * because clipboard data has no such restriction.
+     * early throws. Inspecting the file list here to check the extensions would silently refuse
+     * every file drag, since the read fails every time and a failed read looks exactly like
+     * "nothing here I want". Pasting the same file works, because clipboard data has no such
+     * restriction.
      *
      * So any file list is accepted and [classify] decides for real after the drop. A file this
      * application has no use for simply does nothing, which is the correct outcome anyway.

@@ -235,18 +235,15 @@ class TranslationPanel(
         addHint(localizationManager.getString("settings_translation.standard_options_hint"))
 
         // ── Dictionary lookup ────────────────────────────────────────────────
-        // Moved here from Languages. It decides what happens after a translation, which is
-        // behaviour; its localization keys were already `settings_translation.*`, so it had
-        // drifted away from where it was written to belong.
+        // It decides what happens after a translation, which is behaviour, so it belongs here
+        // and not on the Languages page.
         //
-        // The on/off switch and the source choice used to be one three-way dropdown (Off /
-        // Translated / Source), which hid "off" as a value alongside two real choices rather than
-        // as its own state. A checkbox plus a radio group that only matters while it's checked says
-        // the same thing more directly. This still writes the same three-value
-        // Configuration.dictionaryAutoSource field -- no new field, no migration -- the checkbox
-        // reads/writes `!= OFF`, and turning it back on restores whichever radio was last shown
-        // rather than resetting to a fixed choice, the same as reselecting a non-Off dropdown entry
-        // used to.
+        // The on/off switch and the source choice are a checkbox plus a radio group that only
+        // matters while it's checked, rather than one three-way dropdown that would hide "off" as
+        // a value alongside two real choices. They write the three-value
+        // Configuration.dictionaryAutoSource field: the checkbox reads/writes `!= OFF`, and
+        // turning it back on restores whichever radio was last shown rather than resetting to a
+        // fixed choice.
         addSeparator(localizationManager.getString("settings_languages.dict_auto_lookup_group"))
         addHint(localizationManager.getString("settings_languages.dict_auto_lookup_hint"))
 
@@ -299,15 +296,11 @@ class TranslationPanel(
             onChange = { enabled -> applyDraft(store) { it.copy(showDictionaryPanel = enabled) } }
         )
 
-        // "Show floating popup for single words" used to sit here, indented under the checkbox as
-        // if it were its own presentation choice. It never controlled a popup: the coordinator read
-        // it as the master gate for every kind of automatic lookup, so unchecking it silently
-        // disabled inline and docked lookup too, while checking it did nothing visible unless the
-        // main checkbox happened to be on. The popup itself has not opened automatically since
-        // 1.4.0 ("The dictionary popup no longer opens by itself whenever a single word is
-        // translated"), and it still opens on request with its own hotkey. The control that
-        // promised the removed behaviour is gone; Configuration.isDictionaryAutoPopupEnabled stays
-        // in the file so old configurations keep loading unchanged.
+        // There is deliberately no "Show floating popup for single words" control here. The popup
+        // does not open automatically (as the 1.4.0 release notes state) and opens on request with
+        // its own hotkey, so a control promising otherwise would mislead.
+        // Configuration.isDictionaryAutoPopupEnabled stays in the file so old configurations keep
+        // loading unchanged.
         finishLayout()
     }
 

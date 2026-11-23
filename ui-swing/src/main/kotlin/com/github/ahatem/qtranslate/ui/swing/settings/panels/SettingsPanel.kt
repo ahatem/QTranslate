@@ -381,9 +381,9 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      *
      * Two passes, because several pickers are built disabled and enabled once their contents have
      * loaded (the interface-language list, the font families). `JComboBox.isFocusable()` answers
-     * `false` while it is disabled, so a single pass found nothing and the label ended up pointing
-     * at the row's container instead of at the picker — a regression that only showed up as a
-     * screen reader saying "Interface Language, panel". The second pass therefore accepts the
+     * `false` while it is disabled, so a single pass finds nothing and the label ends up pointing
+     * at the row's container instead of at the picker, which a screen reader announces as
+     * "Interface Language, panel". The second pass therefore accepts the
      * input controls that will take focus once enabled.
      */
     /**
@@ -391,9 +391,9 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      *
      * Two passes, because several pickers are built disabled and enabled once their contents have
      * loaded (the interface-language list, the font families). `JComboBox.isFocusable()` answers
-     * `false` while it is disabled, so a single pass over "focusable components" found nothing and
-     * the label ended up pointing at the row's container — a regression that only showed up as a
-     * screen reader saying "Interface Language, panel".
+     * `false` while it is disabled, so a single pass over "focusable components" finds nothing and
+     * the label ends up pointing at the row's container, which a screen reader announces as
+     * "Interface Language, panel".
      *
      * The first pass refuses containers. A composite row (a picker with its actions beside it, a
      * field with a button) is itself a `JPanel`, and a `JPanel` can report itself focusable; taking
@@ -729,7 +729,7 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
      * A border that insets the leading edge only, resolving which edge that is at painting time.
      *
      * `EmptyBorder` takes absolute sides and therefore cannot follow `componentOrientation`, which
-     * is applied after panels are built. A fixed left inset put the whole indentation on the
+     * is applied after panels are built. A fixed left inset puts the whole indentation on the
      * trailing side in Arabic, where it read as ragged spacing instead of as nesting.
      */
     private fun leadingInset(leading: Int): javax.swing.border.Border = object : AbstractBorder() {
@@ -755,16 +755,16 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
         /**
          * The vertical rhythm, in one place.
          *
-         * Four numbers were chosen separately at four call sites and drifted: a section break sat
-         * twenty-six pixels above its title while the rows under it sat four apart, which at 150%
-         * scale is a forty-pixel hole between groups and a cramped list inside them. They are one
-         * scale now — attached, separated, sectioned. Every value here is scaled at its point of
-         * use, not stored pre-scaled.
+         * Four numbers chosen separately at four call sites drift apart: a section break
+         * twenty-six pixels above its title while the rows under it sit four apart is, at 150%
+         * scale, a forty-pixel hole between groups and a cramped list inside them. They are one
+         * scale: attached, separated, sectioned. Every value here is scaled at its point of use,
+         * not stored pre-scaled.
          *
-         * The section gap grew when the levels were separated for the owner's review: at eleven
-         * pixels a section break was barely wider than the gap between a sub-section and its own
-         * rows, so the two levels of grouping still looked alike even after the type was fixed.
-         * Space is the cheapest hierarchy there is, and this is the one gap meant to be noticed.
+         * The section gap is wide because at eleven pixels a section break is barely wider than
+         * the gap between a sub-section and its own rows, so the two levels of grouping look
+         * alike even when the type differs. Space is the cheapest hierarchy there is, and this is
+         * the one gap meant to be noticed.
          */
         const val ROW_GAP = 4
 

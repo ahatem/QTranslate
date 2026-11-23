@@ -18,14 +18,14 @@ import javax.swing.text.StyleConstants
 /**
  * A short definition shown under a translation, for single words.
  *
- * Deliberately a separate strip rather than text appended to the translation itself, which is how
- * this used to be done elsewhere. Appended text ends up in the clipboard: copying a translated
- * word would hand you the word *and* a dictionary entry, which is almost never what was wanted.
- * Keeping it out of the output pane keeps copy honest.
+ * Deliberately a separate strip rather than text appended to the translation itself. Appended
+ * text ends up in the clipboard: copying a translated word would hand you the word *and* a
+ * dictionary entry, which is almost never what was wanted. Keeping it out of the output pane
+ * keeps copy honest.
  *
  * Styled as an aside — smaller, dimmer, set apart from the answer — because it is a detail
  * attached to the answer and not the answer. It hides itself entirely when there is nothing to
- * say, so a multi-word translation is laid out exactly as it was before this existed.
+ * say, so a multi-word translation is laid out exactly as if it were not there.
  *
  * @param showDivider whether to draw a hairline above the definition.
  *

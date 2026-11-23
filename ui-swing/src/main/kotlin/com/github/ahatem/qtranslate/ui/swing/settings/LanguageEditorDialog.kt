@@ -160,9 +160,9 @@ class LanguageEditorDialog(
     /**
      * The block describing the language itself, above the strings.
      *
-     * Always open. It used to collapse behind a borderless "Details" button in the top-right, to
-     * buy four more rows a screen — but nobody found the button, so what it actually bought was a
-     * window whose language had no name on it. Four rows are cheaper than that.
+     * Always open. Collapsing it behind a borderless "Details" button to buy four more rows a
+     * screen would leave a window whose language has no name on it, because nobody finds the
+     * button. Four rows are cheaper than that.
      */
     private fun buildHeader(): JComponent {
         val details = detailsPanel.apply {
@@ -422,10 +422,8 @@ class LanguageEditorDialog(
     /**
      * Only the two actions that finish with the dialog.
      *
-     * It used to hold five buttons of three different scopes in a row: two that acted on the
-     * selected table rows, one that destroyed the file, and two that closed the window. Sorting
-     * them by what they act on put the row actions with the rows and the delete with the rest of
-     * the language's own settings, and left this bar saying one thing.
+     * Buttons are grouped by what they act on: the row actions sit with the rows and the delete
+     * sits with the rest of the language's own settings, which leaves this bar saying one thing.
      */
     private fun buildFooter(): JComponent {
         val saveButton = JButton(text("save")).apply { addActionListener { save() } }

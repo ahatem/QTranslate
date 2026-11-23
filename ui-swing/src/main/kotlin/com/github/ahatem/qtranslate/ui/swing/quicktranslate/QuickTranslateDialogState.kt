@@ -28,14 +28,14 @@ data class QuickTranslateDialogState(
     /** Short definition for a single-word result; empty for anything longer. */
     val definition: String,
 
-    // --- The Data is now a first-class citizen ---
+    // --- Data ---
     val sourceLanguage: LanguageCode,
     val targetLanguage: LanguageCode,
     /**
      * Languages the active translator offers, for the popup's own pickers.
      *
-     * The pair used to be shown as static text, so retargeting a translation meant opening the
-     * main window — a context switch for the most common follow-up thought there is.
+     * Showing the pair as static text would make retargeting a translation mean opening the
+     * main window, a context switch for the most common follow-up thought there is.
      */
     val availableLanguages: List<LanguageCode> = emptyList(),
     /**

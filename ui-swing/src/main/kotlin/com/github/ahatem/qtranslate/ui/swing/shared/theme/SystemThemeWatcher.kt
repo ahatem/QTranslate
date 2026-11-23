@@ -11,12 +11,12 @@ import kotlinx.coroutines.flow.map
  * only while the selected theme is [ThemeManager.OS_DEFAULT_THEME_ID].
  *
  * The selected theme arrives as a flow: leaving the OS-default theme cancels the polling loop
- * before its next tick, so a fixed theme never asks the system for its mode at all (#323), and
+ * before its next tick, so a fixed theme never asks the system for its mode at all, and
  * returning to it starts a fresh loop seeded with the mode in effect at that moment.
  *
  * Polling stays at [pollIntervalMs] because neither platform offers a change notification for
- * this preference without extra platform code, and on Windows a poll is now a registry read
- * instead of a child process.
+ * this preference without extra platform code, and on Windows a poll is a registry read rather
+ * than a child process.
  */
 internal class SystemThemeWatcher(
     private val isSystemInDarkMode: () -> Boolean = { ThemeManager.isSystemInDarkMode() },

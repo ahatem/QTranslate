@@ -29,8 +29,8 @@ import javax.swing.ScrollPaneConstants
  * A `JList` with a custom cell renderer rather than a column of panels: the list brings keyboard
  * navigation, type-ahead, single selection, scroll-to-selection and an accessible table model for
  * free, and FlatLaf draws the selection pill — including its inactive and focused states — from
- * `List.selection*`. Building the same thing out of panels meant re-implementing all of that and
- * hand-painting selection with colours picked by hand, which is how the rows used to be painted.
+ * `List.selection*`. Building the same thing out of panels would mean re-implementing all of that
+ * and hand-painting selection with colours picked by hand.
  *
  * What this class adds on top of a plain `JList`:
  *

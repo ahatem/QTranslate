@@ -5,12 +5,11 @@ import com.github.ahatem.qtranslate.ui.swing.settings.panels.SettingsPanel
 /**
  * One row in the search results: something a query can find, and what choosing it does.
  *
- * Settings search could originally only find *settings* — rows that a page happened to register
- * while it was being built. That left two kinds of thing unfindable in a dialog whose whole point
- * is finding things: the pages themselves (there was no way to type "popups" and go to Popups),
- * and the actions that are not settings but live on these pages (opening the plugin manager,
- * resetting a page). Both are modelled here so that the index is an index of the dialog rather
- * than of its form fields.
+ * Settings are not the only thing a query must find, though they are the rows a page registers
+ * while it is being built. In a dialog whose whole point is finding things, the pages themselves
+ * (typing "popups" goes to Popups) and the actions that are not settings but live on these pages
+ * (opening the plugin manager, resetting a page) must be findable too. Both are modelled here so
+ * that the index is an index of the dialog rather than of its form fields.
  *
  * A page hit is deliberately separate from its settings' hits: matching the page *label* against
  * every row on that page made a query like "network" answer with thirty rows, which is a worse

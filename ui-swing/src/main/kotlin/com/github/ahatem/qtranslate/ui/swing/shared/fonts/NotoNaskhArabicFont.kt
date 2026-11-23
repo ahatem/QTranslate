@@ -5,7 +5,7 @@ import com.formdev.flatlaf.util.FontUtils
 /**
  * The bundled Arabic face, kept as a known-good option rather than the universal fallback.
  *
- * QTranslate's default fallback is now [com.github.ahatem.qtranslate.core.settings.data.FontConfig.AUTOMATIC],
+ * QTranslate's default fallback is [com.github.ahatem.qtranslate.core.settings.data.FontConfig.AUTOMATIC],
  * which asks the platform for whatever it has. This face remains available for three reasons:
  * a user may pick it explicitly, an existing configuration may already name it, and the shaped-text
  * suite uses it as a known-good Arabic fixture ([RubikSansFont]'s incomplete shaping tables are the

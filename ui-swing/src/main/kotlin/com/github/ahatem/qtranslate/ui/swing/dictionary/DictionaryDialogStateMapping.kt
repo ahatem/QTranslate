@@ -77,7 +77,7 @@ internal fun buildQuickDictionaryDialogState(
             autoPositionEnabled  = config.isQuickDictionaryAutoPositionEnabled,
             lastKnownSize        = config.quickDictionaryLastKnownSize,
             lastKnownPosition    = config.quickDictionaryLastKnownPosition,
-            // The main window now always docks its own lookups, so this popup is only ever
+            // The main window always docks its own lookups, so this popup is only ever
             // opened from the global hotkey, which fires with the pointer over the selection.
             positionNearMouse    = true,
             idleTimeoutSeconds   = config.quickDictionaryIdleTimeoutSeconds,

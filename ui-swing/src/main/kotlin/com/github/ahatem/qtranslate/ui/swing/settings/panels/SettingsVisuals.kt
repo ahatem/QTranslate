@@ -10,13 +10,12 @@ import kotlin.math.min
 /**
  * The four levels a Settings page has to be readable at, expressed once as tokens.
  *
- * The dialog previously used whatever the look and feel happened to hand out: a section heading
- * was the panel's own font one point larger, a sub-heading was the same font shrunk and dimmed,
- * an ordinary label was plain, and an explanation was the *disabled* color at a smaller size.
- * Two of those levels came out within a pixel and a shade of each other, so the page read as one
- * undifferentiated list: the owner could not tell a group heading from the name of a setting, and
- * the explanations sat in a color that either competed with the text above it or all but vanished,
- * depending on which theme was loaded.
+ * Taking whatever the look and feel happens to hand out is not enough: a section heading as the
+ * panel's own font one point larger, a sub-heading as the same font shrunk and dimmed, a plain
+ * label, and an explanation in the *disabled* color at a smaller size leave two of those levels
+ * within a pixel and a shade of each other. The page then reads as one undifferentiated list: a
+ * group heading cannot be told from the name of a setting, and the explanations either compete
+ * with the text above them or all but vanish, depending on which theme is loaded.
  *
  * So the levels are separated on purpose, and the separation is measured rather than guessed:
  *

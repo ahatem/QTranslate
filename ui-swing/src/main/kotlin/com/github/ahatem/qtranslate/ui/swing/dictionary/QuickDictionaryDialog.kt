@@ -367,8 +367,8 @@ class QuickDictionaryDialog(
         searchField.addActionListener { triggerLookup() }
         lookupButton.addActionListener { triggerLookup() }
 
-        // Typing is the clearest possible sign the popup is still wanted, and it used to count
-        // for nothing: with the pointer parked outside, a word typed slowly disappeared under the
+        // Typing is the clearest possible sign the popup is still wanted. If it did not count as
+        // activity, a word typed slowly with the pointer parked outside would disappear under the
         // person typing it.
         searchField.addKeyListener(object : KeyAdapter() {
             override fun keyPressed(e: KeyEvent) = noteUserActivity()

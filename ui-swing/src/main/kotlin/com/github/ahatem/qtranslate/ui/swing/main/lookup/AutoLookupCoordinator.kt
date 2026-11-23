@@ -22,10 +22,9 @@ import kotlinx.coroutines.withContext
  * ### What switches this on
  * [com.github.ahatem.qtranslate.core.settings.data.Configuration.dictionaryAutoSource] is the only
  * master switch: `OFF` means no automatic lookup of any kind, and the other two values choose which
- * side of the translation is looked up. Nothing else may gate this. The floating Quick Dictionary
- * popup used to gate it — the checkbox labelled "show floating popup for single words" silently
- * disabled inline and docked lookup — which made the master checkbox on that page decorative and
- * turned a presentation choice into a hidden kill switch.
+ * side of the translation is looked up. Nothing else may gate this. Letting the floating Quick
+ * Dictionary popup gate it would make the master checkbox decorative and turn a presentation
+ * choice into a hidden kill switch.
  *
  * ### What it produces
  * 1. A one-line inline definition for a single word, shown under the translation.
@@ -34,9 +33,8 @@ import kotlinx.coroutines.withContext
  *
  * ### What it deliberately does not do
  * It never opens the floating dictionary popup. That popup opens on request (`Ctrl+D`) and nothing
- * else, which is the behaviour the 1.4.0 release notes describe: "The dictionary popup no longer
- * opens by itself whenever a single word is translated." Reviving it here would reinstate a
- * removed behaviour rather than fix a broken one.
+ * else: the popup does not open by itself whenever a single word is translated, as the 1.4.0
+ * release notes state. Opening it from here would reinstate a removed behaviour.
  */
 class AutoLookupCoordinator(
     private val mainState: StateFlow<MainState>,

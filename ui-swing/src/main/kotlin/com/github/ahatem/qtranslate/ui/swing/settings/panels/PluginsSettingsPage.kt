@@ -16,13 +16,12 @@ import javax.swing.border.MatteBorder
 /**
  * The Plugins page: the plugin manager, inside Settings, with its immediacy stated at the top.
  *
- * ### Why it is a page again
+ * ### Why it is a page
  *
- * An earlier revision moved the whole manager into its own window and left Settings holding a link
- * to it. That solved a real problem — the list used to sit inside a dialog whose Apply/Cancel
- * implied it could undo an install — but it made plugins something the user has to be sent *to*,
- * and Settings is where people look for them. IntelliJ keeps plugins in Settings for the same
- * reason.
+ * A manager in its own window with only a link in Settings would avoid a dialog whose
+ * Apply/Cancel implies it could undo an install, but it would make plugins something the user
+ * has to be sent *to*, and Settings is where people look for them. IntelliJ keeps plugins in
+ * Settings for the same reason.
  *
  * The honest way to keep both properties is to say what is true, on the page: everything here takes
  * effect immediately, Apply and Cancel do not govern it, and closing the dialog with Cancel cannot

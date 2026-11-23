@@ -228,7 +228,7 @@ class WrappingEditorKit : StyledEditorKit() {
 
         private fun breakAt(p0: Int, fit: Int): View {
             // Only a break at or before the last position that fits: a row's preferred span may not
-            // exceed the length it was given (#374). The JDK's own GlyphView draws the same line —
+            // exceed the length it was given. The JDK's own GlyphView draws the same line:
             // a break spot inside the bounded region, else a fragment ending at the bound.
             val spot = LineBreakOpportunities.lastIn(document, p0, fit)
             var end = if (spot > p0) spot else fit

@@ -311,7 +311,7 @@ class PluginsPanel(
 
         // A split pane rather than two panels side by side: how wide the list should be is the
         // reader's call — a plugin name is long in one language and short in another — and the
-        // divider is also where the rule between the two halves is now drawn, instead of a matte
+        // divider is also where the rule between the two halves is drawn, rather than a matte
         // border baked onto the list's edge. FlatLaf draws the divider and its grip, so it follows
         // the theme like everything else.
         // The same split pane the workspace docks use: `MirroredSplitPane` arranges a right-to-left
@@ -370,10 +370,9 @@ class PluginsPanel(
     /**
      * Gives the two halves their padding and the filter row its rule.
      *
-     * The line between the list and the detail pane used to be drawn here, as a matte border on
-     * whichever edge faced the other panel. The split pane's own divider draws it now, which is
-     * also what lets the divider be dragged; only the padding either side is left to set, and it
-     * still has to be restored on a theme change because a border keeps the colour it was given.
+     * The line between the list and the detail pane is drawn by the split pane's own divider,
+     * which is also what lets the divider be dragged; only the padding either side is set here,
+     * and it has to be restored on a theme change because a border keeps the colour it was given.
      */
     private fun refreshLeftBorder() {
         val line = UIManager.getColor("Component.borderColor") ?: Color.GRAY
@@ -613,8 +612,8 @@ class PluginsPanel(
             isOpaque = false
             add(JLabel(headerIcon))
             add(nameLabel)
-            // What the plugin can do, where there is room to say it: a list row is 290 px wide and
-            // this was the text that used to be cut there mid-word.
+            // What the plugin can do, where there is room to say it: a list row is 290 px wide, so
+            // spelling the roles out as text would be cut there mid-word.
             plugin.services.mapNotNull { it.role }.distinct().forEach { role ->
                 add(JLabel(roleIcon(role, ROLE_GLYPH)).apply {
                     toolTipText = role.readableName(localizationManager)
