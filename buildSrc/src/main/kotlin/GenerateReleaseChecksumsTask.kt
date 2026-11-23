@@ -1,4 +1,3 @@
-import java.security.MessageDigest
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
@@ -25,8 +24,7 @@ abstract class GenerateReleaseChecksumsTask : DefaultTask() {
             .sortedBy { it.relativeTo(root).invariantSeparatorsPath }
             .toList()
         val lines = artifacts.map { artifact ->
-            val digest = MessageDigest.getInstance("SHA-256").digest(artifact.readBytes())
-            val hash = digest.joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+            val hash = sha256Hex(artifact.readBytes())
             "$hash  ${artifact.relativeTo(root).invariantSeparatorsPath}"
         }
         checksumFile.apply {
