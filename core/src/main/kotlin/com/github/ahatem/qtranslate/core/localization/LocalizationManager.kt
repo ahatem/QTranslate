@@ -286,9 +286,6 @@ class LocalizationManager(
         )
     }
 
-    fun getLanguageMeta(language: LanguageCode): LocalizedLanguageMeta? =
-        languageMetaCache[language]
-
     // -------------------------------------------------------------------------
     // Embedded fallback
     // -------------------------------------------------------------------------

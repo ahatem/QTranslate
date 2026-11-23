@@ -54,7 +54,6 @@ data class CommandSpec(
     /** Whether the settings keyboard panel offers a row for this action. */
     val editable: Boolean,
 ) {
-    val hasDefaultBinding: Boolean get() = defaultBinding.hasBinding
     val defaultScope: HotkeyScope get() = defaultBinding.scope
 }
 

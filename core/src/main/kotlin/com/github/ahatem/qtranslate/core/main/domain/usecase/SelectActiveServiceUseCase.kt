@@ -112,18 +112,6 @@ class SelectActiveServiceUseCase(
             )
         }
 
-    /**
-     * Returns the supported languages for a specific translator service.
-     * Used when the user manually selects a different translator to refresh the
-     * language list without waiting for the next [observe] emission.
-     */
-    suspend fun getLanguagesFor(serviceId: String?): List<LanguageCode> {
-        if (serviceId == null) return emptyList()
-        val translator = activeServices.value[serviceId] as? Translator ?: return emptyList()
-        if (settingsState.value.isServiceDisabled(serviceId, ServiceRole.TRANSLATOR)) return emptyList()
-        return resolveLanguagesSuspending(serviceId, translator)
-    }
-
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------
@@ -152,27 +140,6 @@ class SelectActiveServiceUseCase(
                     fetchAndCacheDynamicLanguages(serviceId, translator)
                     emptyList()
                 }
-            }
-        }
-
-    /**
-     * Suspending version for direct calls (e.g. [getLanguagesFor]).
-     */
-    private suspend fun resolveLanguagesSuspending(
-        serviceId: String,
-        translator: Translator
-    ): List<LanguageCode> =
-        when (val supported = translator.supportedLanguages) {
-            is SupportedLanguages.All      -> LanguageCode.commonLanguages()
-            is SupportedLanguages.Specific -> supported.languages.toList()
-            is SupportedLanguages.Dynamic  -> {
-                dynamicLanguageCache.value[serviceId]
-                    ?: translator.fetchSupportedLanguages()
-                        .getOr(emptySet())
-                        .toList()
-                        .also { languages ->
-                            dynamicLanguageCache.value += (serviceId to languages)
-                        }
             }
         }
 

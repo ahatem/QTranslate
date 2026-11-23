@@ -32,13 +32,6 @@ sealed class PluginError(
         override val cause: Throwable?
     ) : PluginError(pluginId, message, cause)
 
-    /** `Plugin.onDisable()` threw an unexpected exception. */
-    data class DisableFailure(
-        override val pluginId: String,
-        override val message: String,
-        override val cause: Throwable?
-    ) : PluginError(pluginId, message, cause)
-
     /**
      * Two JARs in the plugins directory declared the same plugin ID.
      * Both are rejected — the user must resolve the conflict manually.
