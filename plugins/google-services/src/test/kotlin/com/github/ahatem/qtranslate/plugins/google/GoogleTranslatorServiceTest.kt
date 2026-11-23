@@ -21,6 +21,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.concurrent.atomic.AtomicLong
@@ -248,16 +249,16 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `a rate limited primary does not delay the fallback`() = runBlocking {
+    fun `a rate limited primary does not delay the fallback`() = runTest {
         val client = GoogleTestHttpClient(
             primaryHandler = { Err(ServiceError.RateLimitError("rate limited", retryAfterSeconds = 5)) },
             fallbackHandler = { Ok(FALLBACK_FLAT) }
         )
         val service = createService(client, AtomicLong(0))
 
-        val startedAt = System.nanoTime()
+        val startedAt = testScheduler.currentTime
         service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
-        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+        val elapsedMillis = testScheduler.currentTime - startedAt
 
         // The request is not held for the Retry-After the transport would otherwise have honoured
         // before retrying; the fallback answers straight away.
@@ -1125,7 +1126,7 @@ class GoogleTranslatorServiceTest {
     // circuit. The translator keeps a private note instead and re-probes the primary later.
 
     @Test
-    fun `a slow primary no longer holds back a working fallback`() = runBlocking {
+    fun `a slow primary no longer holds back a working fallback`() = runTest {
         val client = GoogleTestHttpClient(
             primaryHandler = { index ->
                 // Throttled into a slow body rather than a 429: still working, not answering yet.
@@ -1136,9 +1137,9 @@ class GoogleTranslatorServiceTest {
         )
         val service = createService(client, AtomicLong(0), hedgeMillis = 150)
 
-        val startedAt = System.nanoTime()
+        val startedAt = testScheduler.currentTime
         val result = service.translate(request)
-        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+        val elapsedMillis = testScheduler.currentTime - startedAt
 
         result.unwrap().also { assertEquals("Bonjour", it.translatedText) }
         assertEquals(1, client.fallbackCalls)
@@ -1149,7 +1150,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `a slow primary still serves the request when the fallback cannot be reached`() = runBlocking {
+    fun `a slow primary still serves the request when the fallback cannot be reached`() = runTest {
         val client = GoogleTestHttpClient(
             primaryHandler = { index ->
                 delay(400)
@@ -1159,9 +1160,9 @@ class GoogleTranslatorServiceTest {
         )
         val service = createService(client, AtomicLong(0), hedgeMillis = 100)
 
-        val startedAt = System.nanoTime()
+        val startedAt = testScheduler.currentTime
         val result = service.translate(request)
-        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+        val elapsedMillis = testScheduler.currentTime - startedAt
 
         // The fallback was asked because the primary missed the budget, it refused the
         // connection, and the primary's own answer is still the one returned: an unreachable
@@ -1174,7 +1175,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `a primary that keeps missing the hedge budget is answered by the fallback directly`() = runBlocking {
+    fun `a primary that keeps missing the hedge budget is answered by the fallback directly`() = runTest {
         val clock = AtomicLong(0)
         val client = GoogleTestHttpClient(
             primaryHandler = { index ->
@@ -1198,7 +1199,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `a slow but working primary still serves spell check after two hedged translations`() = runBlocking {
+    fun `a slow but working primary still serves spell check after two hedged translations`() = runTest {
         val clock = AtomicLong(0)
         val health = GoogleEndpointHealth({ clock.get() }, { 0L })
         val client = GoogleTestHttpClient(
@@ -1237,7 +1238,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `the translator returns to the primary once it answers inside the budget again`() = runBlocking {
+    fun `the translator returns to the primary once it answers inside the budget again`() = runTest {
         val clock = AtomicLong(0)
         val health = GoogleEndpointHealth({ clock.get() }, { 0L })
         val client = GoogleTestHttpClient(
@@ -1285,7 +1286,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `a fallback that dies while it is preferred still lets the slow primary serve`() = runBlocking {
+    fun `a fallback that dies while it is preferred still lets the slow primary serve`() = runTest {
         val clock = AtomicLong(0)
         val client = GoogleTestHttpClient(
             primaryHandler = { index ->
@@ -1317,7 +1318,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `a half-open probe is not raced by the hedge so a slow recovery heals the circuit`() = runBlocking {
+    fun `a half-open probe is not raced by the hedge so a slow recovery heals the circuit`() = runTest {
         val clock = AtomicLong(0)
         val health = GoogleEndpointHealth({ clock.get() }, { 0L })
         val client = GoogleTestHttpClient(
@@ -1364,16 +1365,16 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `a fast primary failure reaches the fallback without waiting for the hedge`() = runBlocking {
+    fun `a fast primary failure reaches the fallback without waiting for the hedge`() = runTest {
         val client = GoogleTestHttpClient(
             primaryHandler = { Err(ServiceError.RateLimitError("rate limited")) },
             fallbackHandler = { Ok(FALLBACK_FLAT) }
         )
         val service = createService(client, AtomicLong(0), hedgeMillis = 5_000)
 
-        val startedAt = System.nanoTime()
+        val startedAt = testScheduler.currentTime
         service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
-        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+        val elapsedMillis = testScheduler.currentTime - startedAt
 
         // A 429 is an answer, so the fallback is asked at once rather than at the hedge deadline.
         assertEquals(1, client.fallbackCalls)
@@ -1381,7 +1382,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `an ordinary primary answer never costs a second provider request`() = runBlocking {
+    fun `an ordinary primary answer never costs a second provider request`() = runTest {
         val client = GoogleTestHttpClient(
             primaryHandler = { index ->
                 delay(100)
@@ -1400,7 +1401,7 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `the shipped hedge budget bounds the wait for a slow primary`() = runBlocking {
+    fun `the shipped hedge budget bounds the wait for a slow primary`() = runTest {
         // No hedge override here: this is the delay a user actually gets, with the shipped default.
         val client = GoogleTestHttpClient(
             primaryHandler = { index ->
@@ -1418,9 +1419,9 @@ class GoogleTranslatorServiceTest {
             GoogleEndpointHealth({ 0L }, { 0L })
         )
 
-        val startedAt = System.nanoTime()
+        val startedAt = testScheduler.currentTime
         service.translate(request).unwrap().also { assertEquals("Bonjour", it.translatedText) }
-        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+        val elapsedMillis = testScheduler.currentTime - startedAt
 
         assertTrue(elapsedMillis >= 1_500, "returned before the 2s hedge: ${elapsedMillis}ms")
         assertTrue(elapsedMillis < 6_000, "waited for the throttled primary: ${elapsedMillis}ms")

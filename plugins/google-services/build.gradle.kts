@@ -13,6 +13,7 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation(testFixtures(project(":plugins:common")))
     testImplementation(libs.kotlinxCoroutines)
+    testImplementation(libs.kotlinxCoroutinesTest)
 }
 
 tasks.shadowJar {
