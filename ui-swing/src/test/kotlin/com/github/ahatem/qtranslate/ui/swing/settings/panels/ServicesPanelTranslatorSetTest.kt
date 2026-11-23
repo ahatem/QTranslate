@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
-import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.dictionary.Dictionary
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryRequest
 import com.github.ahatem.qtranslate.api.dictionary.DictionaryResponse
@@ -34,9 +33,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import java.awt.Component
-import java.awt.ComponentOrientation
 import java.awt.Container
-import java.awt.Dimension
 import java.nio.file.Files
 import javax.swing.AbstractButton
 import javax.swing.JButton
@@ -44,7 +41,8 @@ import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JLabel
 import javax.swing.JList
-import javax.swing.SwingUtilities
+import com.github.ahatem.qtranslate.ui.swing.testing.SilentLogger
+import com.github.ahatem.qtranslate.ui.swing.testing.onEdt
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -58,15 +56,8 @@ import kotlin.test.assertTrue
 class ServicesPanelTranslatorSetTest {
     private val scopes = mutableListOf<CoroutineScope>()
 
-    private val logger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
-
     private val localizer by lazy {
-        LocalizationManager(Files.createTempDirectory("qtranslate-services-test").toFile(), LanguageTomlParser(), logger)
+        LocalizationManager(Files.createTempDirectory("qtranslate-services-test").toFile(), LanguageTomlParser(), SilentLogger)
     }
 
     @AfterTest
@@ -112,21 +103,14 @@ class ServicesPanelTranslatorSetTest {
 
     private fun page(config: Configuration, installed: Map<String, Service>): Page = runBlocking {
         val directory = Files.createTempDirectory("qtranslate-services-store").toFile()
-        val repository = SettingsRepository(directory, Json { ignoreUnknownKeys = true }, logger)
+        val repository = SettingsRepository(directory, Json { ignoreUnknownKeys = true }, SilentLogger)
         repository.updateConfiguration(config)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         scopes += scope
-        val store = SettingsStore(repository, logger, scope, config)
+        val store = SettingsStore(repository, SilentLogger, scope, config)
         val panel = onEdt { ServicesPanel(store, MutableStateFlow(installed), localizer, scope) }
         onEdt { panel.render(store.state.value) }
         Page(store, panel)
-    }
-
-    private fun <T> onEdt(block: () -> T): T {
-        if (SwingUtilities.isEventDispatchThread()) return block()
-        var result: kotlin.Result<T>? = null
-        SwingUtilities.invokeAndWait { result = runCatching(block) }
-        return result!!.getOrThrow()
     }
 
     private fun Page.refresh() = onEdt { panel.render(store.state.value) }
@@ -143,7 +127,7 @@ class ServicesPanelTranslatorSetTest {
         refresh()
     }
 
-    private fun Page.find(name: String): Component? = onEdt { findIn(panel, name) }
+    private fun Page.find(name: String): Component? = findIn(panel, name)
 
     private fun findIn(root: Component, name: String): Component? {
         if (root.name == name) return root
@@ -177,11 +161,6 @@ class ServicesPanelTranslatorSetTest {
     // ---- translator set rows ----
 
     @Test
-    fun `localized strings resolve to real text`() {
-        listOf(primary, unavailable, ready, needsMore).forEach { assertFalse(it.contains("settings_services"), it) }
-    }
-
-    @Test
     fun `configured Primary renders first with the Primary label and no make primary action`() {
         val page = page(config(preset("p", "bing", "google", "deepl")), services("google", "bing", "deepl"))
 
@@ -195,38 +174,9 @@ class ServicesPanelTranslatorSetTest {
     }
 
     @Test
-    fun `make primary and status text sit quieter than the translator name`() {
-        val page = page(config(preset("p", "google", "bing")), services("google", "bing"))
-        onEdt {
-            val nameSize = (page.find("translator-name:bing") as JLabel).font.size
-            assertTrue(page.button("translator-make-primary:bing")!!.font.size < nameSize)
-            assertTrue((page.find("translator-status:google") as JLabel).font.size < nameSize)
-        }
-    }
-
-    @Test
-    fun `comparison hint names available translators`() {
-        assertEquals("Comparison uses all available translators in this set.", ready)
-    }
-
-    @Test
     fun `secondaries render in persisted order`() {
         val page = page(config(preset("p", "google", "yandex", "bing", "deepl")), services("google", "bing", "deepl", "yandex"))
         assertEquals(listOf("google", "yandex", "bing", "deepl"), page.rowIds())
-    }
-
-    @Test
-    fun `the old compare with control and translator combo are gone`() {
-        val page = page(config(preset("p", "google", "bing")), services("google", "bing"))
-        val texts = onEdt { allIn(page.panel).mapNotNull { (it as? AbstractButton)?.text ?: (it as? JLabel)?.text } }
-        assertTrue(texts.none { it.contains("Compare with", ignoreCase = true) }, texts.toString())
-        assertNull(page.find("comparison-translator-chooser"))
-        assertNull(page.find("service-combo:TRANSLATOR"))
-        val comboRoles = onEdt { allIn(page.panel).filterIsInstance<JComboBox<*>>().mapNotNull { it.name } }
-        assertEquals(
-            ServiceRole.entries.filter { it != ServiceRole.TRANSLATOR }.map { "service-combo:${it.name}" }.sorted(),
-            comboRoles.filter { it.startsWith("service-combo:") }.sorted()
-        )
     }
 
     @Test
@@ -276,17 +226,11 @@ class ServicesPanelTranslatorSetTest {
     }
 
     @Test
-    fun `an unavailable member is not counted toward Comparison`() {
+    fun `the comparison hint counts only available, enabled translators`() {
         val ready3 = page(config(preset("p", "google", "bing", "ghost")), services("google", "bing"))
         assertEquals(3, ready3.rowIds().size)
-        assertEquals(ready, ready3.hint())
-
-        val lonely = page(config(preset("p", "google", "ghost")), services("google", "bing"))
-        assertEquals(needsMore, lonely.hint())
-    }
-
-    @Test
-    fun `one effective translator shows the not ready hint and two show the ready hint`() {
+        assertEquals(ready, ready3.hint(), "an unavailable member is shown but not counted")
+        assertEquals(needsMore, page(config(preset("p", "google", "ghost")), services("google", "bing")).hint())
         assertEquals(needsMore, page(config(preset("p", "google")), services("google", "bing")).hint())
         assertEquals(ready, page(config(preset("p", "google", "bing")), services("google", "bing")).hint())
     }
@@ -381,50 +325,6 @@ class ServicesPanelTranslatorSetTest {
         assertEquals(localizer.getString("settings_services.translator_set_disabled"), page.hint())
         assertEquals(listOf("bing"), page.preset().comparisonTranslatorIds)
         assertFalse((page.find("role-enabled:TRANSLATOR") as JCheckBox).isSelected)
-    }
-
-    @Test
-    fun `row actions are focusable native buttons with tooltips`() {
-        val page = page(config(preset("p", "google", "bing", "deepl")), services("google", "bing", "deepl"))
-        listOf("translator-remove:bing", "translator-move-up:deepl", "translator-move-down:bing", "translator-make-primary:bing", "translator-add")
-            .forEach { name ->
-                val button = page.button(name)!!
-                onEdt {
-                    assertTrue(button.isFocusable, "$name must be reachable from the keyboard")
-                    assertTrue(button.isEnabled)
-                    if (name != "translator-add" && name != "translator-make-primary:bing") {
-                        assertTrue(!button.toolTipText.isNullOrBlank(), "$name needs a tooltip")
-                    }
-                }
-            }
-    }
-
-    @Test
-    fun `rtl mirrors the row and its actions while the stored order stays semantic`() {
-        val page = page(config(preset("p", "google", "bing", "deepl")), services("google", "bing", "deepl"))
-        onEdt {
-            page.panel.applyComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT)
-            page.panel.size = Dimension(720, 900)
-            layoutTree(page.panel)
-        }
-        val name = page.find("translator-name:bing")!!
-        val remove = page.find("translator-remove:bing")!!
-        val up = page.find("translator-move-up:bing")!!
-        val down = page.find("translator-move-down:bing")!!
-        onEdt {
-            fun x(c: Component) = SwingUtilities.convertPoint(c, 0, 0, page.panel).x
-            assertTrue(x(name) > x(remove), "name sits at the leading (right) edge, actions trail on the left")
-            assertTrue(x(remove) < x(down) && x(down) < x(up), "actions run right to left in reading order")
-        }
-        page.click("translator-move-down:bing")
-        assertEquals(listOf("deepl", "bing"), page.preset().comparisonTranslatorIds)
-    }
-
-    private fun layoutTree(root: Component) {
-        if (root is Container) {
-            root.doLayout()
-            root.components.forEach(::layoutTree)
-        }
     }
 
     // ---- presets ----

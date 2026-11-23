@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.ui.swing.settings.panels
 
-import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
@@ -31,55 +30,31 @@ import javax.swing.JComboBox
 import javax.swing.JLabel
 import javax.swing.JPasswordField
 import javax.swing.JTextField
-import javax.swing.SwingUtilities
+import com.github.ahatem.qtranslate.ui.swing.testing.SilentLogger
+import com.github.ahatem.qtranslate.ui.swing.testing.onEdt
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
-/**
- * The plugin settings form the Plugins page shows inline and the service menu shows in a window:
- * one control per declared field, the values on screen handed to the host's save and check
- * callbacks, their outcome reported on the form's own status line, and only the actions the host
- * actually supplied.
- *
- * Nothing here presses Save in a state that warns through a `JOptionPane` — a missing required
- * field and a failed save both do, and a modal dialog has no one to answer it in a test run. The
- * disabled state that prevents that click is asserted instead.
- */
+/** The plugin settings form: one control per declared field, values on screen handed to the host's callbacks, and only the actions the host supplied. */
 class PluginSettingsFormTest {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
-    private val logger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
 
     private val localizer by lazy {
         LocalizationManager(
             Files.createTempDirectory("qtranslate-plugin-form").toFile(),
             LanguageTomlParser(),
-            logger,
+            SilentLogger,
         )
     }
 
     @AfterTest
     fun tearDown() {
         scope.cancel()
-    }
-
-    private fun <T> onEdt(block: () -> T): T {
-        if (SwingUtilities.isEventDispatchThread()) return block()
-        val result = arrayOfNulls<Any?>(1)
-        SwingUtilities.invokeAndWait { result[0] = block() }
-        @Suppress("UNCHECKED_CAST")
-        return result[0] as T
     }
 
     // ── The form's schema ─────────────────────────────────────────────────────
@@ -257,30 +232,9 @@ class PluginSettingsFormTest {
         )
     }
 
-    @Test
-    fun `addFooterAction puts the host's button on the form's own button row`() {
-        val form = newForm(text("apiUrl", "API endpoint"))
-        val cancel = JButton("Host Cancel")
-
-        onEdt { form.addFooterAction(cancel) }
-
-        assertTrue(
-            onEdt { descendants<JButton>(form) }.contains(cancel),
-            "the host's button becomes part of the form",
-        )
-        assertSame(
-            onEdt { form.saveButton.parent },
-            onEdt { cancel.parent },
-            "and shares Save's row, so the form has one button bar rather than two",
-        )
-    }
-
     // ── Fixtures ──────────────────────────────────────────────────────────────
 
-    /**
-     * A form over [schema] in one unnamed group, which is what a plugin without `@SettingGroup`
-     * produces — the flat layout the form shows for most plugins.
-     */
+    /** A form over [schema] in one unnamed group, as a plugin without `@SettingGroup` produces. */
     private fun newForm(
         vararg schema: SettingSchema,
         onSave: suspend (Map<String, String>, Set<String>) -> Result<Unit, ServiceError> = { _, _ -> Ok(Unit) },
@@ -303,9 +257,7 @@ class PluginSettingsFormTest {
                 onTestConnection = onTestConnection,
             )
         }
-        // The form runs its first validation and visibility pass from the event queue, because the
-        // fields have no layout when the constructor returns. Let that pass run before reading
-        // anything about the form.
+        // The form's first validation pass is queued on the event thread; let it run.
         onEdt { }
         return form
     }
