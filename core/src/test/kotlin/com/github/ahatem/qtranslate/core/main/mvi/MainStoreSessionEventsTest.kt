@@ -14,7 +14,7 @@ import kotlin.test.assertEquals
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainStoreSessionEventsTest {
     @Test fun `replaced lookup statuses are discarded even when already buffered`() = runTest {
-        val fixture = QuickTranslateLineBreaksFixture(this, removeLineBreaks = false)
+        val fixture = MainStoreFixture(emptyMap(), MainStoreFixture.configuration(), testScope = this, collectEvents = false)
         try {
             // No collector yet: both outcomes reach the buffered event channel before replacement.
             fixture.store.dispatch(MainIntent.LookupWord("old", LanguageCode.ENGLISH)); runCurrent()
