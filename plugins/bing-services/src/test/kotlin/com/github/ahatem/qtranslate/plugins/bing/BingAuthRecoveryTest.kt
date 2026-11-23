@@ -8,14 +8,12 @@ import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 import com.github.ahatem.qtranslate.plugins.common.unwrap
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.fold
 import com.github.michaelbull.result.getError
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
-import kotlin.test.fail
 
 /**
  * Issue 366: a token the endpoint rejected stayed cached, so every later translation failed with
@@ -47,35 +45,25 @@ class BingAuthRecoveryTest {
     }
 
     @Test
-    fun `an authentication rejection refreshes the token and retries once`() {
-        val client = BingTestHttpClient(authRejected("401")).apply {
-            authPage = Ok(BingTestHttpClient.authPage(token = BingTestHttpClient.TOKEN))
+    fun `a 401 or 403 rejection refreshes the token and retries once with the new token`() {
+        for (status in listOf("401", "403")) {
+            val client = BingTestHttpClient(authRejected(status)).apply {
+                authPage = Ok(BingTestHttpClient.authPage(token = FIRST_TOKEN))
+                authPageAfterFirst = Ok(BingTestHttpClient.authPage(token = SECOND_TOKEN))
+            }
+            client.translateQueue += BingTestHttpClient.successArray()
+
+            val result = translate(client)
+
+            assertEquals("Hola, ¿cómo estás?", result.unwrap().translatedText, status)
+            assertEquals(2, client.translateCalls, "$status: exactly one retry after the rejection")
+            assertEquals(2, client.authFetches, "$status: one fetch before the rejection, one after")
+            assertEquals(SECOND_TOKEN, client.lastTranslateForm["token"], "$status: retry must carry the refreshed token")
         }
-        client.translateQueue += BingTestHttpClient.successArray()
-
-        val result = translate(client)
-
-        result.unwrap().also { assertEquals("Hola, ¿cómo estás?", it.translatedText) }
-        assertEquals(2, client.translateCalls, "exactly one retry after the rejection")
-        assertEquals(2, client.authFetches, "one fetch before the rejection, one after")
-        assertEquals(BingTestHttpClient.TOKEN, client.lastTranslateForm["token"])
     }
 
     @Test
-    fun `a retried request carries the refreshed token, not the rejected one`() {
-        val client = BingTestHttpClient(authRejected("401")).apply {
-            authPage = Ok(BingTestHttpClient.authPage(token = FIRST_TOKEN))
-            authPageAfterFirst = Ok(BingTestHttpClient.authPage(token = SECOND_TOKEN))
-        }
-        client.translateQueue += BingTestHttpClient.successArray()
-
-        translate(client)
-
-        assertEquals(SECOND_TOKEN, client.lastTranslateForm["token"])
-    }
-
-    @Test
-    fun `a second rejection stops the recovery after one retry`() {
+    fun `a second rejection stops the recovery after one retry without leaking secrets`() {
         val client = BingTestHttpClient(authRejected("401"))
         client.translateQueue += authRejected("401")
 
@@ -84,21 +72,17 @@ class BingAuthRecoveryTest {
         assertIs<ServiceError.AuthenticationError>(error)
         assertEquals(2, client.translateCalls, "retry must not loop")
         assertEquals(2, client.authFetches, "refresh must not loop")
-    }
-
-    @Test
-    fun `a 403 status is treated as an authentication rejection too`() {
-        val client = BingTestHttpClient(authRejected("403"))
-        client.translateQueue += BingTestHttpClient.successArray()
-
-        val result = translate(client)
-
-        result.fold(
-            success = { },
-            failure = { error -> fail("a 403 body rejection should trigger the same recovery: ${error.message}") }
-        )
-        assertEquals(2, client.translateCalls)
-        assertEquals(2, client.authFetches)
+        val message = error.message
+        assertTrue(message.isNotBlank())
+        listOf(
+            BingTestHttpClient.TOKEN,
+            BingTestHttpClient.KEY,
+            BingTestHttpClient.MUID,
+            BingTestHttpClient.IG,
+            request.text
+        ).forEach { secret ->
+            assertTrue(!message.contains(secret), "message leaked '$secret': $message")
+        }
     }
 
     @Test
@@ -171,25 +155,6 @@ class BingAuthRecoveryTest {
         assertEquals(3, client.translateCalls, "one retry, then the second translation")
         assertEquals(2, client.authFetches, "the refreshed token is cached and reused")
         assertEquals(SECOND_TOKEN, client.lastTranslateForm["token"])
-    }
-
-    @Test
-    fun `a rejection message never carries the token, key, muid or user text`() {
-        val client = BingTestHttpClient(authRejected("401"))
-        client.translateQueue += authRejected("401")
-
-        val message = translate(client).getError()?.message.orEmpty()
-
-        assertTrue(message.isNotBlank())
-        listOf(
-            BingTestHttpClient.TOKEN,
-            BingTestHttpClient.KEY,
-            BingTestHttpClient.MUID,
-            BingTestHttpClient.IG,
-            request.text
-        ).forEach { secret ->
-            assertTrue(!message.contains(secret), "message leaked '$secret': $message")
-        }
     }
 
     private companion object {

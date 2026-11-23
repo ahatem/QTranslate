@@ -105,50 +105,28 @@ class AISettingsTest {
         }
 
         val base = AISettings().baseUrl
-        val expectedModels = mapOf(
-            AiCapability.TRANSLATION to "gpt-4o",
-            AiCapability.REWRITE to "gpt-4o-mini",
-            AiCapability.SUMMARIZATION to "gpt-4o",
-            AiCapability.SPELL_CHECK to "gpt-4o-mini",
-            AiCapability.DICTIONARY to "gpt-4o",
-            AiCapability.VISION to "gpt-4o"
+        // capability -> model, temperature, max tokens, header tag
+        class Expected(val model: String, val temperature: Double, val maxTokens: Int, val tag: String)
+        val expected = mapOf(
+            AiCapability.TRANSLATION to Expected("gpt-4o", 0.1, 1024, "t"),
+            AiCapability.REWRITE to Expected("gpt-4o-mini", 0.9, 2048, "r"),
+            AiCapability.SUMMARIZATION to Expected("gpt-4o", 0.5, 3072, "s"),
+            AiCapability.SPELL_CHECK to Expected("gpt-4o-mini", 0.0, 512, "c"),
+            AiCapability.DICTIONARY to Expected("gpt-4o", 0.2, 768, "d"),
+            AiCapability.VISION to Expected("gpt-4o", 0.3, 1500, "v"),
         )
-        val expectedTemperatures = mapOf(
-            AiCapability.TRANSLATION to 0.1,
-            AiCapability.REWRITE to 0.9,
-            AiCapability.SUMMARIZATION to 0.5,
-            AiCapability.SPELL_CHECK to 0.0,
-            AiCapability.DICTIONARY to 0.2,
-            AiCapability.VISION to 0.3
-        )
-        val expectedMaxTokens = mapOf(
-            AiCapability.TRANSLATION to 1024,
-            AiCapability.REWRITE to 2048,
-            AiCapability.SUMMARIZATION to 3072,
-            AiCapability.SPELL_CHECK to 512,
-            AiCapability.DICTIONARY to 768,
-            AiCapability.VISION to 1500
-        )
-        val expectedHeaders = mapOf(
-            AiCapability.TRANSLATION to """{"X-Cap": "t"}""",
-            AiCapability.REWRITE to """{"X-Cap": "r"}""",
-            AiCapability.SUMMARIZATION to """{"X-Cap": "s"}""",
-            AiCapability.SPELL_CHECK to """{"X-Cap": "c"}""",
-            AiCapability.DICTIONARY to """{"X-Cap": "d"}""",
-            AiCapability.VISION to """{"X-Cap": "v"}"""
-        )
-        allCapabilities.forEach { capability ->
+        for (capability in allCapabilities) {
             val settings = AISettings().withOverrides(capability)
             val profile = settings.profileFor(capability)
+            val want = expected.getValue(capability)
             assertEquals("openai", profile.preset, "$capability preset")
             assertEquals("https://api.openai.com/v1", profile.baseUrl, "$capability baseUrl")
             assertEquals("sk-${capability.name.lowercase().replace("_", "")}", profile.apiKey, "$capability apiKey")
-            assertEquals(expectedModels[capability], profile.model, "$capability model")
-            assertEquals(expectedTemperatures[capability]!!, profile.temperature, "$capability temperature")
-            assertEquals(expectedMaxTokens[capability]!!, profile.maxTokens, "$capability maxTokens")
-            assertEquals(expectedHeaders[capability], profile.customHeaders, "$capability headers")
-            // Every other capability still inherits the Default.
-            allCapabilities.filter { it != capability }.forEach { other ->
+            assertEquals(want.model, profile.model, "$capability model")
+            assertEquals(want.temperature, profile.temperature, "$capability temperature")
+            assertEquals(want.maxTokens, profile.maxTokens, "$capability maxTokens")
+            assertEquals("""{"X-Cap": "${want.tag}"}""", profile.customHeaders, "$capability headers")
+            for (other in allCapabilities - capability) {
                 assertEquals(base, settings.profileFor(other).baseUrl, "$other should still inherit the Default baseUrl")
             }
         }
