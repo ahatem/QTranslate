@@ -53,93 +53,24 @@ class OcrLineOrderTest {
     }
 
     @Test
-    fun `Arabic with embedded English keeps the Latin run reading left to right`() {
-        // Logical: افتح Windows Terminal الآن
-        val line = visualLine("الآن", "Windows", "Terminal", "افتح")
-
-        assertEquals("افتح Windows Terminal الآن", OcrLineOrder.lineText(line, arabic))
-    }
-
-    @Test
-    fun `Arabic with numbers leaves the digits untouched`() {
-        // Logical: الإصدار 123 متاح الآن
-        val line = visualLine("الآن", "متاح", "123", "الإصدار")
-
-        val logical = OcrLineOrder.lineText(line, arabic)
-
-        assertEquals("الإصدار 123 متاح الآن", logical)
-        assertNotEquals("الإصدار 321 متاح الآن", logical)
-    }
-
-    @Test
-    fun `a number after a Latin word stays inside the Latin run`() {
-        // Logical: افتح Windows 11 الآن
-        val line = visualLine("الآن", "Windows", "11", "افتح")
-
-        val logical = OcrLineOrder.lineText(line, arabic)
-
-        assertEquals("افتح Windows 11 الآن", logical)
-        assertNotEquals("افتح 11 Windows الآن", logical)
-    }
-
-    @Test
-    fun `another Latin and number run stays internally ordered`() {
-        // Logical: شغل Python 3 الآن
-        val line = visualLine("الآن", "Python", "3", "شغل")
-
-        val logical = OcrLineOrder.lineText(line, arabic)
-
-        assertEquals("شغل Python 3 الآن", logical)
-        assertNotEquals("شغل 3 Python الآن", logical)
-    }
-
-    @Test
-    fun `an acronym and a number stay together in Latin order`() {
-        // Logical: ظهر HTTP 404 الآن
-        val line = visualLine("الآن", "HTTP", "404", "ظهر")
-
-        val logical = OcrLineOrder.lineText(line, arabic)
-
-        assertEquals("ظهر HTTP 404 الآن", logical)
-        assertNotEquals("ظهر 404 HTTP الآن", logical)
-    }
-
-    @Test
-    fun `a chain of Latin words and numbers keeps its order`() {
-        // Logical: افتح Windows 11 Pro الآن
-        val line = visualLine("الآن", "Windows", "11", "Pro", "افتح")
-
-        assertEquals("افتح Windows 11 Pro الآن", OcrLineOrder.lineText(line, arabic))
-    }
-
-    @Test
-    fun `Arabic-Indic numerals stay in the Arabic flow`() {
-        // Logical: الإصدار ١٢٣ متاح الآن
-        val line = visualLine("الآن", "متاح", "١٢٣", "الإصدار")
-
-        assertEquals("الإصدار ١٢٣ متاح الآن", OcrLineOrder.lineText(line, arabic))
-    }
-
-    @Test
-    fun `Arabic with a Latin shortcut keeps the shortcut intact`() {
-        // Logical: اضغط Ctrl + C للنسخ
-        val line = visualLine("للنسخ", "Ctrl", "+", "C", "اضغط")
-
-        val logical = OcrLineOrder.lineText(line, arabic)
-
-        assertEquals("اضغط Ctrl + C للنسخ", logical)
-        assertNotEquals("اضغط C + Ctrl للنسخ", logical)
-    }
-
-    @Test
-    fun `a mixed sentence with an ambiguous start is resolved by the requested language`() {
-        // Logical: افتح Windows Terminal واضغط Ctrl + C, with the shortcut leftmost on the page.
-        val line = visualLine("Ctrl", "+", "C", "واضغط", "Windows", "Terminal", "افتح")
-
-        assertEquals(
-            "افتح Windows Terminal واضغط Ctrl + C",
-            OcrLineOrder.lineText(line, arabic),
+    fun `Latin words, numbers and shortcuts keep their order inside Arabic text`() {
+        // (words as the engine reports them, visually) -> logical text
+        val cases = listOf(
+            listOf("الآن", "Windows", "Terminal", "افتح") to "افتح Windows Terminal الآن",
+            listOf("الآن", "متاح", "123", "الإصدار") to "الإصدار 123 متاح الآن",
+            listOf("الآن", "Windows", "11", "افتح") to "افتح Windows 11 الآن",
+            listOf("الآن", "Python", "3", "شغل") to "شغل Python 3 الآن",
+            listOf("الآن", "HTTP", "404", "ظهر") to "ظهر HTTP 404 الآن",
+            listOf("الآن", "Windows", "11", "Pro", "افتح") to "افتح Windows 11 Pro الآن",
+            listOf("الآن", "متاح", "١٢٣", "الإصدار") to "الإصدار ١٢٣ متاح الآن",
+            listOf("للنسخ", "Ctrl", "+", "C", "اضغط") to "اضغط Ctrl + C للنسخ",
+            // An ambiguous start (the shortcut sits leftmost) is resolved by the requested language.
+            listOf("Ctrl", "+", "C", "واضغط", "Windows", "Terminal", "افتح") to
+                "افتح Windows Terminal واضغط Ctrl + C",
         )
+        for ((words, expected) in cases) {
+            assertEquals(expected, OcrLineOrder.lineText(visualLine(*words.toTypedArray()), arabic))
+        }
     }
 
     @Test

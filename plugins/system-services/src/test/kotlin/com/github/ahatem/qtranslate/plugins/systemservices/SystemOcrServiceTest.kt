@@ -114,17 +114,13 @@ class SystemOcrServiceTest {
     }
 
     @Test
-    fun `fetchSupportedLanguages offers AUTO only when the backend really detects language`() = runBlocking {
+    fun `AUTO is offered only when the backend really detects the language`() = runBlocking {
+        // AUTO means "detect the image language" in QTranslate's vocabulary. A backend that falls
+        // back to a default language must not be offered as if it detected one.
         val detecting = SystemOcrService(
             FakeBackend(onLanguages = { Ok(BackendLanguages(setOf(LanguageCode.ENGLISH), detectsLanguage = true)) }),
             logger,
         )
-
-        assertEquals(setOf(LanguageCode.AUTO, LanguageCode.ENGLISH), detecting.fetchSupportedLanguages().unwrap())
-    }
-
-    @Test
-    fun `a backend that only defaults never advertises AUTO`() = runBlocking {
         val defaulting = SystemOcrService(
             FakeBackend(
                 onLanguages = {
@@ -134,12 +130,8 @@ class SystemOcrServiceTest {
             logger,
         )
 
-        // AUTO means "detect the image language" in QTranslate's vocabulary. A backend that falls
-        // back to a default language must not be offered as if it detected one.
-        assertEquals(
-            setOf(LanguageCode.ENGLISH, LanguageCode.GERMAN),
-            defaulting.fetchSupportedLanguages().unwrap(),
-        )
+        assertEquals(setOf(LanguageCode.AUTO, LanguageCode.ENGLISH), detecting.fetchSupportedLanguages().unwrap())
+        assertEquals(setOf(LanguageCode.ENGLISH, LanguageCode.GERMAN), defaulting.fetchSupportedLanguages().unwrap())
     }
 
     @Test
