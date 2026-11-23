@@ -529,6 +529,13 @@ class MainAppFrame(
         onHide = { isVisible = false },
     )
 
+    private val presentation = MainWindowPresentation(
+        setVisible = { isVisible = it },
+        restoreNormalState = { state = NORMAL },
+        toFront = { toFront() },
+        focusInput = { mainContentView.requestFocusOnInput() },
+    )
+
     /**
      * Routes file drops to what the app does with them. The wiring that installs the same
      * routing on every surface stays with [setupDropTarget]; the decision lives here.
@@ -673,7 +680,7 @@ class MainAppFrame(
             observeStateAndEvents()
             // A login launch stays hidden in the tray: the window is never shown, not shown
             // and re-hidden, so nothing flashes and no taskbar entry appears (#226).
-            isVisible = !initiallyHidden
+            presentation.presentAtStartup(initiallyHidden)
 
             // applyOrientation must run AFTER switchLayout's invokeLater has fired.
             // switchLayout() queues an invokeLater internally — if we call
@@ -1201,12 +1208,7 @@ class MainAppFrame(
      * through here so visibility, restore, and input focus stay consistent.
      * Focus lands in the input editor; text and state are left untouched.
      */
-    fun showAndFocus() {
-        isVisible = true
-        state = NORMAL
-        toFront()
-        mainContentView.requestFocusOnInput()
-    }
+    fun showAndFocus() = presentation.showAndFocus()
 
     /**
      * Opens or refreshes the single OCR Workspace. The dialog owns OCR work; closing it returns
