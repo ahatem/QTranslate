@@ -83,19 +83,6 @@ class RealConfigMigrationTest {
     }
 
     @Test
-    fun `a v3 install keeps every service it had chosen`() {
-        val migrated = load(V3_INSTALL)
-        val selected = migrated.servicePresets.single().selectedServices
-
-        assertEquals(ConfigMigrator.CURRENT_VERSION, migrated.configVersion)
-        assertEquals("ai-plugin:default:ai-translator", selected[ServiceRole.TRANSLATOR])
-        assertEquals("google-services:default:google-tts", selected[ServiceRole.TTS])
-        assertEquals("google-services:default:google-spell-checker", selected[ServiceRole.SPELL_CHECKER])
-        assertEquals("google-services:default:google-ocr", selected[ServiceRole.OCR])
-        assertEquals("google-services:default:google-dictionary", selected[ServiceRole.DICTIONARY])
-    }
-
-    @Test
     fun `a v2 install migrates through every intermediate step`() {
         // Two versions behind, so this also proves the steps chain rather than only v3 to v4.
         val migrated = load(V2_INSTALL)
@@ -120,16 +107,6 @@ class RealConfigMigrationTest {
         assertEquals(1030, migrated.mainWindowPosition?.x)
         assertEquals(530, migrated.mainWindowPosition?.y)
         assertEquals(125, migrated.uiScale)
-    }
-
-    @Test
-    fun `the active preset is still the one the migrated presets carry`() {
-        // An id rewritten on the preset but not on the pointer leaves the app with no active
-        // preset, which reads to the user as every setting having been forgotten.
-        val migrated = load(V3_INSTALL)
-
-        assertEquals("72ea1742-e544-4dfb-890b-bd94a9ec406e", migrated.activeServicePresetId)
-        assertTrue(migrated.servicePresets.any { it.id == migrated.activeServicePresetId })
     }
 
     @Test

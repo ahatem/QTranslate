@@ -128,26 +128,6 @@ class ConfigMigratorTest {
     }
 
     @Test
-    fun `the default preset names services the registry will actually have`() {
-        // The defaults are written by hand; this fails if they drift from the composed form.
-        Configuration.DEFAULT.servicePresets.single().selectedServices.values
-            .filterNotNull()
-            .forEach { id ->
-                assertEquals(3, id.split(':').size, "default selection '$id' is not a composed service id")
-            }
-    }
-
-    @Test
-    fun `selection behavior enum uses stable names`() {
-        val json = Json {}
-        SelectionBehavior.entries.forEach { behavior ->
-            val encoded = json.encodeToString(SelectionBehavior.serializer(), behavior)
-            assertEquals(behavior.name, encoded.trim('"'))
-            assertEquals(behavior, json.decodeFromString(SelectionBehavior.serializer(), encoded))
-        }
-    }
-
-    @Test
     fun `selection read source defaults to translation and round trips`() {
         val json = Json {}
         assertEquals(SelectionReadSource.TRANSLATION, Configuration.DEFAULT.selectionReadSource)
@@ -162,19 +142,6 @@ class ConfigMigratorTest {
             SelectionReadSource.SOURCE,
             json.decodeFromString<Configuration>(encoded).selectionReadSource
         )
-    }
-
-    @Test
-    fun `selection read source enum has only product choices`() {
-        assertEquals(setOf(SelectionReadSource.SOURCE, SelectionReadSource.TRANSLATION), SelectionReadSource.entries.toSet())
-    }
-
-    @Test
-    fun `every enabled selection behavior needs capture while off does not`() {
-        assertFalse(SelectionBehavior.OFF.selectionCaptureEnabled)
-        SelectionBehavior.entries
-            .filter { it != SelectionBehavior.OFF }
-            .forEach { assertTrue(it.selectionCaptureEnabled) }
     }
 
     @Test

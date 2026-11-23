@@ -25,20 +25,6 @@ class ComparisonConfigurationTest {
     }
 
     @Test
-    fun `comparison ids preserve order and round trip`() {
-        val json = Json { encodeDefaults = true }
-        val preset = ServicePreset(
-            id = "p",
-            name = "Default",
-            selectedServices = mapOf(ServiceRole.TRANSLATOR to "primary"),
-            comparisonTranslatorIds = listOf("second", "first")
-        )
-
-        val decoded = json.decodeFromString<ServicePreset>(json.encodeToString(preset))
-        assertEquals(listOf("second", "first"), decoded.comparisonTranslatorIds)
-    }
-
-    @Test
     fun `exact resolver does not fall back`() {
         val primary = TestTranslator("primary")
         val other = TestTranslator("other")

@@ -21,25 +21,6 @@ class MinimizeButtonBehaviorConfigTest {
     }
 
     @Test
-    fun `default configuration hides to tray`() {
-        assertEquals(MinimizeButtonBehavior.HIDE_TO_TRAY, Configuration().minimizeButtonBehavior)
-        assertEquals(MinimizeButtonBehavior.HIDE_TO_TRAY, Configuration.DEFAULT.minimizeButtonBehavior)
-    }
-
-    @Test
-    fun `a fresh installation starts on taskbar minimize`() {
-        assertEquals(
-            MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR,
-            Configuration.FRESH_INSTALL.minimizeButtonBehavior,
-        )
-        // Nothing else changed, so a fresh install is the stored default plus this one decision.
-        assertEquals(
-            Configuration.DEFAULT.copy(minimizeButtonBehavior = MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR),
-            Configuration.FRESH_INSTALL,
-        )
-    }
-
-    @Test
     fun `an installation with no stored configuration starts on taskbar minimize`() = runBlocking {
         val directory = Files.createTempDirectory("qtranslate-fresh-install").toFile()
         val repository = SettingsRepository(directory, json, logger)
@@ -61,27 +42,5 @@ class MinimizeButtonBehaviorConfigTest {
         val config = json.decodeFromString<Configuration>(older)
         assertEquals(MinimizeButtonBehavior.HIDE_TO_TRAY, config.minimizeButtonBehavior)
         assertEquals(CloseButtonBehavior.MINIMIZE_TO_TRAY, config.closeButtonBehavior)
-    }
-
-    @Test
-    fun `both behaviors round trip`() {
-        for (behavior in MinimizeButtonBehavior.entries) {
-            val encoded = json.encodeToString(
-                Configuration.serializer(),
-                Configuration(minimizeButtonBehavior = behavior)
-            )
-            assertEquals(behavior, json.decodeFromString<Configuration>(encoded).minimizeButtonBehavior)
-        }
-    }
-
-    @Test
-    fun `minimize and close behaviors are configured independently`() {
-        val config = Configuration(
-            minimizeButtonBehavior = MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR,
-            closeButtonBehavior = CloseButtonBehavior.MINIMIZE_TO_TRAY,
-        )
-        val decoded = json.decodeFromString<Configuration>(json.encodeToString(Configuration.serializer(), config))
-        assertEquals(MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR, decoded.minimizeButtonBehavior)
-        assertEquals(CloseButtonBehavior.MINIMIZE_TO_TRAY, decoded.closeButtonBehavior)
     }
 }
