@@ -240,49 +240,51 @@ class InteractiveDiagnosticsPrivacyTest {
     // ── Spell check, rewrite, summarize ────────────────────────────────────
 
     @Test
-    fun `spell check failure logs the error type, not the provider message`() = runBlocking {
-        val logger = CapturingLogger()
-        val checker = FakeSpellChecker(Err(ServiceError.InvalidResponseError("SENTINEL-ZQ42-SPELLERR-b42e")))
-        val useCase = PerformSpellCheckUseCase(manager(checker), CapturingLoggerFactory(logger))
-        useCase.invoke(
-            MainState(sourceLanguage = LanguageCode.ENGLISH, inputText = "SENTINEL-ZQ42-SPELLINPUT-1aa7"),
-            "SENTINEL-ZQ42-SPELLTEXT-80f3",
-            { _, _, _ -> }
+    fun `spell check, rewrite and summarize failures log the error type, not the provider message`() = runBlocking {
+        class Case(val label: String, val sentinels: List<String>, val expectedLog: String, val run: suspend (CapturingLogger) -> Unit)
+
+        val cases = listOf(
+            Case(
+                "spell check",
+                listOf("SENTINEL-ZQ42-SPELLERR-b42e", "SENTINEL-ZQ42-SPELLTEXT-80f3", "SENTINEL-ZQ42-SPELLINPUT-1aa7"),
+                "Spell check failed: InvalidResponseError"
+            ) { logger ->
+                val checker = FakeSpellChecker(Err(ServiceError.InvalidResponseError("SENTINEL-ZQ42-SPELLERR-b42e")))
+                PerformSpellCheckUseCase(manager(checker), CapturingLoggerFactory(logger)).invoke(
+                    MainState(sourceLanguage = LanguageCode.ENGLISH, inputText = "SENTINEL-ZQ42-SPELLINPUT-1aa7"),
+                    "SENTINEL-ZQ42-SPELLTEXT-80f3",
+                    { _, _, _ -> }
+                )
+            },
+            Case(
+                "rewrite",
+                listOf("SENTINEL-ZQ42-REWRITEERR-6c51", "SENTINEL-ZQ42-REWRITETEXT-2d98"),
+                "Rewrite failed: UnknownError"
+            ) { logger ->
+                val rewriter = FakeRewriter(Err(ServiceError.UnknownError("SENTINEL-ZQ42-REWRITEERR-6c51")))
+                RewriteUseCase(manager(rewriter), CapturingLoggerFactory(logger))
+                    .invoke("SENTINEL-ZQ42-REWRITETEXT-2d98", "casual", { _, _, _ -> })
+            },
+            Case(
+                "summarize",
+                listOf("SENTINEL-ZQ42-SUMMARIZEERR-0e77", "SENTINEL-ZQ42-SUMMARIZETEXT-4b65"),
+                "Summarize failed: TimeoutError"
+            ) { logger ->
+                val summarizer = FakeSummarizer(Err(ServiceError.TimeoutError("SENTINEL-ZQ42-SUMMARIZEERR-0e77")))
+                SummarizeUseCase(manager(summarizer), CapturingLoggerFactory(logger))
+                    .invoke("SENTINEL-ZQ42-SUMMARIZETEXT-4b65", "short", { _, _, _ -> })
+            }
         )
+        for (case in cases) {
+            val logger = CapturingLogger()
+            case.run(logger)
 
-        assertNoSentinel(logger, "SENTINEL-ZQ42-SPELLERR-b42e", "SENTINEL-ZQ42-SPELLTEXT-80f3", "SENTINEL-ZQ42-SPELLINPUT-1aa7")
-        assertTrue(
-            logger.messages.any { it.contains("Spell check failed: InvalidResponseError") },
-            "the failure diagnostic keeps the error type: ${logger.messages}"
-        )
-    }
-
-    @Test
-    fun `rewrite failure logs the error type, not the provider message`() = runBlocking {
-        val logger = CapturingLogger()
-        val rewriter = FakeRewriter(Err(ServiceError.UnknownError("SENTINEL-ZQ42-REWRITEERR-6c51")))
-        val useCase = RewriteUseCase(manager(rewriter), CapturingLoggerFactory(logger))
-        useCase.invoke("SENTINEL-ZQ42-REWRITETEXT-2d98", "casual", { _, _, _ -> })
-
-        assertNoSentinel(logger, "SENTINEL-ZQ42-REWRITEERR-6c51", "SENTINEL-ZQ42-REWRITETEXT-2d98")
-        assertTrue(
-            logger.messages.any { it.contains("Rewrite failed: UnknownError") },
-            "the failure diagnostic keeps the error type: ${logger.messages}"
-        )
-    }
-
-    @Test
-    fun `summarize failure logs the error type, not the provider message`() = runBlocking {
-        val logger = CapturingLogger()
-        val summarizer = FakeSummarizer(Err(ServiceError.TimeoutError("SENTINEL-ZQ42-SUMMARIZEERR-0e77")))
-        val useCase = SummarizeUseCase(manager(summarizer), CapturingLoggerFactory(logger))
-        useCase.invoke("SENTINEL-ZQ42-SUMMARIZETEXT-4b65", "short", { _, _, _ -> })
-
-        assertNoSentinel(logger, "SENTINEL-ZQ42-SUMMARIZEERR-0e77", "SENTINEL-ZQ42-SUMMARIZETEXT-4b65")
-        assertTrue(
-            logger.messages.any { it.contains("Summarize failed: TimeoutError") },
-            "the failure diagnostic keeps the error type: ${logger.messages}"
-        )
+            assertNoSentinel(logger, *case.sentinels.toTypedArray())
+            assertTrue(
+                logger.messages.any { it.contains(case.expectedLog) },
+                "${case.label}: the failure diagnostic keeps the error type: ${logger.messages}"
+            )
+        }
     }
 
     // ── Comparison ─────────────────────────────────────────────────────────

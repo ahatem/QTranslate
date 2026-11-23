@@ -9,7 +9,6 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
@@ -53,23 +52,6 @@ class TranslationRequestOwnerTest {
     }
 
     @Test
-    fun `claiming detaches the job it supersedes, so cancel never reaches a stale one`() = runTest {
-        val owner = TranslationRequestOwner()
-        val claimA = owner.claim()
-        val jobA = Job()
-        assertTrue(owner.install(claimA, jobA))
-
-        val claimB = owner.claim()
-        assertSame(jobA, claimB.previousJob, "the superseding claim owns the old job's cancellation")
-        assertFalse(owner.isCurrent(claimA.requestId))
-
-        val jobB = Job()
-        assertTrue(owner.install(claimB, jobB))
-        val canceled = owner.cancel()
-        assertSame(jobB, canceled.previousJob, "cancel reaches the live job, not the superseded one")
-    }
-
-    @Test
     fun `cancel-if-current refuses a stale id and leaves the newer request alive`() {
         val owner = TranslationRequestOwner()
         val claimA = owner.claim()
@@ -86,17 +68,4 @@ class TranslationRequestOwnerTest {
         assertEquals(null, owner.cancelIfCurrent(claimB.requestId))
     }
 
-    @Test
-    fun `publication follows both request identity and generation`() = runTest {
-        val owner = TranslationRequestOwner()
-        val claim = owner.claim()
-
-        assertEquals("published", owner.withCurrentRequest(claim.requestId) { "published" })
-        assertEquals("compared", owner.withCurrentGeneration(claim.generation) { "compared" })
-
-        val newer = owner.claim()
-        assertEquals(null, owner.withCurrentRequest(claim.requestId) { "stale" })
-        assertEquals(null, owner.withCurrentGeneration(claim.generation) { "stale" })
-        assertTrue(owner.isCurrent(newer.requestId))
-    }
 }

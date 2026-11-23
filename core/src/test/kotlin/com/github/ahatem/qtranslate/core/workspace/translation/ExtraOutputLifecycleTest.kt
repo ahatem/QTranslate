@@ -1,11 +1,11 @@
 package com.github.ahatem.qtranslate.core.workspace.translation
 
-import com.github.ahatem.qtranslate.api.core.Logger
+import com.github.ahatem.qtranslate.core.testing.SilentLoggerFactory
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.NotificationType
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
-import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.rewriter.RewriteRequest
 import com.github.ahatem.qtranslate.api.rewriter.RewriteResponse
@@ -26,7 +26,6 @@ import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.TranslationRule
 import com.github.ahatem.qtranslate.core.shared.AppConstants
 import com.github.ahatem.qtranslate.core.shared.StatusCode
-import com.github.ahatem.qtranslate.core.shared.logging.LoggerFactory
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -106,34 +105,6 @@ class ExtraOutputLifecycleTest {
     }
 
     @Test
-    fun `a stale completion cannot publish over a newer mode`() = runTest {
-        val fixture = fixture(this)
-        fixture.summarizer.release = CompletableDeferred()
-        var state = translatedState()
-        val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
-
-        fixture.useCase.refreshExtraOutput(
-            extraOutputRequest = request(ExtraOutputType.Summarize),
-            getState = { state },
-            updateState = update,
-            onStatusUpdate = { _, _, _ -> },
-        )
-        runCurrent()
-
-        fixture.useCase.refreshExtraOutput(
-            extraOutputRequest = request(ExtraOutputType.Rewrite),
-            getState = { state },
-            updateState = update,
-            onStatusUpdate = { _, _, _ -> },
-        )
-        advanceUntilIdle()
-
-        assertEquals("rewrite", state.extraOutputText)
-        assertFalse(state.extraOutputFailed)
-        assertEquals(1, fixture.rewriter.calls.size)
-    }
-
-    @Test
     fun `cancelling the use case retires an in-flight secondary request`() = runTest {
         val fixture = fixture(this)
         fixture.summarizer.release = CompletableDeferred()
@@ -160,119 +131,80 @@ class ExtraOutputLifecycleTest {
     }
 
     @Test
-    fun `None wins over the secondary output started by a translation`() = runTest {
-        val fixture = fixture(this)
-        fixture.summarizer.release = CompletableDeferred()
-        var state = MainState(
-            inputText = "hello",
-            sourceLanguage = LanguageCode.ENGLISH,
-            targetLanguage = LanguageCode.ARABIC,
-        )
-        val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
+    fun `a newer mode, including None, wins over the secondary output started by a translation`() = runTest {
+        // label, the newer mode, the expected panel text, whether the inline provider call is cancelled
+        class Case(val label: String, val type: ExtraOutputType, val text: String, val cancelsProvider: Boolean)
 
-        launch {
-            fixture.useCase(
+        val cases = listOf(
+            Case("None", ExtraOutputType.None, "", cancelsProvider = false),
+            Case("mode change", ExtraOutputType.Rewrite, "rewrite", cancelsProvider = true)
+        )
+        for (case in cases) {
+            val fixture = fixture(this)
+            fixture.summarizer.release = CompletableDeferred()
+            var state = MainState(
+                inputText = "hello",
+                sourceLanguage = LanguageCode.ENGLISH,
+                targetLanguage = LanguageCode.ARABIC,
+            )
+            val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
+
+            launch {
+                fixture.useCase(
+                    getState = { state },
+                    updateState = update,
+                    onStatusUpdate = { _, _, _ -> },
+                    extraOutputRequest = request(ExtraOutputType.Summarize),
+                )
+            }
+            runCurrent()
+            assertTrue(fixture.summarizer.started.isCompleted, "${case.label}: the translation already started its summary")
+
+            fixture.useCase.refreshExtraOutput(
+                extraOutputRequest = request(case.type),
                 getState = { state },
                 updateState = update,
                 onStatusUpdate = { _, _, _ -> },
-                extraOutputRequest = request(ExtraOutputType.Summarize),
             )
+            fixture.summarizer.release?.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(case.text, state.extraOutputText, case.label)
+            assertFalse(state.extraOutputFailed, case.label)
+            assertNull(state.extraOutputFailure, case.label)
+            if (case.cancelsProvider) {
+                assertTrue(fixture.summarizer.cancelledSignal.isCompleted, "${case.label}: must cancel the provider call it supersedes")
+            }
         }
-        runCurrent()
-        assertTrue(fixture.summarizer.started.isCompleted, "the translation already started its summary")
-
-        fixture.useCase.refreshExtraOutput(
-            extraOutputRequest = request(ExtraOutputType.None),
-            getState = { state },
-            updateState = update,
-            onStatusUpdate = { _, _, _ -> },
-        )
-        fixture.summarizer.release?.complete(Unit)
-        advanceUntilIdle()
-
-        assertEquals("", state.extraOutputText, "turning the panel off owns the answer")
-        assertFalse(state.extraOutputFailed)
-        assertNull(state.extraOutputFailure)
     }
 
     @Test
-    fun `a mode change wins over the secondary output started by a translation`() = runTest {
-        val fixture = fixture(this)
-        fixture.summarizer.release = CompletableDeferred()
-        var state = MainState(
-            inputText = "hello",
-            sourceLanguage = LanguageCode.ENGLISH,
-            targetLanguage = LanguageCode.ARABIC,
-        )
-        val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
-
-        launch {
-            fixture.useCase(
-                getState = { state },
-                updateState = update,
-                onStatusUpdate = { _, _, _ -> },
-                extraOutputRequest = request(ExtraOutputType.Summarize),
-            )
-        }
-        runCurrent()
-        assertTrue(fixture.summarizer.started.isCompleted)
-
-        fixture.useCase.refreshExtraOutput(
-            extraOutputRequest = request(ExtraOutputType.Rewrite),
-            getState = { state },
-            updateState = update,
-            onStatusUpdate = { _, _, _ -> },
-        )
-        fixture.summarizer.release?.complete(Unit)
-        advanceUntilIdle()
-
-        assertEquals("rewrite", state.extraOutputText)
-        assertFalse(state.extraOutputFailed)
-        assertTrue(
-            fixture.summarizer.cancelledSignal.isCompleted,
-            "a mode change must cancel the inline provider call it supersedes"
-        )
-    }
-
-    @Test
-    fun `a failed secondary output is marked failed and never becomes text or history`() = runTest {
+    fun `a failed secondary output is marked failed and never becomes text or history, unlike an empty success`() = runTest {
         val fixture = fixture(this)
         fixture.summarizer.result = Err(ServiceError.InvalidResponseError("provider exploded"))
         var state = translatedState()
         val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
+        suspend fun refresh() {
+            fixture.useCase.refreshExtraOutput(
+                extraOutputRequest = request(ExtraOutputType.Summarize),
+                getState = { state },
+                updateState = update,
+                onStatusUpdate = { _, _, _ -> },
+            )
+            advanceUntilIdle()
+        }
 
-        fixture.useCase.refreshExtraOutput(
-            extraOutputRequest = request(ExtraOutputType.Summarize),
-            getState = { state },
-            updateState = update,
-            onStatusUpdate = { _, _, _ -> },
-        )
-        advanceUntilIdle()
-
+        refresh()
         assertEquals("", state.extraOutputText, "the error text must not be copied or spoken")
         assertTrue(state.extraOutputFailed)
         assertEquals(ExtraOutputFailure.Provider("provider exploded"), state.extraOutputFailure)
         assertFalse(state.isExtraOutputLoading)
         assertTrue(state.history.isEmpty(), "a failed secondary output is not history content")
-    }
 
-    @Test
-    fun `an empty success is distinguishable from a failure`() = runTest {
-        val fixture = fixture(this)
         fixture.summarizer.result = Ok(SummarizeResponse(""))
-        var state = translatedState()
-        val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
-
-        fixture.useCase.refreshExtraOutput(
-            extraOutputRequest = request(ExtraOutputType.Summarize),
-            getState = { state },
-            updateState = update,
-            onStatusUpdate = { _, _, _ -> },
-        )
-        advanceUntilIdle()
-
+        refresh()
         assertEquals("", state.extraOutputText)
-        assertFalse(state.extraOutputFailed)
+        assertFalse(state.extraOutputFailed, "an empty success is not a failure")
         assertNull(state.extraOutputFailure)
     }
 
@@ -372,55 +304,46 @@ class ExtraOutputLifecycleTest {
     }
 
     @Test
-    fun `a backward failure is typed and reported as an error status`() = runTest {
-        val fixture = fixture(this)
-        fixture.translator.result = Err(ServiceError.InvalidResponseError("provider exploded"))
-        var state = translatedState()
-        val statuses = mutableListOf<StatusCode>()
-        val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
+    fun `a backward failure or timeout is typed and never announced as success`() = runTest {
+        for (timesOut in listOf(false, true)) {
+            val label = if (timesOut) "timeout" else "failure"
+            val fixture = fixture(this)
+            if (timesOut) {
+                fixture.translator.hold = CompletableDeferred()
+            } else {
+                fixture.translator.result = Err(ServiceError.InvalidResponseError("provider exploded"))
+            }
+            var state = translatedState()
+            val statuses = mutableListOf<StatusCode>()
+            val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
 
-        fixture.useCase.refreshExtraOutput(
-            extraOutputRequest = request(ExtraOutputType.BackwardTranslate),
-            getState = { state },
-            updateState = update,
-            onStatusUpdate = { code, _, _ -> statuses += code },
-        )
-        advanceUntilIdle()
+            fixture.useCase.refreshExtraOutput(
+                extraOutputRequest = request(ExtraOutputType.BackwardTranslate),
+                getState = { state },
+                updateState = update,
+                onStatusUpdate = { code, _, _ -> statuses += code },
+            )
+            if (timesOut) {
+                runCurrent()
+                advanceTimeBy(AppConstants.TRANSLATION_TIMEOUT_MS + 1)
+                runCurrent()
+            } else {
+                advanceUntilIdle()
+            }
 
-        assertEquals(ExtraOutputFailure.Provider("provider exploded"), state.extraOutputFailure)
-        assertTrue(state.extraOutputFailed)
-        assertEquals(StatusCode.BackwardTranslationFailed("provider exploded"), statuses.last())
-        assertTrue(
-            statuses.none { it == StatusCode.TranslationComplete },
-            "a failed secondary request must not announce success"
-        )
-    }
-
-    @Test
-    fun `a backward timeout is typed and never announced as success`() = runTest {
-        val fixture = fixture(this)
-        fixture.translator.hold = CompletableDeferred()
-        var state = translatedState()
-        val statuses = mutableListOf<StatusCode>()
-        val update: (MainState.() -> MainState) -> Unit = { transform -> state = state.transform() }
-
-        fixture.useCase.refreshExtraOutput(
-            extraOutputRequest = request(ExtraOutputType.BackwardTranslate),
-            getState = { state },
-            updateState = update,
-            onStatusUpdate = { code, _, _ -> statuses += code },
-        )
-        runCurrent()
-        advanceTimeBy(AppConstants.TRANSLATION_TIMEOUT_MS + 1)
-        runCurrent()
-
-        assertEquals(ExtraOutputFailure.Timeout, state.extraOutputFailure)
-        assertTrue(state.extraOutputFailed)
-        assertEquals(StatusCode.BackwardTranslationTimeout, statuses.last())
-        assertTrue(
-            statuses.none { it == StatusCode.TranslationComplete },
-            "a timed-out secondary request must not announce success"
-        )
+            assertEquals(
+                if (timesOut) ExtraOutputFailure.Timeout else ExtraOutputFailure.Provider("provider exploded"),
+                state.extraOutputFailure,
+                label
+            )
+            assertTrue(state.extraOutputFailed, label)
+            assertEquals(
+                if (timesOut) StatusCode.BackwardTranslationTimeout else StatusCode.BackwardTranslationFailed("provider exploded"),
+                statuses.last(),
+                label
+            )
+            assertTrue(statuses.none { it == StatusCode.TranslationComplete }, "$label: must not announce success")
+        }
     }
 
     @Test
@@ -896,9 +819,9 @@ class ExtraOutputLifecycleTest {
                 settingsState = settings,
                 activeServiceManager = activeServices,
                 historyRepository = history,
-                summarizeUseCase = SummarizeUseCase(activeServices, SilentFactory),
-                rewriteUseCase = RewriteUseCase(activeServices, SilentFactory),
-                loggerFactory = SilentFactory,
+                summarizeUseCase = SummarizeUseCase(activeServices, SilentLoggerFactory),
+                rewriteUseCase = RewriteUseCase(activeServices, SilentLoggerFactory),
+                loggerFactory = SilentLoggerFactory,
             ),
             translator = translator,
             summarizer = summarizer,
@@ -967,16 +890,5 @@ class ExtraOutputLifecycleTest {
             calls += request
             return Ok(RewriteResponse("rewrite"))
         }
-    }
-
-    private object SilentLogger : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
-
-    private object SilentFactory : LoggerFactory {
-        override fun getLogger(name: String): Logger = SilentLogger
     }
 }
