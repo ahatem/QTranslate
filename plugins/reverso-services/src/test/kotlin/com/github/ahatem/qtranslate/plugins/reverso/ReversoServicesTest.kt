@@ -7,7 +7,6 @@ import com.github.ahatem.qtranslate.api.dictionary.BilingualDictionaryRequest
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
-import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.plugins.common.ScriptedHttpClient
 import com.github.ahatem.qtranslate.plugins.common.unwrap
@@ -142,7 +141,6 @@ class ReversoServicesTest {
     private fun client(httpClient: HttpClient) = ReversoClient(
         context = TestPluginContext,
         httpClient = httpClient,
-        apiConfig = ApiConfig(),
         minimumRequestIntervalMillis = 0
     )
 

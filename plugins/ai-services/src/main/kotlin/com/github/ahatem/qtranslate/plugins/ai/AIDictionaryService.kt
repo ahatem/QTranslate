@@ -5,13 +5,13 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceMetadata
 import com.github.ahatem.qtranslate.api.dictionary.*
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
+import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import java.util.Locale
 
 class AIDictionaryService(
@@ -32,7 +32,6 @@ class AIDictionaryService(
     override val iconPath: String = "assets/ai-icon.svg"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.All
 
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     override suspend fun lookup(request: DictionaryRequest): Result<DictionaryResponse, ServiceError> =
         coroutineBinding {
@@ -80,7 +79,7 @@ class AIDictionaryService(
         try {
             val clean = AiJson.extractJson(raw)
 
-            val dto = json.decodeFromString<DictionaryResponseDto>(clean)
+            val dto = PluginJson.decodeFromString<DictionaryResponseDto>(clean)
 
             Ok(
                 DictionaryResponse(

@@ -5,7 +5,6 @@ import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
-import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.ScriptedHttpClient
 import com.github.ahatem.qtranslate.plugins.common.unwrap
 import com.github.michaelbull.result.Err
@@ -23,7 +22,7 @@ class MyMemoryTranslatorServiceTest {
         val client = ScriptedHttpClient(
             Ok("""{"responseData":{"translatedText":"Bonjour &amp; bienvenue"},"responseStatus":200}""")
         )
-        val service = MyMemoryTranslatorService(TestPluginContext, client, ApiConfig(), 0)
+        val service = MyMemoryTranslatorService(TestPluginContext, client, 0)
 
         val result = service.translate(TranslationRequest(
             text = "Hello & welcome",
@@ -42,7 +41,7 @@ class MyMemoryTranslatorServiceTest {
         val client = ScriptedHttpClient(
             Ok("""{"responseData":{"translatedText":""},"responseStatus":429,"quotaFinished":true}""")
         )
-        val service = MyMemoryTranslatorService(TestPluginContext, client, ApiConfig(), 0)
+        val service = MyMemoryTranslatorService(TestPluginContext, client, 0)
 
         val result = service.translate(TranslationRequest(
             text = "Hello",
@@ -60,7 +59,7 @@ class MyMemoryTranslatorServiceTest {
     @Test
     fun `rejects automatic source detection without making a request`() = runBlocking {
         val client = ScriptedHttpClient(Err(ServiceError.NetworkError("should not be called")))
-        val service = MyMemoryTranslatorService(TestPluginContext, client, ApiConfig(), 0)
+        val service = MyMemoryTranslatorService(TestPluginContext, client, 0)
 
         val result = service.translate(TranslationRequest(
             text = "Hello",

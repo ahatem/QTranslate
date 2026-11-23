@@ -12,6 +12,7 @@ import com.github.ahatem.qtranslate.api.translator.TranslationResponse
 import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
+import com.github.ahatem.qtranslate.plugins.common.RequestPacer
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
@@ -19,8 +20,6 @@ import com.github.michaelbull.result.fold
 import com.github.michaelbull.result.mapError
 import com.github.michaelbull.result.toResultOr
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 internal class DeepLTranslatorService(
     private val context: PluginContext,
@@ -39,8 +38,7 @@ internal class DeepLTranslatorService(
 
     private val responseParser =
         com.github.ahatem.qtranslate.plugins.common.createJsonParser<DeepLTranslateResponse>(context)
-    private val webRequestMutex = Mutex()
-    private var lastWebRequestAtNanos = 0L
+    private val webPacer = RequestPacer(minimumWebRequestIntervalMillis)
     private var rejectedApiKey: String? = null
 
     override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> {
@@ -92,7 +90,7 @@ internal class DeepLTranslatorService(
         )
         val responseText = httpClient.post(
             url = "${settings.baseUrl()}/v2/translate",
-            headers = ApiConfig().createJsonHeaders(settings.authHeaders()),
+            headers = ApiConfig.createJsonHeaders(settings.authHeaders()),
             body = json.encodeToString(requestBody)
         ).bind()
         val translation = responseParser.parse(responseText).bind().translations.firstOrNull()
@@ -119,9 +117,8 @@ internal class DeepLTranslatorService(
 
     private suspend fun translateWebSegment(
         request: TranslationRequest
-    ): Result<TranslationResponse, ServiceError> = webRequestMutex.withLock {
+    ): Result<TranslationResponse, ServiceError> = webPacer.paced {
             coroutineBinding {
-                paceWebRequest()
                 val body = json.encodeToString(DeepLTranslateRequest(
                     text = listOf(request.text),
                     targetLanguage = toWebCode(request.targetLanguage),
@@ -131,7 +128,7 @@ internal class DeepLTranslatorService(
                 ))
 
                 val responseBody = postWeb(body).bind()
-                lastWebRequestAtNanos = System.nanoTime()
+                webPacer.markSent()
 
                 if (responseBody.contains("Too many requests", ignoreCase = true) ||
                     responseBody.contains("\"code\":1042911")) {
@@ -161,7 +158,7 @@ internal class DeepLTranslatorService(
     }
 
     private suspend fun postWeb(body: String): Result<String, ServiceError> {
-        val headers = ApiConfig().createJsonHeaders(mapOf(
+        val headers = ApiConfig.createJsonHeaders(mapOf(
             "Authorization" to "None",
             "Accept" to "application/json"
         ))
@@ -197,13 +194,6 @@ internal class DeepLTranslatorService(
             start = end
         }
         return chunks
-    }
-
-    private suspend fun paceWebRequest() {
-        if (lastWebRequestAtNanos == 0L || minimumWebRequestIntervalMillis <= 0) return
-        val elapsedMillis = (System.nanoTime() - lastWebRequestAtNanos) / 1_000_000
-        val remainingMillis = minimumWebRequestIntervalMillis - elapsedMillis
-        if (remainingMillis > 0) delay(remainingMillis)
     }
 
     // DeepL's API only exposes one source language for Portuguese ("pt"), regardless

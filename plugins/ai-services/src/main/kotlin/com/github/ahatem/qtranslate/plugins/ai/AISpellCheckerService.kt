@@ -6,13 +6,13 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.plugin.SupportedLanguages
 import com.github.ahatem.qtranslate.api.spellchecker.*
+import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 
 class AISpellCheckerService(
     private val client: AIServiceClient,
@@ -32,7 +32,6 @@ class AISpellCheckerService(
     override val iconPath: String = "assets/ai-icon.svg"
     override val supportedLanguages: SupportedLanguages = SupportedLanguages.All
 
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     override suspend fun check(request: SpellCheckRequest): Result<SpellCheckResponse, ServiceError> =
         coroutineBinding {
@@ -85,7 +84,7 @@ class AISpellCheckerService(
     ): Result<SpellCheckResponse, ServiceError> {
         return try {
             val clean = AiJson.extractJson(raw)
-            val dto = json.decodeFromString<SpellCheckResponseDto>(clean)
+            val dto = PluginJson.decodeFromString<SpellCheckResponseDto>(clean)
 
             val corrections = dto.corrections.mapNotNull { item ->
                 runCatching {

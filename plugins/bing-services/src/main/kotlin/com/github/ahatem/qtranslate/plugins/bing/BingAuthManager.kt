@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.api.plugin.HttpClient
 import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
+import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -12,7 +13,6 @@ import com.github.michaelbull.result.getOr
 import com.github.michaelbull.result.getOrElse
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.Boolean
@@ -44,7 +44,6 @@ class BingAuthManager(
      */
     private val refreshMutex = Mutex()
 
-    private val json = Json { ignoreUnknownKeys = true }
 
     suspend fun getAuth(): Result<BingAuth, ServiceError> {
         authRef.get()?.takeIf { !it.isExpired() }?.let { return Ok(it.auth) }
@@ -72,7 +71,7 @@ class BingAuthManager(
 
                 val html = httpClient.get(
                     url = "https://www.bing.com/translator",
-                    headers = ApiConfig().createHeaders()
+                    headers = ApiConfig.createHeaders()
                 ).bind()
 
                 val auth = parseAuthFromHtml(html).bind()
@@ -96,7 +95,7 @@ class BingAuthManager(
         val tid = extractPattern(html, """tid":\s*"(.*?)"""", "TID").getOr("")
 
         return runCatching {
-            val jsonElement = json.parseToJsonElement(helperInfo)
+            val jsonElement = PluginJson.parseToJsonElement(helperInfo)
             val helperArray = jsonElement.jsonArray
             require(helperArray.size >= 2) { "Invalid helper info format" }
 

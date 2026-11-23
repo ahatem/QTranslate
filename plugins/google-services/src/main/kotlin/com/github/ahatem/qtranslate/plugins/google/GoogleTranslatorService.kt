@@ -43,7 +43,6 @@ class GoogleTranslatorService(
     private val settings: GoogleSettings,
     private val httpClient: HttpClient,
     private val languageMapper: GoogleLanguageMapper,
-    private val apiConfig: ApiConfig,
     private val endpointHealth: GoogleEndpointHealth,
     /**
      * How long the primary endpoint is given on its own before the fallback is asked as well.
@@ -160,7 +159,7 @@ class GoogleTranslatorService(
 
         val responseString = httpClient.sendJson(
             url = TRANSLATE_OFFICIAL,
-            headers = apiConfig.createJsonHeaders(),
+            headers = ApiConfig.createJsonHeaders(),
             body = requestBody,
             queryParams = mapOf("key" to settings.translateApiKey)
         ).bind()
@@ -526,7 +525,7 @@ class GoogleTranslatorService(
         return coroutineBinding {
             val responseString = httpClient.getOnce(
                 url = endpoint.url,
-                headers = apiConfig.createHeaders(),
+                headers = ApiConfig.createHeaders(),
                 queryParams = endpoint.queryParams
             ).bind()
             parseFlatResponse(responseString, sourceTag).bind()
@@ -594,7 +593,7 @@ class GoogleTranslatorService(
         return coroutineBinding {
             val responseString = httpClient.get(
                 url = endpoint.url,
-                headers = apiConfig.createHeaders(),
+                headers = ApiConfig.createHeaders(),
                 queryParams = endpoint.queryParams
             ).bind()
             parseSentenceResponse(responseString).bind()

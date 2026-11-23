@@ -4,7 +4,6 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckRequest
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
-import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 import com.github.ahatem.qtranslate.plugins.common.PluginJson
 import com.github.ahatem.qtranslate.plugins.common.unwrap
@@ -54,7 +53,6 @@ class GoogleTranslatorServiceTest {
         settings,
         client,
         GoogleLanguageMapper,
-        ApiConfig(),
         health,
         hedgeMillis,
         { clock.get() }
@@ -1058,7 +1056,6 @@ class GoogleTranslatorServiceTest {
             FakePluginContext(),
             client,
             GoogleLanguageMapper,
-            ApiConfig(),
             health
         )
         val spellResult = spellChecker.check(SpellCheckRequest("Helo world."))
@@ -1108,7 +1105,6 @@ class GoogleTranslatorServiceTest {
             FakePluginContext(),
             client,
             GoogleLanguageMapper,
-            ApiConfig(),
             health
         )
         val spellResult = spellChecker.check(SpellCheckRequest("Helo world."))
@@ -1187,7 +1183,6 @@ class GoogleTranslatorServiceTest {
             FakePluginContext(),
             client,
             GoogleLanguageMapper,
-            ApiConfig(),
             health
         )
         val spellResult = spellChecker.check(SpellCheckRequest("Helo world."))
@@ -1245,7 +1240,6 @@ class GoogleTranslatorServiceTest {
             GoogleSettings(),
             client,
             GoogleLanguageMapper,
-            ApiConfig(),
             GoogleEndpointHealth({ 0L }, { 0L })
         )
 

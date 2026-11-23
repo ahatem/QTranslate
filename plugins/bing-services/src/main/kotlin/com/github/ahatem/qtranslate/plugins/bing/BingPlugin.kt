@@ -6,7 +6,6 @@ import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.PluginSettings
 import com.github.ahatem.qtranslate.api.plugin.Service
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
-import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 
@@ -23,10 +22,9 @@ class BingPlugin : Plugin<PluginSettings.None> {
     private var activeServices: List<Service> = emptyList()
 
     private val languageMapper = BingLanguageMapper
-    private val apiConfig = ApiConfig()
 
     override suspend fun initialize(context: PluginContext): Result<Unit, ServiceError> {
-        this.pluginContext = context
+        this.pluginContext = context
         this.authManager = BingAuthManager(context, httpClient)
 
         pluginContext.logger.info("Bing Plugin initialized")
@@ -36,9 +34,9 @@ class BingPlugin : Plugin<PluginSettings.None> {
     override suspend fun onEnable(): Result<Unit, ServiceError> {
         pluginContext.logger.info("Enabling Bing services")
         activeServices = listOf(
-            BingTranslatorService(pluginContext, httpClient, authManager, languageMapper, apiConfig),
-            BingSpellCheckerService(pluginContext, httpClient, authManager, languageMapper, apiConfig),
-            BingTTSService(pluginContext, httpClient, authManager, languageMapper, apiConfig)
+            BingTranslatorService(pluginContext, httpClient, authManager, languageMapper),
+            BingSpellCheckerService(pluginContext, httpClient, authManager, languageMapper),
+            BingTTSService(pluginContext, httpClient, authManager, languageMapper)
         )
         return Ok(Unit)
     }
@@ -49,7 +47,7 @@ class BingPlugin : Plugin<PluginSettings.None> {
     }
 
     override suspend fun shutdown() {
-        pluginContext.logger.info("Bing Plugin shutting down")
+        pluginContext.logger.info("Bing Plugin shutting down")
     }
 
     override fun getServices(): List<Service> = activeServices

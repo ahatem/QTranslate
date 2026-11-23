@@ -4,27 +4,23 @@ import com.github.ahatem.qtranslate.api.plugin.PluginContext
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
+import com.github.ahatem.qtranslate.plugins.common.RequestPacer
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
 import com.github.michaelbull.result.mapError
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 internal class ReversoClient(
     private val context: PluginContext,
     private val httpClient: HttpClient,
-    private val apiConfig: ApiConfig,
     private val minimumRequestIntervalMillis: Long = 600
 ) {
     private val textParser = createJsonParser<ReversoTextResponse>(context)
     private val wordParser = createJsonParser<ReversoWordResponse>(context)
-    private val requestMutex = Mutex()
-    private var lastRequestAtNanos = 0L
+    private val pacer = RequestPacer(minimumRequestIntervalMillis)
 
     suspend fun translate(request: ReversoTextRequest): Result<ReversoTextResponse, ServiceError> =
         send(TRANSLATE_TEXT, Json.encodeToString(request), textParser::parse)
@@ -36,15 +32,14 @@ internal class ReversoClient(
         endpoint: String,
         body: String,
         parse: suspend (String) -> Result<T, ServiceError>
-    ): Result<T, ServiceError> = requestMutex.withLock {
+    ): Result<T, ServiceError> = pacer.paced {
         coroutineBinding {
-            paceRequest()
             val response = httpClient.post(
                 url = "$BASE_URL$endpoint",
-                headers = apiConfig.createJsonHeaders(),
+                headers = ApiConfig.createJsonHeaders(),
                 body = body
             ).mapError(::mapHttpError).bind()
-            lastRequestAtNanos = System.nanoTime()
+            pacer.markSent()
             parse(response).bind()
         }
     }
@@ -74,13 +69,6 @@ internal class ReversoClient(
             error.cause
         )
         else -> error
-    }
-
-    private suspend fun paceRequest() {
-        if (lastRequestAtNanos == 0L || minimumRequestIntervalMillis <= 0) return
-        val elapsedMillis = (System.nanoTime() - lastRequestAtNanos) / 1_000_000
-        val remainingMillis = minimumRequestIntervalMillis - elapsedMillis
-        if (remainingMillis > 0) delay(remainingMillis)
     }
 
     private companion object {

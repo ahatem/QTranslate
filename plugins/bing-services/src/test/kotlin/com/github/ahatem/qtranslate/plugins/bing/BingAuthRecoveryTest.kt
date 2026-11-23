@@ -3,7 +3,6 @@ package com.github.ahatem.qtranslate.plugins.bing
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
-import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 import com.github.ahatem.qtranslate.plugins.common.unwrap
 import com.github.michaelbull.result.Err
@@ -37,7 +36,6 @@ class BingAuthRecoveryTest {
         client,
         BingAuthManager(FakePluginContext(), client),
         BingLanguageMapper,
-        ApiConfig()
     )
 
     private fun translate(client: BingTestHttpClient) = runBlocking {

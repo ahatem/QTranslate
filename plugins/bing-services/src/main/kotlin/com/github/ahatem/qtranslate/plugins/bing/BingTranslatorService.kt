@@ -22,7 +22,6 @@ class BingTranslatorService(
     private val httpClient: HttpClient,
     private val authManager: BingAuthManager,
     private val languageMapper: BingLanguageMapper,
-    private val apiConfig: ApiConfig
 ) : Translator {
 
 
@@ -85,7 +84,7 @@ class BingTranslatorService(
         val toLang = languageMapper.toProviderCode(request.targetLanguage)
 
         val formData = buildFormData(request.text, fromLang, toLang, auth)
-        val headers = buildHeaders(apiConfig)
+        val headers = buildHeaders()
         val queryParams = buildQueryParams(auth)
 
         val responseString = httpClient.postForm(
@@ -120,7 +119,7 @@ class BingTranslatorService(
             "tryFetchingGenderDebiasedTranslations" to "true"
         )
 
-    private fun buildHeaders(apiConfig: ApiConfig): Map<String, String> = apiConfig.createHeaders()
+    private fun buildHeaders(): Map<String, String> = ApiConfig.createHeaders()
 
     private fun buildQueryParams(auth: BingAuth): Map<String, Any> = mapOf(
         "isVertical" to 1,

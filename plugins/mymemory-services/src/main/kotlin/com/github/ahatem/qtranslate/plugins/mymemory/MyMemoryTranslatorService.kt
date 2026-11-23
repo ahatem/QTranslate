@@ -10,20 +10,17 @@ import com.github.ahatem.qtranslate.api.translator.TranslationResponse
 import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.api.plugin.HttpClient
+import com.github.ahatem.qtranslate.plugins.common.RequestPacer
 import com.github.ahatem.qtranslate.plugins.common.createJsonParser
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import org.jsoup.parser.Parser
 
 internal class MyMemoryTranslatorService(
     private val context: PluginContext,
     private val httpClient: HttpClient,
-    private val apiConfig: ApiConfig,
     private val minimumRequestIntervalMillis: Long = 350
 ) : Translator {
     override val key = "mymemory-services-translate"
@@ -33,8 +30,7 @@ internal class MyMemoryTranslatorService(
     override val supportedLanguages = SupportedLanguages.Specific(SUPPORTED_LANGUAGES)
 
     private val parser = createJsonParser<MyMemoryResponse>(context)
-    private val requestMutex = Mutex()
-    private var lastRequestAtNanos = 0L
+    private val pacer = RequestPacer(minimumRequestIntervalMillis)
 
     override suspend fun translate(request: TranslationRequest): Result<TranslationResponse, ServiceError> {
         if (request.sourceLanguage == LanguageCode.AUTO) {
@@ -61,19 +57,18 @@ internal class MyMemoryTranslatorService(
         text: String,
         sourceLanguage: LanguageCode,
         targetLanguage: LanguageCode
-    ): Result<String, ServiceError> = requestMutex.withLock {
+    ): Result<String, ServiceError> = pacer.paced {
         coroutineBinding {
-            paceRequest()
             val responseBody = httpClient.get(
                 url = ENDPOINT,
-                headers = apiConfig.createJsonHeaders(),
+                headers = ApiConfig.createJsonHeaders(),
                 queryParams = mapOf(
                     "q" to text,
                     "langpair" to "${providerCode(sourceLanguage)}|${providerCode(targetLanguage)}",
                     "mt" to 1
                 )
             ).bind()
-            lastRequestAtNanos = System.nanoTime()
+            pacer.markSent()
 
             val parsed = parser.parse(responseBody).bind()
             mapResponse(parsed).bind()
@@ -96,13 +91,6 @@ internal class MyMemoryTranslatorService(
             ))
             else -> Err(ServiceError.InvalidResponseError("MyMemory could not translate this text: $details"))
         }
-    }
-
-    private suspend fun paceRequest() {
-        if (lastRequestAtNanos == 0L || minimumRequestIntervalMillis <= 0) return
-        val elapsedMillis = (System.nanoTime() - lastRequestAtNanos) / 1_000_000
-        val remainingMillis = minimumRequestIntervalMillis - elapsedMillis
-        if (remainingMillis > 0) delay(remainingMillis)
     }
 
     private fun providerCode(language: LanguageCode): String = when (language) {

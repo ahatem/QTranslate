@@ -4,7 +4,6 @@ import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.spellchecker.SpellCheckRequest
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
-import com.github.ahatem.qtranslate.plugins.common.ApiConfig
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
 import com.github.ahatem.qtranslate.plugins.common.unwrap
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
@@ -31,7 +30,6 @@ class GoogleSpellCheckerServiceTest {
         FakePluginContext(),
         client,
         GoogleLanguageMapper,
-        ApiConfig(),
         health
     )
 
@@ -50,7 +48,6 @@ class GoogleSpellCheckerServiceTest {
             GoogleSettings(),
             client,
             GoogleLanguageMapper,
-            ApiConfig(),
             health
         )
         val spellChecker = createService(client, health)

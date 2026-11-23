@@ -22,7 +22,6 @@ class GoogleDictionaryService(
     private val pluginContext: PluginContext,
     private val httpClient: HttpClient,
     private val languageMapper: GoogleLanguageMapper,
-    private val apiConfig: ApiConfig
 ) : Dictionary {
 
 
@@ -49,7 +48,7 @@ class GoogleDictionaryService(
 
             val responseString = httpClient.get(
                 url = TRANSLATE_PRIMARY,
-                headers = apiConfig.createHeaders(),
+                headers = ApiConfig.createHeaders(),
                 queryParams = mapOf(
                     "client" to "gtx",
                     "dj" to 1,

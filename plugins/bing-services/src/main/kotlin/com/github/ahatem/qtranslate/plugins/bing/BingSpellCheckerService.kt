@@ -21,7 +21,6 @@ class BingSpellCheckerService(
     private val httpClient: HttpClient,
     private val authManager: BingAuthManager,
     private val languageMapper: BingLanguageMapper,
-    private val apiConfig: ApiConfig
 ) : SpellChecker {
 
 
@@ -79,7 +78,7 @@ class BingSpellCheckerService(
 
         val responseString = httpClient.postForm(
             url = SPELLCHECK_URL,
-            headers = apiConfig.createHeaders(),
+            headers = ApiConfig.createHeaders(),
             formData = formData,
             queryParams = mapOf(
                 "isVertical" to 1,

@@ -34,7 +34,6 @@ class BingTTSService(
     private val httpClient: HttpClient,
     private val authManager: BingAuthManager,
     private val languageMapper: BingLanguageMapper,
-    private val apiConfig: ApiConfig
 ) : TextToSpeech, VoiceSupport {
 
 
@@ -250,7 +249,7 @@ class BingTTSService(
 
         httpClient.postFormBytes(
             url = TTS_URL,
-            headers = apiConfig.createHeaders(),
+            headers = ApiConfig.createHeaders(),
             formData = formData,
             queryParams = mapOf(
                 "isVertical" to 1,
