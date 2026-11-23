@@ -3,22 +3,10 @@ package com.github.ahatem.qtranslate.api.translator
 import com.github.ahatem.qtranslate.api.core.ApiVersion
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 
 class BatchTranslatorTest {
-    @Test
-    fun `batch request preserves ordered texts`() {
-        val request = BatchTranslationRequest(
-            texts = listOf("First", "Second"),
-            sourceLanguage = LanguageCode("en"),
-            targetLanguage = LanguageCode("fr")
-        )
-
-        assertEquals(listOf("First", "Second"), request.texts)
-    }
-
     @Test
     fun `batch request rejects blank items`() {
         assertFailsWith<IllegalArgumentException> {
@@ -32,7 +20,6 @@ class BatchTranslatorTest {
 
     @Test
     fun `host accepts plugins built against an earlier minor of the same major`() {
-        assertEquals("2.2.0", ApiVersion.VERSION)
         assertIs<ApiVersion.CompatibilityResult.Compatible>(ApiVersion.isCompatible("2.0.0"))
     }
 

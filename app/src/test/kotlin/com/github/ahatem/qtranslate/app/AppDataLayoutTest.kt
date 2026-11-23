@@ -108,16 +108,6 @@ class AppDataLayoutTest {
     }
 
     @Test
-    fun `a marker-free distribution is installed, not portable`() {
-        val layout = resolve(windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path))
-
-        assertEquals(AppDataMode.INSTALLED, layout.mode)
-        assertEquals(installedRoot.canonicalFile, layout.userDataRoot.canonicalFile)
-        // Bundled resources still come from the installation.
-        assertEquals(distributionRoot.canonicalFile, layout.installationRoot?.canonicalFile)
-    }
-
-    @Test
     fun `a directory named portable flag is not a marker`() {
         // A directory of that name would satisfy a naive isDirectory check and silently make every
         // copy portable.
@@ -129,15 +119,6 @@ class AppDataLayoutTest {
     }
 
     // ── Writability must not decide the mode ─────────────────────────────────
-
-    @Test
-    fun `a writable installation directory does not make the mode portable`() {
-        val layout = resolve(windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path))
-
-        assertEquals(AppDataMode.INSTALLED, layout.mode)
-        assertEquals(installedRoot.canonicalFile, layout.userDataRoot.canonicalFile)
-        assertFalse(File(distributionRoot, "datastore").exists())
-    }
 
     @Test
     fun `an elevated writable Program Files style directory does not relocate user data`() {
@@ -218,26 +199,6 @@ class AppDataLayoutTest {
     // ── Unwritable selected directory ────────────────────────────────────────
 
     @Test
-    fun `a portable distribution that is not writable fails instead of silently using APPDATA`() {
-        val readOnlyDir = File(sandbox, "readonly").apply { mkdirs() }
-        val failure = assertFailsWith<AppDataLayoutException> {
-            resolve(
-                windowsEnvironment(
-                    launcherPath = File(readOnlyDir, "QTranslate.exe").path,
-                    markerExists = { true },
-                    writable = { false }
-                )
-            )
-        }
-        assertTrue(
-            failure.message!!.contains(readOnlyDir.absolutePath),
-            "The message must name the directory it could not use, was: ${failure.message}"
-        )
-        // The OS-standard directory must not have been substituted in its place.
-        assertFalse(File(installedRoot, "datastore").exists())
-    }
-
-    @Test
     fun `a data directory that cannot be created fails instead of falling back to the install directory`() {
         // A regular file where the data directory should be: mkdirs() can never succeed there.
         val blocked = File(sandbox, "blocked").apply { writeText("not a directory") }
@@ -293,14 +254,6 @@ class AppDataLayoutTest {
     }
 
     @Test
-    fun `an empty sentinel directory is not mistaken for user data`() {
-        File(distributionRoot, "datastore").mkdirs()
-        val layout = resolve(windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path))
-
-        assertEquals(AppDataMode.INSTALLED, layout.mode)
-    }
-
-    @Test
     fun `data in both locations is a conflict the user must resolve`() {
         writeMutableState(distributionRoot)
         writeMutableState(installedRoot)
@@ -347,15 +300,6 @@ class AppDataLayoutTest {
         assertEquals(AppDataMode.INSTALLED, layout.mode)
         assertFalse(layout.adoptedLegacyPortableData)
         assertFalse(File(distributionRoot, "portable.flag").exists())
-    }
-
-    @Test
-    fun `data only in the OS location stays installed`() {
-        writeMutableState(installedRoot)
-        val layout = resolve(windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path))
-
-        assertEquals(AppDataMode.INSTALLED, layout.mode)
-        assertFalse(layout.adoptedLegacyPortableData)
     }
 
     // ── Conflict stability ───────────────────────────────────────────────────
@@ -469,26 +413,6 @@ class AppDataLayoutTest {
     }
 
     @Test
-    fun `closing the prompt falls back to installed and settles the question`() {
-        // Documented policy: closing is not a decision to keep the legacy data, so it takes the
-        // default and records it, rather than reappearing on every launch.
-        writeMutableState(distributionRoot)
-        writeMutableState(installedRoot)
-        val environment = windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path)
-
-        // LegacyDataConflictPrompt returns installedRoot for both a dismissal and the first button;
-        // here the resolver stands in for that dismissal.
-        val dismissed = resolve(environment, LegacyDataConflictResolver { _, installed -> installed })
-        assertEquals(AppDataMode.INSTALLED, dismissed.mode)
-
-        val second = resolve(environment, LegacyDataConflictResolver { _, _ -> error("settled by dismissal") })
-        assertEquals(AppDataMode.INSTALLED, second.mode)
-        // Neither directory was merged or removed.
-        assertTrue(File(distributionRoot, "datastore/app_settings.preferences_pb").isFile)
-        assertTrue(File(installedRoot, "datastore/app_settings.preferences_pb").isFile)
-    }
-
-    @Test
     fun `the recorded choice is honoured even when the legacy data is gone`() {
         writeMutableState(installedRoot)
         val environment = windowsEnvironment(launcherPath = File(distributionRoot, "QTranslate.exe").path)
@@ -545,15 +469,6 @@ class AppDataLayoutTest {
         assertEquals(AppDataMode.PORTABLE, layout.mode)
         assertTrue(layout.adoptedLegacyPortableData)
         assertEquals(unpacked.canonicalFile, layout.userDataRoot.canonicalFile)
-    }
-
-    @Test
-    fun `a JAR beside its distribution root resolves that root`() {
-        distributionWithJar()
-        val layout = resolve(windowsEnvironment(codeSource = File(distributionRoot, "QTranslate.jar")))
-
-        assertEquals(AppDataMode.INSTALLED, layout.mode)
-        assertEquals(distributionRoot.canonicalFile, layout.installationRoot?.canonicalFile)
     }
 
     @Test

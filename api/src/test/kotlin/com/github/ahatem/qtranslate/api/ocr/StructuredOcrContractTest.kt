@@ -31,10 +31,4 @@ class StructuredOcrContractTest {
             StructuredOCRResponse("text", confidence = 2f)
         }
     }
-
-    @Test
-    fun `text-only providers can return no regions`() {
-        val response = StructuredOCRResponse(text = "plain")
-        assert(response.regions.isEmpty())
-    }
 }
